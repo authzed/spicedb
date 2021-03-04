@@ -13,6 +13,7 @@ import (
 
 	api "github.com/authzed/spicedb/internal/REDACTEDapi/api"
 	health "github.com/authzed/spicedb/internal/REDACTEDapi/healthcheck"
+	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/services"
 )
 
@@ -39,8 +40,14 @@ func main() {
 		opts = []grpc.ServerOption{grpc.Creds(creds)}
 	}
 	grpcServer := grpc.NewServer(opts...)
+
+	nsDatastore, err := memdb.NewMemdbNamespaceDatastore()
+	if err != nil {
+		log.Fatalf("Failed to instantiate datastore: %v", err)
+	}
+
 	api.RegisterACLServiceServer(grpcServer, services.NewACLServer())
-	api.RegisterNamespaceServiceServer(grpcServer, services.NewNamespaceServer())
+	api.RegisterNamespaceServiceServer(grpcServer, services.NewNamespaceServer(nsDatastore))
 	api.RegisterWatchServiceServer(grpcServer, services.NewWatchServer())
 	health.RegisterHealthServer(grpcServer, services.NewHealthServer())
 	reflection.Register(grpcServer)

@@ -1,13 +1,54 @@
 package services
 
-import api "github.com/authzed/spicedb/internal/REDACTEDapi/api"
+import (
+	"context"
+	"fmt"
+
+	api "github.com/authzed/spicedb/internal/REDACTEDapi/api"
+	"github.com/authzed/spicedb/internal/datastore"
+)
+
+const (
+	errUnableToWrite = "Unable to write config: %v"
+	errUnableToRead  = "Unable to read config: %v"
+)
 
 type nsServer struct {
 	api.UnimplementedNamespaceServiceServer
+
+	ds datastore.NamespaceDatastore
 }
 
 // NewNamespaceServer creates an instance of the namespace server.
-func NewNamespaceServer() api.NamespaceServiceServer {
-	s := &nsServer{}
+func NewNamespaceServer(ds datastore.NamespaceDatastore) api.NamespaceServiceServer {
+	s := &nsServer{ds: ds}
 	return s
+}
+
+func (nss *nsServer) WriteConfig(ctxt context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {
+	_, err := nss.ds.WriteNamespace(req.Config)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToWrite, err)
+	}
+
+	return &api.WriteConfigResponse{
+		Revision: &api.Zookie{
+			Token: "not implemented",
+		},
+	}, nil
+}
+
+func (nss *nsServer) ReadConfig(ctxt context.Context, req *api.ReadConfigRequest) (*api.ReadConfigResponse, error) {
+	found, _, err := nss.ds.ReadNamespace(req.Namespace)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToRead, err)
+	}
+
+	return &api.ReadConfigResponse{
+		Namespace: req.Namespace,
+		Config:    found,
+		Revision: &api.Zookie{
+			Token: "not implemented",
+		},
+	}, nil
 }
