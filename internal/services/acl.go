@@ -9,6 +9,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type aclServer struct {
@@ -24,15 +25,13 @@ func NewACLServer(ds datastore.TupleDatastore) api.ACLServiceServer {
 }
 
 func (as *aclServer) Write(ctxt context.Context, req *api.WriteRequest) (*api.WriteResponse, error) {
-	_, err := as.ds.WriteTuples(req.WriteConditions, req.Updates)
+	revision, err := as.ds.WriteTuples(req.WriteConditions, req.Updates)
 	switch err {
 	case datastore.ErrPreconditionFailed:
 		return nil, status.Errorf(codes.FailedPrecondition, "A write precondition failed.")
 	case nil:
 		return &api.WriteResponse{
-			Revision: &api.Zookie{
-				Token: "not implemented",
-			},
+			Revision: zookie.NewFromRevision(revision),
 		}, nil
 	default:
 		log.Printf("Unknown error writing tuples: %s", err)

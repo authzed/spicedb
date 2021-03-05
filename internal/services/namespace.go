@@ -6,6 +6,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 const (
@@ -26,20 +27,18 @@ func NewNamespaceServer(ds datastore.NamespaceDatastore) api.NamespaceServiceSer
 }
 
 func (nss *nsServer) WriteConfig(ctxt context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {
-	_, err := nss.ds.WriteNamespace(req.Config)
+	revision, err := nss.ds.WriteNamespace(req.Config)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToWrite, err)
 	}
 
 	return &api.WriteConfigResponse{
-		Revision: &api.Zookie{
-			Token: "not implemented",
-		},
+		Revision: zookie.NewFromRevision(revision),
 	}, nil
 }
 
 func (nss *nsServer) ReadConfig(ctxt context.Context, req *api.ReadConfigRequest) (*api.ReadConfigResponse, error) {
-	found, _, err := nss.ds.ReadNamespace(req.Namespace)
+	found, version, err := nss.ds.ReadNamespace(req.Namespace)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToRead, err)
 	}
@@ -47,8 +46,6 @@ func (nss *nsServer) ReadConfig(ctxt context.Context, req *api.ReadConfigRequest
 	return &api.ReadConfigResponse{
 		Namespace: req.Namespace,
 		Config:    found,
-		Revision: &api.Zookie{
-			Token: "not implemented",
-		},
+		Revision:  zookie.NewFromRevision(version),
 	}, nil
 }
