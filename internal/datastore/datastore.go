@@ -3,7 +3,7 @@ package datastore
 import (
 	"errors"
 
-	pb "github.com/authzed/spicedb/internal/REDACTEDapi/api"
+	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
 // Publicly facing errors

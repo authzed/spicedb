@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	api "github.com/authzed/spicedb/internal/REDACTEDapi/api"
 	"github.com/authzed/spicedb/internal/datastore"
+	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
 const (

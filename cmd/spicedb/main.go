@@ -17,11 +17,11 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 
-	api "github.com/authzed/spicedb/internal/REDACTEDapi/api"
-	health "github.com/authzed/spicedb/internal/REDACTEDapi/healthcheck"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/services"
+	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	health "github.com/authzed/spicedb/pkg/REDACTEDapi/healthcheck"
 )
 
 func main() {

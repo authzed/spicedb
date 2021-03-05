@@ -4,10 +4,11 @@ import (
 	"context"
 	"log"
 
-	api "github.com/authzed/spicedb/internal/REDACTEDapi/api"
-	"github.com/authzed/spicedb/internal/datastore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
 type aclServer struct {

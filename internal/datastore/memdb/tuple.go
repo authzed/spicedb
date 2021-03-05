@@ -6,8 +6,8 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 
-	pb "github.com/authzed/spicedb/internal/REDACTEDapi/api"
 	"github.com/authzed/spicedb/internal/datastore"
+	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
 const (
