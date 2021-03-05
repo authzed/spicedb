@@ -1,8 +1,23 @@
 package datastore
 
 import (
+	"errors"
+
 	pb "github.com/authzed/spicedb/internal/REDACTEDapi/api"
 )
+
+// Publicly facing errors
+var (
+	ErrNamespaceNotFound  = errors.New("unable to find namespace")
+	ErrPreconditionFailed = errors.New("unable to satisfy write precondition")
+)
+
+// TupleDatastore represents tuple access for a single namespace.
+type TupleDatastore interface {
+	// WriteTuples takes a list of existing tuples that must exist, and a list of tuple
+	// mutations and applies it to the datastore for the specified namespace.
+	WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error)
+}
 
 // NamespaceDatastore defines an interface for communicating with the persistent data
 // of the server.

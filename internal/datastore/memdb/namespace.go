@@ -1,7 +1,6 @@
 package memdb
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/hashicorp/go-memdb"
@@ -14,11 +13,6 @@ const (
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	errUnableToWriteConfig = "unable to write namespace config: %w"
 	errUnableToReadConfig  = "unable to read namespace config: %w"
-)
-
-// Publicly facing errors
-var (
-	ErrNotFound = errors.New("unable to find namespace")
 )
 
 type memdbNsDatastore struct {
@@ -55,13 +49,9 @@ var schema = &memdb.DBSchema{
 			Name: "config",
 			Indexes: map[string]*memdb.IndexSchema{
 				"id": {
-					Name:   "id",
-					Unique: true,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "name"},
-						},
-					},
+					Name:    "id",
+					Unique:  true,
+					Indexer: &memdb.StringFieldIndex{Field: "name"},
 				},
 			},
 		},
@@ -133,7 +123,7 @@ func (mnds *memdbNsDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinit
 	}
 
 	if foundRaw == nil {
-		return nil, 0, ErrNotFound
+		return nil, 0, datastore.ErrNamespaceNotFound
 	}
 
 	found := foundRaw.(*namespace)

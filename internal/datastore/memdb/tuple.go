@@ -1,0 +1,212 @@
+package memdb
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/go-memdb"
+
+	pb "github.com/authzed/spicedb/internal/REDACTEDapi/api"
+	"github.com/authzed/spicedb/internal/datastore"
+)
+
+const (
+	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
+	errUnableToWriteTuples           = "unable to write tuples: %w"
+)
+
+const deletedTransactionID = ^uint64(0)
+
+type memdbTupleDatastore struct {
+	db                       *memdb.MemDB
+	lastAllocatedChangelogID uint64
+}
+
+type tupleChangelog struct {
+	id        uint64
+	timestamp time.Time
+	changes   []*pb.RelationTupleUpdate
+}
+
+type tupleEntry struct {
+	namespace        string
+	objectID         string
+	relation         string
+	usersetNamespace string
+	usersetObjectID  string
+	usersetRelation  string
+	createdTxn       uint64
+	deletedTxn       uint64
+}
+
+var tuplestoreSchema = &memdb.DBSchema{
+	Tables: map[string]*memdb.TableSchema{
+		"changelog": {
+			Name: "changelog",
+			Indexes: map[string]*memdb.IndexSchema{
+				"id": {
+					Name:    "id",
+					Unique:  true,
+					Indexer: &memdb.UintFieldIndex{Field: "id"},
+				},
+			},
+		},
+		"tuple": {
+			Name: "tuple",
+			Indexes: map[string]*memdb.IndexSchema{
+				"id": {
+					Name:   "id",
+					Unique: true,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "namespace"},
+							&memdb.StringFieldIndex{Field: "objectID"},
+							&memdb.StringFieldIndex{Field: "relation"},
+							&memdb.StringFieldIndex{Field: "usersetNamespace"},
+							&memdb.StringFieldIndex{Field: "usersetObjectID"},
+							&memdb.StringFieldIndex{Field: "usersetRelation"},
+							&memdb.UintFieldIndex{Field: "createdTxn"},
+						},
+					},
+				},
+				"live": {
+					Name:   "live",
+					Unique: true,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "namespace"},
+							&memdb.StringFieldIndex{Field: "objectID"},
+							&memdb.StringFieldIndex{Field: "relation"},
+							&memdb.StringFieldIndex{Field: "usersetNamespace"},
+							&memdb.StringFieldIndex{Field: "usersetObjectID"},
+							&memdb.StringFieldIndex{Field: "usersetRelation"},
+							&memdb.UintFieldIndex{Field: "deletedTxn"},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+// NewMemdbTupleDatastore creates a new TupleDatastore compliant datastore backed by memdb.
+func NewMemdbTupleDatastore() (datastore.TupleDatastore, error) {
+	db, err := memdb.NewMemDB(tuplestoreSchema)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
+	}
+
+	return &memdbTupleDatastore{db: db, lastAllocatedChangelogID: 0}, nil
+}
+
+func (mtds *memdbTupleDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
+	txn := mtds.db.Txn(true)
+
+	// Check the preconditions
+	for _, expectedTuple := range preconditions {
+		found, err := findTuple(txn, expectedTuple)
+		if err != nil {
+			return 0, fmt.Errorf(errUnableToWriteTuples, err)
+		}
+
+		if found == nil {
+			return 0, datastore.ErrPreconditionFailed
+		}
+	}
+
+	// Create the changelog entry
+	newChangelogID := mtds.lastAllocatedChangelogID + 1
+	newChangelogEntry := &tupleChangelog{
+		id:        newChangelogID,
+		timestamp: time.Now(),
+		changes:   mutations,
+	}
+
+	if err := txn.Insert("changelog", newChangelogEntry); err != nil {
+		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+	}
+
+	// Apply the mutations
+	for _, mutation := range mutations {
+		newVersion := &tupleEntry{
+			namespace:        mutation.Tuple.ObjectAndRelation.Namespace,
+			objectID:         mutation.Tuple.ObjectAndRelation.ObjectId,
+			relation:         mutation.Tuple.ObjectAndRelation.Relation,
+			usersetNamespace: mutation.Tuple.User.GetUserset().Namespace,
+			usersetObjectID:  mutation.Tuple.User.GetUserset().ObjectId,
+			usersetRelation:  mutation.Tuple.User.GetUserset().Relation,
+			createdTxn:       newChangelogID,
+			deletedTxn:       deletedTransactionID,
+		}
+
+		existing, err := findTuple(txn, mutation.Tuple)
+		if err != nil {
+			return 0, fmt.Errorf(errUnableToWriteTuples, err)
+		}
+
+		var deletedExisting tupleEntry
+		if existing != nil {
+			deletedExisting = *existing
+			deletedExisting.deletedTxn = deletedTransactionID
+		}
+
+		switch mutation.Operation {
+		case pb.RelationTupleUpdate_CREATE:
+			if err := txn.Insert("tuple", newVersion); err != nil {
+				return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			}
+		case pb.RelationTupleUpdate_DELETE:
+			if existing == nil {
+				return 0, datastore.ErrPreconditionFailed
+			}
+			if err := txn.Insert("tuple", &deletedExisting); err != nil {
+				return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			}
+		case pb.RelationTupleUpdate_TOUCH:
+			if existing != nil {
+				if err := txn.Insert("tuple", &deletedExisting); err != nil {
+					return 0, fmt.Errorf(errUnableToWriteTuples, err)
+				}
+			}
+			if err := txn.Insert("tuple", newVersion); err != nil {
+				return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			}
+		default:
+			return 0, fmt.Errorf(
+				errUnableToWriteTuples,
+				fmt.Errorf("unknown tuple mutation operation type: %s", mutation.Operation),
+			)
+		}
+	}
+
+	mtds.lastAllocatedChangelogID++
+	txn.Commit()
+
+	return newChangelogID, nil
+}
+
+func findTuple(txn *memdb.Txn, toFind *pb.RelationTuple) (*tupleEntry, error) {
+	foundRaw, err := txn.First(
+		"tuple",
+		"live",
+		toFind.ObjectAndRelation.Namespace,
+		toFind.ObjectAndRelation.ObjectId,
+		toFind.ObjectAndRelation.Relation,
+		toFind.User.GetUserset().Namespace,
+		toFind.User.GetUserset().ObjectId,
+		toFind.User.GetUserset().Relation,
+		deletedTransactionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if foundRaw == nil {
+		return nil, nil
+	}
+
+	return foundRaw.(*tupleEntry), nil
+}
+
+// Ensure that we implement the interface
+var _ datastore.TupleDatastore = &memdbTupleDatastore{}
