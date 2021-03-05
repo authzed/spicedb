@@ -13,6 +13,19 @@ import (
 const (
 	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
 	errUnableToWriteTuples           = "unable to write tuples: %w"
+	errUnableToQueryTuples           = "unable to query tuples: %w"
+)
+
+const (
+	tableTuple     = "tuple"
+	tableChangelog = "changelog"
+
+	indexID                   = "id"
+	indexLive                 = "live"
+	indexNamespace            = "namespace"
+	indexNamespaceAndObjectID = "namespaceAndObjectID"
+	indexNamespaceAndRelation = "namespaceAndRelation"
+	indexNamespaceAndUserset  = "namespaceAndUserset"
 )
 
 const deletedTransactionID = ^uint64(0)
@@ -41,21 +54,21 @@ type tupleEntry struct {
 
 var tuplestoreSchema = &memdb.DBSchema{
 	Tables: map[string]*memdb.TableSchema{
-		"changelog": {
-			Name: "changelog",
+		tableChangelog: {
+			Name: tableChangelog,
 			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
+				indexID: {
+					Name:    indexID,
 					Unique:  true,
 					Indexer: &memdb.UintFieldIndex{Field: "id"},
 				},
 			},
 		},
-		"tuple": {
-			Name: "tuple",
+		tableTuple: {
+			Name: tableTuple,
 			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:   "id",
+				indexID: {
+					Name:   indexID,
 					Unique: true,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
@@ -69,8 +82,8 @@ var tuplestoreSchema = &memdb.DBSchema{
 						},
 					},
 				},
-				"live": {
-					Name:   "live",
+				indexLive: {
+					Name:   indexLive,
 					Unique: true,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
@@ -81,6 +94,43 @@ var tuplestoreSchema = &memdb.DBSchema{
 							&memdb.StringFieldIndex{Field: "usersetObjectID"},
 							&memdb.StringFieldIndex{Field: "usersetRelation"},
 							&memdb.UintFieldIndex{Field: "deletedTxn"},
+						},
+					},
+				},
+				indexNamespace: {
+					Name:    indexNamespace,
+					Unique:  false,
+					Indexer: &memdb.StringFieldIndex{Field: "namespace"},
+				},
+				indexNamespaceAndObjectID: {
+					Name:   indexNamespaceAndObjectID,
+					Unique: false,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "namespace"},
+							&memdb.StringFieldIndex{Field: "objectID"},
+						},
+					},
+				},
+				indexNamespaceAndRelation: {
+					Name:   indexNamespaceAndRelation,
+					Unique: false,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "namespace"},
+							&memdb.StringFieldIndex{Field: "relation"},
+						},
+					},
+				},
+				indexNamespaceAndUserset: {
+					Name:   indexNamespaceAndUserset,
+					Unique: false,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "namespace"},
+							&memdb.StringFieldIndex{Field: "usersetNamespace"},
+							&memdb.StringFieldIndex{Field: "usersetObjectID"},
+							&memdb.StringFieldIndex{Field: "usersetRelation"},
 						},
 					},
 				},
@@ -122,7 +172,7 @@ func (mtds *memdbTupleDatastore) WriteTuples(preconditions []*pb.RelationTuple, 
 		changes:   mutations,
 	}
 
-	if err := txn.Insert("changelog", newChangelogEntry); err != nil {
+	if err := txn.Insert(tableChangelog, newChangelogEntry); err != nil {
 		return 0, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
@@ -147,28 +197,28 @@ func (mtds *memdbTupleDatastore) WriteTuples(preconditions []*pb.RelationTuple, 
 		var deletedExisting tupleEntry
 		if existing != nil {
 			deletedExisting = *existing
-			deletedExisting.deletedTxn = deletedTransactionID
+			deletedExisting.deletedTxn = newChangelogID
 		}
 
 		switch mutation.Operation {
 		case pb.RelationTupleUpdate_CREATE:
-			if err := txn.Insert("tuple", newVersion); err != nil {
+			if err := txn.Insert(tableTuple, newVersion); err != nil {
 				return 0, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		case pb.RelationTupleUpdate_DELETE:
 			if existing == nil {
 				return 0, datastore.ErrPreconditionFailed
 			}
-			if err := txn.Insert("tuple", &deletedExisting); err != nil {
+			if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
 				return 0, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		case pb.RelationTupleUpdate_TOUCH:
 			if existing != nil {
-				if err := txn.Insert("tuple", &deletedExisting); err != nil {
+				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
 					return 0, fmt.Errorf(errUnableToWriteTuples, err)
 				}
 			}
-			if err := txn.Insert("tuple", newVersion); err != nil {
+			if err := txn.Insert(tableTuple, newVersion); err != nil {
 				return 0, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		default:
@@ -185,10 +235,18 @@ func (mtds *memdbTupleDatastore) WriteTuples(preconditions []*pb.RelationTuple, 
 	return newChangelogID, nil
 }
 
+func (mtds *memdbTupleDatastore) QueryTuples(namespace string, revision uint64) datastore.TupleQuery {
+	return &memdbTupleQuery{
+		db:        mtds.db,
+		namespace: namespace,
+		revision:  revision,
+	}
+}
+
 func findTuple(txn *memdb.Txn, toFind *pb.RelationTuple) (*tupleEntry, error) {
 	foundRaw, err := txn.First(
-		"tuple",
-		"live",
+		tableTuple,
+		indexLive,
 		toFind.ObjectAndRelation.Namespace,
 		toFind.ObjectAndRelation.ObjectId,
 		toFind.ObjectAndRelation.Relation,
