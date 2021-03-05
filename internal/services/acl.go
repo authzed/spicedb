@@ -38,3 +38,49 @@ func (as *aclServer) Write(ctxt context.Context, req *api.WriteRequest) (*api.Wr
 		return nil, status.Errorf(codes.Unknown, "Unknown error.")
 	}
 }
+
+func (as *aclServer) Read(ctxt context.Context, req *api.ReadRequest) (*api.ReadResponse, error) {
+	// TODO load the revision from the request or datastore.
+	atRevision := ^uint64(0) - 1
+
+	var allTuplesetResults []*api.ReadResponse_Tupleset
+
+	for _, tuplesetFilter := range req.Tuplesets {
+		queryBuilder := as.ds.QueryTuples(tuplesetFilter.Namespace, atRevision)
+		for _, filter := range tuplesetFilter.Filters {
+			switch filter {
+			case api.RelationTupleFilter_OBJECT_ID:
+				queryBuilder = queryBuilder.WithObjectID(tuplesetFilter.ObjectId)
+			case api.RelationTupleFilter_RELATION:
+				queryBuilder = queryBuilder.WithRelation(tuplesetFilter.Relation)
+			case api.RelationTupleFilter_USERSET:
+				queryBuilder = queryBuilder.WithUserset(tuplesetFilter.Userset)
+			default:
+				return nil, status.Errorf(codes.InvalidArgument, "unknown tupleset filter type: %s", filter)
+			}
+		}
+
+		tupleIterator, err := queryBuilder.Execute()
+		if err != nil {
+			// TODO switch on known error types here
+			return nil, status.Errorf(codes.Internal, "unable to retrieve tuples: %s", err)
+		}
+
+		defer tupleIterator.Close()
+
+		tuplesetResult := &api.ReadResponse_Tupleset{}
+		for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
+			tuplesetResult.Tuples = append(tuplesetResult.Tuples, tuple)
+		}
+		if tupleIterator.Err() != nil {
+			return nil, status.Errorf(codes.Internal, "error when reading tuples: %s", err)
+		}
+
+		allTuplesetResults = append(allTuplesetResults, tuplesetResult)
+	}
+
+	return &api.ReadResponse{
+		Tuplesets: allTuplesetResults,
+		Revision:  zookie.NewFromRevision(atRevision),
+	}, nil
+}
