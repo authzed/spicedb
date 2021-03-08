@@ -1,6 +1,6 @@
 package services
 
-import api "github.com/authzed/spicedb/internal/REDACTEDapi/api"
+import api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 
 type devServer struct {
 	api.UnimplementedDeveloperServiceServer

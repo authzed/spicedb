@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.25.0
 // 	protoc        v3.14.0
-// source: REDACTEDapi/internal/internal.proto
+// source: REDACTEDapi/impl/impl.proto
 
 package zookie
 
@@ -39,7 +39,7 @@ type DecodedZookie struct {
 func (x *DecodedZookie) Reset() {
 	*x = DecodedZookie{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_REDACTEDapi_internal_internal_proto_msgTypes[0]
+		mi := &file_REDACTEDapi_impl_impl_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -52,7 +52,7 @@ func (x *DecodedZookie) String() string {
 func (*DecodedZookie) ProtoMessage() {}
 
 func (x *DecodedZookie) ProtoReflect() protoreflect.Message {
-	mi := &file_REDACTEDapi_internal_internal_proto_msgTypes[0]
+	mi := &file_REDACTEDapi_impl_impl_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65,7 +65,7 @@ func (x *DecodedZookie) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DecodedZookie.ProtoReflect.Descriptor instead.
 func (*DecodedZookie) Descriptor() ([]byte, []int) {
-	return file_REDACTEDapi_internal_internal_proto_rawDescGZIP(), []int{0}
+	return file_REDACTEDapi_impl_impl_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *DecodedZookie) GetVersion() uint32 {
@@ -110,7 +110,7 @@ type DecodedZookie_V1Zookie struct {
 func (x *DecodedZookie_V1Zookie) Reset() {
 	*x = DecodedZookie_V1Zookie{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_REDACTEDapi_internal_internal_proto_msgTypes[1]
+		mi := &file_REDACTEDapi_impl_impl_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -123,7 +123,7 @@ func (x *DecodedZookie_V1Zookie) String() string {
 func (*DecodedZookie_V1Zookie) ProtoMessage() {}
 
 func (x *DecodedZookie_V1Zookie) ProtoReflect() protoreflect.Message {
-	mi := &file_REDACTEDapi_internal_internal_proto_msgTypes[1]
+	mi := &file_REDACTEDapi_impl_impl_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -136,7 +136,7 @@ func (x *DecodedZookie_V1Zookie) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DecodedZookie_V1Zookie.ProtoReflect.Descriptor instead.
 func (*DecodedZookie_V1Zookie) Descriptor() ([]byte, []int) {
-	return file_REDACTEDapi_internal_internal_proto_rawDescGZIP(), []int{0, 0}
+	return file_REDACTEDapi_impl_impl_proto_rawDescGZIP(), []int{0, 0}
 }
 
 func (x *DecodedZookie_V1Zookie) GetRevision() uint64 {
@@ -146,43 +146,43 @@ func (x *DecodedZookie_V1Zookie) GetRevision() uint64 {
 	return 0
 }
 
-var File_REDACTEDapi_internal_internal_proto protoreflect.FileDescriptor
+var File_REDACTEDapi_impl_impl_proto protoreflect.FileDescriptor
 
-var file_REDACTEDapi_internal_internal_proto_rawDesc = []byte{
-	0x0a, 0x22, 0x61, 0x72, 0x72, 0x61, 0x6b, 0x69, 0x73, 0x61, 0x70, 0x69, 0x2f, 0x69, 0x6e, 0x74,
-	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x22, 0x8d, 0x01, 0x0a, 0x0d, 0x44, 0x65, 0x63, 0x6f, 0x64, 0x65, 0x64,
-	0x5a, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f,
-	0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
-	0x12, 0x29, 0x0a, 0x02, 0x76, 0x31, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x44,
-	0x65, 0x63, 0x6f, 0x64, 0x65, 0x64, 0x5a, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x2e, 0x56, 0x31, 0x5a,
-	0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x48, 0x00, 0x52, 0x02, 0x76, 0x31, 0x1a, 0x26, 0x0a, 0x08, 0x56,
-	0x31, 0x5a, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73,
-	0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73,
-	0x69, 0x6f, 0x6e, 0x42, 0x0f, 0x0a, 0x0d, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x6f,
-	0x6e, 0x65, 0x6f, 0x66, 0x42, 0x22, 0x5a, 0x20, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
-	0x6f, 0x6d, 0x2f, 0x70, 0x65, 0x74, 0x72, 0x69, 0x63, 0x6f, 0x72, 0x70, 0x2f, 0x63, 0x6f, 0x64,
-	0x65, 0x2f, 0x7a, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+var file_REDACTEDapi_impl_impl_proto_rawDesc = []byte{
+	0x0a, 0x1a, 0x61, 0x72, 0x72, 0x61, 0x6b, 0x69, 0x73, 0x61, 0x70, 0x69, 0x2f, 0x69, 0x6d, 0x70,
+	0x6c, 0x2f, 0x69, 0x6d, 0x70, 0x6c, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x8d, 0x01, 0x0a,
+	0x0d, 0x44, 0x65, 0x63, 0x6f, 0x64, 0x65, 0x64, 0x5a, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x12, 0x18,
+	0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52,
+	0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x29, 0x0a, 0x02, 0x76, 0x31, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x44, 0x65, 0x63, 0x6f, 0x64, 0x65, 0x64, 0x5a, 0x6f,
+	0x6f, 0x6b, 0x69, 0x65, 0x2e, 0x56, 0x31, 0x5a, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x48, 0x00, 0x52,
+	0x02, 0x76, 0x31, 0x1a, 0x26, 0x0a, 0x08, 0x56, 0x31, 0x5a, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x12,
+	0x1a, 0x0a, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x04, 0x52, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x42, 0x0f, 0x0a, 0x0d, 0x76,
+	0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x6f, 0x6e, 0x65, 0x6f, 0x66, 0x42, 0x22, 0x5a, 0x20,
+	0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x65, 0x74, 0x72, 0x69,
+	0x63, 0x6f, 0x72, 0x70, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x2f, 0x7a, 0x6f, 0x6f, 0x6b, 0x69, 0x65,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
-	file_REDACTEDapi_internal_internal_proto_rawDescOnce sync.Once
-	file_REDACTEDapi_internal_internal_proto_rawDescData = file_REDACTEDapi_internal_internal_proto_rawDesc
+	file_REDACTEDapi_impl_impl_proto_rawDescOnce sync.Once
+	file_REDACTEDapi_impl_impl_proto_rawDescData = file_REDACTEDapi_impl_impl_proto_rawDesc
 )
 
-func file_REDACTEDapi_internal_internal_proto_rawDescGZIP() []byte {
-	file_REDACTEDapi_internal_internal_proto_rawDescOnce.Do(func() {
-		file_REDACTEDapi_internal_internal_proto_rawDescData = protoimpl.X.CompressGZIP(file_REDACTEDapi_internal_internal_proto_rawDescData)
+func file_REDACTEDapi_impl_impl_proto_rawDescGZIP() []byte {
+	file_REDACTEDapi_impl_impl_proto_rawDescOnce.Do(func() {
+		file_REDACTEDapi_impl_impl_proto_rawDescData = protoimpl.X.CompressGZIP(file_REDACTEDapi_impl_impl_proto_rawDescData)
 	})
-	return file_REDACTEDapi_internal_internal_proto_rawDescData
+	return file_REDACTEDapi_impl_impl_proto_rawDescData
 }
 
-var file_REDACTEDapi_internal_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_REDACTEDapi_internal_internal_proto_goTypes = []interface{}{
+var file_REDACTEDapi_impl_impl_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_REDACTEDapi_impl_impl_proto_goTypes = []interface{}{
 	(*DecodedZookie)(nil),          // 0: DecodedZookie
 	(*DecodedZookie_V1Zookie)(nil), // 1: DecodedZookie.V1Zookie
 }
-var file_REDACTEDapi_internal_internal_proto_depIdxs = []int32{
+var file_REDACTEDapi_impl_impl_proto_depIdxs = []int32{
 	1, // 0: DecodedZookie.v1:type_name -> DecodedZookie.V1Zookie
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
@@ -191,13 +191,13 @@ var file_REDACTEDapi_internal_internal_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_REDACTEDapi_internal_internal_proto_init() }
-func file_REDACTEDapi_internal_internal_proto_init() {
-	if File_REDACTEDapi_internal_internal_proto != nil {
+func init() { file_REDACTEDapi_impl_impl_proto_init() }
+func file_REDACTEDapi_impl_impl_proto_init() {
+	if File_REDACTEDapi_impl_impl_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_REDACTEDapi_internal_internal_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file_REDACTEDapi_impl_impl_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DecodedZookie); i {
 			case 0:
 				return &v.state
@@ -209,7 +209,7 @@ func file_REDACTEDapi_internal_internal_proto_init() {
 				return nil
 			}
 		}
-		file_REDACTEDapi_internal_internal_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+		file_REDACTEDapi_impl_impl_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DecodedZookie_V1Zookie); i {
 			case 0:
 				return &v.state
@@ -222,25 +222,25 @@ func file_REDACTEDapi_internal_internal_proto_init() {
 			}
 		}
 	}
-	file_REDACTEDapi_internal_internal_proto_msgTypes[0].OneofWrappers = []interface{}{
+	file_REDACTEDapi_impl_impl_proto_msgTypes[0].OneofWrappers = []interface{}{
 		(*DecodedZookie_V1)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_REDACTEDapi_internal_internal_proto_rawDesc,
+			RawDescriptor: file_REDACTEDapi_impl_impl_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_REDACTEDapi_internal_internal_proto_goTypes,
-		DependencyIndexes: file_REDACTEDapi_internal_internal_proto_depIdxs,
-		MessageInfos:      file_REDACTEDapi_internal_internal_proto_msgTypes,
+		GoTypes:           file_REDACTEDapi_impl_impl_proto_goTypes,
+		DependencyIndexes: file_REDACTEDapi_impl_impl_proto_depIdxs,
+		MessageInfos:      file_REDACTEDapi_impl_impl_proto_msgTypes,
 	}.Build()
-	File_REDACTEDapi_internal_internal_proto = out.File
-	file_REDACTEDapi_internal_internal_proto_rawDesc = nil
-	file_REDACTEDapi_internal_internal_proto_goTypes = nil
-	file_REDACTEDapi_internal_internal_proto_depIdxs = nil
+	File_REDACTEDapi_impl_impl_proto = out.File
+	file_REDACTEDapi_impl_impl_proto_rawDesc = nil
+	file_REDACTEDapi_impl_impl_proto_goTypes = nil
+	file_REDACTEDapi_impl_impl_proto_depIdxs = nil
 }

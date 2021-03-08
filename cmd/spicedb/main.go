@@ -17,11 +17,11 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 
-	api "github.com/authzed/spicedb/internal/REDACTEDapi/api"
-	health "github.com/authzed/spicedb/internal/REDACTEDapi/healthcheck"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/services"
+	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	health "github.com/authzed/spicedb/pkg/REDACTEDapi/healthcheck"
 )
 
 func main() {
@@ -68,7 +68,12 @@ func rootRun(cmd *cobra.Command, args []string) {
 		logger.Fatal("failed to init in-memory namespace datastore", zap.Error(err))
 	}
 
-	RegisterGrpcServices(grpcServer, nsDatastore)
+	tDatastore, err := memdb.NewMemdbTupleDatastore()
+	if err != nil {
+		logger.Fatal("failed to init in-memory tuple datastore", zap.Error(err))
+	}
+
+	RegisterGrpcServices(grpcServer, nsDatastore, tDatastore)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -118,8 +123,8 @@ func NewMetricsServer(addr string) *http.Server {
 	}
 }
 
-func RegisterGrpcServices(srv *grpc.Server, nsds datastore.NamespaceDatastore) {
-	api.RegisterACLServiceServer(srv, services.NewACLServer())
+func RegisterGrpcServices(srv *grpc.Server, nsds datastore.NamespaceDatastore, tds datastore.TupleDatastore) {
+	api.RegisterACLServiceServer(srv, services.NewACLServer(tds))
 	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(nsds))
 	api.RegisterWatchServiceServer(srv, services.NewWatchServer())
 	health.RegisterHealthServer(srv, services.NewHealthServer())

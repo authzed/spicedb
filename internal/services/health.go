@@ -1,6 +1,6 @@
 package services
 
-import health "github.com/authzed/spicedb/internal/REDACTEDapi/healthcheck"
+import health "github.com/authzed/spicedb/pkg/REDACTEDapi/healthcheck"
 
 type healthServer struct {
 	health.UnimplementedHealthServer
