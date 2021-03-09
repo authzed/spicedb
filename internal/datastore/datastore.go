@@ -1,6 +1,7 @@
 package datastore
 
 import (
+	"context"
 	"errors"
 
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -10,7 +11,15 @@ import (
 var (
 	ErrNamespaceNotFound  = errors.New("unable to find namespace")
 	ErrPreconditionFailed = errors.New("unable to satisfy write precondition")
+	ErrWatchDisconnected  = errors.New("watch fell too far behind and was disconnected")
+	ErrWatchCanceled      = errors.New("watch was canceled by the caller")
 )
+
+// RevisionChanges represents the changes in a single transaction.
+type RevisionChanges struct {
+	Revision uint64
+	Changes  []*pb.RelationTupleUpdate
+}
 
 // TupleDatastore represents tuple access for a single namespace.
 type TupleDatastore interface {
@@ -23,6 +32,11 @@ type TupleDatastore interface {
 
 	// Revision gets the currently replicated revision for this datastore.
 	Revision() (uint64, error)
+
+	// Watch notifies the caller about all changes to tuples.
+	//
+	// All events following afterRevision will be sent to the caller.
+	Watch(ctx context.Context, afterRevision uint64) (<-chan *RevisionChanges, <-chan error)
 }
 
 // TupleQuery is a builder for constructing tuple queries.

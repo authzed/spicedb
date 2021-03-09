@@ -15,6 +15,8 @@ const (
 	errUnableToWriteTuples           = "unable to write tuples: %w"
 	errUnableToQueryTuples           = "unable to query tuples: %w"
 	errRevision                      = "unable to find revision: %w"
+	errWatchError                    = "watch error: %w"
+	errWatcherFellBehind             = "watcher fell behind, disconnecting"
 )
 
 const (
@@ -27,6 +29,8 @@ const (
 	indexNamespaceAndObjectID = "namespaceAndObjectID"
 	indexNamespaceAndRelation = "namespaceAndRelation"
 	indexNamespaceAndUserset  = "namespaceAndUserset"
+
+	defaultWatchBufferLength = 128
 )
 
 const deletedTransactionID = ^uint64(0)
@@ -34,6 +38,7 @@ const deletedTransactionID = ^uint64(0)
 type memdbTupleDatastore struct {
 	db                       *memdb.MemDB
 	lastAllocatedChangelogID uint64
+	watchBufferLength        uint16
 }
 
 type tupleChangelog struct {
@@ -141,13 +146,23 @@ var tuplestoreSchema = &memdb.DBSchema{
 }
 
 // NewMemdbTupleDatastore creates a new TupleDatastore compliant datastore backed by memdb.
-func NewMemdbTupleDatastore() (datastore.TupleDatastore, error) {
+//
+// If the watchBufferLength value of 0 is set then a default value of 128 will be used.
+func NewMemdbTupleDatastore(watchBufferLength uint16) (datastore.TupleDatastore, error) {
 	db, err := memdb.NewMemDB(tuplestoreSchema)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
 	}
 
-	return &memdbTupleDatastore{db: db, lastAllocatedChangelogID: 0}, nil
+	if watchBufferLength == 0 {
+		watchBufferLength = defaultWatchBufferLength
+	}
+
+	return &memdbTupleDatastore{
+		db:                       db,
+		lastAllocatedChangelogID: 0,
+		watchBufferLength:        watchBufferLength,
+	}, nil
 }
 
 func (mtds *memdbTupleDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {

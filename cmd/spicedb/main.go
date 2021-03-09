@@ -68,7 +68,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 		logger.Fatal("failed to init in-memory namespace datastore", zap.Error(err))
 	}
 
-	tDatastore, err := memdb.NewMemdbTupleDatastore()
+	tDatastore, err := memdb.NewMemdbTupleDatastore(0)
 	if err != nil {
 		logger.Fatal("failed to init in-memory tuple datastore", zap.Error(err))
 	}
@@ -126,7 +126,7 @@ func NewMetricsServer(addr string) *http.Server {
 func RegisterGrpcServices(srv *grpc.Server, nsds datastore.NamespaceDatastore, tds datastore.TupleDatastore) {
 	api.RegisterACLServiceServer(srv, services.NewACLServer(tds))
 	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(nsds))
-	api.RegisterWatchServiceServer(srv, services.NewWatchServer())
+	api.RegisterWatchServiceServer(srv, services.NewWatchServer(tds))
 	health.RegisterHealthServer(srv, services.NewHealthServer())
 	reflection.Register(srv)
 }
