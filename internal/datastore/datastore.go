@@ -20,6 +20,9 @@ type TupleDatastore interface {
 
 	// QueryTuples creates a builder for reading tuples from the datastore.
 	QueryTuples(namespace string, revision uint64) TupleQuery
+
+	// Revision gets the currently replicated revision for this datastore.
+	Revision() (uint64, error)
 }
 
 // TupleQuery is a builder for constructing tuple queries.

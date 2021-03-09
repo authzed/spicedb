@@ -14,6 +14,7 @@ const (
 	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
 	errUnableToWriteTuples           = "unable to write tuples: %w"
 	errUnableToQueryTuples           = "unable to query tuples: %w"
+	errRevision                      = "unable to find revision: %w"
 )
 
 const (
@@ -241,6 +242,21 @@ func (mtds *memdbTupleDatastore) QueryTuples(namespace string, revision uint64) 
 		namespace: namespace,
 		revision:  revision,
 	}
+}
+
+func (mtds *memdbTupleDatastore) Revision() (uint64, error) {
+	// Compute the current revision
+	txn := mtds.db.Txn(false)
+	defer txn.Abort()
+
+	lastRaw, err := txn.Last(tableChangelog, indexID)
+	if err != nil {
+		return 0, fmt.Errorf(errRevision, err)
+	}
+	if lastRaw != nil {
+		return lastRaw.(*tupleChangelog).id, nil
+	}
+	return 0, nil
 }
 
 func findTuple(txn *memdb.Txn, toFind *pb.RelationTuple) (*tupleEntry, error) {
