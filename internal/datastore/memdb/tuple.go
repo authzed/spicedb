@@ -10,163 +10,11 @@ import (
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
-const (
-	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
-	errUnableToWriteTuples           = "unable to write tuples: %w"
-	errUnableToQueryTuples           = "unable to query tuples: %w"
-	errRevision                      = "unable to find revision: %w"
-	errWatchError                    = "watch error: %w"
-	errWatcherFellBehind             = "watcher fell behind, disconnecting"
-)
-
-const (
-	tableTuple     = "tuple"
-	tableChangelog = "changelog"
-
-	indexID                   = "id"
-	indexLive                 = "live"
-	indexNamespace            = "namespace"
-	indexNamespaceAndObjectID = "namespaceAndObjectID"
-	indexNamespaceAndRelation = "namespaceAndRelation"
-	indexNamespaceAndUserset  = "namespaceAndUserset"
-
-	defaultWatchBufferLength = 128
-)
-
 const deletedTransactionID = ^uint64(0)
 
-type memdbTupleDatastore struct {
-	db                       *memdb.MemDB
-	lastAllocatedChangelogID uint64
-	watchBufferLength        uint16
-}
-
-type tupleChangelog struct {
-	id        uint64
-	timestamp time.Time
-	changes   []*pb.RelationTupleUpdate
-}
-
-type tupleEntry struct {
-	namespace        string
-	objectID         string
-	relation         string
-	usersetNamespace string
-	usersetObjectID  string
-	usersetRelation  string
-	createdTxn       uint64
-	deletedTxn       uint64
-}
-
-var tuplestoreSchema = &memdb.DBSchema{
-	Tables: map[string]*memdb.TableSchema{
-		tableChangelog: {
-			Name: tableChangelog,
-			Indexes: map[string]*memdb.IndexSchema{
-				indexID: {
-					Name:    indexID,
-					Unique:  true,
-					Indexer: &memdb.UintFieldIndex{Field: "id"},
-				},
-			},
-		},
-		tableTuple: {
-			Name: tableTuple,
-			Indexes: map[string]*memdb.IndexSchema{
-				indexID: {
-					Name:   indexID,
-					Unique: true,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "objectID"},
-							&memdb.StringFieldIndex{Field: "relation"},
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetObjectID"},
-							&memdb.StringFieldIndex{Field: "usersetRelation"},
-							&memdb.UintFieldIndex{Field: "createdTxn"},
-						},
-					},
-				},
-				indexLive: {
-					Name:   indexLive,
-					Unique: true,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "objectID"},
-							&memdb.StringFieldIndex{Field: "relation"},
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetObjectID"},
-							&memdb.StringFieldIndex{Field: "usersetRelation"},
-							&memdb.UintFieldIndex{Field: "deletedTxn"},
-						},
-					},
-				},
-				indexNamespace: {
-					Name:    indexNamespace,
-					Unique:  false,
-					Indexer: &memdb.StringFieldIndex{Field: "namespace"},
-				},
-				indexNamespaceAndObjectID: {
-					Name:   indexNamespaceAndObjectID,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "objectID"},
-						},
-					},
-				},
-				indexNamespaceAndRelation: {
-					Name:   indexNamespaceAndRelation,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "relation"},
-						},
-					},
-				},
-				indexNamespaceAndUserset: {
-					Name:   indexNamespaceAndUserset,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetObjectID"},
-							&memdb.StringFieldIndex{Field: "usersetRelation"},
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-// NewMemdbTupleDatastore creates a new TupleDatastore compliant datastore backed by memdb.
-//
-// If the watchBufferLength value of 0 is set then a default value of 128 will be used.
-func NewMemdbTupleDatastore(watchBufferLength uint16) (datastore.TupleDatastore, error) {
-	db, err := memdb.NewMemDB(tuplestoreSchema)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
-	}
-
-	if watchBufferLength == 0 {
-		watchBufferLength = defaultWatchBufferLength
-	}
-
-	return &memdbTupleDatastore{
-		db:                       db,
-		lastAllocatedChangelogID: 0,
-		watchBufferLength:        watchBufferLength,
-	}, nil
-}
-
-func (mtds *memdbTupleDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
-	txn := mtds.db.Txn(true)
+func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
+	txn := mds.db.Txn(true)
+	defer txn.Abort()
 
 	// Check the preconditions
 	for _, expectedTuple := range preconditions {
@@ -181,7 +29,11 @@ func (mtds *memdbTupleDatastore) WriteTuples(preconditions []*pb.RelationTuple, 
 	}
 
 	// Create the changelog entry
-	newChangelogID := mtds.lastAllocatedChangelogID + 1
+	newChangelogID, err := nextTupleChangelogID(txn)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+	}
+
 	newChangelogEntry := &tupleChangelog{
 		id:        newChangelogID,
 		timestamp: time.Now(),
@@ -245,23 +97,22 @@ func (mtds *memdbTupleDatastore) WriteTuples(preconditions []*pb.RelationTuple, 
 		}
 	}
 
-	mtds.lastAllocatedChangelogID++
 	txn.Commit()
 
 	return newChangelogID, nil
 }
 
-func (mtds *memdbTupleDatastore) QueryTuples(namespace string, revision uint64) datastore.TupleQuery {
+func (mds *memdbDatastore) QueryTuples(namespace string, revision uint64) datastore.TupleQuery {
 	return &memdbTupleQuery{
-		db:        mtds.db,
+		db:        mds.db,
 		namespace: namespace,
 		revision:  revision,
 	}
 }
 
-func (mtds *memdbTupleDatastore) Revision() (uint64, error) {
+func (mds *memdbDatastore) Revision() (uint64, error) {
 	// Compute the current revision
-	txn := mtds.db.Txn(false)
+	txn := mds.db.Txn(false)
 	defer txn.Abort()
 
 	lastRaw, err := txn.Last(tableChangelog, indexID)
@@ -297,5 +148,15 @@ func findTuple(txn *memdb.Txn, toFind *pb.RelationTuple) (*tupleEntry, error) {
 	return foundRaw.(*tupleEntry), nil
 }
 
-// Ensure that we implement the interface
-var _ datastore.TupleDatastore = &memdbTupleDatastore{}
+func nextTupleChangelogID(txn *memdb.Txn) (uint64, error) {
+	lastChangeRaw, err := txn.Last(tableChangelog, indexID)
+	if err != nil {
+		return 0, err
+	}
+
+	if lastChangeRaw == nil {
+		return 1, nil
+	}
+
+	return lastChangeRaw.(*tupleChangelog).id + 1, nil
+}

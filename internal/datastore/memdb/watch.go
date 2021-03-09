@@ -9,8 +9,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 )
 
-func (mtds *memdbTupleDatastore) Watch(ctx context.Context, afterRevision uint64) (<-chan *datastore.RevisionChanges, <-chan error) {
-	updates := make(chan *datastore.RevisionChanges, mtds.watchBufferLength)
+func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision uint64) (<-chan *datastore.RevisionChanges, <-chan error) {
+	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errors := make(chan error, 1)
 
 	go func() {
@@ -23,7 +23,7 @@ func (mtds *memdbTupleDatastore) Watch(ctx context.Context, afterRevision uint64
 			var stagedUpdates []*datastore.RevisionChanges
 			var watchChan <-chan struct{}
 			var err error
-			stagedUpdates, currentTxn, watchChan, err = mtds.loadChanges(currentTxn)
+			stagedUpdates, currentTxn, watchChan, err = mds.loadChanges(currentTxn)
 			if err != nil {
 				errors <- err
 				return
@@ -59,8 +59,8 @@ func (mtds *memdbTupleDatastore) Watch(ctx context.Context, afterRevision uint64
 	return updates, errors
 }
 
-func (mtds *memdbTupleDatastore) loadChanges(currentTxn uint64) ([]*datastore.RevisionChanges, uint64, <-chan struct{}, error) {
-	loadNewTxn := mtds.db.Txn(false)
+func (mds *memdbDatastore) loadChanges(currentTxn uint64) ([]*datastore.RevisionChanges, uint64, <-chan struct{}, error) {
+	loadNewTxn := mds.db.Txn(false)
 	defer loadNewTxn.Abort()
 
 	it, err := loadNewTxn.LowerBound(tableChangelog, indexID, currentTxn+1)

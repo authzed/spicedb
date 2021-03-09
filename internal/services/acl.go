@@ -15,11 +15,11 @@ import (
 type aclServer struct {
 	api.UnimplementedACLServiceServer
 
-	ds datastore.TupleDatastore
+	ds datastore.Datastore
 }
 
 // NewACLServer creates an instance of the ACL server.
-func NewACLServer(ds datastore.TupleDatastore) api.ACLServiceServer {
+func NewACLServer(ds datastore.Datastore) api.ACLServiceServer {
 	s := &aclServer{ds: ds}
 	return s
 }

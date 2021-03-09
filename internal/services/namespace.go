@@ -17,11 +17,11 @@ const (
 type nsServer struct {
 	api.UnimplementedNamespaceServiceServer
 
-	ds datastore.NamespaceDatastore
+	ds datastore.Datastore
 }
 
 // NewNamespaceServer creates an instance of the namespace server.
-func NewNamespaceServer(ds datastore.NamespaceDatastore) api.NamespaceServiceServer {
+func NewNamespaceServer(ds datastore.Datastore) api.NamespaceServiceServer {
 	s := &nsServer{ds: ds}
 	return s
 }

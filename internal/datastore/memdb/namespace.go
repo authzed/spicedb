@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-memdb"
-
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
@@ -15,65 +14,12 @@ const (
 	errUnableToReadConfig  = "unable to read namespace config: %w"
 )
 
-type memdbNsDatastore struct {
-	db               *memdb.MemDB
-	lastAllocatedTxn uint64
-}
+func (mds *memdbDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (uint64, error) {
+	txn := mds.db.Txn(true)
 
-type changelog struct {
-	id         uint64
-	name       string
-	replaces   *pb.NamespaceDefinition
-	oldVersion uint64
-}
+	newVersion, err := nextChangelogID(txn)
 
-type namespace struct {
-	name    string
-	config  *pb.NamespaceDefinition
-	version uint64
-}
-
-var schema = &memdb.DBSchema{
-	Tables: map[string]*memdb.TableSchema{
-		"changelog": {
-			Name: "changelog",
-			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
-					Unique:  true,
-					Indexer: &memdb.UintFieldIndex{Field: "id"},
-				},
-			},
-		},
-		"config": {
-			Name: "config",
-			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
-					Unique:  true,
-					Indexer: &memdb.StringFieldIndex{Field: "name"},
-				},
-			},
-		},
-	},
-}
-
-// NewMemdbNamespaceDatastore creates a new NamespaceDatastore compliant datastore backed by memdb.
-func NewMemdbNamespaceDatastore() (datastore.NamespaceDatastore, error) {
-	db, err := memdb.NewMemDB(schema)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
-	}
-
-	return &memdbNsDatastore{db: db, lastAllocatedTxn: 0}, nil
-}
-
-func (mnds *memdbNsDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (uint64, error) {
-	newVersion := mnds.lastAllocatedTxn + 1
-
-	txn := mnds.db.Txn(true)
-
-	foundRaw, err := txn.First("config", "id", newConfig.Name)
+	foundRaw, err := txn.First(tableNamespaceConfig, indexID, newConfig.Name)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
@@ -98,14 +44,12 @@ func (mnds *memdbNsDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) 
 		oldVersion: oldVersion,
 	}
 
-	if err := txn.Insert("config", newConfigEntry); err != nil {
+	if err := txn.Insert(tableNamespaceConfig, newConfigEntry); err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
-	if err := txn.Insert("changelog", changeLogEntry); err != nil {
+	if err := txn.Insert(tableNamespaceChangelog, changeLogEntry); err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
-
-	mnds.lastAllocatedTxn++
 
 	txn.Commit()
 
@@ -113,11 +57,11 @@ func (mnds *memdbNsDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) 
 }
 
 // ReadNamespace reads a namespace definition and version and returns it if found.
-func (mnds *memdbNsDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error) {
-	txn := mnds.db.Txn(false)
+func (mds *memdbDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error) {
+	txn := mds.db.Txn(false)
 	defer txn.Abort()
 
-	foundRaw, err := txn.First("config", "id", nsName)
+	foundRaw, err := txn.First(tableNamespaceConfig, indexID, nsName)
 	if err != nil {
 		return nil, 0, fmt.Errorf(errUnableToReadConfig, err)
 	}
@@ -131,5 +75,15 @@ func (mnds *memdbNsDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinit
 	return found.config, found.version, nil
 }
 
-// Ensure that we implement the interface
-var _ datastore.NamespaceDatastore = &memdbNsDatastore{}
+func nextChangelogID(txn *memdb.Txn) (uint64, error) {
+	lastChangeRaw, err := txn.Last(tableNamespaceChangelog, indexID)
+	if err != nil {
+		return 0, err
+	}
+
+	if lastChangeRaw == nil {
+		return 1, nil
+	}
+
+	return lastChangeRaw.(*changelog).id + 1, nil
+}

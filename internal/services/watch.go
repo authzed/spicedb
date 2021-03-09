@@ -12,11 +12,11 @@ import (
 type watchServer struct {
 	api.UnimplementedWatchServiceServer
 
-	ds datastore.TupleDatastore
+	ds datastore.Datastore
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(ds datastore.TupleDatastore) api.WatchServiceServer {
+func NewWatchServer(ds datastore.Datastore) api.WatchServiceServer {
 	s := &watchServer{ds: ds}
 	return s
 }

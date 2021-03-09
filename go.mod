@@ -17,3 +17,5 @@ require (
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.25.0
 )
+
+replace github.com/hashicorp/go-memdb => github.com/REDACTED/go-memdb v1.3.2-0.20210309230258-5dfcfcb9e64a

@@ -49,14 +49,14 @@ func TestSimple(t *testing.T) {
 		t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := NewMemdbTupleDatastore(0)
+			ds, err := NewMemdbDatastore(0)
 			require.NoError(err)
 
 			tRequire := tupleChecker{require, ds}
 
 			var testTuples []*pb.RelationTuple
 
-			var writtenAt uint64
+			var lastRevision uint64
 			for i := 0; i < numTuples; i++ {
 				resourceName := fmt.Sprintf("resource%d", i)
 				userName := fmt.Sprintf("user%d", i)
@@ -64,18 +64,20 @@ func TestSimple(t *testing.T) {
 				newTuple := makeTestTuple(resourceName, userName)
 				testTuples = append(testTuples, newTuple)
 
-				writtenAt, err = ds.WriteTuples(noPreconditions, []*pb.RelationTupleUpdate{c(newTuple)})
+				writtenAt, err := ds.WriteTuples(noPreconditions, []*pb.RelationTupleUpdate{c(newTuple)})
 				require.NoError(err)
-				require.Greater(writtenAt, uint64(0))
+				require.Greater(writtenAt, lastRevision)
 
 				tRequire.tupleExists(newTuple, writtenAt)
 				tRequire.tupleExists(newTuple, writtenAt+100)
 				tRequire.noTupleExists(newTuple, writtenAt-1)
+
+				lastRevision = writtenAt
 			}
 
 			for _, tupleToFind := range testTuples {
 				// Check that we can find the tuple a number of ways
-				q := ds.QueryTuples(tupleToFind.ObjectAndRelation.Namespace, writtenAt)
+				q := ds.QueryTuples(tupleToFind.ObjectAndRelation.Namespace, lastRevision)
 
 				queries := []datastore.TupleQuery{
 					q.WithObjectID(tupleToFind.ObjectAndRelation.ObjectId),
@@ -92,7 +94,7 @@ func TestSimple(t *testing.T) {
 			}
 
 			// Check that we can find the group of tuples too
-			q := ds.QueryTuples(testTuples[0].ObjectAndRelation.Namespace, writtenAt)
+			q := ds.QueryTuples(testTuples[0].ObjectAndRelation.Namespace, lastRevision)
 
 			queries := []datastore.TupleQuery{
 				q,
@@ -158,7 +160,7 @@ func TestWatch(t *testing.T) {
 		t.Run(strconv.Itoa(tc.numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := NewMemdbTupleDatastore(3)
+			ds, err := NewMemdbDatastore(3)
 			require.NoError(err)
 
 			ctx := context.Background()
@@ -220,7 +222,7 @@ func verifyUpdates(
 func TestWatchCancel(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := NewMemdbTupleDatastore(0)
+	ds, err := NewMemdbDatastore(0)
 	require.NoError(err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -279,7 +281,7 @@ func d(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
 
 type tupleChecker struct {
 	require *require.Assertions
-	ds      datastore.TupleDatastore
+	ds      datastore.Datastore
 }
 
 func (tc tupleChecker) exactTupleIterator(tpl *pb.RelationTuple, rev uint64) datastore.TupleIterator {
@@ -296,7 +298,7 @@ func (tc tupleChecker) exactTupleIterator(tpl *pb.RelationTuple, rev uint64) dat
 func (tc tupleChecker) verifyIteratorResults(iter datastore.TupleIterator, tpls ...*pb.RelationTuple) {
 	defer iter.Close()
 
-	toFind := make(map[string]interface{}, 1024)
+	toFind := make(map[string]struct{}, 1024)
 
 	for _, tpl := range tpls {
 		toFind[tuple.String(tpl)] = struct{}{}

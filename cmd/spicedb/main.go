@@ -63,17 +63,12 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	nsDatastore, err := memdb.NewMemdbNamespaceDatastore()
+	ds, err := memdb.NewMemdbDatastore(0)
 	if err != nil {
 		logger.Fatal("failed to init in-memory namespace datastore", zap.Error(err))
 	}
 
-	tDatastore, err := memdb.NewMemdbTupleDatastore(0)
-	if err != nil {
-		logger.Fatal("failed to init in-memory tuple datastore", zap.Error(err))
-	}
-
-	RegisterGrpcServices(grpcServer, nsDatastore, tDatastore)
+	RegisterGrpcServices(grpcServer, ds)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -123,10 +118,10 @@ func NewMetricsServer(addr string) *http.Server {
 	}
 }
 
-func RegisterGrpcServices(srv *grpc.Server, nsds datastore.NamespaceDatastore, tds datastore.TupleDatastore) {
-	api.RegisterACLServiceServer(srv, services.NewACLServer(tds))
-	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(nsds))
-	api.RegisterWatchServiceServer(srv, services.NewWatchServer(tds))
+func RegisterGrpcServices(srv *grpc.Server, ds datastore.Datastore) {
+	api.RegisterACLServiceServer(srv, services.NewACLServer(ds))
+	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds))
+	api.RegisterWatchServiceServer(srv, services.NewWatchServer(ds))
 	health.RegisterHealthServer(srv, services.NewHealthServer())
 	reflection.Register(srv)
 }
