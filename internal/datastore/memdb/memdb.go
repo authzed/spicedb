@@ -10,15 +10,6 @@ import (
 )
 
 const (
-	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
-	errUnableToWriteTuples           = "unable to write tuples: %w"
-	errUnableToQueryTuples           = "unable to query tuples: %w"
-	errRevision                      = "unable to find revision: %w"
-	errWatchError                    = "watch error: %w"
-	errWatcherFellBehind             = "watcher fell behind, disconnecting"
-)
-
-const (
 	tableTuple              = "tuple"
 	tableChangelog          = "changelog"
 	tableNamespaceChangelog = "namespaceChangelog"

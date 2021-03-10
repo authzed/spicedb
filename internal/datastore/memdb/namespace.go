@@ -9,13 +9,15 @@ import (
 )
 
 const (
-	errUnableToInstantiate = "unable to instantiate datastore: %w"
-	errUnableToWriteConfig = "unable to write namespace config: %w"
-	errUnableToReadConfig  = "unable to read namespace config: %w"
+	errUnableToInstantiate  = "unable to instantiate datastore: %w"
+	errUnableToWriteConfig  = "unable to write namespace config: %w"
+	errUnableToReadConfig   = "unable to read namespace config: %w"
+	errUnableToDeleteConfig = "unable to delete namespace config: %w"
 )
 
 func (mds *memdbDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (uint64, error) {
 	txn := mds.db.Txn(true)
+	defer txn.Abort()
 
 	newVersion, err := nextChangelogID(txn)
 
@@ -73,6 +75,55 @@ func (mds *memdbDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinition
 	found := foundRaw.(*namespace)
 
 	return found.config, found.version, nil
+}
+
+func (mds *memdbDatastore) DeleteNamespace(nsName string) (uint64, error) {
+	txn := mds.db.Txn(true)
+	defer txn.Abort()
+
+	foundRaw, err := txn.First(tableNamespaceConfig, indexID, nsName)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+	if foundRaw == nil {
+		return 0, datastore.ErrNamespaceNotFound
+	}
+
+	found := foundRaw.(*namespace)
+
+	newChangelogID, err := nextChangelogID(txn)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	changeLogEntry := &changelog{
+		id:         newChangelogID,
+		name:       nsName,
+		replaces:   found.config,
+		oldVersion: found.version,
+	}
+
+	// Delete the namespace config
+	err = txn.Delete(tableNamespaceConfig, found)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	// Write the changelog that we delete the namespace
+	err = txn.Insert(tableNamespaceChangelog, changeLogEntry)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	// Delete the tuples in this namespace
+	_, err = txn.DeleteAll(tableTuple, indexNamespace, nsName)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	txn.Commit()
+
+	return found.version, nil
 }
 
 func nextChangelogID(txn *memdb.Txn) (uint64, error) {

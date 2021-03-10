@@ -9,6 +9,11 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 )
 
+const (
+	errWatchError        = "watch error: %w"
+	errWatcherFellBehind = "watcher fell behind, disconnecting"
+)
+
 func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision uint64) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errors := make(chan error, 1)

@@ -10,6 +10,13 @@ import (
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
+const (
+	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
+	errUnableToWriteTuples           = "unable to write tuples: %w"
+	errUnableToQueryTuples           = "unable to query tuples: %w"
+	errRevision                      = "unable to find revision: %w"
+)
+
 const deletedTransactionID = ^uint64(0)
 
 func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {

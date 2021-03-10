@@ -44,6 +44,9 @@ type Datastore interface {
 
 	// ReadNamespace reads a namespace definition and version and returns it if found.
 	ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error)
+
+	// DeleteNamespace deletes a namespace and any associated tuples.
+	DeleteNamespace(nsName string) (uint64, error)
 }
 
 // TupleQuery is a builder for constructing tuple queries.
