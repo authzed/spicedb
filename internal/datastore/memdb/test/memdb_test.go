@@ -1,4 +1,4 @@
-package memdb
+package memdbtest
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -20,8 +19,6 @@ const (
 	testReaderRelation    = "reader"
 	ellipsis              = "..."
 )
-
-var noPreconditions = []*pb.RelationTuple{}
 
 func makeTestTuple(resourceID, userID string) *pb.RelationTuple {
 	return &pb.RelationTuple{
@@ -49,8 +46,7 @@ func TestSimple(t *testing.T) {
 		t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := NewMemdbDatastore(0)
-			require.NoError(err)
+			ds := standardDatastore(require)
 
 			tRequire := tupleChecker{require, ds}
 
@@ -151,7 +147,7 @@ func TestWatch(t *testing.T) {
 			expectFallBehind: false,
 		},
 		{
-			numTuples:        128,
+			numTuples:        256,
 			expectFallBehind: true,
 		},
 	}
@@ -160,8 +156,7 @@ func TestWatch(t *testing.T) {
 		t.Run(strconv.Itoa(tc.numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := NewMemdbDatastore(3)
-			require.NoError(err)
+			ds := standardDatastore(require)
 
 			ctx := context.Background()
 			changes, errchan := ds.Watch(ctx, 0)
@@ -217,19 +212,21 @@ func verifyUpdates(
 			require.Fail("Timed out")
 		}
 	}
+
+	require.False(expectDisconnect)
 }
 
 func TestWatchCancel(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := NewMemdbDatastore(0)
-	require.NoError(err)
+	ds := standardDatastore(require)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	changes, errchan := ds.Watch(ctx, 0)
 	require.Zero(len(errchan))
 
-	_, err = ds.WriteTuples(noPreconditions, []*pb.RelationTupleUpdate{c(makeTestTuple("test", "test"))})
+	_, err := ds.WriteTuples(noPreconditions, []*pb.RelationTupleUpdate{c(makeTestTuple("test", "test"))})
+	require.NoError(err)
 
 	cancel()
 
@@ -256,72 +253,4 @@ func TestWatchCancel(t *testing.T) {
 			require.Fail("deadline exceeded waiting to cancellation")
 		}
 	}
-}
-
-func c(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
-	return &pb.RelationTupleUpdate{
-		Operation: pb.RelationTupleUpdate_CREATE,
-		Tuple:     tpl,
-	}
-}
-
-func t(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
-	return &pb.RelationTupleUpdate{
-		Operation: pb.RelationTupleUpdate_TOUCH,
-		Tuple:     tpl,
-	}
-}
-
-func d(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
-	return &pb.RelationTupleUpdate{
-		Operation: pb.RelationTupleUpdate_DELETE,
-		Tuple:     tpl,
-	}
-}
-
-type tupleChecker struct {
-	require *require.Assertions
-	ds      datastore.Datastore
-}
-
-func (tc tupleChecker) exactTupleIterator(tpl *pb.RelationTuple, rev uint64) datastore.TupleIterator {
-	iter, err := tc.ds.QueryTuples(tpl.ObjectAndRelation.Namespace, rev).
-		WithObjectID(tpl.ObjectAndRelation.ObjectId).
-		WithRelation(tpl.ObjectAndRelation.Relation).
-		WithUserset(tpl.User.GetUserset()).
-		Execute()
-
-	tc.require.NoError(err)
-	return iter
-}
-
-func (tc tupleChecker) verifyIteratorResults(iter datastore.TupleIterator, tpls ...*pb.RelationTuple) {
-	defer iter.Close()
-
-	toFind := make(map[string]struct{}, 1024)
-
-	for _, tpl := range tpls {
-		toFind[tuple.String(tpl)] = struct{}{}
-	}
-
-	for found := iter.Next(); found != nil; found = iter.Next() {
-		tc.require.NoError(iter.Err())
-		foundStr := tuple.String(found)
-		_, ok := toFind[foundStr]
-		tc.require.True(ok)
-		delete(toFind, foundStr)
-	}
-	tc.require.NoError(iter.Err())
-
-	tc.require.Zero(len(toFind), "Should not be any extra to find")
-}
-
-func (tc tupleChecker) tupleExists(tpl *pb.RelationTuple, rev uint64) {
-	iter := tc.exactTupleIterator(tpl, rev)
-	tc.verifyIteratorResults(iter, tpl)
-}
-
-func (tc tupleChecker) noTupleExists(tpl *pb.RelationTuple, rev uint64) {
-	iter := tc.exactTupleIterator(tpl, rev)
-	tc.verifyIteratorResults(iter)
 }
