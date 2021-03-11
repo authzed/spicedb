@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/stretchr/testify/require"
@@ -21,29 +22,29 @@ var documentNamespace = &pb.NamespaceDefinition{
 func TestDelete(t *testing.T) {
 	require := require.New(t)
 
-	ds, revision := standardDatastoreWithData(require)
+	ds, revision := testfixtures.StandardDatastoreWithData(require)
 
-	tRequire := tupleChecker{require, ds}
-	docTpl := tuple.Scan(standardTuples[0])
+	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
+	docTpl := tuple.Scan(testfixtures.StandardTuples[0])
 	require.NotNil(docTpl)
-	tRequire.tupleExists(docTpl, revision)
+	tRequire.TupleExists(docTpl, revision)
 
-	folderTpl := tuple.Scan(standardTuples[2])
+	folderTpl := tuple.Scan(testfixtures.StandardTuples[2])
 	require.NotNil(folderTpl)
-	tRequire.tupleExists(folderTpl, revision)
+	tRequire.TupleExists(folderTpl, revision)
 
-	deletedRev, err := ds.DeleteNamespace(documentNS.Name)
+	deletedRev, err := ds.DeleteNamespace(testfixtures.DocumentNS.Name)
 	require.NoError(err)
 	require.Greater(deletedRev, uint64(0))
 
-	_, _, err = ds.ReadNamespace(documentNS.Name)
+	_, _, err = ds.ReadNamespace(testfixtures.DocumentNS.Name)
 	require.Equal(datastore.ErrNamespaceNotFound, err)
 
-	found, ver, err := ds.ReadNamespace(folderNS.Name)
+	found, ver, err := ds.ReadNamespace(testfixtures.FolderNS.Name)
 	require.NotNil(found)
 	require.Greater(ver, uint64(0))
 	require.NoError(err)
 
-	tRequire.noTupleExists(docTpl, revision)
-	tRequire.tupleExists(folderTpl, revision)
+	tRequire.NoTupleExists(docTpl, revision)
+	tRequire.TupleExists(folderTpl, revision)
 }

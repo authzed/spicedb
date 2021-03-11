@@ -1,4 +1,4 @@
-package memdbtest
+package testfixtures
 
 import (
 	"github.com/authzed/spicedb/internal/datastore"
@@ -8,42 +8,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var userNS = namespace("user")
+var UserNS = Namespace("user")
 
-var documentNS = namespace(
+var DocumentNS = Namespace(
 	"document",
-	relation("owner", nil),
-	relation("editor", union(
-		this(),
-		computedUserset("owner"),
+	Relation("owner", nil),
+	Relation("editor", Union(
+		This(),
+		ComputedUserset("owner"),
 	)),
-	relation("parent", nil),
-	relation("lock", nil),
-	relation("viewer", union(
-		this(),
-		computedUserset("editor"),
-		tupleToUserset("parent", "viewer"),
+	Relation("parent", nil),
+	Relation("lock", nil),
+	Relation("viewer", Union(
+		This(),
+		ComputedUserset("editor"),
+		TupleToUserset("parent", "viewer"),
 	)),
 )
 
-var lockNS = namespace("lock", relation("parent", nil))
+var LockNS = Namespace("lock", Relation("parent", nil))
 
-var folderNS = namespace(
+var FolderNS = Namespace(
 	"folder",
-	relation("owner", nil),
-	relation("parent", nil),
-	relation("editor", union(
-		this(),
-		computedUserset("owner"),
+	Relation("owner", nil),
+	Relation("parent", nil),
+	Relation("editor", Union(
+		This(),
+		ComputedUserset("owner"),
 	)),
-	relation("viewer", union(
-		this(),
-		computedUserset("editor"),
-		tupleToUserset("parent", "viewer"),
+	Relation("viewer", Union(
+		This(),
+		ComputedUserset("editor"),
+		TupleToUserset("parent", "viewer"),
 	)),
 )
 
-var standardTuples = []string{
+var StandardTuples = []string{
 	"document:masterplan#parent@folder:strategy#...",
 	"document:masterplan#lock@lock:masterplan#...",
 	"folder:strategy#parent@folder:company#...",
@@ -59,18 +59,18 @@ var standardTuples = []string{
 	"folder:isolated#viewer@user:7#...",
 }
 
-func standardDatastore(require *require.Assertions) datastore.Datastore {
+func StandardDatastore(require *require.Assertions) datastore.Datastore {
 	ds, err := memdb.NewMemdbDatastore(0)
 	require.NoError(err)
 
 	return ds
 }
 
-func standardDatastoreWithSchema(require *require.Assertions) (datastore.Datastore, uint64) {
-	ds := standardDatastore(require)
+func StandardDatastoreWithSchema(require *require.Assertions) (datastore.Datastore, uint64) {
+	ds := StandardDatastore(require)
 
 	var lastRevision uint64
-	for _, namespace := range []*pb.NamespaceDefinition{userNS, documentNS, lockNS, folderNS} {
+	for _, namespace := range []*pb.NamespaceDefinition{UserNS, DocumentNS, LockNS, FolderNS} {
 		var err error
 		lastRevision, err = ds.WriteNamespace(namespace)
 		require.NoError(err)
@@ -79,39 +79,39 @@ func standardDatastoreWithSchema(require *require.Assertions) (datastore.Datasto
 	return ds, lastRevision
 }
 
-func standardDatastoreWithData(require *require.Assertions) (datastore.Datastore, uint64) {
-	ds, _ := standardDatastoreWithSchema(require)
+func StandardDatastoreWithData(require *require.Assertions) (datastore.Datastore, uint64) {
+	ds, _ := StandardDatastoreWithSchema(require)
 
 	var mutations []*pb.RelationTupleUpdate
-	for _, tupleStr := range standardTuples {
+	for _, tupleStr := range StandardTuples {
 		tuple := tuple.Scan(tupleStr)
 		require.NotNil(tuple)
 
-		mutations = append(mutations, c(tuple))
+		mutations = append(mutations, C(tuple))
 	}
 
-	revision, err := ds.WriteTuples(noPreconditions, mutations)
+	revision, err := ds.WriteTuples(NoPreconditions, mutations)
 	require.NoError(err)
 
 	return ds, revision
 }
 
-var noPreconditions = []*pb.RelationTuple{}
+var NoPreconditions = []*pb.RelationTuple{}
 
-func namespace(name string, relations ...*pb.Relation) *pb.NamespaceDefinition {
+func Namespace(name string, relations ...*pb.Relation) *pb.NamespaceDefinition {
 	return &pb.NamespaceDefinition{
 		Name:     name,
 		Relation: relations,
 	}
 }
 
-func relation(name string, rewrite *pb.UsersetRewrite) *pb.Relation {
+func Relation(name string, rewrite *pb.UsersetRewrite) *pb.Relation {
 	return &pb.Relation{
 		Name: name,
 	}
 }
 
-func union(children ...*pb.SetOperation_Child) *pb.UsersetRewrite {
+func Union(children ...*pb.SetOperation_Child) *pb.UsersetRewrite {
 	return &pb.UsersetRewrite{
 		RewriteOperation: &pb.UsersetRewrite_Union{
 			Union: &pb.SetOperation{
@@ -121,13 +121,13 @@ func union(children ...*pb.SetOperation_Child) *pb.UsersetRewrite {
 	}
 }
 
-func this() *pb.SetOperation_Child {
+func This() *pb.SetOperation_Child {
 	return &pb.SetOperation_Child{
 		ChildType: &pb.SetOperation_Child_XThis{},
 	}
 }
 
-func computedUserset(relation string) *pb.SetOperation_Child {
+func ComputedUserset(relation string) *pb.SetOperation_Child {
 	return &pb.SetOperation_Child{
 		ChildType: &pb.SetOperation_Child_ComputedUserset{
 			ComputedUserset: &pb.ComputedUserset{
@@ -137,7 +137,7 @@ func computedUserset(relation string) *pb.SetOperation_Child {
 	}
 }
 
-func tupleToUserset(tuplesetRelation, usersetRelation string) *pb.SetOperation_Child {
+func TupleToUserset(tuplesetRelation, usersetRelation string) *pb.SetOperation_Child {
 	return &pb.SetOperation_Child{
 		ChildType: &pb.SetOperation_Child_TupleToUserset{
 			TupleToUserset: &pb.TupleToUserset{
@@ -153,44 +153,44 @@ func tupleToUserset(tuplesetRelation, usersetRelation string) *pb.SetOperation_C
 	}
 }
 
-func c(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
+func C(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
 	return &pb.RelationTupleUpdate{
 		Operation: pb.RelationTupleUpdate_CREATE,
 		Tuple:     tpl,
 	}
 }
 
-func t(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
+func T(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
 	return &pb.RelationTupleUpdate{
 		Operation: pb.RelationTupleUpdate_TOUCH,
 		Tuple:     tpl,
 	}
 }
 
-func d(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
+func D(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
 	return &pb.RelationTupleUpdate{
 		Operation: pb.RelationTupleUpdate_DELETE,
 		Tuple:     tpl,
 	}
 }
 
-type tupleChecker struct {
-	require *require.Assertions
-	ds      datastore.Datastore
+type TupleChecker struct {
+	Require *require.Assertions
+	DS      datastore.Datastore
 }
 
-func (tc tupleChecker) exactTupleIterator(tpl *pb.RelationTuple, rev uint64) datastore.TupleIterator {
-	iter, err := tc.ds.QueryTuples(tpl.ObjectAndRelation.Namespace, rev).
+func (tc TupleChecker) ExactTupleIterator(tpl *pb.RelationTuple, rev uint64) datastore.TupleIterator {
+	iter, err := tc.DS.QueryTuples(tpl.ObjectAndRelation.Namespace, rev).
 		WithObjectID(tpl.ObjectAndRelation.ObjectId).
 		WithRelation(tpl.ObjectAndRelation.Relation).
 		WithUserset(tpl.User.GetUserset()).
 		Execute()
 
-	tc.require.NoError(err)
+	tc.Require.NoError(err)
 	return iter
 }
 
-func (tc tupleChecker) verifyIteratorResults(iter datastore.TupleIterator, tpls ...*pb.RelationTuple) {
+func (tc TupleChecker) VerifyIteratorResults(iter datastore.TupleIterator, tpls ...*pb.RelationTuple) {
 	defer iter.Close()
 
 	toFind := make(map[string]struct{}, 1024)
@@ -200,23 +200,23 @@ func (tc tupleChecker) verifyIteratorResults(iter datastore.TupleIterator, tpls 
 	}
 
 	for found := iter.Next(); found != nil; found = iter.Next() {
-		tc.require.NoError(iter.Err())
+		tc.Require.NoError(iter.Err())
 		foundStr := tuple.String(found)
 		_, ok := toFind[foundStr]
-		tc.require.True(ok)
+		tc.Require.True(ok)
 		delete(toFind, foundStr)
 	}
-	tc.require.NoError(iter.Err())
+	tc.Require.NoError(iter.Err())
 
-	tc.require.Zero(len(toFind), "Should not be any extra to find")
+	tc.Require.Zero(len(toFind), "Should not be any extra to find")
 }
 
-func (tc tupleChecker) tupleExists(tpl *pb.RelationTuple, rev uint64) {
-	iter := tc.exactTupleIterator(tpl, rev)
-	tc.verifyIteratorResults(iter, tpl)
+func (tc TupleChecker) TupleExists(tpl *pb.RelationTuple, rev uint64) {
+	iter := tc.ExactTupleIterator(tpl, rev)
+	tc.VerifyIteratorResults(iter, tpl)
 }
 
-func (tc tupleChecker) noTupleExists(tpl *pb.RelationTuple, rev uint64) {
-	iter := tc.exactTupleIterator(tpl, rev)
-	tc.verifyIteratorResults(iter)
+func (tc TupleChecker) NoTupleExists(tpl *pb.RelationTuple, rev uint64) {
+	iter := tc.ExactTupleIterator(tpl, rev)
+	tc.VerifyIteratorResults(iter)
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
@@ -46,9 +47,9 @@ func TestSimple(t *testing.T) {
 		t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds := standardDatastore(require)
+			ds := testfixtures.StandardDatastore(require)
 
-			tRequire := tupleChecker{require, ds}
+			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
 			var testTuples []*pb.RelationTuple
 
@@ -60,13 +61,16 @@ func TestSimple(t *testing.T) {
 				newTuple := makeTestTuple(resourceName, userName)
 				testTuples = append(testTuples, newTuple)
 
-				writtenAt, err := ds.WriteTuples(noPreconditions, []*pb.RelationTupleUpdate{c(newTuple)})
+				writtenAt, err := ds.WriteTuples(
+					testfixtures.NoPreconditions,
+					[]*pb.RelationTupleUpdate{testfixtures.C(newTuple)},
+				)
 				require.NoError(err)
 				require.Greater(writtenAt, lastRevision)
 
-				tRequire.tupleExists(newTuple, writtenAt)
-				tRequire.tupleExists(newTuple, writtenAt+100)
-				tRequire.noTupleExists(newTuple, writtenAt-1)
+				tRequire.TupleExists(newTuple, writtenAt)
+				tRequire.TupleExists(newTuple, writtenAt+100)
+				tRequire.NoTupleExists(newTuple, writtenAt-1)
 
 				lastRevision = writtenAt
 			}
@@ -85,7 +89,7 @@ func TestSimple(t *testing.T) {
 				for _, query := range queries {
 					iter, err := query.Execute()
 					require.NoError(err)
-					tRequire.verifyIteratorResults(iter, tupleToFind)
+					tRequire.VerifyIteratorResults(iter, tupleToFind)
 				}
 			}
 
@@ -99,7 +103,7 @@ func TestSimple(t *testing.T) {
 			for _, query := range queries {
 				iter, err := query.Execute()
 				require.NoError(err)
-				tRequire.verifyIteratorResults(iter, testTuples...)
+				tRequire.VerifyIteratorResults(iter, testTuples...)
 			}
 
 			// Try some bad queries
@@ -114,21 +118,27 @@ func TestSimple(t *testing.T) {
 			for _, badQuery := range badQueries {
 				iter, err := badQuery.Execute()
 				require.NoError(err)
-				tRequire.verifyIteratorResults(iter)
+				tRequire.VerifyIteratorResults(iter)
 			}
 
 			// Delete the first tuple
-			deletedAt, err := ds.WriteTuples(noPreconditions, []*pb.RelationTupleUpdate{d(testTuples[0])})
+			deletedAt, err := ds.WriteTuples(
+				testfixtures.NoPreconditions,
+				[]*pb.RelationTupleUpdate{testfixtures.D(testTuples[0])},
+			)
 			require.NoError(err)
 
 			// Verify it can still be read at the old revision
-			tRequire.tupleExists(testTuples[0], deletedAt-1)
+			tRequire.TupleExists(testTuples[0], deletedAt-1)
 
 			// Verify that it does not show up at the new revision
-			tRequire.noTupleExists(testTuples[0], deletedAt)
-			alreadyDeletedIter, err := ds.QueryTuples(testTuples[0].ObjectAndRelation.Namespace, deletedAt).Execute()
+			tRequire.NoTupleExists(testTuples[0], deletedAt)
+			alreadyDeletedIter, err := ds.QueryTuples(
+				testTuples[0].ObjectAndRelation.Namespace,
+				deletedAt,
+			).Execute()
 			require.NoError(err)
-			tRequire.verifyIteratorResults(alreadyDeletedIter, testTuples[1:]...)
+			tRequire.VerifyIteratorResults(alreadyDeletedIter, testTuples[1:]...)
 		})
 	}
 }
@@ -156,7 +166,7 @@ func TestWatch(t *testing.T) {
 		t.Run(strconv.Itoa(tc.numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds := standardDatastore(require)
+			ds := testfixtures.StandardDatastore(require)
 
 			ctx := context.Background()
 			changes, errchan := ds.Watch(ctx, 0)
@@ -165,9 +175,12 @@ func TestWatch(t *testing.T) {
 			var testUpdates []*pb.RelationTupleUpdate
 			lowestRevision := ^uint64(0)
 			for i := 0; i < tc.numTuples; i++ {
-				newUpdate := c(makeTestTuple(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)))
+				newUpdate := testfixtures.C(makeTestTuple(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)))
 				testUpdates = append(testUpdates, newUpdate)
-				newRevision, err := ds.WriteTuples(noPreconditions, []*pb.RelationTupleUpdate{newUpdate})
+				newRevision, err := ds.WriteTuples(
+					testfixtures.NoPreconditions,
+					[]*pb.RelationTupleUpdate{newUpdate},
+				)
 				require.NoError(err)
 
 				if newRevision < lowestRevision {
@@ -219,13 +232,16 @@ func verifyUpdates(
 func TestWatchCancel(t *testing.T) {
 	require := require.New(t)
 
-	ds := standardDatastore(require)
+	ds := testfixtures.StandardDatastore(require)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	changes, errchan := ds.Watch(ctx, 0)
 	require.Zero(len(errchan))
 
-	_, err := ds.WriteTuples(noPreconditions, []*pb.RelationTupleUpdate{c(makeTestTuple("test", "test"))})
+	_, err := ds.WriteTuples(
+		testfixtures.NoPreconditions,
+		[]*pb.RelationTupleUpdate{testfixtures.C(makeTestTuple("test", "test"))},
+	)
 	require.NoError(err)
 
 	cancel()
@@ -235,7 +251,10 @@ func TestWatchCancel(t *testing.T) {
 		select {
 		case created, ok := <-changes:
 			if ok {
-				require.Equal([]*pb.RelationTupleUpdate{c(makeTestTuple("test", "test"))}, created.Changes)
+				require.Equal(
+					[]*pb.RelationTupleUpdate{testfixtures.C(makeTestTuple("test", "test"))},
+					created.Changes,
+				)
 				require.Equal(uint64(1), created.Revision)
 			} else {
 				errWait := time.NewTimer(100 * time.Millisecond)
