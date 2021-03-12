@@ -22,33 +22,38 @@ type localDispatcher struct {
 	ds datastore.Datastore
 }
 
-func errResult(err error) CheckResult {
-	return CheckResult{IsMember: false, Err: err}
-}
-
-func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
+func (ld *localDispatcher) loadRelation(nsName, relationName string) (*pb.Relation, error) {
 	// Load namespace and relation from the datastore
-	ns, _, err := ld.ds.ReadNamespace(req.Start.Namespace)
+	ns, _, err := ld.ds.ReadNamespace(nsName)
 	if err != nil {
-		return errResult(rewriteError(err))
+		return nil, rewriteError(err)
 	}
 
 	var relation *pb.Relation
 	for _, candidate := range ns.Relation {
-		if candidate.Name == req.Start.Relation {
+		if candidate.Name == relationName {
 			relation = candidate
 			break
 		}
 	}
 
 	if relation == nil {
-		return errResult(ErrRelationNotFound)
+		return nil, ErrRelationNotFound
 	}
 
-	chk := newLazyChecker(ld, ld.ds)
+	return relation, nil
+}
+
+func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
+	relation, err := ld.loadRelation(req.Start.Namespace, req.Start.Relation)
+	if err != nil {
+		return CheckResult{IsMember: false, Err: err}
+	}
+
+	chk := newConcurrentChecker(ld, ld.ds)
 
 	asyncCheck := chk.check(req, relation)
-	return Any(ctx, []ReduceableCheck{asyncCheck})
+	return Any(ctx, []ReduceableCheckFunc{asyncCheck})
 }
 
 func rewriteError(original error) error {

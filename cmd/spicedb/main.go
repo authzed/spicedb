@@ -19,6 +19,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/services"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	health "github.com/authzed/spicedb/pkg/REDACTEDapi/healthcheck"
@@ -68,7 +69,12 @@ func rootRun(cmd *cobra.Command, args []string) {
 		logger.Fatal("failed to init in-memory namespace datastore", zap.Error(err))
 	}
 
-	RegisterGrpcServices(grpcServer, ds)
+	dispatch, err := graph.NewLocalDispatcher(ds)
+	if err != nil {
+		logger.Fatal("failed to initialize check dispatcher", zap.Error(err))
+	}
+
+	RegisterGrpcServices(grpcServer, ds, dispatch)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -118,8 +124,8 @@ func NewMetricsServer(addr string) *http.Server {
 	}
 }
 
-func RegisterGrpcServices(srv *grpc.Server, ds datastore.Datastore) {
-	api.RegisterACLServiceServer(srv, services.NewACLServer(ds))
+func RegisterGrpcServices(srv *grpc.Server, ds datastore.Datastore, dispatch graph.Dispatcher) {
+	api.RegisterACLServiceServer(srv, services.NewACLServer(ds, dispatch))
 	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds))
 	api.RegisterWatchServiceServer(srv, services.NewWatchServer(ds))
 	health.RegisterHealthServer(srv, services.NewHealthServer())

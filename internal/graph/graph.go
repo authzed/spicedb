@@ -4,15 +4,18 @@ import (
 	"context"
 	"errors"
 
+	"github.com/rs/zerolog"
+
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/rs/zerolog"
 )
 
-const (
-	// Ellipsis relation is used to signify a semantic-free relationship.
-	Ellipsis = "..."
-)
+// Ellipsis relation is used to signify a semantic-free relationship.
+const Ellipsis = "..."
+
+// ErrAlwaysFail is returned when an internal error leads to an operation
+// guaranteed to fail.
+var ErrAlwaysFail = errors.New("always fail")
 
 // Publicly exposed errors from methods in this package.
 var (
@@ -36,15 +39,20 @@ type CheckResult struct {
 
 // Dispatcher interface describes a method for passing subchecks off to additional machines.
 type Dispatcher interface {
-	// SubmitCheck submits a single check request and writes its result to the resultChan
+	// Check submits a single check request and returns its result.
 	Check(ctx context.Context, req CheckRequest) CheckResult
 }
 
-// ReduceableCheck is a function that can be bound to a execution context.
-type ReduceableCheck func(ctx context.Context, resultChan chan<- CheckResult)
+// ReduceableCheckFunc is a function that can be bound to a execution context.
+type ReduceableCheckFunc func(ctx context.Context, resultChan chan<- CheckResult)
 
 // Reducer is a type for the functions Any and All which combine check results.
-type Reducer func(ctx context.Context, requests []ReduceableCheck) CheckResult
+type Reducer func(ctx context.Context, requests []ReduceableCheckFunc) CheckResult
+
+// AlwaysFail is a ReduceableCheckFunc which will always fail when reduced.
+func AlwaysFail(ctx context.Context, resultChan chan<- CheckResult) {
+	resultChan <- CheckResult{IsMember: false, Err: ErrAlwaysFail}
+}
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (cr CheckRequest) MarshalZerologObject(e *zerolog.Event) {
@@ -64,5 +72,5 @@ func (cr CheckResult) MarshalZerologObject(e *zerolog.Event) {
 }
 
 type checker interface {
-	check(req CheckRequest, relation *pb.Relation) ReduceableCheck
+	check(req CheckRequest, relation *pb.Relation) ReduceableCheckFunc
 }
