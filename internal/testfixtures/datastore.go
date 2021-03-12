@@ -26,8 +26,6 @@ var DocumentNS = Namespace(
 	)),
 )
 
-var LockNS = Namespace("lock", Relation("parent", nil))
-
 var FolderNS = Namespace(
 	"folder",
 	Relation("owner", nil),
@@ -45,18 +43,18 @@ var FolderNS = Namespace(
 
 var StandardTuples = []string{
 	"document:masterplan#parent@folder:strategy#...",
-	"document:masterplan#lock@lock:masterplan#...",
 	"folder:strategy#parent@folder:company#...",
-	"folder:company#owner@user:1#...",
-	"folder:company#viewer@user:2#...",
-	"folder:strategy#owner@user:3#...",
-	"document:masterplan#owner@user:4#...",
-	"document:masterplan#viewer@user:5#...",
+	"folder:company#owner@user:owner#...",
+	"folder:company#viewer@user:legal#...",
+	"folder:strategy#owner@user:vp_product#...",
+	"document:masterplan#owner@user:pm#...",
+	"document:masterplan#viewer@user:eng_lead#...",
 	"document:masterplan#parent@folder:plans#...",
-	"folder:plans#viewer@user:6#...",
+	"folder:plans#viewer@user:cfo#...",
+	"folder:auditors#viewer@user:auditor#...",
+	"folder:company#viewer@folder:auditors#viewer",
 	"document:healthplan#parent@folder:plans#...",
-	"document:healthplan#lock@lock:healthplan#...",
-	"folder:isolated#viewer@user:7#...",
+	"folder:isolated#viewer@user:villain#...",
 }
 
 func StandardDatastore(require *require.Assertions) datastore.Datastore {
@@ -70,7 +68,7 @@ func StandardDatastoreWithSchema(require *require.Assertions) (datastore.Datasto
 	ds := StandardDatastore(require)
 
 	var lastRevision uint64
-	for _, namespace := range []*pb.NamespaceDefinition{UserNS, DocumentNS, LockNS, FolderNS} {
+	for _, namespace := range []*pb.NamespaceDefinition{UserNS, DocumentNS, FolderNS} {
 		var err error
 		lastRevision, err = ds.WriteNamespace(namespace)
 		require.NoError(err)
@@ -107,7 +105,8 @@ func Namespace(name string, relations ...*pb.Relation) *pb.NamespaceDefinition {
 
 func Relation(name string, rewrite *pb.UsersetRewrite) *pb.Relation {
 	return &pb.Relation{
-		Name: name,
+		Name:           name,
+		UsersetRewrite: rewrite,
 	}
 }
 
