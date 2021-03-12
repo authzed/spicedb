@@ -23,12 +23,11 @@ type RevisionChanges struct {
 
 // Datastore represents tuple access for a single namespace.
 type Datastore interface {
+	GraphDatastore
+
 	// WriteTuples takes a list of existing tuples that must exist, and a list of tuple
 	// mutations and applies it to the datastore for the specified namespace.
 	WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error)
-
-	// QueryTuples creates a builder for reading tuples from the datastore.
-	QueryTuples(namespace string, revision uint64) TupleQuery
 
 	// Revision gets the currently replicated revision for this datastore.
 	Revision() (uint64, error)
@@ -47,6 +46,12 @@ type Datastore interface {
 
 	// DeleteNamespace deletes a namespace and any associated tuples.
 	DeleteNamespace(nsName string) (uint64, error)
+}
+
+// GraphDatastore is a subset of the datastore interface that is passed to graph resolvers.
+type GraphDatastore interface {
+	// QueryTuples creates a builder for reading tuples from the datastore.
+	QueryTuples(namespace string, revision uint64) TupleQuery
 }
 
 // TupleQuery is a builder for constructing tuple queries.
