@@ -121,3 +121,31 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 		Membership: membership,
 	}, nil
 }
+
+func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.ExpandResponse, error) {
+	// TODO load the revision from the request or datastore.
+	atRevision := ^uint64(0) - 1
+
+	resp := as.dispatch.Expand(ctx, graph.ExpandRequest{
+		Start:      req.Userset,
+		AtRevision: atRevision,
+	})
+
+	switch resp.Err {
+	case graph.ErrNamespaceNotFound:
+		fallthrough
+	case graph.ErrRelationNotFound:
+		return nil, status.Errorf(codes.FailedPrecondition, "error when performing expand: %s", resp.Err)
+	case graph.ErrRequestCanceled:
+		return nil, status.Errorf(codes.Canceled, "error when performing expand: %s", resp.Err)
+	case nil:
+		break
+	default:
+		return nil, status.Errorf(codes.Unknown, "error when performing expand: %s", resp.Err)
+	}
+
+	return &api.ExpandResponse{
+		TreeNode: resp.Tree,
+		Revision: zookie.NewFromRevision(atRevision),
+	}, nil
+}
