@@ -18,6 +18,8 @@ import (
 func init() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
 
+	// Set this to Trace to dump log statements in tests.
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 }
 
 func TestSimple(t *testing.T) {
