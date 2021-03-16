@@ -56,6 +56,18 @@ func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckRes
 	return Any(ctx, []ReduceableCheckFunc{asyncCheck})
 }
 
+func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) ExpandResult {
+	relation, err := ld.loadRelation(req.Start.Namespace, req.Start.Relation)
+	if err != nil {
+		return ExpandResult{Tree: nil, Err: err}
+	}
+
+	expand := newConcurrentExpander(ld, ld.ds)
+
+	asyncExpand := expand.expand(req, relation)
+	return ExpandAny(ctx, req.Start, []ReduceableExpandFunc{asyncExpand})
+}
+
 func rewriteError(original error) error {
 	switch original {
 	case datastore.ErrNamespaceNotFound:

@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/rs/zerolog"
 
@@ -37,10 +38,25 @@ type CheckResult struct {
 	Err      error
 }
 
+// ExpandRequest contains the data for a single expand request.
+type ExpandRequest struct {
+	Start      *pb.ObjectAndRelation
+	AtRevision uint64
+}
+
+// ExpandResult is the data that is returned by a single expand or sub-expand.
+type ExpandResult struct {
+	Tree *pb.RelationTupleTreeNode
+	Err  error
+}
+
 // Dispatcher interface describes a method for passing subchecks off to additional machines.
 type Dispatcher interface {
 	// Check submits a single check request and returns its result.
 	Check(ctx context.Context, req CheckRequest) CheckResult
+
+	// Expand submits a single expand request and returns its result.
+	Expand(ctx context.Context, req ExpandRequest) ExpandResult
 }
 
 // ReduceableCheckFunc is a function that can be bound to a execution context.
@@ -73,4 +89,33 @@ func (cr CheckResult) MarshalZerologObject(e *zerolog.Event) {
 
 type checker interface {
 	check(req CheckRequest, relation *pb.Relation) ReduceableCheckFunc
+}
+
+// ReduceableExpandFunc is a function that can be bound to a execution context.
+type ReduceableExpandFunc func(ctx context.Context, resultChan chan<- ExpandResult)
+
+// AlwaysFailExpand is a ReduceableExpandFunc which will always fail when reduced.
+func AlwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {
+	resultChan <- ExpandResult{Tree: nil, Err: ErrAlwaysFail}
+}
+
+// ExpandReducer is a type for the functions Any and All which combine check results.
+type ExpandReducer func(
+	ctx context.Context,
+	start *pb.ObjectAndRelation,
+	requests []ReduceableExpandFunc,
+) ExpandResult
+
+type expander interface {
+	expand(req ExpandRequest, relation *pb.Relation) ReduceableExpandFunc
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (er ExpandRequest) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("expand", fmt.Sprintf("%s:%s#%s", er.Start.Namespace, er.Start.ObjectId, er.Start.Relation))
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (er ExpandResult) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("fun", "times")
 }
