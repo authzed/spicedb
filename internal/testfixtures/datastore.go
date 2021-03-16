@@ -1,11 +1,12 @@
 package testfixtures
 
 import (
+	"github.com/stretchr/testify/require"
+
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/stretchr/testify/require"
 )
 
 var UserNS = Namespace("user")
@@ -130,7 +131,7 @@ func ComputedUserset(relation string) *pb.SetOperation_Child {
 	return &pb.SetOperation_Child{
 		ChildType: &pb.SetOperation_Child_ComputedUserset{
 			ComputedUserset: &pb.ComputedUserset{
-				Relation: "owner",
+				Relation: relation,
 			},
 		},
 	}
@@ -149,27 +150,6 @@ func TupleToUserset(tuplesetRelation, usersetRelation string) *pb.SetOperation_C
 				},
 			},
 		},
-	}
-}
-
-func C(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
-	return &pb.RelationTupleUpdate{
-		Operation: pb.RelationTupleUpdate_CREATE,
-		Tuple:     tpl,
-	}
-}
-
-func T(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
-	return &pb.RelationTupleUpdate{
-		Operation: pb.RelationTupleUpdate_TOUCH,
-		Tuple:     tpl,
-	}
-}
-
-func D(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
-	return &pb.RelationTupleUpdate{
-		Operation: pb.RelationTupleUpdate_DELETE,
-		Tuple:     tpl,
 	}
 }
 
