@@ -11,6 +11,7 @@ import (
 
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
@@ -61,6 +62,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	grpcMiddleware := grpcmw.WithUnaryServerChain(
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
+		grpcprom.UnaryServerInterceptor,
 	)
 
 	var grpcServer *grpc.Server
