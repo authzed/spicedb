@@ -6,6 +6,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/validation"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
@@ -27,6 +28,10 @@ func NewNamespaceServer(ds datastore.Datastore) api.NamespaceServiceServer {
 }
 
 func (nss *nsServer) WriteConfig(ctxt context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {
+	if err := validation.NamespaceConfig(req.Config); err != nil {
+		return nil, fmt.Errorf(errUnableToWrite, err)
+	}
+
 	revision, err := nss.ds.WriteNamespace(req.Config)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToWrite, err)
