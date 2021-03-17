@@ -6,39 +6,40 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var UserNS = Namespace("user")
+var UserNS = ns.Namespace("user")
 
-var DocumentNS = Namespace(
+var DocumentNS = ns.Namespace(
 	"document",
-	Relation("owner", nil),
-	Relation("editor", Union(
-		This(),
-		ComputedUserset("owner"),
+	ns.Relation("owner", nil),
+	ns.Relation("editor", ns.Union(
+		ns.This(),
+		ns.ComputedUserset("owner"),
 	)),
-	Relation("parent", nil),
-	Relation("lock", nil),
-	Relation("viewer", Union(
-		This(),
-		ComputedUserset("editor"),
-		TupleToUserset("parent", "viewer"),
+	ns.Relation("parent", nil),
+	ns.Relation("lock", nil),
+	ns.Relation("viewer", ns.Union(
+		ns.This(),
+		ns.ComputedUserset("editor"),
+		ns.TupleToUserset("parent", "viewer"),
 	)),
 )
 
-var FolderNS = Namespace(
+var FolderNS = ns.Namespace(
 	"folder",
-	Relation("owner", nil),
-	Relation("parent", nil),
-	Relation("editor", Union(
-		This(),
-		ComputedUserset("owner"),
+	ns.Relation("owner", nil),
+	ns.Relation("parent", nil),
+	ns.Relation("editor", ns.Union(
+		ns.This(),
+		ns.ComputedUserset("owner"),
 	)),
-	Relation("viewer", Union(
-		This(),
-		ComputedUserset("editor"),
-		TupleToUserset("parent", "viewer"),
+	ns.Relation("viewer", ns.Union(
+		ns.This(),
+		ns.ComputedUserset("editor"),
+		ns.TupleToUserset("parent", "viewer"),
 	)),
 )
 
@@ -96,62 +97,6 @@ func StandardDatastoreWithData(require *require.Assertions) (datastore.Datastore
 }
 
 var NoPreconditions = []*pb.RelationTuple{}
-
-func Namespace(name string, relations ...*pb.Relation) *pb.NamespaceDefinition {
-	return &pb.NamespaceDefinition{
-		Name:     name,
-		Relation: relations,
-	}
-}
-
-func Relation(name string, rewrite *pb.UsersetRewrite) *pb.Relation {
-	return &pb.Relation{
-		Name:           name,
-		UsersetRewrite: rewrite,
-	}
-}
-
-func Union(children ...*pb.SetOperation_Child) *pb.UsersetRewrite {
-	return &pb.UsersetRewrite{
-		RewriteOperation: &pb.UsersetRewrite_Union{
-			Union: &pb.SetOperation{
-				Child: children,
-			},
-		},
-	}
-}
-
-func This() *pb.SetOperation_Child {
-	return &pb.SetOperation_Child{
-		ChildType: &pb.SetOperation_Child_XThis{},
-	}
-}
-
-func ComputedUserset(relation string) *pb.SetOperation_Child {
-	return &pb.SetOperation_Child{
-		ChildType: &pb.SetOperation_Child_ComputedUserset{
-			ComputedUserset: &pb.ComputedUserset{
-				Relation: relation,
-			},
-		},
-	}
-}
-
-func TupleToUserset(tuplesetRelation, usersetRelation string) *pb.SetOperation_Child {
-	return &pb.SetOperation_Child{
-		ChildType: &pb.SetOperation_Child_TupleToUserset{
-			TupleToUserset: &pb.TupleToUserset{
-				Tupleset: &pb.TupleToUserset_Tupleset{
-					Relation: tuplesetRelation,
-				},
-				ComputedUserset: &pb.ComputedUserset{
-					Relation: usersetRelation,
-					Object:   pb.ComputedUserset_TUPLE_USERSET_OBJECT,
-				},
-			},
-		},
-	}
-}
 
 type TupleChecker struct {
 	Require *require.Assertions
