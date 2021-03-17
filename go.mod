@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/golang/protobuf v1.4.3
 	github.com/google/go-cmp v0.5.5
+	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
 	github.com/hashicorp/go-memdb v1.3.2
 	github.com/jzelinskie/cobrautil v0.0.0-20210305182230-ea9666fe73f4
 	github.com/prometheus/client_golang v1.9.0

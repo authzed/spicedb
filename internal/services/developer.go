@@ -1,9 +1,14 @@
 package services
 
-import api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+import (
+	"github.com/authzed/spicedb/internal/auth"
+	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+)
 
 type devServer struct {
 	api.UnimplementedDeveloperServiceServer
+
+	auth.NoAuthRequired
 }
 
 // NewDeveloperServer creates an instance of the developer server.

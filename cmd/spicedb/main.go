@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 
+	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
@@ -17,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
@@ -38,6 +41,7 @@ func main() {
 	rootCmd.Flags().String("grpc-key-path", "", "local path to the TLS key used to serve gRPC services")
 	rootCmd.Flags().Bool("grpc-no-tls", false, "serve unencrypted gRPC services")
 	rootCmd.Flags().String("metrics-addr", ":9090", "address to listen on for serving metrics and profiles")
+	rootCmd.Flags().String("preshared-key", "", "preshared key to require on authenticated requests")
 	rootCmd.Flags().Bool("log-debug", false, "enable logging debug events")
 
 	rootCmd.Execute()
@@ -50,14 +54,24 @@ func rootRun(cmd *cobra.Command, args []string) {
 	}
 	defer logger.Sync()
 
+	token := cobrautil.MustGetString(cmd, "preshared-key")
+	if len(token) < 1 {
+		logger.Fatal("must provide a preshared-key")
+	}
+
+	grpcMiddleware := grpcmw.WithUnaryServerChain(
+		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
+	)
+
 	var grpcServer *grpc.Server
 	if cobrautil.MustGetBool(cmd, "grpc-no-tls") {
-		grpcServer = grpc.NewServer()
+		grpcServer = grpc.NewServer(grpcMiddleware)
 	} else {
 		var err error
 		grpcServer, err = NewTlsGrpcServer(
 			cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
 			cobrautil.MustGetStringExpanded(cmd, "grpc-key-path"),
+			grpcMiddleware,
 		)
 		if err != nil {
 			logger.Fatal("failed to create TLS gRPC server", zap.Error(err))
@@ -132,7 +146,7 @@ func RegisterGrpcServices(srv *grpc.Server, ds datastore.Datastore, dispatch gra
 	reflection.Register(srv)
 }
 
-func NewTlsGrpcServer(certPath, keyPath string) (*grpc.Server, error) {
+func NewTlsGrpcServer(certPath, keyPath string, opts ...grpc.ServerOption) (*grpc.Server, error) {
 	if certPath != "" && keyPath != "" {
 		return nil, errors.New("missing one of required values: cert path, key path")
 	}
@@ -142,5 +156,6 @@ func NewTlsGrpcServer(certPath, keyPath string) (*grpc.Server, error) {
 		return nil, err
 	}
 
-	return grpc.NewServer(grpc.Creds(creds)), nil
+	opts = append(opts, grpc.Creds(creds))
+	return grpc.NewServer(opts...), nil
 }
