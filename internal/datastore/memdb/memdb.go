@@ -23,6 +23,8 @@ const (
 	indexNamespaceAndUserset  = "namespaceAndUserset"
 
 	defaultWatchBufferLength = 128
+
+	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
 )
 
 type changelog struct {
