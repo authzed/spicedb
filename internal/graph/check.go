@@ -50,11 +50,11 @@ func (cc *concurrentChecker) checkDirect(req CheckRequest) ReduceableCheckFunc {
 			WithObjectID(req.Start.ObjectId).
 			WithRelation(req.Start.Relation).
 			Execute()
-		defer it.Close()
 		if err != nil {
 			resultChan <- CheckResult{false, fmt.Errorf(errCheckError, err)}
 			return
 		}
+		defer it.Close()
 
 		var requestsToDispatch []ReduceableCheckFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
