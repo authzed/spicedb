@@ -12,6 +12,10 @@ func ONR(ns, oid, rel string) *pb.ObjectAndRelation {
 	}
 }
 
+func User(userset *pb.ObjectAndRelation) *pb.User {
+	return &pb.User{UserOneof: &pb.User_Userset{Userset: userset}}
+}
+
 func C(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
 	return &pb.RelationTupleUpdate{
 		Operation: pb.RelationTupleUpdate_CREATE,

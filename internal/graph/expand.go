@@ -138,7 +138,8 @@ func (ce *concurrentExpander) expandComputedUserset(req ExpandRequest, cu *pb.Co
 			ObjectId:  start.ObjectId,
 			Relation:  cu.Relation,
 		},
-		AtRevision: req.AtRevision,
+		AtRevision:     req.AtRevision,
+		DepthRemaining: req.DepthRemaining - 1,
 	})
 }
 

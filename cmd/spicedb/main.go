@@ -44,6 +44,7 @@ func main() {
 	rootCmd.Flags().String("metrics-addr", ":9090", "address to listen on for serving metrics and profiles")
 	rootCmd.Flags().String("preshared-key", "", "preshared key to require on authenticated requests")
 	rootCmd.Flags().Bool("log-debug", false, "enable logging debug events")
+	rootCmd.Flags().Uint16("max-depth", 50, "maximum recursion depth for nested calls")
 
 	rootCmd.Execute()
 }
@@ -90,7 +91,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 		logger.Fatal("failed to initialize check dispatcher", zap.Error(err))
 	}
 
-	RegisterGrpcServices(grpcServer, ds, dispatch)
+	RegisterGrpcServices(grpcServer, ds, dispatch, cobrautil.MustGetUint16(cmd, "max-depth"))
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -140,8 +141,13 @@ func NewMetricsServer(addr string) *http.Server {
 	}
 }
 
-func RegisterGrpcServices(srv *grpc.Server, ds datastore.Datastore, dispatch graph.Dispatcher) {
-	api.RegisterACLServiceServer(srv, services.NewACLServer(ds, dispatch))
+func RegisterGrpcServices(
+	srv *grpc.Server,
+	ds datastore.Datastore,
+	dispatch graph.Dispatcher,
+	maxDepth uint16,
+) {
+	api.RegisterACLServiceServer(srv, services.NewACLServer(ds, dispatch, maxDepth))
 	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds))
 	api.RegisterWatchServiceServer(srv, services.NewWatchServer(ds))
 	health.RegisterHealthServer(srv, services.NewHealthServer())

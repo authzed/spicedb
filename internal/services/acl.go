@@ -2,9 +2,12 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"strconv"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -16,13 +19,25 @@ import (
 type aclServer struct {
 	api.UnimplementedACLServiceServer
 
-	ds       datastore.Datastore
-	dispatch graph.Dispatcher
+	ds           datastore.Datastore
+	dispatch     graph.Dispatcher
+	defaultDepth uint16
 }
 
+const (
+	maxUInt16 = int(^uint16(0))
+
+	depthRemainingHeader = "depth-remaining"
+
+	errInvalidCheck  = "error when performing check: %s"
+	errInvalidExpand = "error when performing expand: %s"
+)
+
+var errInvalidDepthRemaining = fmt.Errorf("invalid %s header", depthRemainingHeader)
+
 // NewACLServer creates an instance of the ACL server.
-func NewACLServer(ds datastore.Datastore, dispatch graph.Dispatcher) api.ACLServiceServer {
-	s := &aclServer{ds: ds, dispatch: dispatch}
+func NewACLServer(ds datastore.Datastore, dispatch graph.Dispatcher, defaultDepth uint16) api.ACLServiceServer {
+	s := &aclServer{ds: ds, dispatch: dispatch, defaultDepth: defaultDepth}
 	return s
 }
 
@@ -91,23 +106,29 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 	// TODO load the revision from the request or datastore.
 	atRevision := ^uint64(0) - 1
 
+	depth, err := as.calculateRequestDepth(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, errInvalidExpand, err)
+	}
+
 	cr := as.dispatch.Check(ctx, graph.CheckRequest{
-		Start:      req.TestUserset,
-		Goal:       req.User.GetUserset(),
-		AtRevision: atRevision,
+		Start:          req.TestUserset,
+		Goal:           req.User.GetUserset(),
+		AtRevision:     atRevision,
+		DepthRemaining: depth,
 	})
 
 	switch cr.Err {
 	case graph.ErrNamespaceNotFound:
 		fallthrough
 	case graph.ErrRelationNotFound:
-		return nil, status.Errorf(codes.FailedPrecondition, "error when performing check: %s", cr.Err)
+		return nil, status.Errorf(codes.FailedPrecondition, errInvalidCheck, cr.Err)
 	case graph.ErrRequestCanceled:
-		return nil, status.Errorf(codes.Canceled, "error when performing check: %s", cr.Err)
+		return nil, status.Errorf(codes.Canceled, errInvalidCheck, cr.Err)
 	case nil:
 		break
 	default:
-		return nil, status.Errorf(codes.Unknown, "error when performing check: %s", cr.Err)
+		return nil, status.Errorf(codes.Unknown, errInvalidCheck, cr.Err)
 	}
 
 	membership := api.CheckResponse_NOT_MEMBER
@@ -126,26 +147,56 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 	// TODO load the revision from the request or datastore.
 	atRevision := ^uint64(0) - 1
 
+	depth, err := as.calculateRequestDepth(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, errInvalidExpand, err)
+	}
+
 	resp := as.dispatch.Expand(ctx, graph.ExpandRequest{
-		Start:      req.Userset,
-		AtRevision: atRevision,
+		Start:          req.Userset,
+		AtRevision:     atRevision,
+		DepthRemaining: depth,
 	})
 
 	switch resp.Err {
 	case graph.ErrNamespaceNotFound:
 		fallthrough
 	case graph.ErrRelationNotFound:
-		return nil, status.Errorf(codes.FailedPrecondition, "error when performing expand: %s", resp.Err)
+		return nil, status.Errorf(codes.FailedPrecondition, errInvalidExpand, resp.Err)
 	case graph.ErrRequestCanceled:
-		return nil, status.Errorf(codes.Canceled, "error when performing expand: %s", resp.Err)
+		return nil, status.Errorf(codes.Canceled, errInvalidExpand, resp.Err)
 	case nil:
 		break
 	default:
-		return nil, status.Errorf(codes.Unknown, "error when performing expand: %s", resp.Err)
+		return nil, status.Errorf(codes.Unknown, errInvalidExpand, resp.Err)
 	}
 
 	return &api.ExpandResponse{
 		TreeNode: resp.Tree,
 		Revision: zookie.NewFromRevision(atRevision),
 	}, nil
+}
+
+func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if matching := md.Get(depthRemainingHeader); len(matching) > 0 {
+			if len(matching) > 1 {
+				return 0, errInvalidDepthRemaining
+			}
+
+			// We have one and only one depth-remaining header, let's check the format
+			decoded, err := strconv.Atoi(matching[0])
+			if err != nil {
+				return 0, errInvalidDepthRemaining
+			}
+
+			if decoded < 1 || decoded > maxUInt16 {
+				return 0, errInvalidDepthRemaining
+			}
+
+			return uint16(decoded), nil
+		}
+	}
+
+	return as.defaultDepth, nil
 }

@@ -27,9 +27,10 @@ var (
 
 // CheckRequest contains the data for a single check request.
 type CheckRequest struct {
-	Start      *pb.ObjectAndRelation
-	Goal       *pb.ObjectAndRelation
-	AtRevision uint64
+	Start          *pb.ObjectAndRelation
+	Goal           *pb.ObjectAndRelation
+	AtRevision     uint64
+	DepthRemaining uint16
 }
 
 // CheckResult is the data that is returned by a single check or sub-check.
@@ -40,8 +41,9 @@ type CheckResult struct {
 
 // ExpandRequest contains the data for a single expand request.
 type ExpandRequest struct {
-	Start      *pb.ObjectAndRelation
-	AtRevision uint64
+	Start          *pb.ObjectAndRelation
+	AtRevision     uint64
+	DepthRemaining uint16
 }
 
 // ExpandResult is the data that is returned by a single expand or sub-expand.

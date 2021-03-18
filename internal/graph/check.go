@@ -66,9 +66,10 @@ func (cc *concurrentChecker) checkDirect(req CheckRequest) ReduceableCheckFunc {
 			if tplUserset.Relation != Ellipsis {
 				// We need to recursively call check here, potentially changing namespaces
 				requestsToDispatch = append(requestsToDispatch, cc.dispatch(CheckRequest{
-					Start:      tplUserset,
-					Goal:       req.Goal,
-					AtRevision: req.AtRevision,
+					Start:          tplUserset,
+					Goal:           req.Goal,
+					AtRevision:     req.AtRevision,
+					DepthRemaining: req.DepthRemaining - 1,
 				}))
 			}
 		}
@@ -135,8 +136,9 @@ func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *pb.Compu
 			ObjectId:  start.ObjectId,
 			Relation:  cu.Relation,
 		},
-		Goal:       req.Goal,
-		AtRevision: req.AtRevision,
+		Goal:           req.Goal,
+		AtRevision:     req.AtRevision,
+		DepthRemaining: req.DepthRemaining - 1,
 	})
 }
 
@@ -208,6 +210,7 @@ func Any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 		go req(childCtx, resultChan)
 	}
 
+	var downstreamError error
 	for i := 0; i < len(requests); i++ {
 		select {
 		case result := <-resultChan:
@@ -215,13 +218,16 @@ func Any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 			if result.Err == nil && result.IsMember {
 				return result
 			}
+			if result.Err != nil {
+				downstreamError = result.Err
+			}
 		case <-ctx.Done():
 			log.Trace().Msg("any canceled")
 			return CheckResult{IsMember: false, Err: ErrRequestCanceled}
 		}
 	}
 
-	return CheckResult{IsMember: false, Err: nil}
+	return CheckResult{IsMember: false, Err: downstreamError}
 }
 
 // Difference returns whether the first lazy check passes and none of the supsequent checks pass.
