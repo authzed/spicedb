@@ -115,9 +115,10 @@ func TestSimple(t *testing.T) {
 					require.NoError(err)
 
 					checkResult := dispatch.Check(context.Background(), CheckRequest{
-						Start:      testfixtures.ONR(tc.namespace, tc.objectID, expected.relation),
-						Goal:       userset.userset,
-						AtRevision: revision,
+						Start:          testfixtures.ONR(tc.namespace, tc.objectID, expected.relation),
+						Goal:           userset.userset,
+						AtRevision:     revision,
+						DepthRemaining: 50,
 					})
 
 					require.NoError(checkResult.Err)
@@ -129,4 +130,33 @@ func TestSimple(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestMaxDepth(t *testing.T) {
+	require := require.New(t)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(require)
+
+	mutations := []*pb.RelationTupleUpdate{
+		testfixtures.C(&pb.RelationTuple{
+			ObjectAndRelation: testfixtures.ONR("folder", "oops", "owner"),
+			User:              testfixtures.User(testfixtures.ONR("folder", "oops", "editor")),
+		}),
+	}
+
+	revision, err := ds.WriteTuples(nil, mutations)
+	require.NoError(err)
+	require.Greater(revision, uint64(0))
+
+	dispatch, err := NewLocalDispatcher(ds)
+	require.NoError(err)
+
+	checkResult := dispatch.Check(context.Background(), CheckRequest{
+		Start:          testfixtures.ONR("folder", "oops", "owner"),
+		Goal:           testfixtures.ONR("user", "fake", Ellipsis),
+		AtRevision:     revision,
+		DepthRemaining: 50,
+	})
+
+	require.Error(checkResult.Err)
+	require.False(checkResult.IsMember)
 }

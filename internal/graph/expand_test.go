@@ -13,18 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/authzed/spicedb/internal/testfixtures"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
-func User(userset *pb.ObjectAndRelation) *pb.User {
-	return &pb.User{UserOneof: &pb.User_Userset{Userset: userset}}
-}
-
 var (
 	companyOwner = tf.U(tf.ONR("folder", "company", "owner"),
 		tf.Leaf(tf.ONR("folder", "company", "owner"),
-			User(tf.ONR("user", "owner", Ellipsis)),
+			tf.User(tf.ONR("user", "owner", Ellipsis)),
 		),
 	)
 	companyEditor = tf.U(tf.ONR("folder", "company", "editor"),
@@ -36,8 +33,8 @@ var (
 	companyViewer = tf.U(tf.ONR("folder", "company", "viewer"),
 		tf.U(tf.ONR("folder", "company", "viewer"),
 			tf.Leaf(tf.ONR("folder", "company", "viewer"),
-				User(tf.ONR("folder", "auditors", "viewer")),
-				User(tf.ONR("user", "legal", "...")),
+				tf.User(tf.ONR("folder", "auditors", "viewer")),
+				tf.User(tf.ONR("user", "legal", "...")),
 			),
 			companyEditor,
 			tf.U(tf.ONR("folder", "company", "viewer")),
@@ -45,7 +42,7 @@ var (
 	)
 	docOwner = tf.U(tf.ONR("document", "masterplan", "owner"),
 		tf.Leaf(tf.ONR("document", "masterplan", "owner"),
-			User(tf.ONR("user", "pm", "...")),
+			tf.User(tf.ONR("user", "pm", "...")),
 		),
 	)
 	docEditor = tf.U(tf.ONR("document", "masterplan", "editor"),
@@ -57,14 +54,14 @@ var (
 	docViewer = tf.U(tf.ONR("document", "masterplan", "viewer"),
 		tf.U(tf.ONR("document", "masterplan", "viewer"),
 			tf.Leaf(tf.ONR("document", "masterplan", "viewer"),
-				User(tf.ONR("user", "eng_lead", "...")),
+				tf.User(tf.ONR("user", "eng_lead", "...")),
 			),
 			docEditor,
 			tf.U(tf.ONR("document", "masterplan", "viewer"),
 				tf.U(tf.ONR("folder", "plans", "viewer"),
 					tf.U(tf.ONR("folder", "plans", "viewer"),
 						tf.Leaf(tf.ONR("folder", "plans", "viewer"),
-							User(tf.ONR("user", "cfo", "...")),
+							tf.User(tf.ONR("user", "cfo", "...")),
 						),
 						tf.U(tf.ONR("folder", "plans", "editor"),
 							tf.U(tf.ONR("folder", "plans", "editor"),
@@ -85,7 +82,7 @@ var (
 								tf.Leaf(tf.ONR("folder", "strategy", "editor")),
 								tf.U(tf.ONR("folder", "strategy", "owner"),
 									tf.Leaf(tf.ONR("folder", "strategy", "owner"),
-										User(tf.ONR("user", "vp_product", "...")),
+										tf.User(tf.ONR("user", "vp_product", "...")),
 									),
 								),
 							),
@@ -124,8 +121,9 @@ func TestExpand(t *testing.T) {
 			require.NoError(err)
 
 			checkResult := dispatch.Expand(context.Background(), ExpandRequest{
-				Start:      tc.start,
-				AtRevision: revision,
+				Start:          tc.start,
+				AtRevision:     revision,
+				DepthRemaining: 50,
 			})
 
 			if diff := cmp.Diff(tc.expected, checkResult.Tree, protocmp.Transform()); diff != "" {
@@ -213,4 +211,31 @@ func onrExpr(onr *pb.ObjectAndRelation) ast.Expr {
 			ast.NewIdent("\"" + onr.Relation + "\""),
 		},
 	}
+}
+
+func TestMaxDepthExpand(t *testing.T) {
+	require := require.New(t)
+	ds, _ := testfixtures.StandardDatastoreWithSchema(require)
+
+	mutations := []*pb.RelationTupleUpdate{
+		testfixtures.C(&pb.RelationTuple{
+			ObjectAndRelation: testfixtures.ONR("folder", "oops", "parent"),
+			User:              testfixtures.User(testfixtures.ONR("folder", "oops", Ellipsis)),
+		}),
+	}
+
+	revision, err := ds.WriteTuples(nil, mutations)
+	require.NoError(err)
+	require.Greater(revision, uint64(0))
+
+	dispatch, err := NewLocalDispatcher(ds)
+	require.NoError(err)
+
+	checkResult := dispatch.Expand(context.Background(), ExpandRequest{
+		Start:          testfixtures.ONR("folder", "oops", "viewer"),
+		AtRevision:     revision,
+		DepthRemaining: 50,
+	})
+
+	require.Error(checkResult.Err)
 }

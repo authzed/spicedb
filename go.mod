@@ -8,7 +8,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-memdb v1.3.2
-	github.com/jzelinskie/cobrautil v0.0.0-20210305182230-ea9666fe73f4
+	github.com/jzelinskie/cobrautil v0.0.0-20210309013835-5479f896f4a1
 	github.com/prometheus/client_golang v1.9.0
 	github.com/rs/zerolog v1.20.0
 	github.com/spf13/cobra v1.1.3

@@ -2,15 +2,16 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
-const (
-	errDispatchCheck = "error dispatching check request: %w"
-)
+const errDispatch = "error dispatching request: %w"
+
+var errMaxDepth = errors.New("max depth has been reached")
 
 // NewLocalDispatcher creates a dispatcher that checks everything in the same
 // process on the same machine.
@@ -45,9 +46,13 @@ func (ld *localDispatcher) loadRelation(nsName, relationName string) (*pb.Relati
 }
 
 func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
+	if req.DepthRemaining < 1 {
+		return CheckResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
+	}
+
 	relation, err := ld.loadRelation(req.Start.Namespace, req.Start.Relation)
 	if err != nil {
-		return CheckResult{IsMember: false, Err: err}
+		return CheckResult{Err: err}
 	}
 
 	chk := newConcurrentChecker(ld, ld.ds)
@@ -57,6 +62,10 @@ func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckRes
 }
 
 func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) ExpandResult {
+	if req.DepthRemaining < 1 {
+		return ExpandResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
+	}
+
 	relation, err := ld.loadRelation(req.Start.Namespace, req.Start.Relation)
 	if err != nil {
 		return ExpandResult{Tree: nil, Err: err}
@@ -77,6 +86,6 @@ func rewriteError(original error) error {
 	case ErrRelationNotFound:
 		return original
 	default:
-		return fmt.Errorf(errDispatchCheck, original)
+		return fmt.Errorf(errDispatch, original)
 	}
 }
