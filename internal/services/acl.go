@@ -58,7 +58,7 @@ func (as *aclServer) Write(ctxt context.Context, req *api.WriteRequest) (*api.Wr
 
 func (as *aclServer) Read(ctxt context.Context, req *api.ReadRequest) (*api.ReadResponse, error) {
 	// TODO load the revision from the request or datastore.
-	atRevision := ^uint64(0) - 1
+	atRevision := uint64(9223372036854775800)
 
 	var allTuplesetResults []*api.ReadResponse_Tupleset
 
@@ -104,7 +104,7 @@ func (as *aclServer) Read(ctxt context.Context, req *api.ReadRequest) (*api.Read
 
 func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.CheckResponse, error) {
 	// TODO load the revision from the request or datastore.
-	atRevision := ^uint64(0) - 1
+	atRevision := uint64(9223372036854775800)
 
 	depth, err := as.calculateRequestDepth(ctx)
 	if err != nil {
@@ -145,7 +145,7 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 
 func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.ExpandResponse, error) {
 	// TODO load the revision from the request or datastore.
-	atRevision := ^uint64(0) - 1
+	atRevision := uint64(9223372036854775800)
 
 	depth, err := as.calculateRequestDepth(ctx)
 	if err != nil {
