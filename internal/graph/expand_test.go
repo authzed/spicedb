@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -115,7 +116,10 @@ func TestExpand(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, revision := tf.StandardDatastoreWithData(require)
+			rawDS, err := memdb.NewMemdbDatastore(0)
+			require.NoError(err)
+
+			ds, revision := tf.StandardDatastoreWithData(rawDS, require)
 
 			dispatch, err := NewLocalDispatcher(ds)
 			require.NoError(err)
@@ -215,7 +219,11 @@ func onrExpr(onr *pb.ObjectAndRelation) ast.Expr {
 
 func TestMaxDepthExpand(t *testing.T) {
 	require := require.New(t)
-	ds, _ := testfixtures.StandardDatastoreWithSchema(require)
+
+	rawDS, err := memdb.NewMemdbDatastore(0)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
 	mutations := []*pb.RelationTupleUpdate{
 		testfixtures.C(&pb.RelationTuple{

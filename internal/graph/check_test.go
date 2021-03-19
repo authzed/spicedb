@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
@@ -109,7 +110,10 @@ func TestSimple(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
-					ds, revision := testfixtures.StandardDatastoreWithData(require)
+					rawDS, err := memdb.NewMemdbDatastore(0)
+					require.NoError(err)
+
+					ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 					dispatch, err := NewLocalDispatcher(ds)
 					require.NoError(err)
@@ -134,7 +138,11 @@ func TestSimple(t *testing.T) {
 
 func TestMaxDepth(t *testing.T) {
 	require := require.New(t)
-	ds, _ := testfixtures.StandardDatastoreWithSchema(require)
+
+	rawDS, err := memdb.NewMemdbDatastore(0)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
 	mutations := []*pb.RelationTupleUpdate{
 		testfixtures.C(&pb.RelationTuple{

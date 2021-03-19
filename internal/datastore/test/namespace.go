@@ -1,13 +1,14 @@
-package memdbtest
+package test
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/stretchr/testify/require"
 )
 
 var documentNamespace = &pb.NamespaceDefinition{
@@ -19,10 +20,13 @@ var documentNamespace = &pb.NamespaceDefinition{
 	},
 }
 
-func TestDelete(t *testing.T) {
+func TestDelete(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(require)
+	rawDS, err := tester.New()
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 	docTpl := tuple.Scan(testfixtures.StandardTuples[0])
@@ -45,6 +49,9 @@ func TestDelete(t *testing.T) {
 	require.Greater(ver, uint64(0))
 	require.NoError(err)
 
-	tRequire.NoTupleExists(docTpl, revision)
-	tRequire.TupleExists(folderTpl, revision)
+	deletedRevision, err := ds.Revision()
+	require.NoError(err)
+
+	tRequire.NoTupleExists(docTpl, deletedRevision)
+	tRequire.TupleExists(folderTpl, deletedRevision)
 }

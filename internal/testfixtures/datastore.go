@@ -4,7 +4,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/memdb"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -59,16 +58,7 @@ var StandardTuples = []string{
 	"folder:isolated#viewer@user:villain#...",
 }
 
-func StandardDatastore(require *require.Assertions) datastore.Datastore {
-	ds, err := memdb.NewMemdbDatastore(0)
-	require.NoError(err)
-
-	return ds
-}
-
-func StandardDatastoreWithSchema(require *require.Assertions) (datastore.Datastore, uint64) {
-	ds := StandardDatastore(require)
-
+func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, uint64) {
 	var lastRevision uint64
 	for _, namespace := range []*pb.NamespaceDefinition{UserNS, DocumentNS, FolderNS} {
 		var err error
@@ -79,8 +69,8 @@ func StandardDatastoreWithSchema(require *require.Assertions) (datastore.Datasto
 	return ds, lastRevision
 }
 
-func StandardDatastoreWithData(require *require.Assertions) (datastore.Datastore, uint64) {
-	ds, _ := StandardDatastoreWithSchema(require)
+func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, uint64) {
+	ds, _ = StandardDatastoreWithSchema(ds, require)
 
 	var mutations []*pb.RelationTupleUpdate
 	for _, tupleStr := range StandardTuples {
