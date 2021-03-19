@@ -23,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/services"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -45,6 +46,7 @@ func main() {
 	rootCmd.Flags().String("preshared-key", "", "preshared key to require on authenticated requests")
 	rootCmd.Flags().Bool("log-debug", false, "enable logging debug events")
 	rootCmd.Flags().Uint16("max-depth", 50, "maximum recursion depth for nested calls")
+	rootCmd.Flags().String("datastore-url", "memory:///", "connection url of storage layer")
 
 	rootCmd.Execute()
 }
@@ -81,9 +83,22 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	ds, err := memdb.NewMemdbDatastore(0)
-	if err != nil {
-		logger.Fatal("failed to init in-memory namespace datastore", zap.Error(err))
+	datastoreUrl := cobrautil.MustGetString(cmd, "datastore-url")
+
+	var ds datastore.Datastore
+	var err error
+	if datastoreUrl == "memory:///" {
+		logger.Info("using in-memory datastore")
+		ds, err = memdb.NewMemdbDatastore(0)
+		if err != nil {
+			logger.Fatal("failed to init datastore", zap.Error(err))
+		}
+	} else {
+		logger.Info("using postgres datastore")
+		ds, err = postgres.NewPostgresDatastore(datastoreUrl, 0)
+		if err != nil {
+			logger.Fatal("failed to init datastore", zap.Error(err))
+		}
 	}
 
 	dispatch, err := graph.NewLocalDispatcher(ds)
