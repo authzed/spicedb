@@ -92,4 +92,5 @@ func TestPostgresDatastore(t *testing.T) {
 	t.Run("TestWatch", func(t *testing.T) { test.TestWatch(t, tester) })
 	t.Run("TestWatchCancel", func(t *testing.T) { test.TestWatchCancel(t, tester) })
 	t.Run("TestDelete", func(t *testing.T) { test.TestDelete(t, tester) })
+	t.Run("TestPreconditions", func(t *testing.T) { test.TestPreconditions(t, tester) })
 }

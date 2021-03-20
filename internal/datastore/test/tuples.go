@@ -1,6 +1,7 @@
 package test
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"testing"
@@ -140,4 +141,29 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			tRequire.VerifyIteratorResults(alreadyDeletedIter, testTuples[1:]...)
 		})
 	}
+}
+
+func TestPreconditions(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New()
+	require.NoError(err)
+
+	first := makeTestTuple("first", "owner")
+	second := makeTestTuple("second", "owner")
+
+	_, err = ds.WriteTuples(
+		[]*pb.RelationTuple{first},
+		[]*pb.RelationTupleUpdate{testfixtures.C(second)},
+	)
+	require.True(errors.Is(err, datastore.ErrPreconditionFailed))
+
+	_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{testfixtures.C(first)})
+	require.NoError(err)
+
+	_, err = ds.WriteTuples(
+		[]*pb.RelationTuple{first},
+		[]*pb.RelationTupleUpdate{testfixtures.C(second)},
+	)
+	require.NoError(err)
 }
