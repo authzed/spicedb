@@ -11,10 +11,9 @@ import (
 )
 
 const (
-	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
-	errUnableToWriteTuples           = "unable to write tuples: %w"
-	errUnableToQueryTuples           = "unable to query tuples: %w"
-	errRevision                      = "unable to find revision: %w"
+	errUnableToWriteTuples = "unable to write tuples: %w"
+	errUnableToQueryTuples = "unable to query tuples: %w"
+	errRevision            = "unable to find revision: %w"
 )
 
 const deletedTransactionID = ^uint64(0)
