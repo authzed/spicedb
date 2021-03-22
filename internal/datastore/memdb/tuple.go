@@ -1,6 +1,7 @@
 package memdb
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -116,7 +117,7 @@ func (mds *memdbDatastore) QueryTuples(namespace string, revision uint64) datast
 	}
 }
 
-func (mds *memdbDatastore) Revision() (uint64, error) {
+func (mds *memdbDatastore) Revision(ctx context.Context) (uint64, error) {
 	// Compute the current revision
 	txn := mds.db.Txn(false)
 	defer txn.Abort()

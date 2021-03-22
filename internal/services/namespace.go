@@ -24,7 +24,7 @@ func NewNamespaceServer(ds datastore.Datastore) api.NamespaceServiceServer {
 	return s
 }
 
-func (nss *nsServer) WriteConfig(ctxt context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {
+func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {
 	if err := validation.NamespaceConfig(req.Config); err != nil {
 		return nil, rewriteNamespaceError(err)
 	}
@@ -39,7 +39,7 @@ func (nss *nsServer) WriteConfig(ctxt context.Context, req *api.WriteConfigReque
 	}, nil
 }
 
-func (nss *nsServer) ReadConfig(ctxt context.Context, req *api.ReadConfigRequest) (*api.ReadConfigResponse, error) {
+func (nss *nsServer) ReadConfig(ctx context.Context, req *api.ReadConfigRequest) (*api.ReadConfigResponse, error) {
 	found, version, err := nss.ds.ReadNamespace(req.Namespace)
 	if err != nil {
 		return nil, rewriteNamespaceError(err)

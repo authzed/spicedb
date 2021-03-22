@@ -47,7 +47,11 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision uint64) (<-chan
 			var err error
 			stagedUpdates, currentTxn, err = pgd.loadChanges(ctx, currentTxn)
 			if err != nil {
-				errors <- err
+				if ctx.Err() == context.Canceled {
+					errors <- datastore.ErrWatchCanceled
+				} else {
+					errors <- err
+				}
 				return
 			}
 
@@ -70,6 +74,7 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision uint64) (<-chan
 					// Do nothing, this is expected
 				case <-ctx.Done():
 					errors <- datastore.ErrWatchCanceled
+					return
 				}
 			}
 		}
@@ -84,13 +89,13 @@ func (pgd *pgDatastore) loadChanges(
 	afterRevision uint64,
 ) (changes []*datastore.RevisionChanges, newRevision uint64, err error) {
 
-	tx, err := pgd.db.Beginx()
+	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return
 	}
 	defer tx.Rollback()
 
-	newRevision, err = loadRevision(tx)
+	newRevision, err = loadRevision(ctx, tx)
 	if err != nil {
 		return
 	}

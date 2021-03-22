@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -49,7 +50,7 @@ func TestDelete(t *testing.T, tester DatastoreTester) {
 	require.Greater(ver, uint64(0))
 	require.NoError(err)
 
-	deletedRevision, err := ds.Revision()
+	deletedRevision, err := ds.Revision(context.Background())
 	require.NoError(err)
 
 	tRequire.NoTupleExists(docTpl, deletedRevision)

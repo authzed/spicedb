@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	dbsql "database/sql"
 	"fmt"
 
@@ -76,24 +77,24 @@ type pgDatastore struct {
 	watchBufferLength uint16
 }
 
-func (pgd *pgDatastore) Revision() (uint64, error) {
+func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
 	tx, err := pgd.db.Beginx()
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 	defer tx.Rollback()
 
-	return loadRevision(tx)
+	return loadRevision(ctx, tx)
 }
 
-func loadRevision(tx *sqlx.Tx) (uint64, error) {
+func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
 	sql, args, err := getRevision.ToSql()
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}
 
 	var revision uint64
-	err = tx.QueryRowx(sql, args...).Scan(&revision)
+	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&revision)
 	if err != nil {
 		if err == dbsql.ErrNoRows {
 			return 0, nil

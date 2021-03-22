@@ -42,7 +42,7 @@ func NewACLServer(ds datastore.Datastore, dispatch graph.Dispatcher, defaultDept
 	return s
 }
 
-func (as *aclServer) Write(ctxt context.Context, req *api.WriteRequest) (*api.WriteResponse, error) {
+func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.WriteResponse, error) {
 	revision, err := as.ds.WriteTuples(req.WriteConditions, req.Updates)
 	if err != nil {
 		return nil, rewriteACLError(err)
@@ -53,7 +53,7 @@ func (as *aclServer) Write(ctxt context.Context, req *api.WriteRequest) (*api.Wr
 	}, nil
 }
 
-func (as *aclServer) Read(ctxt context.Context, req *api.ReadRequest) (*api.ReadResponse, error) {
+func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadResponse, error) {
 	var atRevision uint64
 	if req.AtRevision != nil {
 		// Read should attempt to use the exact revision requested
@@ -66,7 +66,7 @@ func (as *aclServer) Read(ctxt context.Context, req *api.ReadRequest) (*api.Read
 	} else {
 		// No revision provided, we'll pick one
 		var err error
-		atRevision, err = as.ds.Revision()
+		atRevision, err = as.ds.Revision(ctx)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to pick request revision: %s", err)
 		}
@@ -115,7 +115,7 @@ func (as *aclServer) Read(ctxt context.Context, req *api.ReadRequest) (*api.Read
 }
 
 func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.CheckResponse, error) {
-	atRevision, err := as.pickBestRevision(req.AtRevision)
+	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
@@ -148,7 +148,7 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 }
 
 func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.ExpandResponse, error) {
-	atRevision, err := as.pickBestRevision(req.AtRevision)
+	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
@@ -197,8 +197,8 @@ func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) 
 	return as.defaultDepth, nil
 }
 
-func (as *aclServer) pickBestRevision(requested *api.Zookie) (uint64, error) {
-	databaseRev, err := as.ds.Revision()
+func (as *aclServer) pickBestRevision(ctx context.Context, requested *api.Zookie) (uint64, error) {
+	databaseRev, err := as.ds.Revision(ctx)
 	if err != nil {
 		return 0, err
 	}

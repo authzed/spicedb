@@ -126,7 +126,7 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 					[]*pb.RelationTupleUpdate{tuple.Create(makeTestTuple("test", "test"))},
 					created.Changes,
 				)
-				require.Equal(uint64(1), created.Revision)
+				require.Greater(created.Revision, uint64(0))
 			} else {
 				errWait := time.NewTimer(100 * time.Millisecond)
 				require.Zero(created)

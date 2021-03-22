@@ -30,7 +30,7 @@ type Datastore interface {
 	WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error)
 
 	// Revision gets the currently replicated revision for this datastore.
-	Revision() (uint64, error)
+	Revision(ctx context.Context) (uint64, error)
 
 	// Watch notifies the caller about all changes to tuples.
 	//
