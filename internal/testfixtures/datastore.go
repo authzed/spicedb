@@ -74,19 +74,17 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 
 	var mutations []*pb.RelationTupleUpdate
 	for _, tupleStr := range StandardTuples {
-		tuple := tuple.Scan(tupleStr)
-		require.NotNil(tuple)
+		tpl := tuple.Scan(tupleStr)
+		require.NotNil(tpl)
 
-		mutations = append(mutations, C(tuple))
+		mutations = append(mutations, tuple.Create(tpl))
 	}
 
-	revision, err := ds.WriteTuples(NoPreconditions, mutations)
+	revision, err := ds.WriteTuples(nil, mutations)
 	require.NoError(err)
 
 	return ds, revision
 }
-
-var NoPreconditions = []*pb.RelationTuple{}
 
 type TupleChecker struct {
 	Require *require.Assertions

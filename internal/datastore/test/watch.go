@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestWatch(t *testing.T, tester DatastoreTester) {
@@ -47,12 +47,11 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 			var testUpdates []*pb.RelationTupleUpdate
 			lowestRevision := ^uint64(0)
 			for i := 0; i < tc.numTuples; i++ {
-				newUpdate := testfixtures.C(makeTestTuple(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)))
-				testUpdates = append(testUpdates, newUpdate)
-				newRevision, err := ds.WriteTuples(
-					testfixtures.NoPreconditions,
-					[]*pb.RelationTupleUpdate{newUpdate},
+				newUpdate := tuple.Create(
+					makeTestTuple(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)),
 				)
+				testUpdates = append(testUpdates, newUpdate)
+				newRevision, err := ds.WriteTuples(nil, []*pb.RelationTupleUpdate{newUpdate})
 				require.NoError(err)
 
 				if newRevision < lowestRevision {
@@ -111,10 +110,9 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, 0)
 	require.Zero(len(errchan))
 
-	_, err = ds.WriteTuples(
-		testfixtures.NoPreconditions,
-		[]*pb.RelationTupleUpdate{testfixtures.C(makeTestTuple("test", "test"))},
-	)
+	_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{
+		tuple.Create(makeTestTuple("test", "test")),
+	})
 	require.NoError(err)
 
 	cancel()
@@ -125,7 +123,7 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 		case created, ok := <-changes:
 			if ok {
 				require.Equal(
-					[]*pb.RelationTupleUpdate{testfixtures.C(makeTestTuple("test", "test"))},
+					[]*pb.RelationTupleUpdate{tuple.Create(makeTestTuple("test", "test"))},
 					created.Changes,
 				)
 				require.Equal(uint64(1), created.Revision)

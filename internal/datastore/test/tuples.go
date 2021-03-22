@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -62,8 +63,8 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 				testTuples = append(testTuples, newTuple)
 
 				writtenAt, err := ds.WriteTuples(
-					testfixtures.NoPreconditions,
-					[]*pb.RelationTupleUpdate{testfixtures.C(newTuple)},
+					nil,
+					[]*pb.RelationTupleUpdate{tuple.Create(newTuple)},
 				)
 				require.NoError(err)
 				require.Greater(writtenAt, lastRevision)
@@ -123,8 +124,8 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 
 			// Delete the first tuple
 			deletedAt, err := ds.WriteTuples(
-				testfixtures.NoPreconditions,
-				[]*pb.RelationTupleUpdate{testfixtures.D(testTuples[0])},
+				nil,
+				[]*pb.RelationTupleUpdate{tuple.Delete(testTuples[0])},
 			)
 			require.NoError(err)
 
@@ -154,16 +155,16 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 
 	_, err = ds.WriteTuples(
 		[]*pb.RelationTuple{first},
-		[]*pb.RelationTupleUpdate{testfixtures.C(second)},
+		[]*pb.RelationTupleUpdate{tuple.Create(second)},
 	)
 	require.True(errors.Is(err, datastore.ErrPreconditionFailed))
 
-	_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{testfixtures.C(first)})
+	_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Create(first)})
 	require.NoError(err)
 
 	_, err = ds.WriteTuples(
 		[]*pb.RelationTuple{first},
-		[]*pb.RelationTupleUpdate{testfixtures.C(second)},
+		[]*pb.RelationTupleUpdate{tuple.Create(second)},
 	)
 	require.NoError(err)
 }

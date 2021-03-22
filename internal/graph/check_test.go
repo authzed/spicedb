@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func init() {
@@ -22,6 +23,8 @@ func init() {
 	// Set this to Trace to dump log statements in tests.
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 }
+
+var ONR = tuple.ObjectAndRelation
 
 func TestSimple(t *testing.T) {
 	type expected struct {
@@ -40,56 +43,56 @@ func TestSimple(t *testing.T) {
 		usersets  []userset
 	}{
 		{"document", "masterplan", []userset{
-			{testfixtures.ONR("user", "pm", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
-			{testfixtures.ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "pm", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
+			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 		}},
 		{"document", "healthplan", []userset{
-			{testfixtures.ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 		}},
 		{"folder", "company", []userset{
-			{testfixtures.ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "owner", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
-			{testfixtures.ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("folder", "auditors", "viewer"), []expected{{"viewer", true}}},
+			{ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "owner", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
+			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("folder", "auditors", "viewer"), []expected{{"viewer", true}}},
 		}},
 		{"folder", "strategy", []userset{
-			{testfixtures.ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "vp_product", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
-			{testfixtures.ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{testfixtures.ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("folder", "company", Ellipsis), []expected{{"parent", true}}},
+			{ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
+			{ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("folder", "company", Ellipsis), []expected{{"parent", true}}},
 		}},
 		{"folder", "isolated", []userset{
-			{testfixtures.ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{testfixtures.ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "eng_lead", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "auditor", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
 		}},
 	}
 
@@ -119,7 +122,7 @@ func TestSimple(t *testing.T) {
 					require.NoError(err)
 
 					checkResult := dispatch.Check(context.Background(), CheckRequest{
-						Start:          testfixtures.ONR(tc.namespace, tc.objectID, expected.relation),
+						Start:          ONR(tc.namespace, tc.objectID, expected.relation),
 						Goal:           userset.userset,
 						AtRevision:     revision,
 						DepthRemaining: 50,
@@ -145,9 +148,9 @@ func TestMaxDepth(t *testing.T) {
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
 	mutations := []*pb.RelationTupleUpdate{
-		testfixtures.C(&pb.RelationTuple{
-			ObjectAndRelation: testfixtures.ONR("folder", "oops", "owner"),
-			User:              testfixtures.User(testfixtures.ONR("folder", "oops", "editor")),
+		tuple.Create(&pb.RelationTuple{
+			ObjectAndRelation: ONR("folder", "oops", "owner"),
+			User:              tuple.User(ONR("folder", "oops", "editor")),
 		}),
 	}
 
@@ -159,8 +162,8 @@ func TestMaxDepth(t *testing.T) {
 	require.NoError(err)
 
 	checkResult := dispatch.Check(context.Background(), CheckRequest{
-		Start:          testfixtures.ONR("folder", "oops", "owner"),
-		Goal:           testfixtures.ONR("user", "fake", Ellipsis),
+		Start:          ONR("folder", "oops", "owner"),
+		Goal:           ONR("user", "fake", Ellipsis),
 		AtRevision:     revision,
 		DepthRemaining: 50,
 	})

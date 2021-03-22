@@ -15,80 +15,81 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	tf "github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/graph"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var (
-	companyOwner = tf.U(tf.ONR("folder", "company", "owner"),
-		tf.Leaf(tf.ONR("folder", "company", "owner"),
-			tf.User(tf.ONR("user", "owner", Ellipsis)),
+	companyOwner = graph.Union(ONR("folder", "company", "owner"),
+		graph.Leaf(ONR("folder", "company", "owner"),
+			tuple.User(ONR("user", "owner", Ellipsis)),
 		),
 	)
-	companyEditor = tf.U(tf.ONR("folder", "company", "editor"),
-		tf.U(tf.ONR("folder", "company", "editor"),
-			tf.Leaf(tf.ONR("folder", "company", "editor")),
+	companyEditor = graph.Union(ONR("folder", "company", "editor"),
+		graph.Union(ONR("folder", "company", "editor"),
+			graph.Leaf(ONR("folder", "company", "editor")),
 			companyOwner,
 		),
 	)
-	companyViewer = tf.U(tf.ONR("folder", "company", "viewer"),
-		tf.U(tf.ONR("folder", "company", "viewer"),
-			tf.Leaf(tf.ONR("folder", "company", "viewer"),
-				tf.User(tf.ONR("folder", "auditors", "viewer")),
-				tf.User(tf.ONR("user", "legal", "...")),
+	companyViewer = graph.Union(ONR("folder", "company", "viewer"),
+		graph.Union(ONR("folder", "company", "viewer"),
+			graph.Leaf(ONR("folder", "company", "viewer"),
+				tuple.User(ONR("folder", "auditors", "viewer")),
+				tuple.User(ONR("user", "legal", "...")),
 			),
 			companyEditor,
-			tf.U(tf.ONR("folder", "company", "viewer")),
+			graph.Union(ONR("folder", "company", "viewer")),
 		),
 	)
-	docOwner = tf.U(tf.ONR("document", "masterplan", "owner"),
-		tf.Leaf(tf.ONR("document", "masterplan", "owner"),
-			tf.User(tf.ONR("user", "pm", "...")),
+	docOwner = graph.Union(ONR("document", "masterplan", "owner"),
+		graph.Leaf(ONR("document", "masterplan", "owner"),
+			tuple.User(ONR("user", "pm", "...")),
 		),
 	)
-	docEditor = tf.U(tf.ONR("document", "masterplan", "editor"),
-		tf.U(tf.ONR("document", "masterplan", "editor"),
-			tf.Leaf(tf.ONR("document", "masterplan", "editor")),
+	docEditor = graph.Union(ONR("document", "masterplan", "editor"),
+		graph.Union(ONR("document", "masterplan", "editor"),
+			graph.Leaf(ONR("document", "masterplan", "editor")),
 			docOwner,
 		),
 	)
-	docViewer = tf.U(tf.ONR("document", "masterplan", "viewer"),
-		tf.U(tf.ONR("document", "masterplan", "viewer"),
-			tf.Leaf(tf.ONR("document", "masterplan", "viewer"),
-				tf.User(tf.ONR("user", "eng_lead", "...")),
+	docViewer = graph.Union(ONR("document", "masterplan", "viewer"),
+		graph.Union(ONR("document", "masterplan", "viewer"),
+			graph.Leaf(ONR("document", "masterplan", "viewer"),
+				tuple.User(ONR("user", "eng_lead", "...")),
 			),
 			docEditor,
-			tf.U(tf.ONR("document", "masterplan", "viewer"),
-				tf.U(tf.ONR("folder", "plans", "viewer"),
-					tf.U(tf.ONR("folder", "plans", "viewer"),
-						tf.Leaf(tf.ONR("folder", "plans", "viewer"),
-							tf.User(tf.ONR("user", "cfo", "...")),
+			graph.Union(ONR("document", "masterplan", "viewer"),
+				graph.Union(ONR("folder", "plans", "viewer"),
+					graph.Union(ONR("folder", "plans", "viewer"),
+						graph.Leaf(ONR("folder", "plans", "viewer"),
+							tuple.User(ONR("user", "cfo", "...")),
 						),
-						tf.U(tf.ONR("folder", "plans", "editor"),
-							tf.U(tf.ONR("folder", "plans", "editor"),
-								tf.Leaf(tf.ONR("folder", "plans", "editor")),
-								tf.U(tf.ONR("folder", "plans", "owner"),
-									tf.Leaf(tf.ONR("folder", "plans", "owner")),
+						graph.Union(ONR("folder", "plans", "editor"),
+							graph.Union(ONR("folder", "plans", "editor"),
+								graph.Leaf(ONR("folder", "plans", "editor")),
+								graph.Union(ONR("folder", "plans", "owner"),
+									graph.Leaf(ONR("folder", "plans", "owner")),
 								),
 							),
 						),
-						tf.U(tf.ONR("folder", "plans", "viewer")),
+						graph.Union(ONR("folder", "plans", "viewer")),
 					),
 				),
-				tf.U(tf.ONR("folder", "strategy", "viewer"),
-					tf.U(tf.ONR("folder", "strategy", "viewer"),
-						tf.Leaf(tf.ONR("folder", "strategy", "viewer")),
-						tf.U(tf.ONR("folder", "strategy", "editor"),
-							tf.U(tf.ONR("folder", "strategy", "editor"),
-								tf.Leaf(tf.ONR("folder", "strategy", "editor")),
-								tf.U(tf.ONR("folder", "strategy", "owner"),
-									tf.Leaf(tf.ONR("folder", "strategy", "owner"),
-										tf.User(tf.ONR("user", "vp_product", "...")),
+				graph.Union(ONR("folder", "strategy", "viewer"),
+					graph.Union(ONR("folder", "strategy", "viewer"),
+						graph.Leaf(ONR("folder", "strategy", "viewer")),
+						graph.Union(ONR("folder", "strategy", "editor"),
+							graph.Union(ONR("folder", "strategy", "editor"),
+								graph.Leaf(ONR("folder", "strategy", "editor")),
+								graph.Union(ONR("folder", "strategy", "owner"),
+									graph.Leaf(ONR("folder", "strategy", "owner"),
+										tuple.User(ONR("user", "vp_product", "...")),
 									),
 								),
 							),
 						),
-						tf.U(tf.ONR("folder", "strategy", "viewer"),
+						graph.Union(ONR("folder", "strategy", "viewer"),
 							companyViewer,
 						),
 					),
@@ -103,12 +104,12 @@ func TestExpand(t *testing.T) {
 		start    *pb.ObjectAndRelation
 		expected *pb.RelationTupleTreeNode
 	}{
-		{start: tf.ONR("folder", "company", "owner"), expected: companyOwner},
-		{start: tf.ONR("folder", "company", "editor"), expected: companyEditor},
-		{start: tf.ONR("folder", "company", "viewer"), expected: companyViewer},
-		{start: tf.ONR("document", "masterplan", "owner"), expected: docOwner},
-		{start: tf.ONR("document", "masterplan", "editor"), expected: docEditor},
-		{start: tf.ONR("document", "masterplan", "viewer"), expected: docViewer},
+		{start: ONR("folder", "company", "owner"), expected: companyOwner},
+		{start: ONR("folder", "company", "editor"), expected: companyEditor},
+		{start: ONR("folder", "company", "viewer"), expected: companyViewer},
+		{start: ONR("document", "masterplan", "owner"), expected: docOwner},
+		{start: ONR("document", "masterplan", "editor"), expected: docEditor},
+		{start: ONR("document", "masterplan", "viewer"), expected: docViewer},
 	}
 
 	for _, tc := range testCases {
@@ -119,7 +120,7 @@ func TestExpand(t *testing.T) {
 			rawDS, err := memdb.NewMemdbDatastore(0)
 			require.NoError(err)
 
-			ds, revision := tf.StandardDatastoreWithData(rawDS, require)
+			ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
 			dispatch, err := NewLocalDispatcher(ds)
 			require.NoError(err)
@@ -226,9 +227,9 @@ func TestMaxDepthExpand(t *testing.T) {
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
 	mutations := []*pb.RelationTupleUpdate{
-		testfixtures.C(&pb.RelationTuple{
-			ObjectAndRelation: testfixtures.ONR("folder", "oops", "parent"),
-			User:              testfixtures.User(testfixtures.ONR("folder", "oops", Ellipsis)),
+		tuple.Create(&pb.RelationTuple{
+			ObjectAndRelation: ONR("folder", "oops", "parent"),
+			User:              tuple.User(ONR("folder", "oops", Ellipsis)),
 		}),
 	}
 
@@ -240,7 +241,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	require.NoError(err)
 
 	checkResult := dispatch.Expand(context.Background(), ExpandRequest{
-		Start:          testfixtures.ONR("folder", "oops", "viewer"),
+		Start:          ONR("folder", "oops", "viewer"),
 		AtRevision:     revision,
 		DepthRemaining: 50,
 	})
