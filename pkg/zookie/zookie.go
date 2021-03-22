@@ -3,6 +3,7 @@ package zookie
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
@@ -15,6 +16,12 @@ import (
 const (
 	errEncodeError = "error encoding zookie: %w"
 	errDecodeError = "error decoding zookie: %w"
+)
+
+var (
+	// ErrNilZookie is returned as the base error when nil is provided as the
+	// zookie argument to Decode
+	ErrNilZookie = errors.New("zookie pointer was nil")
 )
 
 // NewFromRevision generates an encoded zookie from an integral revision.
@@ -49,6 +56,10 @@ func Encode(decoded *zookie.DecodedZookie) (*pb.Zookie, error) {
 
 // Decode converts an encoded zookie to its decoded version.
 func Decode(encoded *pb.Zookie) (*zookie.DecodedZookie, error) {
+	if encoded == nil {
+		return nil, fmt.Errorf(errDecodeError, ErrNilZookie)
+	}
+
 	decodedBytes, err := base64.StdEncoding.DecodeString(encoded.Token)
 	if err != nil {
 		return nil, fmt.Errorf(errDecodeError, err)
