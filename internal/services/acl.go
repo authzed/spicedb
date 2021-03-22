@@ -2,10 +2,11 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
 	"strconv"
 
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -28,12 +29,12 @@ const (
 	maxUInt16 = int(^uint16(0))
 
 	depthRemainingHeader = "depth-remaining"
-
-	errInvalidCheck  = "error when performing check: %s"
-	errInvalidExpand = "error when performing expand: %s"
 )
 
-var errInvalidDepthRemaining = fmt.Errorf("invalid %s header", depthRemainingHeader)
+var (
+	errInvalidZookie         = errors.New("invalid revision requested")
+	errInvalidDepthRemaining = fmt.Errorf("invalid %s header", depthRemainingHeader)
+)
 
 // NewACLServer creates an instance of the ACL server.
 func NewACLServer(ds datastore.Datastore, dispatch graph.Dispatcher, defaultDepth uint16) api.ACLServiceServer {
@@ -43,22 +44,33 @@ func NewACLServer(ds datastore.Datastore, dispatch graph.Dispatcher, defaultDept
 
 func (as *aclServer) Write(ctxt context.Context, req *api.WriteRequest) (*api.WriteResponse, error) {
 	revision, err := as.ds.WriteTuples(req.WriteConditions, req.Updates)
-	switch err {
-	case datastore.ErrPreconditionFailed:
-		return nil, status.Errorf(codes.FailedPrecondition, "A write precondition failed.")
-	case nil:
-		return &api.WriteResponse{
-			Revision: zookie.NewFromRevision(revision),
-		}, nil
-	default:
-		log.Printf("Unknown error writing tuples: %s", err)
-		return nil, status.Errorf(codes.Unknown, "Unknown error.")
+	if err != nil {
+		return nil, rewriteACLError(err)
 	}
+
+	return &api.WriteResponse{
+		Revision: zookie.NewFromRevision(revision),
+	}, nil
 }
 
 func (as *aclServer) Read(ctxt context.Context, req *api.ReadRequest) (*api.ReadResponse, error) {
-	// TODO load the revision from the request or datastore.
-	atRevision := uint64(9223372036854775800)
+	var atRevision uint64
+	if req.AtRevision != nil {
+		// Read should attempt to use the exact revision requested
+		decoded, err := zookie.Decode(req.AtRevision)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "bad request revision: %s", err)
+		}
+
+		atRevision = decoded.GetV1().Revision
+	} else {
+		// No revision provided, we'll pick one
+		var err error
+		atRevision, err = as.ds.Revision()
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to pick request revision: %s", err)
+		}
+	}
 
 	var allTuplesetResults []*api.ReadResponse_Tupleset
 
@@ -103,12 +115,14 @@ func (as *aclServer) Read(ctxt context.Context, req *api.ReadRequest) (*api.Read
 }
 
 func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.CheckResponse, error) {
-	// TODO load the revision from the request or datastore.
-	atRevision := uint64(9223372036854775800)
+	atRevision, err := as.pickBestRevision(req.AtRevision)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
 
 	depth, err := as.calculateRequestDepth(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, errInvalidExpand, err)
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	cr := as.dispatch.Check(ctx, graph.CheckRequest{
@@ -117,18 +131,8 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 		AtRevision:     atRevision,
 		DepthRemaining: depth,
 	})
-
-	switch cr.Err {
-	case graph.ErrNamespaceNotFound:
-		fallthrough
-	case graph.ErrRelationNotFound:
-		return nil, status.Errorf(codes.FailedPrecondition, errInvalidCheck, cr.Err)
-	case graph.ErrRequestCanceled:
-		return nil, status.Errorf(codes.Canceled, errInvalidCheck, cr.Err)
-	case nil:
-		break
-	default:
-		return nil, status.Errorf(codes.Unknown, errInvalidCheck, cr.Err)
+	if cr.Err != nil {
+		return nil, rewriteACLError(cr.Err)
 	}
 
 	membership := api.CheckResponse_NOT_MEMBER
@@ -144,12 +148,14 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 }
 
 func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.ExpandResponse, error) {
-	// TODO load the revision from the request or datastore.
-	atRevision := uint64(9223372036854775800)
+	atRevision, err := as.pickBestRevision(req.AtRevision)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
 
 	depth, err := as.calculateRequestDepth(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, errInvalidExpand, err)
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	resp := as.dispatch.Expand(ctx, graph.ExpandRequest{
@@ -157,18 +163,8 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 		AtRevision:     atRevision,
 		DepthRemaining: depth,
 	})
-
-	switch resp.Err {
-	case graph.ErrNamespaceNotFound:
-		fallthrough
-	case graph.ErrRelationNotFound:
-		return nil, status.Errorf(codes.FailedPrecondition, errInvalidExpand, resp.Err)
-	case graph.ErrRequestCanceled:
-		return nil, status.Errorf(codes.Canceled, errInvalidExpand, resp.Err)
-	case nil:
-		break
-	default:
-		return nil, status.Errorf(codes.Unknown, errInvalidExpand, resp.Err)
+	if resp.Err != nil {
+		return nil, rewriteACLError(resp.Err)
 	}
 
 	return &api.ExpandResponse{
@@ -199,4 +195,46 @@ func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) 
 	}
 
 	return as.defaultDepth, nil
+}
+
+func (as *aclServer) pickBestRevision(requested *api.Zookie) (uint64, error) {
+	databaseRev, err := as.ds.Revision()
+	if err != nil {
+		return 0, err
+	}
+
+	if requested != nil {
+		decoded, err := zookie.Decode(requested)
+		if err != nil {
+			return 0, errInvalidZookie
+		}
+
+		requestedRev := decoded.GetV1().Revision
+		if requestedRev > databaseRev {
+			return requestedRev, nil
+		}
+		return databaseRev, nil
+	}
+
+	return databaseRev, nil
+}
+
+func rewriteACLError(err error) error {
+	switch err {
+	case errInvalidZookie:
+		return status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	case graph.ErrNamespaceNotFound:
+		fallthrough
+	case graph.ErrRelationNotFound:
+		return status.Errorf(codes.FailedPrecondition, "data error: %s", err)
+	case graph.ErrRequestCanceled:
+		return status.Errorf(codes.Canceled, "request canceled: %s", err)
+	case datastore.ErrPreconditionFailed:
+		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
+	case graph.ErrAlwaysFail:
+		fallthrough
+	default:
+		log.Err(err)
+		return err
+	}
 }

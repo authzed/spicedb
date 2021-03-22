@@ -2,17 +2,14 @@ package services
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/validation"
 	"github.com/authzed/spicedb/pkg/zookie"
-)
-
-const (
-	errUnableToWrite = "Unable to write config: %v"
-	errUnableToRead  = "Unable to read config: %v"
+	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type nsServer struct {
@@ -29,12 +26,12 @@ func NewNamespaceServer(ds datastore.Datastore) api.NamespaceServiceServer {
 
 func (nss *nsServer) WriteConfig(ctxt context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {
 	if err := validation.NamespaceConfig(req.Config); err != nil {
-		return nil, fmt.Errorf(errUnableToWrite, err)
+		return nil, rewriteNamespaceError(err)
 	}
 
 	revision, err := nss.ds.WriteNamespace(req.Config)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToWrite, err)
+		return nil, rewriteNamespaceError(err)
 	}
 
 	return &api.WriteConfigResponse{
@@ -45,7 +42,7 @@ func (nss *nsServer) WriteConfig(ctxt context.Context, req *api.WriteConfigReque
 func (nss *nsServer) ReadConfig(ctxt context.Context, req *api.ReadConfigRequest) (*api.ReadConfigResponse, error) {
 	found, version, err := nss.ds.ReadNamespace(req.Namespace)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToRead, err)
+		return nil, rewriteNamespaceError(err)
 	}
 
 	return &api.ReadConfigResponse{
@@ -53,4 +50,14 @@ func (nss *nsServer) ReadConfig(ctxt context.Context, req *api.ReadConfigRequest
 		Config:    found,
 		Revision:  zookie.NewFromRevision(version),
 	}, nil
+}
+
+func rewriteNamespaceError(err error) error {
+	switch err {
+	case datastore.ErrNamespaceNotFound:
+		return status.Errorf(codes.NotFound, "namespace not found: %s", err)
+	default:
+		log.Err(err)
+		return err
+	}
 }
