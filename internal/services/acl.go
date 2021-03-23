@@ -28,7 +28,7 @@ type aclServer struct {
 const (
 	maxUInt16 = int(^uint16(0))
 
-	depthRemainingHeader = "depth-remaining"
+	depthRemainingHeader = "authzed-depth-remaining"
 )
 
 var (
@@ -180,7 +180,7 @@ func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) 
 				return 0, errInvalidDepthRemaining
 			}
 
-			// We have one and only one depth-remaining header, let's check the format
+			// We have one and only one depth remaining header, let's check the format
 			decoded, err := strconv.Atoi(matching[0])
 			if err != nil {
 				return 0, errInvalidDepthRemaining
