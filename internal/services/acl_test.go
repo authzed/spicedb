@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -14,9 +15,12 @@ import (
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	g "github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 var ONR = tuple.ObjectAndRelation
+
+var testTimedeltas = []time.Duration{0, 1 * time.Second}
 
 func TestRead(t *testing.T) {
 	testCases := []struct {
@@ -94,28 +98,34 @@ func TestRead(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
+	for _, delta := range testTimedeltas {
+		t.Run(fmt.Sprintf("fuzz%d", delta), func(t *testing.T) {
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					require := require.New(t)
 
-			srv := newACLServicer(require)
+					srv, revision := newACLServicer(require, delta)
 
-			resp, err := srv.Read(context.Background(), &api.ReadRequest{
-				Tuplesets: []*api.RelationTupleFilter{tc.filter},
-			})
-			require.NoError(err)
-			require.NotNil(resp.Revision)
-			require.Len(resp.Tuplesets, 1)
+					resp, err := srv.Read(context.Background(), &api.ReadRequest{
+						Tuplesets:  []*api.RelationTupleFilter{tc.filter},
+						AtRevision: zookie.NewFromRevision(revision),
+					})
+					require.NoError(err)
+					require.NotNil(resp.Revision)
+					require.Len(resp.Tuplesets, 1)
 
-			verifyTuples(tc.expected, resp.Tuplesets[0].Tuples, require)
+					verifyTuples(tc.expected, resp.Tuplesets[0].Tuples, require)
+				})
+			}
 		})
 	}
+
 }
 
 func TestWrite(t *testing.T) {
 	require := require.New(t)
 
-	srv := newACLServicer(require)
+	srv, _ := newACLServicer(require, 0)
 
 	toWriteStr := "document:totallynew#parent@folder:plans#..."
 	toWrite := tuple.Scan(toWriteStr)
@@ -211,35 +221,45 @@ func TestCheck(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
-		name := fmt.Sprintf("%s:%s#%s", tc.start.Namespace, tc.start.ObjectId, tc.start.Relation)
-		t.Run(name, func(t *testing.T) {
-			require := require.New(t)
-			srv := newACLServicer(require)
+	for _, delta := range testTimedeltas {
+		t.Run(fmt.Sprintf("fuzz%d", delta), func(t *testing.T) {
+			for _, tc := range testCases {
+				name := fmt.Sprintf(
+					"%s:%s#%s",
+					tc.start.Namespace,
+					tc.start.ObjectId,
+					tc.start.Relation,
+				)
+				t.Run(name, func(t *testing.T) {
+					require := require.New(t)
+					srv, revision := newACLServicer(require, delta)
 
-			for _, checkTest := range tc.checkTests {
-				resp, err := srv.Check(context.Background(), &api.CheckRequest{
-					TestUserset: tc.start,
-					User: &api.User{
-						UserOneof: &api.User_Userset{
-							Userset: checkTest.user,
-						},
-					},
-				})
+					for _, checkTest := range tc.checkTests {
+						resp, err := srv.Check(context.Background(), &api.CheckRequest{
+							TestUserset: tc.start,
+							User: &api.User{
+								UserOneof: &api.User_Userset{
+									Userset: checkTest.user,
+								},
+							},
+							AtRevision: zookie.NewFromRevision(revision),
+						})
 
-				if tc.expectedErrorCode == codes.OK {
-					require.NoError(err)
-					require.NotNil(resp.Revision)
-					require.NotEmpty(resp.Revision.Token)
-					require.Equal(checkTest.membership, resp.IsMember)
-					if checkTest.membership {
-						require.Equal(api.CheckResponse_MEMBER, resp.Membership)
-					} else {
-						require.Equal(api.CheckResponse_NOT_MEMBER, resp.Membership)
+						if tc.expectedErrorCode == codes.OK {
+							require.NoError(err)
+							require.NotNil(resp.Revision)
+							require.NotEmpty(resp.Revision.Token)
+							require.Equal(checkTest.membership, resp.IsMember)
+							if checkTest.membership {
+								require.Equal(api.CheckResponse_MEMBER, resp.Membership)
+							} else {
+								require.Equal(api.CheckResponse_NOT_MEMBER, resp.Membership)
+							}
+						} else {
+							requireGRPCStatus(tc.expectedErrorCode, err, require)
+						}
 					}
-				} else {
-					requireGRPCStatus(tc.expectedErrorCode, err, require)
-				}
+				})
 			}
 		})
 	}
@@ -256,38 +276,51 @@ func TestExpand(t *testing.T) {
 		{ONR("document", "masterplan", "fakerelation"), 0, codes.FailedPrecondition},
 	}
 
-	for _, tc := range testCases {
-		name := fmt.Sprintf("%s:%s#%s", tc.start.Namespace, tc.start.ObjectId, tc.start.Relation)
-		t.Run(name, func(t *testing.T) {
-			require := require.New(t)
-			srv := newACLServicer(require)
+	for _, delta := range testTimedeltas {
+		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			for _, tc := range testCases {
+				name := fmt.Sprintf(
+					"%s:%s#%s",
+					tc.start.Namespace,
+					tc.start.ObjectId,
+					tc.start.Relation,
+				)
+				t.Run(name, func(t *testing.T) {
+					require := require.New(t)
+					srv, revision := newACLServicer(require, delta)
 
-			expanded, err := srv.Expand(context.Background(), &api.ExpandRequest{
-				Userset: tc.start,
-			})
-			if tc.expectedErrorCode == codes.OK {
-				require.NoError(err)
-				require.NotNil(expanded.Revision)
-				require.NotEmpty(expanded.Revision.Token)
+					expanded, err := srv.Expand(context.Background(), &api.ExpandRequest{
+						Userset:    tc.start,
+						AtRevision: zookie.NewFromRevision(revision),
+					})
+					if tc.expectedErrorCode == codes.OK {
+						require.NoError(err)
+						require.NotNil(expanded.Revision)
+						require.NotEmpty(expanded.Revision.Token)
 
-				require.Equal(tc.expandRelatedCount, len(g.Simplify(expanded.TreeNode)))
-			} else {
-				requireGRPCStatus(tc.expectedErrorCode, err, require)
+						require.Equal(tc.expandRelatedCount, len(g.Simplify(expanded.TreeNode)))
+					} else {
+						requireGRPCStatus(tc.expectedErrorCode, err, require)
+					}
+				})
 			}
 		})
 	}
 }
 
-func newACLServicer(require *require.Assertions) api.ACLServiceServer {
-	emptyDS, err := memdb.NewMemdbDatastore(0, 0)
+func newACLServicer(
+	require *require.Assertions,
+	revisionFuzzingTimedelta time.Duration,
+) (api.ACLServiceServer, uint64) {
+	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta)
 	require.NoError(err)
 
-	ds, _ := tf.StandardDatastoreWithData(emptyDS, require)
+	ds, revision := tf.StandardDatastoreWithData(emptyDS, require)
 
 	dispatch, err := graph.NewLocalDispatcher(ds)
 	require.NoError(err)
 
-	return NewACLServer(ds, dispatch, 50)
+	return NewACLServer(ds, dispatch, 50), revision
 }
 
 func verifyTuples(expected []string, found []*api.RelationTuple, require *require.Assertions) {

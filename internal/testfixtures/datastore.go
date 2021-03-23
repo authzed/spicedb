@@ -72,16 +72,15 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, uint64) {
 	ds, _ = StandardDatastoreWithSchema(ds, require)
 
-	var mutations []*pb.RelationTupleUpdate
+	var revision uint64
 	for _, tupleStr := range StandardTuples {
 		tpl := tuple.Scan(tupleStr)
 		require.NotNil(tpl)
 
-		mutations = append(mutations, tuple.Create(tpl))
+		var err error
+		revision, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Create(tpl)})
+		require.NoError(err)
 	}
-
-	revision, err := ds.WriteTuples(nil, mutations)
-	require.NoError(err)
 
 	return ds, revision
 }
