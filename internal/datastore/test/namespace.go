@@ -24,7 +24,7 @@ var documentNamespace = &pb.NamespaceDefinition{
 func TestDelete(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New()
+	rawDS, err := tester.New(0)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -50,7 +50,7 @@ func TestDelete(t *testing.T, tester DatastoreTester) {
 	require.Greater(ver, uint64(0))
 	require.NoError(err)
 
-	deletedRevision, err := ds.Revision(context.Background())
+	deletedRevision, err := ds.SyncRevision(context.Background())
 	require.NoError(err)
 
 	tRequire.NoTupleExists(docTpl, deletedRevision)

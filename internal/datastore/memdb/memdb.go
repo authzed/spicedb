@@ -16,6 +16,7 @@ const (
 	tableNamespaceConfig    = "namespaceConfig"
 
 	indexID                   = "id"
+	indexTimestamp            = "timestamp"
 	indexLive                 = "live"
 	indexNamespace            = "namespace"
 	indexNamespaceAndObjectID = "namespaceAndObjectID"
@@ -42,7 +43,7 @@ type namespace struct {
 
 type tupleChangelog struct {
 	id        uint64
-	timestamp time.Time
+	timestamp uint64
 	changes   []*pb.RelationTupleUpdate
 }
 
@@ -86,6 +87,11 @@ var schema = &memdb.DBSchema{
 					Name:    indexID,
 					Unique:  true,
 					Indexer: &memdb.UintFieldIndex{Field: "id"},
+				},
+				indexTimestamp: {
+					Name:    indexTimestamp,
+					Unique:  false,
+					Indexer: &memdb.UintFieldIndex{Field: "timestamp"},
 				},
 			},
 		},
@@ -165,14 +171,15 @@ var schema = &memdb.DBSchema{
 }
 
 type memdbDatastore struct {
-	db                *memdb.MemDB
-	watchBufferLength uint16
+	db                       *memdb.MemDB
+	watchBufferLength        uint16
+	revisionFuzzingTimedelta time.Duration
 }
 
 // NewMemdbDatastore creates a new Datastore compliant datastore backed by memdb.
 //
 // If the watchBufferLength value of 0 is set then a default value of 128 will be used.
-func NewMemdbDatastore(watchBufferLength uint16) (datastore.Datastore, error) {
+func NewMemdbDatastore(watchBufferLength uint16, revisionFuzzingTimedelta time.Duration) (datastore.Datastore, error) {
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
@@ -183,7 +190,8 @@ func NewMemdbDatastore(watchBufferLength uint16) (datastore.Datastore, error) {
 	}
 
 	return &memdbDatastore{
-		db:                db,
-		watchBufferLength: watchBufferLength,
+		db:                       db,
+		watchBufferLength:        watchBufferLength,
+		revisionFuzzingTimedelta: revisionFuzzingTimedelta,
 	}, nil
 }

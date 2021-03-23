@@ -4,6 +4,8 @@ import (
 	"context"
 	dbsql "database/sql"
 	"fmt"
+	"math/rand"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
@@ -18,6 +20,7 @@ const (
 	tableTuple       = "relation_tuple"
 
 	colID               = "id"
+	colTimestamp        = "timestamp"
 	colNamespace        = "namespace"
 	colConfig           = "serialized_config"
 	colCreatedTxn       = "created_transaction"
@@ -43,6 +46,10 @@ var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	getRevision = psql.Select("MAX(id)").From(tableTransaction)
+
+	getMatchingRevision = psql.Select(colID).From(tableTransaction)
+
+	getNow = psql.Select("NOW()")
 )
 
 type RelationTupleRow struct {
@@ -54,7 +61,11 @@ type RelationTupleRow struct {
 	UsersetRelation  string
 }
 
-func NewPostgresDatastore(url string, watchBufferLength uint16) (datastore.Datastore, error) {
+func NewPostgresDatastore(
+	url string,
+	watchBufferLength uint16,
+	revisionFuzzingTimedelta time.Duration,
+) (datastore.Datastore, error) {
 	if watchBufferLength == 0 {
 		watchBufferLength = defaultWatchBufferLength
 	}
@@ -69,12 +80,26 @@ func NewPostgresDatastore(url string, watchBufferLength uint16) (datastore.Datas
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	return &pgDatastore{db: db, watchBufferLength: watchBufferLength}, nil
+	return &pgDatastore{db: db,
+		watchBufferLength:        watchBufferLength,
+		revisionFuzzingTimedelta: revisionFuzzingTimedelta,
+	}, nil
 }
 
 type pgDatastore struct {
-	db                *sqlx.DB
-	watchBufferLength uint16
+	db                       *sqlx.DB
+	watchBufferLength        uint16
+	revisionFuzzingTimedelta time.Duration
+}
+
+func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
+	tx, err := pgd.db.Beginx()
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+	}
+	defer tx.Rollback()
+
+	return loadRevision(ctx, tx)
 }
 
 func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
@@ -84,7 +109,47 @@ func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
 	}
 	defer tx.Rollback()
 
-	return loadRevision(ctx, tx)
+	nowSQL, nowArgs, err := getNow.ToSql()
+	if err != nil {
+		return 0, fmt.Errorf(errRevision, err)
+	}
+
+	var now time.Time
+	err = tx.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
+	if err != nil {
+		return 0, fmt.Errorf(errRevision, err)
+	}
+
+	lowerBound := now.Add(-1 * pgd.revisionFuzzingTimedelta)
+	sql, args, err := getMatchingRevision.Where(sq.GtOrEq{colTimestamp: lowerBound}).ToSql()
+	if err != nil {
+		return 0, fmt.Errorf(errRevision, err)
+	}
+
+	rows, err := tx.QueryxContext(ctx, sql, args...)
+	if err != nil {
+		return 0, fmt.Errorf(errRevision, err)
+	}
+
+	var candidates []uint64
+	for rows.Next() {
+		var newCandidate uint64
+		err := rows.Scan(&newCandidate)
+		if err != nil {
+			return 0, fmt.Errorf(errRevision, err)
+		}
+
+		candidates = append(candidates, newCandidate)
+	}
+	if rows.Err() != nil {
+		return 0, fmt.Errorf(errRevision, rows.Err())
+	}
+
+	if len(candidates) > 0 {
+		return candidates[rand.Intn(len(candidates))], nil
+	} else {
+		return loadRevision(ctx, tx)
+	}
 }
 
 func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {

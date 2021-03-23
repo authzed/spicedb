@@ -1,10 +1,12 @@
 package test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -47,7 +49,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 		t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New()
+			ds, err := tester.New(0)
 			require.NoError(err)
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
@@ -147,7 +149,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 func TestPreconditions(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New()
+	ds, err := tester.New(0)
 	require.NoError(err)
 
 	first := makeTestTuple("first", "owner")
@@ -167,4 +169,48 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 		[]*pb.RelationTupleUpdate{tuple.Create(second)},
 	)
 	require.NoError(err)
+}
+
+func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	fuzzingRange := 50 * time.Millisecond
+
+	ds, err := tester.New(fuzzingRange)
+	require.NoError(err)
+
+	// Create some revisions
+	tpl := makeTestTuple("first", "owner")
+	for i := 0; i < 10; i++ {
+		_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Touch(tpl)})
+		require.NoError(err)
+	}
+
+	// Get the new now revision
+	nowRevision, err := ds.SyncRevision(context.Background())
+	require.NoError(err)
+	require.GreaterOrEqual(nowRevision, uint64(0))
+
+	foundAnotherRevision := false
+	for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
+		testRevision, err := ds.Revision(context.Background())
+		require.NoError(err)
+		require.LessOrEqual(testRevision, nowRevision)
+		if testRevision < nowRevision {
+			foundAnotherRevision = true
+			break
+		}
+	}
+
+	require.True(foundAnotherRevision)
+
+	// Let the fuzzing window expire
+	time.Sleep(fuzzingRange)
+
+	// Now we should ONLY get the now revision
+	for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
+		testRevision, err := ds.Revision(context.Background())
+		require.NoError(err)
+		require.Equal(nowRevision, testRevision)
+	}
 }

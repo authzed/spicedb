@@ -3,6 +3,7 @@ package memdb
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
@@ -43,7 +44,7 @@ func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutati
 
 	newChangelogEntry := &tupleChangelog{
 		id:        newChangelogID,
-		timestamp: time.Now(),
+		timestamp: uint64(time.Now().UnixNano()),
 		changes:   mutations,
 	}
 
@@ -117,7 +118,7 @@ func (mds *memdbDatastore) QueryTuples(namespace string, revision uint64) datast
 	}
 }
 
-func (mds *memdbDatastore) Revision(ctx context.Context) (uint64, error) {
+func (mds *memdbDatastore) SyncRevision(ctx context.Context) (uint64, error) {
 	// Compute the current revision
 	txn := mds.db.Txn(false)
 	defer txn.Abort()
@@ -130,6 +131,29 @@ func (mds *memdbDatastore) Revision(ctx context.Context) (uint64, error) {
 		return lastRaw.(*tupleChangelog).id, nil
 	}
 	return 0, nil
+}
+
+func (mds *memdbDatastore) Revision(ctx context.Context) (uint64, error) {
+	txn := mds.db.Txn(false)
+	defer txn.Abort()
+
+	lowerBound := uint64(time.Now().Add(-1 * mds.revisionFuzzingTimedelta).UnixNano())
+
+	iter, err := txn.LowerBound(tableChangelog, indexTimestamp, lowerBound)
+	if err != nil {
+		return 0, fmt.Errorf(errRevision, err)
+	}
+
+	var candidates []uint64
+	for oneChange := iter.Next(); oneChange != nil; oneChange = iter.Next() {
+		candidates = append(candidates, oneChange.(*tupleChangelog).id)
+	}
+
+	if len(candidates) > 0 {
+		return candidates[rand.Intn(len(candidates))], nil
+	} else {
+		return mds.SyncRevision(ctx)
+	}
 }
 
 func findTuple(txn *memdb.Txn, toFind *pb.RelationTuple) (*tupleEntry, error) {

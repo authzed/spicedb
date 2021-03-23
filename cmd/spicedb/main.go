@@ -89,13 +89,13 @@ func rootRun(cmd *cobra.Command, args []string) {
 	var err error
 	if datastoreUrl == "memory:///" {
 		logger.Info("using in-memory datastore")
-		ds, err = memdb.NewMemdbDatastore(0)
+		ds, err = memdb.NewMemdbDatastore(0, 0)
 		if err != nil {
 			logger.Fatal("failed to init datastore", zap.Error(err))
 		}
 	} else {
 		logger.Info("using postgres datastore")
-		ds, err = postgres.NewPostgresDatastore(datastoreUrl, 0)
+		ds, err = postgres.NewPostgresDatastore(datastoreUrl, 0, 0)
 		if err != nil {
 			logger.Fatal("failed to init datastore", zap.Error(err))
 		}

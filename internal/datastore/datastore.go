@@ -32,6 +32,9 @@ type Datastore interface {
 	// Revision gets the currently replicated revision for this datastore.
 	Revision(ctx context.Context) (uint64, error)
 
+	// SyncRevision gets a revision that is guaranteed to be at least as fresh as right now.
+	SyncRevision(ctx context.Context) (uint64, error)
+
 	// Watch notifies the caller about all changes to tuples.
 	//
 	// All events following afterRevision will be sent to the caller.

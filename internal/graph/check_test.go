@@ -113,7 +113,7 @@ func TestSimple(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
-					rawDS, err := memdb.NewMemdbDatastore(0)
+					rawDS, err := memdb.NewMemdbDatastore(0, 0)
 					require.NoError(err)
 
 					ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -142,7 +142,7 @@ func TestSimple(t *testing.T) {
 func TestMaxDepth(t *testing.T) {
 	require := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0)
+	rawDS, err := memdb.NewMemdbDatastore(0, 0)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)

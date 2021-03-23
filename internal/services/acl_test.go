@@ -279,7 +279,7 @@ func TestExpand(t *testing.T) {
 }
 
 func newACLServicer(require *require.Assertions) api.ACLServiceServer {
-	emptyDS, err := memdb.NewMemdbDatastore(0)
+	emptyDS, err := memdb.NewMemdbDatastore(0, 0)
 	require.NoError(err)
 
 	ds, _ := tf.StandardDatastoreWithData(emptyDS, require)

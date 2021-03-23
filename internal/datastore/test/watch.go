@@ -37,7 +37,7 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 		t.Run(strconv.Itoa(tc.numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New()
+			ds, err := tester.New(0)
 			require.NoError(err)
 
 			ctx := context.Background()
@@ -103,7 +103,7 @@ func verifyUpdates(
 func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New()
+	ds, err := tester.New(0)
 	require.NoError(err)
 
 	ctx, cancel := context.WithCancel(context.Background())
