@@ -8,6 +8,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"time"
 
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -47,6 +48,7 @@ func main() {
 	rootCmd.Flags().Bool("log-debug", false, "enable logging debug events")
 	rootCmd.Flags().Uint16("max-depth", 50, "maximum recursion depth for nested calls")
 	rootCmd.Flags().String("datastore-url", "memory:///", "connection url of storage layer")
+	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 
 	rootCmd.Execute()
 }
@@ -85,17 +87,19 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	datastoreUrl := cobrautil.MustGetString(cmd, "datastore-url")
 
+	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "revision-fuzzing-duration")
+
 	var ds datastore.Datastore
 	var err error
 	if datastoreUrl == "memory:///" {
 		logger.Info("using in-memory datastore")
-		ds, err = memdb.NewMemdbDatastore(0, 0)
+		ds, err = memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta)
 		if err != nil {
 			logger.Fatal("failed to init datastore", zap.Error(err))
 		}
 	} else {
 		logger.Info("using postgres datastore")
-		ds, err = postgres.NewPostgresDatastore(datastoreUrl, 0, 0)
+		ds, err = postgres.NewPostgresDatastore(datastoreUrl, 0, revisionFuzzingTimedelta)
 		if err != nil {
 			logger.Fatal("failed to init datastore", zap.Error(err))
 		}
