@@ -245,18 +245,34 @@ func TestCheck(t *testing.T) {
 							AtRevision: zookie.NewFromRevision(revision),
 						})
 
+						ccResp, ccErr := srv.ContentChangeCheck(context.Background(), &api.ContentChangeCheckRequest{
+							TestUserset: tc.start,
+							User: &api.User{
+								UserOneof: &api.User_Userset{
+									Userset: checkTest.user,
+								},
+							},
+						})
+
 						if tc.expectedErrorCode == codes.OK {
 							require.NoError(err)
+							require.NoError(ccErr)
 							require.NotNil(resp.Revision)
+							require.NotNil(ccResp.Revision)
 							require.NotEmpty(resp.Revision.Token)
+							require.NotEmpty(ccResp.Revision.Token)
 							require.Equal(checkTest.membership, resp.IsMember)
+							require.Equal(checkTest.membership, ccResp.IsMember)
 							if checkTest.membership {
 								require.Equal(api.CheckResponse_MEMBER, resp.Membership)
+								require.Equal(api.CheckResponse_MEMBER, ccResp.Membership)
 							} else {
 								require.Equal(api.CheckResponse_NOT_MEMBER, resp.Membership)
+								require.Equal(api.CheckResponse_NOT_MEMBER, ccResp.Membership)
 							}
 						} else {
 							requireGRPCStatus(tc.expectedErrorCode, err, require)
+							requireGRPCStatus(tc.expectedErrorCode, ccErr, require)
 						}
 					}
 				})

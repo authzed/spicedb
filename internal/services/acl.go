@@ -120,14 +120,32 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 		return nil, rewriteACLError(err)
 	}
 
+	return as.commonCheck(ctx, atRevision, req.TestUserset, req.User.GetUserset())
+}
+
+func (as *aclServer) ContentChangeCheck(ctx context.Context, req *api.ContentChangeCheckRequest) (*api.CheckResponse, error) {
+	atRevision, err := as.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
+	return as.commonCheck(ctx, atRevision, req.TestUserset, req.User.GetUserset())
+}
+
+func (as *aclServer) commonCheck(
+	ctx context.Context,
+	atRevision uint64,
+	start *api.ObjectAndRelation,
+	goal *api.ObjectAndRelation,
+) (*api.CheckResponse, error) {
 	depth, err := as.calculateRequestDepth(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	cr := as.dispatch.Check(ctx, graph.CheckRequest{
-		Start:          req.TestUserset,
-		Goal:           req.User.GetUserset(),
+		Start:          start,
+		Goal:           goal,
 		AtRevision:     atRevision,
 		DepthRemaining: depth,
 	})
@@ -145,6 +163,7 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 		Revision:   zookie.NewFromRevision(atRevision),
 		Membership: membership,
 	}, nil
+
 }
 
 func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.ExpandResponse, error) {
