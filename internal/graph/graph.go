@@ -3,7 +3,6 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/rs/zerolog"
 
@@ -114,7 +113,7 @@ type expander interface {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (er ExpandRequest) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("expand", fmt.Sprintf("%s:%s#%s", er.Start.Namespace, er.Start.ObjectId, er.Start.Relation))
+	e.Str("expand", tuple.StringONR(er.Start))
 }
 
 // MarshalZerologObject implements zerolog object marshalling.

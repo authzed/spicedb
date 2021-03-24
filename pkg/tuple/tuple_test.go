@@ -7,14 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func makeONR(namespace, objectID, relation string) *pb.ObjectAndRelation {
-	return &pb.ObjectAndRelation{
-		Namespace: namespace,
-		ObjectId:  objectID,
-		Relation:  relation,
-	}
-}
-
 func makeTuple(onr *pb.ObjectAndRelation, userset *pb.ObjectAndRelation) *pb.RelationTuple {
 	return &pb.RelationTuple{
 		ObjectAndRelation: onr,
@@ -31,8 +23,11 @@ var testCases = []struct {
 	objectFormat *pb.RelationTuple
 }{
 	{
-		serialized:   "tenant/testns:testobj#testrel@tenant/user:testusr#...",
-		objectFormat: makeTuple(makeONR("tenant/testns", "testobj", "testrel"), makeONR("tenant/user", "testusr", "...")),
+		serialized: "tenant/testns:testobj#testrel@tenant/user:testusr#...",
+		objectFormat: makeTuple(
+			ObjectAndRelation("tenant/testns", "testobj", "testrel"),
+			ObjectAndRelation("tenant/user", "testusr", "..."),
+		),
 	},
 	{
 		serialized:   "",

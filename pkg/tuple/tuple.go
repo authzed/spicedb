@@ -57,18 +57,6 @@ func Scan(tpl string) *pb.RelationTuple {
 	}
 }
 
-func ObjectAndRelation(ns, oid, rel string) *pb.ObjectAndRelation {
-	return &pb.ObjectAndRelation{
-		Namespace: ns,
-		ObjectId:  oid,
-		Relation:  rel,
-	}
-}
-
-func User(userset *pb.ObjectAndRelation) *pb.User {
-	return &pb.User{UserOneof: &pb.User_Userset{Userset: userset}}
-}
-
 func Create(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
 	return &pb.RelationTupleUpdate{
 		Operation: pb.RelationTupleUpdate_CREATE,

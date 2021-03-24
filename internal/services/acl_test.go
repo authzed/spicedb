@@ -224,13 +224,7 @@ func TestCheck(t *testing.T) {
 	for _, delta := range testTimedeltas {
 		t.Run(fmt.Sprintf("fuzz%d", delta), func(t *testing.T) {
 			for _, tc := range testCases {
-				name := fmt.Sprintf(
-					"%s:%s#%s",
-					tc.start.Namespace,
-					tc.start.ObjectId,
-					tc.start.Relation,
-				)
-				t.Run(name, func(t *testing.T) {
+				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 					require := require.New(t)
 					srv, revision := newACLServicer(require, delta)
 
@@ -295,13 +289,7 @@ func TestExpand(t *testing.T) {
 	for _, delta := range testTimedeltas {
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
-				name := fmt.Sprintf(
-					"%s:%s#%s",
-					tc.start.Namespace,
-					tc.start.ObjectId,
-					tc.start.Relation,
-				)
-				t.Run(name, func(t *testing.T) {
+				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 					require := require.New(t)
 					srv, revision := newACLServicer(require, delta)
 

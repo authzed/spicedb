@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
@@ -113,8 +112,7 @@ func TestExpand(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		name := fmt.Sprintf("%s:%s#%s", tc.start.Namespace, tc.start.ObjectId, tc.start.Relation)
-		t.Run(name, func(t *testing.T) {
+		t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 			require := require.New(t)
 
 			rawDS, err := memdb.NewMemdbDatastore(0, 0)
