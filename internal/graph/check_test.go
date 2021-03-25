@@ -43,8 +43,8 @@ func TestSimple(t *testing.T) {
 		usersets  []userset
 	}{
 		{"document", "masterplan", []userset{
-			{ONR("user", "pm", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
-			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "product_manager", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
+			{ONR("user", "chief_financial_officer", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
 			{ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
 			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
 			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
@@ -53,8 +53,8 @@ func TestSimple(t *testing.T) {
 			{ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 		}},
 		{"document", "healthplan", []userset{
-			{ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "product_manager", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "chief_financial_officer", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
 			{ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
@@ -63,8 +63,8 @@ func TestSimple(t *testing.T) {
 			{ONR("user", "villain", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 		}},
 		{"folder", "company", []userset{
-			{ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "product_manager", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "chief_financial_officer", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 			{ONR("user", "owner", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
 			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
 			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
@@ -74,8 +74,8 @@ func TestSimple(t *testing.T) {
 			{ONR("folder", "auditors", "viewer"), []expected{{"viewer", true}}},
 		}},
 		{"folder", "strategy", []userset{
-			{ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "product_manager", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "chief_financial_officer", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 			{ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
 			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
 			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
@@ -85,8 +85,8 @@ func TestSimple(t *testing.T) {
 			{ONR("folder", "company", Ellipsis), []expected{{"parent", true}}},
 		}},
 		{"folder", "isolated", []userset{
-			{ONR("user", "pm", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "cfo", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "product_manager", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "chief_financial_officer", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 			{ONR("user", "owner", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 			{ONR("user", "legal", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
 			{ONR("user", "vp_product", Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},

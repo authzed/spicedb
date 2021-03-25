@@ -43,7 +43,7 @@ var (
 	)
 	docOwner = graph.Union(ONR("document", "masterplan", "owner"),
 		graph.Leaf(ONR("document", "masterplan", "owner"),
-			tuple.User(ONR("user", "pm", "...")),
+			tuple.User(ONR("user", "product_manager", "...")),
 		),
 	)
 	docEditor = graph.Union(ONR("document", "masterplan", "editor"),
@@ -62,7 +62,7 @@ var (
 				graph.Union(ONR("folder", "plans", "viewer"),
 					graph.Union(ONR("folder", "plans", "viewer"),
 						graph.Leaf(ONR("folder", "plans", "viewer"),
-							tuple.User(ONR("user", "cfo", "...")),
+							tuple.User(ONR("user", "chief_financial_officer", "...")),
 						),
 						graph.Union(ONR("folder", "plans", "editor"),
 							graph.Union(ONR("folder", "plans", "editor"),

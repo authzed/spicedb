@@ -33,7 +33,7 @@ func TestRead(t *testing.T) {
 			&api.RelationTupleFilter{Namespace: tf.DocumentNS.Name},
 			[]string{
 				"document:masterplan#parent@folder:strategy#...",
-				"document:masterplan#owner@user:pm#...",
+				"document:masterplan#owner@user:product_manager#...",
 				"document:masterplan#viewer@user:eng_lead#...",
 				"document:masterplan#parent@folder:plans#...",
 				"document:healthplan#parent@folder:plans#...",
@@ -197,7 +197,7 @@ func TestCheck(t *testing.T) {
 			ONR("document", "masterplan", "owner"),
 			codes.OK,
 			[]checkTest{
-				{ONR("user", "pm", "..."), true},
+				{ONR("user", "product_manager", "..."), true},
 				{ONR("user", "unknown", "..."), false},
 				{ONR("user", "eng_lead", "..."), false},
 				{ONR("user", "villain", "..."), false},
@@ -207,8 +207,8 @@ func TestCheck(t *testing.T) {
 			ONR("document", "masterplan", "viewer"),
 			codes.OK,
 			[]checkTest{
-				{ONR("user", "pm", "..."), true},
-				{ONR("user", "cfo", "..."), true},
+				{ONR("user", "product_manager", "..."), true},
+				{ONR("user", "chief_financial_officer", "..."), true},
 				{ONR("user", "villain", "..."), false},
 			},
 		},
@@ -216,7 +216,7 @@ func TestCheck(t *testing.T) {
 			ONR("document", "masterplan", "fakerelation"),
 			codes.FailedPrecondition,
 			[]checkTest{
-				{ONR("user", "pm", "..."), false},
+				{ONR("user", "product_manager", "..."), false},
 			},
 		},
 	}
