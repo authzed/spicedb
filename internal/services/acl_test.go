@@ -341,6 +341,13 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		{
+			ONR("docs", "masterplan", "owner"),
+			codes.FailedPrecondition,
+			[]checkTest{
+				{ONR("user", "product_manager", "..."), false},
+			},
+		},
+		{
 			ONR("document", "", "fakerelation"),
 			codes.InvalidArgument,
 			[]checkTest{

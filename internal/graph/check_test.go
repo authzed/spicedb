@@ -139,6 +139,43 @@ func TestSimple(t *testing.T) {
 	}
 }
 
+func TestCheckErrors(t *testing.T) {
+	testCases := []struct {
+		checkTuple    string
+		expectedError error
+	}{
+		{"fakens:object_id#fake_relation@user:jake#...", ErrNamespaceNotFound},
+		{"document:masterplan#fake_relation@user:jake#...", ErrRelationNotFound},
+	}
+
+	for _, tc := range testCases {
+		name := fmt.Sprintf("%s=>%s", tc.checkTuple, tc.expectedError)
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+
+			parsed := tuple.Scan(tc.checkTuple)
+			require.NotNil(parsed)
+
+			rawDS, err := memdb.NewMemdbDatastore(0, 0)
+			require.NoError(err)
+
+			ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+			dispatch, err := NewLocalDispatcher(ds)
+			require.NoError(err)
+
+			checkResult := dispatch.Check(context.Background(), CheckRequest{
+				Start:          parsed.ObjectAndRelation,
+				Goal:           parsed.User.GetUserset(),
+				AtRevision:     revision,
+				DepthRemaining: 50,
+			})
+
+			require.EqualError(checkResult.Err, tc.expectedError.Error())
+		})
+	}
+}
+
 func TestMaxDepth(t *testing.T) {
 	require := require.New(t)
 

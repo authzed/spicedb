@@ -40,6 +40,8 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 			ds, err := tester.New(0)
 			require.NoError(err)
 
+			setupDatastore(ds, require)
+
 			ctx := context.Background()
 			changes, errchan := ds.Watch(ctx, 0)
 			require.Zero(len(errchan))
@@ -105,6 +107,8 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 
 	ds, err := tester.New(0)
 	require.NoError(err)
+
+	setupDatastore(ds, require)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	changes, errchan := ds.Watch(ctx, 0)

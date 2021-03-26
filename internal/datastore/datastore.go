@@ -7,9 +7,16 @@ import (
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
+const (
+	// Ellipsis is a special relation that is assumed to be valid on the right
+	// hand side of a tuple.
+	Ellipsis = "..."
+)
+
 // Publicly facing errors
 var (
 	ErrNamespaceNotFound  = errors.New("unable to find namespace")
+	ErrRelationNotFound   = errors.New("unable to find relation")
 	ErrPreconditionFailed = errors.New("unable to satisfy write precondition")
 	ErrWatchDisconnected  = errors.New("watch fell too far behind and was disconnected")
 	ErrWatchCanceled      = errors.New("watch was canceled by the caller")

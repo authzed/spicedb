@@ -53,6 +53,16 @@ func (mds *memdbDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (ui
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
+	for _, relation := range newConfig.Relation {
+		nsRelationEntry := &namespaceRelation{
+			namespace: newConfig.Name,
+			relation:  relation.Name,
+		}
+		if err := txn.Insert(tableNamespaceRelation, nsRelationEntry); err != nil {
+			return 0, fmt.Errorf(errUnableToWriteConfig, err)
+		}
+	}
+
 	txn.Commit()
 
 	return newVersion, nil
@@ -107,6 +117,19 @@ func (mds *memdbDatastore) DeleteNamespace(nsName string) (uint64, error) {
 	err = txn.Delete(tableNamespaceConfig, found)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	// Delete the namespace relations
+	relationIter, err := txn.Get(tableNamespaceRelation, indexNamespace, nsName)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	for rel := relationIter.Next(); rel != nil; rel = relationIter.Next() {
+		err := txn.Delete(tableNamespaceRelation, rel)
+		if err != nil {
+			return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+		}
 	}
 
 	// Write the changelog that we delete the namespace

@@ -307,6 +307,10 @@ func rewriteACLError(err error) error {
 		return status.Errorf(codes.FailedPrecondition, "data error: %s", err)
 	case graph.ErrRequestCanceled:
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)
+	case datastore.ErrNamespaceNotFound:
+		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
+	case datastore.ErrRelationNotFound:
+		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 	case datastore.ErrPreconditionFailed:
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 	case graph.ErrAlwaysFail:

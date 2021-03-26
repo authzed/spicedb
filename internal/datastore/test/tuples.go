@@ -18,29 +18,10 @@ import (
 
 const (
 	testUserNamespace     = "test/user"
-	testResourceNamespace = "rest/resource"
+	testResourceNamespace = "test/resource"
 	testReaderRelation    = "reader"
 	ellipsis              = "..."
 )
-
-func makeTestTuple(resourceID, userID string) *pb.RelationTuple {
-	return &pb.RelationTuple{
-		ObjectAndRelation: &pb.ObjectAndRelation{
-			Namespace: testResourceNamespace,
-			ObjectId:  resourceID,
-			Relation:  testReaderRelation,
-		},
-		User: &pb.User{
-			UserOneof: &pb.User_Userset{
-				Userset: &pb.ObjectAndRelation{
-					Namespace: testUserNamespace,
-					ObjectId:  userID,
-					Relation:  ellipsis,
-				},
-			},
-		},
-	}
-}
 
 func TestSimple(t *testing.T, tester DatastoreTester) {
 	testCases := []int{1, 2, 4, 32, 1024}
@@ -51,6 +32,8 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 
 			ds, err := tester.New(0)
 			require.NoError(err)
+
+			setupDatastore(ds, require)
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
@@ -152,6 +135,8 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0)
 	require.NoError(err)
 
+	setupDatastore(ds, require)
+
 	first := makeTestTuple("first", "owner")
 	second := makeTestTuple("second", "owner")
 
@@ -171,6 +156,43 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 }
 
+func TestWriteInvalidTuples(t *testing.T, tester DatastoreTester) {
+	testCases := []struct {
+		tupleToWrite  string
+		expectedError error
+	}{
+		{"test/resource:res1#reader@test/resource:res2#...", nil},
+		{"fakenamespace:nil#nil@nil:nil#nil", datastore.ErrNamespaceNotFound},
+		{"test/resource:res#fakerelation@nil:nil#nil", datastore.ErrRelationNotFound},
+		{"test/resource:res1#reader@fakenamespace:nil#...", datastore.ErrNamespaceNotFound},
+		{"test/resource:res1#reader@test/resource:res2#fakerelation", datastore.ErrRelationNotFound},
+	}
+
+	for _, tc := range testCases {
+		name := fmt.Sprintf("%s=>%s", tc.tupleToWrite, tc.expectedError)
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+
+			ds, err := tester.New(0)
+			require.NoError(err)
+
+			setupDatastore(ds, require)
+
+			tpl := tuple.Scan(tc.tupleToWrite)
+			require.NotNil(tpl)
+
+			_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Create(tpl)})
+			require.Equal(tc.expectedError, err)
+
+			_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Touch(tpl)})
+			require.Equal(tc.expectedError, err)
+
+			_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Delete(tpl)})
+			require.Equal(tc.expectedError, err)
+		})
+	}
+}
+
 func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
@@ -178,6 +200,8 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 
 	ds, err := tester.New(fuzzingRange)
 	require.NoError(err)
+
+	setupDatastore(ds, require)
 
 	// Create some revisions
 	tpl := makeTestTuple("first", "owner")

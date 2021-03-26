@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
@@ -245,4 +246,40 @@ func TestMaxDepthExpand(t *testing.T) {
 	})
 
 	require.Error(checkResult.Err)
+}
+
+func TestExpandErrors(t *testing.T) {
+	testCases := []struct {
+		checkONRString string
+		expectedError  error
+	}{
+		{"fakens:object_id#fake_relation", ErrNamespaceNotFound},
+		{"document:masterplan#fake_relation", ErrRelationNotFound},
+	}
+
+	for _, tc := range testCases {
+		name := fmt.Sprintf("%s=>%s", tc.checkONRString, tc.expectedError)
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+
+			parsed := tuple.ScanONR(tc.checkONRString)
+			require.NotNil(parsed)
+
+			rawDS, err := memdb.NewMemdbDatastore(0, 0)
+			require.NoError(err)
+
+			ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+			dispatch, err := NewLocalDispatcher(ds)
+			require.NoError(err)
+
+			checkResult := dispatch.Expand(context.Background(), ExpandRequest{
+				Start:          parsed,
+				AtRevision:     revision,
+				DepthRemaining: 50,
+			})
+
+			require.EqualError(checkResult.Err, tc.expectedError.Error())
+		})
+	}
 }

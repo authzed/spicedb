@@ -8,20 +8,13 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var documentNamespace = &pb.NamespaceDefinition{
-	Name: "document",
-	Relation: []*pb.Relation{
-		{
-			Name: "owner",
-		},
-	},
-}
+var documentNamespace = namespace.Namespace("document", namespace.Relation("owner", nil))
 
-func TestDelete(t *testing.T, tester DatastoreTester) {
+func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	rawDS, err := tester.New(0)

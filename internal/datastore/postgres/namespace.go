@@ -6,6 +6,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/golang/protobuf/proto"
+	"github.com/jmoiron/sqlx"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -70,30 +71,21 @@ func (pgd *pgDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (uint6
 }
 
 func (pgd *pgDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error) {
-	sql, args, err := readNamespace.Where(sq.Eq{colNamespace: nsName}).ToSql()
+	tx, err := pgd.db.Beginx()
 	if err != nil {
 		return nil, 0, fmt.Errorf(errUnableToReadConfig, err)
 	}
+	defer tx.Rollback()
 
-	var config []byte
-	var version uint64
-	err = pgd.db.QueryRowx(sql, args...).Scan(&config, &version)
-	if err != nil {
-		if err == dbsql.ErrNoRows {
-			err = datastore.ErrNamespaceNotFound
-		} else {
-			err = fmt.Errorf(errUnableToReadConfig, err)
-		}
+	loaded, version, err := loadNamespace(nsName, tx)
+	switch err {
+	case datastore.ErrNamespaceNotFound:
 		return nil, 0, err
-	}
-
-	loaded := &pb.NamespaceDefinition{}
-	err = proto.Unmarshal(config, loaded)
-	if err != nil {
+	case nil:
+		return loaded, version, nil
+	default:
 		return nil, 0, fmt.Errorf(errUnableToReadConfig, err)
 	}
-
-	return loaded, version, nil
 }
 
 func (pgd *pgDatastore) DeleteNamespace(nsName string) (uint64, error) {
@@ -104,26 +96,19 @@ func (pgd *pgDatastore) DeleteNamespace(nsName string) (uint64, error) {
 
 	defer tx.Rollback()
 
-	newTxnID, err := createNewTransaction(tx)
-	if err != nil {
+	_, version, err := loadNamespace(nsName, tx)
+	switch err {
+	case datastore.ErrNamespaceNotFound:
+		return 0, err
+	case nil:
+		// Do nothing
+	default:
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	sql, args, err := readNamespace.Where(sq.Eq{colNamespace: nsName}).ToSql()
+	newTxnID, err := createNewTransaction(tx)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToReadConfig, err)
-	}
-
-	var config []byte
-	var version uint64
-	err = pgd.db.QueryRowx(sql, args...).Scan(&config, &version)
-	if err != nil {
-		if err == dbsql.ErrNoRows {
-			err = datastore.ErrNamespaceNotFound
-		} else {
-			err = fmt.Errorf(errUnableToDeleteConfig, err)
-		}
-		return 0, err
+		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	delSQL, delArgs, err := deleteNamespace.
@@ -158,4 +143,29 @@ func (pgd *pgDatastore) DeleteNamespace(nsName string) (uint64, error) {
 	}
 
 	return version, nil
+}
+
+func loadNamespace(namespace string, tx *sqlx.Tx) (*pb.NamespaceDefinition, uint64, error) {
+	sql, args, err := readNamespace.Where(sq.Eq{colNamespace: namespace}).ToSql()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var config []byte
+	var version uint64
+	err = tx.QueryRowx(sql, args...).Scan(&config, &version)
+	if err != nil {
+		if err == dbsql.ErrNoRows {
+			err = datastore.ErrNamespaceNotFound
+		}
+		return nil, 0, err
+	}
+
+	loaded := &pb.NamespaceDefinition{}
+	err = proto.Unmarshal(config, loaded)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return loaded, version, nil
 }

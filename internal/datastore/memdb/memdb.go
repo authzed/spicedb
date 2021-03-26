@@ -14,6 +14,7 @@ const (
 	tableChangelog          = "changelog"
 	tableNamespaceChangelog = "namespaceChangelog"
 	tableNamespaceConfig    = "namespaceConfig"
+	tableNamespaceRelation  = "namespaceRelation"
 
 	indexID                   = "id"
 	indexTimestamp            = "timestamp"
@@ -47,6 +48,11 @@ type tupleChangelog struct {
 	changes   []*pb.RelationTupleUpdate
 }
 
+type namespaceRelation struct {
+	namespace string
+	relation  string
+}
+
 type tupleEntry struct {
 	namespace        string
 	objectID         string
@@ -77,6 +83,26 @@ var schema = &memdb.DBSchema{
 					Name:    indexID,
 					Unique:  true,
 					Indexer: &memdb.StringFieldIndex{Field: "name"},
+				},
+			},
+		},
+		tableNamespaceRelation: {
+			Name: tableNamespaceRelation,
+			Indexes: map[string]*memdb.IndexSchema{
+				indexID: {
+					Name:   indexID,
+					Unique: true,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "namespace"},
+							&memdb.StringFieldIndex{Field: "relation"},
+						},
+					},
+				},
+				indexNamespace: {
+					Name:    indexNamespace,
+					Unique:  true,
+					Indexer: &memdb.StringFieldIndex{Field: "namespace"},
 				},
 			},
 		},
