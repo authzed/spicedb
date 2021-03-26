@@ -24,13 +24,15 @@ var testTimedeltas = []time.Duration{0, 1 * time.Second}
 
 func TestRead(t *testing.T) {
 	testCases := []struct {
-		name     string
-		filter   *api.RelationTupleFilter
-		expected []string
+		name         string
+		filter       *api.RelationTupleFilter
+		expectedCode codes.Code
+		expected     []string
 	}{
 		{
 			"namespace only",
 			&api.RelationTupleFilter{Namespace: tf.DocumentNS.Name},
+			codes.OK,
 			[]string{
 				"document:masterplan#parent@folder:strategy#...",
 				"document:masterplan#owner@user:product_manager#...",
@@ -48,6 +50,7 @@ func TestRead(t *testing.T) {
 					api.RelationTupleFilter_OBJECT_ID,
 				},
 			},
+			codes.OK,
 			[]string{
 				"document:healthplan#parent@folder:plans#...",
 			},
@@ -61,6 +64,7 @@ func TestRead(t *testing.T) {
 					api.RelationTupleFilter_RELATION,
 				},
 			},
+			codes.OK,
 			[]string{
 				"document:masterplan#parent@folder:strategy#...",
 				"document:masterplan#parent@folder:plans#...",
@@ -76,6 +80,7 @@ func TestRead(t *testing.T) {
 					api.RelationTupleFilter_USERSET,
 				},
 			},
+			codes.OK,
 			[]string{
 				"document:masterplan#parent@folder:plans#...",
 				"document:healthplan#parent@folder:plans#...",
@@ -92,9 +97,68 @@ func TestRead(t *testing.T) {
 					api.RelationTupleFilter_OBJECT_ID,
 				},
 			},
+			codes.OK,
 			[]string{
 				"document:masterplan#parent@folder:plans#...",
 			},
+		},
+		{
+			"bad namespace",
+			&api.RelationTupleFilter{Namespace: ""},
+			codes.InvalidArgument,
+			nil,
+		},
+		{
+			"bad objectId",
+			&api.RelationTupleFilter{
+				Namespace: tf.DocumentNS.Name,
+				ObjectId:  "ma",
+				Userset:   ONR("folder", "plans", "..."),
+				Filters: []api.RelationTupleFilter_Filter{
+					api.RelationTupleFilter_USERSET,
+					api.RelationTupleFilter_OBJECT_ID,
+				},
+			},
+			codes.InvalidArgument,
+			nil,
+		},
+		{
+			"bad objectId",
+			&api.RelationTupleFilter{
+				Namespace: tf.DocumentNS.Name,
+				Relation:  "ad",
+				Filters: []api.RelationTupleFilter_Filter{
+					api.RelationTupleFilter_RELATION,
+				},
+			},
+			codes.InvalidArgument,
+			nil,
+		},
+		{
+			"bad userset",
+			&api.RelationTupleFilter{
+				Namespace: tf.DocumentNS.Name,
+				ObjectId:  "ma",
+				Userset:   ONR("folder", "", "..."),
+				Filters: []api.RelationTupleFilter_Filter{
+					api.RelationTupleFilter_USERSET,
+					api.RelationTupleFilter_OBJECT_ID,
+				},
+			},
+			codes.InvalidArgument,
+			nil,
+		},
+		{
+			"nil argument required filter",
+			&api.RelationTupleFilter{
+				Namespace: tf.DocumentNS.Name,
+				Userset:   nil,
+				Filters: []api.RelationTupleFilter_Filter{
+					api.RelationTupleFilter_OBJECT_ID,
+				},
+			},
+			codes.InvalidArgument,
+			nil,
 		},
 	}
 
@@ -110,11 +174,16 @@ func TestRead(t *testing.T) {
 						Tuplesets:  []*api.RelationTupleFilter{tc.filter},
 						AtRevision: zookie.NewFromRevision(revision),
 					})
-					require.NoError(err)
-					require.NotNil(resp.Revision)
-					require.Len(resp.Tuplesets, 1)
 
-					verifyTuples(tc.expected, resp.Tuplesets[0].Tuples, require)
+					if tc.expectedCode == codes.OK {
+						require.NoError(err)
+						require.NotNil(resp.Revision)
+						require.Len(resp.Tuplesets, 1)
+
+						verifyTuples(tc.expected, resp.Tuplesets[0].Tuples, require)
+					} else {
+						requireGRPCStatus(tc.expectedCode, err, require)
+					}
 				})
 			}
 		})
@@ -182,6 +251,58 @@ func TestWrite(t *testing.T) {
 	verifyTuples(nil, verifyMissing.Tuplesets[0].Tuples, require)
 }
 
+func TestInvalidWriteArguments(t *testing.T) {
+	testCases := []struct {
+		name          string
+		preconditions []string
+		tuples        []string
+	}{
+		{
+			"empty tuple",
+			nil,
+			[]string{":#@:#"},
+		},
+		{
+			"bad precondition",
+			[]string{":#@:#"},
+			nil,
+		},
+		{
+			"good precondition, short object ID",
+			[]string{"document:newdoc#parent@folder:afolder#..."},
+			[]string{"document:ab#parent@folder:afolder#..."},
+		},
+		{
+			"bad precondition, good write",
+			[]string{"document:newdoc#parent@folder:a#..."},
+			[]string{"document:newdoc#parent@folder:afolder#..."},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+			srv, _ := newACLServicer(require, 0)
+
+			var preconditions []*api.RelationTuple
+			for _, p := range tc.preconditions {
+				preconditions = append(preconditions, tuple.Scan(p))
+			}
+
+			var mutations []*api.RelationTupleUpdate
+			for _, tpl := range tc.tuples {
+				mutations = append(mutations, tuple.Touch(tuple.Scan(tpl)))
+			}
+
+			_, err := srv.Write(context.Background(), &api.WriteRequest{
+				WriteConditions: preconditions,
+				Updates:         mutations,
+			})
+			requireGRPCStatus(codes.InvalidArgument, err, require)
+		})
+	}
+}
+
 func TestCheck(t *testing.T) {
 	type checkTest struct {
 		user       *api.ObjectAndRelation
@@ -219,55 +340,76 @@ func TestCheck(t *testing.T) {
 				{ONR("user", "product_manager", "..."), false},
 			},
 		},
+		{
+			ONR("document", "", "fakerelation"),
+			codes.InvalidArgument,
+			[]checkTest{
+				{ONR("user", "product_manager", "..."), false},
+			},
+		},
+		{
+			ONR("document", "masterplan", "fakerelation"),
+			codes.InvalidArgument,
+			[]checkTest{
+				{ONR("user", "", "..."), false},
+			},
+		},
 	}
 
 	for _, delta := range testTimedeltas {
 		t.Run(fmt.Sprintf("fuzz%d", delta), func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
-					require := require.New(t)
-					srv, revision := newACLServicer(require, delta)
-
 					for _, checkTest := range tc.checkTests {
-						resp, err := srv.Check(context.Background(), &api.CheckRequest{
-							TestUserset: tc.start,
-							User: &api.User{
-								UserOneof: &api.User_Userset{
-									Userset: checkTest.user,
-								},
-							},
-							AtRevision: zookie.NewFromRevision(revision),
-						})
+						name := fmt.Sprintf(
+							"%s=>%t",
+							tuple.StringONR(checkTest.user),
+							checkTest.membership,
+						)
+						t.Run(name, func(t *testing.T) {
+							require := require.New(t)
+							srv, revision := newACLServicer(require, delta)
 
-						ccResp, ccErr := srv.ContentChangeCheck(context.Background(), &api.ContentChangeCheckRequest{
-							TestUserset: tc.start,
-							User: &api.User{
-								UserOneof: &api.User_Userset{
-									Userset: checkTest.user,
+							resp, err := srv.Check(context.Background(), &api.CheckRequest{
+								TestUserset: tc.start,
+								User: &api.User{
+									UserOneof: &api.User_Userset{
+										Userset: checkTest.user,
+									},
 								},
-							},
-						})
+								AtRevision: zookie.NewFromRevision(revision),
+							})
 
-						if tc.expectedErrorCode == codes.OK {
-							require.NoError(err)
-							require.NoError(ccErr)
-							require.NotNil(resp.Revision)
-							require.NotNil(ccResp.Revision)
-							require.NotEmpty(resp.Revision.Token)
-							require.NotEmpty(ccResp.Revision.Token)
-							require.Equal(checkTest.membership, resp.IsMember)
-							require.Equal(checkTest.membership, ccResp.IsMember)
-							if checkTest.membership {
-								require.Equal(api.CheckResponse_MEMBER, resp.Membership)
-								require.Equal(api.CheckResponse_MEMBER, ccResp.Membership)
+							ccResp, ccErr := srv.ContentChangeCheck(context.Background(), &api.ContentChangeCheckRequest{
+								TestUserset: tc.start,
+								User: &api.User{
+									UserOneof: &api.User_Userset{
+										Userset: checkTest.user,
+									},
+								},
+							})
+
+							if tc.expectedErrorCode == codes.OK {
+								require.NoError(err)
+								require.NoError(ccErr)
+								require.NotNil(resp.Revision)
+								require.NotNil(ccResp.Revision)
+								require.NotEmpty(resp.Revision.Token)
+								require.NotEmpty(ccResp.Revision.Token)
+								require.Equal(checkTest.membership, resp.IsMember)
+								require.Equal(checkTest.membership, ccResp.IsMember)
+								if checkTest.membership {
+									require.Equal(api.CheckResponse_MEMBER, resp.Membership)
+									require.Equal(api.CheckResponse_MEMBER, ccResp.Membership)
+								} else {
+									require.Equal(api.CheckResponse_NOT_MEMBER, resp.Membership)
+									require.Equal(api.CheckResponse_NOT_MEMBER, ccResp.Membership)
+								}
 							} else {
-								require.Equal(api.CheckResponse_NOT_MEMBER, resp.Membership)
-								require.Equal(api.CheckResponse_NOT_MEMBER, ccResp.Membership)
+								requireGRPCStatus(tc.expectedErrorCode, err, require)
+								requireGRPCStatus(tc.expectedErrorCode, ccErr, require)
 							}
-						} else {
-							requireGRPCStatus(tc.expectedErrorCode, err, require)
-							requireGRPCStatus(tc.expectedErrorCode, ccErr, require)
-						}
+						})
 					}
 				})
 			}
@@ -284,6 +426,7 @@ func TestExpand(t *testing.T) {
 		{ONR("document", "masterplan", "owner"), 1, codes.OK},
 		{ONR("document", "masterplan", "viewer"), 7, codes.OK},
 		{ONR("document", "masterplan", "fakerelation"), 0, codes.FailedPrecondition},
+		{ONR("document", "", "owner"), 1, codes.InvalidArgument},
 	}
 
 	for _, delta := range testTimedeltas {

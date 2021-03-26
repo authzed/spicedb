@@ -1,7 +1,6 @@
 package validation
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,13 +11,13 @@ import (
 
 func TestNamespaceValidation(t *testing.T) {
 	testCases := []struct {
-		name   string
-		cause  error
-		config *pb.NamespaceDefinition
+		name        string
+		expectError bool
+		config      *pb.NamespaceDefinition
 	}{
-		{"empty", ErrInvalidNamespaceName, &pb.NamespaceDefinition{}},
-		{"simple", nil, ns.Namespace("user")},
-		{"full", nil, ns.Namespace(
+		{"empty", true, &pb.NamespaceDefinition{}},
+		{"simple", false, ns.Namespace("user")},
+		{"full", false, ns.Namespace(
 			"document",
 			ns.Relation("owner", nil),
 			ns.Relation("editor", ns.Union(
@@ -33,35 +32,35 @@ func TestNamespaceValidation(t *testing.T) {
 				ns.TupleToUserset("parent", "viewer"),
 			)),
 		)},
-		{"working intersection", nil, ns.Namespace(
+		{"working intersection", false, ns.Namespace(
 			"document",
 			ns.Relation("editor", ns.Intersection(
 				ns.This(),
 				ns.ComputedUserset("owner"),
 			)),
 		)},
-		{"working exclusion", nil, ns.Namespace(
+		{"working exclusion", false, ns.Namespace(
 			"document",
 			ns.Relation("editor", ns.Exclusion(
 				ns.This(),
 				ns.ComputedUserset("owner"),
 			)),
 		)},
-		{"bad relation name", ErrInvalidRelationName, ns.Namespace(
+		{"bad relation name", true, ns.Namespace(
 			"document",
 			ns.Relation("a", nil),
 		)},
-		{"bad rewrite", ErrUnknownRewriteOperation, ns.Namespace(
+		{"bad rewrite", true, ns.Namespace(
 			"document",
 			ns.Relation("editor", &pb.UsersetRewrite{}),
 		)},
-		{"nil union", ErrNilDefinition, ns.Namespace(
+		{"nil union", true, ns.Namespace(
 			"document",
 			ns.Relation("editor", &pb.UsersetRewrite{
 				RewriteOperation: &pb.UsersetRewrite_Union{},
 			}),
 		)},
-		{"no children", ErrMissingChildren, ns.Namespace(
+		{"no children", true, ns.Namespace(
 			"document",
 			ns.Relation("editor", &pb.UsersetRewrite{
 				RewriteOperation: &pb.UsersetRewrite_Union{
@@ -69,7 +68,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			}),
 		)},
-		{"empty child", ErrNilDefinition, ns.Namespace(
+		{"empty child", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -77,19 +76,19 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"nil child pointer", ErrNilDefinition, ns.Namespace(
+		{"nil child pointer", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				nil,
 			)),
 		)},
-		{"nil child", ErrUnknownSetChildType, ns.Namespace(
+		{"nil child", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{},
 			)),
 		)},
-		{"bad ttu", ErrTupleToUsersetBadRelation, ns.Namespace(
+		{"bad ttu", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -99,7 +98,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"ttu missing tupleset", ErrTupleToUsersetBadRelation, ns.Namespace(
+		{"ttu missing tupleset", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -114,7 +113,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"ttu missing rewrite", ErrTupleToUsersetMissingUserset, ns.Namespace(
+		{"ttu missing rewrite", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -128,7 +127,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"ttu bad relation", ErrTupleToUsersetBadRelation, ns.Namespace(
+		{"ttu bad relation", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -146,7 +145,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"ttu bad computed relation", ErrInvalidRelationName, ns.Namespace(
+		{"ttu bad computed relation", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -164,7 +163,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"ttu nil computed relation", ErrInvalidRelationName, ns.Namespace(
+		{"ttu nil computed relation", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -181,7 +180,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"empty cu", ErrNilDefinition, ns.Namespace(
+		{"empty cu", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -189,7 +188,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"cu empty relation", ErrInvalidRelationName, ns.Namespace(
+		{"cu empty relation", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -199,7 +198,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"cu bad relation name", ErrInvalidRelationName, ns.Namespace(
+		{"cu bad relation name", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -211,7 +210,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"cu bad object type", ErrComputedUsersetObject, ns.Namespace(
+		{"cu bad object type", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -224,7 +223,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"child nil rewrite", ErrNilDefinition, ns.Namespace(
+		{"child nil rewrite", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -232,7 +231,7 @@ func TestNamespaceValidation(t *testing.T) {
 				},
 			)),
 		)},
-		{"child bad rewrite", ErrUnknownRewriteOperation, ns.Namespace(
+		{"child bad rewrite", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
 				&pb.SetOperation_Child{
@@ -247,8 +246,12 @@ func TestNamespaceValidation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			err := NamespaceConfig(tc.config)
-			require.True(errors.Is(err, tc.cause))
+			err := tc.config.Validate()
+			if tc.expectError {
+				require.Error(err)
+			} else {
+				require.NoError(err)
+			}
 		})
 	}
 }

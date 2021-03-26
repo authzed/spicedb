@@ -43,6 +43,11 @@ func NewACLServer(ds datastore.Datastore, dispatch graph.Dispatcher, defaultDept
 }
 
 func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.WriteResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
 	revision, err := as.ds.WriteTuples(req.WriteConditions, req.Updates)
 	if err != nil {
 		return nil, rewriteACLError(err)
@@ -54,6 +59,45 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 }
 
 func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
+	for _, tuplesetFilter := range req.Tuplesets {
+		for _, filter := range tuplesetFilter.Filters {
+			switch filter {
+			case api.RelationTupleFilter_OBJECT_ID:
+				if tuplesetFilter.ObjectId == "" {
+					return nil, status.Errorf(
+						codes.InvalidArgument,
+						"object ID filter specified but not object ID provided.",
+					)
+				}
+			case api.RelationTupleFilter_RELATION:
+				if tuplesetFilter.Relation == "" {
+					return nil, status.Errorf(
+						codes.InvalidArgument,
+						"relation filter specified but not relation provided.",
+					)
+				}
+			case api.RelationTupleFilter_USERSET:
+				if tuplesetFilter.Userset == nil {
+					return nil, status.Errorf(
+						codes.InvalidArgument,
+						"userset filter specified but not userset provided.",
+					)
+				}
+			default:
+				return nil, status.Errorf(
+					codes.InvalidArgument,
+					"unknown tupleset filter type: %s",
+					filter,
+				)
+			}
+		}
+	}
+
 	var atRevision uint64
 	if req.AtRevision != nil {
 		// Read should attempt to use the exact revision requested
@@ -115,6 +159,11 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 }
 
 func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.CheckResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
 	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
 	if err != nil {
 		return nil, rewriteACLError(err)
@@ -124,6 +173,11 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 }
 
 func (as *aclServer) ContentChangeCheck(ctx context.Context, req *api.ContentChangeCheckRequest) (*api.CheckResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
 	atRevision, err := as.ds.SyncRevision(ctx)
 	if err != nil {
 		return nil, rewriteACLError(err)
@@ -167,6 +221,11 @@ func (as *aclServer) commonCheck(
 }
 
 func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.ExpandResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
 	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
 	if err != nil {
 		return nil, rewriteACLError(err)

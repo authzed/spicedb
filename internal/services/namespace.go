@@ -5,7 +5,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	"github.com/authzed/spicedb/pkg/validation"
 	"github.com/authzed/spicedb/pkg/zookie"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
@@ -25,7 +24,7 @@ func NewNamespaceServer(ds datastore.Datastore) api.NamespaceServiceServer {
 }
 
 func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {
-	if err := validation.NamespaceConfig(req.Config); err != nil {
+	if err := req.Config.Validate(); err != nil {
 		return nil, rewriteNamespaceError(err)
 	}
 

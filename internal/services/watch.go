@@ -22,10 +22,11 @@ func NewWatchServer(ds datastore.Datastore) api.WatchServiceServer {
 }
 
 func (ws *watchServer) Watch(req *api.WatchRequest, stream api.WatchService_WatchServer) error {
-
-	if len(req.Namespaces) == 0 {
-		status.Error(codes.InvalidArgument, "watch request must contain one or more namespaces")
+	err := req.Validate()
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
 	}
+
 	namespaceMap := make(map[string]struct{})
 	for _, ns := range req.Namespaces {
 		namespaceMap[ns] = struct{}{}

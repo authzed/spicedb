@@ -17,6 +17,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DeveloperServiceClient interface {
+	EditCheck(ctx context.Context, in *EditCheckRequest, opts ...grpc.CallOption) (*EditCheckResponse, error)
 	Validate(ctx context.Context, in *ValidateRequest, opts ...grpc.CallOption) (*ValidateResponse, error)
 	Share(ctx context.Context, in *ShareRequest, opts ...grpc.CallOption) (*ShareResponse, error)
 	LookupShared(ctx context.Context, in *LookupShareRequest, opts ...grpc.CallOption) (*LookupShareResponse, error)
@@ -28,6 +29,15 @@ type developerServiceClient struct {
 
 func NewDeveloperServiceClient(cc grpc.ClientConnInterface) DeveloperServiceClient {
 	return &developerServiceClient{cc}
+}
+
+func (c *developerServiceClient) EditCheck(ctx context.Context, in *EditCheckRequest, opts ...grpc.CallOption) (*EditCheckResponse, error) {
+	out := new(EditCheckResponse)
+	err := c.cc.Invoke(ctx, "/DeveloperService/EditCheck", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *developerServiceClient) Validate(ctx context.Context, in *ValidateRequest, opts ...grpc.CallOption) (*ValidateResponse, error) {
@@ -61,6 +71,7 @@ func (c *developerServiceClient) LookupShared(ctx context.Context, in *LookupSha
 // All implementations must embed UnimplementedDeveloperServiceServer
 // for forward compatibility
 type DeveloperServiceServer interface {
+	EditCheck(context.Context, *EditCheckRequest) (*EditCheckResponse, error)
 	Validate(context.Context, *ValidateRequest) (*ValidateResponse, error)
 	Share(context.Context, *ShareRequest) (*ShareResponse, error)
 	LookupShared(context.Context, *LookupShareRequest) (*LookupShareResponse, error)
@@ -71,6 +82,9 @@ type DeveloperServiceServer interface {
 type UnimplementedDeveloperServiceServer struct {
 }
 
+func (UnimplementedDeveloperServiceServer) EditCheck(context.Context, *EditCheckRequest) (*EditCheckResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EditCheck not implemented")
+}
 func (UnimplementedDeveloperServiceServer) Validate(context.Context, *ValidateRequest) (*ValidateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Validate not implemented")
 }
@@ -91,6 +105,24 @@ type UnsafeDeveloperServiceServer interface {
 
 func RegisterDeveloperServiceServer(s grpc.ServiceRegistrar, srv DeveloperServiceServer) {
 	s.RegisterService(&_DeveloperService_serviceDesc, srv)
+}
+
+func _DeveloperService_EditCheck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeveloperServiceServer).EditCheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/DeveloperService/EditCheck",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeveloperServiceServer).EditCheck(ctx, req.(*EditCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _DeveloperService_Validate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -151,6 +183,10 @@ var _DeveloperService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "DeveloperService",
 	HandlerType: (*DeveloperServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "EditCheck",
+			Handler:    _DeveloperService_EditCheck_Handler,
+		},
 		{
 			MethodName: "Validate",
 			Handler:    _DeveloperService_Validate_Handler,
