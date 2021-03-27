@@ -39,12 +39,20 @@ func (mtq *memdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore
 }
 
 func (mtq *memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
-	// TODO run checks on the filters provided
-
 	txn := mtq.db.Txn(false)
 
-	var bestIterator memdb.ResultIterator
 	var err error
+	if mtq.relationFilter != nil {
+		err = verifyNamespaceAndRelation(mtq.namespace, *mtq.relationFilter, false, txn)
+	} else {
+		err = verifyNamespaceAndRelation(mtq.namespace, datastore.Ellipsis, true, txn)
+	}
+	if err != nil {
+		txn.Abort()
+		return nil, err
+	}
+
+	var bestIterator memdb.ResultIterator
 	if mtq.objectIDFilter != nil {
 		bestIterator, err = txn.Get(
 			tableTuple,

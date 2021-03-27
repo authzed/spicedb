@@ -238,3 +238,37 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 		require.Equal(nowRevision, testRevision)
 	}
 }
+
+func TestInvalidReads(t *testing.T, tester DatastoreTester) {
+	t.Run("invalid namespace", func(t *testing.T) {
+		require := require.New(t)
+
+		ds, err := tester.New(0)
+		require.NoError(err)
+
+		setupDatastore(ds, require)
+
+		revision, err := ds.Revision(context.Background())
+		require.NoError(err)
+
+		iter, err := ds.QueryTuples("doesnotexist", revision).Execute()
+		require.Nil(iter)
+		require.Equal(datastore.ErrNamespaceNotFound, err)
+	})
+
+	t.Run("invalid relation", func(t *testing.T) {
+		require := require.New(t)
+
+		ds, err := tester.New(0)
+		require.NoError(err)
+
+		setupDatastore(ds, require)
+
+		revision, err := ds.Revision(context.Background())
+		require.NoError(err)
+
+		iter, err := ds.QueryTuples(testResourceNamespace, revision).WithRelation("fakefake").Execute()
+		require.Nil(iter)
+		require.Equal(datastore.ErrRelationNotFound, err)
+	})
+}

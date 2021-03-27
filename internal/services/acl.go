@@ -135,8 +135,7 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 
 		tupleIterator, err := queryBuilder.Execute()
 		if err != nil {
-			// TODO switch on known error types here
-			return nil, status.Errorf(codes.Internal, "unable to retrieve tuples: %s", err)
+			return nil, rewriteACLError(err)
 		}
 
 		defer tupleIterator.Close()

@@ -36,40 +36,53 @@ func (pgd *pgDatastore) QueryTuples(namespace string, revision uint64) datastore
 				sq.Eq{colDeletedTxn: liveDeletedTxnID},
 				sq.Gt{colDeletedTxn: revision},
 			}),
+		namespace: namespace,
 	}
 }
 
 type pgTupleQuery struct {
-	db    *sqlx.DB
-	query sq.SelectBuilder
+	db        *sqlx.DB
+	query     sq.SelectBuilder
+	namespace string
+	relation  string
 }
 
 func (ptq pgTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
-	return pgTupleQuery{
-		db:    ptq.db,
-		query: ptq.query.Where(sq.Eq{colObjectID: objectID}),
-	}
+	ptq.query = ptq.query.Where(sq.Eq{colObjectID: objectID})
+	return ptq
 }
 
 func (ptq pgTupleQuery) WithRelation(relation string) datastore.TupleQuery {
-	return pgTupleQuery{
-		db:    ptq.db,
-		query: ptq.query.Where(sq.Eq{colRelation: relation}),
-	}
+	ptq.query = ptq.query.Where(sq.Eq{colRelation: relation})
+	ptq.relation = relation
+	return ptq
 }
 
 func (ptq pgTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.TupleQuery {
-	return pgTupleQuery{
-		db: ptq.db,
-		query: ptq.query.Where(sq.Eq{
-			colUsersetNamespace: userset.Namespace,
-			colUsersetObjectID:  userset.ObjectId,
-			colUsersetRelation:  userset.Relation,
-		}),
-	}
+	ptq.query = ptq.query.Where(sq.Eq{
+		colUsersetNamespace: userset.Namespace,
+		colUsersetObjectID:  userset.ObjectId,
+		colUsersetRelation:  userset.Relation,
+	})
+	return ptq
 }
 
 func (ptq pgTupleQuery) Execute() (datastore.TupleIterator, error) {
+	tx, err := ptq.db.Beginx()
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToQueryTuples, err)
+	}
+	defer tx.Rollback()
+
+	if ptq.relation != "" {
+		err = verifyNamespaceAndRelation(ptq.namespace, ptq.relation, false, tx)
+	} else {
+		err = verifyNamespaceAndRelation(ptq.namespace, datastore.Ellipsis, true, tx)
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	sql, args, err := ptq.query.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
@@ -115,7 +128,11 @@ func (ptq pgTupleQuery) Execute() (datastore.TupleIterator, error) {
 
 	runtime.SetFinalizer(iter, func(iter *pgTupleIterator) {
 		if !iter.closed {
-			panic("Tuple iterator garbage collected before Close() was called")
+			panic(fmt.Sprintf(
+				"Tuple iterator garbage collected before Close() was called\n sql: %s\n args: %#v\n",
+				sql,
+				args,
+			))
 		}
 	})
 

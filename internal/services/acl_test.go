@@ -123,7 +123,7 @@ func TestRead(t *testing.T) {
 			nil,
 		},
 		{
-			"bad objectId",
+			"bad object relation",
 			&api.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				Relation:  "ad",
@@ -158,6 +158,26 @@ func TestRead(t *testing.T) {
 				},
 			},
 			codes.InvalidArgument,
+			nil,
+		},
+		{
+			"missing namespace",
+			&api.RelationTupleFilter{
+				Namespace: "doesnotexist",
+			},
+			codes.FailedPrecondition,
+			nil,
+		},
+		{
+			"missing relation",
+			&api.RelationTupleFilter{
+				Namespace: tf.DocumentNS.Name,
+				Relation:  "invalidrelation",
+				Filters: []api.RelationTupleFilter_Filter{
+					api.RelationTupleFilter_RELATION,
+				},
+			},
+			codes.FailedPrecondition,
 			nil,
 		},
 	}

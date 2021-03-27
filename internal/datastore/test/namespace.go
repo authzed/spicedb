@@ -8,11 +8,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
-
-var documentNamespace = namespace.Namespace("document", namespace.Relation("owner", nil))
 
 func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
@@ -46,6 +43,9 @@ func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	deletedRevision, err := ds.SyncRevision(context.Background())
 	require.NoError(err)
 
-	tRequire.NoTupleExists(docTpl, deletedRevision)
+	iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, revision).Execute()
+	require.Nil(iter)
+	require.Equal(datastore.ErrNamespaceNotFound, err)
+
 	tRequire.TupleExists(folderTpl, deletedRevision)
 }
