@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	dbsql "database/sql"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -33,6 +34,7 @@ const (
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	errRevision            = "unable to find revision: %w"
+	errCheckRevision       = "unable to check revision: %w"
 
 	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES RETURNING id"
 
@@ -46,6 +48,8 @@ var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	getRevision = psql.Select("MAX(id)").From(tableTransaction)
+
+	getRevisionRange = psql.Select("MIN(id)", "MAX(id)").From(tableTransaction)
 
 	getMatchingRevision = psql.Select(colID).From(tableTransaction)
 
@@ -65,9 +69,17 @@ func NewPostgresDatastore(
 	url string,
 	watchBufferLength uint16,
 	revisionFuzzingTimedelta time.Duration,
+	gcWindow time.Duration,
 ) (datastore.Datastore, error) {
 	if watchBufferLength == 0 {
 		watchBufferLength = defaultWatchBufferLength
+	}
+
+	if revisionFuzzingTimedelta > gcWindow {
+		return nil, fmt.Errorf(
+			errUnableToInstantiate,
+			errors.New("gc window must be large than fuzzing window"),
+		)
 	}
 
 	connectStr, err := pq.ParseURL(url)
@@ -80,9 +92,11 @@ func NewPostgresDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	return &pgDatastore{db: db,
+	return &pgDatastore{
+		db:                       db,
 		watchBufferLength:        watchBufferLength,
 		revisionFuzzingTimedelta: revisionFuzzingTimedelta,
+		gcWindowInverted:         -1 * gcWindow,
 	}, nil
 }
 
@@ -90,12 +104,13 @@ type pgDatastore struct {
 	db                       *sqlx.DB
 	watchBufferLength        uint16
 	revisionFuzzingTimedelta time.Duration
+	gcWindowInverted         time.Duration
 }
 
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
 	tx, err := pgd.db.Beginx()
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+		return 0, fmt.Errorf(errRevision, err)
 	}
 	defer tx.Rollback()
 
@@ -105,51 +120,66 @@ func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
 func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
 	tx, err := pgd.db.Beginx()
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+		return 0, fmt.Errorf(errRevision, err)
 	}
 	defer tx.Rollback()
 
-	nowSQL, nowArgs, err := getNow.ToSql()
-	if err != nil {
+	lower, upper, err := computeRevisionRange(ctx, tx, -1*pgd.revisionFuzzingTimedelta)
+	if err != nil && err != dbsql.ErrNoRows {
 		return 0, fmt.Errorf(errRevision, err)
 	}
 
-	var now time.Time
-	err = tx.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
-	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
-	}
-
-	lowerBound := now.Add(-1 * pgd.revisionFuzzingTimedelta)
-	sql, args, err := getMatchingRevision.Where(sq.GtOrEq{colTimestamp: lowerBound}).ToSql()
-	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
-	}
-
-	rows, err := tx.QueryxContext(ctx, sql, args...)
-	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
-	}
-
-	var candidates []uint64
-	for rows.Next() {
-		var newCandidate uint64
-		err := rows.Scan(&newCandidate)
-		if err != nil {
-			return 0, fmt.Errorf(errRevision, err)
-		}
-
-		candidates = append(candidates, newCandidate)
-	}
-	if rows.Err() != nil {
-		return 0, fmt.Errorf(errRevision, rows.Err())
-	}
-
-	if len(candidates) > 0 {
-		return candidates[rand.Intn(len(candidates))], nil
-	} else {
+	if err == dbsql.ErrNoRows {
 		return loadRevision(ctx, tx)
 	}
+
+	if upper-lower == 0 {
+		return upper, nil
+	}
+
+	return uint64(rand.Intn(int(upper-lower))) + lower, nil
+}
+
+func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) error {
+	tx, err := pgd.db.Beginx()
+	if err != nil {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+	defer tx.Rollback()
+
+	lower, upper, err := computeRevisionRange(ctx, tx, pgd.gcWindowInverted)
+	if err == nil {
+		if revision >= lower && revision <= upper {
+			return nil
+		} else {
+			return datastore.ErrInvalidRevision
+		}
+	}
+
+	if err != dbsql.ErrNoRows {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	// There are no unexpired rows
+	sql, args, err := getRevision.ToSql()
+	if err != nil {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	var highest uint64
+	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&highest)
+	if err == dbsql.ErrNoRows {
+		return datastore.ErrInvalidRevision
+	}
+	if err != nil {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	if revision != highest {
+		return datastore.ErrInvalidRevision
+	}
+
+	return nil
 }
 
 func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
@@ -168,6 +198,38 @@ func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
 	}
 
 	return revision, nil
+}
+
+func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.Duration) (uint64, uint64, error) {
+	nowSQL, nowArgs, err := getNow.ToSql()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var now time.Time
+	err = tx.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	lowerBound := now.Add(windowInverted)
+
+	sql, args, err := getRevisionRange.Where(sq.GtOrEq{colTimestamp: lowerBound}).ToSql()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var lower, upper dbsql.NullInt64
+	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&lower, &upper)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if !lower.Valid || !upper.Valid {
+		return 0, 0, dbsql.ErrNoRows
+	}
+
+	return uint64(lower.Int64), uint64(upper.Int64), nil
 }
 
 func createNewTransaction(tx *sqlx.Tx) (newTxnID uint64, err error) {

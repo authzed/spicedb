@@ -113,7 +113,7 @@ func TestSimple(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
-					rawDS, err := memdb.NewMemdbDatastore(0, 0)
+					rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 					require.NoError(err)
 
 					ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -156,7 +156,7 @@ func TestCheckErrors(t *testing.T) {
 			parsed := tuple.Scan(tc.checkTuple)
 			require.NotNil(parsed)
 
-			rawDS, err := memdb.NewMemdbDatastore(0, 0)
+			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -179,7 +179,7 @@ func TestCheckErrors(t *testing.T) {
 func TestMaxDepth(t *testing.T) {
 	require := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0, 0)
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)

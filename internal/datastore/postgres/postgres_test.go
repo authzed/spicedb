@@ -24,7 +24,7 @@ type postgresTest struct {
 	port string
 }
 
-func (pgt postgresTest) New(revisionFuzzingTimedelta time.Duration) (datastore.Datastore, error) {
+func (pgt postgresTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (datastore.Datastore, error) {
 	uniquePortion, err := secrets.TokenHex(4)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (pgt postgresTest) New(revisionFuzzingTimedelta time.Duration) (datastore.D
 		return nil, fmt.Errorf("unable to migrate database: %w", err)
 	}
 
-	return NewPostgresDatastore(connectStr, 0, revisionFuzzingTimedelta)
+	return NewPostgresDatastore(connectStr, 0, revisionFuzzingTimedelta, gcWindow)
 }
 
 func TestPostgresDatastore(t *testing.T) {

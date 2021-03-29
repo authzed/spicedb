@@ -1,13 +1,17 @@
 package memdb
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
+
+const DisableGC = time.Duration(math.MaxInt64)
 
 const (
 	tableTuple              = "tuple"
@@ -200,12 +204,24 @@ type memdbDatastore struct {
 	db                       *memdb.MemDB
 	watchBufferLength        uint16
 	revisionFuzzingTimedelta time.Duration
+	gcWindowInverted         time.Duration
 }
 
 // NewMemdbDatastore creates a new Datastore compliant datastore backed by memdb.
 //
 // If the watchBufferLength value of 0 is set then a default value of 128 will be used.
-func NewMemdbDatastore(watchBufferLength uint16, revisionFuzzingTimedelta time.Duration) (datastore.Datastore, error) {
+func NewMemdbDatastore(
+	watchBufferLength uint16,
+	revisionFuzzingTimedelta,
+	gcWindow time.Duration,
+) (datastore.Datastore, error) {
+	if revisionFuzzingTimedelta > gcWindow {
+		return nil, fmt.Errorf(
+			errUnableToInstantiateTuplestore,
+			errors.New("gc window must be large than fuzzing window"),
+		)
+	}
+
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
@@ -219,5 +235,7 @@ func NewMemdbDatastore(watchBufferLength uint16, revisionFuzzingTimedelta time.D
 		db:                       db,
 		watchBufferLength:        watchBufferLength,
 		revisionFuzzingTimedelta: revisionFuzzingTimedelta,
+
+		gcWindowInverted: -1 * gcWindow,
 	}, nil
 }

@@ -16,6 +16,7 @@ const (
 	errUnableToWriteTuples = "unable to write tuples: %w"
 	errUnableToQueryTuples = "unable to query tuples: %w"
 	errRevision            = "unable to find revision: %w"
+	errCheckRevision       = "unable to check revision: %w"
 )
 
 const deletedTransactionID = ^uint64(0)
@@ -176,6 +177,43 @@ func (mds *memdbDatastore) Revision(ctx context.Context) (uint64, error) {
 	}
 }
 
+func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision uint64) error {
+	txn := mds.db.Txn(false)
+	defer txn.Abort()
+
+	// We need to know the highest possible revision
+	lastRaw, err := txn.Last(tableChangelog, indexID)
+	if err != nil {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+	if lastRaw == nil {
+		return datastore.ErrInvalidRevision
+	}
+
+	highest := lastRaw.(*tupleChangelog).id
+
+	if revision > highest {
+		return datastore.ErrInvalidRevision
+	}
+
+	lowerBound := uint64(time.Now().Add(mds.gcWindowInverted).UnixNano())
+	iter, err := txn.LowerBound(tableChangelog, indexTimestamp, lowerBound)
+	if err != nil {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	firstValid := iter.Next()
+	if firstValid == nil && revision != highest {
+		return datastore.ErrInvalidRevision
+	}
+
+	if firstValid != nil && revision < firstValid.(*tupleChangelog).id {
+		return datastore.ErrInvalidRevision
+	}
+
+	return nil
+}
+
 func findTuple(txn *memdb.Txn, toFind *pb.RelationTuple) (*tupleEntry, error) {
 	foundRaw, err := txn.First(
 		tableTuple,
@@ -236,4 +274,9 @@ func verifyNamespaceAndRelation(namespace, relation string, allowEllipsis bool, 
 	}
 
 	return nil
+}
+
+func highestRevision(txn *memdb.Txn) (uint64, error) {
+
+	return 0, nil
 }

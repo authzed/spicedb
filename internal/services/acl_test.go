@@ -188,7 +188,7 @@ func TestRead(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
 
-					srv, revision := newACLServicer(require, delta)
+					srv, revision := newACLServicer(require, delta, memdb.DisableGC)
 
 					resp, err := srv.Read(context.Background(), &api.ReadRequest{
 						Tuplesets:  []*api.RelationTupleFilter{tc.filter},
@@ -208,13 +208,61 @@ func TestRead(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestReadBadZookie(t *testing.T) {
+	require := require.New(t)
+
+	srv, revision := newACLServicer(require, 0, 10*time.Millisecond)
+
+	_, err := srv.Read(context.Background(), &api.ReadRequest{
+		Tuplesets: []*api.RelationTupleFilter{
+			{Namespace: tf.DocumentNS.Name},
+		},
+		AtRevision: zookie.NewFromRevision(revision),
+	})
+	require.NoError(err)
+
+	_, err = srv.Read(context.Background(), &api.ReadRequest{
+		Tuplesets: []*api.RelationTupleFilter{
+			{Namespace: tf.DocumentNS.Name},
+		},
+		AtRevision: zookie.NewFromRevision(revision - 1),
+	})
+	require.NoError(err)
+
+	// Wait until the gc window expires
+	time.Sleep(20 * time.Millisecond)
+
+	_, err = srv.Read(context.Background(), &api.ReadRequest{
+		Tuplesets: []*api.RelationTupleFilter{
+			{Namespace: tf.DocumentNS.Name},
+		},
+		AtRevision: zookie.NewFromRevision(revision),
+	})
+	require.NoError(err)
+
+	_, err = srv.Read(context.Background(), &api.ReadRequest{
+		Tuplesets: []*api.RelationTupleFilter{
+			{Namespace: tf.DocumentNS.Name},
+		},
+		AtRevision: zookie.NewFromRevision(revision - 1),
+	})
+	requireGRPCStatus(codes.OutOfRange, err, require)
+
+	_, err = srv.Read(context.Background(), &api.ReadRequest{
+		Tuplesets: []*api.RelationTupleFilter{
+			{Namespace: tf.DocumentNS.Name},
+		},
+		AtRevision: zookie.NewFromRevision(revision + 1),
+	})
+	requireGRPCStatus(codes.OutOfRange, err, require)
 }
 
 func TestWrite(t *testing.T) {
 	require := require.New(t)
 
-	srv, _ := newACLServicer(require, 0)
+	srv, _ := newACLServicer(require, 0, memdb.DisableGC)
 
 	toWriteStr := "document:totallynew#parent@folder:plans#..."
 	toWrite := tuple.Scan(toWriteStr)
@@ -302,7 +350,7 @@ func TestInvalidWriteArguments(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			srv, _ := newACLServicer(require, 0)
+			srv, _ := newACLServicer(require, 0, memdb.DisableGC)
 
 			var preconditions []*api.RelationTuple
 			for _, p := range tc.preconditions {
@@ -395,7 +443,7 @@ func TestCheck(t *testing.T) {
 						)
 						t.Run(name, func(t *testing.T) {
 							require := require.New(t)
-							srv, revision := newACLServicer(require, delta)
+							srv, revision := newACLServicer(require, delta, memdb.DisableGC)
 
 							resp, err := srv.Check(context.Background(), &api.CheckRequest{
 								TestUserset: tc.start,
@@ -461,7 +509,7 @@ func TestExpand(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 					require := require.New(t)
-					srv, revision := newACLServicer(require, delta)
+					srv, revision := newACLServicer(require, delta, memdb.DisableGC)
 
 					expanded, err := srv.Expand(context.Background(), &api.ExpandRequest{
 						Userset:    tc.start,
@@ -485,8 +533,9 @@ func TestExpand(t *testing.T) {
 func newACLServicer(
 	require *require.Assertions,
 	revisionFuzzingTimedelta time.Duration,
+	gcWindow time.Duration,
 ) (api.ACLServiceServer, uint64) {
-	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta)
+	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow)
 	require.NoError(err)
 
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require)

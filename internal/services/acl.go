@@ -116,6 +116,11 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 		}
 	}
 
+	err = as.ds.CheckRevision(ctx, atRevision)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
 	var allTuplesetResults []*api.ReadResponse_Tupleset
 
 	for _, tuplesetFilter := range req.Tuplesets {
@@ -312,6 +317,8 @@ func rewriteACLError(err error) error {
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 	case datastore.ErrPreconditionFailed:
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
+	case datastore.ErrInvalidRevision:
+		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 	case graph.ErrAlwaysFail:
 		fallthrough
 	default:

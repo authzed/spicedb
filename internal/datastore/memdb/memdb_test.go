@@ -10,8 +10,8 @@ import (
 
 type memDBTest struct{}
 
-func (mdbt memDBTest) New(revisionFuzzingTimedelta time.Duration) (datastore.Datastore, error) {
-	return NewMemdbDatastore(0, revisionFuzzingTimedelta)
+func (mdbt memDBTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (datastore.Datastore, error) {
+	return NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow)
 }
 
 func TestMemdbDatastore(t *testing.T) {

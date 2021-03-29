@@ -49,6 +49,7 @@ func main() {
 	rootCmd.Flags().Uint16("max-depth", 50, "maximum recursion depth for nested calls")
 	rootCmd.Flags().String("datastore-url", "memory:///", "connection url of storage layer")
 	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
+	rootCmd.Flags().Duration("gc-window", 24*time.Hour, "amount of time before a revision is garbage collected")
 
 	rootCmd.Execute()
 }
@@ -88,18 +89,19 @@ func rootRun(cmd *cobra.Command, args []string) {
 	datastoreUrl := cobrautil.MustGetString(cmd, "datastore-url")
 
 	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "revision-fuzzing-duration")
+	gcWindow := cobrautil.MustGetDuration(cmd, "gc-window")
 
 	var ds datastore.Datastore
 	var err error
 	if datastoreUrl == "memory:///" {
 		logger.Info("using in-memory datastore")
-		ds, err = memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta)
+		ds, err = memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow)
 		if err != nil {
 			logger.Fatal("failed to init datastore", zap.Error(err))
 		}
 	} else {
 		logger.Info("using postgres datastore")
-		ds, err = postgres.NewPostgresDatastore(datastoreUrl, 0, revisionFuzzingTimedelta)
+		ds, err = postgres.NewPostgresDatastore(datastoreUrl, 0, revisionFuzzingTimedelta, gcWindow)
 		if err != nil {
 			logger.Fatal("failed to init datastore", zap.Error(err))
 		}

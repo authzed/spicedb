@@ -20,6 +20,7 @@ var (
 	ErrPreconditionFailed = errors.New("unable to satisfy write precondition")
 	ErrWatchDisconnected  = errors.New("watch fell too far behind and was disconnected")
 	ErrWatchCanceled      = errors.New("watch was canceled by the caller")
+	ErrInvalidRevision    = errors.New("revision was invalid")
 )
 
 // RevisionChanges represents the changes in a single transaction.
@@ -62,6 +63,10 @@ type Datastore interface {
 type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
 	QueryTuples(namespace string, revision uint64) TupleQuery
+
+	// CheckRevision checks the specified revision to make sure it's valid and hasn't been
+	// garbage collected.
+	CheckRevision(ctx context.Context, revision uint64) error
 }
 
 // TupleQuery is a builder for constructing tuple queries.

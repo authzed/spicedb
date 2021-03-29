@@ -30,7 +30,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 		t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(0)
+			ds, err := tester.New(0, disableGC)
 			require.NoError(err)
 
 			setupDatastore(ds, require)
@@ -132,7 +132,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 func TestPreconditions(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0)
+	ds, err := tester.New(0, disableGC)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -173,7 +173,7 @@ func TestWriteInvalidTuples(t *testing.T, tester DatastoreTester) {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(0)
+			ds, err := tester.New(0, disableGC)
 			require.NoError(err)
 
 			setupDatastore(ds, require)
@@ -196,9 +196,9 @@ func TestWriteInvalidTuples(t *testing.T, tester DatastoreTester) {
 func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	fuzzingRange := 50 * time.Millisecond
+	fuzzingRange := 100 * time.Millisecond
 
-	ds, err := tester.New(fuzzingRange)
+	ds, err := tester.New(fuzzingRange, disableGC)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -216,7 +216,7 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 	require.GreaterOrEqual(nowRevision, uint64(0))
 
 	foundAnotherRevision := false
-	for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
+	for start := time.Now(); time.Since(start) < 20*time.Millisecond; {
 		testRevision, err := ds.Revision(context.Background())
 		require.NoError(err)
 		require.LessOrEqual(testRevision, nowRevision)
@@ -243,7 +243,7 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 	t.Run("invalid namespace", func(t *testing.T) {
 		require := require.New(t)
 
-		ds, err := tester.New(0)
+		ds, err := tester.New(0, disableGC)
 		require.NoError(err)
 
 		setupDatastore(ds, require)
@@ -259,7 +259,7 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 	t.Run("invalid relation", func(t *testing.T) {
 		require := require.New(t)
 
-		ds, err := tester.New(0)
+		ds, err := tester.New(0, disableGC)
 		require.NoError(err)
 
 		setupDatastore(ds, require)
@@ -270,5 +270,61 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 		iter, err := ds.QueryTuples(testResourceNamespace, revision).WithRelation("fakefake").Execute()
 		require.Nil(iter)
 		require.Equal(datastore.ErrRelationNotFound, err)
+	})
+
+	t.Run("revision expiration", func(t *testing.T) {
+		testGCDuration := 10 * time.Millisecond
+
+		require := require.New(t)
+
+		ds, err := tester.New(0, testGCDuration)
+		require.NoError(err)
+
+		setupDatastore(ds, require)
+
+		// Check that we get an error when there are no revisions
+		err = ds.CheckRevision(context.Background(), 0)
+		require.Equal(datastore.ErrInvalidRevision, err)
+
+		newTuple := makeTestTuple("one", "one")
+		firstWrite, err := ds.WriteTuples(
+			nil,
+			[]*pb.RelationTupleUpdate{tuple.Create(newTuple)},
+		)
+		require.NoError(err)
+
+		// Check that we can read at the just written revision
+		err = ds.CheckRevision(context.Background(), firstWrite)
+		require.NoError(err)
+
+		// Wait the duration required to allow the revision to expire
+		time.Sleep(testGCDuration * 2)
+
+		// Check that we can still read the just written revision even though it's expired
+		err = ds.CheckRevision(context.Background(), firstWrite)
+		require.NoError(err)
+
+		// Write another tuple which will allow the first revision to expire
+		nextWrite, err := ds.WriteTuples(
+			nil,
+			[]*pb.RelationTupleUpdate{tuple.Touch(newTuple)},
+		)
+		require.NoError(err)
+
+		// Check that we can read at the just written revision
+		err = ds.CheckRevision(context.Background(), nextWrite)
+		require.NoError(err)
+
+		// Check that we can no longer read the old revision (now allowed to expire)
+		err = ds.CheckRevision(context.Background(), firstWrite)
+		require.Equal(datastore.ErrInvalidRevision, err)
+
+		// Check that we can't read a revision that's ahead of the latest
+		err = ds.CheckRevision(context.Background(), nextWrite+1)
+		require.Equal(datastore.ErrInvalidRevision, err)
+
+		// Check that we can't read a revision that's WAY ahead of the latest
+		err = ds.CheckRevision(context.Background(), nextWrite+1000000)
+		require.Equal(datastore.ErrInvalidRevision, err)
 	})
 }

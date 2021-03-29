@@ -14,7 +14,7 @@ import (
 func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0)
+	rawDS, err := tester.New(0, disableGC)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
