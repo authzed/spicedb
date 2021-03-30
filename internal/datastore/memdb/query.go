@@ -43,9 +43,9 @@ func (mtq *memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
 
 	var err error
 	if mtq.relationFilter != nil {
-		err = verifyNamespaceAndRelation(mtq.namespace, *mtq.relationFilter, false, txn)
+		err = verifyNamespaceAndRelation(txn, mtq.namespace, *mtq.relationFilter, false)
 	} else {
-		err = verifyNamespaceAndRelation(mtq.namespace, datastore.Ellipsis, true, txn)
+		err = verifyNamespaceAndRelation(txn, mtq.namespace, datastore.Ellipsis, true)
 	}
 	if err != nil {
 		txn.Abort()

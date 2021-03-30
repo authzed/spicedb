@@ -55,23 +55,21 @@ func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutati
 
 	// Apply the mutations
 	for _, mutation := range mutations {
-		err := verifyNamespaceAndRelation(
+		if err := verifyNamespaceAndRelation(
+			txn,
 			mutation.Tuple.ObjectAndRelation.Namespace,
 			mutation.Tuple.ObjectAndRelation.Relation,
 			false,
-			txn,
-		)
-		if err != nil {
+		); err != nil {
 			return 0, err
 		}
 
-		err = verifyNamespaceAndRelation(
+		if err := verifyNamespaceAndRelation(
+			txn,
 			mutation.Tuple.User.GetUserset().Namespace,
 			mutation.Tuple.User.GetUserset().Relation,
 			true,
-			txn,
-		)
-		if err != nil {
+		); err != nil {
 			return 0, err
 		}
 
@@ -250,7 +248,7 @@ func nextTupleChangelogID(txn *memdb.Txn) (uint64, error) {
 	return lastChangeRaw.(*tupleChangelog).id + 1, nil
 }
 
-func verifyNamespaceAndRelation(namespace, relation string, allowEllipsis bool, txn *memdb.Txn) error {
+func verifyNamespaceAndRelation(txn *memdb.Txn, namespace, relation string, allowEllipsis bool) error {
 	foundNamespace, err := txn.First(tableNamespaceConfig, indexID, namespace)
 	if err != nil {
 		return fmt.Errorf("unable to verify namespace: %w", err)
