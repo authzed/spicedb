@@ -273,8 +273,3 @@ func verifyNamespaceAndRelation(txn *memdb.Txn, namespace, relation string, allo
 
 	return nil
 }
-
-func highestRevision(txn *memdb.Txn) (uint64, error) {
-
-	return 0, nil
-}

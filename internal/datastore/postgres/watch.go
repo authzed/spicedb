@@ -71,7 +71,7 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision uint64) (<-chan
 
 				select {
 				case <-sleep.C:
-					// Do nothing, this is expected
+					break
 				case <-ctx.Done():
 					errors <- datastore.ErrWatchCanceled
 					return

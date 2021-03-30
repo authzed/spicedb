@@ -245,12 +245,11 @@ func TestNamespaceValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
 			err := tc.config.Validate()
 			if tc.expectError {
-				require.Error(err)
+				require.Error(t, err)
 			} else {
-				require.NoError(err)
+				require.NoError(t, err)
 			}
 		})
 	}

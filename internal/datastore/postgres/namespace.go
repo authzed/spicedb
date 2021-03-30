@@ -101,7 +101,7 @@ func (pgd *pgDatastore) DeleteNamespace(nsName string) (uint64, error) {
 	case datastore.ErrNamespaceNotFound:
 		return 0, err
 	case nil:
-		// Do nothing
+		break
 	default:
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}

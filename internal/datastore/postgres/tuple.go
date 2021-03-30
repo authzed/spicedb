@@ -159,7 +159,7 @@ func verifyNamespaceAndRelation(namespace, relation string, allowEllipsis bool, 
 	case datastore.ErrNamespaceNotFound:
 		return err
 	case nil:
-		// Do nothing
+		break
 	default:
 		return fmt.Errorf(errUnableToVerifyNamespace, err)
 	}
