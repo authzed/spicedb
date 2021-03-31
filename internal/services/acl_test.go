@@ -492,6 +492,27 @@ func TestCheck(t *testing.T) {
 	}
 }
 
+func BenchmarkACL(b *testing.B) {
+	require := require.New(b)
+	srv, revision := newACLServicer(require, 0, memdb.DisableGC, 3*time.Millisecond)
+
+	b.Run("check", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			resp, err := srv.Check(context.Background(), &api.CheckRequest{
+				TestUserset: ONR("document", "masterplan", "viewer"),
+				User: &api.User{
+					UserOneof: &api.User_Userset{
+						Userset: ONR("user", "villain", "..."),
+					},
+				},
+				AtRevision: zookie.NewFromRevision(revision),
+			})
+			require.NoError(err)
+			require.Equal(api.CheckResponse_NOT_MEMBER, resp.Membership)
+		}
+	})
+}
+
 func TestExpand(t *testing.T) {
 	testCases := []struct {
 		start              *api.ObjectAndRelation
