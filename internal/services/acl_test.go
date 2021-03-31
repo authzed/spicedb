@@ -338,7 +338,7 @@ func TestInvalidWriteArguments(t *testing.T) {
 		{
 			"good precondition, short object ID",
 			[]string{"document:newdoc#parent@folder:afolder#..."},
-			[]string{"document:ab#parent@folder:afolder#..."},
+			[]string{"document:a#parent@folder:afolder#..."},
 		},
 		{
 			"bad precondition, good write",
