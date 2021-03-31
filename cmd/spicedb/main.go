@@ -95,7 +95,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 	var err error
 	if datastoreUrl == "memory:///" {
 		logger.Info("using in-memory datastore")
-		ds, err = memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow)
+		ds, err = memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, 0)
 		if err != nil {
 			logger.Fatal("failed to init datastore", zap.Error(err))
 		}

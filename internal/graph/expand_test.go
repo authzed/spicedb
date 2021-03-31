@@ -116,7 +116,7 @@ func TestExpand(t *testing.T) {
 		t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 			require := require.New(t)
 
-			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 			require.NoError(err)
 
 			ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -220,7 +220,7 @@ func onrExpr(onr *pb.ObjectAndRelation) ast.Expr {
 func TestMaxDepthExpand(t *testing.T) {
 	require := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
@@ -265,7 +265,7 @@ func TestExpandErrors(t *testing.T) {
 			parsed := tuple.ScanONR(tc.checkONRString)
 			require.NotNil(parsed)
 
-			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 			require.NoError(err)
 
 			ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)

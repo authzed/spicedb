@@ -17,7 +17,7 @@ import (
 func TestNamespace(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
 	srv := NewNamespaceServer(ds)

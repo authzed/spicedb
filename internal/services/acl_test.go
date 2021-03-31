@@ -188,7 +188,7 @@ func TestRead(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
 
-					srv, revision := newACLServicer(require, delta, memdb.DisableGC)
+					srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
 
 					resp, err := srv.Read(context.Background(), &api.ReadRequest{
 						Tuplesets:  []*api.RelationTupleFilter{tc.filter},
@@ -213,7 +213,7 @@ func TestRead(t *testing.T) {
 func TestReadBadZookie(t *testing.T) {
 	require := require.New(t)
 
-	srv, revision := newACLServicer(require, 0, 10*time.Millisecond)
+	srv, revision := newACLServicer(require, 0, 10*time.Millisecond, 0)
 
 	_, err := srv.Read(context.Background(), &api.ReadRequest{
 		Tuplesets: []*api.RelationTupleFilter{
@@ -262,7 +262,7 @@ func TestReadBadZookie(t *testing.T) {
 func TestWrite(t *testing.T) {
 	require := require.New(t)
 
-	srv, _ := newACLServicer(require, 0, memdb.DisableGC)
+	srv, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
 
 	toWriteStr := "document:totallynew#parent@folder:plans#..."
 	toWrite := tuple.Scan(toWriteStr)
@@ -350,7 +350,7 @@ func TestInvalidWriteArguments(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			srv, _ := newACLServicer(require, 0, memdb.DisableGC)
+			srv, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
 
 			var preconditions []*api.RelationTuple
 			for _, p := range tc.preconditions {
@@ -443,7 +443,7 @@ func TestCheck(t *testing.T) {
 						)
 						t.Run(name, func(t *testing.T) {
 							require := require.New(t)
-							srv, revision := newACLServicer(require, delta, memdb.DisableGC)
+							srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
 
 							resp, err := srv.Check(context.Background(), &api.CheckRequest{
 								TestUserset: tc.start,
@@ -509,7 +509,7 @@ func TestExpand(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 					require := require.New(t)
-					srv, revision := newACLServicer(require, delta, memdb.DisableGC)
+					srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
 
 					expanded, err := srv.Expand(context.Background(), &api.ExpandRequest{
 						Userset:    tc.start,
@@ -534,8 +534,9 @@ func newACLServicer(
 	require *require.Assertions,
 	revisionFuzzingTimedelta time.Duration,
 	gcWindow time.Duration,
+	simulatedLatency time.Duration,
 ) (api.ACLServiceServer, uint64) {
-	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow)
+	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
 	require.NoError(err)
 
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require)

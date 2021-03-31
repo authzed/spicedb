@@ -3,6 +3,7 @@ package memdb
 import (
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/hashicorp/go-memdb"
 
@@ -18,6 +19,8 @@ type memdbTupleQuery struct {
 	objectIDFilter *string
 	relationFilter *string
 	usersetFilter  *pb.ObjectAndRelation
+
+	simulatedLatency time.Duration
 }
 
 func (mtq *memdbTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
@@ -41,6 +44,7 @@ func (mtq *memdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore
 func (mtq *memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
 	txn := mtq.db.Txn(false)
 
+	time.Sleep(mtq.simulatedLatency)
 	var err error
 	if mtq.relationFilter != nil {
 		err = verifyNamespaceAndRelation(txn, mtq.namespace, *mtq.relationFilter, false)
@@ -52,6 +56,7 @@ func (mtq *memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
 		return nil, err
 	}
 
+	time.Sleep(mtq.simulatedLatency)
 	var bestIterator memdb.ResultIterator
 	if mtq.objectIDFilter != nil {
 		bestIterator, err = txn.Get(

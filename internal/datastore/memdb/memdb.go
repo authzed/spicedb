@@ -205,6 +205,7 @@ type memdbDatastore struct {
 	watchBufferLength        uint16
 	revisionFuzzingTimedelta time.Duration
 	gcWindowInverted         time.Duration
+	simulatedLatency         time.Duration
 }
 
 // NewMemdbDatastore creates a new Datastore compliant datastore backed by memdb.
@@ -214,6 +215,7 @@ func NewMemdbDatastore(
 	watchBufferLength uint16,
 	revisionFuzzingTimedelta,
 	gcWindow time.Duration,
+	simulatedLatency time.Duration,
 ) (datastore.Datastore, error) {
 	if revisionFuzzingTimedelta > gcWindow {
 		return nil, fmt.Errorf(
@@ -237,5 +239,6 @@ func NewMemdbDatastore(
 		revisionFuzzingTimedelta: revisionFuzzingTimedelta,
 
 		gcWindowInverted: -1 * gcWindow,
+		simulatedLatency: simulatedLatency,
 	}, nil
 }

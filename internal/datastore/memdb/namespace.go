@@ -2,6 +2,7 @@ package memdb
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/authzed/spicedb/internal/datastore"
@@ -19,6 +20,7 @@ func (mds *memdbDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (ui
 	txn := mds.db.Txn(true)
 	defer txn.Abort()
 
+	time.Sleep(mds.simulatedLatency)
 	newVersion, err := nextChangelogID(txn)
 
 	foundRaw, err := txn.First(tableNamespaceConfig, indexID, newConfig.Name)
@@ -46,9 +48,12 @@ func (mds *memdbDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (ui
 		oldVersion: oldVersion,
 	}
 
+	time.Sleep(mds.simulatedLatency)
 	if err := txn.Insert(tableNamespaceConfig, newConfigEntry); err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
+
+	time.Sleep(mds.simulatedLatency)
 	if err := txn.Insert(tableNamespaceChangelog, changeLogEntry); err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
@@ -58,6 +63,7 @@ func (mds *memdbDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (ui
 			namespace: newConfig.Name,
 			relation:  relation.Name,
 		}
+		time.Sleep(mds.simulatedLatency)
 		if err := txn.Insert(tableNamespaceRelation, nsRelationEntry); err != nil {
 			return 0, fmt.Errorf(errUnableToWriteConfig, err)
 		}
@@ -73,6 +79,7 @@ func (mds *memdbDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinition
 	txn := mds.db.Txn(false)
 	defer txn.Abort()
 
+	time.Sleep(mds.simulatedLatency)
 	foundRaw, err := txn.First(tableNamespaceConfig, indexID, nsName)
 	if err != nil {
 		return nil, 0, fmt.Errorf(errUnableToReadConfig, err)
@@ -91,6 +98,7 @@ func (mds *memdbDatastore) DeleteNamespace(nsName string) (uint64, error) {
 	txn := mds.db.Txn(true)
 	defer txn.Abort()
 
+	time.Sleep(mds.simulatedLatency)
 	foundRaw, err := txn.First(tableNamespaceConfig, indexID, nsName)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
@@ -101,6 +109,7 @@ func (mds *memdbDatastore) DeleteNamespace(nsName string) (uint64, error) {
 
 	found := foundRaw.(*namespace)
 
+	time.Sleep(mds.simulatedLatency)
 	newChangelogID, err := nextChangelogID(txn)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
@@ -114,18 +123,21 @@ func (mds *memdbDatastore) DeleteNamespace(nsName string) (uint64, error) {
 	}
 
 	// Delete the namespace config
+	time.Sleep(mds.simulatedLatency)
 	err = txn.Delete(tableNamespaceConfig, found)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	// Delete the namespace relations
+	time.Sleep(mds.simulatedLatency)
 	relationIter, err := txn.Get(tableNamespaceRelation, indexNamespace, nsName)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	for rel := relationIter.Next(); rel != nil; rel = relationIter.Next() {
+		time.Sleep(mds.simulatedLatency)
 		err := txn.Delete(tableNamespaceRelation, rel)
 		if err != nil {
 			return 0, fmt.Errorf(errUnableToDeleteConfig, err)
@@ -133,12 +145,14 @@ func (mds *memdbDatastore) DeleteNamespace(nsName string) (uint64, error) {
 	}
 
 	// Write the changelog that we delete the namespace
+	time.Sleep(mds.simulatedLatency)
 	err = txn.Insert(tableNamespaceChangelog, changeLogEntry)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	// Delete the tuples in this namespace
+	time.Sleep(mds.simulatedLatency)
 	_, err = txn.DeleteAll(tableTuple, indexNamespace, nsName)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)

@@ -38,6 +38,7 @@ func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutati
 	}
 
 	// Create the changelog entry
+	time.Sleep(mds.simulatedLatency)
 	newChangelogID, err := nextTupleChangelogID(txn)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteTuples, err)
@@ -55,6 +56,7 @@ func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutati
 
 	// Apply the mutations
 	for _, mutation := range mutations {
+		time.Sleep(mds.simulatedLatency)
 		if err := verifyNamespaceAndRelation(
 			txn,
 			mutation.Tuple.ObjectAndRelation.Namespace,
@@ -64,6 +66,7 @@ func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutati
 			return 0, err
 		}
 
+		time.Sleep(mds.simulatedLatency)
 		if err := verifyNamespaceAndRelation(
 			txn,
 			mutation.Tuple.User.GetUserset().Namespace,
@@ -131,9 +134,10 @@ func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutati
 
 func (mds *memdbDatastore) QueryTuples(namespace string, revision uint64) datastore.TupleQuery {
 	return &memdbTupleQuery{
-		db:        mds.db,
-		namespace: namespace,
-		revision:  revision,
+		db:               mds.db,
+		namespace:        namespace,
+		revision:         revision,
+		simulatedLatency: mds.simulatedLatency,
 	}
 }
 
@@ -158,6 +162,7 @@ func (mds *memdbDatastore) Revision(ctx context.Context) (uint64, error) {
 
 	lowerBound := uint64(time.Now().Add(-1 * mds.revisionFuzzingTimedelta).UnixNano())
 
+	time.Sleep(mds.simulatedLatency)
 	iter, err := txn.LowerBound(tableChangelog, indexTimestamp, lowerBound)
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
@@ -180,6 +185,7 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision uint64) e
 	defer txn.Abort()
 
 	// We need to know the highest possible revision
+	time.Sleep(mds.simulatedLatency)
 	lastRaw, err := txn.Last(tableChangelog, indexID)
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
@@ -195,6 +201,7 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision uint64) e
 	}
 
 	lowerBound := uint64(time.Now().Add(mds.gcWindowInverted).UnixNano())
+	time.Sleep(mds.simulatedLatency)
 	iter, err := txn.LowerBound(tableChangelog, indexTimestamp, lowerBound)
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
