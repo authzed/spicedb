@@ -23,25 +23,22 @@ type memdbTupleQuery struct {
 	simulatedLatency time.Duration
 }
 
-func (mtq *memdbTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
-	copy := *mtq
-	(&copy).objectIDFilter = &objectID
-	return &copy
+func (mtq memdbTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
+	mtq.objectIDFilter = &objectID
+	return mtq
 }
 
-func (mtq *memdbTupleQuery) WithRelation(relation string) datastore.TupleQuery {
-	copy := *mtq
-	(&copy).relationFilter = &relation
-	return &copy
+func (mtq memdbTupleQuery) WithRelation(relation string) datastore.TupleQuery {
+	mtq.relationFilter = &relation
+	return mtq
 }
 
-func (mtq *memdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.TupleQuery {
-	copy := *mtq
-	(&copy).usersetFilter = userset
-	return &copy
+func (mtq memdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.TupleQuery {
+	mtq.usersetFilter = userset
+	return mtq
 }
 
-func (mtq *memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
+func (mtq memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
 	txn := mtq.db.Txn(false)
 
 	time.Sleep(mtq.simulatedLatency)
@@ -115,7 +112,6 @@ func (mtq *memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
 	})
 
 	iter := &memdbTupleIterator{
-		mtq: mtq,
 		txn: txn,
 		it:  filteredIterator,
 	}
@@ -130,7 +126,6 @@ func (mtq *memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
 }
 
 type memdbTupleIterator struct {
-	mtq *memdbTupleQuery
 	txn *memdb.Txn
 	it  memdb.ResultIterator
 }
