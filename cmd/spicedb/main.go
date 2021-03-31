@@ -176,7 +176,7 @@ func RegisterGrpcServices(
 }
 
 func NewTlsGrpcServer(certPath, keyPath string, opts ...grpc.ServerOption) (*grpc.Server, error) {
-	if certPath != "" && keyPath != "" {
+	if certPath == "" || keyPath == "" {
 		return nil, errors.New("missing one of required values: cert path, key path")
 	}
 
