@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/dgraph-io/ristretto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -25,6 +27,12 @@ func init() {
 }
 
 var ONR = tuple.ObjectAndRelation
+
+var testCacheConfig = &ristretto.Config{
+	NumCounters: 1e2,     // number of keys to track frequency of (10k).
+	MaxCost:     1 << 20, // maximum cost of cache (1MB).
+	BufferItems: 64,      // number of keys per Get buffer.
+}
 
 func TestSimple(t *testing.T) {
 	type expected struct {
@@ -113,13 +121,7 @@ func TestSimple(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
-					rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-					require.NoError(err)
-
-					ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-
-					dispatch, err := NewLocalDispatcher(ds)
-					require.NoError(err)
+					dispatch, revision := newLocalDispatcher(require)
 
 					checkResult := dispatch.Check(context.Background(), CheckRequest{
 						Start:          ONR(tc.namespace, tc.objectID, expected.relation),
@@ -130,9 +132,6 @@ func TestSimple(t *testing.T) {
 
 					require.NoError(checkResult.Err)
 					require.Equal(expected.isMember, checkResult.IsMember)
-
-					// Check for goroutine leaks.
-					defer goleak.VerifyNone(t)
 				})
 			}
 		}
@@ -153,16 +152,10 @@ func TestCheckErrors(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
 
+			dispatch, revision := newLocalDispatcher(require)
+
 			parsed := tuple.Scan(tc.checkTuple)
 			require.NotNil(parsed)
-
-			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-			require.NoError(err)
-
-			ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-
-			dispatch, err := NewLocalDispatcher(ds)
-			require.NoError(err)
 
 			checkResult := dispatch.Check(context.Background(), CheckRequest{
 				Start:          parsed.ObjectAndRelation,
@@ -195,7 +188,10 @@ func TestMaxDepth(t *testing.T) {
 	require.NoError(err)
 	require.Greater(revision, uint64(0))
 
-	dispatch, err := NewLocalDispatcher(ds)
+	nsm, err := datastore.NewNamespaceCache(ds, 1*time.Second, testCacheConfig)
+	require.NoError(err)
+
+	dispatch, err := NewLocalDispatcher(nsm, ds)
 	require.NoError(err)
 
 	checkResult := dispatch.Check(context.Background(), CheckRequest{
@@ -207,4 +203,19 @@ func TestMaxDepth(t *testing.T) {
 
 	require.Error(checkResult.Err)
 	require.False(checkResult.IsMember)
+}
+
+func newLocalDispatcher(require *require.Assertions) (Dispatcher, uint64) {
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+	nsm, err := datastore.NewNamespaceCache(ds, 1*time.Second, testCacheConfig)
+	require.NoError(err)
+
+	dispatch, err := NewLocalDispatcher(nsm, ds)
+	require.NoError(err)
+
+	return dispatch, revision
 }

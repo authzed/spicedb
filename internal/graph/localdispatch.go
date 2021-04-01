@@ -15,17 +15,18 @@ var errMaxDepth = errors.New("max depth has been reached")
 
 // NewLocalDispatcher creates a dispatcher that checks everything in the same
 // process on the same machine.
-func NewLocalDispatcher(ds datastore.Datastore) (Dispatcher, error) {
-	return &localDispatcher{ds: ds}, nil
+func NewLocalDispatcher(nsm datastore.NamespaceManager, ds datastore.GraphDatastore) (Dispatcher, error) {
+	return &localDispatcher{nsm: nsm, ds: ds}, nil
 }
 
 type localDispatcher struct {
-	ds datastore.Datastore
+	nsm datastore.NamespaceManager
+	ds  datastore.GraphDatastore
 }
 
 func (ld *localDispatcher) loadRelation(nsName, relationName string) (*pb.Relation, error) {
 	// Load namespace and relation from the datastore
-	ns, _, err := ld.ds.ReadNamespace(nsName)
+	ns, _, err := ld.nsm.ReadNamespace(nsName)
 	if err != nil {
 		return nil, rewriteError(err)
 	}

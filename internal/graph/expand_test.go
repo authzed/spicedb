@@ -8,11 +8,13 @@ import (
 	"go/token"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -116,13 +118,7 @@ func TestExpand(t *testing.T) {
 		t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 			require := require.New(t)
 
-			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-			require.NoError(err)
-
-			ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-
-			dispatch, err := NewLocalDispatcher(ds)
-			require.NoError(err)
+			dispatch, revision := newLocalDispatcher(require)
 
 			checkResult := dispatch.Expand(context.Background(), ExpandRequest{
 				Start:          tc.start,
@@ -236,7 +232,10 @@ func TestMaxDepthExpand(t *testing.T) {
 	require.NoError(err)
 	require.Greater(revision, uint64(0))
 
-	dispatch, err := NewLocalDispatcher(ds)
+	nsm, err := datastore.NewNamespaceCache(ds, 1*time.Second, testCacheConfig)
+	require.NoError(err)
+
+	dispatch, err := NewLocalDispatcher(nsm, ds)
 	require.NoError(err)
 
 	checkResult := dispatch.Expand(context.Background(), ExpandRequest{
@@ -265,13 +264,7 @@ func TestExpandErrors(t *testing.T) {
 			parsed := tuple.ScanONR(tc.checkONRString)
 			require.NotNil(parsed)
 
-			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-			require.NoError(err)
-
-			ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
-
-			dispatch, err := NewLocalDispatcher(ds)
-			require.NoError(err)
+			dispatch, revision := newLocalDispatcher(require)
 
 			checkResult := dispatch.Expand(context.Background(), ExpandRequest{
 				Start:          parsed,

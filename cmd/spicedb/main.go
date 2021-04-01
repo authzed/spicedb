@@ -50,6 +50,7 @@ func main() {
 	rootCmd.Flags().String("datastore-url", "memory:///", "connection url of storage layer")
 	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	rootCmd.Flags().Duration("gc-window", 24*time.Hour, "amount of time before a revision is garbage collected")
+	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 
 	rootCmd.Execute()
 }
@@ -107,7 +108,13 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	dispatch, err := graph.NewLocalDispatcher(ds)
+	nsCacheExpiration := cobrautil.MustGetDuration(cmd, "ns-cache-expiration")
+	nsm, err := datastore.NewNamespaceCache(ds, nsCacheExpiration, nil)
+	if err != nil {
+		logger.Fatal("failed to initialize namespace manager", zap.Error(err))
+	}
+
+	dispatch, err := graph.NewLocalDispatcher(nsm, ds)
 	if err != nil {
 		logger.Fatal("failed to initialize check dispatcher", zap.Error(err))
 	}

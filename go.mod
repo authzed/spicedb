@@ -7,6 +7,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
+	github.com/dgraph-io/ristretto v0.0.3
 	github.com/envoyproxy/protoc-gen-validate v0.1.0
 	github.com/golang-migrate/migrate/v4 v4.14.1
 	github.com/golang/protobuf v1.4.3
@@ -24,7 +25,6 @@ require (
 	github.com/rs/zerolog v1.20.0
 	github.com/spf13/cobra v1.1.3
 	github.com/stretchr/testify v1.6.1
-	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb // indirect
 	google.golang.org/grpc v1.36.0

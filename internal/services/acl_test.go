@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
@@ -562,7 +563,10 @@ func newACLServicer(
 
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require)
 
-	dispatch, err := graph.NewLocalDispatcher(ds)
+	ns, err := datastore.NewNamespaceCache(ds, 1*time.Second, nil)
+	require.NoError(err)
+
+	dispatch, err := graph.NewLocalDispatcher(ns, ds)
 	require.NoError(err)
 
 	return NewACLServer(ds, dispatch, 50), revision
