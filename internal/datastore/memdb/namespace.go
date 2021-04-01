@@ -58,6 +58,12 @@ func (mds *memdbDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (ui
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
+	// We have to delete any old relations before we write new ones
+	err = mds.deleteNamespaceRelations(txn, newConfig.Name)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToWriteConfig, err)
+	}
+
 	for _, relation := range newConfig.Relation {
 		nsRelationEntry := &namespaceRelation{
 			namespace: newConfig.Name,
@@ -130,18 +136,9 @@ func (mds *memdbDatastore) DeleteNamespace(nsName string) (uint64, error) {
 	}
 
 	// Delete the namespace relations
-	time.Sleep(mds.simulatedLatency)
-	relationIter, err := txn.Get(tableNamespaceRelation, indexNamespace, nsName)
+	err = mds.deleteNamespaceRelations(txn, nsName)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
-	}
-
-	for rel := relationIter.Next(); rel != nil; rel = relationIter.Next() {
-		time.Sleep(mds.simulatedLatency)
-		err := txn.Delete(tableNamespaceRelation, rel)
-		if err != nil {
-			return 0, fmt.Errorf(errUnableToDeleteConfig, err)
-		}
 	}
 
 	// Write the changelog that we delete the namespace
@@ -174,4 +171,23 @@ func nextChangelogID(txn *memdb.Txn) (uint64, error) {
 	}
 
 	return lastChangeRaw.(*changelog).id + 1, nil
+}
+
+func (mds *memdbDatastore) deleteNamespaceRelations(txn *memdb.Txn, nsName string) error {
+	// Delete the namespace relations
+	time.Sleep(mds.simulatedLatency)
+	relationIter, err := txn.Get(tableNamespaceRelation, indexNamespace, nsName)
+	if err != nil {
+		return err
+	}
+
+	for rel := relationIter.Next(); rel != nil; rel = relationIter.Next() {
+		time.Sleep(mds.simulatedLatency)
+		err := txn.Delete(tableNamespaceRelation, rel)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
