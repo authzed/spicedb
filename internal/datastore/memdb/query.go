@@ -43,17 +43,6 @@ func (mtq memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
 
 	time.Sleep(mtq.simulatedLatency)
 	var err error
-	if mtq.relationFilter != nil {
-		err = verifyNamespaceAndRelation(txn, mtq.namespace, *mtq.relationFilter, false)
-	} else {
-		err = verifyNamespaceAndRelation(txn, mtq.namespace, datastore.Ellipsis, true)
-	}
-	if err != nil {
-		txn.Abort()
-		return nil, err
-	}
-
-	time.Sleep(mtq.simulatedLatency)
 	var bestIterator memdb.ResultIterator
 	if mtq.objectIDFilter != nil {
 		bestIterator, err = txn.Get(

@@ -56,26 +56,6 @@ func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutati
 
 	// Apply the mutations
 	for _, mutation := range mutations {
-		time.Sleep(mds.simulatedLatency)
-		if err := verifyNamespaceAndRelation(
-			txn,
-			mutation.Tuple.ObjectAndRelation.Namespace,
-			mutation.Tuple.ObjectAndRelation.Relation,
-			false,
-		); err != nil {
-			return 0, err
-		}
-
-		time.Sleep(mds.simulatedLatency)
-		if err := verifyNamespaceAndRelation(
-			txn,
-			mutation.Tuple.User.GetUserset().Namespace,
-			mutation.Tuple.User.GetUserset().Relation,
-			true,
-		); err != nil {
-			return 0, err
-		}
-
 		newVersion := &tupleEntry{
 			namespace:        mutation.Tuple.ObjectAndRelation.Namespace,
 			objectID:         mutation.Tuple.ObjectAndRelation.ObjectId,
@@ -253,30 +233,4 @@ func nextTupleChangelogID(txn *memdb.Txn) (uint64, error) {
 	}
 
 	return lastChangeRaw.(*tupleChangelog).id + 1, nil
-}
-
-func verifyNamespaceAndRelation(txn *memdb.Txn, namespace, relation string, allowEllipsis bool) error {
-	foundNamespace, err := txn.First(tableNamespaceConfig, indexID, namespace)
-	if err != nil {
-		return fmt.Errorf("unable to verify namespace: %w", err)
-	}
-
-	if foundNamespace == nil {
-		return datastore.ErrNamespaceNotFound
-	}
-
-	if allowEllipsis && relation == datastore.Ellipsis {
-		return nil
-	}
-
-	foundRelation, err := txn.First(tableNamespaceRelation, indexID, namespace, relation)
-	if err != nil {
-		return fmt.Errorf("unable to verify relation: %w", err)
-	}
-
-	if foundRelation == nil {
-		return datastore.ErrRelationNotFound
-	}
-
-	return nil
 }

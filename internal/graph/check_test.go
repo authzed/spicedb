@@ -12,8 +12,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -138,37 +138,6 @@ func TestSimple(t *testing.T) {
 	}
 }
 
-func TestCheckErrors(t *testing.T) {
-	testCases := []struct {
-		checkTuple    string
-		expectedError error
-	}{
-		{"fakens:object_id#fake_relation@user:jake#...", ErrNamespaceNotFound},
-		{"document:masterplan#fake_relation@user:jake#...", ErrRelationNotFound},
-	}
-
-	for _, tc := range testCases {
-		name := fmt.Sprintf("%s=>%s", tc.checkTuple, tc.expectedError)
-		t.Run(name, func(t *testing.T) {
-			require := require.New(t)
-
-			dispatch, revision := newLocalDispatcher(require)
-
-			parsed := tuple.Scan(tc.checkTuple)
-			require.NotNil(parsed)
-
-			checkResult := dispatch.Check(context.Background(), CheckRequest{
-				Start:          parsed.ObjectAndRelation,
-				Goal:           parsed.User.GetUserset(),
-				AtRevision:     revision,
-				DepthRemaining: 50,
-			})
-
-			require.EqualError(checkResult.Err, tc.expectedError.Error())
-		})
-	}
-}
-
 func TestMaxDepth(t *testing.T) {
 	require := require.New(t)
 
@@ -188,7 +157,7 @@ func TestMaxDepth(t *testing.T) {
 	require.NoError(err)
 	require.Greater(revision, uint64(0))
 
-	nsm, err := datastore.NewNamespaceCache(ds, 1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
 	require.NoError(err)
 
 	dispatch, err := NewLocalDispatcher(nsm, ds)
@@ -211,7 +180,7 @@ func newLocalDispatcher(require *require.Assertions) (Dispatcher, uint64) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	nsm, err := datastore.NewNamespaceCache(ds, 1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
 	require.NoError(err)
 
 	dispatch, err := NewLocalDispatcher(nsm, ds)

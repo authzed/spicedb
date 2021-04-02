@@ -43,9 +43,9 @@ func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	deletedRevision, err := ds.SyncRevision(context.Background())
 	require.NoError(err)
 
-	iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, revision).Execute()
-	require.Nil(iter)
-	require.Equal(datastore.ErrNamespaceNotFound, err)
+	iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, deletedRevision).Execute()
+	require.NoError(err)
+	tRequire.VerifyIteratorResults(iter)
 
 	tRequire.TupleExists(folderTpl, deletedRevision)
 }

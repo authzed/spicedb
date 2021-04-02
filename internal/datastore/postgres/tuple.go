@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jmoiron/sqlx"
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
@@ -66,26 +65,6 @@ func (pgd *pgDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutations
 	// Process the actual updates
 	for _, mutation := range mutations {
 		tpl := mutation.Tuple
-
-		err := verifyNamespaceAndRelation(
-			tpl.ObjectAndRelation.Namespace,
-			tpl.ObjectAndRelation.Relation,
-			false, // Disallow ellipsis
-			tx,
-		)
-		if err != nil {
-			return 0, err
-		}
-
-		err = verifyNamespaceAndRelation(
-			tpl.User.GetUserset().Namespace,
-			tpl.User.GetUserset().Relation,
-			true, // Allow Ellipsis
-			tx,
-		)
-		if err != nil {
-			return 0, err
-		}
 
 		if mutation.Operation == pb.RelationTupleUpdate_TOUCH || mutation.Operation == pb.RelationTupleUpdate_DELETE {
 			sql, args, err := deleteTuple.Where(exactTupleClause(tpl)).Set(colDeletedTxn, newTxnID).ToSql()
@@ -151,28 +130,4 @@ func exactTupleClause(tpl *pb.RelationTuple) sq.Eq {
 		colUsersetObjectID:  tpl.User.GetUserset().ObjectId,
 		colUsersetRelation:  tpl.User.GetUserset().Relation,
 	}
-}
-
-func verifyNamespaceAndRelation(namespace, relation string, allowEllipsis bool, tx *sqlx.Tx) error {
-	loaded, _, err := loadNamespace(namespace, tx)
-	switch err {
-	case datastore.ErrNamespaceNotFound:
-		return err
-	case nil:
-		break
-	default:
-		return fmt.Errorf(errUnableToVerifyNamespace, err)
-	}
-
-	if allowEllipsis && relation == datastore.Ellipsis {
-		return nil
-	}
-
-	for _, rel := range loaded.Relation {
-		if rel.Name == relation {
-			return nil
-		}
-	}
-
-	return datastore.ErrRelationNotFound
 }

@@ -74,11 +74,6 @@ func (ptq pgTupleQuery) Execute() (datastore.TupleIterator, error) {
 	}
 	defer tx.Rollback()
 
-	if ptq.relation != "" {
-		err = verifyNamespaceAndRelation(ptq.namespace, ptq.relation, false, tx)
-	} else {
-		err = verifyNamespaceAndRelation(ptq.namespace, datastore.Ellipsis, true, tx)
-	}
 	if err != nil {
 		return nil, err
 	}

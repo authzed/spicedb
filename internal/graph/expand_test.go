@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
@@ -14,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/graph"
@@ -232,7 +231,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	require.NoError(err)
 	require.Greater(revision, uint64(0))
 
-	nsm, err := datastore.NewNamespaceCache(ds, 1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
 	require.NoError(err)
 
 	dispatch, err := NewLocalDispatcher(nsm, ds)
@@ -245,34 +244,4 @@ func TestMaxDepthExpand(t *testing.T) {
 	})
 
 	require.Error(checkResult.Err)
-}
-
-func TestExpandErrors(t *testing.T) {
-	testCases := []struct {
-		checkONRString string
-		expectedError  error
-	}{
-		{"fakens:object_id#fake_relation", ErrNamespaceNotFound},
-		{"document:masterplan#fake_relation", ErrRelationNotFound},
-	}
-
-	for _, tc := range testCases {
-		name := fmt.Sprintf("%s=>%s", tc.checkONRString, tc.expectedError)
-		t.Run(name, func(t *testing.T) {
-			require := require.New(t)
-
-			parsed := tuple.ScanONR(tc.checkONRString)
-			require.NotNil(parsed)
-
-			dispatch, revision := newLocalDispatcher(require)
-
-			checkResult := dispatch.Expand(context.Background(), ExpandRequest{
-				Start:          parsed,
-				AtRevision:     revision,
-				DepthRemaining: 50,
-			})
-
-			require.EqualError(checkResult.Err, tc.expectedError.Error())
-		})
-	}
 }

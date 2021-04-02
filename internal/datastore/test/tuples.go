@@ -156,43 +156,6 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 }
 
-func TestWriteInvalidTuples(t *testing.T, tester DatastoreTester) {
-	testCases := []struct {
-		tupleToWrite  string
-		expectedError error
-	}{
-		{"test/resource:res1#reader@test/resource:res2#...", nil},
-		{"fakenamespace:nil#nil@nil:nil#nil", datastore.ErrNamespaceNotFound},
-		{"test/resource:res#fakerelation@nil:nil#nil", datastore.ErrRelationNotFound},
-		{"test/resource:res1#reader@fakenamespace:nil#...", datastore.ErrNamespaceNotFound},
-		{"test/resource:res1#reader@test/resource:res2#fakerelation", datastore.ErrRelationNotFound},
-	}
-
-	for _, tc := range testCases {
-		name := fmt.Sprintf("%s=>%s", tc.tupleToWrite, tc.expectedError)
-		t.Run(name, func(t *testing.T) {
-			require := require.New(t)
-
-			ds, err := tester.New(0, disableGC)
-			require.NoError(err)
-
-			setupDatastore(ds, require)
-
-			tpl := tuple.Scan(tc.tupleToWrite)
-			require.NotNil(tpl)
-
-			_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Create(tpl)})
-			require.Equal(tc.expectedError, err)
-
-			_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Touch(tpl)})
-			require.Equal(tc.expectedError, err)
-
-			_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Delete(tpl)})
-			require.Equal(tc.expectedError, err)
-		})
-	}
-}
-
 func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
@@ -240,38 +203,6 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 }
 
 func TestInvalidReads(t *testing.T, tester DatastoreTester) {
-	t.Run("invalid namespace", func(t *testing.T) {
-		require := require.New(t)
-
-		ds, err := tester.New(0, disableGC)
-		require.NoError(err)
-
-		setupDatastore(ds, require)
-
-		revision, err := ds.Revision(context.Background())
-		require.NoError(err)
-
-		iter, err := ds.QueryTuples("doesnotexist", revision).Execute()
-		require.Nil(iter)
-		require.Equal(datastore.ErrNamespaceNotFound, err)
-	})
-
-	t.Run("invalid relation", func(t *testing.T) {
-		require := require.New(t)
-
-		ds, err := tester.New(0, disableGC)
-		require.NoError(err)
-
-		setupDatastore(ds, require)
-
-		revision, err := ds.Revision(context.Background())
-		require.NoError(err)
-
-		iter, err := ds.QueryTuples(testResourceNamespace, revision).WithRelation("fakefake").Execute()
-		require.Nil(iter)
-		require.Equal(datastore.ErrRelationNotFound, err)
-	})
-
 	t.Run("revision expiration", func(t *testing.T) {
 		testGCDuration := 10 * time.Millisecond
 
