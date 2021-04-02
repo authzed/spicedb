@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/namespace"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
@@ -15,12 +16,12 @@ var errMaxDepth = errors.New("max depth has been reached")
 
 // NewLocalDispatcher creates a dispatcher that checks everything in the same
 // process on the same machine.
-func NewLocalDispatcher(nsm datastore.NamespaceManager, ds datastore.GraphDatastore) (Dispatcher, error) {
+func NewLocalDispatcher(nsm namespace.Manager, ds datastore.GraphDatastore) (Dispatcher, error) {
 	return &localDispatcher{nsm: nsm, ds: ds}, nil
 }
 
 type localDispatcher struct {
-	nsm datastore.NamespaceManager
+	nsm namespace.Manager
 	ds  datastore.GraphDatastore
 }
 

@@ -5,6 +5,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/namespace"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -12,11 +13,12 @@ import (
 type watchServer struct {
 	api.UnimplementedWatchServiceServer
 
-	ds datastore.Datastore
+	ds  datastore.Datastore
+	nsm namespace.Manager
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(ds datastore.Datastore) api.WatchServiceServer {
+func NewWatchServer(ds datastore.Datastore, nsm namespace.Manager) api.WatchServiceServer {
 	s := &watchServer{ds: ds}
 	return s
 }
@@ -29,6 +31,11 @@ func (ws *watchServer) Watch(req *api.WatchRequest, stream api.WatchService_Watc
 
 	namespaceMap := make(map[string]struct{})
 	for _, ns := range req.Namespaces {
+		err = ws.nsm.CheckNamespaceAndRelation(ns, datastore.Ellipsis, true)
+		if err != nil {
+			return status.Errorf(codes.FailedPrecondition, "invalid namespace: %s", err)
+		}
+
 		namespaceMap[ns] = struct{}{}
 	}
 	filter := namespaceFilter{namespaces: namespaceMap}

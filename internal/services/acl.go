@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/namespace"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -21,6 +22,7 @@ type aclServer struct {
 	api.UnimplementedACLServiceServer
 
 	ds           datastore.Datastore
+	nsm          namespace.Manager
 	dispatch     graph.Dispatcher
 	defaultDepth uint16
 }
@@ -37,8 +39,8 @@ var (
 )
 
 // NewACLServer creates an instance of the ACL server.
-func NewACLServer(ds datastore.Datastore, dispatch graph.Dispatcher, defaultDepth uint16) api.ACLServiceServer {
-	s := &aclServer{ds: ds, dispatch: dispatch, defaultDepth: defaultDepth}
+func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch graph.Dispatcher, defaultDepth uint16) api.ACLServiceServer {
+	s := &aclServer{ds: ds, nsm: nsm, dispatch: dispatch, defaultDepth: defaultDepth}
 	return s
 }
 
@@ -46,6 +48,26 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
+	for _, mutation := range req.Updates {
+		err := as.nsm.CheckNamespaceAndRelation(
+			mutation.Tuple.ObjectAndRelation.Namespace,
+			mutation.Tuple.ObjectAndRelation.Relation,
+			false, // Disallow ellipsis
+		)
+		if err != nil {
+			return nil, rewriteACLError(err)
+		}
+
+		err = as.nsm.CheckNamespaceAndRelation(
+			mutation.Tuple.User.GetUserset().Namespace,
+			mutation.Tuple.User.GetUserset().Relation,
+			true, // Allow Ellipsis
+		)
+		if err != nil {
+			return nil, rewriteACLError(err)
+		}
 	}
 
 	revision, err := as.ds.WriteTuples(req.WriteConditions, req.Updates)
@@ -65,6 +87,7 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 	}
 
 	for _, tuplesetFilter := range req.Tuplesets {
+		checkedRelation := false
 		for _, filter := range tuplesetFilter.Filters {
 			switch filter {
 			case api.RelationTupleFilter_OBJECT_ID:
@@ -81,6 +104,15 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 						"relation filter specified but not relation provided.",
 					)
 				}
+				err := as.nsm.CheckNamespaceAndRelation(
+					tuplesetFilter.Namespace,
+					tuplesetFilter.Relation,
+					false, // Disallow ellipsis
+				)
+				if err != nil {
+					return nil, rewriteACLError(err)
+				}
+				checkedRelation = true
 			case api.RelationTupleFilter_USERSET:
 				if tuplesetFilter.Userset == nil {
 					return nil, status.Errorf(
@@ -94,6 +126,17 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 					"unknown tupleset filter type: %s",
 					filter,
 				)
+			}
+		}
+
+		if !checkedRelation {
+			err := as.nsm.CheckNamespaceAndRelation(
+				tuplesetFilter.Namespace,
+				datastore.Ellipsis,
+				true, // Allow ellipsis
+			)
+			if err != nil {
+				return nil, rewriteACLError(err)
 			}
 		}
 	}
@@ -196,6 +239,16 @@ func (as *aclServer) commonCheck(
 	start *api.ObjectAndRelation,
 	goal *api.ObjectAndRelation,
 ) (*api.CheckResponse, error) {
+	err := as.nsm.CheckNamespaceAndRelation(start.Namespace, start.Relation, false)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
+	err = as.nsm.CheckNamespaceAndRelation(goal.Namespace, goal.Relation, true)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
 	depth, err := as.calculateRequestDepth(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, err.Error())
@@ -228,6 +281,11 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
+	err = as.nsm.CheckNamespaceAndRelation(req.Userset.Namespace, req.Userset.Relation, false)
+	if err != nil {
+		return nil, rewriteACLError(err)
 	}
 
 	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
@@ -312,9 +370,13 @@ func rewriteACLError(err error) error {
 	case graph.ErrRequestCanceled:
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)
 	case datastore.ErrNamespaceNotFound:
-		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
+		fallthrough
 	case datastore.ErrRelationNotFound:
-		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
+		fallthrough
+	case namespace.ErrInvalidNamespace:
+		fallthrough
+	case namespace.ErrInvalidRelation:
+		fallthrough
 	case datastore.ErrPreconditionFailed:
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 	case datastore.ErrInvalidRevision:

@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	health "github.com/authzed/spicedb/pkg/REDACTEDapi/healthcheck"
@@ -109,7 +110,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 	}
 
 	nsCacheExpiration := cobrautil.MustGetDuration(cmd, "ns-cache-expiration")
-	nsm, err := datastore.NewNamespaceCache(ds, nsCacheExpiration, nil)
+	nsm, err := namespace.NewCachingNamespaceManager(ds, nsCacheExpiration, nil)
 	if err != nil {
 		logger.Fatal("failed to initialize namespace manager", zap.Error(err))
 	}
@@ -119,7 +120,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 		logger.Fatal("failed to initialize check dispatcher", zap.Error(err))
 	}
 
-	RegisterGrpcServices(grpcServer, ds, dispatch, cobrautil.MustGetUint16(cmd, "max-depth"))
+	RegisterGrpcServices(grpcServer, ds, nsm, dispatch, cobrautil.MustGetUint16(cmd, "max-depth"))
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -172,12 +173,13 @@ func NewMetricsServer(addr string) *http.Server {
 func RegisterGrpcServices(
 	srv *grpc.Server,
 	ds datastore.Datastore,
+	nsm namespace.Manager,
 	dispatch graph.Dispatcher,
 	maxDepth uint16,
 ) {
-	api.RegisterACLServiceServer(srv, services.NewACLServer(ds, dispatch, maxDepth))
+	api.RegisterACLServiceServer(srv, services.NewACLServer(ds, nsm, dispatch, maxDepth))
 	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds))
-	api.RegisterWatchServiceServer(srv, services.NewWatchServer(ds))
+	api.RegisterWatchServiceServer(srv, services.NewWatchServer(ds, nsm))
 	health.RegisterHealthServer(srv, services.NewHealthServer())
 	reflection.Register(srv)
 }

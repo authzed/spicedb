@@ -3,15 +3,18 @@ package services
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/namespace"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	g "github.com/authzed/spicedb/pkg/graph"
@@ -22,6 +25,13 @@ import (
 var ONR = tuple.ObjectAndRelation
 
 var testTimedeltas = []time.Duration{0, 1 * time.Second}
+
+func init() {
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+
+	// Set this to Trace to dump log statements in tests.
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+}
 
 func TestRead(t *testing.T) {
 	testCases := []struct {
@@ -325,26 +335,55 @@ func TestInvalidWriteArguments(t *testing.T) {
 		name          string
 		preconditions []string
 		tuples        []string
+		expectedCode  codes.Code
 	}{
 		{
 			"empty tuple",
 			nil,
 			[]string{":#@:#"},
+			codes.InvalidArgument,
 		},
 		{
 			"bad precondition",
 			[]string{":#@:#"},
 			nil,
+			codes.InvalidArgument,
 		},
 		{
 			"good precondition, short object ID",
 			[]string{"document:newdoc#parent@folder:afolder#..."},
 			[]string{"document:a#parent@folder:afolder#..."},
+			codes.InvalidArgument,
 		},
 		{
 			"bad precondition, good write",
 			[]string{"document:newdoc#parent@folder:a#..."},
 			[]string{"document:newdoc#parent@folder:afolder#..."},
+			codes.InvalidArgument,
+		},
+		{
+			"bad write namespace",
+			nil,
+			[]string{"docu:newdoc#parent@folder:afolder#..."},
+			codes.FailedPrecondition,
+		},
+		{
+			"bad write relation",
+			nil,
+			[]string{"document:newdoc#pare@folder:afolder#..."},
+			codes.FailedPrecondition,
+		},
+		{
+			"bad write userset namespace",
+			nil,
+			[]string{"document:newdoc#parent@fold:afolder#..."},
+			codes.FailedPrecondition,
+		},
+		{
+			"bad write userset relation",
+			nil,
+			[]string{"document:newdoc#parent@folder:afolder#adsfasfsd"},
+			codes.FailedPrecondition,
 		},
 	}
 
@@ -367,7 +406,7 @@ func TestInvalidWriteArguments(t *testing.T) {
 				WriteConditions: preconditions,
 				Updates:         mutations,
 			})
-			requireGRPCStatus(codes.InvalidArgument, err, require)
+			requireGRPCStatus(tc.expectedCode, err, require)
 		})
 	}
 }
@@ -523,6 +562,7 @@ func TestExpand(t *testing.T) {
 		{ONR("document", "masterplan", "owner"), 1, codes.OK},
 		{ONR("document", "masterplan", "viewer"), 7, codes.OK},
 		{ONR("document", "masterplan", "fakerelation"), 0, codes.FailedPrecondition},
+		{ONR("fake", "masterplan", "owner"), 0, codes.FailedPrecondition},
 		{ONR("document", "", "owner"), 1, codes.InvalidArgument},
 	}
 
@@ -563,13 +603,13 @@ func newACLServicer(
 
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require)
 
-	ns, err := datastore.NewNamespaceCache(ds, 1*time.Second, nil)
+	ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
 	require.NoError(err)
 
 	dispatch, err := graph.NewLocalDispatcher(ns, ds)
 	require.NoError(err)
 
-	return NewACLServer(ds, dispatch, 50), revision
+	return NewACLServer(ds, ns, dispatch, 50), revision
 }
 
 func verifyTuples(expected []string, found []*api.RelationTuple, require *require.Assertions) {

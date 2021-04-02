@@ -1,20 +1,27 @@
-package datastore
+package namespace
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/dgraph-io/ristretto"
+	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
-	errInitialization = "unable to initialize: %w"
+	errInitialization = "unable to initialize namespace manager: %w"
 )
 
-type namespaceCache struct {
-	delegate   NamespaceManager
+var (
+	ErrInvalidNamespace = errors.New("invalid namespace")
+	ErrInvalidRelation  = errors.New("invalid relation")
+)
+
+type cachingManager struct {
+	delegate   datastore.Datastore
 	expiration time.Duration
 	c          *ristretto.Cache
 }
@@ -25,11 +32,11 @@ type cacheEntry struct {
 	expiration time.Time
 }
 
-func NewNamespaceCache(
-	delegate NamespaceManager,
+func NewCachingNamespaceManager(
+	delegate datastore.Datastore,
 	expiration time.Duration,
 	cacheConfig *ristretto.Config,
-) (NamespaceManager, error) {
+) (Manager, error) {
 	if cacheConfig == nil {
 		cacheConfig = &ristretto.Config{
 			NumCounters: 1e4,     // number of keys to track frequency of (10k).
@@ -43,14 +50,14 @@ func NewNamespaceCache(
 		return nil, fmt.Errorf(errInitialization, err)
 	}
 
-	return namespaceCache{
+	return cachingManager{
 		delegate:   delegate,
 		expiration: expiration,
 		c:          cache,
 	}, nil
 }
 
-func (nsc namespaceCache) ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error) {
+func (nsc cachingManager) ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error) {
 	// Check the cache.
 	now := time.Now()
 
@@ -64,8 +71,11 @@ func (nsc namespaceCache) ReadNamespace(nsName string) (*pb.NamespaceDefinition,
 
 	// We couldn't use the cached entry, load one
 	loaded, version, err := nsc.delegate.ReadNamespace(nsName)
+	if err == datastore.ErrNamespaceNotFound {
+		return nil, 0, ErrInvalidNamespace
+	}
 	if err != nil {
-		return loaded, version, err
+		return nil, 0, err
 	}
 
 	// Save it to the cache
@@ -77,4 +87,23 @@ func (nsc namespaceCache) ReadNamespace(nsName string) (*pb.NamespaceDefinition,
 	nsc.c.Set(nsName, newEntry, int64(proto.Size(loaded)))
 
 	return loaded, version, nil
+}
+
+func (nsc cachingManager) CheckNamespaceAndRelation(namespace, relation string, allowEllipsis bool) error {
+	config, _, err := nsc.ReadNamespace(namespace)
+	if err != nil {
+		return err
+	}
+
+	if allowEllipsis && relation == datastore.Ellipsis {
+		return nil
+	}
+
+	for _, rel := range config.Relation {
+		if rel.Name == relation {
+			return nil
+		}
+	}
+
+	return datastore.ErrRelationNotFound
 }

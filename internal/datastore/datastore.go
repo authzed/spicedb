@@ -33,8 +33,6 @@ type RevisionChanges struct {
 type Datastore interface {
 	GraphDatastore
 
-	NamespaceManager
-
 	// WriteTuples takes a list of existing tuples that must exist, and a list of tuple
 	// mutations and applies it to the datastore for the specified namespace.
 	WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error)
@@ -54,6 +52,9 @@ type Datastore interface {
 	// returning the version of the namespace that was created.
 	WriteNamespace(newConfig *pb.NamespaceDefinition) (uint64, error)
 
+	// ReadNamespace reads a namespace definition and version and returns it if found.
+	ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error)
+
 	// DeleteNamespace deletes a namespace and any associated tuples.
 	DeleteNamespace(nsName string) (uint64, error)
 }
@@ -66,12 +67,6 @@ type GraphDatastore interface {
 	// CheckRevision checks the specified revision to make sure it's valid and hasn't been
 	// garbage collected.
 	CheckRevision(ctx context.Context, revision uint64) error
-}
-
-// NamespaceManager is a subset of the datastore interface that can read (and possibly cache) namespaces.
-type NamespaceManager interface {
-	// ReadNamespace reads a namespace definition and version and returns it if found.
-	ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error)
 }
 
 // TupleQuery is a builder for constructing tuple queries.
