@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/dgraph-io/ristretto"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	"google.golang.org/protobuf/proto"
 )
 
 const (

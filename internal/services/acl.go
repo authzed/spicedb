@@ -51,21 +51,19 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 	}
 
 	for _, mutation := range req.Updates {
-		err := as.nsm.CheckNamespaceAndRelation(
+		if err := as.nsm.CheckNamespaceAndRelation(
 			mutation.Tuple.ObjectAndRelation.Namespace,
 			mutation.Tuple.ObjectAndRelation.Relation,
 			false, // Disallow ellipsis
-		)
-		if err != nil {
+		); err != nil {
 			return nil, rewriteACLError(err)
 		}
 
-		err = as.nsm.CheckNamespaceAndRelation(
+		if err = as.nsm.CheckNamespaceAndRelation(
 			mutation.Tuple.User.GetUserset().Namespace,
 			mutation.Tuple.User.GetUserset().Relation,
 			true, // Allow Ellipsis
-		)
-		if err != nil {
+		); err != nil {
 			return nil, rewriteACLError(err)
 		}
 	}
@@ -104,12 +102,11 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 						"relation filter specified but not relation provided.",
 					)
 				}
-				err := as.nsm.CheckNamespaceAndRelation(
+				if err := as.nsm.CheckNamespaceAndRelation(
 					tuplesetFilter.Namespace,
 					tuplesetFilter.Relation,
 					false, // Disallow ellipsis
-				)
-				if err != nil {
+				); err != nil {
 					return nil, rewriteACLError(err)
 				}
 				checkedRelation = true
@@ -130,12 +127,11 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 		}
 
 		if !checkedRelation {
-			err := as.nsm.CheckNamespaceAndRelation(
+			if err := as.nsm.CheckNamespaceAndRelation(
 				tuplesetFilter.Namespace,
 				datastore.Ellipsis,
 				true, // Allow ellipsis
-			)
-			if err != nil {
+			); err != nil {
 				return nil, rewriteACLError(err)
 			}
 		}
