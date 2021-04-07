@@ -65,8 +65,16 @@ type RelationTupleRow struct {
 	UsersetRelation  string
 }
 
+type ConnectionProperties struct {
+	ConnMaxIdleTime time.Duration
+	ConnMaxLifetime time.Duration
+	MaxIdleConns    int
+	MaxOpenConns    int
+}
+
 func NewPostgresDatastore(
 	url string,
+	cprops *ConnectionProperties,
 	watchBufferLength uint16,
 	revisionFuzzingTimedelta time.Duration,
 	gcWindow time.Duration,
@@ -90,6 +98,13 @@ func NewPostgresDatastore(
 	db, err := sqlx.Connect("postgres", connectStr)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	if cprops != nil {
+		db.SetMaxOpenConns(cprops.MaxOpenConns)
+		db.SetMaxIdleConns(cprops.MaxIdleConns)
+		db.SetConnMaxLifetime(cprops.ConnMaxLifetime)
+		db.SetConnMaxIdleTime(cprops.ConnMaxIdleTime)
 	}
 
 	return &pgDatastore{
