@@ -17,7 +17,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-memdb v1.3.2
 	github.com/jmoiron/sqlx v1.3.1
-	github.com/jzelinskie/cobrautil v0.0.0-20210309013835-5479f896f4a1
+	github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd
 	github.com/lib/pq v1.10.0
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/ory/dockertest v3.3.5+incompatible

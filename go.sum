@@ -352,6 +352,8 @@ github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7V
 github.com/julienschmidt/httprouter v1.3.0/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/jzelinskie/cobrautil v0.0.0-20210309013835-5479f896f4a1 h1:ULURk+enazKBf7wdVO6uZJVl2PB2W8PlwMlp/kVtKbI=
 github.com/jzelinskie/cobrautil v0.0.0-20210309013835-5479f896f4a1/go.mod h1:R07/oqfH6QaEv51rKe7Ot95f82hQgsiQnN4luAwd57w=
+github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd h1:yeJ5T5xCviaOi5l78nqJbMQcfZ/iKXQnjvi6fGpY6/w=
+github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd/go.mod h1:R07/oqfH6QaEv51rKe7Ot95f82hQgsiQnN4luAwd57w=
 github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88/go.mod h1:3w7q1U84EfirKl04SVQ/s7nPm1ZPhiXd34z40TNz36k=
 github.com/k0kubun/pp v2.3.0+incompatible/go.mod h1:GWse8YhT0p8pT4ir3ZgBbfZild3tgzSScAn6HmfYukg=
 github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0/go.mod h1:1NbS8ALrpOvjt0rHPNLyCIeMtbizbir8U//inJ+zuB8=

@@ -8,6 +8,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -15,8 +16,9 @@ import (
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
@@ -36,7 +38,7 @@ func main() {
 	var rootCmd = &cobra.Command{
 		Use:               "spicedb",
 		Short:             "A tuple store for ACLs.",
-		PersistentPreRunE: cobrautil.SyncViperPreRunE("CALADAN"),
+		PersistentPreRunE: persistentPreRunE,
 		Run:               rootRun,
 	}
 
@@ -46,26 +48,21 @@ func main() {
 	rootCmd.Flags().Bool("grpc-no-tls", false, "serve unencrypted gRPC services")
 	rootCmd.Flags().String("metrics-addr", ":9090", "address to listen on for serving metrics and profiles")
 	rootCmd.Flags().String("preshared-key", "", "preshared key to require on authenticated requests")
-	rootCmd.Flags().Bool("log-debug", false, "enable logging debug events")
 	rootCmd.Flags().Uint16("max-depth", 50, "maximum recursion depth for nested calls")
 	rootCmd.Flags().String("datastore-url", "memory:///", "connection url of storage layer")
 	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	rootCmd.Flags().Duration("gc-window", 24*time.Hour, "amount of time before a revision is garbage collected")
 	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 
+	rootCmd.PersistentFlags().String("log-level", "info", "verbosity of logging (trace, debug, info, warn, error, fatal, panic)")
+
 	rootCmd.Execute()
 }
 
 func rootRun(cmd *cobra.Command, args []string) {
-	logger, _ := zap.NewProduction()
-	if cobrautil.MustGetBool(cmd, "log-debug") {
-		logger, _ = zap.NewDevelopment()
-	}
-	defer logger.Sync()
-
 	token := cobrautil.MustGetString(cmd, "preshared-key")
 	if len(token) < 1 {
-		logger.Fatal("must provide a preshared-key")
+		log.Fatal().Msg("must provide a preshared-key")
 	}
 
 	grpcMiddleware := grpcmw.WithUnaryServerChain(
@@ -84,7 +81,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 			grpcMiddleware,
 		)
 		if err != nil {
-			logger.Fatal("failed to create TLS gRPC server", zap.Error(err))
+			log.Fatal().Err(err).Msg("failed to create TLS gRPC server")
 		}
 	}
 
@@ -96,28 +93,28 @@ func rootRun(cmd *cobra.Command, args []string) {
 	var ds datastore.Datastore
 	var err error
 	if datastoreUrl == "memory:///" {
-		logger.Info("using in-memory datastore")
+		log.Info().Msg("using in-memory datastore")
 		ds, err = memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, 0)
 		if err != nil {
-			logger.Fatal("failed to init datastore", zap.Error(err))
+			log.Fatal().Err(err).Msg("failed to init datastore")
 		}
 	} else {
-		logger.Info("using postgres datastore")
+		log.Info().Msg("using postgres datastore")
 		ds, err = postgres.NewPostgresDatastore(datastoreUrl, 0, revisionFuzzingTimedelta, gcWindow)
 		if err != nil {
-			logger.Fatal("failed to init datastore", zap.Error(err))
+			log.Fatal().Err(err).Msg("failed to init datastore")
 		}
 	}
 
 	nsCacheExpiration := cobrautil.MustGetDuration(cmd, "ns-cache-expiration")
 	nsm, err := namespace.NewCachingNamespaceManager(ds, nsCacheExpiration, nil)
 	if err != nil {
-		logger.Fatal("failed to initialize namespace manager", zap.Error(err))
+		log.Fatal().Err(err).Msg("failed to initialize namespace manager")
 	}
 
 	dispatch, err := graph.NewLocalDispatcher(nsm, ds)
 	if err != nil {
-		logger.Fatal("failed to initialize check dispatcher", zap.Error(err))
+		log.Fatal().Err(err).Msg("failed to initialize check dispatcher")
 	}
 
 	RegisterGrpcServices(grpcServer, ds, nsm, dispatch, cobrautil.MustGetUint16(cmd, "max-depth"))
@@ -126,17 +123,17 @@ func rootRun(cmd *cobra.Command, args []string) {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
-			logger.Fatal("failed to listen on addr for gRPC server", zap.Error(err), zap.String("addr", addr))
+			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for gRPC server")
 		}
 
-		logger.Info("gRPC server started listening", zap.String("addr", addr))
+		log.Info().Str("addr", addr).Msg("gRPC server started listening")
 		grpcServer.Serve(l)
 	}()
 
 	metricsrv := NewMetricsServer(cobrautil.MustGetString(cmd, "metrics-addr"))
 	go func() {
 		if err := metricsrv.ListenAndServe(); err != http.ErrServerClosed {
-			logger.Fatal("failed while serving metrics", zap.Error(err))
+			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
 
@@ -144,11 +141,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 	for {
 		select {
 		case <-signalctx.Done():
-			logger.Info("received interrupt")
+			log.Info().Msg("received interrupt")
 			grpcServer.GracefulStop()
 
 			if err := metricsrv.Close(); err != nil {
-				logger.Fatal("failed while shutting down metrics server", zap.Error(err))
+				log.Fatal().Err(err).Msg("failed while shutting down metrics server")
 			}
 			return
 		}
@@ -196,4 +193,33 @@ func NewTlsGrpcServer(certPath, keyPath string, opts ...grpc.ServerOption) (*grp
 
 	opts = append(opts, grpc.Creds(creds))
 	return grpc.NewServer(opts...), nil
+}
+
+func persistentPreRunE(cmd *cobra.Command, args []string) error {
+	if err := cobrautil.SyncViperPreRunE("spicedb")(cmd, args); err != nil {
+		return err
+	}
+
+	level := strings.ToLower(cobrautil.MustGetString(cmd, "log-level"))
+	switch level {
+	case "trace":
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case "info":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case "warn":
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	case "error":
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	case "fatal":
+		zerolog.SetGlobalLevel(zerolog.FatalLevel)
+	case "panic":
+		zerolog.SetGlobalLevel(zerolog.PanicLevel)
+	default:
+		return errors.New("unknown log level")
+	}
+	log.Info().Str("new level", level).Msg("set log level")
+
+	return nil
 }

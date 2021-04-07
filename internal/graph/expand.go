@@ -39,11 +39,11 @@ func (ce *concurrentExpander) expandDirect(req ExpandRequest) ReduceableExpandFu
 			WithObjectID(req.Start.ObjectId).
 			WithRelation(req.Start.Relation).
 			Execute()
-		defer it.Close()
 		if err != nil {
 			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, err)}
 			return
 		}
+		defer it.Close()
 
 		var foundUsersets []*pb.User
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
@@ -149,11 +149,11 @@ func (ce *concurrentExpander) expandTupleToUserset(req ExpandRequest, ttu *pb.Tu
 			WithObjectID(req.Start.ObjectId).
 			WithRelation(ttu.Tupleset.Relation).
 			Execute()
-		defer it.Close()
 		if err != nil {
 			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, err)}
 			return
 		}
+		defer it.Close()
 
 		var requestsToDispatch []ReduceableExpandFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
