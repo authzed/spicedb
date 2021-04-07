@@ -149,11 +149,11 @@ func (cc *concurrentChecker) checkTupleToUserset(req CheckRequest, ttu *pb.Tuple
 			WithObjectID(req.Start.ObjectId).
 			WithRelation(ttu.Tupleset.Relation).
 			Execute()
-		defer it.Close()
 		if err != nil {
 			resultChan <- CheckResult{false, fmt.Errorf(errCheckError, err)}
 			return
 		}
+		defer it.Close()
 
 		var requestsToDispatch []ReduceableCheckFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
