@@ -56,7 +56,7 @@ func (pgt postgresTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (d
 		return nil, fmt.Errorf("unable to migrate database: %w", err)
 	}
 
-	return NewPostgresDatastore(connectStr, 0, revisionFuzzingTimedelta, gcWindow)
+	return NewPostgresDatastore(connectStr, nil, 0, revisionFuzzingTimedelta, gcWindow)
 }
 
 func TestPostgresDatastore(t *testing.T) {

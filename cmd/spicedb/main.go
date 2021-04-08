@@ -53,6 +53,10 @@ func main() {
 	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	rootCmd.Flags().Duration("gc-window", 24*time.Hour, "amount of time before a revision is garbage collected")
 	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
+	rootCmd.Flags().Int("pg-max-conn-open", 20, "number of concurrent connections open in a the postgres connection pool")
+	rootCmd.Flags().Int("pg-max-conn-idle", 20, "number of idle connections open in a the postgres connection pool")
+	rootCmd.Flags().Duration("pg-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the postgres connection pool")
+	rootCmd.Flags().Duration("pg-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the postgres connection pool")
 
 	rootCmd.PersistentFlags().String("log-level", "info", "verbosity of logging (trace, debug, info, warn, error, fatal, panic)")
 
@@ -100,7 +104,18 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 	} else {
 		log.Info().Msg("using postgres datastore")
-		ds, err = postgres.NewPostgresDatastore(datastoreUrl, 0, revisionFuzzingTimedelta, gcWindow)
+		ds, err = postgres.NewPostgresDatastore(
+			datastoreUrl,
+			&postgres.ConnectionProperties{
+				MaxOpenConns:    cobrautil.MustGetInt(cmd, "pg-max-conn-open"),
+				MaxIdleConns:    cobrautil.MustGetInt(cmd, "pg-max-conn-idle"),
+				ConnMaxLifetime: cobrautil.MustGetDuration(cmd, "pg-max-conn-lifetime"),
+				ConnMaxIdleTime: cobrautil.MustGetDuration(cmd, "pg-max-conn-idletime"),
+			},
+			0,
+			revisionFuzzingTimedelta,
+			gcWindow,
+		)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to init datastore")
 		}
