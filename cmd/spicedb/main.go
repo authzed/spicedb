@@ -35,6 +35,10 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	health "github.com/authzed/spicedb/pkg/REDACTEDapi/healthcheck"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/stdout"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 func main() {
@@ -63,6 +67,7 @@ func main() {
 	rootCmd.Flags().Duration("pg-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the postgres connection pool")
 
 	rootCmd.PersistentFlags().String("log-level", "info", "verbosity of logging (trace, debug, info, warn, error, fatal, panic)")
+	rootCmd.PersistentFlags().String("tracing", "none", "the destination for tracing (none, stdout)")
 
 	rootCmd.Execute()
 }
@@ -250,5 +255,32 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 	log.Info().Str("new level", level).Msg("set log level")
 
+	tracing := strings.ToLower(cobrautil.MustGetString(cmd, "tracing"))
+	switch tracing {
+	case "none":
+		// Nothing.
+
+	case "stdout":
+		initTracer()
+	default:
+		return errors.New("unknown tracing")
+	}
+	log.Info().Str("new tracing", tracing).Msg("set tracing")
+
 	return nil
+}
+
+func initTracer() {
+	var err error
+	exp, err := stdout.NewExporter(stdout.WithPrettyPrint())
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize stdout exporter")
+		return
+	}
+	bsp := sdktrace.NewBatchSpanProcessor(exp)
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSpanProcessor(bsp),
+	)
+	otel.SetTracerProvider(tp)
 }

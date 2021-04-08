@@ -13,6 +13,8 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/authzed/spicedb/internal/datastore"
+
+	"go.opentelemetry.io/otel"
 )
 
 const (
@@ -54,6 +56,8 @@ var (
 	getMatchingRevision = psql.Select(colID).From(tableTransaction)
 
 	getNow = psql.Select("NOW()")
+
+	tracer = otel.Tracer("spicedb/internal/datastore/postgres")
 )
 
 type RelationTupleRow struct {
@@ -122,8 +126,17 @@ type pgDatastore struct {
 	gcWindowInverted         time.Duration
 }
 
+func (pgd *pgDatastore) beginDBTransaction(ctx context.Context) (*sqlx.Tx, error) {
+	_, span := tracer.Start(ctx, "beginDBTransaction")
+	defer span.End()
+	return pgd.db.BeginTxx(ctx, nil)
+}
+
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
-	tx, err := pgd.db.BeginTxx(ctx, nil)
+	ctx, span := tracer.Start(ctx, "SyncRevision")
+	defer span.End()
+
+	tx, err := pgd.beginDBTransaction(ctx)
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}
@@ -133,7 +146,10 @@ func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
 }
 
 func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
-	tx, err := pgd.db.BeginTxx(ctx, nil)
+	ctx, span := tracer.Start(ctx, "Revision")
+	defer span.End()
+
+	tx, err := pgd.beginDBTransaction(ctx)
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}
@@ -156,7 +172,10 @@ func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) error {
-	tx, err := pgd.db.BeginTxx(ctx, nil)
+	ctx, span := tracer.Start(ctx, "CheckRevision")
+	defer span.End()
+
+	tx, err := pgd.beginDBTransaction(ctx)
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
