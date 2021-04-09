@@ -88,6 +88,7 @@ func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, e
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
+	defer rows.Close()
 
 	var tuples []*pb.RelationTuple
 	for rows.Next() {
