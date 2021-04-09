@@ -73,18 +73,8 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 				return 0, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 
-			result, err := tx.ExecContext(ctx, sql, args...)
-			if err != nil {
+			if _, err := tx.ExecContext(ctx, sql, args...); err != nil {
 				return 0, fmt.Errorf(errUnableToWriteTuples, err)
-			}
-
-			affected, err := result.RowsAffected()
-			if err != nil {
-				return 0, fmt.Errorf(errUnableToWriteTuples, err)
-			}
-
-			if affected != 1 && mutation.Operation == pb.RelationTupleUpdate_DELETE {
-				return 0, datastore.ErrPreconditionFailed
 			}
 		}
 

@@ -84,11 +84,10 @@ func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.
 				return 0, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		case pb.RelationTupleUpdate_DELETE:
-			if existing == nil {
-				return 0, datastore.ErrPreconditionFailed
-			}
-			if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
-				return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			if existing != nil {
+				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
+					return 0, fmt.Errorf(errUnableToWriteTuples, err)
+				}
 			}
 		case pb.RelationTupleUpdate_TOUCH:
 			if existing != nil {

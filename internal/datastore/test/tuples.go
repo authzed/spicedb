@@ -118,6 +118,14 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			)
 			require.NoError(err)
 
+			// Delete it AGAIN (idempotent delete) and make sure there's no error
+			_, err = ds.WriteTuples(
+				ctx,
+				nil,
+				[]*pb.RelationTupleUpdate{tuple.Delete(testTuples[0])},
+			)
+			require.NoError(err)
+
 			// Verify it can still be read at the old revision
 			tRequire.TupleExists(ctx, testTuples[0], deletedAt-1)
 
