@@ -13,6 +13,8 @@ import (
 
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
+	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -72,7 +74,10 @@ func rootRun(cmd *cobra.Command, args []string) {
 	grpcMiddleware := grpcmw.WithUnaryServerChain(
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.UnaryServerInterceptor,
+		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 	)
+
+	grpcprom.EnableHandlingTimeHistogram()
 
 	var grpcServer *grpc.Server
 	if cobrautil.MustGetBool(cmd, "grpc-no-tls") {
