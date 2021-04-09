@@ -1,6 +1,7 @@
 package memdb
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"time"
@@ -38,7 +39,7 @@ func (mtq memdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.
 	return mtq
 }
 
-func (mtq memdbTupleQuery) Execute() (datastore.TupleIterator, error) {
+func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	txn := mtq.db.Txn(false)
 
 	time.Sleep(mtq.simulatedLatency)

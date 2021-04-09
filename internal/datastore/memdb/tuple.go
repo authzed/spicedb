@@ -21,7 +21,7 @@ const (
 
 const deletedTransactionID = ^uint64(0)
 
-func (mds *memdbDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
+func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
 	txn := mds.db.Txn(true)
 	defer txn.Abort()
 

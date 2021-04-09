@@ -27,12 +27,12 @@ func onrEqual(lhs, rhs *pb.ObjectAndRelation) bool {
 	return lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation && lhs.Namespace == rhs.Namespace
 }
 
-func (cc *concurrentChecker) check(req CheckRequest, relation *pb.Relation) ReduceableCheckFunc {
+func (cc *concurrentChecker) check(ctx context.Context, req CheckRequest, relation *pb.Relation) ReduceableCheckFunc {
 	if relation.UsersetRewrite == nil {
-		return cc.checkDirect(req)
+		return cc.checkDirect(ctx, req)
 	}
 
-	return cc.checkUsersetRewrite(req, relation.UsersetRewrite)
+	return cc.checkUsersetRewrite(ctx, req, relation.UsersetRewrite)
 }
 
 func (cc *concurrentChecker) dispatch(req CheckRequest) ReduceableCheckFunc {
@@ -43,13 +43,13 @@ func (cc *concurrentChecker) dispatch(req CheckRequest) ReduceableCheckFunc {
 	}
 }
 
-func (cc *concurrentChecker) checkDirect(req CheckRequest) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkDirect(ctx context.Context, req CheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Trace().Object("direct", req).Send()
 		it, err := cc.ds.QueryTuples(req.Start.Namespace, req.AtRevision).
 			WithObjectID(req.Start.ObjectId).
 			WithRelation(req.Start.Relation).
-			Execute()
+			Execute(ctx)
 		if err != nil {
 			resultChan <- CheckResult{false, fmt.Errorf(errCheckError, err)}
 			return
@@ -81,31 +81,31 @@ func (cc *concurrentChecker) checkDirect(req CheckRequest) ReduceableCheckFunc {
 	}
 }
 
-func (cc *concurrentChecker) checkUsersetRewrite(req CheckRequest, usr *pb.UsersetRewrite) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkUsersetRewrite(ctx context.Context, req CheckRequest, usr *pb.UsersetRewrite) ReduceableCheckFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *pb.UsersetRewrite_Union:
-		return cc.checkSetOperation(req, rw.Union, Any)
+		return cc.checkSetOperation(ctx, req, rw.Union, Any)
 	case *pb.UsersetRewrite_Intersection:
-		return cc.checkSetOperation(req, rw.Intersection, All)
+		return cc.checkSetOperation(ctx, req, rw.Intersection, All)
 	case *pb.UsersetRewrite_Exclusion:
-		return cc.checkSetOperation(req, rw.Exclusion, Difference)
+		return cc.checkSetOperation(ctx, req, rw.Exclusion, Difference)
 	default:
 		return AlwaysFail
 	}
 }
 
-func (cc *concurrentChecker) checkSetOperation(req CheckRequest, so *pb.SetOperation, reducer Reducer) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkSetOperation(ctx context.Context, req CheckRequest, so *pb.SetOperation, reducer Reducer) ReduceableCheckFunc {
 	var requests []ReduceableCheckFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *pb.SetOperation_Child_XThis:
-			requests = append(requests, cc.checkDirect(req))
+			requests = append(requests, cc.checkDirect(ctx, req))
 		case *pb.SetOperation_Child_ComputedUserset:
 			requests = append(requests, cc.checkComputedUserset(req, child.ComputedUserset, nil))
 		case *pb.SetOperation_Child_UsersetRewrite:
-			requests = append(requests, cc.checkUsersetRewrite(req, child.UsersetRewrite))
+			requests = append(requests, cc.checkUsersetRewrite(ctx, req, child.UsersetRewrite))
 		case *pb.SetOperation_Child_TupleToUserset:
-			requests = append(requests, cc.checkTupleToUserset(req, child.TupleToUserset))
+			requests = append(requests, cc.checkTupleToUserset(ctx, req, child.TupleToUserset))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
@@ -142,13 +142,13 @@ func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *pb.Compu
 	})
 }
 
-func (cc *concurrentChecker) checkTupleToUserset(req CheckRequest, ttu *pb.TupleToUserset) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req CheckRequest, ttu *pb.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Trace().Object("ttu", req).Send()
 		it, err := cc.ds.QueryTuples(req.Start.Namespace, req.AtRevision).
 			WithObjectID(req.Start.ObjectId).
 			WithRelation(ttu.Tupleset.Relation).
-			Execute()
+			Execute(ctx)
 		if err != nil {
 			resultChan <- CheckResult{false, fmt.Errorf(errCheckError, err)}
 			return

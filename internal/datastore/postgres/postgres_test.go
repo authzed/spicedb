@@ -3,6 +3,7 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"testing"
@@ -81,7 +82,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 		require := require.New(b)
 
 		for i := 0; i < b.N; i++ {
-			iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, revision).Execute()
+			iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, revision).Execute(context.Background())
 			require.NoError(err)
 
 			defer iter.Close()

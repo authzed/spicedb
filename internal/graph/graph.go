@@ -89,7 +89,7 @@ func (cr CheckResult) MarshalZerologObject(e *zerolog.Event) {
 }
 
 type checker interface {
-	check(req CheckRequest, relation *pb.Relation) ReduceableCheckFunc
+	check(ctx context.Context, req CheckRequest, relation *pb.Relation) ReduceableCheckFunc
 }
 
 // ReduceableExpandFunc is a function that can be bound to a execution context.
@@ -108,7 +108,7 @@ type ExpandReducer func(
 ) ExpandResult
 
 type expander interface {
-	expand(req ExpandRequest, relation *pb.Relation) ReduceableExpandFunc
+	expand(ctx context.Context, req ExpandRequest, relation *pb.Relation) ReduceableExpandFunc
 }
 
 // MarshalZerologObject implements zerolog object marshalling.

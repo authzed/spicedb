@@ -35,7 +35,7 @@ type Datastore interface {
 
 	// WriteTuples takes a list of existing tuples that must exist, and a list of tuple
 	// mutations and applies it to the datastore for the specified namespace.
-	WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error)
+	WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error)
 
 	// Revision gets the currently replicated revision for this datastore.
 	Revision(ctx context.Context) (uint64, error)
@@ -50,13 +50,13 @@ type Datastore interface {
 
 	// WriteNamespace takes a proto namespace definition and persists it,
 	// returning the version of the namespace that was created.
-	WriteNamespace(newConfig *pb.NamespaceDefinition) (uint64, error)
+	WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (uint64, error)
 
 	// ReadNamespace reads a namespace definition and version and returns it if found.
-	ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error)
+	ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error)
 
 	// DeleteNamespace deletes a namespace and any associated tuples.
-	DeleteNamespace(nsName string) (uint64, error)
+	DeleteNamespace(ctx context.Context, nsName string) (uint64, error)
 }
 
 // GraphDatastore is a subset of the datastore interface that is passed to graph resolvers.
@@ -81,7 +81,7 @@ type TupleQuery interface {
 	WithUserset(userset *pb.ObjectAndRelation) TupleQuery
 
 	// Execute runs the tuple query and returns a result iterator.
-	Execute() (TupleIterator, error)
+	Execute(ctx context.Context) (TupleIterator, error)
 }
 
 // TupleIterator is an iterator over matched tuples.

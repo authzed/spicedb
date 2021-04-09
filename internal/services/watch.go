@@ -31,7 +31,7 @@ func (ws *watchServer) Watch(req *api.WatchRequest, stream api.WatchService_Watc
 
 	namespaceMap := make(map[string]struct{})
 	for _, ns := range req.Namespaces {
-		err = ws.nsm.CheckNamespaceAndRelation(ns, datastore.Ellipsis, true)
+		err = ws.nsm.CheckNamespaceAndRelation(stream.Context(), ns, datastore.Ellipsis, true)
 		if err != nil {
 			return status.Errorf(codes.FailedPrecondition, "invalid namespace: %s", err)
 		}

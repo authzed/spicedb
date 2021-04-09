@@ -28,7 +28,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 		return nil, rewriteNamespaceError(err)
 	}
 
-	revision, err := nss.ds.WriteNamespace(req.Config)
+	revision, err := nss.ds.WriteNamespace(ctx, req.Config)
 	if err != nil {
 		return nil, rewriteNamespaceError(err)
 	}
@@ -39,7 +39,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 }
 
 func (nss *nsServer) ReadConfig(ctx context.Context, req *api.ReadConfigRequest) (*api.ReadConfigResponse, error) {
-	found, version, err := nss.ds.ReadNamespace(req.Namespace)
+	found, version, err := nss.ds.ReadNamespace(ctx, req.Namespace)
 	if err != nil {
 		return nil, rewriteNamespaceError(err)
 	}

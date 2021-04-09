@@ -25,9 +25,9 @@ type localDispatcher struct {
 	ds  datastore.GraphDatastore
 }
 
-func (ld *localDispatcher) loadRelation(nsName, relationName string) (*pb.Relation, error) {
+func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string) (*pb.Relation, error) {
 	// Load namespace and relation from the datastore
-	ns, _, err := ld.nsm.ReadNamespace(nsName)
+	ns, _, err := ld.nsm.ReadNamespace(ctx, nsName)
 	if err != nil {
 		return nil, rewriteError(err)
 	}
@@ -52,14 +52,14 @@ func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckRes
 		return CheckResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
 	}
 
-	relation, err := ld.loadRelation(req.Start.Namespace, req.Start.Relation)
+	relation, err := ld.loadRelation(ctx, req.Start.Namespace, req.Start.Relation)
 	if err != nil {
 		return CheckResult{Err: err}
 	}
 
 	chk := newConcurrentChecker(ld, ld.ds)
 
-	asyncCheck := chk.check(req, relation)
+	asyncCheck := chk.check(ctx, req, relation)
 	return Any(ctx, []ReduceableCheckFunc{asyncCheck})
 }
 
@@ -68,14 +68,14 @@ func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) Expand
 		return ExpandResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
 	}
 
-	relation, err := ld.loadRelation(req.Start.Namespace, req.Start.Relation)
+	relation, err := ld.loadRelation(ctx, req.Start.Namespace, req.Start.Relation)
 	if err != nil {
 		return ExpandResult{Tree: nil, Err: err}
 	}
 
 	expand := newConcurrentExpander(ld, ld.ds)
 
-	asyncExpand := expand.expand(req, relation)
+	asyncExpand := expand.expand(ctx, req, relation)
 	return ExpandAny(ctx, req.Start, []ReduceableExpandFunc{asyncExpand})
 }
 

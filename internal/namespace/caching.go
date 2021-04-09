@@ -1,6 +1,7 @@
 package namespace
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -58,7 +59,7 @@ func NewCachingNamespaceManager(
 	}, nil
 }
 
-func (nsc cachingManager) ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error) {
+func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
 	// Check the cache.
 	now := time.Now()
 
@@ -71,7 +72,7 @@ func (nsc cachingManager) ReadNamespace(nsName string) (*pb.NamespaceDefinition,
 	}
 
 	// We couldn't use the cached entry, load one
-	loaded, version, err := nsc.delegate.ReadNamespace(nsName)
+	loaded, version, err := nsc.delegate.ReadNamespace(ctx, nsName)
 	if err == datastore.ErrNamespaceNotFound {
 		return nil, 0, ErrInvalidNamespace
 	}
@@ -90,8 +91,8 @@ func (nsc cachingManager) ReadNamespace(nsName string) (*pb.NamespaceDefinition,
 	return loaded, version, nil
 }
 
-func (nsc cachingManager) CheckNamespaceAndRelation(namespace, relation string, allowEllipsis bool) error {
-	config, _, err := nsc.ReadNamespace(namespace)
+func (nsc cachingManager) CheckNamespaceAndRelation(ctx context.Context, namespace, relation string, allowEllipsis bool) error {
+	config, _, err := nsc.ReadNamespace(ctx, namespace)
 	if err != nil {
 		return err
 	}

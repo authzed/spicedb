@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -67,8 +68,8 @@ func (ptq pgTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.Tup
 	return ptq
 }
 
-func (ptq pgTupleQuery) Execute() (datastore.TupleIterator, error) {
-	tx, err := ptq.db.Beginx()
+func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
+	tx, err := ptq.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
@@ -83,10 +84,11 @@ func (ptq pgTupleQuery) Execute() (datastore.TupleIterator, error) {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 
-	rows, err := ptq.db.Queryx(sql, args...)
+	rows, err := tx.QueryxContext(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
+	defer rows.Close()
 
 	var tuples []*pb.RelationTuple
 	for rows.Next() {

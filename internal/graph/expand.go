@@ -23,22 +23,22 @@ type concurrentExpander struct {
 	ds datastore.GraphDatastore
 }
 
-func (ce *concurrentExpander) expand(req ExpandRequest, relation *pb.Relation) ReduceableExpandFunc {
+func (ce *concurrentExpander) expand(ctx context.Context, req ExpandRequest, relation *pb.Relation) ReduceableExpandFunc {
 	log.Trace().Object("expand", req).Send()
 	if relation.UsersetRewrite == nil {
-		return ce.expandDirect(req)
+		return ce.expandDirect(ctx, req)
 	}
 
-	return ce.expandUsersetRewrite(req, relation.UsersetRewrite)
+	return ce.expandUsersetRewrite(ctx, req, relation.UsersetRewrite)
 }
 
-func (ce *concurrentExpander) expandDirect(req ExpandRequest) ReduceableExpandFunc {
+func (ce *concurrentExpander) expandDirect(ctx context.Context, req ExpandRequest) ReduceableExpandFunc {
 	log.Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		it, err := ce.ds.QueryTuples(req.Start.Namespace, req.AtRevision).
 			WithObjectID(req.Start.ObjectId).
 			WithRelation(req.Start.Relation).
-			Execute()
+			Execute(ctx)
 		if err != nil {
 			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, err)}
 			return
@@ -71,34 +71,34 @@ func (ce *concurrentExpander) expandDirect(req ExpandRequest) ReduceableExpandFu
 	}
 }
 
-func (ce *concurrentExpander) expandUsersetRewrite(req ExpandRequest, usr *pb.UsersetRewrite) ReduceableExpandFunc {
+func (ce *concurrentExpander) expandUsersetRewrite(ctx context.Context, req ExpandRequest, usr *pb.UsersetRewrite) ReduceableExpandFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *pb.UsersetRewrite_Union:
 		log.Trace().Msg("union")
-		return ce.expandSetOperation(req, rw.Union, ExpandAny)
+		return ce.expandSetOperation(ctx, req, rw.Union, ExpandAny)
 	case *pb.UsersetRewrite_Intersection:
 		log.Trace().Msg("intersection")
-		return ce.expandSetOperation(req, rw.Intersection, ExpandAll)
+		return ce.expandSetOperation(ctx, req, rw.Intersection, ExpandAll)
 	case *pb.UsersetRewrite_Exclusion:
 		log.Trace().Msg("exclusion")
-		return ce.expandSetOperation(req, rw.Exclusion, ExpandDifference)
+		return ce.expandSetOperation(ctx, req, rw.Exclusion, ExpandDifference)
 	default:
 		return alwaysFailExpand
 	}
 }
 
-func (ce *concurrentExpander) expandSetOperation(req ExpandRequest, so *pb.SetOperation, reducer ExpandReducer) ReduceableExpandFunc {
+func (ce *concurrentExpander) expandSetOperation(ctx context.Context, req ExpandRequest, so *pb.SetOperation, reducer ExpandReducer) ReduceableExpandFunc {
 	var requests []ReduceableExpandFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *pb.SetOperation_Child_XThis:
-			requests = append(requests, ce.expandDirect(req))
+			requests = append(requests, ce.expandDirect(ctx, req))
 		case *pb.SetOperation_Child_ComputedUserset:
 			requests = append(requests, ce.expandComputedUserset(req, child.ComputedUserset, nil))
 		case *pb.SetOperation_Child_UsersetRewrite:
-			requests = append(requests, ce.expandUsersetRewrite(req, child.UsersetRewrite))
+			requests = append(requests, ce.expandUsersetRewrite(ctx, req, child.UsersetRewrite))
 		case *pb.SetOperation_Child_TupleToUserset:
-			requests = append(requests, ce.expandTupleToUserset(req, child.TupleToUserset))
+			requests = append(requests, ce.expandTupleToUserset(ctx, req, child.TupleToUserset))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
@@ -143,12 +143,12 @@ func (ce *concurrentExpander) expandComputedUserset(req ExpandRequest, cu *pb.Co
 	})
 }
 
-func (ce *concurrentExpander) expandTupleToUserset(req ExpandRequest, ttu *pb.TupleToUserset) ReduceableExpandFunc {
+func (ce *concurrentExpander) expandTupleToUserset(ctx context.Context, req ExpandRequest, ttu *pb.TupleToUserset) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		it, err := ce.ds.QueryTuples(req.Start.Namespace, req.AtRevision).
 			WithObjectID(req.Start.ObjectId).
 			WithRelation(ttu.Tupleset.Relation).
-			Execute()
+			Execute(ctx)
 		if err != nil {
 			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, err)}
 			return
