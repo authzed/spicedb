@@ -33,7 +33,7 @@ var (
 )
 
 func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
-	tx, err := pgd.db.Beginx()
+	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteTuples, err)
 	}
@@ -47,7 +47,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 		}
 
 		foundID := -1
-		if err := tx.QueryRowx(sql, args...).Scan(&foundID); err != nil {
+		if err := tx.QueryRowxContext(ctx, sql, args...).Scan(&foundID); err != nil {
 			if err == dbsql.ErrNoRows {
 				return 0, datastore.ErrPreconditionFailed
 			}
@@ -55,7 +55,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 		}
 	}
 
-	newTxnID, err := createNewTransaction(tx)
+	newTxnID, err := createNewTransaction(ctx, tx)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteTuples, err)
 	}
@@ -73,7 +73,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 				return 0, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 
-			result, err := tx.Exec(sql, args...)
+			result, err := tx.ExecContext(ctx, sql, args...)
 			if err != nil {
 				return 0, fmt.Errorf(errUnableToWriteTuples, err)
 			}
@@ -108,7 +108,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 			return 0, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
-		_, err = tx.Exec(sql, args...)
+		_, err = tx.ExecContext(ctx, sql, args...)
 		if err != nil {
 			return 0, fmt.Errorf(errUnableToWriteTuples, err)
 		}

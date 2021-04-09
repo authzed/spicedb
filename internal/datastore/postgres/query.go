@@ -69,7 +69,7 @@ func (ptq pgTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.Tup
 }
 
 func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	tx, err := ptq.db.Beginx()
+	tx, err := ptq.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
@@ -84,7 +84,7 @@ func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, e
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 
-	rows, err := ptq.db.Queryx(sql, args...)
+	rows, err := tx.QueryxContext(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}

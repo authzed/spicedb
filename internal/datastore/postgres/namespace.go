@@ -41,14 +41,13 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	tx, err := pgd.db.Beginx()
+	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
-
 	defer tx.Rollback()
 
-	newTxnID, err := createNewTransaction(tx)
+	newTxnID, err := createNewTransaction(ctx, tx)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
@@ -58,7 +57,7 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	_, err = tx.Exec(sql, args...)
+	_, err = tx.ExecContext(ctx, sql, args...)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
@@ -72,13 +71,13 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 }
 
 func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
-	tx, err := pgd.db.Beginx()
+	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf(errUnableToReadConfig, err)
 	}
 	defer tx.Rollback()
 
-	loaded, version, err := loadNamespace(nsName, tx)
+	loaded, version, err := loadNamespace(ctx, nsName, tx)
 	switch err {
 	case datastore.ErrNamespaceNotFound:
 		return nil, 0, err
@@ -90,14 +89,13 @@ func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.N
 }
 
 func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uint64, error) {
-	tx, err := pgd.db.Beginx()
+	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
-
 	defer tx.Rollback()
 
-	_, version, err := loadNamespace(nsName, tx)
+	_, version, err := loadNamespace(ctx, nsName, tx)
 	switch err {
 	case datastore.ErrNamespaceNotFound:
 		return 0, err
@@ -107,7 +105,7 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uin
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	newTxnID, err := createNewTransaction(tx)
+	newTxnID, err := createNewTransaction(ctx, tx)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -120,7 +118,7 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uin
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	_, err = tx.Exec(delSQL, delArgs...)
+	_, err = tx.ExecContext(ctx, delSQL, delArgs...)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -133,7 +131,7 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uin
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	_, err = tx.Exec(deleteTupleSQL, deleteTupleArgs...)
+	_, err = tx.ExecContext(ctx, deleteTupleSQL, deleteTupleArgs...)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -146,7 +144,7 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uin
 	return version, nil
 }
 
-func loadNamespace(namespace string, tx *sqlx.Tx) (*pb.NamespaceDefinition, uint64, error) {
+func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx) (*pb.NamespaceDefinition, uint64, error) {
 	sql, args, err := readNamespace.Where(sq.Eq{colNamespace: namespace}).ToSql()
 	if err != nil {
 		return nil, 0, err
@@ -154,7 +152,7 @@ func loadNamespace(namespace string, tx *sqlx.Tx) (*pb.NamespaceDefinition, uint
 
 	var config []byte
 	var version uint64
-	err = tx.QueryRowx(sql, args...).Scan(&config, &version)
+	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&config, &version)
 	if err != nil {
 		if err == dbsql.ErrNoRows {
 			err = datastore.ErrNamespaceNotFound

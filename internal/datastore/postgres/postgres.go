@@ -123,7 +123,7 @@ type pgDatastore struct {
 }
 
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
-	tx, err := pgd.db.Beginx()
+	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}
@@ -133,7 +133,7 @@ func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
 }
 
 func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
-	tx, err := pgd.db.Beginx()
+	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}
@@ -156,7 +156,7 @@ func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) error {
-	tx, err := pgd.db.Beginx()
+	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -247,7 +247,7 @@ func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.
 	return uint64(lower.Int64), uint64(upper.Int64), nil
 }
 
-func createNewTransaction(tx *sqlx.Tx) (newTxnID uint64, err error) {
-	err = tx.QueryRowx(createTxn).Scan(&newTxnID)
+func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
+	err = tx.QueryRowxContext(ctx, createTxn).Scan(&newTxnID)
 	return
 }
