@@ -52,6 +52,7 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 
 	for _, mutation := range req.Updates {
 		if err := as.nsm.CheckNamespaceAndRelation(
+			ctx,
 			mutation.Tuple.ObjectAndRelation.Namespace,
 			mutation.Tuple.ObjectAndRelation.Relation,
 			false, // Disallow ellipsis
@@ -60,6 +61,7 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 		}
 
 		if err = as.nsm.CheckNamespaceAndRelation(
+			ctx,
 			mutation.Tuple.User.GetUserset().Namespace,
 			mutation.Tuple.User.GetUserset().Relation,
 			true, // Allow Ellipsis
@@ -68,7 +70,7 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 		}
 	}
 
-	revision, err := as.ds.WriteTuples(req.WriteConditions, req.Updates)
+	revision, err := as.ds.WriteTuples(ctx, req.WriteConditions, req.Updates)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
@@ -103,6 +105,7 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 					)
 				}
 				if err := as.nsm.CheckNamespaceAndRelation(
+					ctx,
 					tuplesetFilter.Namespace,
 					tuplesetFilter.Relation,
 					false, // Disallow ellipsis
@@ -128,6 +131,7 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 
 		if !checkedRelation {
 			if err := as.nsm.CheckNamespaceAndRelation(
+				ctx,
 				tuplesetFilter.Namespace,
 				datastore.Ellipsis,
 				true, // Allow ellipsis
@@ -177,7 +181,7 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 			}
 		}
 
-		tupleIterator, err := queryBuilder.Execute()
+		tupleIterator, err := queryBuilder.Execute(ctx)
 		if err != nil {
 			return nil, rewriteACLError(err)
 		}
@@ -235,12 +239,12 @@ func (as *aclServer) commonCheck(
 	start *api.ObjectAndRelation,
 	goal *api.ObjectAndRelation,
 ) (*api.CheckResponse, error) {
-	err := as.nsm.CheckNamespaceAndRelation(start.Namespace, start.Relation, false)
+	err := as.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, start.Relation, false)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
 
-	err = as.nsm.CheckNamespaceAndRelation(goal.Namespace, goal.Relation, true)
+	err = as.nsm.CheckNamespaceAndRelation(ctx, goal.Namespace, goal.Relation, true)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
@@ -279,7 +283,7 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
 	}
 
-	err = as.nsm.CheckNamespaceAndRelation(req.Userset.Namespace, req.Userset.Relation, false)
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}

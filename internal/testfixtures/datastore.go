@@ -1,6 +1,8 @@
 package testfixtures
 
 import (
+	"context"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -59,10 +61,12 @@ var StandardTuples = []string{
 }
 
 func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, uint64) {
+	ctx := context.Background()
+
 	var lastRevision uint64
 	for _, namespace := range []*pb.NamespaceDefinition{UserNS, DocumentNS, FolderNS} {
 		var err error
-		lastRevision, err = ds.WriteNamespace(namespace)
+		lastRevision, err = ds.WriteNamespace(ctx, namespace)
 		require.NoError(err)
 	}
 
@@ -71,6 +75,7 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 
 func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, uint64) {
 	ds, _ = StandardDatastoreWithSchema(ds, require)
+	ctx := context.Background()
 
 	var revision uint64
 	for _, tupleStr := range StandardTuples {
@@ -78,7 +83,7 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 		require.NotNil(tpl)
 
 		var err error
-		revision, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Create(tpl)})
+		revision, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{tuple.Create(tpl)})
 		require.NoError(err)
 	}
 
@@ -90,12 +95,12 @@ type TupleChecker struct {
 	DS      datastore.Datastore
 }
 
-func (tc TupleChecker) ExactTupleIterator(tpl *pb.RelationTuple, rev uint64) datastore.TupleIterator {
+func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *pb.RelationTuple, rev uint64) datastore.TupleIterator {
 	iter, err := tc.DS.QueryTuples(tpl.ObjectAndRelation.Namespace, rev).
 		WithObjectID(tpl.ObjectAndRelation.ObjectId).
 		WithRelation(tpl.ObjectAndRelation.Relation).
 		WithUserset(tpl.User.GetUserset()).
-		Execute()
+		Execute(ctx)
 
 	tc.Require.NoError(err)
 	return iter
@@ -122,12 +127,12 @@ func (tc TupleChecker) VerifyIteratorResults(iter datastore.TupleIterator, tpls 
 	tc.Require.Zero(len(toFind), "Should not be any extra to find")
 }
 
-func (tc TupleChecker) TupleExists(tpl *pb.RelationTuple, rev uint64) {
-	iter := tc.ExactTupleIterator(tpl, rev)
+func (tc TupleChecker) TupleExists(ctx context.Context, tpl *pb.RelationTuple, rev uint64) {
+	iter := tc.ExactTupleIterator(ctx, tpl, rev)
 	tc.VerifyIteratorResults(iter, tpl)
 }
 
-func (tc TupleChecker) NoTupleExists(tpl *pb.RelationTuple, rev uint64) {
-	iter := tc.ExactTupleIterator(tpl, rev)
+func (tc TupleChecker) NoTupleExists(ctx context.Context, tpl *pb.RelationTuple, rev uint64) {
+	iter := tc.ExactTupleIterator(ctx, tpl, rev)
 	tc.VerifyIteratorResults(iter)
 }

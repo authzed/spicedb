@@ -18,34 +18,35 @@ func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
 
 	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 	docTpl := tuple.Scan(testfixtures.StandardTuples[0])
 	require.NotNil(docTpl)
-	tRequire.TupleExists(docTpl, revision)
+	tRequire.TupleExists(ctx, docTpl, revision)
 
 	folderTpl := tuple.Scan(testfixtures.StandardTuples[2])
 	require.NotNil(folderTpl)
-	tRequire.TupleExists(folderTpl, revision)
+	tRequire.TupleExists(ctx, folderTpl, revision)
 
-	deletedRev, err := ds.DeleteNamespace(testfixtures.DocumentNS.Name)
+	deletedRev, err := ds.DeleteNamespace(ctx, testfixtures.DocumentNS.Name)
 	require.NoError(err)
 	require.Greater(deletedRev, uint64(0))
 
-	_, _, err = ds.ReadNamespace(testfixtures.DocumentNS.Name)
+	_, _, err = ds.ReadNamespace(ctx, testfixtures.DocumentNS.Name)
 	require.Equal(datastore.ErrNamespaceNotFound, err)
 
-	found, ver, err := ds.ReadNamespace(testfixtures.FolderNS.Name)
+	found, ver, err := ds.ReadNamespace(ctx, testfixtures.FolderNS.Name)
 	require.NotNil(found)
 	require.Greater(ver, uint64(0))
 	require.NoError(err)
 
-	deletedRevision, err := ds.SyncRevision(context.Background())
+	deletedRevision, err := ds.SyncRevision(ctx)
 	require.NoError(err)
 
-	iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, deletedRevision).Execute()
+	iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, deletedRevision).Execute(ctx)
 	require.NoError(err)
 	tRequire.VerifyIteratorResults(iter)
 
-	tRequire.TupleExists(folderTpl, deletedRevision)
+	tRequire.TupleExists(ctx, folderTpl, deletedRevision)
 }

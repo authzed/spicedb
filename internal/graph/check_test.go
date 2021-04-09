@@ -153,7 +153,9 @@ func TestMaxDepth(t *testing.T) {
 		}),
 	}
 
-	revision, err := ds.WriteTuples(nil, mutations)
+	ctx := context.Background()
+
+	revision, err := ds.WriteTuples(ctx, nil, mutations)
 	require.NoError(err)
 	require.Greater(revision, uint64(0))
 

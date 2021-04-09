@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -67,7 +68,7 @@ func (ptq pgTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.Tup
 	return ptq
 }
 
-func (ptq pgTupleQuery) Execute() (datastore.TupleIterator, error) {
+func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	tx, err := ptq.db.Beginx()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)

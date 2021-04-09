@@ -227,7 +227,9 @@ func TestMaxDepthExpand(t *testing.T) {
 		}),
 	}
 
-	revision, err := ds.WriteTuples(nil, mutations)
+	ctx := context.Background()
+
+	revision, err := ds.WriteTuples(ctx, nil, mutations)
 	require.NoError(err)
 	require.Greater(revision, uint64(0))
 
@@ -237,7 +239,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	dispatch, err := NewLocalDispatcher(nsm, ds)
 	require.NoError(err)
 
-	checkResult := dispatch.Expand(context.Background(), ExpandRequest{
+	checkResult := dispatch.Expand(ctx, ExpandRequest{
 		Start:          ONR("folder", "oops", "viewer"),
 		AtRevision:     revision,
 		DepthRemaining: 50,

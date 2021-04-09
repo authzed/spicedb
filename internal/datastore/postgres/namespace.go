@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	dbsql "database/sql"
 	"fmt"
 
@@ -34,7 +35,7 @@ var (
 	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 )
 
-func (pgd *pgDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (uint64, error) {
+func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (uint64, error) {
 	serialized, err := proto.Marshal(newConfig)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
@@ -70,7 +71,7 @@ func (pgd *pgDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (uint6
 	return newTxnID, nil
 }
 
-func (pgd *pgDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error) {
+func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
 	tx, err := pgd.db.Beginx()
 	if err != nil {
 		return nil, 0, fmt.Errorf(errUnableToReadConfig, err)
@@ -88,7 +89,7 @@ func (pgd *pgDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinition, u
 	}
 }
 
-func (pgd *pgDatastore) DeleteNamespace(nsName string) (uint64, error) {
+func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uint64, error) {
 	tx, err := pgd.db.Beginx()
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)

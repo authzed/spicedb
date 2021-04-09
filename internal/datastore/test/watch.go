@@ -53,7 +53,7 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 					makeTestTuple(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)),
 				)
 				testUpdates = append(testUpdates, newUpdate)
-				newRevision, err := ds.WriteTuples(nil, []*pb.RelationTupleUpdate{newUpdate})
+				newRevision, err := ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{newUpdate})
 				require.NoError(err)
 
 				if newRevision < lowestRevision {
@@ -114,7 +114,7 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, 0)
 	require.Zero(len(errchan))
 
-	_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{
+	_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{
 		tuple.Create(makeTestTuple("test", "test")),
 	})
 	require.NoError(err)

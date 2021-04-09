@@ -1,6 +1,7 @@
 package memdb
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -16,7 +17,7 @@ const (
 	errUnableToDeleteConfig = "unable to delete namespace config: %w"
 )
 
-func (mds *memdbDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (uint64, error) {
+func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (uint64, error) {
 	txn := mds.db.Txn(true)
 	defer txn.Abort()
 
@@ -67,7 +68,7 @@ func (mds *memdbDatastore) WriteNamespace(newConfig *pb.NamespaceDefinition) (ui
 }
 
 // ReadNamespace reads a namespace definition and version and returns it if found.
-func (mds *memdbDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinition, uint64, error) {
+func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
 	txn := mds.db.Txn(false)
 	defer txn.Abort()
 
@@ -86,7 +87,7 @@ func (mds *memdbDatastore) ReadNamespace(nsName string) (*pb.NamespaceDefinition
 	return found.config, found.version, nil
 }
 
-func (mds *memdbDatastore) DeleteNamespace(nsName string) (uint64, error) {
+func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (uint64, error) {
 	txn := mds.db.Txn(true)
 	defer txn.Abort()
 

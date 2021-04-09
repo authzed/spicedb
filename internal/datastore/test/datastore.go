@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"math"
 	"testing"
 	"time"
@@ -58,9 +59,11 @@ func makeTestTuple(resourceID, userID string) *pb.RelationTuple {
 }
 
 func setupDatastore(ds datastore.Datastore, require *require.Assertions) {
-	_, err := ds.WriteNamespace(testResourceNS)
+	ctx := context.Background()
+
+	_, err := ds.WriteNamespace(ctx, testResourceNS)
 	require.NoError(err)
 
-	_, err = ds.WriteNamespace(testUserNS)
+	_, err = ds.WriteNamespace(ctx, testUserNS)
 	require.NoError(err)
 }

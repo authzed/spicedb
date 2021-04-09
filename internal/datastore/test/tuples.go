@@ -39,6 +39,8 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 
 			var testTuples []*pb.RelationTuple
 
+			ctx := context.Background()
+
 			var lastRevision uint64
 			for i := 0; i < numTuples; i++ {
 				resourceName := fmt.Sprintf("resource%d", i)
@@ -48,15 +50,16 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 				testTuples = append(testTuples, newTuple)
 
 				writtenAt, err := ds.WriteTuples(
+					ctx,
 					nil,
 					[]*pb.RelationTupleUpdate{tuple.Create(newTuple)},
 				)
 				require.NoError(err)
 				require.Greater(writtenAt, lastRevision)
 
-				tRequire.TupleExists(newTuple, writtenAt)
-				tRequire.TupleExists(newTuple, writtenAt+100)
-				tRequire.NoTupleExists(newTuple, writtenAt-1)
+				tRequire.TupleExists(ctx, newTuple, writtenAt)
+				tRequire.TupleExists(ctx, newTuple, writtenAt+100)
+				tRequire.NoTupleExists(ctx, newTuple, writtenAt-1)
 
 				lastRevision = writtenAt
 			}
@@ -73,7 +76,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 					q.WithRelation(tupleToFind.ObjectAndRelation.Relation).WithUserset(tupleToFind.User.GetUserset()),
 				}
 				for _, query := range queries {
-					iter, err := query.Execute()
+					iter, err := query.Execute(ctx)
 					require.NoError(err)
 					tRequire.VerifyIteratorResults(iter, tupleToFind)
 				}
@@ -87,7 +90,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 				q.WithRelation(testTuples[0].ObjectAndRelation.Relation),
 			}
 			for _, query := range queries {
-				iter, err := query.Execute()
+				iter, err := query.Execute(ctx)
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, testTuples...)
 			}
@@ -102,27 +105,28 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 				}),
 			}
 			for _, badQuery := range badQueries {
-				iter, err := badQuery.Execute()
+				iter, err := badQuery.Execute(ctx)
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 			}
 
 			// Delete the first tuple
 			deletedAt, err := ds.WriteTuples(
+				ctx,
 				nil,
 				[]*pb.RelationTupleUpdate{tuple.Delete(testTuples[0])},
 			)
 			require.NoError(err)
 
 			// Verify it can still be read at the old revision
-			tRequire.TupleExists(testTuples[0], deletedAt-1)
+			tRequire.TupleExists(ctx, testTuples[0], deletedAt-1)
 
 			// Verify that it does not show up at the new revision
-			tRequire.NoTupleExists(testTuples[0], deletedAt)
+			tRequire.NoTupleExists(ctx, testTuples[0], deletedAt)
 			alreadyDeletedIter, err := ds.QueryTuples(
 				testTuples[0].ObjectAndRelation.Namespace,
 				deletedAt,
-			).Execute()
+			).Execute(ctx)
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(alreadyDeletedIter, testTuples[1:]...)
 		})
@@ -140,16 +144,20 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 	first := makeTestTuple("first", "owner")
 	second := makeTestTuple("second", "owner")
 
+	ctx := context.Background()
+
 	_, err = ds.WriteTuples(
+		ctx,
 		[]*pb.RelationTuple{first},
 		[]*pb.RelationTupleUpdate{tuple.Create(second)},
 	)
 	require.True(errors.Is(err, datastore.ErrPreconditionFailed))
 
-	_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Create(first)})
+	_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{tuple.Create(first)})
 	require.NoError(err)
 
 	_, err = ds.WriteTuples(
+		ctx,
 		[]*pb.RelationTuple{first},
 		[]*pb.RelationTupleUpdate{tuple.Create(second)},
 	)
@@ -166,21 +174,23 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 
 	setupDatastore(ds, require)
 
+	ctx := context.Background()
+
 	// Create some revisions
 	tpl := makeTestTuple("first", "owner")
 	for i := 0; i < 10; i++ {
-		_, err = ds.WriteTuples(nil, []*pb.RelationTupleUpdate{tuple.Touch(tpl)})
+		_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{tuple.Touch(tpl)})
 		require.NoError(err)
 	}
 
 	// Get the new now revision
-	nowRevision, err := ds.SyncRevision(context.Background())
+	nowRevision, err := ds.SyncRevision(ctx)
 	require.NoError(err)
 	require.GreaterOrEqual(nowRevision, uint64(0))
 
 	foundAnotherRevision := false
 	for start := time.Now(); time.Since(start) < 20*time.Millisecond; {
-		testRevision, err := ds.Revision(context.Background())
+		testRevision, err := ds.Revision(ctx)
 		require.NoError(err)
 		require.LessOrEqual(testRevision, nowRevision)
 		if testRevision < nowRevision {
@@ -196,7 +206,7 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 
 	// Now we should ONLY get the now revision
 	for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
-		testRevision, err := ds.Revision(context.Background())
+		testRevision, err := ds.Revision(ctx)
 		require.NoError(err)
 		require.Equal(nowRevision, testRevision)
 	}
@@ -213,49 +223,53 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 
 		setupDatastore(ds, require)
 
+		ctx := context.Background()
+
 		// Check that we get an error when there are no revisions
-		err = ds.CheckRevision(context.Background(), 0)
+		err = ds.CheckRevision(ctx, 0)
 		require.Equal(datastore.ErrInvalidRevision, err)
 
 		newTuple := makeTestTuple("one", "one")
 		firstWrite, err := ds.WriteTuples(
+			ctx,
 			nil,
 			[]*pb.RelationTupleUpdate{tuple.Create(newTuple)},
 		)
 		require.NoError(err)
 
 		// Check that we can read at the just written revision
-		err = ds.CheckRevision(context.Background(), firstWrite)
+		err = ds.CheckRevision(ctx, firstWrite)
 		require.NoError(err)
 
 		// Wait the duration required to allow the revision to expire
 		time.Sleep(testGCDuration * 2)
 
 		// Check that we can still read the just written revision even though it's expired
-		err = ds.CheckRevision(context.Background(), firstWrite)
+		err = ds.CheckRevision(ctx, firstWrite)
 		require.NoError(err)
 
 		// Write another tuple which will allow the first revision to expire
 		nextWrite, err := ds.WriteTuples(
+			ctx,
 			nil,
 			[]*pb.RelationTupleUpdate{tuple.Touch(newTuple)},
 		)
 		require.NoError(err)
 
 		// Check that we can read at the just written revision
-		err = ds.CheckRevision(context.Background(), nextWrite)
+		err = ds.CheckRevision(ctx, nextWrite)
 		require.NoError(err)
 
 		// Check that we can no longer read the old revision (now allowed to expire)
-		err = ds.CheckRevision(context.Background(), firstWrite)
+		err = ds.CheckRevision(ctx, firstWrite)
 		require.Equal(datastore.ErrInvalidRevision, err)
 
 		// Check that we can't read a revision that's ahead of the latest
-		err = ds.CheckRevision(context.Background(), nextWrite+1)
+		err = ds.CheckRevision(ctx, nextWrite+1)
 		require.Equal(datastore.ErrInvalidRevision, err)
 
 		// Check that we can't read a revision that's WAY ahead of the latest
-		err = ds.CheckRevision(context.Background(), nextWrite+1000000)
+		err = ds.CheckRevision(ctx, nextWrite+1000000)
 		require.Equal(datastore.ErrInvalidRevision, err)
 	})
 }

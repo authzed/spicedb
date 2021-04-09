@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	dbsql "database/sql"
 	"fmt"
 
@@ -31,7 +32,7 @@ var (
 	queryTupleExists = psql.Select(colID).From(tableTuple)
 )
 
-func (pgd *pgDatastore) WriteTuples(preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
+func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
 	tx, err := pgd.db.Beginx()
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteTuples, err)
