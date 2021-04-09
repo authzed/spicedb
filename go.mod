@@ -20,7 +20,7 @@ require (
 	github.com/hashicorp/go-memdb v1.3.2
 	github.com/jmoiron/sqlx v1.3.1
 	github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd
-	github.com/lib/pq v1.10.0
+	github.com/lib/pq v1.9.0
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/prometheus/client_golang v1.9.0
