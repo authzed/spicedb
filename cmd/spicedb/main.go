@@ -77,7 +77,9 @@ func rootRun(cmd *cobra.Command, args []string) {
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 	)
 
-	grpcprom.EnableHandlingTimeHistogram()
+	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
+		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
+	))
 
 	var grpcServer *grpc.Server
 	if cobrautil.MustGetBool(cmd, "grpc-no-tls") {
