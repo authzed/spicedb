@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/authzed/spicedb/internal/auth"
@@ -48,6 +49,7 @@ func main() {
 	rootCmd.Flags().String("grpc-cert-path", "", "local path to the TLS certificate used to serve gRPC services")
 	rootCmd.Flags().String("grpc-key-path", "", "local path to the TLS key used to serve gRPC services")
 	rootCmd.Flags().Bool("grpc-no-tls", false, "serve unencrypted gRPC services")
+	rootCmd.Flags().Duration("grpc-max-conn-age", 30*time.Second, "how long a connection should be able to live")
 	rootCmd.Flags().String("metrics-addr", ":9090", "address to listen on for serving metrics and profiles")
 	rootCmd.Flags().String("preshared-key", "", "preshared key to require on authenticated requests")
 	rootCmd.Flags().Uint16("max-depth", 50, "maximum recursion depth for nested calls")
@@ -71,11 +73,16 @@ func rootRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Msg("must provide a preshared-key")
 	}
 
-	grpcMiddleware := grpcmw.WithUnaryServerChain(
+	var sharedOptions []grpc.ServerOption
+	sharedOptions = append(sharedOptions, grpcmw.WithUnaryServerChain(
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.UnaryServerInterceptor,
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
-	)
+	))
+
+	sharedOptions = append(sharedOptions, grpc.KeepaliveParams(keepalive.ServerParameters{
+		MaxConnectionAge: cobrautil.MustGetDuration(cmd, "grpc-max-conn-age"),
+	}))
 
 	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
 		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
@@ -83,13 +90,13 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	var grpcServer *grpc.Server
 	if cobrautil.MustGetBool(cmd, "grpc-no-tls") {
-		grpcServer = grpc.NewServer(grpcMiddleware)
+		grpcServer = grpc.NewServer(sharedOptions...)
 	} else {
 		var err error
 		grpcServer, err = NewTlsGrpcServer(
 			cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
 			cobrautil.MustGetStringExpanded(cmd, "grpc-key-path"),
-			grpcMiddleware,
+			sharedOptions...,
 		)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to create TLS gRPC server")
