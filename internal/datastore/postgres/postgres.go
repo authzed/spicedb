@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	dbsql "database/sql"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"github.com/ngrok/sqlmw"
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -44,6 +46,10 @@ const (
 
 	defaultWatchBufferLength = 128
 )
+
+func init() {
+	sql.Register("postgres-mw", sqlmw.Driver(pq.Driver{}, new(traceInterceptor)))
+}
 
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
@@ -98,7 +104,10 @@ func NewPostgresDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	db, err := sqlx.Connect("postgres", connectStr)
+	db, err := sqlx.Connect("postgres-mw", connectStr)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
