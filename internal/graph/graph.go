@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
 
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -16,6 +17,8 @@ const Ellipsis = "..."
 // ErrAlwaysFail is returned when an internal error leads to an operation
 // guaranteed to fail.
 var ErrAlwaysFail = errors.New("always fail")
+
+var tracer = otel.Tracer("spicedb/internal/graph")
 
 // Publicly exposed errors from methods in this package.
 var (

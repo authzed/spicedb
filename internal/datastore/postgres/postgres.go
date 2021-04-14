@@ -11,10 +11,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
-
-	"go.opentelemetry.io/otel"
 )
 
 const (
@@ -217,6 +216,9 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) erro
 }
 
 func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
+	ctx, span := tracer.Start(ctx, "loadRevision")
+	defer span.End()
+
 	sql, args, err := getRevision.ToSql()
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
@@ -235,6 +237,9 @@ func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
 }
 
 func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.Duration) (uint64, uint64, error) {
+	ctx, span := tracer.Start(ctx, "computeRevisionRange")
+	defer span.End()
+
 	nowSQL, nowArgs, err := getNow.ToSql()
 	if err != nil {
 		return 0, 0, err
@@ -245,6 +250,8 @@ func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.
 	if err != nil {
 		return 0, 0, err
 	}
+
+	span.AddEvent("DB returned value for NOW()")
 
 	lowerBound := now.Add(windowInverted)
 
@@ -259,6 +266,8 @@ func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.
 		return 0, 0, err
 	}
 
+	span.AddEvent("DB returned revision range")
+
 	if !lower.Valid || !upper.Valid {
 		return 0, 0, dbsql.ErrNoRows
 	}
@@ -267,6 +276,9 @@ func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.
 }
 
 func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
+	ctx, span := tracer.Start(ctx, "computeNewTransaction")
+	defer span.End()
+
 	err = tx.QueryRowxContext(ctx, createTxn).Scan(&newTxnID)
 	return
 }

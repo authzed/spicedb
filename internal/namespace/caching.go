@@ -60,6 +60,9 @@ func NewCachingNamespaceManager(
 }
 
 func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
+	ctx, span := tracer.Start(ctx, "ReadNamespace")
+	defer span.End()
+
 	// Check the cache.
 	now := time.Now()
 
@@ -67,6 +70,7 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb
 	if found {
 		foundEntry := value.(cacheEntry)
 		if foundEntry.expiration.After(now) {
+			span.AddEvent("Returning namespace from cache")
 			return foundEntry.definition, foundEntry.version, nil
 		}
 	}
@@ -87,6 +91,8 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb
 		expiration: now.Add(nsc.expiration),
 	}
 	nsc.c.Set(nsName, newEntry, int64(proto.Size(loaded)))
+
+	span.AddEvent("Saved to cache")
 
 	return loaded, version, nil
 }

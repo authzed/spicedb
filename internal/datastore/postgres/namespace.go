@@ -9,6 +9,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/jmoiron/sqlx"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -86,6 +87,11 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 }
 
 func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
+	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
+		attribute.String("name", nsName),
+	))
+	defer span.End()
+
 	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf(errUnableToReadConfig, err)
@@ -160,6 +166,9 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uin
 }
 
 func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx) (*pb.NamespaceDefinition, uint64, error) {
+	ctx, span := tracer.Start(ctx, "loadNamespace")
+	defer span.End()
+
 	sql, args, err := readNamespace.Where(sq.Eq{colNamespace: namespace}).ToSql()
 	if err != nil {
 		return nil, 0, err

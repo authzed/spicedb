@@ -8,6 +8,9 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/tuple"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const errDispatch = "error dispatching request: %w"
@@ -47,7 +50,21 @@ func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationNam
 	return relation, nil
 }
 
+type stringableOnr struct {
+	*pb.ObjectAndRelation
+}
+
+func (onr stringableOnr) String() string {
+	return tuple.StringONR(onr.ObjectAndRelation)
+}
+
 func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
+	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
+		attribute.Stringer("start", stringableOnr{req.Start}),
+		attribute.Stringer("goal", stringableOnr{req.Goal}),
+	))
+	defer span.End()
+
 	if req.DepthRemaining < 1 {
 		return CheckResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
 	}
@@ -64,6 +81,11 @@ func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckRes
 }
 
 func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) ExpandResult {
+	ctx, span := tracer.Start(ctx, "DispatchExpand", trace.WithAttributes(
+		attribute.Stringer("start", stringableOnr{req.Start}),
+	))
+	defer span.End()
+
 	if req.DepthRemaining < 1 {
 		return ExpandResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
 	}
