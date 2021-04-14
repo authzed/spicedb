@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -68,7 +69,9 @@ func main() {
 	rootCmd.Flags().Duration("pg-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the postgres connection pool")
 
 	rootCmd.PersistentFlags().String("log-level", "info", "verbosity of logging (trace, debug, info, warn, error, fatal, panic)")
-	rootCmd.PersistentFlags().String("tracing", "none", "the destination for tracing (none, stdout)")
+	rootCmd.PersistentFlags().String("tracing", "none", "destination for tracing (none, jaeger)")
+	rootCmd.PersistentFlags().String("tracing-collector-endpoint", "http://jaeger:14268/api/traces", "endpoint to which to send tracing data")
+	rootCmd.PersistentFlags().String("tracing-service-name", "spicedb", "service name to use when sending trace data")
 
 	rootCmd.Execute()
 }
@@ -259,19 +262,21 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	switch tracing {
 	case "none":
 		// Nothing.
-
 	case "jaeger":
-		initTracer()
+		initJaegerTracer(
+			cobrautil.MustGetString(cmd, "tracing-collector-endpoint"),
+			cobrautil.MustGetString(cmd, "tracing-service-name"),
+		)
 	default:
-		return errors.New("unknown tracing")
+		return fmt.Errorf("unknown tracing type: %s", tracing)
 	}
 	log.Info().Str("new tracing", tracing).Msg("set tracing")
 
 	return nil
 }
 
-func initTracer() {
-	exp, err := jaeger.NewRawExporter(jaeger.WithCollectorEndpoint("http://jaeger:14268/api/traces"))
+func initJaegerTracer(endpoint, serviceName string) {
+	exp, err := jaeger.NewRawExporter(jaeger.WithCollectorEndpoint(endpoint))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize jaeger exporter")
 		return
@@ -280,7 +285,7 @@ func initTracer() {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithSpanProcessor(bsp),
-		sdktrace.WithResource(resource.NewWithAttributes(semconv.ServiceNameKey.String("spicedb"))),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.ServiceNameKey.String(serviceName))),
 	)
 	otel.SetTracerProvider(tp)
 
