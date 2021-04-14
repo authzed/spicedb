@@ -1,6 +1,11 @@
 FROM golang:1.16-alpine3.13 AS build
 
 WORKDIR /go/src/app
+
+# Prepare dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 RUN go get -d -v ./...
 RUN go install -v ./...
