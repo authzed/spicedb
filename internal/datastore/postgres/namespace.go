@@ -8,6 +8,8 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/golang/protobuf/proto"
 	"github.com/jmoiron/sqlx"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -17,6 +19,10 @@ const (
 	errUnableToWriteConfig  = "unable to write namespace config: %w"
 	errUnableToReadConfig   = "unable to read namespace config: %w"
 	errUnableToDeleteConfig = "unable to delete namespace config: %w"
+)
+
+var (
+	namespaceNameKey = attribute.Key("authzed.com/spicedb/namespaceName")
 )
 
 var (
@@ -36,21 +42,29 @@ var (
 )
 
 func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (uint64, error) {
+	ctx, span := tracer.Start(ctx, "WriteNamespace")
+	defer span.End()
+
+	span.SetAttributes(namespaceNameKey.String(newConfig.Name))
+
 	serialized, err := proto.Marshal(newConfig)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
+	span.AddEvent("Serialized namespace config")
 
 	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	defer tx.Rollback()
+	span.AddEvent("DB transaction established")
 
 	newTxnID, err := createNewTransaction(ctx, tx)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
+	span.AddEvent("Model transaction created")
 
 	sql, args, err := writeNamespace.Values(newConfig.Name, serialized, newTxnID).ToSql()
 	if err != nil {
@@ -61,16 +75,23 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
+	span.AddEvent("Namespace config written")
 
 	err = tx.Commit()
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
+	span.AddEvent("Namespace config committed")
 
 	return newTxnID, nil
 }
 
 func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
+	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
+		attribute.String("name", nsName),
+	))
+	defer span.End()
+
 	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf(errUnableToReadConfig, err)
@@ -145,6 +166,9 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uin
 }
 
 func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx) (*pb.NamespaceDefinition, uint64, error) {
+	ctx, span := tracer.Start(ctx, "loadNamespace")
+	defer span.End()
+
 	sql, args, err := readNamespace.Where(sq.Eq{colNamespace: namespace}).ToSql()
 	if err != nil {
 		return nil, 0, err

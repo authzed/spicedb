@@ -89,13 +89,7 @@ func (pgd *pgDatastore) loadChanges(
 	afterRevision uint64,
 ) (changes []*datastore.RevisionChanges, newRevision uint64, err error) {
 
-	tx, err := pgd.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return
-	}
-	defer tx.Rollback()
-
-	newRevision, err = loadRevision(ctx, tx)
+	newRevision, err = pgd.loadRevision(ctx)
 	if err != nil {
 		return
 	}
@@ -118,7 +112,7 @@ func (pgd *pgDatastore) loadChanges(
 		return
 	}
 
-	rows, err := tx.QueryxContext(ctx, sql, args...)
+	rows, err := pgd.db.QueryxContext(ctx, sql, args...)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			err = datastore.ErrWatchCanceled

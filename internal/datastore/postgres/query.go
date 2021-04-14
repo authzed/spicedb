@@ -10,6 +10,12 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+)
+
+var (
+	relationNameKey = attribute.Key("authzed.com/spicedb/relationName")
 )
 
 const errUnableToQueryTuples = "unable to query tuples: %w"
@@ -69,26 +75,28 @@ func (ptq pgTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.Tup
 }
 
 func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	tx, err := ptq.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToQueryTuples, err)
-	}
-	defer tx.Rollback()
+	ctx, span := tracer.Start(ctx, "ExecuteTupleQuery")
+	defer span.End()
 
-	if err != nil {
-		return nil, err
-	}
+	span.SetAttributes(namespaceNameKey.String(ptq.namespace))
+	span.SetAttributes(relationNameKey.String(ptq.relation))
+
+	span.AddEvent("DB transaction established")
 
 	sql, args, err := ptq.query.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 
-	rows, err := tx.QueryxContext(ctx, sql, args...)
+	span.AddEvent("Query converted to SQL")
+
+	rows, err := ptq.db.QueryxContext(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 	defer rows.Close()
+
+	span.AddEvent("Query issued to SQL")
 
 	var tuples []*pb.RelationTuple
 	for rows.Next() {
@@ -118,6 +126,8 @@ func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, e
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
+
+	span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 
 	iter := &pgTupleIterator{
 		tuples: tuples,

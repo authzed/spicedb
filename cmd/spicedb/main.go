@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -21,6 +22,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/trace/jaeger"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/semconv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -63,6 +69,9 @@ func main() {
 	rootCmd.Flags().Duration("pg-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the postgres connection pool")
 
 	rootCmd.PersistentFlags().String("log-level", "info", "verbosity of logging (trace, debug, info, warn, error, fatal, panic)")
+	rootCmd.PersistentFlags().String("tracing", "none", "destination for tracing (none, jaeger)")
+	rootCmd.PersistentFlags().String("tracing-collector-endpoint", "http://jaeger:14268/api/traces", "endpoint to which to send tracing data")
+	rootCmd.PersistentFlags().String("tracing-service-name", "spicedb", "service name to use when sending trace data")
 
 	rootCmd.Execute()
 }
@@ -120,15 +129,14 @@ func rootRun(cmd *cobra.Command, args []string) {
 		log.Info().Msg("using postgres datastore")
 		ds, err = postgres.NewPostgresDatastore(
 			datastoreUrl,
-			&postgres.ConnectionProperties{
-				MaxOpenConns:    cobrautil.MustGetInt(cmd, "pg-max-conn-open"),
-				MaxIdleConns:    cobrautil.MustGetInt(cmd, "pg-max-conn-idle"),
-				ConnMaxLifetime: cobrautil.MustGetDuration(cmd, "pg-max-conn-lifetime"),
-				ConnMaxIdleTime: cobrautil.MustGetDuration(cmd, "pg-max-conn-idletime"),
-			},
-			0,
-			revisionFuzzingTimedelta,
-			gcWindow,
+			postgres.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "pg-max-conn-idletime")),
+			postgres.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "pg-max-conn-lifetime")),
+			postgres.MaxOpenConns(cobrautil.MustGetInt(cmd, "pg-max-conn-open")),
+			postgres.MaxIdleConns(cobrautil.MustGetInt(cmd, "pg-max-conn-idle")),
+			postgres.RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+			postgres.GCWindow(gcWindow),
+			postgres.EnablePrometheusStats(),
+			postgres.EnableTracing(),
 		)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to init datastore")
@@ -250,5 +258,36 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 	log.Info().Str("new level", level).Msg("set log level")
 
+	tracing := strings.ToLower(cobrautil.MustGetString(cmd, "tracing"))
+	switch tracing {
+	case "none":
+		// Nothing.
+	case "jaeger":
+		initJaegerTracer(
+			cobrautil.MustGetString(cmd, "tracing-collector-endpoint"),
+			cobrautil.MustGetString(cmd, "tracing-service-name"),
+		)
+	default:
+		return fmt.Errorf("unknown tracing type: %s", tracing)
+	}
+	log.Info().Str("new tracing", tracing).Msg("set tracing")
+
 	return nil
+}
+
+func initJaegerTracer(endpoint, serviceName string) {
+	exp, err := jaeger.NewRawExporter(jaeger.WithCollectorEndpoint(endpoint))
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize jaeger exporter")
+		return
+	}
+	bsp := sdktrace.NewBatchSpanProcessor(exp)
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSpanProcessor(bsp),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.ServiceNameKey.String(serviceName))),
+	)
+	otel.SetTracerProvider(tp)
+
+	log.Info().Msg("jaeger tracing enabled")
 }

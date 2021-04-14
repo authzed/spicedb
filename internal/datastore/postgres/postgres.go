@@ -2,15 +2,19 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	dbsql "database/sql"
-	"errors"
 	"fmt"
 	"math/rand"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/dlmiddlecote/sqlstats"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"github.com/ngrok/sqlmw"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
@@ -41,8 +45,12 @@ const (
 	// This is the largest positive integer possible in postgresql
 	liveDeletedTxnID = uint64(9223372036854775807)
 
-	defaultWatchBufferLength = 128
+	tracingDriverName = "postgres-tracing"
 )
+
+func init() {
+	sql.Register(tracingDriverName, sqlmw.Driver(pq.Driver{}, new(traceInterceptor)))
+}
 
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
@@ -54,6 +62,8 @@ var (
 	getMatchingRevision = psql.Select(colID).From(tableTransaction)
 
 	getNow = psql.Select("NOW()")
+
+	tracer = otel.Tracer("spicedb/internal/datastore/postgres")
 )
 
 type RelationTupleRow struct {
@@ -65,53 +75,51 @@ type RelationTupleRow struct {
 	UsersetRelation  string
 }
 
-type ConnectionProperties struct {
-	ConnMaxIdleTime time.Duration
-	ConnMaxLifetime time.Duration
-	MaxIdleConns    int
-	MaxOpenConns    int
-}
-
 func NewPostgresDatastore(
 	url string,
-	cprops *ConnectionProperties,
-	watchBufferLength uint16,
-	revisionFuzzingTimedelta time.Duration,
-	gcWindow time.Duration,
+	options ...PostgresOption,
 ) (datastore.Datastore, error) {
-	if watchBufferLength == 0 {
-		watchBufferLength = defaultWatchBufferLength
-	}
-
-	if revisionFuzzingTimedelta > gcWindow {
-		return nil, fmt.Errorf(
-			errUnableToInstantiate,
-			errors.New("gc window must be large than fuzzing window"),
-		)
-	}
-
 	connectStr, err := pq.ParseURL(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	db, err := sqlx.Connect("postgres", connectStr)
+	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if cprops != nil {
-		db.SetMaxOpenConns(cprops.MaxOpenConns)
-		db.SetMaxIdleConns(cprops.MaxIdleConns)
-		db.SetConnMaxLifetime(cprops.ConnMaxLifetime)
-		db.SetConnMaxIdleTime(cprops.ConnMaxIdleTime)
+	db, err := sqlx.Connect(config.driver, connectStr)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	if config.enablePrometheusStats {
+		collector := sqlstats.NewStatsCollector("spicedb", db)
+		err := prometheus.Register(collector)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+	}
+
+	if config.maxOpenConns != nil {
+		db.SetMaxOpenConns(*config.maxOpenConns)
+	}
+	if config.maxIdleConns != nil {
+		db.SetMaxIdleConns(*config.maxIdleConns)
+	}
+	if config.connMaxIdleTime != nil {
+		db.SetConnMaxIdleTime(*config.connMaxIdleTime)
+	}
+	if config.connMaxLifetime != nil {
+		db.SetConnMaxLifetime(*config.connMaxLifetime)
 	}
 
 	return &pgDatastore{
 		db:                       db,
-		watchBufferLength:        watchBufferLength,
-		revisionFuzzingTimedelta: revisionFuzzingTimedelta,
-		gcWindowInverted:         -1 * gcWindow,
+		watchBufferLength:        config.watchBufferLength,
+		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
+		gcWindowInverted:         -1 * config.gcWindow,
 	}, nil
 }
 
@@ -123,29 +131,23 @@ type pgDatastore struct {
 }
 
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
-	tx, err := pgd.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
-	}
-	defer tx.Rollback()
+	ctx, span := tracer.Start(ctx, "SyncRevision")
+	defer span.End()
 
-	return loadRevision(ctx, tx)
+	return pgd.loadRevision(ctx)
 }
 
 func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
-	tx, err := pgd.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
-	}
-	defer tx.Rollback()
+	ctx, span := tracer.Start(ctx, "Revision")
+	defer span.End()
 
-	lower, upper, err := computeRevisionRange(ctx, tx, -1*pgd.revisionFuzzingTimedelta)
+	lower, upper, err := pgd.computeRevisionRange(ctx, -1*pgd.revisionFuzzingTimedelta)
 	if err != nil && err != dbsql.ErrNoRows {
 		return 0, fmt.Errorf(errRevision, err)
 	}
 
 	if err == dbsql.ErrNoRows {
-		return loadRevision(ctx, tx)
+		return pgd.loadRevision(ctx)
 	}
 
 	if upper-lower == 0 {
@@ -156,13 +158,10 @@ func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) error {
-	tx, err := pgd.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf(errCheckRevision, err)
-	}
-	defer tx.Rollback()
+	ctx, span := tracer.Start(ctx, "CheckRevision")
+	defer span.End()
 
-	lower, upper, err := computeRevisionRange(ctx, tx, pgd.gcWindowInverted)
+	lower, upper, err := pgd.computeRevisionRange(ctx, pgd.gcWindowInverted)
 	if err == nil {
 		if revision >= lower && revision <= upper {
 			return nil
@@ -182,7 +181,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) erro
 	}
 
 	var highest uint64
-	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&highest)
+	err = pgd.db.QueryRowxContext(ctx, sql, args...).Scan(&highest)
 	if err == dbsql.ErrNoRows {
 		return datastore.ErrInvalidRevision
 	}
@@ -197,14 +196,17 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) erro
 	return nil
 }
 
-func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
+func (pgd *pgDatastore) loadRevision(ctx context.Context) (uint64, error) {
+	ctx, span := tracer.Start(ctx, "loadRevision")
+	defer span.End()
+
 	sql, args, err := getRevision.ToSql()
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}
 
 	var revision uint64
-	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&revision)
+	err = pgd.db.QueryRowxContext(ctx, sql, args...).Scan(&revision)
 	if err != nil {
 		if err == dbsql.ErrNoRows {
 			return 0, nil
@@ -215,17 +217,22 @@ func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
 	return revision, nil
 }
 
-func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.Duration) (uint64, uint64, error) {
+func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted time.Duration) (uint64, uint64, error) {
+	ctx, span := tracer.Start(ctx, "computeRevisionRange")
+	defer span.End()
+
 	nowSQL, nowArgs, err := getNow.ToSql()
 	if err != nil {
 		return 0, 0, err
 	}
 
 	var now time.Time
-	err = tx.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
+	err = pgd.db.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
 	if err != nil {
 		return 0, 0, err
 	}
+
+	span.AddEvent("DB returned value for NOW()")
 
 	lowerBound := now.Add(windowInverted)
 
@@ -235,10 +242,12 @@ func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.
 	}
 
 	var lower, upper dbsql.NullInt64
-	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&lower, &upper)
+	err = pgd.db.QueryRowxContext(ctx, sql, args...).Scan(&lower, &upper)
 	if err != nil {
 		return 0, 0, err
 	}
+
+	span.AddEvent("DB returned revision range")
 
 	if !lower.Valid || !upper.Valid {
 		return 0, 0, dbsql.ErrNoRows
@@ -248,6 +257,9 @@ func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.
 }
 
 func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
+	ctx, span := tracer.Start(ctx, "computeNewTransaction")
+	defer span.End()
+
 	err = tx.QueryRowxContext(ctx, createTxn).Scan(&newTxnID)
 	return
 }

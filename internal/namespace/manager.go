@@ -4,7 +4,10 @@ import (
 	"context"
 
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.Tracer("spicedb/internal/namespace")
 
 // Manager is a subset of the datastore interface that can read (and possibly cache) namespaces.
 type Manager interface {
