@@ -8,6 +8,7 @@ require (
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
 	github.com/dgraph-io/ristretto v0.0.3
+	github.com/dlmiddlecote/sqlstats v1.0.2
 	github.com/envoyproxy/protoc-gen-validate v0.1.0
 	github.com/golang-migrate/migrate/v4 v4.14.1
 	github.com/golang/protobuf v1.4.3
@@ -21,6 +22,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.1
 	github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd
 	github.com/lib/pq v1.9.0
+	github.com/ngrok/sqlmw v0.0.0-20200129213757-d5c93a81bec6
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/prometheus/client_golang v1.9.0
@@ -28,10 +30,9 @@ require (
 	github.com/spf13/cobra v1.1.3
 	github.com/stretchr/testify v1.7.0
 	go.opentelemetry.io/otel v0.19.0
-	go.opentelemetry.io/otel/exporters/stdout v0.19.0
+	go.opentelemetry.io/otel/exporters/trace/jaeger v0.19.0
 	go.opentelemetry.io/otel/sdk v0.19.0
 	go.opentelemetry.io/otel/trace v0.19.0
-	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb // indirect
 	google.golang.org/grpc v1.36.0
 	google.golang.org/grpc/examples v0.0.0-20210316215007-967933baf52a // indirect
 	google.golang.org/protobuf v1.25.0

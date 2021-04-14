@@ -21,6 +21,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/trace/jaeger"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/semconv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -35,10 +40,6 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	health "github.com/authzed/spicedb/pkg/REDACTEDapi/healthcheck"
-
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/stdout"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 func main() {
@@ -260,7 +261,7 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 	case "none":
 		// Nothing.
 
-	case "stdout":
+	case "jaeger":
 		initTracer()
 	default:
 		return errors.New("unknown tracing")
@@ -271,16 +272,18 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 }
 
 func initTracer() {
-	var err error
-	exp, err := stdout.NewExporter(stdout.WithPrettyPrint())
+	exp, err := jaeger.NewRawExporter(jaeger.WithCollectorEndpoint("http://jaeger:14268/api/traces"))
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize stdout exporter")
+		log.Fatal().Err(err).Msg("failed to initialize jaeger exporter")
 		return
 	}
 	bsp := sdktrace.NewBatchSpanProcessor(exp)
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithSpanProcessor(bsp),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.ServiceNameKey.String("spicedb"))),
 	)
 	otel.SetTracerProvider(tp)
+
+	log.Info().Msg("jaeger tracing enabled")
 }
