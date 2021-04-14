@@ -10,9 +10,11 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/dlmiddlecote/sqlstats"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/ngrok/sqlmw"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -108,6 +110,9 @@ func NewPostgresDatastore(
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
+
+	collector := sqlstats.NewStatsCollector("spicedb", db)
+	err = prometheus.Register(collector)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
