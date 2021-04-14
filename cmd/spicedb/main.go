@@ -126,15 +126,14 @@ func rootRun(cmd *cobra.Command, args []string) {
 		log.Info().Msg("using postgres datastore")
 		ds, err = postgres.NewPostgresDatastore(
 			datastoreUrl,
-			&postgres.ConnectionProperties{
-				MaxOpenConns:    cobrautil.MustGetInt(cmd, "pg-max-conn-open"),
-				MaxIdleConns:    cobrautil.MustGetInt(cmd, "pg-max-conn-idle"),
-				ConnMaxLifetime: cobrautil.MustGetDuration(cmd, "pg-max-conn-lifetime"),
-				ConnMaxIdleTime: cobrautil.MustGetDuration(cmd, "pg-max-conn-idletime"),
-			},
-			0,
-			revisionFuzzingTimedelta,
-			gcWindow,
+			postgres.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "pg-max-conn-idletime")),
+			postgres.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "pg-max-conn-lifetime")),
+			postgres.MaxOpenConns(cobrautil.MustGetInt(cmd, "pg-max-conn-open")),
+			postgres.MaxIdleConns(cobrautil.MustGetInt(cmd, "pg-max-conn-idle")),
+			postgres.RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+			postgres.GCWindow(gcWindow),
+			postgres.EnablePrometheusStats(),
+			postgres.EnableTracing(),
 		)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to init datastore")

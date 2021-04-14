@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	dbsql "database/sql"
-	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -46,11 +45,11 @@ const (
 	// This is the largest positive integer possible in postgresql
 	liveDeletedTxnID = uint64(9223372036854775807)
 
-	defaultWatchBufferLength = 128
+	tracingDriverName = "postgres-tracing"
 )
 
 func init() {
-	sql.Register("postgres-mw", sqlmw.Driver(pq.Driver{}, new(traceInterceptor)))
+	sql.Register(tracingDriverName, sqlmw.Driver(pq.Driver{}, new(traceInterceptor)))
 }
 
 var (
@@ -76,59 +75,51 @@ type RelationTupleRow struct {
 	UsersetRelation  string
 }
 
-type ConnectionProperties struct {
-	ConnMaxIdleTime time.Duration
-	ConnMaxLifetime time.Duration
-	MaxIdleConns    int
-	MaxOpenConns    int
-}
-
 func NewPostgresDatastore(
 	url string,
-	cprops *ConnectionProperties,
-	watchBufferLength uint16,
-	revisionFuzzingTimedelta time.Duration,
-	gcWindow time.Duration,
+	options ...PostgresOption,
 ) (datastore.Datastore, error) {
-	if watchBufferLength == 0 {
-		watchBufferLength = defaultWatchBufferLength
-	}
-
-	if revisionFuzzingTimedelta > gcWindow {
-		return nil, fmt.Errorf(
-			errUnableToInstantiate,
-			errors.New("gc window must be large than fuzzing window"),
-		)
-	}
-
 	connectStr, err := pq.ParseURL(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	db, err := sqlx.Connect("postgres-mw", connectStr)
+	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	collector := sqlstats.NewStatsCollector("spicedb", db)
-	err = prometheus.Register(collector)
+	db, err := sqlx.Connect(config.driver, connectStr)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if cprops != nil {
-		db.SetMaxOpenConns(cprops.MaxOpenConns)
-		db.SetMaxIdleConns(cprops.MaxIdleConns)
-		db.SetConnMaxLifetime(cprops.ConnMaxLifetime)
-		db.SetConnMaxIdleTime(cprops.ConnMaxIdleTime)
+	if config.enablePrometheusStats {
+		collector := sqlstats.NewStatsCollector("spicedb", db)
+		err := prometheus.Register(collector)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+	}
+
+	if config.maxOpenConns != nil {
+		db.SetMaxOpenConns(*config.maxOpenConns)
+	}
+	if config.maxIdleConns != nil {
+		db.SetMaxIdleConns(*config.maxIdleConns)
+	}
+	if config.connMaxIdleTime != nil {
+		db.SetConnMaxIdleTime(*config.connMaxIdleTime)
+	}
+	if config.connMaxLifetime != nil {
+		db.SetConnMaxLifetime(*config.connMaxLifetime)
 	}
 
 	return &pgDatastore{
 		db:                       db,
-		watchBufferLength:        watchBufferLength,
-		revisionFuzzingTimedelta: revisionFuzzingTimedelta,
-		gcWindowInverted:         -1 * gcWindow,
+		watchBufferLength:        config.watchBufferLength,
+		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
+		gcWindowInverted:         -1 * config.gcWindow,
 	}, nil
 }
 
