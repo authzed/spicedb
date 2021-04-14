@@ -130,42 +130,24 @@ type pgDatastore struct {
 	gcWindowInverted         time.Duration
 }
 
-func (pgd *pgDatastore) beginDBTransaction(ctx context.Context) (*sqlx.Tx, error) {
-	_, span := tracer.Start(ctx, "beginDBTransaction")
-	defer span.End()
-	return pgd.db.BeginTxx(ctx, nil)
-}
-
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "SyncRevision")
 	defer span.End()
 
-	tx, err := pgd.beginDBTransaction(ctx)
-	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
-	}
-	defer tx.Rollback()
-
-	return loadRevision(ctx, tx)
+	return pgd.loadRevision(ctx)
 }
 
 func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "Revision")
 	defer span.End()
 
-	tx, err := pgd.beginDBTransaction(ctx)
-	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
-	}
-	defer tx.Rollback()
-
-	lower, upper, err := computeRevisionRange(ctx, tx, -1*pgd.revisionFuzzingTimedelta)
+	lower, upper, err := pgd.computeRevisionRange(ctx, -1*pgd.revisionFuzzingTimedelta)
 	if err != nil && err != dbsql.ErrNoRows {
 		return 0, fmt.Errorf(errRevision, err)
 	}
 
 	if err == dbsql.ErrNoRows {
-		return loadRevision(ctx, tx)
+		return pgd.loadRevision(ctx)
 	}
 
 	if upper-lower == 0 {
@@ -179,13 +161,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) erro
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
 
-	tx, err := pgd.beginDBTransaction(ctx)
-	if err != nil {
-		return fmt.Errorf(errCheckRevision, err)
-	}
-	defer tx.Rollback()
-
-	lower, upper, err := computeRevisionRange(ctx, tx, pgd.gcWindowInverted)
+	lower, upper, err := pgd.computeRevisionRange(ctx, pgd.gcWindowInverted)
 	if err == nil {
 		if revision >= lower && revision <= upper {
 			return nil
@@ -205,7 +181,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) erro
 	}
 
 	var highest uint64
-	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&highest)
+	err = pgd.db.QueryRowxContext(ctx, sql, args...).Scan(&highest)
 	if err == dbsql.ErrNoRows {
 		return datastore.ErrInvalidRevision
 	}
@@ -220,7 +196,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) erro
 	return nil
 }
 
-func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
+func (pgd *pgDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
@@ -230,7 +206,7 @@ func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
 	}
 
 	var revision uint64
-	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&revision)
+	err = pgd.db.QueryRowxContext(ctx, sql, args...).Scan(&revision)
 	if err != nil {
 		if err == dbsql.ErrNoRows {
 			return 0, nil
@@ -241,7 +217,7 @@ func loadRevision(ctx context.Context, tx *sqlx.Tx) (uint64, error) {
 	return revision, nil
 }
 
-func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.Duration) (uint64, uint64, error) {
+func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted time.Duration) (uint64, uint64, error) {
 	ctx, span := tracer.Start(ctx, "computeRevisionRange")
 	defer span.End()
 
@@ -251,7 +227,7 @@ func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.
 	}
 
 	var now time.Time
-	err = tx.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
+	err = pgd.db.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -266,7 +242,7 @@ func computeRevisionRange(ctx context.Context, tx *sqlx.Tx, windowInverted time.
 	}
 
 	var lower, upper dbsql.NullInt64
-	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&lower, &upper)
+	err = pgd.db.QueryRowxContext(ctx, sql, args...).Scan(&lower, &upper)
 	if err != nil {
 		return 0, 0, err
 	}

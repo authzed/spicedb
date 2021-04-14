@@ -74,28 +74,12 @@ func (ptq pgTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.Tup
 	return ptq
 }
 
-func (ptq pgTupleQuery) beginDBTransaction(ctx context.Context) (*sqlx.Tx, error) {
-	_, span := tracer.Start(ctx, "beginDBTransaction")
-	defer span.End()
-	return ptq.db.BeginTxx(ctx, nil)
-}
-
 func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	ctx, span := tracer.Start(ctx, "ExecuteTupleQuery")
 	defer span.End()
 
 	span.SetAttributes(namespaceNameKey.String(ptq.namespace))
 	span.SetAttributes(relationNameKey.String(ptq.relation))
-
-	tx, err := ptq.beginDBTransaction(ctx)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToQueryTuples, err)
-	}
-	defer tx.Rollback()
-
-	if err != nil {
-		return nil, err
-	}
 
 	span.AddEvent("DB transaction established")
 
@@ -106,7 +90,7 @@ func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, e
 
 	span.AddEvent("Query converted to SQL")
 
-	rows, err := tx.QueryxContext(ctx, sql, args...)
+	rows, err := ptq.db.QueryxContext(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}

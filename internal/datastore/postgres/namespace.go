@@ -53,7 +53,7 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 	}
 	span.AddEvent("Serialized namespace config")
 
-	tx, err := pgd.beginDBTransaction(ctx)
+	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
