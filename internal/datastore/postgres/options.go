@@ -18,7 +18,7 @@ type postgresOptions struct {
 
 	enablePrometheusStats bool
 
-	driver string
+	logger *tracingLogger
 }
 
 const (
@@ -33,7 +33,6 @@ func generateConfig(options []PostgresOption) (postgresOptions, error) {
 	computed := postgresOptions{
 		gcWindow:          24 * time.Hour,
 		watchBufferLength: defaultWatchBufferLength,
-		driver:            "postgres",
 	}
 
 	for _, option := range options {
@@ -108,6 +107,6 @@ func EnablePrometheusStats() PostgresOption {
 
 func EnableTracing() PostgresOption {
 	return func(po *postgresOptions) {
-		po.driver = tracingDriverName
+		po.logger = &tracingLogger{}
 	}
 }
