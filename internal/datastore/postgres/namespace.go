@@ -71,7 +71,7 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	_, err = tx.ExecContext(ctx, sql, args...)
+	_, err = tx.ExecContext(separateContextWithTracing(ctx), sql, args...)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToWriteConfig, err)
 	}
@@ -139,7 +139,7 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uin
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	_, err = tx.ExecContext(ctx, delSQL, delArgs...)
+	_, err = tx.ExecContext(separateContextWithTracing(ctx), delSQL, delArgs...)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -152,7 +152,7 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (uin
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	_, err = tx.ExecContext(ctx, deleteTupleSQL, deleteTupleArgs...)
+	_, err = tx.ExecContext(separateContextWithTracing(ctx), deleteTupleSQL, deleteTupleArgs...)
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -176,7 +176,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx) (*pb.Name
 
 	var config []byte
 	var version uint64
-	err = tx.QueryRowxContext(ctx, sql, args...).Scan(&config, &version)
+	err = tx.QueryRowxContext(separateContextWithTracing(ctx), sql, args...).Scan(&config, &version)
 	if err != nil {
 		if err == dbsql.ErrNoRows {
 			err = datastore.ErrNamespaceNotFound

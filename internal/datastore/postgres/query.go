@@ -90,7 +90,7 @@ func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, e
 
 	span.AddEvent("Query converted to SQL")
 
-	rows, err := ptq.db.QueryxContext(ctx, sql, args...)
+	rows, err := ptq.db.QueryxContext(separateContextWithTracing(ctx), sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
