@@ -83,33 +83,41 @@ func NewPostgresDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	dbpool, err := pgxpool.Connect(context.Background(), url)
+	// config must be initialized by ParseConfig
+	pgxConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	// TODO
+	if config.maxOpenConns != nil {
+		pgxConfig.MaxConns = int32(*config.maxOpenConns)
+	}
+	if config.minOpenConns != nil {
+		pgxConfig.MinConns = int32(*config.minOpenConns)
+	}
+	if config.connMaxIdleTime != nil {
+		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
+	}
+	if config.connMaxLifetime != nil {
+		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
+	}
+	if config.healthCheckPeriod != nil {
+		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
+	}
+
+	dbpool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
 	if config.enablePrometheusStats {
-		// collector := sqlstats.NewStatsCollector("spicedb", db)
+		// TODO
+		// collector := sqlstats.NewStatsCollector("spicedb", dbpool)
 		// err := prometheus.Register(collector)
 		// if err != nil {
 		// 	return nil, fmt.Errorf(errUnableToInstantiate, err)
 		// }
 	}
-
-	// TODO update config to match pgx config
-	// if config.maxOpenConns != nil {
-	// 	db.SetMaxOpenConns(*config.maxOpenConns)
-	// }
-	// if config.maxIdleConns != nil {
-	// 	db.SetMaxIdleConns(*config.maxIdleConns)
-	// }
-	// if config.connMaxIdleTime != nil {
-	// 	db.SetConnMaxIdleTime(*config.connMaxIdleTime)
-	// }
-	// if config.connMaxLifetime != nil {
-	// 	db.SetConnMaxLifetime(*config.connMaxLifetime)
-	// }
 
 	return &pgDatastore{
 		dbpool:                   dbpool,
@@ -245,6 +253,7 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 	if err != nil {
 		return 0, 0, err
 	}
+	now = now.UTC()
 
 	span.AddEvent("DB returned value for NOW()")
 

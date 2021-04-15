@@ -6,10 +6,11 @@ import (
 )
 
 type postgresOptions struct {
-	connMaxIdleTime *time.Duration
-	connMaxLifetime *time.Duration
-	maxIdleConns    *int
-	maxOpenConns    *int
+	connMaxIdleTime   *time.Duration
+	connMaxLifetime   *time.Duration
+	healthCheckPeriod *time.Duration
+	maxOpenConns      *int
+	minOpenConns      *int
 
 	watchBufferLength        uint16
 	revisionFuzzingTimedelta time.Duration
@@ -63,15 +64,21 @@ func ConnMaxLifetime(lifetime time.Duration) PostgresOption {
 	}
 }
 
-func MaxIdleConns(conns int) PostgresOption {
+func HealthCheckPeriod(period time.Duration) PostgresOption {
 	return func(po *postgresOptions) {
-		po.maxIdleConns = &conns
+		po.healthCheckPeriod = &period
 	}
 }
 
 func MaxOpenConns(conns int) PostgresOption {
 	return func(po *postgresOptions) {
 		po.maxOpenConns = &conns
+	}
+}
+
+func MinOpenConns(conns int) PostgresOption {
+	return func(po *postgresOptions) {
+		po.minOpenConns = &conns
 	}
 }
 
