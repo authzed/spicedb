@@ -2,12 +2,11 @@ package postgres
 
 import (
 	"context"
-	dbsql "database/sql"
 	"errors"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
@@ -43,6 +42,8 @@ var (
 )
 
 func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (datastore.Revision, error) {
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
 	defer span.End()
 
@@ -54,11 +55,11 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 	}
 	span.AddEvent("Serialized namespace config")
 
-	tx, err := pgd.db.BeginTxx(ctx, nil)
+	tx, err := pgd.dbpool.Begin(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 	span.AddEvent("DB transaction established")
 
 	newTxnID, err := createNewTransaction(ctx, tx)
@@ -85,13 +86,13 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	_, err = tx.ExecContext(datastore.SeparateContextWithTracing(ctx), sql, args...)
+	_, err = tx.Exec(ctx, sql, args...)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	span.AddEvent("Namespace config written")
 
-	err = tx.Commit()
+	err = tx.Commit(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
@@ -106,11 +107,11 @@ func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.N
 	))
 	defer span.End()
 
-	tx, err := pgd.db.BeginTxx(ctx, nil)
+	tx, err := pgd.dbpool.Begin(ctx)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
 	loaded, version, err := loadNamespace(ctx, nsName, tx)
 	switch {
@@ -124,11 +125,13 @@ func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.N
 }
 
 func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
-	tx, err := pgd.db.BeginTxx(ctx, nil)
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
+	tx, err := pgd.dbpool.Begin(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
 	_, version, err := loadNamespace(ctx, nsName, tx)
 	switch {
@@ -153,7 +156,7 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (dat
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	_, err = tx.ExecContext(datastore.SeparateContextWithTracing(ctx), delSQL, delArgs...)
+	_, err = tx.Exec(ctx, delSQL, delArgs...)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -166,14 +169,12 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (dat
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	_, err = tx.ExecContext(
-		datastore.SeparateContextWithTracing(ctx), deleteTupleSQL, deleteTupleArgs...,
-	)
+	_, err = tx.Exec(ctx, deleteTupleSQL, deleteTupleArgs...)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	err = tx.Commit()
+	err = tx.Commit(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -181,7 +182,9 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (dat
 	return version, nil
 }
 
-func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx) (*pb.NamespaceDefinition, datastore.Revision, error) {
+func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx) (*pb.NamespaceDefinition, datastore.Revision, error) {
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
@@ -192,11 +195,9 @@ func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx) (*pb.Name
 
 	var config []byte
 	var version datastore.Revision
-	err = tx.QueryRowxContext(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
-	).Scan(&config, &version)
+	err = tx.QueryRow(ctx, sql, args...).Scan(&config, &version)
 	if err != nil {
-		if err == dbsql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			err = datastore.NewNamespaceNotFoundErr(namespace)
 		}
 		return nil, datastore.NoRevision, err

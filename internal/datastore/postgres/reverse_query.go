@@ -22,7 +22,7 @@ func (pgd *pgDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, 
 func (pgd *pgDatastore) newBaseQuery(subjectNamespace, subjectRelation string, revision decimal.Decimal) pgReverseTupleQuery {
 	return pgReverseTupleQuery{
 		commonTupleQuery: commonTupleQuery{
-			db: pgd.db,
+			dbpool: pgd.dbpool,
 			query: queryTuples.
 				Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 				Where(sq.Or{

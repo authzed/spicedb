@@ -111,7 +111,7 @@ func (pgd *pgDatastore) loadChanges(
 		return
 	}
 
-	rows, err := pgd.db.QueryxContext(ctx, sql, args...)
+	rows, err := pgd.dbpool.Query(ctx, sql, args...)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			err = datastore.NewWatchCanceledErr()

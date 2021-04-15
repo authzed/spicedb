@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/ory/dockertest"
 	"github.com/stretchr/testify/require"
 
@@ -22,7 +22,7 @@ import (
 )
 
 type sqlTest struct {
-	db      *sqlx.DB
+	dbpool  *pgxpool.Pool
 	port    string
 	creds   string
 	cleanup func()
@@ -42,7 +42,7 @@ func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBuf
 
 	newDBName := "db" + uniquePortion
 
-	_, err = st.db.Exec("CREATE DATABASE " + newDBName)
+	_, err = st.dbpool.Exec(context.Background(), "CREATE DATABASE "+newDBName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create database: %w", err)
 	}
@@ -118,11 +118,11 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		log.Fatalf("Could not start resource: %s", err)
 	}
 
-	var db *sqlx.DB
+	var dbpool *pgxpool.Pool
 	port := resource.GetPort(fmt.Sprintf("%d/tcp", portNum))
 	if err = pool.Retry(func() error {
 		var err error
-		db, err = sqlx.Connect("postgres", fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", creds, port))
+		dbpool, err = pgxpool.Connect(context.Background(), fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", creds, port))
 		if err != nil {
 			return err
 		}
@@ -138,5 +138,5 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		}
 	}
 
-	return &sqlTest{db: db, port: port, cleanup: cleanup, creds: creds}
+	return &sqlTest{dbpool: dbpool, port: port, cleanup: cleanup, creds: creds}
 }
