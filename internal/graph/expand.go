@@ -14,6 +14,13 @@ const (
 	errExpandError = "error performing expand: %w"
 )
 
+type startInclusion int
+
+const (
+	includeStart startInclusion = iota
+	excludeStart
+)
+
 func newConcurrentExpander(d Dispatcher, ds datastore.GraphDatastore) expander {
 	return &concurrentExpander{d: d, ds: ds}
 }
@@ -26,7 +33,7 @@ type concurrentExpander struct {
 func (ce *concurrentExpander) expand(ctx context.Context, req ExpandRequest, relation *pb.Relation) ReduceableExpandFunc {
 	log.Trace().Object("expand", req).Send()
 	if relation.UsersetRewrite == nil {
-		return ce.expandDirect(ctx, req, true)
+		return ce.expandDirect(ctx, req, includeStart)
 	}
 
 	return ce.expandUsersetRewrite(ctx, req, relation.UsersetRewrite)
@@ -35,7 +42,7 @@ func (ce *concurrentExpander) expand(ctx context.Context, req ExpandRequest, rel
 func (ce *concurrentExpander) expandDirect(
 	ctx context.Context,
 	req ExpandRequest,
-	includeStart bool,
+	startBehavior startInclusion,
 ) ReduceableExpandFunc {
 
 	log.Trace().Object("direct", req).Send()
@@ -65,7 +72,7 @@ func (ce *concurrentExpander) expandDirect(
 
 		// In some cases (such as _this{} expansion) including the start point is misleading.
 		var start *pb.ObjectAndRelation
-		if includeStart {
+		if startBehavior == includeStart {
 			start = req.Start
 		}
 
@@ -104,7 +111,7 @@ func (ce *concurrentExpander) expandSetOperation(ctx context.Context, req Expand
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *pb.SetOperation_Child_XThis:
-			requests = append(requests, ce.expandDirect(ctx, req, false))
+			requests = append(requests, ce.expandDirect(ctx, req, excludeStart))
 		case *pb.SetOperation_Child_ComputedUserset:
 			requests = append(requests, ce.expandComputedUserset(req, child.ComputedUserset, nil))
 		case *pb.SetOperation_Child_UsersetRewrite:
