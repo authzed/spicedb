@@ -14,6 +14,13 @@ const (
 	errExpandError = "error performing expand: %w"
 )
 
+type startInclusion int
+
+const (
+	includeStart startInclusion = iota
+	excludeStart
+)
+
 func newConcurrentExpander(d Dispatcher, ds datastore.GraphDatastore) expander {
 	return &concurrentExpander{d: d, ds: ds}
 }
@@ -26,13 +33,18 @@ type concurrentExpander struct {
 func (ce *concurrentExpander) expand(ctx context.Context, req ExpandRequest, relation *pb.Relation) ReduceableExpandFunc {
 	log.Trace().Object("expand", req).Send()
 	if relation.UsersetRewrite == nil {
-		return ce.expandDirect(ctx, req)
+		return ce.expandDirect(ctx, req, includeStart)
 	}
 
 	return ce.expandUsersetRewrite(ctx, req, relation.UsersetRewrite)
 }
 
-func (ce *concurrentExpander) expandDirect(ctx context.Context, req ExpandRequest) ReduceableExpandFunc {
+func (ce *concurrentExpander) expandDirect(
+	ctx context.Context,
+	req ExpandRequest,
+	startBehavior startInclusion,
+) ReduceableExpandFunc {
+
 	log.Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		it, err := ce.ds.QueryTuples(req.Start.Namespace, req.AtRevision).
@@ -57,6 +69,13 @@ func (ce *concurrentExpander) expandDirect(ctx context.Context, req ExpandReques
 			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, it.Err())}
 			return
 		}
+
+		// In some cases (such as _this{} expansion) including the start point is misleading.
+		var start *pb.ObjectAndRelation
+		if startBehavior == includeStart {
+			start = req.Start
+		}
+
 		resultChan <- ExpandResult{
 			Tree: &pb.RelationTupleTreeNode{
 				NodeType: &pb.RelationTupleTreeNode_LeafNode{
@@ -64,7 +83,7 @@ func (ce *concurrentExpander) expandDirect(ctx context.Context, req ExpandReques
 						Users: foundUsersets,
 					},
 				},
-				Expanded: req.Start,
+				Expanded: start,
 			},
 			Err: nil,
 		}
@@ -92,7 +111,7 @@ func (ce *concurrentExpander) expandSetOperation(ctx context.Context, req Expand
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *pb.SetOperation_Child_XThis:
-			requests = append(requests, ce.expandDirect(ctx, req))
+			requests = append(requests, ce.expandDirect(ctx, req, excludeStart))
 		case *pb.SetOperation_Child_ComputedUserset:
 			requests = append(requests, ce.expandComputedUserset(req, child.ComputedUserset, nil))
 		case *pb.SetOperation_Child_UsersetRewrite:

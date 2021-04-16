@@ -22,15 +22,17 @@ import (
 )
 
 var (
+	_this *pb.ObjectAndRelation
+
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
 		tuple.User(ONR("user", "owner", Ellipsis)),
 	)
 	companyEditor = graph.Union(ONR("folder", "company", "editor"),
-		graph.Leaf(ONR("folder", "company", "editor")),
+		graph.Leaf(_this),
 		companyOwner,
 	)
 	companyViewer = graph.Union(ONR("folder", "company", "viewer"),
-		graph.Leaf(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
 			tuple.User(ONR("folder", "auditors", "viewer")),
 			tuple.User(ONR("user", "legal", "...")),
 		),
@@ -41,29 +43,29 @@ var (
 		tuple.User(ONR("user", "product_manager", "...")),
 	)
 	docEditor = graph.Union(ONR("document", "masterplan", "editor"),
-		graph.Leaf(ONR("document", "masterplan", "editor")),
+		graph.Leaf(_this),
 		docOwner,
 	)
 	docViewer = graph.Union(ONR("document", "masterplan", "viewer"),
-		graph.Leaf(ONR("document", "masterplan", "viewer"),
+		graph.Leaf(_this,
 			tuple.User(ONR("user", "eng_lead", "...")),
 		),
 		docEditor,
 		graph.Union(ONR("document", "masterplan", "viewer"),
 			graph.Union(ONR("folder", "plans", "viewer"),
-				graph.Leaf(ONR("folder", "plans", "viewer"),
+				graph.Leaf(_this,
 					tuple.User(ONR("user", "chief_financial_officer", "...")),
 				),
 				graph.Union(ONR("folder", "plans", "editor"),
-					graph.Leaf(ONR("folder", "plans", "editor")),
+					graph.Leaf(_this),
 					graph.Leaf(ONR("folder", "plans", "owner")),
 				),
 				graph.Union(ONR("folder", "plans", "viewer")),
 			),
 			graph.Union(ONR("folder", "strategy", "viewer"),
-				graph.Leaf(ONR("folder", "strategy", "viewer")),
+				graph.Leaf(_this),
 				graph.Union(ONR("folder", "strategy", "editor"),
-					graph.Leaf(ONR("folder", "strategy", "editor")),
+					graph.Leaf(_this),
 					graph.Leaf(ONR("folder", "strategy", "owner"),
 						tuple.User(ONR("user", "vp_product", "...")),
 					),
