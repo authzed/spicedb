@@ -118,8 +118,3 @@ type expander interface {
 func (er ExpandRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("expand", tuple.StringONR(er.Start))
 }
-
-// MarshalZerologObject implements zerolog object marshalling.
-func (er ExpandResult) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("fun", "times")
-}

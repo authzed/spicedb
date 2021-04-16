@@ -235,6 +235,22 @@ func ExpandDifference(ctx context.Context, start *pb.ObjectAndRelation, requests
 	return expandSetOperation(ctx, start, requests, pb.SetOperationUserset_EXCLUSION)
 }
 
+// ExpandOne waits for exactly one response
+func ExpandOne(ctx context.Context, request ReduceableExpandFunc) ExpandResult {
+	resultChan := make(chan ExpandResult, 1)
+	go request(ctx, resultChan)
+
+	select {
+	case result := <-resultChan:
+		if result.Err != nil {
+			return ExpandResult{Tree: nil, Err: result.Err}
+		}
+		return result
+	case <-ctx.Done():
+		return ExpandResult{Tree: nil, Err: ErrRequestCanceled}
+	}
+}
+
 var errAlwaysFailExpand = errors.New("always fail")
 
 func alwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {

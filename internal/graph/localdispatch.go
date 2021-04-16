@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const errDispatch = "error dispatching request: %w"
@@ -98,7 +99,7 @@ func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) Expand
 	expand := newConcurrentExpander(ld, ld.ds)
 
 	asyncExpand := expand.expand(ctx, req, relation)
-	return ExpandAny(ctx, req.Start, []ReduceableExpandFunc{asyncExpand})
+	return ExpandOne(ctx, asyncExpand)
 }
 
 func rewriteError(original error) error {
