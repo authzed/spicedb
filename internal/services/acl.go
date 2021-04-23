@@ -81,9 +81,6 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 }
 
 func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadResponse, error) {
-	ctx, span := tracer.Start(ctx, "Read")
-	defer span.End()
-
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -209,9 +206,6 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 }
 
 func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.CheckResponse, error) {
-	ctx, span := tracer.Start(ctx, "Check")
-	defer span.End()
-
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -226,9 +220,6 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 }
 
 func (as *aclServer) ContentChangeCheck(ctx context.Context, req *api.ContentChangeCheckRequest) (*api.CheckResponse, error) {
-	ctx, span := tracer.Start(ctx, "ContentChangeCheck")
-	defer span.End()
-
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -287,9 +278,6 @@ func (as *aclServer) commonCheck(
 }
 
 func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.ExpandResponse, error) {
-	ctx, span := tracer.Start(ctx, "Expand")
-	defer span.End()
-
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
