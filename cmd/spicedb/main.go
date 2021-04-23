@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -77,6 +78,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	var sharedOptions []grpc.ServerOption
 	sharedOptions = append(sharedOptions, grpcmw.WithUnaryServerChain(
+		otelgrpc.UnaryServerInterceptor(),
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.UnaryServerInterceptor,
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
