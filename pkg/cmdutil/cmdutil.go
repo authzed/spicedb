@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/trace/jaeger"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/semconv"
@@ -71,11 +72,11 @@ func initJaegerTracer(endpoint, serviceName string) {
 		log.Fatal().Err(err).Msg("failed to initialize jaeger exporter")
 	}
 
-	bsp := sdktrace.NewBatchSpanProcessor(exp)
-	tp := sdktrace.NewTracerProvider(
+	otel.SetTracerProvider(sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithSpanProcessor(bsp),
+		sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exp)),
 		sdktrace.WithResource(resource.NewWithAttributes(semconv.ServiceNameKey.String(serviceName))),
-	)
-	otel.SetTracerProvider(tp)
+	))
+
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 }
