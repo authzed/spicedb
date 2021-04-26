@@ -62,10 +62,8 @@ func main() {
 	rootCmd.Flags().Duration("pg-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the postgres connection pool")
 	rootCmd.Flags().Duration("pg-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the postgres connection pool")
 
-	rootCmd.PersistentFlags().String("log-level", "info", "verbosity of logging (trace, debug, info, warn, error, fatal, panic)")
-	rootCmd.PersistentFlags().String("tracing", "none", "destination for tracing (none, jaeger)")
-	rootCmd.PersistentFlags().String("tracing-collector-endpoint", "http://jaeger:14268/api/traces", "endpoint to which to send tracing data")
-	rootCmd.PersistentFlags().String("tracing-service-name", "spicedb", "service name to use when sending trace data")
+	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
+	cmdutil.RegisterTracingPersistentFlags(rootCmd)
 
 	rootCmd.Execute()
 }
