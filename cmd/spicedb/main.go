@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -19,14 +17,9 @@ import (
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/trace/jaeger"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/semconv"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -41,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	health "github.com/authzed/spicedb/pkg/REDACTEDapi/healthcheck"
+	"github.com/authzed/spicedb/pkg/cmdutil"
 )
 
 func main() {
@@ -68,10 +62,8 @@ func main() {
 	rootCmd.Flags().Duration("pg-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the postgres connection pool")
 	rootCmd.Flags().Duration("pg-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the postgres connection pool")
 
-	rootCmd.PersistentFlags().String("log-level", "info", "verbosity of logging (trace, debug, info, warn, error, fatal, panic)")
-	rootCmd.PersistentFlags().String("tracing", "none", "destination for tracing (none, jaeger)")
-	rootCmd.PersistentFlags().String("tracing-collector-endpoint", "http://jaeger:14268/api/traces", "endpoint to which to send tracing data")
-	rootCmd.PersistentFlags().String("tracing-service-name", "spicedb", "service name to use when sending trace data")
+	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
+	cmdutil.RegisterTracingPersistentFlags(rootCmd)
 
 	rootCmd.Execute()
 }
@@ -84,6 +76,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	var sharedOptions []grpc.ServerOption
 	sharedOptions = append(sharedOptions, grpcmw.WithUnaryServerChain(
+		otelgrpc.UnaryServerInterceptor(),
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.UnaryServerInterceptor,
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
@@ -237,57 +230,8 @@ func persistentPreRunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	level := strings.ToLower(cobrautil.MustGetString(cmd, "log-level"))
-	switch level {
-	case "trace":
-		zerolog.SetGlobalLevel(zerolog.TraceLevel)
-	case "debug":
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	case "info":
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	case "warn":
-		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	case "error":
-		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	case "fatal":
-		zerolog.SetGlobalLevel(zerolog.FatalLevel)
-	case "panic":
-		zerolog.SetGlobalLevel(zerolog.PanicLevel)
-	default:
-		return errors.New("unknown log level")
-	}
-	log.Info().Str("new level", level).Msg("set log level")
-
-	tracing := strings.ToLower(cobrautil.MustGetString(cmd, "tracing"))
-	switch tracing {
-	case "none":
-		// Nothing.
-	case "jaeger":
-		initJaegerTracer(
-			cobrautil.MustGetString(cmd, "tracing-collector-endpoint"),
-			cobrautil.MustGetString(cmd, "tracing-service-name"),
-		)
-	default:
-		return fmt.Errorf("unknown tracing type: %s", tracing)
-	}
-	log.Info().Str("new tracing", tracing).Msg("set tracing")
+	cmdutil.LoggingPreRun(cmd, args)
+	cmdutil.TracingPreRun(cmd, args)
 
 	return nil
-}
-
-func initJaegerTracer(endpoint, serviceName string) {
-	exp, err := jaeger.NewRawExporter(jaeger.WithCollectorEndpoint(endpoint))
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize jaeger exporter")
-		return
-	}
-	bsp := sdktrace.NewBatchSpanProcessor(exp)
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithSpanProcessor(bsp),
-		sdktrace.WithResource(resource.NewWithAttributes(semconv.ServiceNameKey.String(serviceName))),
-	)
-	otel.SetTracerProvider(tp)
-
-	log.Info().Msg("jaeger tracing enabled")
 }
