@@ -34,7 +34,9 @@ require (
 	go.opentelemetry.io/otel/exporters/trace/jaeger v0.19.0
 	go.opentelemetry.io/otel/sdk v0.19.0
 	go.opentelemetry.io/otel/trace v0.19.0
+	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b
 	google.golang.org/grpc v1.36.0
 	google.golang.org/grpc/examples v0.0.0-20210316215007-967933baf52a // indirect
 	google.golang.org/protobuf v1.25.0
+	gopkg.in/yaml.v2 v2.4.0
 )
