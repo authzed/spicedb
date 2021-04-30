@@ -15,36 +15,56 @@ var UserNS = ns.Namespace("user")
 
 var DocumentNS = ns.Namespace(
 	"document",
-	ns.Relation("owner", nil),
-	ns.Relation("editor", ns.Union(
-		ns.This(),
-		ns.ComputedUserset("owner"),
-	)),
-	ns.Relation("parent", nil),
+	ns.Relation("owner",
+		nil,
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("editor",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("owner"),
+		),
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("parent", nil, ns.RelationReference("folder", "...")),
 	ns.Relation("lock", nil),
-	ns.Relation("viewer", ns.Union(
-		ns.This(),
-		ns.ComputedUserset("editor"),
-		ns.TupleToUserset("parent", "viewer"),
-	)),
+	ns.Relation("viewer",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("editor"),
+			ns.TupleToUserset("parent", "viewer"),
+		),
+		ns.RelationReference("user", "..."),
+	),
 )
 
 var FolderNS = ns.Namespace(
 	"folder",
-	ns.Relation("owner", nil),
-	ns.Relation("parent", nil),
-	ns.Relation("editor", ns.Union(
-		ns.This(),
-		ns.ComputedUserset("owner"),
-	)),
-	ns.Relation("viewer", ns.Union(
-		ns.This(),
-		ns.ComputedUserset("editor"),
-		ns.TupleToUserset("parent", "viewer"),
-	)),
+	ns.Relation("owner",
+		nil,
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("parent", nil, ns.RelationReference("folder", "...")),
+	ns.Relation("editor",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("owner"),
+		),
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("viewer",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("editor"),
+			ns.TupleToUserset("parent", "viewer"),
+		),
+		ns.RelationReference("user", "..."),
+		ns.RelationReference("folder", "viewer"),
+	),
 )
 
 var StandardTuples = []string{
+	"document:companyplan#parent@folder:company#...",
 	"document:masterplan#parent@folder:strategy#...",
 	"folder:strategy#parent@folder:company#...",
 	"folder:company#owner@user:owner#...",
@@ -64,7 +84,7 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 	ctx := context.Background()
 
 	var lastRevision uint64
-	for _, namespace := range []*pb.NamespaceDefinition{UserNS, DocumentNS, FolderNS} {
+	for _, namespace := range []*pb.NamespaceDefinition{UserNS, FolderNS, DocumentNS} {
 		var err error
 		lastRevision, err = ds.WriteNamespace(ctx, namespace)
 		require.NoError(err)

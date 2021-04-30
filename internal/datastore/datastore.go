@@ -64,9 +64,18 @@ type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
 	QueryTuples(namespace string, revision uint64) TupleQuery
 
+	// ReverseQueryTuples creates a builder for reading tuples from subject onward from the datastore.
+	ReverseQueryTuples(namespaceName string, relationName string, userset *pb.ObjectAndRelation, revision uint64) ReverseTupleQuery
+
 	// CheckRevision checks the specified revision to make sure it's valid and hasn't been
 	// garbage collected.
 	CheckRevision(ctx context.Context, revision uint64) error
+}
+
+// ReverseTupleQuery is a builder for constructing reverse tuple queries.
+type ReverseTupleQuery interface {
+	// Execute runs the tuple query and returns a result iterator.
+	Execute(ctx context.Context) (TupleIterator, error)
 }
 
 // TupleQuery is a builder for constructing tuple queries.

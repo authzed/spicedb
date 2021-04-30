@@ -59,6 +59,22 @@ func (onr stringableOnr) String() string {
 	return tuple.StringONR(onr.ObjectAndRelation)
 }
 
+type stringableRelRef struct {
+	*pb.RelationReference
+}
+
+func (rr stringableRelRef) String() string {
+	return fmt.Sprintf("%s::%s", rr.Namespace, rr.Relation)
+}
+
+type stringableTuple struct {
+	*pb.RelationTuple
+}
+
+func (t stringableTuple) String() string {
+	return tuple.String(t.RelationTuple)
+}
+
 func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
 	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
 		attribute.Stringer("start", stringableOnr{req.Start}),
@@ -100,6 +116,43 @@ func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) Expand
 
 	asyncExpand := expand.expand(ctx, req, relation)
 	return ExpandOne(ctx, asyncExpand)
+}
+
+func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) LookupResult {
+	ctx, span := tracer.Start(ctx, "DispatchLookup", trace.WithAttributes(
+		attribute.Stringer("start", stringableOnr{req.Start}),
+		attribute.Stringer("targetrelation", stringableRelRef{req.TargetRelation}),
+		attribute.Int64("limit", int64(req.Limit)),
+	))
+	defer span.End()
+
+	if req.DepthRemaining < 1 {
+		return LookupResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
+	}
+
+	if req.Limit <= 0 {
+		return LookupResult{
+			FoundObjects: []*pb.ObjectAndRelation{},
+		}
+	}
+
+	_, typeSystem, _, err := ld.nsm.ReadNamespaceAndTypes(ctx, req.TargetRelation.Namespace)
+	if err != nil {
+		return LookupResult{
+			Err: err,
+		}
+	}
+
+	reachabilityGraph, err := typeSystem.RelationReachability(ctx, req.TargetRelation.Relation)
+	if err != nil {
+		return LookupResult{
+			Err: err,
+		}
+	}
+
+	lookup := newConcurrentLookup(ld, ld.ds, reachabilityGraph)
+	asyncLookup := lookup.lookup(ctx, req)
+	return LookupOne(ctx, asyncLookup)
 }
 
 func rewriteError(original error) error {

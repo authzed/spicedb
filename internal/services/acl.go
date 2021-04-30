@@ -28,7 +28,8 @@ type aclServer struct {
 }
 
 const (
-	maxUInt16 = int(^uint16(0))
+	maxUInt16          = int(^uint16(0))
+	lookupDefaultLimit = 100
 
 	depthRemainingHeader = "authzed-depth-remaining"
 )
@@ -67,6 +68,23 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 			true, // Allow Ellipsis
 		); err != nil {
 			return nil, rewriteACLError(err)
+		}
+
+		_, ts, _, terr := as.nsm.ReadNamespaceAndTypes(ctx, mutation.Tuple.ObjectAndRelation.Namespace)
+		if terr != nil {
+			return nil, rewriteACLError(terr)
+		}
+
+		isAllowed, terr := ts.IsAllowedDirectRelation(
+			mutation.Tuple.ObjectAndRelation.Relation,
+			mutation.Tuple.User.GetUserset().Namespace,
+			mutation.Tuple.User.GetUserset().Relation)
+		if terr != nil {
+			return nil, rewriteACLError(terr)
+		}
+
+		if isAllowed == namespace.DirectRelationNotValid {
+			return nil, status.Errorf(codes.InvalidArgument, "Relation %v is not allowed on the right hand side of %v", mutation.Tuple.User, mutation.Tuple.ObjectAndRelation)
 		}
 	}
 
@@ -283,7 +301,7 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
 	}
 
-	err = as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false)
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, true)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
@@ -310,6 +328,61 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 	return &api.ExpandResponse{
 		TreeNode: resp.Tree,
 		Revision: zookie.NewFromRevision(atRevision),
+	}, nil
+}
+
+func min(a, b uint64) uint64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.LookupResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, false)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
+	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
+	depth, err := as.calculateRequestDepth(ctx)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	resp := as.dispatch.Lookup(ctx, graph.LookupRequest{
+		Start:          req.User,
+		TargetRelation: req.ObjectRelation,
+		Limit:          min(uint64(req.Limit), lookupDefaultLimit),
+		AtRevision:     atRevision,
+		DepthRemaining: depth,
+	})
+	if resp.Err != nil {
+		return nil, rewriteACLError(resp.Err)
+	}
+
+	resolvedObjectIDs := []string{}
+	for _, found := range resp.FoundObjects {
+		resolvedObjectIDs = append(resolvedObjectIDs, found.ObjectId)
+	}
+
+	return &api.LookupResponse{
+		Revision:          zookie.NewFromRevision(atRevision),
+		ResolvedObjectIds: resolvedObjectIDs,
 	}, nil
 }
 

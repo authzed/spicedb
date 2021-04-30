@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,7 +30,7 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
 )
 
 // Validate checks the field values on ReadConfigRequest with the rules defined
@@ -223,21 +223,33 @@ func (m *WriteConfigRequest) Validate() error {
 		return nil
 	}
 
-	if m.GetConfig() == nil {
+	if len(m.GetConfigs()) < 1 {
 		return WriteConfigRequestValidationError{
-			field:  "Config",
-			reason: "value is required",
+			field:  "Configs",
+			reason: "value must contain at least 1 item(s)",
 		}
 	}
 
-	if v, ok := interface{}(m.GetConfig()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
+	for idx, item := range m.GetConfigs() {
+		_, _ = idx, item
+
+		if item == nil {
 			return WriteConfigRequestValidationError{
-				field:  "Config",
-				reason: "embedded message failed validation",
-				cause:  err,
+				field:  fmt.Sprintf("Configs[%v]", idx),
+				reason: "value is required",
 			}
 		}
+
+		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WriteConfigRequestValidationError{
+					field:  fmt.Sprintf("Configs[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	}
 
 	return nil

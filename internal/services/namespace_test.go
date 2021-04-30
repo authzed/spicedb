@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -10,6 +11,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
@@ -20,7 +22,10 @@ func TestNamespace(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
-	srv := NewNamespaceServer(ds)
+	nsm, err := namespace.NewCachingNamespaceManager(ds, 0*time.Second, nil)
+	require.NoError(err)
+
+	srv := NewNamespaceServer(ds, nsm)
 
 	_, err = srv.ReadConfig(context.Background(), &api.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
@@ -28,7 +33,7 @@ func TestNamespace(t *testing.T) {
 	requireGRPCStatus(codes.NotFound, err, require)
 
 	_, err = srv.WriteConfig(context.Background(), &api.WriteConfigRequest{
-		Config: testfixtures.DocumentNS,
+		Configs: []*api.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS},
 	})
 	require.NoError(err)
 

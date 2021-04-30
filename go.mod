@@ -23,6 +23,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-memdb v1.3.2
 	github.com/jmoiron/sqlx v1.3.1
+	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd
 	github.com/lib/pq v1.9.0
 	github.com/ngrok/sqlmw v0.0.0-20200129213757-d5c93a81bec6

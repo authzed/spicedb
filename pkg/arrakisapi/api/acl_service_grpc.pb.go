@@ -11,6 +11,7 @@ import (
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
 // ACLServiceClient is the client API for ACLService service.
@@ -22,6 +23,7 @@ type ACLServiceClient interface {
 	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
 	ContentChangeCheck(ctx context.Context, in *ContentChangeCheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
 	Expand(ctx context.Context, in *ExpandRequest, opts ...grpc.CallOption) (*ExpandResponse, error)
+	Lookup(ctx context.Context, in *LookupRequest, opts ...grpc.CallOption) (*LookupResponse, error)
 }
 
 type aCLServiceClient struct {
@@ -77,6 +79,15 @@ func (c *aCLServiceClient) Expand(ctx context.Context, in *ExpandRequest, opts .
 	return out, nil
 }
 
+func (c *aCLServiceClient) Lookup(ctx context.Context, in *LookupRequest, opts ...grpc.CallOption) (*LookupResponse, error) {
+	out := new(LookupResponse)
+	err := c.cc.Invoke(ctx, "/ACLService/Lookup", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ACLServiceServer is the server API for ACLService service.
 // All implementations must embed UnimplementedACLServiceServer
 // for forward compatibility
@@ -86,6 +97,7 @@ type ACLServiceServer interface {
 	Check(context.Context, *CheckRequest) (*CheckResponse, error)
 	ContentChangeCheck(context.Context, *ContentChangeCheckRequest) (*CheckResponse, error)
 	Expand(context.Context, *ExpandRequest) (*ExpandResponse, error)
+	Lookup(context.Context, *LookupRequest) (*LookupResponse, error)
 	mustEmbedUnimplementedACLServiceServer()
 }
 
@@ -108,6 +120,9 @@ func (UnimplementedACLServiceServer) ContentChangeCheck(context.Context, *Conten
 func (UnimplementedACLServiceServer) Expand(context.Context, *ExpandRequest) (*ExpandResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Expand not implemented")
 }
+func (UnimplementedACLServiceServer) Lookup(context.Context, *LookupRequest) (*LookupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Lookup not implemented")
+}
 func (UnimplementedACLServiceServer) mustEmbedUnimplementedACLServiceServer() {}
 
 // UnsafeACLServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -118,7 +133,7 @@ type UnsafeACLServiceServer interface {
 }
 
 func RegisterACLServiceServer(s grpc.ServiceRegistrar, srv ACLServiceServer) {
-	s.RegisterService(&_ACLService_serviceDesc, srv)
+	s.RegisterService(&ACLService_ServiceDesc, srv)
 }
 
 func _ACLService_Read_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -211,7 +226,28 @@ func _ACLService_Expand_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
-var _ACLService_serviceDesc = grpc.ServiceDesc{
+func _ACLService_Lookup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LookupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ACLServiceServer).Lookup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/ACLService/Lookup",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ACLServiceServer).Lookup(ctx, req.(*LookupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ACLService_ServiceDesc is the grpc.ServiceDesc for ACLService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ACLService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "ACLService",
 	HandlerType: (*ACLServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
@@ -234,6 +270,10 @@ var _ACLService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Expand",
 			Handler:    _ACLService_Expand_Handler,
+		},
+		{
+			MethodName: "Lookup",
+			Handler:    _ACLService_Lookup_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

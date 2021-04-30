@@ -26,6 +26,7 @@ const (
 	indexNamespaceAndObjectID = "namespaceAndObjectID"
 	indexNamespaceAndRelation = "namespaceAndRelation"
 	indexNamespaceAndUserset  = "namespaceAndUserset"
+	indexRelationAndUserset   = "relationAndUserset"
 
 	defaultWatchBufferLength = 128
 
@@ -166,6 +167,19 @@ var schema = &memdb.DBSchema{
 							&memdb.StringFieldIndex{Field: "usersetNamespace"},
 							&memdb.StringFieldIndex{Field: "usersetObjectID"},
 							&memdb.StringFieldIndex{Field: "usersetRelation"},
+						},
+					},
+				},
+				indexRelationAndUserset: {
+					Name:   indexRelationAndUserset,
+					Unique: false,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "usersetNamespace"},
+							&memdb.StringFieldIndex{Field: "usersetObjectID"},
+							&memdb.StringFieldIndex{Field: "usersetRelation"},
+							&memdb.StringFieldIndex{Field: "namespace"},
+							&memdb.StringFieldIndex{Field: "relation"},
 						},
 					},
 				},

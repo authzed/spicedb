@@ -54,6 +54,21 @@ type ExpandResult struct {
 	Err  error
 }
 
+// LookupRequest contains the data for a single lookup request.
+type LookupRequest struct {
+	Start          *pb.ObjectAndRelation
+	TargetRelation *pb.RelationReference
+	Limit          uint64
+	AtRevision     uint64
+	DepthRemaining uint16
+}
+
+// LookupResult is the data that is returned by a single lookup or sub-lookup.
+type LookupResult struct {
+	FoundObjects []*pb.ObjectAndRelation
+	Err          error
+}
+
 // Dispatcher interface describes a method for passing subchecks off to additional machines.
 type Dispatcher interface {
 	// Check submits a single check request and returns its result.
@@ -61,6 +76,9 @@ type Dispatcher interface {
 
 	// Expand submits a single expand request and returns its result.
 	Expand(ctx context.Context, req ExpandRequest) ExpandResult
+
+	// Lookup submits a single lookup request and returns its result.
+	Lookup(ctx context.Context, req LookupRequest) LookupResult
 }
 
 // ReduceableCheckFunc is a function that can be bound to a execution context.
@@ -117,4 +135,16 @@ type expander interface {
 // MarshalZerologObject implements zerolog object marshalling.
 func (er ExpandRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("expand", tuple.StringONR(er.Start))
+}
+
+// ReduceableLookupFunc is a function that can be bound to a execution context.
+type ReduceableLookupFunc func(ctx context.Context, resultChan chan<- LookupResult)
+
+type lookupHandler interface {
+	lookup(ctx context.Context, req LookupRequest) ReduceableLookupFunc
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (lr LookupRequest) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("lookup", tuple.StringONR(lr.Start))
 }

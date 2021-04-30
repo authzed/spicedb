@@ -117,7 +117,7 @@ func (tbs *tokenBasedServer) modelForContext(ctx context.Context) model {
 
 func (tbs *tokenBasedServer) nsServer(ctx context.Context) api.NamespaceServiceServer {
 	model := tbs.modelForContext(ctx)
-	return services.NewNamespaceServer(model.datastore)
+	return services.NewNamespaceServer(model.datastore, model.namespaceManager)
 }
 
 func (tbs *tokenBasedServer) WriteConfig(ctx context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {

@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,7 +30,7 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
 )
 
 // Validate checks the field values on RelationTuple with the rules defined in
@@ -246,6 +246,105 @@ var _ObjectAndRelation_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{
 var _ObjectAndRelation_ObjectId_Pattern = regexp.MustCompile("^[a-zA-Z0-9/_-]{2,64}$")
 
 var _ObjectAndRelation_Relation_Pattern = regexp.MustCompile("^(\\.\\.\\.|[a-z][a-z0-9_]{2,62}[a-z0-9])$")
+
+// Validate checks the field values on RelationReference with the rules defined
+// in the proto definition for this message. If any rules are violated, an
+// error is returned.
+func (m *RelationReference) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	if len(m.GetNamespace()) > 128 {
+		return RelationReferenceValidationError{
+			field:  "Namespace",
+			reason: "value length must be at most 128 bytes",
+		}
+	}
+
+	if !_RelationReference_Namespace_Pattern.MatchString(m.GetNamespace()) {
+		return RelationReferenceValidationError{
+			field:  "Namespace",
+			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
+		}
+	}
+
+	if len(m.GetRelation()) > 64 {
+		return RelationReferenceValidationError{
+			field:  "Relation",
+			reason: "value length must be at most 64 bytes",
+		}
+	}
+
+	if !_RelationReference_Relation_Pattern.MatchString(m.GetRelation()) {
+		return RelationReferenceValidationError{
+			field:  "Relation",
+			reason: "value does not match regex pattern \"^(\\\\.\\\\.\\\\.|[a-z][a-z0-9_]{2,62}[a-z0-9])$\"",
+		}
+	}
+
+	return nil
+}
+
+// RelationReferenceValidationError is the validation error returned by
+// RelationReference.Validate if the designated constraints aren't met.
+type RelationReferenceValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RelationReferenceValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RelationReferenceValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RelationReferenceValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RelationReferenceValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RelationReferenceValidationError) ErrorName() string {
+	return "RelationReferenceValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RelationReferenceValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRelationReference.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RelationReferenceValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RelationReferenceValidationError{}
+
+var _RelationReference_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$")
+
+var _RelationReference_Relation_Pattern = regexp.MustCompile("^(\\.\\.\\.|[a-z][a-z0-9_]{2,62}[a-z0-9])$")
 
 // Validate checks the field values on User with the rules defined in the proto
 // definition for this message. If any rules are violated, an error is returned.
