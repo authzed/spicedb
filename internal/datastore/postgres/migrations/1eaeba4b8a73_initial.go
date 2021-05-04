@@ -1,18 +1,22 @@
-CREATE TABLE relation_tuple_transaction (
+package migrations
+
+import "github.com/authzed/spicedb/pkg/migrate"
+
+const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction (
     id BIGSERIAL NOT NULL,
     timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
     CONSTRAINT pk_rttx PRIMARY KEY (id)
-);
+);`
 
-CREATE TABLE namespace_config (
+const createNamespaceConfig = `CREATE TABLE namespace_config (
     namespace VARCHAR NOT NULL,
     serialized_config BYTEA NOT NULL,
     created_transaction BIGINT NOT NULL,
     deleted_transaction BIGINT NOT NULL DEFAULT '9223372036854775807',
     CONSTRAINT pk_namespace_config PRIMARY KEY (namespace, created_transaction)
-);
+);`
 
-CREATE TABLE relation_tuple (
+const createRelationTuple = `CREATE TABLE relation_tuple (
     id BIGSERIAL NOT NULL,
     namespace VARCHAR NOT NULL,
     object_id VARCHAR NOT NULL,
@@ -25,6 +29,39 @@ CREATE TABLE relation_tuple (
     CONSTRAINT pk_relation_tuple PRIMARY KEY (id),
     CONSTRAINT uq_relation_tuple_namespace UNIQUE (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation, created_transaction, deleted_transaction),
     CONSTRAINT uq_relation_tuple_living UNIQUE (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation, deleted_transaction)
-);
+);`
 
-INSERT INTO relation_tuple_transaction DEFAULT VALUES;
+const insertFirstTransaction = "INSERT INTO relation_tuple_transaction DEFAULT VALUES;"
+
+const createAlembicVersion = `CREATE TABLE alembic_version (
+	version_num VARCHAR NOT NULL
+);`
+
+const insertEmptyVersion = `INSERT INTO alembic_version (version_num) VALUES ('');`
+
+func init() {
+	migrate.Register("1eaeba4b8a73", "", func(apd *AlembicPostgresDriver) error {
+		tx, err := apd.db.Beginx()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+
+		statements := []string{
+			createRelationTupleTransaction,
+			createNamespaceConfig,
+			createRelationTuple,
+			insertFirstTransaction,
+			createAlembicVersion,
+			insertEmptyVersion,
+		}
+		for _, stmt := range statements {
+			_, err := tx.Exec(stmt)
+			if err != nil {
+				return err
+			}
+		}
+
+		return tx.Commit()
+	})
+}
