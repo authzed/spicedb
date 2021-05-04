@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jmoiron/sqlx"
 	"github.com/ory/dockertest"
 	"github.com/stretchr/testify/require"
