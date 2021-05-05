@@ -29,7 +29,18 @@ type migration struct {
 	up       interface{}
 }
 
-var migrations map[string]migration = make(map[string]migration)
+// Manager is used to manage a self-contained set of migrations. Standard usage
+// would be to instantiate one at the package level for a particular application
+// and then statically register migrations to the single instantiation in init
+// functions.
+type Manager struct {
+	migrations map[string]migration
+}
+
+// NewManager creates a new empty instance of a migration manager.
+func NewManager() *Manager {
+	return &Manager{migrations: make(map[string]migration)}
+}
 
 // Register is used to associate a single migration with the migration engine.
 // The up parameter should be a function that performs the actual upgrade logic
@@ -37,12 +48,12 @@ var migrations map[string]migration = make(map[string]migration)
 // interface as its only parameters, which will be passed direcly from the Run
 // method into the upgrade function. If not extra fields or data are required
 // the function can alternatively take a Driver interface param.
-func Register(version, replaces string, up interface{}) error {
-	if _, ok := migrations[version]; ok {
+func (m *Manager) Register(version, replaces string, up interface{}) error {
+	if _, ok := m.migrations[version]; ok {
 		return fmt.Errorf("revision already exists: %s", version)
 	}
 
-	migrations[version] = migration{
+	m.migrations[version] = migration{
 		version:  version,
 		replaces: replaces,
 		up:       up,
@@ -53,20 +64,20 @@ func Register(version, replaces string, up interface{}) error {
 
 // Run will actually perform the necessary migrations to bring the backing datastore
 // from its current revision to the specified revision.
-func Run(driver Driver, throughRevision string) error {
+func (m *Manager) Run(driver Driver, throughRevision string) error {
 	starting, err := driver.Version()
 	if err != nil {
 		return fmt.Errorf("unable to compute target revision: %w", err)
 	}
 
 	if throughRevision == Head {
-		throughRevision, err = computeHeadRevision(migrations)
+		throughRevision, err = computeHeadRevision(m.migrations)
 		if err != nil {
 			return fmt.Errorf("unable to compute head revision: %w", err)
 		}
 	}
 
-	toRun, err := collectMigrationsInRange(starting, throughRevision, migrations)
+	toRun, err := collectMigrationsInRange(starting, throughRevision, m.migrations)
 	if err != nil {
 		return fmt.Errorf("unable to compute migration list: %w", err)
 	}

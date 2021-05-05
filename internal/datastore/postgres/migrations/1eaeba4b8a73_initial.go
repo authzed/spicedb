@@ -1,7 +1,5 @@
 package migrations
 
-import "github.com/authzed/spicedb/pkg/migrate"
-
 const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction (
     id BIGSERIAL NOT NULL,
     timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
@@ -40,7 +38,7 @@ const createAlembicVersion = `CREATE TABLE alembic_version (
 const insertEmptyVersion = `INSERT INTO alembic_version (version_num) VALUES ('');`
 
 func init() {
-	migrate.Register("1eaeba4b8a73", "", func(apd *AlembicPostgresDriver) error {
+	DatabaseMigrations.Register("1eaeba4b8a73", "", func(apd *AlembicPostgresDriver) error {
 		tx, err := apd.db.Beginx()
 		if err != nil {
 			return err
