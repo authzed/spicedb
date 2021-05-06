@@ -76,6 +76,14 @@ func main() {
 	migrateCmd.Flags().String("datastore-url", "", "connection url of storage layer")
 	rootCmd.AddCommand(migrateCmd)
 
+	var headCmd = &cobra.Command{
+		Use:   "head",
+		Short: "compute the head database migration revision",
+		Run:   headRevisionRun,
+		Args:  cobra.ExactArgs(0),
+	}
+	rootCmd.AddCommand(headCmd)
+
 	rootCmd.Execute()
 }
 

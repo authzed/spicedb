@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 )
@@ -58,6 +59,10 @@ func NewManager() *Manager {
 // method into the upgrade function. If not extra fields or data are required
 // the function can alternatively take a Driver interface param.
 func (m *Manager) Register(version, replaces string, up interface{}) error {
+	if strings.ToLower(version) == Head {
+		return fmt.Errorf("unable to register version called head")
+	}
+
 	if _, ok := m.migrations[version]; ok {
 		return fmt.Errorf("revision already exists: %s", version)
 	}
@@ -79,8 +84,8 @@ func (m *Manager) Run(driver Driver, throughRevision string, dryRun RunType) err
 		return fmt.Errorf("unable to compute target revision: %w", err)
 	}
 
-	if throughRevision == Head {
-		throughRevision, err = computeHeadRevision(m.migrations)
+	if strings.ToLower(throughRevision) == Head {
+		throughRevision, err = m.HeadRevision()
 		if err != nil {
 			return fmt.Errorf("unable to compute head revision: %w", err)
 		}
@@ -132,13 +137,13 @@ func (m *Manager) Run(driver Driver, throughRevision string, dryRun RunType) err
 	return nil
 }
 
-func computeHeadRevision(allMigrations map[string]migration) (string, error) {
-	candidates := make(map[string]struct{}, len(allMigrations))
-	for candidate := range allMigrations {
+func (m *Manager) HeadRevision() (string, error) {
+	candidates := make(map[string]struct{}, len(m.migrations))
+	for candidate := range m.migrations {
 		candidates[candidate] = struct{}{}
 	}
 
-	for _, eliminateReplaces := range allMigrations {
+	for _, eliminateReplaces := range m.migrations {
 		delete(candidates, eliminateReplaces.replaces)
 	}
 

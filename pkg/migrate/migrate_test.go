@@ -120,7 +120,8 @@ func TestComputeHeadRevision(t *testing.T) {
 
 	require := require.New(t)
 	for _, tc := range testCases {
-		head, err := computeHeadRevision(tc.migrations)
+		m := Manager{migrations: tc.migrations}
+		head, err := m.HeadRevision()
 		require.Equal(tc.expectError, err != nil, err)
 		require.Equal(tc.headRevision, head)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/jzelinskie/cobrautil"
@@ -29,4 +30,13 @@ func migrateRun(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatal().Msg("unable to complete request migrations")
 	}
+}
+
+func headRevisionRun(cmd *cobra.Command, args []string) {
+	headRevision, err := migrations.DatabaseMigrations.HeadRevision()
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to compute head revision")
+	}
+
+	fmt.Println(headRevision)
 }
