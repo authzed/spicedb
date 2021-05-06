@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 func migrateRun(cmd *cobra.Command, args []string) {
@@ -24,7 +25,7 @@ func migrateRun(cmd *cobra.Command, args []string) {
 	targetRevision := args[0]
 
 	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
-	err = migrations.DatabaseMigrations.Run(migrationDriver, targetRevision)
+	err = migrations.DatabaseMigrations.Run(migrationDriver, targetRevision, migrate.LiveRun)
 	if err != nil {
 		log.Fatal().Msg("unable to complete request migrations")
 	}

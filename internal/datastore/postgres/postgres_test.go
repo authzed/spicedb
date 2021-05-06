@@ -51,7 +51,7 @@ func (pgt postgresTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (d
 		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
 	}
 
-	err = migrations.DatabaseMigrations.Run(migrationDriver, migrate.Head)
+	err = migrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
 	if err != nil {
 		return nil, fmt.Errorf("unable to migrate database: %w", err)
 	}

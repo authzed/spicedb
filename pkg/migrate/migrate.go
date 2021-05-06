@@ -4,11 +4,20 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+
+	"github.com/rs/zerolog/log"
 )
 
 const (
 	Head = "head"
 	None = ""
+)
+
+type RunType bool
+
+var (
+	DryRun  RunType = true
+	LiveRun RunType = false
 )
 
 // Driver represents the common interface for reading and writing the revision
@@ -64,7 +73,7 @@ func (m *Manager) Register(version, replaces string, up interface{}) error {
 
 // Run will actually perform the necessary migrations to bring the backing datastore
 // from its current revision to the specified revision.
-func (m *Manager) Run(driver Driver, throughRevision string) error {
+func (m *Manager) Run(driver Driver, throughRevision string, dryRun RunType) error {
 	starting, err := driver.Version()
 	if err != nil {
 		return fmt.Errorf("unable to compute target revision: %w", err)
@@ -88,29 +97,35 @@ func (m *Manager) Run(driver Driver, throughRevision string) error {
 		if err := checkTypes(driver, oneMigration.up); err != nil {
 			return fmt.Errorf("unable to validate up migration: %w", err)
 		}
+
+		log.Info().Str("from", oneMigration.replaces).Str("to", oneMigration.version).Msg("planned migration")
 	}
 
-	for _, migrationToRun := range toRun {
-		// Double check that the current version reported is the one we expect
-		currentVersion, err := driver.Version()
-		if err != nil {
-			return fmt.Errorf("unable to load version from driver: %w", err)
-		}
+	if !dryRun {
+		for _, migrationToRun := range toRun {
+			// Double check that the current version reported is the one we expect
+			currentVersion, err := driver.Version()
+			if err != nil {
+				return fmt.Errorf("unable to load version from driver: %w", err)
+			}
 
-		if migrationToRun.replaces != currentVersion {
-			return fmt.Errorf("migration attempting to run out of order: %s != %s", currentVersion, migrationToRun.replaces)
-		}
+			if migrationToRun.replaces != currentVersion {
+				return fmt.Errorf("migration attempting to run out of order: %s != %s", currentVersion, migrationToRun.replaces)
+			}
 
-		in := []reflect.Value{reflect.ValueOf(driver)}
-		upFunction := reflect.ValueOf(migrationToRun.up)
+			log.Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
 
-		errArg := upFunction.Call(in)[0]
-		if !errArg.IsNil() {
-			return fmt.Errorf("error running migration up function: %v", errArg)
-		}
+			in := []reflect.Value{reflect.ValueOf(driver)}
+			upFunction := reflect.ValueOf(migrationToRun.up)
 
-		if err := driver.WriteVersion(migrationToRun.version, migrationToRun.replaces); err != nil {
-			return fmt.Errorf("error writing migration version to driver: %w", err)
+			errArg := upFunction.Call(in)[0]
+			if !errArg.IsNil() {
+				return fmt.Errorf("error running migration up function: %v", errArg)
+			}
+
+			if err := driver.WriteVersion(migrationToRun.version, migrationToRun.replaces); err != nil {
+				return fmt.Errorf("error writing migration version to driver: %w", err)
+			}
 		}
 	}
 
