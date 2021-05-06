@@ -65,6 +65,17 @@ func main() {
 	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
 	cmdutil.RegisterTracingPersistentFlags(rootCmd)
 
+	var migrateCmd = &cobra.Command{
+		Use:               "migrate [revision]",
+		Short:             "execute schema migrations against database",
+		PersistentPreRunE: persistentPreRunE,
+		Run:               migrateRun,
+		Args:              cobra.ExactArgs(1),
+	}
+
+	migrateCmd.Flags().String("datastore-url", "", "connection url of storage layer")
+	rootCmd.AddCommand(migrateCmd)
+
 	rootCmd.Execute()
 }
 

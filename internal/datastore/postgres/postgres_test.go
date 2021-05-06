@@ -9,16 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jmoiron/sqlx"
 	"github.com/ory/dockertest"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
@@ -47,12 +46,12 @@ func (pgt postgresTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (d
 		newDBName,
 	)
 
-	m, err := migrate.New("file://migrations", connectStr)
+	migrationDriver, err := migrations.NewAlembicPostgresDriver(connectStr)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
 	}
 
-	err = m.Up()
+	err = migrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
 	if err != nil {
 		return nil, fmt.Errorf("unable to migrate database: %w", err)
 	}
