@@ -14,7 +14,7 @@ import (
 
 func migrateRun(cmd *cobra.Command, args []string) {
 	dbURL := cobrautil.MustGetString(cmd, "datastore-url")
-	if !strings.HasPrefix(dbURL, "postgres://") {
+	if !strings.HasPrefix(dbURL, "postgresql://") {
 		log.Fatal().Msg("must run migrations on postgres databases")
 	}
 
