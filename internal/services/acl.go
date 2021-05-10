@@ -301,7 +301,7 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
 	}
 
-	err = as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, true)
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
@@ -370,14 +370,19 @@ func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.L
 		Limit:          min(uint64(req.Limit), lookupDefaultLimit),
 		AtRevision:     atRevision,
 		DepthRemaining: depth,
+		IsRootRequest:  true,
 	})
 	if resp.Err != nil {
 		return nil, rewriteACLError(resp.Err)
 	}
 
 	resolvedObjectIDs := []string{}
-	for _, found := range resp.FoundObjects {
-		resolvedObjectIDs = append(resolvedObjectIDs, found.ObjectId)
+	for _, found := range resp.ResolvedObjects {
+		if found.ReductionNodeID != "" {
+			panic("Found reduction node ID at top level")
+		}
+
+		resolvedObjectIDs = append(resolvedObjectIDs, found.ONR.ObjectId)
 	}
 
 	return &api.LookupResponse{

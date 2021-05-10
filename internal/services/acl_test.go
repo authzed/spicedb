@@ -59,6 +59,9 @@ func TestRead(t *testing.T) {
 				"document:masterplan#viewer@user:eng_lead#...",
 				"document:masterplan#parent@folder:plans#...",
 				"document:healthplan#parent@folder:plans#...",
+				"document:specialplan#editor@user:multiroleguy#...",
+				"document:specialplan#viewer_and_editor@user:multiroleguy#...",
+				"document:specialplan#viewer_and_editor@user:missingrolegal#...",
 			},
 		},
 		{
@@ -669,6 +672,37 @@ func TestLookup(t *testing.T) {
 			[]string{},
 			codes.OK,
 		},
+
+		{
+			RR("document", "viewer_and_editor"),
+			ONR("user", "eng_lead", "..."),
+			[]string{},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer_and_editor"),
+			ONR("user", "multiroleguy", "..."),
+			[]string{"specialplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer_and_editor"),
+			ONR("user", "missingrolegal", "..."),
+			[]string{},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer_and_editor_derived"),
+			ONR("user", "multiroleguy", "..."),
+			[]string{"specialplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer_and_editor_derived"),
+			ONR("user", "missingrolegal", "..."),
+			[]string{},
+			codes.OK,
+		},
 	}
 
 	for _, delta := range testTimedeltas {
@@ -692,6 +726,8 @@ func TestLookup(t *testing.T) {
 						sort.Strings(tc.expectedObjectIds)
 						sort.Strings(result.ResolvedObjectIds)
 
+						require.Equal(tc.expectedObjectIds, result.ResolvedObjectIds)
+
 						// Sanity check: Issue a check on every ID returned.
 						for _, objId := range result.ResolvedObjectIds {
 							checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
@@ -708,10 +744,8 @@ func TestLookup(t *testing.T) {
 								AtRevision: zookie.NewFromRevision(revision),
 							})
 							require.NoError(err)
-							require.Equal(true, checkResp.IsMember)
+							require.Equal(true, checkResp.IsMember, "Object ID %s is not a member", objId)
 						}
-
-						require.Equal(tc.expectedObjectIds, result.ResolvedObjectIds)
 					} else {
 						requireGRPCStatus(tc.expectedErrorCode, err, require)
 					}

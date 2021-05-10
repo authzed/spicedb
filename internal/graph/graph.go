@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 
+	"github.com/authzed/spicedb/internal/namespace"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -56,17 +57,37 @@ type ExpandResult struct {
 
 // LookupRequest contains the data for a single lookup request.
 type LookupRequest struct {
-	Start          *pb.ObjectAndRelation
+	// Start is the starting ONR for this step of the lookup.
+	Start *pb.ObjectAndRelation
+
+	// TargetRelation is the relation to which the walk should lookup.
 	TargetRelation *pb.RelationReference
+
+	// ReductionNodeID, if none empty, means that the request is performing lookup
+	// under a reduction node with the given ID.
+	ReductionNodeID namespace.NodeID
+
+	// IsRootRequest, if true, indicates that this request is part of the root request
+	// and reduction should occur if present.
+	IsRootRequest bool
+
+	// PostReductionRequest indicates that this request was created as a result of reduction.
+	PostReductionRequest bool
+
 	Limit          uint64
 	AtRevision     uint64
 	DepthRemaining uint16
 }
 
+type ResolvedObject struct {
+	ONR             *pb.ObjectAndRelation
+	ReductionNodeID namespace.NodeID
+}
+
 // LookupResult is the data that is returned by a single lookup or sub-lookup.
 type LookupResult struct {
-	FoundObjects []*pb.ObjectAndRelation
-	Err          error
+	ResolvedObjects []ResolvedObject
+	Err             error
 }
 
 // Dispatcher interface describes a method for passing subchecks off to additional machines.

@@ -195,7 +195,7 @@ func (nts *NamespaceTypeSystem) RelationReachability(ctx context.Context, source
 		return nil, fmt.Errorf("Unknown relation %s", sourceRelationName)
 	}
 
-	encountered := map[string]*ReachabilityGraph{}
+	encountered := map[RelationKey]*ReachabilityGraph{}
 	return buildRelationReachabilityGraph(ctx, nts, relation, encountered)
 }
 

@@ -36,6 +36,20 @@ var DocumentNS = ns.Namespace(
 		),
 		ns.RelationReference("user", "..."),
 	),
+	ns.Relation("viewer_and_editor",
+		ns.Intersection(
+			ns.This(),
+			ns.ComputedUserset("editor"),
+		),
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("viewer_and_editor_derived",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("viewer_and_editor"),
+		),
+		ns.RelationReference("user", "..."),
+	),
 )
 
 var FolderNS = ns.Namespace(
@@ -78,6 +92,9 @@ var StandardTuples = []string{
 	"folder:company#viewer@folder:auditors#viewer",
 	"document:healthplan#parent@folder:plans#...",
 	"folder:isolated#viewer@user:villain#...",
+	"document:specialplan#viewer_and_editor@user:multiroleguy#...",
+	"document:specialplan#editor@user:multiroleguy#...",
+	"document:specialplan#viewer_and_editor@user:missingrolegal#...",
 }
 
 func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, uint64) {

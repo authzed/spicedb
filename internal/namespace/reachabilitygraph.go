@@ -8,6 +8,12 @@ import (
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
+// RelationKey is a key from a relation.
+type RelationKey string
+
+// NodeID is an ID for a node.
+type NodeID string
+
 // ReachabilityGraph is a graph which holds the various paths of reachability of objects
 // of a particular Object relation from a set of Subject relations.
 type ReachabilityGraph struct {
@@ -22,8 +28,16 @@ type ReachabilityGraph struct {
 	// to the entrypoints into the reachability graph.
 	relationToEntrypoints *slicemultimap.MultiMap
 
+	// nodeIDMap contains the map from node ID to node in this graph.
+	nodeIDMap map[NodeID]*rgStructuralNode
+
 	// subGraphs are the map of subgraphs reachable from this graph (by relationKey).
-	subGraphs map[string]*ReachabilityGraph
+	subGraphs map[RelationKey]*ReachabilityGraph
+
+	// nodeCounter holds a counter for generating unique node IDs for this graph. Note
+	// that IDs will not be unique across the subgraphs, which is why newNode prefixes
+	// the node IDs with the namespace and relation.
+	nodeCounter int
 }
 
 // ReachabilityEntrypointKind defines the various kinds of entrypoints into the reachability
@@ -53,7 +67,7 @@ type ReachabilityEntrypoint struct {
 	subjectRelationKinds []*pb.RelationReference
 }
 
-func (re ReachabilityEntrypoint) id() string {
+func (re ReachabilityEntrypoint) id() NodeID {
 	return re.node.nodeID
 }
 
@@ -103,10 +117,20 @@ func (re ReachabilityEntrypoint) Describe() string {
 	return fmt.Sprintf("%v: %s", re.Kind(), re.node.Describe())
 }
 
+// ReductionNodeID returns the node ID of entrypoint's node, if it is under a node that requires
+// reduction before continuation of a reverse walk. A reduction is required for intersection
+// and exclusion operations (union is just deduplicated after the fact).
+func (re ReachabilityEntrypoint) ReductionNodeID() NodeID {
+	if re.node.IsReductionChildNode() {
+		return re.node.nodeID
+	}
+	return ""
+}
+
 // Entrypoints returns all the entrypoints into the reachability graph for the given subject relation.
 func (rg *ReachabilityGraph) Entrypoints(namespaceName string, relationName string) []ReachabilityEntrypoint {
-	entrypointsMap := map[string]ReachabilityEntrypoint{}
-	rg.collectEntrypoints(namespaceName, relationName, entrypointsMap, map[string]bool{})
+	entrypointsMap := map[NodeID]ReachabilityEntrypoint{}
+	rg.collectEntrypoints(namespaceName, relationName, entrypointsMap, map[RelationKey]bool{})
 
 	entrypoints := []ReachabilityEntrypoint{}
 	for _, entrypoint := range entrypointsMap {
@@ -115,7 +139,7 @@ func (rg *ReachabilityGraph) Entrypoints(namespaceName string, relationName stri
 	return entrypoints
 }
 
-func (rg *ReachabilityGraph) collectEntrypoints(namespaceName string, relationName string, entrypoints map[string]ReachabilityEntrypoint, encountered map[string]bool) {
+func (rg *ReachabilityGraph) collectEntrypoints(namespaceName string, relationName string, entrypoints map[NodeID]ReachabilityEntrypoint, encountered map[RelationKey]bool) {
 	key := relationKey(rg.namespaceName, rg.relationName)
 	if _, ok := encountered[key]; ok {
 		return
@@ -137,11 +161,174 @@ func (rg *ReachabilityGraph) collectEntrypoints(namespaceName string, relationNa
 	}
 }
 
+func (rg *ReachabilityGraph) nodeWithID(nodeID NodeID, encountered map[RelationKey]bool) *rgStructuralNode {
+	key := relationKey(rg.namespaceName, rg.relationName)
+	if _, ok := encountered[key]; ok {
+		return nil
+	}
+	encountered[key] = true
+
+	node, ok := rg.nodeIDMap[nodeID]
+	if ok {
+		return node
+	}
+
+	// Check sub graphs.
+	for _, subGraph := range rg.subGraphs {
+		found := subGraph.nodeWithID(nodeID, encountered)
+		if found != nil {
+			return found
+		}
+	}
+
+	return nil
+}
+
+func (rg *ReachabilityGraph) newNode(parentNode *rgStructuralNode) *rgStructuralNode {
+	rg.nodeCounter++
+	nodeID := NodeID(fmt.Sprintf("%v::%v#%v", rg.namespaceName, rg.relationName, rg.nodeCounter))
+	node := &rgStructuralNode{
+		graph:      rg,
+		nodeID:     nodeID,
+		parentNode: parentNode,
+	}
+	if parentNode != nil {
+		parentNode.childNodes = append(parentNode.childNodes, node)
+	}
+
+	rg.nodeIDMap[node.nodeID] = node
+	return node
+}
+
+// NewReducer returns a new Reducer helper for this graph.
+func (rg *ReachabilityGraph) NewReducer() *Reducer {
+	return &Reducer{
+		graph:              rg,
+		rewriteNodes:       map[NodeID]*rgStructuralNode{},
+		resultsByChildNode: slicemultimap.New(),
+	}
+}
+
+// Reducer is a helper which provides methods for performing reduction over
+// intersection or exclusion ONR sets.
+type Reducer struct {
+	graph              *ReachabilityGraph
+	rewriteNodes       map[NodeID]*rgStructuralNode
+	resultsByChildNode *slicemultimap.MultiMap
+}
+
+// Add adds the given ONR as an incoming result for reduction via the reduction node.
+func (r *Reducer) Add(reductionNodeID NodeID, onr *pb.ObjectAndRelation) {
+	node := r.graph.nodeWithID(reductionNodeID, map[RelationKey]bool{})
+	if node == nil {
+		panic("Unknown node")
+	}
+
+	rewriteChildNode := node.rewriteChildNode()
+	parentRewriteNode := rewriteChildNode.parentNode
+	r.rewriteNodes[parentRewriteNode.nodeID] = parentRewriteNode
+
+	r.resultsByChildNode.Put(reductionNodeID, onr)
+}
+
+// Empty returns whether there are any rewrites necessary to be reduced.
+func (r *Reducer) Empty() bool {
+	return len(r.rewriteNodes) == 0
+}
+
+func (r *Reducer) runIntersection(
+	rewriteNode *rgStructuralNode,
+	intersection *pb.SetOperation,
+	results *ONRSet) {
+
+	found := NewONRSet()
+	for index := range intersection.Child {
+		childNode := rewriteNode.childNodes[index]
+		childResults, ok := r.resultsByChildNode.Get(childNode.nodeID)
+		if !ok || len(childResults) == 0 {
+			return
+		}
+
+		onrs := NewONRSet()
+		for _, result := range childResults {
+			onr := result.(*pb.ObjectAndRelation)
+			onrs.Add(onr)
+		}
+
+		if index == 0 {
+			found = onrs
+		} else {
+			found = found.Intersect(onrs)
+		}
+
+		if found.IsEmpty() {
+			return
+		}
+	}
+
+	results.UpdateFrom(found)
+}
+
+func (r *Reducer) runExclusion(
+	rewriteNode *rgStructuralNode,
+	exclusion *pb.SetOperation,
+	results *ONRSet) {
+	found := NewONRSet()
+	for index := range exclusion.Child {
+		childNode := rewriteNode.childNodes[index]
+		childResults, ok := r.resultsByChildNode.Get(childNode.nodeID)
+		if !ok || len(childResults) == 0 {
+			return
+		}
+
+		onrs := NewONRSet()
+		for _, result := range childResults {
+			onr := result.(*pb.ObjectAndRelation)
+			onrs.Add(onr)
+		}
+
+		if index == 0 {
+			found = onrs
+		} else {
+			found = found.Subtract(onrs)
+		}
+
+		if found.IsEmpty() {
+			return
+		}
+	}
+
+	results.UpdateFrom(found)
+}
+
+// Run performs reduction over all the rewrites+ONRs given to the Reducer, returning the
+// resulting reachable ONRs, if any.
+func (r *Reducer) Run() []*pb.ObjectAndRelation {
+	results := NewONRSet()
+
+	for _, rewriteNode := range r.rewriteNodes {
+		switch rw := rewriteNode.rewrite.RewriteOperation.(type) {
+		case *pb.UsersetRewrite_Intersection:
+			r.runIntersection(rewriteNode, rw.Intersection, results)
+
+		case *pb.UsersetRewrite_Exclusion:
+			r.runExclusion(rewriteNode, rw.Exclusion, results)
+
+		default:
+			panic(fmt.Sprintf("Unknown or unsupported kind %v of userset rewrite in Reducer", rw))
+		}
+	}
+
+	return results.AsSlice()
+}
+
 // rgStructuralNode represents a structural node for the relation.
 type rgStructuralNode struct {
 	parentNode *rgStructuralNode
-	graph      *ReachabilityGraph
-	nodeID     string
+	childNodes []*rgStructuralNode
+
+	graph  *ReachabilityGraph
+	nodeID NodeID
 
 	relation       *pb.Relation
 	rewrite        *pb.UsersetRewrite
@@ -151,6 +338,42 @@ type rgStructuralNode struct {
 	childComputedUserset *pb.SetOperation_Child_ComputedUserset
 	childTupleToUserset  *pb.SetOperation_Child_TupleToUserset
 	childUsersetRewrite  *pb.SetOperation_Child_UsersetRewrite
+}
+
+// rewriteChildNode returns the current node if it is a child of a rewrite, or the parent node
+// if this is the TTU node. Returns nil otherwise.
+func (rgn *rgStructuralNode) rewriteChildNode() *rgStructuralNode {
+	if rgn.childThis != nil || rgn.childComputedUserset != nil || rgn.childTupleToUserset != nil ||
+		rgn.childUsersetRewrite != nil {
+		return rgn
+	}
+
+	if rgn.tupleToUserset != nil {
+		return rgn.parentNode
+	}
+
+	return nil
+}
+
+// IsReductionChildNode returns whether the current node is the child of a reduction node.
+func (rgn *rgStructuralNode) IsReductionChildNode() bool {
+	rewriteChildNode := rgn.rewriteChildNode()
+	if rewriteChildNode != nil {
+		switch rewriteChildNode.parentNode.rewrite.RewriteOperation.(type) {
+		case *pb.UsersetRewrite_Union:
+			return false
+
+		case *pb.UsersetRewrite_Intersection:
+			return true
+
+		case *pb.UsersetRewrite_Exclusion:
+			return true
+
+		default:
+			panic("Unknown kind of userset rewrite")
+		}
+	}
+	return false
 }
 
 // Describe returns a human-readable description of the node itself.
@@ -164,7 +387,7 @@ func (rgn *rgStructuralNode) Describe() string {
 		case *pb.UsersetRewrite_Exclusion:
 			return fmt.Sprintf("exclusion (#%s)", rgn.nodeID)
 		default:
-			panic(fmt.Errorf("Unknown kind of userset rewrite"))
+			panic("Unknown kind of userset rewrite")
 		}
 	}
 
@@ -209,20 +432,14 @@ type buildContext struct {
 	typeSystem     *NamespaceTypeSystem
 	constructing   *ReachabilityGraph
 	relation       *pb.Relation
-	relationGraphs map[string]*ReachabilityGraph
-	nodeCounter    int
-}
-
-func (bctx *buildContext) getNodeID() string {
-	bctx.nodeCounter++
-	return fmt.Sprintf("%v::%v#%v", bctx.typeSystem.nsDef.Name, bctx.relation.Name, bctx.nodeCounter)
+	relationGraphs map[RelationKey]*ReachabilityGraph
 }
 
 func buildRelationReachabilityGraph(
 	ctx context.Context,
 	typeSystem *NamespaceTypeSystem,
 	relation *pb.Relation,
-	relationGraphs map[string]*ReachabilityGraph) (*ReachabilityGraph, error) {
+	relationGraphs map[RelationKey]*ReachabilityGraph) (*ReachabilityGraph, error) {
 	if relation == nil {
 		panic("Got nil relation")
 	}
@@ -244,7 +461,8 @@ func buildRelationReachabilityGraph(
 
 		rootNode:              nil,
 		relationToEntrypoints: slicemultimap.New(),
-		subGraphs:             map[string]*ReachabilityGraph{},
+		nodeIDMap:             map[NodeID]*rgStructuralNode{},
+		subGraphs:             map[RelationKey]*ReachabilityGraph{},
 	}
 
 	relationGraphs[key] = graph
@@ -268,11 +486,9 @@ func buildRelationReachabilityGraph(
 }
 
 func mapRelationNode(relation *pb.Relation, bctx *buildContext) error {
-	node := &rgStructuralNode{
-		graph:    bctx.constructing,
-		relation: relation,
-		nodeID:   bctx.getNodeID(),
-	}
+	node := bctx.constructing.newNode(nil)
+	node.relation = relation
+
 	bctx.constructing.rootNode = node
 
 	usersetRewrite := relation.GetUsersetRewrite()
@@ -286,13 +502,8 @@ func mapRelationNode(relation *pb.Relation, bctx *buildContext) error {
 }
 
 func mapRewriteNode(rewrite *pb.UsersetRewrite, parentNode *rgStructuralNode, bctx *buildContext) error {
-	node := &rgStructuralNode{
-		parentNode: parentNode,
-		graph:      bctx.constructing,
-		nodeID:     bctx.getNodeID(),
-
-		rewrite: rewrite,
-	}
+	node := bctx.constructing.newNode(parentNode)
+	node.rewrite = rewrite
 
 	switch rw := rewrite.RewriteOperation.(type) {
 	case *pb.UsersetRewrite_Union:
@@ -313,7 +524,7 @@ func mapRewriteNode(rewrite *pb.UsersetRewrite, parentNode *rgStructuralNode, bc
 		}
 
 	default:
-		return fmt.Errorf("Unknown kind of userset rewrite")
+		return fmt.Errorf("unknown kind of userset rewrite")
 	}
 
 	return nil
@@ -323,13 +534,8 @@ func mapRewriteOperationNodes(so *pb.SetOperation, parentNode *rgStructuralNode,
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *pb.SetOperation_Child_XThis:
-			opNode := &rgStructuralNode{
-				graph:      bctx.constructing,
-				nodeID:     bctx.getNodeID(),
-				parentNode: parentNode,
-
-				childThis: child,
-			}
+			opNode := bctx.constructing.newNode(parentNode)
+			opNode.childThis = child
 
 			// A _this{} indicates subject links directly to the operation.
 			err := addSubjectLinks(opNode, bctx)
@@ -338,13 +544,8 @@ func mapRewriteOperationNodes(so *pb.SetOperation, parentNode *rgStructuralNode,
 			}
 
 		case *pb.SetOperation_Child_ComputedUserset:
-			opNode := &rgStructuralNode{
-				graph:      bctx.constructing,
-				nodeID:     bctx.getNodeID(),
-				parentNode: parentNode,
-
-				childComputedUserset: child,
-			}
+			opNode := bctx.constructing.newNode(parentNode)
+			opNode.childComputedUserset = child
 
 			// A computed userset adds a backlink from the referenced relation.
 			relationName := child.ComputedUserset.Relation
@@ -363,13 +564,8 @@ func mapRewriteOperationNodes(so *pb.SetOperation, parentNode *rgStructuralNode,
 			)
 
 		case *pb.SetOperation_Child_UsersetRewrite:
-			opNode := &rgStructuralNode{
-				graph:      bctx.constructing,
-				nodeID:     bctx.getNodeID(),
-				parentNode: parentNode,
-
-				childUsersetRewrite: child,
-			}
+			opNode := bctx.constructing.newNode(parentNode)
+			opNode.childUsersetRewrite = child
 
 			err := mapRewriteNode(child.UsersetRewrite, opNode, bctx)
 			if err != nil {
@@ -377,21 +573,13 @@ func mapRewriteOperationNodes(so *pb.SetOperation, parentNode *rgStructuralNode,
 			}
 
 		case *pb.SetOperation_Child_TupleToUserset:
-			opNode := &rgStructuralNode{
-				graph:      bctx.constructing,
-				nodeID:     bctx.getNodeID(),
-				parentNode: parentNode,
-
-				childTupleToUserset: child,
-			}
+			opNode := bctx.constructing.newNode(parentNode)
+			opNode.childTupleToUserset = child
 
 			ttu := child.TupleToUserset
-			ttuNode := &rgStructuralNode{
-				parentNode:     opNode,
-				graph:          bctx.constructing,
-				nodeID:         bctx.getNodeID(),
-				tupleToUserset: ttu,
-			}
+
+			ttuNode := bctx.constructing.newNode(opNode)
+			ttuNode.tupleToUserset = ttu
 
 			// Follow the type information to any relations allowed and use them to determine
 			// the next set of relations.
@@ -438,7 +626,7 @@ func mapRewriteOperationNodes(so *pb.SetOperation, parentNode *rgStructuralNode,
 func addSubjectLinks(node *rgStructuralNode, bctx *buildContext) error {
 	typeInfo := bctx.relation.GetTypeInformation()
 	if typeInfo == nil {
-		return fmt.Errorf("Missing type information for relation %s", bctx.relation.Name)
+		return fmt.Errorf("missing type information for relation %s", bctx.relation.Name)
 	}
 
 	allowedDirectRelations := typeInfo.GetAllowedDirectRelations()
@@ -472,14 +660,14 @@ func addIncomingSubGraph(node *rgStructuralNode, namespaceName string, relationN
 	if namespaceName != bctx.typeSystem.nsDef.Name {
 		_, ts, _, err := bctx.typeSystem.manager.ReadNamespaceAndTypes(bctx.ctx, namespaceName)
 		if err != nil {
-			return fmt.Errorf("Error when reading referenced namespace %s: %w", namespaceName, err)
+			return fmt.Errorf("error when reading referenced namespace %s: %w", namespaceName, err)
 		}
 		namespaceTS = ts
 	}
 
 	found, ok := namespaceTS.relationMap[relationName]
 	if !ok {
-		return fmt.Errorf("Unknown relation %s in namespace %s", relationName, namespaceName)
+		return fmt.Errorf("unknown relation %s in namespace %s", relationName, namespaceName)
 	}
 
 	graph, err := buildRelationReachabilityGraph(bctx.ctx, namespaceTS, found, bctx.relationGraphs)
@@ -491,10 +679,10 @@ func addIncomingSubGraph(node *rgStructuralNode, namespaceName string, relationN
 	return nil
 }
 
-func relationKey(namespaceName string, relationName string) string {
-	return fmt.Sprintf("%s::%s", namespaceName, relationName)
+func relationKey(namespaceName string, relationName string) RelationKey {
+	return RelationKey(fmt.Sprintf("%s::%s", namespaceName, relationName))
 }
 
-func relationRefKey(ref *pb.RelationReference) string {
+func relationRefKey(ref *pb.RelationReference) RelationKey {
 	return relationKey(ref.Namespace, ref.Relation)
 }
