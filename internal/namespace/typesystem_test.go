@@ -202,7 +202,7 @@ func TestReachabilityGraph(t *testing.T) {
 				ns.Namespace("user"),
 			},
 			"editor",
-			[]string{"document::editor"},
+			[]string{"document#editor"},
 		},
 		{
 			"simple computed pathing",
@@ -219,8 +219,8 @@ func TestReachabilityGraph(t *testing.T) {
 			},
 			"viewer",
 			[]string{
-				"_this -> union (#document::viewer#2) -> document::viewer",
-				"document::editor",
+				"_this -> union (document#viewer::2) -> document#viewer",
+				"document#editor",
 			},
 		},
 		{
@@ -251,10 +251,10 @@ func TestReachabilityGraph(t *testing.T) {
 			},
 			"viewer",
 			[]string{
-				"folder::admin",
-				"_this -> union (#document::viewer#2) -> document::viewer",
-				"_this -> union (#document::editor#2) -> document::editor",
-				"document::owner",
+				"folder#admin",
+				"_this -> union (document#viewer::2) -> document#viewer",
+				"_this -> union (document#editor::2) -> document#editor",
+				"document#owner",
 			},
 		},
 		{
@@ -285,10 +285,10 @@ func TestReachabilityGraph(t *testing.T) {
 			},
 			"viewer",
 			[]string{
-				"_this -> intersection (#document::viewer#2) -> document::viewer",
-				"_this -> union (#document::editor#2) -> document::editor",
-				"document::owner",
-				"folder::admin",
+				"_this -> intersection (document#viewer::2) -> document#viewer",
+				"_this -> union (document#editor::2) -> document#editor",
+				"document#owner",
+				"folder#admin",
 			},
 		},
 		{
@@ -314,8 +314,8 @@ func TestReachabilityGraph(t *testing.T) {
 			},
 			"member",
 			[]string{
-				"_this -> union (#usergroup::member#2) -> usergroup::member",
-				"usergroup::manager",
+				"_this -> union (usergroup#member::2) -> usergroup#member",
+				"usergroup#manager",
 			},
 		},
 		{
@@ -359,10 +359,10 @@ func TestReachabilityGraph(t *testing.T) {
 			},
 			"viewer",
 			[]string{
-				"resource::manager",
-				"_this -> union (#resource::viewer#2) -> resource::viewer",
-				"_this -> union (#usergroup::member#2) -> usergroup::member",
-				"usergroup::manager",
+				"resource#manager",
+				"_this -> union (resource#viewer::2) -> resource#viewer",
+				"_this -> union (usergroup#member::2) -> usergroup#member",
+				"usergroup#manager",
 			},
 		},
 	}

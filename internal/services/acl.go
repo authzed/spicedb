@@ -29,7 +29,8 @@ type aclServer struct {
 
 const (
 	maxUInt16          = int(^uint16(0))
-	lookupDefaultLimit = 100
+	lookupDefaultLimit = 25
+	lookupMaximumLimit = 100
 
 	depthRemainingHeader = "authzed-depth-remaining"
 )
@@ -331,7 +332,7 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 	}, nil
 }
 
-func min(a, b uint64) uint64 {
+func min(a, b int) int {
 	if a < b {
 		return a
 	}
@@ -364,10 +365,16 @@ func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.L
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
+	limit := int(req.Limit)
+	if limit == 0 {
+		limit = lookupDefaultLimit
+	}
+	limit = min(limit, lookupMaximumLimit)
+
 	resp := as.dispatch.Lookup(ctx, graph.LookupRequest{
 		Start:          req.User,
 		TargetRelation: req.ObjectRelation,
-		Limit:          min(uint64(req.Limit), lookupDefaultLimit),
+		Limit:          limit,
 		AtRevision:     atRevision,
 		DepthRemaining: depth,
 		IsRootRequest:  true,

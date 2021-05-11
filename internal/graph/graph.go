@@ -74,7 +74,7 @@ type LookupRequest struct {
 	// PostReductionRequest indicates that this request was created as a result of reduction.
 	PostReductionRequest bool
 
-	Limit          uint64
+	Limit          int
 	AtRevision     uint64
 	DepthRemaining uint16
 }

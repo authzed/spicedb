@@ -24,12 +24,16 @@ type concurrentLookup struct {
 func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) ReduceableLookupFunc {
 	log.Trace().Object("lookup", req).Send()
 
-	// Check if we've hit the target relation. If so, nothing more to do.
+	var requests []ReduceableLookupFunc
+
 	if req.Start.Namespace == req.TargetRelation.Namespace && req.Start.Relation == req.TargetRelation.Relation {
-		return Resolved(ResolvedObject{req.Start, req.ReductionNodeID})
+		requests = append(requests, Resolved(ResolvedObject{req.Start, req.ReductionNodeID}))
 	}
 
-	var requests []ReduceableLookupFunc
+	if req.ReductionNodeID != "" {
+		panic("Got reduction node")
+	}
+
 	entrypoints := cl.rg.Entrypoints(req.Start.Namespace, req.Start.Relation)
 	for _, entrypoint := range entrypoints {
 		switch entrypoint.Kind() {
@@ -113,7 +117,7 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 		if req.IsRootRequest {
 			resultChan <- cl.lookupAndReduceAll(ctx, req, requests)
 		} else {
-			resultChan <- LookupAll(ctx, requests)
+			resultChan <- LookupAll(ctx, req.Limit, requests)
 		}
 	}
 }
@@ -140,18 +144,22 @@ func (cl *concurrentLookup) buildDispatchedLookup(
 		var nextRequests []ReduceableLookupFunc
 
 		// For each tuple found, check if we've found the expected relation. If so, add
-		// to the direct results. Otherwise, walk outward from the left hand side.
+		// to the direct results. Walk outward from the left hand side.
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 			onr := tpl.ObjectAndRelation
-			if reductionNodeID != "" || (onr.Namespace == req.TargetRelation.Namespace && onr.Relation == req.TargetRelation.Relation) {
+			if reductionNodeID != "" {
 				directResults = append(directResults, ResolvedObject{onr, reductionNodeID})
 				continue
+			}
+
+			if onr.Namespace == req.TargetRelation.Namespace && onr.Relation == req.TargetRelation.Relation {
+				directResults = append(directResults, ResolvedObject{onr, ""})
 			}
 
 			nextRequests = append(nextRequests, cl.dispatch(LookupRequest{
 				Start:          onr,
 				TargetRelation: req.TargetRelation,
-				Limit:          req.Limit - uint64(len(directResults)),
+				Limit:          req.Limit - len(directResults),
 				AtRevision:     req.AtRevision,
 				DepthRemaining: req.DepthRemaining - 1,
 			}))
@@ -162,7 +170,7 @@ func (cl *concurrentLookup) buildDispatchedLookup(
 		}
 
 		if len(nextRequests) > 0 {
-			resultChan <- LookupAll(ctx, nextRequests, directResults...)
+			resultChan <- LookupAll(ctx, req.Limit-len(directResults), nextRequests, directResults...)
 		} else {
 			resultChan <- LookupResult{ResolvedObjects: directResults}
 		}
@@ -179,6 +187,13 @@ func (cl *concurrentLookup) dispatch(req LookupRequest) ReduceableLookupFunc {
 
 // lookupAndReduceAll returns a result with all of the children reduced.
 func (cl *concurrentLookup) lookupAndReduceAll(ctx context.Context, req LookupRequest, requests []ReduceableLookupFunc, directResults ...ResolvedObject) LookupResult {
+	// If we already have reached the results limit, nothing more to do.
+	if len(directResults) >= req.Limit || len(requests) == 0 {
+		return LookupResult{
+			ResolvedObjects: limitedSlice(directResults, req.Limit),
+		}
+	}
+
 	childCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
@@ -215,17 +230,18 @@ func (cl *concurrentLookup) lookupAndReduceAll(ctx context.Context, req LookupRe
 		}
 	}
 
-	// If there is nothing to reduce, then return the final results.
-	if reducer.Empty() {
+	// Return the final results if we have already reach the limit or there is nothing
+	// to reduce.
+	directResults = append(directResults, objects.asSlice()...)
+	if len(directResults) >= req.Limit || reducer.Empty() {
 		return LookupResult{
-			ResolvedObjects: objects.AsSlice(),
+			ResolvedObjects: limitedSlice(directResults, req.Limit),
 		}
 	}
 
 	// Otherwise, perform reduction on the reducable results, then kick off Lookup
 	// from that point forward.
 	reduced := reducer.Run()
-	directResults = append(directResults, objects.AsSlice()...)
 
 	var newRequests []ReduceableLookupFunc
 	for _, reducedONR := range reduced {
@@ -233,7 +249,7 @@ func (cl *concurrentLookup) lookupAndReduceAll(ctx context.Context, req LookupRe
 			Start:                reducedONR,
 			PostReductionRequest: true,
 			TargetRelation:       req.TargetRelation,
-			Limit:                req.Limit - uint64(len(directResults)),
+			Limit:                req.Limit - len(directResults),
 			AtRevision:           req.AtRevision,
 			DepthRemaining:       req.DepthRemaining - 1,
 		}))
@@ -243,7 +259,7 @@ func (cl *concurrentLookup) lookupAndReduceAll(ctx context.Context, req LookupRe
 }
 
 // LookupAll returns a result with all of the children.
-func LookupAll(ctx context.Context, requests []ReduceableLookupFunc, directResults ...ResolvedObject) LookupResult {
+func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc, directResults ...ResolvedObject) LookupResult {
 	childCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
@@ -261,14 +277,21 @@ func LookupAll(ctx context.Context, requests []ReduceableLookupFunc, directResul
 			if result.Err != nil {
 				return LookupResult{Err: result.Err}
 			}
+
 			objects.update(result.ResolvedObjects)
+
+			if objects.length() >= int(limit) {
+				return LookupResult{
+					ResolvedObjects: limitedSlice(objects.asSlice(), limit),
+				}
+			}
 		case <-ctx.Done():
 			return LookupResult{Err: ErrRequestCanceled}
 		}
 	}
 
 	return LookupResult{
-		ResolvedObjects: objects.AsSlice(),
+		ResolvedObjects: limitedSlice(objects.asSlice(), limit),
 	}
 }
 
@@ -294,32 +317,44 @@ func Resolved(resolved ResolvedObject) ReduceableLookupFunc {
 	}
 }
 
-type ResolvedObjectSet struct {
+type resolvedObjectSet struct {
 	entries map[string]ResolvedObject
 }
 
-func newSetFromSlice(ros []ResolvedObject) *ResolvedObjectSet {
-	set := &ResolvedObjectSet{
+func newSetFromSlice(ros []ResolvedObject) *resolvedObjectSet {
+	set := &resolvedObjectSet{
 		entries: map[string]ResolvedObject{},
 	}
 	set.update(ros)
 	return set
 }
 
-func (s *ResolvedObjectSet) add(value ResolvedObject) {
+func (s *resolvedObjectSet) add(value ResolvedObject) {
 	s.entries[fmt.Sprintf("%s-%s", tuple.StringONR(value.ONR), value.ReductionNodeID)] = value
 }
 
-func (s *ResolvedObjectSet) update(ros []ResolvedObject) {
+func (s *resolvedObjectSet) update(ros []ResolvedObject) {
 	for _, value := range ros {
 		s.add(value)
 	}
 }
 
-func (s *ResolvedObjectSet) AsSlice() []ResolvedObject {
+func (s *resolvedObjectSet) length() int {
+	return len(s.entries)
+}
+
+func (s *resolvedObjectSet) asSlice() []ResolvedObject {
 	slice := []ResolvedObject{}
 	for _, value := range s.entries {
 		slice = append(slice, value)
 	}
+	return slice
+}
+
+func limitedSlice(slice []ResolvedObject, limit int) []ResolvedObject {
+	if len(slice) > int(limit) {
+		return slice[0:limit]
+	}
+
 	return slice
 }

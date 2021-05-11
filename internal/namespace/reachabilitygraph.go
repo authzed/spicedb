@@ -121,10 +121,7 @@ func (re ReachabilityEntrypoint) Describe() string {
 // reduction before continuation of a reverse walk. A reduction is required for intersection
 // and exclusion operations (union is just deduplicated after the fact).
 func (re ReachabilityEntrypoint) ReductionNodeID() NodeID {
-	if re.node.IsReductionChildNode() {
-		return re.node.nodeID
-	}
-	return ""
+	return re.node.reductionNodeID()
 }
 
 // Entrypoints returns all the entrypoints into the reachability graph for the given subject relation.
@@ -186,7 +183,7 @@ func (rg *ReachabilityGraph) nodeWithID(nodeID NodeID, encountered map[RelationK
 
 func (rg *ReachabilityGraph) newNode(parentNode *rgStructuralNode) *rgStructuralNode {
 	rg.nodeCounter++
-	nodeID := NodeID(fmt.Sprintf("%v::%v#%v", rg.namespaceName, rg.relationName, rg.nodeCounter))
+	nodeID := NodeID(fmt.Sprintf("%v#%v::%v", rg.namespaceName, rg.relationName, rg.nodeCounter))
 	node := &rgStructuralNode{
 		graph:      rg,
 		nodeID:     nodeID,
@@ -226,9 +223,9 @@ func (r *Reducer) Add(reductionNodeID NodeID, onr *pb.ObjectAndRelation) {
 
 	rewriteChildNode := node.rewriteChildNode()
 	parentRewriteNode := rewriteChildNode.parentNode
-	r.rewriteNodes[parentRewriteNode.nodeID] = parentRewriteNode
 
-	r.resultsByChildNode.Put(reductionNodeID, onr)
+	r.rewriteNodes[parentRewriteNode.nodeID] = parentRewriteNode
+	r.resultsByChildNode.Put(rewriteChildNode.nodeID, onr)
 }
 
 // Empty returns whether there are any rewrites necessary to be reduced.
@@ -252,7 +249,17 @@ func (r *Reducer) runIntersection(
 		onrs := NewONRSet()
 		for _, result := range childResults {
 			onr := result.(*pb.ObjectAndRelation)
-			onrs.Add(onr)
+			if onr.Namespace != r.graph.namespaceName {
+				panic("invalid namespace found for intersection")
+			}
+
+			// NOTE: The relation gets rewritten here to the relation that contains
+			// this rewrite.
+			onrs.Add(&pb.ObjectAndRelation{
+				Namespace: onr.Namespace,
+				ObjectId:  onr.ObjectId,
+				Relation:  r.graph.relationName,
+			})
 		}
 
 		if index == 0 {
@@ -273,18 +280,28 @@ func (r *Reducer) runExclusion(
 	rewriteNode *rgStructuralNode,
 	exclusion *pb.SetOperation,
 	results *ONRSet) {
+
 	found := NewONRSet()
 	for index := range exclusion.Child {
+		onrs := NewONRSet()
+
 		childNode := rewriteNode.childNodes[index]
 		childResults, ok := r.resultsByChildNode.Get(childNode.nodeID)
-		if !ok || len(childResults) == 0 {
-			return
-		}
+		if ok {
+			for _, result := range childResults {
+				onr := result.(*pb.ObjectAndRelation)
+				if onr.Namespace != r.graph.namespaceName {
+					panic("invalid namespace found for exclusion")
+				}
 
-		onrs := NewONRSet()
-		for _, result := range childResults {
-			onr := result.(*pb.ObjectAndRelation)
-			onrs.Add(onr)
+				// NOTE: The relation gets rewritten here to the relation that contains
+				// this rewrite.
+				onrs.Add(&pb.ObjectAndRelation{
+					Namespace: onr.Namespace,
+					ObjectId:  onr.ObjectId,
+					Relation:  r.graph.relationName,
+				})
+			}
 		}
 
 		if index == 0 {
@@ -355,25 +372,31 @@ func (rgn *rgStructuralNode) rewriteChildNode() *rgStructuralNode {
 	return nil
 }
 
-// IsReductionChildNode returns whether the current node is the child of a reduction node.
-func (rgn *rgStructuralNode) IsReductionChildNode() bool {
-	rewriteChildNode := rgn.rewriteChildNode()
-	if rewriteChildNode != nil {
-		switch rewriteChildNode.parentNode.rewrite.RewriteOperation.(type) {
-		case *pb.UsersetRewrite_Union:
-			return false
+// reductionNodeID returns the ID of the parent reduction node of this node, if any, or
+// empty if none. The reduction node is defined as the operation node under a rewrite
+// for any exclusion or intersection.
+func (rgn *rgStructuralNode) reductionNodeID() NodeID {
+	if rgn.parentNode != nil {
+		if rgn.parentNode.rewrite != nil {
+			switch rgn.parentNode.rewrite.RewriteOperation.(type) {
+			case *pb.UsersetRewrite_Union:
+				break
 
-		case *pb.UsersetRewrite_Intersection:
-			return true
+			case *pb.UsersetRewrite_Intersection:
+				return rgn.nodeID
 
-		case *pb.UsersetRewrite_Exclusion:
-			return true
+			case *pb.UsersetRewrite_Exclusion:
+				return rgn.nodeID
 
-		default:
-			panic("Unknown kind of userset rewrite")
+			default:
+				panic("Unknown kind of userset rewrite")
+			}
 		}
+
+		return rgn.parentNode.reductionNodeID()
 	}
-	return false
+
+	return NodeID("")
 }
 
 // Describe returns a human-readable description of the node itself.
@@ -381,18 +404,18 @@ func (rgn *rgStructuralNode) Describe() string {
 	if rgn.rewrite != nil {
 		switch rgn.rewrite.RewriteOperation.(type) {
 		case *pb.UsersetRewrite_Union:
-			return fmt.Sprintf("union (#%s)", rgn.nodeID)
+			return fmt.Sprintf("union (%s)", rgn.nodeID)
 		case *pb.UsersetRewrite_Intersection:
-			return fmt.Sprintf("intersection (#%s)", rgn.nodeID)
+			return fmt.Sprintf("intersection (%s)", rgn.nodeID)
 		case *pb.UsersetRewrite_Exclusion:
-			return fmt.Sprintf("exclusion (#%s)", rgn.nodeID)
+			return fmt.Sprintf("exclusion (%s)", rgn.nodeID)
 		default:
 			panic("Unknown kind of userset rewrite")
 		}
 	}
 
 	if rgn.relation != nil {
-		return fmt.Sprintf("%s::%s", rgn.graph.namespaceName, rgn.relation.Name)
+		return fmt.Sprintf("%s#%s", rgn.graph.namespaceName, rgn.relation.Name)
 	}
 
 	if rgn.tupleToUserset != nil {
@@ -680,7 +703,7 @@ func addIncomingSubGraph(node *rgStructuralNode, namespaceName string, relationN
 }
 
 func relationKey(namespaceName string, relationName string) RelationKey {
-	return RelationKey(fmt.Sprintf("%s::%s", namespaceName, relationName))
+	return RelationKey(fmt.Sprintf("%s#%s", namespaceName, relationName))
 }
 
 func relationRefKey(ref *pb.RelationReference) RelationKey {

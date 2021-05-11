@@ -160,7 +160,7 @@ func (tbs *tokenBasedServer) createModel() model {
 	}
 
 	// Populate the datastore for any configuration files specified.
-	err = validationfile.PopulateFromFiles(ds, tbs.configFilePaths)
+	_, _, err = validationfile.PopulateFromFiles(ds, tbs.configFilePaths)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load config files")
 	}
