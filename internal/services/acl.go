@@ -386,7 +386,7 @@ func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.L
 	resolvedObjectIDs := []string{}
 	for _, found := range resp.ResolvedObjects {
 		if found.ReductionNodeID != "" {
-			panic("Found reduction node ID at top level")
+			return nil, rewriteACLError(fmt.Errorf("found unreduced result at top level"))
 		}
 
 		resolvedObjectIDs = append(resolvedObjectIDs, found.ONR.ObjectId)

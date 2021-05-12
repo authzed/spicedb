@@ -31,7 +31,7 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 	}
 
 	if req.ReductionNodeID != "" {
-		panic("Got reduction node")
+		return ResolveError(fmt.Errorf("received a reduction node %s at the root of lookup", req.ReductionNodeID))
 	}
 
 	entrypoints := cl.rg.Entrypoints(req.Start.Namespace, req.Start.Relation)
@@ -42,14 +42,23 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 			// A subject entrypoint means we need to start at the current start userset,
 			// find all relations with the userset on the right hand side that match the
 			// expected target relation(s), and walk from there.
-			namespaceName, relationName := entrypoint.SubjectTargetRelation()
+			namespaceName, relationName, err := entrypoint.SubjectTargetRelation()
+			if err != nil {
+				return ResolveError(err)
+			}
+
+			reductionNodeID, err := entrypoint.ReductionNodeID()
+			if err != nil {
+				return ResolveError(err)
+			}
+
 			requests = append(requests, cl.buildDispatchedLookup(
 				ctx,
 				req,
 				namespaceName,
 				relationName,
 				req.Start,
-				entrypoint.ReductionNodeID(),
+				reductionNodeID,
 			))
 
 		case namespace.AliasedRelationEntrypoint:
@@ -57,9 +66,13 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 			// An aliased relation entrypoint means that the current userset should be
 			// adjusted to have the relation specified as the aliasing relation, and a
 			// walk should occur from there.
-			namespaceName, relationName := entrypoint.AliasingRelation()
+			namespaceName, relationName, err := entrypoint.AliasingRelation()
+			if err != nil {
+				return ResolveError(err)
+			}
+
 			if namespaceName != req.Start.Namespace {
-				panic("Got invalid namespace for aliased entrypoint")
+				return ResolveError(fmt.Errorf("got invalid namespace %s (expected %s) for aliased entrypoint %s", namespaceName, req.Start.Namespace, entrypoint.Describe()))
 			}
 
 			adjustedONR := &pb.ObjectAndRelation{
@@ -70,7 +83,11 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 
 			// If the entrypoint is a reduction node, then simply return the adjusted ONR for
 			// reduction, since we cannot walk past it.
-			reductionNodeID := entrypoint.ReductionNodeID()
+			reductionNodeID, err := entrypoint.ReductionNodeID()
+			if err != nil {
+				return ResolveError(err)
+			}
+
 			if !req.PostReductionRequest && reductionNodeID != "" {
 				requests = append(requests, Resolved(ResolvedObject{adjustedONR, reductionNodeID}))
 				continue
@@ -88,7 +105,16 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 			// Created From: tupleset_to_userset (computed_userset branch)
 			// A walked relation indicates that a single relation found needs to be "walked"
 			// to another relation via a simple rewrite.
-			namespaceName, relationName, allowedRelationTypes := entrypoint.WalkRelationAndTypes()
+			namespaceName, relationName, allowedRelationTypes, err := entrypoint.WalkRelationAndTypes()
+			if err != nil {
+				return ResolveError(err)
+			}
+
+			reductionNodeID, err := entrypoint.ReductionNodeID()
+			if err != nil {
+				return ResolveError(err)
+			}
+
 			for _, allowedType := range allowedRelationTypes {
 				if allowedType.Namespace != req.Start.Namespace {
 					continue
@@ -106,7 +132,7 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 							ObjectId:  req.Start.ObjectId,
 							Relation:  allowedType.Relation,
 						},
-						entrypoint.ReductionNodeID(),
+						reductionNodeID,
 					))
 				}
 			}
@@ -219,7 +245,10 @@ func (cl *concurrentLookup) lookupAndReduceAll(ctx context.Context, req LookupRe
 			// reduced relation. If not, then this object is a final result.
 			for _, obj := range result.ResolvedObjects {
 				if obj.ReductionNodeID != "" {
-					reducer.Add(obj.ReductionNodeID, obj.ONR)
+					err := reducer.Add(obj.ReductionNodeID, obj.ONR)
+					if err != nil {
+						return LookupResult{Err: err}
+					}
 				} else {
 					objects.add(obj)
 				}
@@ -241,7 +270,10 @@ func (cl *concurrentLookup) lookupAndReduceAll(ctx context.Context, req LookupRe
 
 	// Otherwise, perform reduction on the reducable results, then kick off Lookup
 	// from that point forward.
-	reduced := reducer.Run()
+	reduced, err := reducer.Run()
+	if err != nil {
+		return LookupResult{Err: err}
+	}
 
 	var newRequests []ReduceableLookupFunc
 	for _, reducedONR := range reduced {
@@ -314,6 +346,12 @@ func LookupOne(ctx context.Context, request ReduceableLookupFunc) LookupResult {
 func Resolved(resolved ResolvedObject) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
 		resultChan <- LookupResult{ResolvedObjects: []ResolvedObject{resolved}}
+	}
+}
+
+func ResolveError(err error) ReduceableLookupFunc {
+	return func(ctx context.Context, resultChan chan<- LookupResult) {
+		resultChan <- LookupResult{Err: err}
 	}
 }
 
