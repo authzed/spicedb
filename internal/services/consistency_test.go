@@ -183,11 +183,6 @@ func TestConsistency(t *testing.T) {
 
 								// Ensure that every returned object Checks.
 								for _, resolvedObjectId := range result.ResolvedObjectIds {
-									// TODO: REMOVE ME ONCE WE FIGURE OUT THE #manager
-									if subject.Relation != "..." {
-										continue
-									}
-
 									checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
 										TestUserset: &api.ObjectAndRelation{
 											Namespace: nsDef.Name,

@@ -28,6 +28,13 @@ func onrEqual(lhs, rhs *pb.ObjectAndRelation) bool {
 }
 
 func (cc *concurrentChecker) check(ctx context.Context, req CheckRequest, relation *pb.Relation) ReduceableCheckFunc {
+	if req.Goal.Namespace == req.Start.Namespace && req.Goal.Relation == req.Start.Relation &&
+		req.Goal.ObjectId == req.Start.ObjectId {
+		return func(ctx context.Context, resultChan chan<- CheckResult) {
+			resultChan <- CheckResult{true, nil}
+		}
+	}
+
 	if relation.UsersetRewrite == nil {
 		return cc.checkDirect(ctx, req)
 	}
@@ -127,6 +134,13 @@ func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *pb.Compu
 			start = tpl.ObjectAndRelation
 		} else {
 			start = req.Start
+		}
+	}
+
+	if req.Goal.Namespace == start.Namespace && req.Goal.Relation == cu.Relation &&
+		req.Goal.ObjectId == start.ObjectId {
+		return func(ctx context.Context, resultChan chan<- CheckResult) {
+			resultChan <- CheckResult{true, nil}
 		}
 	}
 
