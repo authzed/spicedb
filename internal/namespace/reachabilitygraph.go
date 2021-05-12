@@ -690,7 +690,7 @@ func addIncomingSubGraph(node *rgStructuralNode, namespaceName string, relationN
 
 	found, ok := namespaceTS.relationMap[relationName]
 	if !ok {
-		return fmt.Errorf("unknown relation %s in namespace %s", relationName, namespaceName)
+		return nil
 	}
 
 	graph, err := buildRelationReachabilityGraph(bctx.ctx, namespaceTS, found, bctx.relationGraphs)

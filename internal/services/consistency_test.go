@@ -73,7 +73,7 @@ func TestConsistency(t *testing.T) {
 
 					// Build the list of tuples per namespace.
 					tuplesPerNamespace := slicemultimap.New()
-					for _, tpl := range fullyResolved.ValidationTuples {
+					for _, tpl := range fullyResolved.Tuples {
 						tuplesPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl)
 					}
 
@@ -111,7 +111,7 @@ func TestConsistency(t *testing.T) {
 					// Collect the set of objects and subjects.
 					objectsPerNamespace := setmultimap.New()
 					subjects := namespace.NewONRSet()
-					for _, tpl := range fullyResolved.ValidationTuples {
+					for _, tpl := range fullyResolved.Tuples {
 						objectsPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl.ObjectAndRelation.ObjectId)
 
 						switch m := tpl.User.UserOneof.(type) {

@@ -1,0 +1,249 @@
+namespace_configs:
+  - >+
+    name: "REDACTED/column"
+
+
+    relation: {
+        name: "worksheet"
+
+        type_information {
+          allowed_direct_relations {
+            namespace: "REDACTED/worksheet"
+            relation: "..."
+          }
+          allowed_direct_relations {
+            namespace: "REDACTED/role"
+            relation: "granted"
+          }
+        }
+    }
+
+
+    relation: {
+        name: "view"
+
+        userset_rewrite {
+            union {
+                child {
+                    # This brings in people with direct view access
+                    _this {}
+                }
+                child {
+                    # Editors are implicitly also viewers. From the app side, you just query
+                    # view if that's the permission needed to access the data.
+                    computed_userset {
+                        relation: "edit"
+                    }
+                }
+            }
+        }
+
+
+        type_information {
+          allowed_direct_relations {
+            namespace: "REDACTED/user"
+            relation: "..."
+          }
+          allowed_direct_relations {
+            namespace: "REDACTED/role"
+            relation: "granted"
+          }
+        }
+    }
+
+
+    relation: {
+        name: "edit"
+
+        userset_rewrite {
+            union {
+                child {
+                    _this {}
+                }
+                child {
+                    # This brings in worksheet admins, which defined as workbook admins,
+                    # which are defined as org admin.
+                    tuple_to_userset {
+                        tupleset {
+                            relation: "worksheet"
+                        }
+                        computed_userset {
+                            object: TUPLE_USERSET_OBJECT
+                            relation: "admin"
+                        }
+                    }
+                }
+            }
+        }
+
+        type_information {
+          allowed_direct_relations {
+            namespace: "REDACTED/user"
+            relation: "..."
+          }
+          allowed_direct_relations {
+            namespace: "REDACTED/role"
+            relation: "granted"
+          }
+        }
+    }
+
+  - >
+    name: "REDACTED/organization"
+
+
+    relation {
+        name: "admin"
+
+        type_information {
+          allowed_direct_relations {
+            namespace: "REDACTED/user"
+            relation: "..."
+          }
+        }
+    }
+  - >+
+    name: "REDACTED/role"
+
+
+    # Role could also "belong" to the org and then still grant individual column
+
+    # access on worksheets if you want to model it that way
+
+    relation {
+        name: "worksheet"
+
+        type_information {
+          allowed_direct_relations {
+            namespace: "REDACTED/worksheet"
+            relation: "..."
+          }
+        }
+    }
+
+
+    # Individual column grants are done at the tuple (relation) layer, so they can
+
+    # be changed at runtime on a per-app/worksheet/org/whatever basis.
+
+    relation {
+        name: "granted"
+
+        type_information {
+          allowed_direct_relations {
+            namespace: "REDACTED/user"
+            relation: "..."
+          }
+        }
+    }
+
+  - >
+    # This defines the namespace used to represent users. This can be named anything,
+
+    # but here we're using a simple user, by username. In real definitions, this would
+
+    # typically be a user by *ID* or sub or another unique ID.
+
+    name: "REDACTED/user"
+  - >
+    name: "REDACTED/workbook"
+
+
+    relation {
+        name: "organization"
+
+        type_information {
+          allowed_direct_relations {
+            namespace: "REDACTED/organization"
+            relation: "..."
+          }
+        }
+    }
+
+
+    relation: {
+        name: "admin"
+
+        userset_rewrite {
+            union {
+                child {
+                    tuple_to_userset {
+                        tupleset {
+                            relation: "organization"
+                        }
+                        computed_userset {
+                            object: TUPLE_USERSET_OBJECT
+                            relation: "admin"
+                        }
+                    }
+                }
+            }
+        }
+    }
+  - >
+    name: "REDACTED/worksheet"
+
+
+    relation {
+        name: "workbook"
+
+        type_information {
+          allowed_direct_relations {
+            namespace: "REDACTED/workbook"
+            relation: "..."
+          }
+        }
+    }
+
+
+    relation: {
+        name: "admin"
+
+        userset_rewrite {
+            union {
+                child {
+                    tuple_to_userset {
+                        tupleset {
+                            relation: "workbook"
+                        }
+                        computed_userset {
+                            object: TUPLE_USERSET_OBJECT
+                            relation: "admin"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+validation_tuples:
+  - REDACTED/worksheet:papersales#workbook@REDACTED/workbook:scranton#...
+  - REDACTED/workbook:scranton#organization@REDACTED/organization:dundermifflin#...
+  - REDACTED/column:opp_id#worksheet@REDACTED/worksheet:papersales#...
+  - REDACTED/column:opp_name#worksheet@REDACTED/worksheet:papersales#...
+  - REDACTED/column:amount#worksheet@REDACTED/worksheet:papersales#...
+  - REDACTED/column:date#worksheet@REDACTED/worksheet:papersales#...
+  - REDACTED/column:pmt_received#worksheet@REDACTED/worksheet:papersales#...
+  - REDACTED/role:finance#worksheet@REDACTED/worksheet:papersales#...
+  - REDACTED/role:manager#worksheet@REDACTED/worksheet:papersales#...
+  - REDACTED/role:sales#worksheet@REDACTED/worksheet:papersales#...
+  - REDACTED/column:opp_id#view@REDACTED/role:finance#granted
+  - REDACTED/column:opp_name#view@REDACTED/role:finance#granted
+  - REDACTED/column:amount#view@REDACTED/role:finance#granted
+  - REDACTED/column:date#view@REDACTED/role:finance#granted
+  - REDACTED/column:pmt_received#edit@REDACTED/role:finance#granted
+  - REDACTED/column:opp_id#view@REDACTED/role:sales#granted
+  - REDACTED/column:opp_name#view@REDACTED/role:sales#granted
+  - REDACTED/column:amount#edit@REDACTED/role:sales#granted
+  - REDACTED/column:date#edit@REDACTED/role:sales#granted
+  - REDACTED/column:opp_id#edit@REDACTED/role:manager#granted
+  - REDACTED/column:opp_name#edit@REDACTED/role:manager#granted
+  - REDACTED/column:amount#edit@REDACTED/role:manager#granted
+  - REDACTED/column:date#edit@REDACTED/role:manager#granted
+  - REDACTED/column:pmt_received#edit@REDACTED/role:manager#granted
+  - REDACTED/role:finance#granted@REDACTED/user:angela#...
+  - REDACTED/role:sales#granted@REDACTED/user:jim#...
+  - REDACTED/role:sales#granted@REDACTED/user:dwight#...
+  - REDACTED/role:manager#granted@REDACTED/user:michael#...
+  - REDACTED/organization:dundermifflin#admin@REDACTED/user:jan#...
+  - REDACTED/organization:princepaper#admin@REDACTED/user:roger#...

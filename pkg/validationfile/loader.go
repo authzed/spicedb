@@ -15,7 +15,7 @@ import (
 
 type FullyParsedValidationFile struct {
 	NamespaceDefinitions []*pb.NamespaceDefinition
-	ValidationTuples     []*pb.RelationTuple
+	Tuples               []*pb.RelationTuple
 }
 
 func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsedValidationFile, uint64, error) {
@@ -50,14 +50,38 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 			}
 		}
 
-		log.Info().Str("filePath", filePath).Int("tupleCount", len(parsed.ValidationTuples)).Msg("Loading test data")
+		log.Info().Str("filePath", filePath).Int("tupleCount", len(parsed.ValidationTuples)+len(parsed.RelationTuples)).Msg("Loading test data")
 
 		var updates []*pb.RelationTupleUpdate
+		seenTuples := map[string]bool{}
+
+		for index, relationTuple := range parsed.RelationTuples {
+			tpl := tuple.Scan(relationTuple)
+			if tpl == nil {
+				return nil, 0, fmt.Errorf("Error parsing relation tuple #%v: %s", index, relationTuple)
+			}
+
+			_, ok := seenTuples[tuple.String(tpl)]
+			if ok {
+				continue
+			}
+			seenTuples[tuple.String(tpl)] = true
+
+			tuples = append(tuples, tpl)
+			updates = append(updates, tuple.Create(tpl))
+		}
 		for index, validationTuple := range parsed.ValidationTuples {
 			tpl := tuple.Scan(validationTuple)
 			if tpl == nil {
 				return nil, 0, fmt.Errorf("Error parsing validation tuple #%v: %s", index, validationTuple)
 			}
+
+			_, ok := seenTuples[tuple.String(tpl)]
+			if ok {
+				continue
+			}
+			seenTuples[tuple.String(tpl)] = true
+
 			tuples = append(tuples, tpl)
 			updates = append(updates, tuple.Create(tpl))
 		}
