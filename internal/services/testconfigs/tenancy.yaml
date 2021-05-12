@@ -1,0 +1,193 @@
+# This file contains namespace configurations for the tenancy model that will
+# be built directly into REDACTED.
+
+namespace_configs:
+- |
+  name: "tenancy/token"
+
+- |
+  name: "tenancy/namespace"
+
+  relation {
+    name: "tenant"
+
+    type_information {
+      allowed_direct_relations {
+        namespace: "tenancy/tenant"
+        relation: "..."
+      }
+    }
+  }
+
+- |
+  name: "tenancy/client"
+
+  relation {
+    name: "token"
+
+    type_information {
+      allowed_direct_relations {
+        namespace: "tenancy/token"
+        relation: "..."
+      }
+    }
+  }
+
+- |
+  name: "tenancy/user"
+
+  relation {
+    name: "token"
+
+    type_information {
+      allowed_direct_relations {
+        namespace: "tenancy/token"
+        relation: "..."
+      }
+    }
+  }
+
+- |
+  name: "tenancy/tenant"
+
+  relation {
+    name: "organization"
+  
+    type_information {
+      allowed_direct_relations {
+        namespace: "tenancy/organization"
+        relation: "..."
+      }
+    }  
+  }
+
+  relation {
+    name: "admin"
+    
+    userset_rewrite {
+      union {
+        child { _this {} }
+        child { 
+          tuple_to_userset {
+            tupleset { relation: "organization" }        # tenant -> org
+            computed_userset {
+              object: TUPLE_USERSET_OBJECT
+              relation: "admin"
+            }
+          }
+        }
+     }
+    }
+
+    type_information {
+      allowed_direct_relations {
+        namespace: "tenancy/user"
+        relation: "token"
+      }
+      allowed_direct_relations {
+        namespace: "tenancy/client"
+        relation: "token"
+      }
+    }
+  }
+
+  relation {
+    name: "writer"
+    
+    userset_rewrite {
+      union {
+        child { _this {} }
+        child { computed_userset { relation: "admin" } }
+      }
+    }
+
+    type_information {
+      allowed_direct_relations {
+        namespace: "tenancy/user"
+        relation: "token"
+      }
+      allowed_direct_relations {
+        namespace: "tenancy/client"
+        relation: "token"
+      }
+    }
+  }
+
+  relation {
+    name: "viewer"
+    
+    userset_rewrite {
+      union {
+        child { _this {} }
+        child { computed_userset { relation: "writer" } }
+      }
+    }
+
+    type_information {
+      allowed_direct_relations {
+        namespace: "tenancy/user"
+        relation: "token"
+      }
+      allowed_direct_relations {
+        namespace: "tenancy/client"
+        relation: "token"
+      }
+    }
+  }
+
+- |
+  name: "tenancy/organization"
+
+  relation {
+    name: "admin"
+
+    type_information {
+      allowed_direct_relations {
+        namespace: "tenancy/user"
+        relation: "token"
+      }
+    }
+  }
+
+  relation {
+    name: "member"
+
+    userset_rewrite {
+      union {
+        child { _this {} }
+        child { computed_userset { relation: "admin" } }
+      }
+    }
+
+    type_information {
+      allowed_direct_relations {
+        namespace: "tenancy/user"
+        relation: "token"
+      }
+    }
+  }
+
+validation_tuples:
+- tenancy/user:orgadmin#token@tenancy/token:orgadmintoken#...
+- tenancy/user:sharewithadmin#token@tenancy/token:sharewithadmintoken#...
+- tenancy/user:tenancyadmin#token@tenancy/token:tenancyadmintoken#...
+- tenancy/user:villain#token@tenancy/token:villaintoken#...
+
+- tenancy/organization:REDACTED#admin@tenancy/user:orgadmin#token
+
+- tenancy/tenant:sharewith#organization@tenancy/organization:REDACTED#...
+- tenancy/tenant:sharewith#admin@tenancy/user:sharewithadmin#token
+
+- tenancy/client:backend#token@tenancy/token:deadbeefdeadbeef#...
+- tenancy/tenant:sharewith#writer@tenancy/client:backend#token
+
+- tenancy/tenant:tenancy#organization@tenancy/organization:REDACTED#...
+- tenancy/tenant:tenancy#admin@tenancy/user:tenancyadmin#token
+
+- tenancy/client:REDACTED#token@tenancy/token:123456789abcdef#...
+- tenancy/tenant:tenancy#admin@tenancy/client:REDACTED#token
+
+- tenancy/organization:randocorp#admin@tenancy/user:villain#token
+
+- tenancy/namespace:somenamespace#tenant@tenancy/tenant:sharewith#...
+- tenancy/namespace:anothernamespace#tenant@tenancy/tenant:sharewith#...
