@@ -35,9 +35,3 @@ func (rpsk *requirePresharedKey) checkPresharedKey(
 
 	return ctx, nil
 }
-
-type NoAuthRequired struct{}
-
-func (noauth NoAuthRequired) AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error) {
-	return ctx, nil
-}

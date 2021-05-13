@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
@@ -33,8 +34,8 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	health "github.com/authzed/spicedb/pkg/REDACTEDapi/healthcheck"
 	"github.com/authzed/spicedb/pkg/cmdutil"
+	"github.com/authzed/spicedb/pkg/grpchealth"
 )
 
 func main() {
@@ -223,10 +224,18 @@ func RegisterGrpcServices(
 	dispatch graph.Dispatcher,
 	maxDepth uint16,
 ) {
+	healthSrv := grpchealth.NewAuthlessServer()
+
 	api.RegisterACLServiceServer(srv, services.NewACLServer(ds, nsm, dispatch, maxDepth))
+	healthSrv.SetServingStatus("ACLService", healthpb.HealthCheckResponse_SERVING)
+
 	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds))
+	healthSrv.SetServingStatus("NamespaceService", healthpb.HealthCheckResponse_SERVING)
+
 	api.RegisterWatchServiceServer(srv, services.NewWatchServer(ds, nsm))
-	health.RegisterHealthServer(srv, services.NewHealthServer())
+	healthSrv.SetServingStatus("WatchService", healthpb.HealthCheckResponse_SERVING)
+
+	healthpb.RegisterHealthServer(srv, healthSrv)
 	reflection.Register(srv)
 }
 

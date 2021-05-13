@@ -14,4 +14,3 @@ protoc \
   --validate_out="lang=go:$OUT_PATH" --validate_opt=paths=source_relative \
   protos/REDACTEDapi/api/core.proto $(ls protos/REDACTEDapi/api/!(core).proto) \
 $(ls protos/REDACTEDapi/impl/*.proto) \
-$(ls protos/REDACTEDapi/healthcheck/*.proto) 

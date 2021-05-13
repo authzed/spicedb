@@ -1,14 +1,19 @@
 package services
 
 import (
-	"github.com/authzed/spicedb/internal/auth"
+	"context"
+
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
 type devServer struct {
 	api.UnimplementedDeveloperServiceServer
+}
 
-	auth.NoAuthRequired
+// Implement the ServiceAuthFuncOverride interface to ignore any auth
+// requirements set by github.com/grpc-ecosystem/go-grpc-middleware/auth.
+func (ds *devServer) AuthFuncOverride(ctx context.Context, methodName string) (context.Context, error) {
+	return ctx, nil
 }
 
 // NewDeveloperServer creates an instance of the developer server.
