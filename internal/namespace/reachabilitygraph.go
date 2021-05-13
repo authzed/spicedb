@@ -107,7 +107,7 @@ func (re ReachabilityEntrypoint) Kind() ReachabilityEntrypointKind {
 	return re.kind
 }
 
-// DescribePath returns a human-readable description of the endpoint's path for debugging.
+// DescribePath returns a human-readable description of the entrypoint's path for debugging.
 func (re ReachabilityEntrypoint) DescribePath() string {
 	return re.node.DescribePath()
 }
@@ -658,7 +658,7 @@ func mapRewriteOperationNodes(so *pb.SetOperation, parentNode *rgStructuralNode,
 func addSubjectLinks(node *rgStructuralNode, bctx *buildContext) error {
 	typeInfo := bctx.relation.GetTypeInformation()
 	if typeInfo == nil {
-		return fmt.Errorf("missing type information for relation %s", bctx.relation.Name)
+		return fmt.Errorf("missing type information for relation %s#%s", bctx.constructing.namespaceName, bctx.relation.Name)
 	}
 
 	allowedDirectRelations := typeInfo.GetAllowedDirectRelations()

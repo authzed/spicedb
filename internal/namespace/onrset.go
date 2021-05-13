@@ -71,7 +71,7 @@ func (ons *ONRSet) Subtract(otherSet *ONRSet) *ONRSet {
 
 // AsSlice returns the ONRs found in the set as a slice.
 func (ons *ONRSet) AsSlice() []*pb.ObjectAndRelation {
-	slice := []*pb.ObjectAndRelation{}
+	slice := make([]*pb.ObjectAndRelation, 0, len(ons.onrs))
 	for _, onr := range ons.onrs {
 		slice = append(slice, onr)
 	}

@@ -152,7 +152,7 @@ func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) Lookup
 
 	lookup := newConcurrentLookup(ld, ld.ds, reachabilityGraph)
 	asyncLookup := lookup.lookup(ctx, req)
-	return LookupOne(ctx, asyncLookup)
+	return LookupAll(ctx, req.Limit, []ReduceableLookupFunc{asyncLookup})
 }
 
 func rewriteError(original error) error {

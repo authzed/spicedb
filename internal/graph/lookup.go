@@ -327,22 +327,6 @@ func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc, 
 	}
 }
 
-// LookupOne waits for exactly one response
-func LookupOne(ctx context.Context, request ReduceableLookupFunc) LookupResult {
-	resultChan := make(chan LookupResult, 1)
-	go request(ctx, resultChan)
-
-	select {
-	case result := <-resultChan:
-		if result.Err != nil {
-			return LookupResult{Err: result.Err}
-		}
-		return result
-	case <-ctx.Done():
-		return LookupResult{Err: ErrRequestCanceled}
-	}
-}
-
 func Resolved(resolved ResolvedObject) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
 		resultChan <- LookupResult{ResolvedObjects: []ResolvedObject{resolved}}

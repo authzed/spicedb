@@ -71,17 +71,17 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 			return nil, rewriteACLError(err)
 		}
 
-		_, ts, _, terr := as.nsm.ReadNamespaceAndTypes(ctx, mutation.Tuple.ObjectAndRelation.Namespace)
-		if terr != nil {
-			return nil, rewriteACLError(terr)
+		_, ts, _, err := as.nsm.ReadNamespaceAndTypes(ctx, mutation.Tuple.ObjectAndRelation.Namespace)
+		if err != nil {
+			return nil, rewriteACLError(err)
 		}
 
-		isAllowed, terr := ts.IsAllowedDirectRelation(
+		isAllowed, err := ts.IsAllowedDirectRelation(
 			mutation.Tuple.ObjectAndRelation.Relation,
 			mutation.Tuple.User.GetUserset().Namespace,
 			mutation.Tuple.User.GetUserset().Relation)
-		if terr != nil {
-			return nil, rewriteACLError(terr)
+		if err != nil {
+			return nil, rewriteACLError(err)
 		}
 
 		if isAllowed == namespace.DirectRelationNotValid {

@@ -145,6 +145,7 @@ func TestTypeSystem(t *testing.T) {
 				ns.Namespace(
 					"folder",
 					ns.Relation("can_comment", nil, ns.RelationReference("user", "...")),
+					ns.Relation("parent", nil, ns.RelationReference("folder", "...")),
 				),
 			},
 			"",
@@ -187,7 +188,69 @@ func TestReachabilityGraph(t *testing.T) {
 		otherNamespaces         []*pb.NamespaceDefinition
 		relationName            string
 		expectedEntrypointPaths []string
+		expectedError           string
 	}{
+		{
+			"missing type information",
+			ns.Namespace(
+				"document",
+				ns.Relation("first", nil),
+			),
+			[]*pb.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			"first",
+			[]string{},
+			"missing type information for relation document#first",
+		},
+		{
+			"unknown relation",
+			ns.Namespace(
+				"document",
+			),
+			[]*pb.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			"notarealrel",
+			[]string{},
+			"Unknown relation notarealrel",
+		},
+		{
+			"unreachable relation",
+			ns.Namespace(
+				"document",
+				ns.Relation("first", ns.Union(
+					ns.ComputedUserset("second"),
+				)),
+				ns.Relation("second", ns.Union(
+					ns.ComputedUserset("first"),
+				)),
+			),
+			[]*pb.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			"first",
+			[]string{},
+			"",
+		},
+		{
+			"unreachable relation",
+			ns.Namespace(
+				"document",
+				ns.Relation("first", ns.Union(
+					ns.ComputedUserset("second"),
+				)),
+				ns.Relation("second", ns.Union(
+					ns.ComputedUserset("first"),
+				)),
+			),
+			[]*pb.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			"second",
+			[]string{},
+			"",
+		},
 		{
 			"simple pathing",
 			ns.Namespace(
@@ -203,6 +266,7 @@ func TestReachabilityGraph(t *testing.T) {
 			},
 			"editor",
 			[]string{"document#editor"},
+			"",
 		},
 		{
 			"simple computed pathing",
@@ -222,6 +286,7 @@ func TestReachabilityGraph(t *testing.T) {
 				"_this -> union (document#viewer::2) -> document#viewer",
 				"document#editor",
 			},
+			"",
 		},
 		{
 			"full pathing with union",
@@ -256,6 +321,7 @@ func TestReachabilityGraph(t *testing.T) {
 				"_this -> union (document#editor::2) -> document#editor",
 				"document#owner",
 			},
+			"",
 		},
 		{
 			"full pathing with intersection",
@@ -290,6 +356,7 @@ func TestReachabilityGraph(t *testing.T) {
 				"document#owner",
 				"folder#admin",
 			},
+			"",
 		},
 		{
 			"nested groups example",
@@ -317,6 +384,7 @@ func TestReachabilityGraph(t *testing.T) {
 				"_this -> union (usergroup#member::2) -> usergroup#member",
 				"usergroup#manager",
 			},
+			"",
 		},
 		{
 			"nested groups for resource",
@@ -364,6 +432,7 @@ func TestReachabilityGraph(t *testing.T) {
 				"_this -> union (usergroup#member::2) -> usergroup#member",
 				"usergroup#manager",
 			},
+			"",
 		},
 	}
 
@@ -389,6 +458,12 @@ func TestReachabilityGraph(t *testing.T) {
 			require.NoError(terr, "Error in validating namespace")
 
 			graph, err := ts.RelationReachability(context.Background(), tc.relationName)
+			if tc.expectedError != "" {
+				require.Error(err)
+				require.Equal(tc.expectedError, err.Error())
+				return
+			}
+
 			require.NoError(err, "Error in building reachability graph")
 
 			foundPaths := []string{}
