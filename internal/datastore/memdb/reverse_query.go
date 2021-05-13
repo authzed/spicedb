@@ -27,9 +27,7 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 	txn := mtq.db.Txn(false)
 
 	time.Sleep(mtq.simulatedLatency)
-	var err error
-	var bestIterator memdb.ResultIterator
-	bestIterator, err = txn.Get(
+	bestIterator, err := txn.Get(
 		tableTuple,
 		indexRelationAndUserset,
 		mtq.usersetFilter.Namespace,
