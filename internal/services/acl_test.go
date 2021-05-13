@@ -703,6 +703,30 @@ func TestLookup(t *testing.T) {
 			[]string{},
 			codes.OK,
 		},
+		{
+			RR("document", "invalidrelation"),
+			ONR("user", "missingrolegal", "..."),
+			[]string{},
+			codes.FailedPrecondition,
+		},
+		{
+			RR("document", "viewer_and_editor_derived"),
+			ONR("user", "someuser", "invalidrelation"),
+			[]string{},
+			codes.FailedPrecondition,
+		},
+		{
+			RR("invalidnamespace", "viewer_and_editor_derived"),
+			ONR("user", "someuser", "..."),
+			[]string{},
+			codes.FailedPrecondition,
+		},
+		{
+			RR("document", "viewer_and_editor_derived"),
+			ONR("invalidnamespace", "someuser", "..."),
+			[]string{},
+			codes.FailedPrecondition,
+		},
 	}
 
 	for _, delta := range testTimedeltas {
