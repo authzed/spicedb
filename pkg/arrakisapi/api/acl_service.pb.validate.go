@@ -1121,26 +1121,6 @@ func (m *LookupResponse) Validate() error {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetObjectRelation()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return LookupResponseValidationError{
-				field:  "ObjectRelation",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
-
-	if v, ok := interface{}(m.GetUser()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return LookupResponseValidationError{
-				field:  "User",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
-
 	// no validation rules for NextPageReference
 
 	if v, ok := interface{}(m.GetRevision()).(interface{ Validate() error }); ok {
