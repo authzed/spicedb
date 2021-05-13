@@ -52,7 +52,7 @@ func TestSimpleLookup(t *testing.T) {
 			ONR("user", "eng_lead", "..."),
 			true,
 			[]ResolvedObject{
-				ResolvedObject{ONR("document", "masterplan", "viewer"), ""},
+				{ONR("document", "masterplan", "viewer"), ""},
 			},
 		},
 		{
@@ -60,7 +60,7 @@ func TestSimpleLookup(t *testing.T) {
 			ONR("user", "product_manager", "..."),
 			true,
 			[]ResolvedObject{
-				ResolvedObject{ONR("document", "masterplan", "owner"), ""},
+				{ONR("document", "masterplan", "owner"), ""},
 			},
 		},
 		{
@@ -68,8 +68,8 @@ func TestSimpleLookup(t *testing.T) {
 			ONR("user", "legal", "..."),
 			true,
 			[]ResolvedObject{
-				ResolvedObject{ONR("document", "companyplan", "viewer"), ""},
-				ResolvedObject{ONR("document", "masterplan", "viewer"), ""},
+				{ONR("document", "companyplan", "viewer"), ""},
+				{ONR("document", "masterplan", "viewer"), ""},
 			},
 		},
 		{
@@ -77,7 +77,7 @@ func TestSimpleLookup(t *testing.T) {
 			ONR("user", "multiroleguy", "..."),
 			true,
 			[]ResolvedObject{
-				ResolvedObject{ONR("document", "specialplan", "viewer_and_editor"), ""},
+				{ONR("document", "specialplan", "viewer_and_editor"), ""},
 			},
 		},
 		{
@@ -85,11 +85,11 @@ func TestSimpleLookup(t *testing.T) {
 			ONR("user", "multiroleguy", "..."),
 			false,
 			[]ResolvedObject{
-				ResolvedObject{
+				{
 					ONR:             ONR("document", "specialplan", "viewer_and_editor"),
 					ReductionNodeID: "document#viewer_and_editor::3",
 				},
-				ResolvedObject{
+				{
 					ONR:             ONR("document", "specialplan", "viewer_and_editor"),
 					ReductionNodeID: "document#viewer_and_editor::4",
 				},
@@ -100,8 +100,8 @@ func TestSimpleLookup(t *testing.T) {
 			ONR("user", "owner", "..."),
 			true,
 			[]ResolvedObject{
-				ResolvedObject{ONR("folder", "strategy", "viewer"), ""},
-				ResolvedObject{ONR("folder", "company", "viewer"), ""},
+				{ONR("folder", "strategy", "viewer"), ""},
+				{ONR("folder", "company", "viewer"), ""},
 			},
 		},
 	}
