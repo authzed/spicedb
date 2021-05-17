@@ -35,7 +35,7 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/cmdutil"
-	"github.com/authzed/spicedb/pkg/grpchealth"
+	"github.com/authzed/spicedb/pkg/grpcutil"
 )
 
 func main() {
@@ -224,7 +224,7 @@ func RegisterGrpcServices(
 	dispatch graph.Dispatcher,
 	maxDepth uint16,
 ) {
-	healthSrv := grpchealth.NewAuthlessServer()
+	healthSrv := grpcutil.NewAuthlessHealthServer()
 
 	api.RegisterACLServiceServer(srv, services.NewACLServer(ds, nsm, dispatch, maxDepth))
 	healthSrv.SetServingStatus("ACLService", healthpb.HealthCheckResponse_SERVING)
