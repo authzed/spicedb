@@ -135,7 +135,7 @@ func (pgd *pgDatastore) loadChanges(
 
 		var createdTxn uint64
 		var deletedTxn uint64
-		rows.Scan(
+		err = rows.Scan(
 			&tpl.ObjectAndRelation.Namespace,
 			&tpl.ObjectAndRelation.ObjectId,
 			&tpl.ObjectAndRelation.Relation,
@@ -145,6 +145,9 @@ func (pgd *pgDatastore) loadChanges(
 			&createdTxn,
 			&deletedTxn,
 		)
+		if err != nil {
+			return
+		}
 
 		if createdTxn > afterRevision {
 			addChange(stagedChanges, createdTxn, &pb.RelationTupleUpdate{
