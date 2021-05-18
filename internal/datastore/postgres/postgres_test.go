@@ -21,13 +21,20 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-type postgresTest struct {
+type sqlTest struct {
 	db      *sqlx.DB
 	port    string
+	creds   string
 	cleanup func()
 }
 
-func (pgt postgresTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (datastore.Datastore, error) {
+var postgresContainer = &dockertest.RunOptions{
+	Repository: "postgres",
+	Tag:        "9.6",
+	Env:        []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},
+}
+
+func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (datastore.Datastore, error) {
 	uniquePortion, err := secrets.TokenHex(4)
 	if err != nil {
 		return nil, err
@@ -35,14 +42,15 @@ func (pgt postgresTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (d
 
 	newDBName := "db" + uniquePortion
 
-	_, err = pgt.db.Exec("CREATE DATABASE " + newDBName)
+	_, err = st.db.Exec("CREATE DATABASE " + newDBName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create database: %w", err)
 	}
 
 	connectStr := fmt.Sprintf(
-		"postgres://postgres:secret@localhost:%s/%s?sslmode=disable",
-		pgt.port,
+		"postgres://%s@localhost:%s/%s?sslmode=disable",
+		st.creds,
+		st.port,
 		newDBName,
 	)
 
@@ -64,7 +72,7 @@ func (pgt postgresTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (d
 }
 
 func TestPostgresDatastore(t *testing.T) {
-	tester := newTester()
+	tester := newTester(postgresContainer, "postgres:secret", 5432)
 	defer tester.cleanup()
 
 	test.TestAll(t, tester)
@@ -73,7 +81,7 @@ func TestPostgresDatastore(t *testing.T) {
 func BenchmarkPostgresQuery(b *testing.B) {
 	req := require.New(b)
 
-	tester := newTester()
+	tester := newTester(postgresContainer, "postgres:secret", 5432)
 	defer tester.cleanup()
 
 	ds, err := tester.New(0, 24*time.Hour)
@@ -98,22 +106,22 @@ func BenchmarkPostgresQuery(b *testing.B) {
 	})
 }
 
-func newTester() *postgresTest {
+func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint16) *sqlTest {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		log.Fatalf("Could not connect to docker: %s", err)
 	}
 
-	resource, err := pool.Run("postgres", "9.6", []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=postgres"})
+	resource, err := pool.RunWithOptions(containerOpts)
 	if err != nil {
 		log.Fatalf("Could not start resource: %s", err)
 	}
 
 	var db *sqlx.DB
-	port := resource.GetPort("5432/tcp")
+	port := resource.GetPort(fmt.Sprintf("%d/tcp", portNum))
 	if err = pool.Retry(func() error {
 		var err error
-		db, err = sqlx.Connect("postgres", fmt.Sprintf("postgres://postgres:secret@localhost:%s/postgres?sslmode=disable", port))
+		db, err = sqlx.Connect("postgres", fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", creds, port))
 		if err != nil {
 			return err
 		}
@@ -129,5 +137,5 @@ func newTester() *postgresTest {
 		}
 	}
 
-	return &postgresTest{db: db, port: port, cleanup: cleanup}
+	return &sqlTest{db: db, port: port, cleanup: cleanup, creds: creds}
 }

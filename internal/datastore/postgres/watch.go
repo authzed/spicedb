@@ -120,7 +120,7 @@ func (pgd *pgDatastore) loadChanges(
 		return
 	}
 
-	stagedChanges := make(map[uint64]*datastore.RevisionChanges, newRevision-afterRevision)
+	stagedChanges := make(map[uint64]*datastore.RevisionChanges)
 
 	for rows.Next() {
 		userset := &pb.ObjectAndRelation{}
