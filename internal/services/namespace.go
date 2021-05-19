@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -31,6 +32,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 	}
 
 	for _, config := range req.Configs {
+		// Validate the type system for the updated namespace.
 		ts, terr := namespace.BuildNamespaceTypeSystem(config, nss.nsm, req.Configs...)
 		if terr != nil {
 			return nil, rewriteNamespaceError(terr)
@@ -39,6 +41,74 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 		tverr := ts.Validate(ctx)
 		if tverr != nil {
 			return nil, rewriteNamespaceError(tverr)
+		}
+
+		// Ensure that the updated namespace does not break the existing tuple data.
+		existing, revision, err := nss.nsm.ReadNamespace(ctx, config.Name)
+		if err != nil && err != namespace.ErrInvalidNamespace {
+			return nil, rewriteNamespaceError(err)
+		}
+
+		diff, err := namespace.DiffNamespaces(existing, config)
+		if err != nil {
+			return nil, rewriteNamespaceError(err)
+		}
+
+		for _, delta := range diff.Deltas() {
+			switch delta.Type {
+			case namespace.RemovedRelation:
+				query, err := nss.ds.QueryTuples(config.Name, revision).WithRelation(delta.RelationName).Execute(ctx)
+				if err != nil {
+					return nil, rewriteNamespaceError(err)
+				}
+				defer query.Close()
+
+				rt := query.Next()
+				if rt != nil {
+					if query.Err() != nil {
+						return nil, rewriteNamespaceError(query.Err())
+					}
+
+					return nil, rewriteNamespaceError(fmt.Errorf("cannot delete relation `%s` in namespace `%s`, as a tuple exists under it", delta.RelationName, config.Name))
+				}
+
+				// Also check for right sides of tuples.
+				query, err = nss.ds.ReverseQueryTuples(revision).
+					WithSubjectRelation(config.Name, delta.RelationName).
+					Execute(ctx)
+				if err != nil {
+					return nil, rewriteNamespaceError(err)
+				}
+				defer query.Close()
+
+				rt = query.Next()
+				if rt != nil {
+					if query.Err() != nil {
+						return nil, rewriteNamespaceError(query.Err())
+					}
+
+					return nil, rewriteNamespaceError(fmt.Errorf("cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name))
+				}
+
+			case namespace.RelationDirectTypeRemoved:
+				query, err := nss.ds.ReverseQueryTuples(revision).
+					WithObjectRelation(config.Name, delta.RelationName).
+					WithSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation).
+					Execute(ctx)
+				if err != nil {
+					return nil, rewriteNamespaceError(err)
+				}
+				defer query.Close()
+
+				rt := query.Next()
+				if rt != nil {
+					if query.Err() != nil {
+						return nil, rewriteNamespaceError(query.Err())
+					}
+
+					return nil, rewriteNamespaceError(fmt.Errorf("cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it", delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name))
+				}
+			}
 		}
 	}
 

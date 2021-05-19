@@ -120,13 +120,10 @@ func (mds *memdbDatastore) QueryTuples(namespace string, revision uint64) datast
 	}
 }
 
-func (mds *memdbDatastore) ReverseQueryTuples(namespaceName string, relationName string, userset *pb.ObjectAndRelation, revision uint64) datastore.ReverseTupleQuery {
+func (mds *memdbDatastore) ReverseQueryTuples(revision uint64) datastore.ReverseTupleQuery {
 	return &memdbReverseTupleQuery{
 		db:               mds.db,
 		revision:         revision,
-		namespaceName:    namespaceName,
-		relationName:     relationName,
-		usersetFilter:    userset,
 		simulatedLatency: mds.simulatedLatency,
 	}
 }

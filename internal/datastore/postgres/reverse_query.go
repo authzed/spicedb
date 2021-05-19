@@ -13,26 +13,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func (pgd *pgDatastore) ReverseQueryTuples(targetNamespaceName string, targetRelationName string, userset *pb.ObjectAndRelation, revision uint64) datastore.ReverseTupleQuery {
+func (pgd *pgDatastore) ReverseQueryTuples(revision uint64) datastore.ReverseTupleQuery {
 	return pgReverseTupleQuery{
-		db:                  pgd.db,
-		targetNamespaceName: targetNamespaceName,
-		targetRelationName:  targetRelationName,
-		userset:             userset,
+		db: pgd.db,
 		query: queryTuples.
 			Where(sq.LtOrEq{colCreatedTxn: revision}).
 			Where(sq.Or{
 				sq.Eq{colDeletedTxn: liveDeletedTxnID},
 				sq.Gt{colDeletedTxn: revision},
-			}).
-			Where(sq.Eq{
-				colNamespace: targetNamespaceName,
-				colRelation:  targetRelationName,
-			}).
-			Where(sq.Eq{
-				colUsersetNamespace: userset.Namespace,
-				colUsersetObjectID:  userset.ObjectId,
-				colUsersetRelation:  userset.Relation,
 			}),
 	}
 }
@@ -41,30 +29,70 @@ type pgReverseTupleQuery struct {
 	db    *sqlx.DB
 	query sq.SelectBuilder
 
-	targetNamespaceName string
-	targetRelationName  string
-	userset             *pb.ObjectAndRelation
+	objNamespaceName string
+	objRelationName  string
+
+	subNamespaceName string
+	subRelationName  string
+	subObjectId      string
 }
 
 var (
-	targetNamespaceNameKey = attribute.Key("authzed.com/spicedb/targetNamespaceName")
-	targetRelationNameKey  = attribute.Key("authzed.com/spicedb/targetRelationName")
+	objNamespaceNameKey = attribute.Key("authzed.com/spicedb/objNamespaceName")
+	objRelationNameKey  = attribute.Key("authzed.com/spicedb/objRelationName")
 
-	usersetNamespaceKey = attribute.Key("authzed.com/spicedb/usersetNamespaceName")
-	usersetRelationKey  = attribute.Key("authzed.com/spicedb/usersetRelationName")
-	usersetObjectIDKey  = attribute.Key("authzed.com/spicedb/usersetObjectId")
+	subNamespaceKey = attribute.Key("authzed.com/spicedb/subNamespaceName")
+	subRelationKey  = attribute.Key("authzed.com/spicedb/subRelationName")
+	subObjectIDKey  = attribute.Key("authzed.com/spicedb/subObjectId")
 )
+
+func (ptq pgReverseTupleQuery) WithObjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
+	ptq.objNamespaceName = namespaceName
+	ptq.objRelationName = relationName
+	ptq.query = ptq.query.
+		Where(sq.Eq{
+			colNamespace: namespaceName,
+			colRelation:  relationName,
+		})
+	return ptq
+}
+
+func (ptq pgReverseTupleQuery) WithSubjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
+	ptq.subNamespaceName = namespaceName
+	ptq.subRelationName = relationName
+	ptq.query = ptq.query.Where(sq.Eq{
+		colUsersetNamespace: namespaceName,
+		colUsersetRelation:  relationName,
+	})
+	return ptq
+}
+
+func (ptq pgReverseTupleQuery) WithSubject(onr *pb.ObjectAndRelation) datastore.ReverseTupleQuery {
+	ptq.subNamespaceName = onr.Namespace
+	ptq.subRelationName = onr.Relation
+	ptq.subObjectId = onr.ObjectId
+	ptq.query = ptq.query.Where(sq.Eq{
+		colUsersetNamespace: onr.Namespace,
+		colUsersetRelation:  onr.Relation,
+		colUsersetObjectID:  onr.ObjectId,
+	})
+	return ptq
+}
 
 func (ptq pgReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	ctx, span := tracer.Start(ctx, "ExecuteReverseTupleQuery")
 	defer span.End()
 
-	span.SetAttributes(targetNamespaceNameKey.String(ptq.targetNamespaceName))
-	span.SetAttributes(targetRelationNameKey.String(ptq.targetRelationName))
+	span.SetAttributes(objNamespaceNameKey.String(ptq.objNamespaceName))
+	span.SetAttributes(objRelationNameKey.String(ptq.objRelationName))
 
-	span.SetAttributes(usersetNamespaceKey.String(ptq.userset.Namespace))
-	span.SetAttributes(usersetObjectIDKey.String(ptq.userset.ObjectId))
-	span.SetAttributes(usersetRelationKey.String(ptq.userset.Relation))
+	span.SetAttributes(subNamespaceKey.String(ptq.subNamespaceName))
+	span.SetAttributes(subObjectIDKey.String(ptq.subObjectId))
+	span.SetAttributes(subRelationKey.String(ptq.subRelationName))
+
+	if ptq.subNamespaceName == "" || ptq.subRelationName == "" {
+		return nil, fmt.Errorf("missing subject namespace or relation")
+	}
 
 	span.AddEvent("DB transaction established")
 

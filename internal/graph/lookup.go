@@ -158,7 +158,9 @@ func (cl *concurrentLookup) buildDispatchedLookup(
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
 		// Lookup all tuples with the request's start tuple on the right hand side, and
 		// the entrypoint relation on the left hand side.
-		it, err := cl.ds.ReverseQueryTuples(targetNamespaceName, targetRelationName, startONR, req.AtRevision).
+		it, err := cl.ds.ReverseQueryTuples(req.AtRevision).
+			WithSubject(startONR).
+			WithObjectRelation(targetNamespaceName, targetRelationName).
 			Execute(ctx)
 		if err != nil {
 			resultChan <- LookupResult{Err: err}
