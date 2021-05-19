@@ -7,7 +7,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.0
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
-	github.com/cockroachdb/cockroach v20.1.15+incompatible // indirect
+	github.com/cockroachdb/cockroach v20.1.15+incompatible
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
 	github.com/dgraph-io/ristretto v0.0.3
 	github.com/dlmiddlecote/sqlstats v1.0.2
@@ -23,6 +23,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-memdb v1.3.2
+	github.com/jackc/pgx/v4 v4.11.0
 	github.com/jmoiron/sqlx v1.3.1
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd
@@ -35,7 +36,6 @@ require (
 	github.com/rs/zerolog v1.20.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/spf13/cobra v1.1.3
-	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/stretchr/testify v1.7.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.19.0
 	go.opentelemetry.io/otel v0.19.0
