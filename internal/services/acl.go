@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
@@ -371,22 +372,27 @@ func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.L
 	}
 	limit = min(limit, lookupMaximumLimit)
 
+	tracer := graph.NewNullTracer()
 	resp := as.dispatch.Lookup(ctx, graph.LookupRequest{
-		Start:          req.User,
-		TargetRelation: req.ObjectRelation,
+		TargetONR:      req.User,
+		StartRelation:  req.ObjectRelation,
 		Limit:          limit,
 		AtRevision:     atRevision,
 		DepthRemaining: depth,
-		IsRootRequest:  true,
+		DirectStack:    namespace.NewONRSet(),
+		TTUStack:       namespace.NewONRSet(),
+		DebugTracer:    tracer.Childf("%s#%s -> %s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.User)),
 	})
+	//fmt.Println(tracer.String())
+
 	if resp.Err != nil {
 		return nil, rewriteACLError(resp.Err)
 	}
 
 	resolvedObjectIDs := []string{}
 	for _, found := range resp.ResolvedObjects {
-		if found.ReductionNodeID != "" {
-			return nil, rewriteACLError(fmt.Errorf("found unreduced result at top level"))
+		if found.ONR.Namespace != req.ObjectRelation.Namespace {
+			return nil, rewriteACLError(fmt.Errorf("got invalid resolved object %v (expected %v)", found.ONR, req.ObjectRelation))
 		}
 
 		resolvedObjectIDs = append(resolvedObjectIDs, found.ONR.ObjectId)

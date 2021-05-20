@@ -67,14 +67,6 @@ func (rr stringableRelRef) String() string {
 	return fmt.Sprintf("%s::%s", rr.Namespace, rr.Relation)
 }
 
-type stringableTuple struct {
-	*pb.RelationTuple
-}
-
-func (t stringableTuple) String() string {
-	return tuple.String(t.RelationTuple)
-}
-
 func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
 	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
 		attribute.Stringer("start", stringableOnr{req.Start}),
@@ -120,8 +112,8 @@ func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) Expand
 
 func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) LookupResult {
 	ctx, span := tracer.Start(ctx, "DispatchLookup", trace.WithAttributes(
-		attribute.Stringer("start", stringableOnr{req.Start}),
-		attribute.Stringer("targetrelation", stringableRelRef{req.TargetRelation}),
+		attribute.Stringer("start", stringableRelRef{req.StartRelation}),
+		attribute.Stringer("target", stringableOnr{req.TargetONR}),
 		attribute.Int64("limit", int64(req.Limit)),
 	))
 	defer span.End()
@@ -136,23 +128,14 @@ func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) Lookup
 		}
 	}
 
-	_, typeSystem, _, err := ld.nsm.ReadNamespaceAndTypes(ctx, req.TargetRelation.Namespace)
-	if err != nil {
-		return LookupResult{
-			Err: err,
-		}
-	}
+	lookup := newConcurrentLookup(ld, ld.ds, ld.nsm)
+	tracer := req.DebugTracer.Childf("Dispatched: %s#%s -> %s", req.StartRelation.Namespace, req.StartRelation.Relation, tuple.StringONR(req.TargetONR))
+	req.DebugTracer = tracer
 
-	reachabilityGraph, err := typeSystem.RelationReachability(ctx, req.TargetRelation.Relation)
-	if err != nil {
-		return LookupResult{
-			Err: err,
-		}
-	}
-
-	lookup := newConcurrentLookup(ld, ld.ds, reachabilityGraph)
 	asyncLookup := lookup.lookup(ctx, req)
-	return LookupAll(ctx, req.Limit, []ReduceableLookupFunc{asyncLookup})
+	result := LookupAny(ctx, req.Limit, []ReduceableLookupFunc{asyncLookup})
+	tracer.Add("Response", EmittableObjectSlice(result.ResolvedObjects))
+	return result
 }
 
 func rewriteError(original error) error {

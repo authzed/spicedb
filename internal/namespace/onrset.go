@@ -29,8 +29,14 @@ func (ons *ONRSet) Has(onr *pb.ObjectAndRelation) bool {
 }
 
 // Add adds the given ONR to the set.
-func (ons *ONRSet) Add(onr *pb.ObjectAndRelation) {
+func (ons *ONRSet) Add(onr *pb.ObjectAndRelation) bool {
+	_, ok := ons.onrs[tuple.StringONR(onr)]
+	if ok {
+		return false
+	}
+
 	ons.onrs[tuple.StringONR(onr)] = onr
+	return true
 }
 
 // Update updates the set by adding the given ONRs to it.
@@ -66,6 +72,16 @@ func (ons *ONRSet) Subtract(otherSet *ONRSet) *ONRSet {
 			updated.Add(onr)
 		}
 	}
+	return updated
+}
+
+// With returns a copy of this ONR set with the given element added.
+func (ons *ONRSet) With(onr *pb.ObjectAndRelation) *ONRSet {
+	updated := NewONRSet()
+	for _, current := range ons.onrs {
+		updated.Add(current)
+	}
+	updated.Add(onr)
 	return updated
 }
 

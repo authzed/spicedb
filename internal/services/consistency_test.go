@@ -46,29 +46,29 @@ func TestConsistency(t *testing.T) {
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, filePath := range consistencyTestFiles {
 				t.Run(path.Base(filePath), func(t *testing.T) {
-					require := require.New(t)
+					lrequire := require.New(t)
 
 					ds, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
-					require.NoError(err)
+					lrequire.NoError(err)
 
 					fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
-					require.NoError(err)
+					lrequire.NoError(err)
 
 					ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
-					require.NoError(err)
+					lrequire.NoError(err)
 
 					dispatch, err := graph.NewLocalDispatcher(ns, ds)
-					require.NoError(err)
+					lrequire.NoError(err)
 
 					srv := NewACLServer(ds, ns, dispatch, 50)
 
 					// Validate the type system for each namespace.
 					for _, nsDef := range fullyResolved.NamespaceDefinitions {
 						_, ts, _, err := ns.ReadNamespaceAndTypes(context.Background(), nsDef.Name)
-						require.NoError(err)
+						lrequire.NoError(err)
 
 						err = ts.Validate(context.Background())
-						require.NoError(err)
+						lrequire.NoError(err)
 					}
 
 					// Build the list of tuples per namespace.
@@ -85,10 +85,10 @@ func TestConsistency(t *testing.T) {
 							},
 							AtRevision: zookie.NewFromRevision(revision),
 						})
-						require.NoError(err)
+						lrequire.NoError(err)
 
 						expected, _ := tuplesPerNamespace.Get(nsDef.Name)
-						require.Equal(len(expected), len(result.Tuplesets[0].Tuples))
+						lrequire.Equal(len(expected), len(result.Tuplesets[0].Tuples))
 					}
 
 					// Call a write on each tuple to make sure it type checks.
@@ -104,7 +104,7 @@ func TestConsistency(t *testing.T) {
 								WriteConditions: []*api.RelationTuple{tpl},
 								Updates:         []*api.RelationTupleUpdate{tuple.Touch(tpl)},
 							})
-							require.NoError(err)
+							lrequire.NoError(err)
 						}
 					}
 
@@ -125,87 +125,93 @@ func TestConsistency(t *testing.T) {
 					for _, nsDef := range fullyResolved.NamespaceDefinitions {
 						for _, relation := range nsDef.Relation {
 							for _, subject := range subjects.AsSlice() {
-								accessibleObjects := []string{}
-								allObjectIds, ok := objectsPerNamespace.Get(nsDef.Name)
-								if !ok {
-									continue
+								objectRelation := &api.RelationReference{
+									Namespace: nsDef.Name,
+									Relation:  relation.Name,
 								}
 
-								// Collect all accessible objects.
-								for _, objectId := range allObjectIds {
-									objectIdStr := objectId.(string)
-									checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
-										TestUserset: &api.ObjectAndRelation{
-											Namespace: nsDef.Name,
-											Relation:  relation.Name,
-											ObjectId:  objectIdStr,
-										},
-										User: &api.User{
-											UserOneof: &api.User_Userset{
-												Userset: subject,
-											},
-										},
-										AtRevision: zookie.NewFromRevision(revision),
-									})
-									require.NoError(err)
-									if checkResp.IsMember {
-										accessibleObjects = append(accessibleObjects, objectIdStr)
+								t.Run(fmt.Sprintf("lookup_%s_%s_to_%s_%s_%s", objectRelation.Namespace, objectRelation.Relation, subject.Namespace, subject.ObjectId, subject.Relation), func(t *testing.T) {
+									vrequire := require.New(t)
+
+									accessibleObjects := []string{}
+									allObjectIds, ok := objectsPerNamespace.Get(nsDef.Name)
+									if !ok {
+										return
 									}
-								}
 
-								// Perform a lookup call and ensure it returns the at least the same set of object IDs.
-								result, err := srv.Lookup(context.Background(), &api.LookupRequest{
-									User: subject,
-									ObjectRelation: &api.RelationReference{
-										Namespace: nsDef.Name,
-										Relation:  relation.Name,
-									},
-									Limit:      uint32(len(accessibleObjects) + 100),
-									AtRevision: zookie.NewFromRevision(revision),
-								})
-								require.NoError(err)
-
-								sort.Strings(accessibleObjects)
-								sort.Strings(result.ResolvedObjectIds)
-
-								for _, accessibleObjectID := range accessibleObjects {
-									require.True(
-										contains(result.ResolvedObjectIds, accessibleObjectID),
-										"Object `%s` missing in lookup results for %s#%s@%s: Expected: %v. Found: %v",
-										accessibleObjectID,
-										nsDef.Name,
-										relation.Name,
-										tuple.StringONR(subject),
-										accessibleObjects,
-										result.ResolvedObjectIds,
-									)
-								}
-
-								// Ensure that every returned object Checks.
-								for _, resolvedObjectId := range result.ResolvedObjectIds {
-									checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
-										TestUserset: &api.ObjectAndRelation{
-											Namespace: nsDef.Name,
-											Relation:  relation.Name,
-											ObjectId:  resolvedObjectId,
-										},
-										User: &api.User{
-											UserOneof: &api.User_Userset{
-												Userset: subject,
+									// Collect all accessible objects.
+									for _, objectId := range allObjectIds {
+										objectIdStr := objectId.(string)
+										checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
+											TestUserset: &api.ObjectAndRelation{
+												Namespace: nsDef.Name,
+												Relation:  relation.Name,
+												ObjectId:  objectIdStr,
 											},
-										},
-										AtRevision: zookie.NewFromRevision(revision),
+											User: &api.User{
+												UserOneof: &api.User_Userset{
+													Userset: subject,
+												},
+											},
+											AtRevision: zookie.NewFromRevision(revision),
+										})
+										vrequire.NoError(err)
+										if checkResp.IsMember {
+											accessibleObjects = append(accessibleObjects, objectIdStr)
+										}
+									}
+
+									// Perform a lookup call and ensure it returns the at least the same set of object IDs.
+									result, err := srv.Lookup(context.Background(), &api.LookupRequest{
+										User:           subject,
+										ObjectRelation: objectRelation,
+										Limit:          uint32(len(accessibleObjects) + 100),
+										AtRevision:     zookie.NewFromRevision(revision),
 									})
-									require.NoError(err)
-									require.True(
-										checkResp.IsMember,
-										"Found Check failure for relation %s:%s#%s and subject %s",
-										nsDef.Name,
-										resolvedObjectId,
-										relation.Name,
-										tuple.StringONR(subject),
-									)
-								}
+									vrequire.NoError(err)
+
+									sort.Strings(accessibleObjects)
+									sort.Strings(result.ResolvedObjectIds)
+
+									for _, accessibleObjectID := range accessibleObjects {
+										vrequire.True(
+											contains(result.ResolvedObjectIds, accessibleObjectID),
+											"Object `%s` missing in lookup results for %s#%s@%s: Expected: %v. Found: %v",
+											accessibleObjectID,
+											nsDef.Name,
+											relation.Name,
+											tuple.StringONR(subject),
+											accessibleObjects,
+											result.ResolvedObjectIds,
+										)
+									}
+
+									// Ensure that every returned object Checks.
+									for _, resolvedObjectId := range result.ResolvedObjectIds {
+										checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
+											TestUserset: &api.ObjectAndRelation{
+												Namespace: nsDef.Name,
+												Relation:  relation.Name,
+												ObjectId:  resolvedObjectId,
+											},
+											User: &api.User{
+												UserOneof: &api.User_Userset{
+													Userset: subject,
+												},
+											},
+											AtRevision: zookie.NewFromRevision(revision),
+										})
+										vrequire.NoError(err)
+										vrequire.True(
+											checkResp.IsMember,
+											"Found Check failure for relation %s:%s#%s and subject %s",
+											nsDef.Name,
+											resolvedObjectId,
+											relation.Name,
+											tuple.StringONR(subject),
+										)
+									}
+								})
 							}
 						}
 					}

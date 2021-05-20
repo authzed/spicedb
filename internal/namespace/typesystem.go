@@ -188,17 +188,6 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 	return nil
 }
 
-// RelationReachability returns a reachability graph for the specified relation.
-func (nts *NamespaceTypeSystem) RelationReachability(ctx context.Context, sourceRelationName string) (*ReachabilityGraph, error) {
-	relation, ok := nts.relationMap[sourceRelationName]
-	if !ok {
-		return nil, fmt.Errorf("Unknown relation %s", sourceRelationName)
-	}
-
-	encountered := map[RelationKey]*ReachabilityGraph{}
-	return buildRelationReachabilityGraph(ctx, nts, relation, encountered)
-}
-
 func (nts *NamespaceTypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName string) (*NamespaceTypeSystem, error) {
 	if nts.nsDef.Name == namespaceName {
 		return nts, nil

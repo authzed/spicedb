@@ -1,5 +1,6 @@
 package graph
 
+/*
 import (
 	"context"
 	"fmt"
@@ -181,3 +182,4 @@ func (a OrderedResolved) Less(i, j int) bool {
 }
 
 func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+*/
