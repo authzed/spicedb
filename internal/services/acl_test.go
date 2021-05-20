@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
@@ -251,7 +252,7 @@ func TestReadBadZookie(t *testing.T) {
 		Tuplesets: []*api.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
-		AtRevision: zookie.NewFromRevision(revision - 1),
+		AtRevision: zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1))),
 	})
 	require.NoError(err)
 
@@ -270,7 +271,7 @@ func TestReadBadZookie(t *testing.T) {
 		Tuplesets: []*api.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
-		AtRevision: zookie.NewFromRevision(revision - 1),
+		AtRevision: zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1))),
 	})
 	requireGRPCStatus(codes.OutOfRange, err, require)
 
@@ -278,7 +279,7 @@ func TestReadBadZookie(t *testing.T) {
 		Tuplesets: []*api.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
-		AtRevision: zookie.NewFromRevision(revision + 1),
+		AtRevision: zookie.NewFromRevision(revision.Add(decimal.NewFromInt(1))),
 	})
 	requireGRPCStatus(codes.OutOfRange, err, require)
 }
@@ -784,7 +785,7 @@ func newACLServicer(
 	revisionFuzzingTimedelta time.Duration,
 	gcWindow time.Duration,
 	simulatedLatency time.Duration,
-) (api.ACLServiceServer, uint64) {
+) (api.ACLServiceServer, decimal.Decimal) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
 	require.NoError(err)
 

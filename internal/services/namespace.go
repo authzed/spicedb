@@ -10,6 +10,7 @@ import (
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/zookie"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -97,7 +98,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 		}
 	}
 
-	var revision uint64 = 0
+	revision := decimal.Zero
 	for _, config := range req.Configs {
 		var err error
 		revision, err = nss.ds.WriteNamespace(ctx, config)

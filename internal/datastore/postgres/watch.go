@@ -13,9 +13,6 @@ import (
 )
 
 const (
-	errWatchError        = "watch error: %w"
-	errWatcherFellBehind = "watcher fell behind, disconnecting"
-
 	watchSleep = 100 * time.Millisecond
 )
 
@@ -32,7 +29,7 @@ var (
 	).From(tableTuple)
 )
 
-func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision uint64) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, pgd.watchBufferLength)
 	errors := make(chan error, 1)
 
@@ -40,7 +37,7 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision uint64) (<-chan
 		defer close(updates)
 		defer close(errors)
 
-		currentTxn := afterRevision
+		currentTxn := transactionFromRevision(afterRevision)
 
 		for {
 			var stagedUpdates []*datastore.RevisionChanges
@@ -186,7 +183,7 @@ func addChange(changes map[uint64]*datastore.RevisionChanges, revision uint64, c
 	revisionChanges, ok := changes[revision]
 	if !ok {
 		revisionChanges = &datastore.RevisionChanges{
-			Revision: revision,
+			Revision: revisionFromTransaction(revision),
 		}
 		changes[revision] = revisionChanges
 	}

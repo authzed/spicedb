@@ -97,10 +97,10 @@ var StandardTuples = []string{
 	"document:specialplan#viewer_and_editor@user:missingrolegal#...",
 }
 
-func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, uint64) {
+func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	ctx := context.Background()
 
-	var lastRevision uint64
+	var lastRevision datastore.Revision
 	for _, namespace := range []*pb.NamespaceDefinition{UserNS, FolderNS, DocumentNS} {
 		var err error
 		lastRevision, err = ds.WriteNamespace(ctx, namespace)
@@ -110,11 +110,11 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 	return ds, lastRevision
 }
 
-func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, uint64) {
+func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	ds, _ = StandardDatastoreWithSchema(ds, require)
 	ctx := context.Background()
 
-	var revision uint64
+	var revision datastore.Revision
 	for _, tupleStr := range StandardTuples {
 		tpl := tuple.Scan(tupleStr)
 		require.NotNil(tpl)
@@ -132,7 +132,7 @@ type TupleChecker struct {
 	DS      datastore.Datastore
 }
 
-func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *pb.RelationTuple, rev uint64) datastore.TupleIterator {
+func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *pb.RelationTuple, rev datastore.Revision) datastore.TupleIterator {
 	iter, err := tc.DS.QueryTuples(tpl.ObjectAndRelation.Namespace, rev).
 		WithObjectID(tpl.ObjectAndRelation.ObjectId).
 		WithRelation(tpl.ObjectAndRelation.Relation).
@@ -175,12 +175,12 @@ func (tc TupleChecker) VerifyIteratorResults(iter datastore.TupleIterator, tpls 
 	tc.Require.Zero(len(toFind), "Should not be any extra to find")
 }
 
-func (tc TupleChecker) TupleExists(ctx context.Context, tpl *pb.RelationTuple, rev uint64) {
+func (tc TupleChecker) TupleExists(ctx context.Context, tpl *pb.RelationTuple, rev datastore.Revision) {
 	iter := tc.ExactTupleIterator(ctx, tpl, rev)
 	tc.VerifyIteratorResults(iter, tpl)
 }
 
-func (tc TupleChecker) NoTupleExists(ctx context.Context, tpl *pb.RelationTuple, rev uint64) {
+func (tc TupleChecker) NoTupleExists(ctx context.Context, tpl *pb.RelationTuple, rev datastore.Revision) {
 	iter := tc.ExactTupleIterator(ctx, tpl, rev)
 	tc.VerifyIteratorResults(iter)
 }

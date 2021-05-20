@@ -14,7 +14,7 @@ import (
 
 type memdbReverseTupleQuery struct {
 	db       *memdb.MemDB
-	revision uint64
+	revision datastore.Revision
 
 	objNamespaceName string
 	objRelationName  string
@@ -108,7 +108,7 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 
 	filteredIterator := memdb.NewFilterIterator(bestIterator, func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*tupleEntry)
-		if mtq.revision < tuple.createdTxn || mtq.revision >= tuple.deletedTxn {
+		if uint64(mtq.revision.IntPart()) < tuple.createdTxn || uint64(mtq.revision.IntPart()) >= tuple.deletedTxn {
 			return true
 		}
 		return false

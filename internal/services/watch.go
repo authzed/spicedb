@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/zookie"
+	"github.com/shopspring/decimal"
 )
 
 type watchServer struct {
@@ -40,14 +41,14 @@ func (ws *watchServer) Watch(req *api.WatchRequest, stream api.WatchService_Watc
 	}
 	filter := namespaceFilter{namespaces: namespaceMap}
 
-	var afterRevision uint64 = 0
+	var afterRevision decimal.Decimal
 	if req.StartRevision != nil && req.StartRevision.Token != "" {
-		decodedRevision, err := zookie.Decode(req.StartRevision)
+		decodedRevision, err := zookie.DecodeRevision(req.StartRevision)
 		if err != nil {
 			status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}
 
-		afterRevision = decodedRevision.GetV1().Revision
+		afterRevision = decodedRevision
 	} else {
 		var err error
 		afterRevision, err = ws.ds.Revision(stream.Context())

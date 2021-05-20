@@ -57,6 +57,18 @@ func (m *DecodedZookie) Validate() error {
 			}
 		}
 
+	case *DecodedZookie_V2:
+
+		if v, ok := interface{}(m.GetV2()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return DecodedZookieValidationError{
+					field:  "V2",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	}
 
 	return nil
@@ -184,3 +196,72 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DecodedZookie_V1ZookieValidationError{}
+
+// Validate checks the field values on DecodedZookie_V2Zookie with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *DecodedZookie_V2Zookie) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	// no validation rules for Revision
+
+	return nil
+}
+
+// DecodedZookie_V2ZookieValidationError is the validation error returned by
+// DecodedZookie_V2Zookie.Validate if the designated constraints aren't met.
+type DecodedZookie_V2ZookieValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DecodedZookie_V2ZookieValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DecodedZookie_V2ZookieValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DecodedZookie_V2ZookieValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DecodedZookie_V2ZookieValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DecodedZookie_V2ZookieValidationError) ErrorName() string {
+	return "DecodedZookie_V2ZookieValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DecodedZookie_V2ZookieValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDecodedZookie_V2Zookie.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DecodedZookie_V2ZookieValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DecodedZookie_V2ZookieValidationError{}

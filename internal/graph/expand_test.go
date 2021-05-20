@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -209,7 +210,7 @@ func TestMaxDepthExpand(t *testing.T) {
 
 	revision, err := ds.WriteTuples(ctx, nil, mutations)
 	require.NoError(err)
-	require.Greater(revision, uint64(0))
+	require.True(revision.GreaterThan(decimal.Zero))
 
 	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
 	require.NoError(err)

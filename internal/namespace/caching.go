@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/ristretto"
+	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -30,7 +31,7 @@ type cachingManager struct {
 
 type cacheEntry struct {
 	definition *pb.NamespaceDefinition
-	version    uint64
+	version    decimal.Decimal
 	expiration time.Time
 }
 
@@ -59,7 +60,7 @@ func NewCachingNamespaceManager(
 	}, nil
 }
 
-func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string) (*pb.NamespaceDefinition, *NamespaceTypeSystem, uint64, error) {
+func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string) (*pb.NamespaceDefinition, *NamespaceTypeSystem, decimal.Decimal, error) {
 	nsDef, rev, err := nsc.ReadNamespace(ctx, nsName)
 	if err != nil {
 		return nsDef, nil, rev, err
@@ -70,7 +71,7 @@ func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName stri
 	return nsDef, ts, rev, terr
 }
 
-func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
+func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, decimal.Decimal, error) {
 	ctx, span := tracer.Start(ctx, "ReadNamespace")
 	defer span.End()
 
@@ -89,10 +90,10 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb
 	// We couldn't use the cached entry, load one
 	loaded, version, err := nsc.delegate.ReadNamespace(ctx, nsName)
 	if err == datastore.ErrNamespaceNotFound {
-		return nil, 0, ErrInvalidNamespace
+		return nil, decimal.Zero, ErrInvalidNamespace
 	}
 	if err != nil {
-		return nil, 0, err
+		return nil, decimal.Zero, err
 	}
 
 	// Save it to the cache

@@ -9,18 +9,19 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
-func (pgd *pgDatastore) ReverseQueryTuples(revision uint64) datastore.ReverseTupleQuery {
+func (pgd *pgDatastore) ReverseQueryTuples(revision decimal.Decimal) datastore.ReverseTupleQuery {
 	return pgReverseTupleQuery{
 		db: pgd.db,
 		query: queryTuples.
-			Where(sq.LtOrEq{colCreatedTxn: revision}).
+			Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 			Where(sq.Or{
 				sq.Eq{colDeletedTxn: liveDeletedTxnID},
-				sq.Gt{colDeletedTxn: revision},
+				sq.Gt{colDeletedTxn: transactionFromRevision(revision)},
 			}),
 	}
 }
@@ -155,19 +156,9 @@ func (ptq pgReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleIter
 
 	span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 
-	iter := &pgTupleIterator{
-		tuples: tuples,
-	}
+	iter := datastore.NewSliceTupleIterator(tuples)
 
-	runtime.SetFinalizer(iter, func(iter *pgTupleIterator) {
-		if !iter.closed {
-			panic(fmt.Sprintf(
-				"Tuple iterator garbage collected before Close() was called\n sql: %s\n args: %#v\n",
-				sql,
-				args,
-			))
-		}
-	})
+	runtime.SetFinalizer(iter, datastore.BuildFinalizerFunction(sql, args))
 
 	return iter, nil
 }

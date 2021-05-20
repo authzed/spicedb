@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	dbsql "database/sql"
 	"fmt"
 	"math/rand"
@@ -14,6 +13,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/ngrok/sqlmw"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
@@ -50,7 +50,7 @@ const (
 )
 
 func init() {
-	sql.Register(tracingDriverName, sqlmw.Driver(pq.Driver{}, new(traceInterceptor)))
+	dbsql.Register(tracingDriverName, sqlmw.Driver(pq.Driver{}, new(traceInterceptor)))
 }
 
 var (
@@ -59,8 +59,6 @@ var (
 	getRevision = psql.Select("MAX(id)").From(tableTransaction)
 
 	getRevisionRange = psql.Select("MIN(id)", "MAX(id)").From(tableTransaction)
-
-	getMatchingRevision = psql.Select(colID).From(tableTransaction)
 
 	getNow = psql.Select("NOW()")
 
@@ -131,40 +129,52 @@ type pgDatastore struct {
 	gcWindowInverted         time.Duration
 }
 
-func (pgd *pgDatastore) SyncRevision(ctx context.Context) (uint64, error) {
+func (pgd *pgDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "SyncRevision")
 	defer span.End()
 
-	return pgd.loadRevision(ctx)
+	revision, err := pgd.loadRevision(ctx)
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+
+	return revisionFromTransaction(revision), nil
 }
 
-func (pgd *pgDatastore) Revision(ctx context.Context) (uint64, error) {
+func (pgd *pgDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "Revision")
 	defer span.End()
 
 	lower, upper, err := pgd.computeRevisionRange(ctx, -1*pgd.revisionFuzzingTimedelta)
 	if err != nil && err != dbsql.ErrNoRows {
-		return 0, fmt.Errorf(errRevision, err)
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
 	if err == dbsql.ErrNoRows {
-		return pgd.loadRevision(ctx)
+		revision, err := pgd.loadRevision(ctx)
+		if err != nil {
+			return datastore.NoRevision, err
+		}
+
+		return revisionFromTransaction(revision), nil
 	}
 
 	if upper-lower == 0 {
-		return upper, nil
+		return revisionFromTransaction(upper), nil
 	}
 
-	return uint64(rand.Intn(int(upper-lower))) + lower, nil
+	return revisionFromTransaction(uint64(rand.Intn(int(upper-lower))) + lower), nil
 }
 
-func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) error {
+func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
 
+	revisionTx := transactionFromRevision(revision)
+
 	lower, upper, err := pgd.computeRevisionRange(ctx, pgd.gcWindowInverted)
 	if err == nil {
-		if revision >= lower && revision <= upper {
+		if revisionTx >= lower && revisionTx <= upper {
 			return nil
 		} else {
 			return datastore.ErrInvalidRevision
@@ -190,7 +200,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision uint64) erro
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
-	if revision != highest {
+	if revisionTx != highest {
 		return datastore.ErrInvalidRevision
 	}
 
@@ -263,6 +273,14 @@ func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, er
 
 	err = tx.QueryRowxContext(separateContextWithTracing(ctx), createTxn).Scan(&newTxnID)
 	return
+}
+
+func revisionFromTransaction(txID uint64) datastore.Revision {
+	return decimal.NewFromInt(int64(txID))
+}
+
+func transactionFromRevision(revision datastore.Revision) uint64 {
+	return uint64(revision.IntPart())
 }
 
 // We're severing the context between grpc and the database to prevent context

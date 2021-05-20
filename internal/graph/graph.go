@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/namespace"
@@ -32,7 +33,7 @@ var (
 type CheckRequest struct {
 	Start          *pb.ObjectAndRelation
 	Goal           *pb.ObjectAndRelation
-	AtRevision     uint64
+	AtRevision     decimal.Decimal
 	DepthRemaining uint16
 }
 
@@ -45,7 +46,7 @@ type CheckResult struct {
 // ExpandRequest contains the data for a single expand request.
 type ExpandRequest struct {
 	Start          *pb.ObjectAndRelation
-	AtRevision     uint64
+	AtRevision     decimal.Decimal
 	DepthRemaining uint16
 }
 
@@ -64,7 +65,7 @@ type LookupRequest struct {
 	TargetONR *pb.ObjectAndRelation
 
 	Limit          int
-	AtRevision     uint64
+	AtRevision     decimal.Decimal
 	DepthRemaining uint16
 	DirectStack    *namespace.ONRSet
 	TTUStack       *namespace.ONRSet

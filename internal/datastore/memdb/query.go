@@ -15,7 +15,7 @@ import (
 type memdbTupleQuery struct {
 	db        *memdb.MemDB
 	namespace string
-	revision  uint64
+	revision  datastore.Revision
 
 	objectIDFilter *string
 	relationFilter *string
@@ -101,7 +101,7 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 			mtq.usersetFilter.Relation != tuple.usersetRelation) {
 			return true
 		}
-		if mtq.revision < tuple.createdTxn || mtq.revision >= tuple.deletedTxn {
+		if uint64(mtq.revision.IntPart()) < tuple.createdTxn || uint64(mtq.revision.IntPart()) >= tuple.deletedTxn {
 			return true
 		}
 		return false

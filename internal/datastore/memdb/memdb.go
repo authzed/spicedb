@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/shopspring/decimal"
 )
 
 const DisableGC = time.Duration(math.MaxInt64)
@@ -265,4 +266,8 @@ func NewMemdbDatastore(
 		gcWindowInverted: -1 * gcWindow,
 		simulatedLatency: simulatedLatency,
 	}, nil
+}
+
+func revisionFromVersion(version uint64) datastore.Revision {
+	return decimal.NewFromInt(int64(version))
 }

@@ -52,7 +52,7 @@ func (ti *traceInterceptor) ConnectorConnect(ctx context.Context, conn driver.Co
 
 // Rows interceptors
 func (ti *traceInterceptor) RowsNext(ctx context.Context, conn driver.Rows, dest []driver.Value) error {
-	ctx, span := tracer.Start(ctx, "RowsNext")
+	_, span := tracer.Start(ctx, "RowsNext")
 	defer span.End()
 
 	return conn.Next(dest)
@@ -72,7 +72,7 @@ func (ti *traceInterceptor) StmtQueryContext(ctx context.Context, conn driver.St
 	return conn.QueryContext(ctx, args)
 }
 func (ti *traceInterceptor) StmtClose(ctx context.Context, conn driver.Stmt) error {
-	ctx, span := tracer.Start(ctx, "StmtClose")
+	_, span := tracer.Start(ctx, "StmtClose")
 	defer span.End()
 
 	return conn.Close()
@@ -80,13 +80,13 @@ func (ti *traceInterceptor) StmtClose(ctx context.Context, conn driver.Stmt) err
 
 // Tx interceptors
 func (ti *traceInterceptor) TxCommit(ctx context.Context, conn driver.Tx) error {
-	ctx, span := tracer.Start(ctx, "TxCommit")
+	_, span := tracer.Start(ctx, "TxCommit")
 	defer span.End()
 
 	return conn.Commit()
 }
 func (ti *traceInterceptor) TxRollback(ctx context.Context, conn driver.Tx) error {
-	ctx, span := tracer.Start(ctx, "TxRollback")
+	_, span := tracer.Start(ctx, "TxRollback")
 	defer span.End()
 
 	return conn.Rollback()

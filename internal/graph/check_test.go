@@ -10,6 +10,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -157,7 +158,7 @@ func TestMaxDepth(t *testing.T) {
 
 	revision, err := ds.WriteTuples(ctx, nil, mutations)
 	require.NoError(err)
-	require.Greater(revision, uint64(0))
+	require.True(revision.GreaterThan(decimal.Zero))
 
 	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
 	require.NoError(err)
@@ -176,7 +177,7 @@ func TestMaxDepth(t *testing.T) {
 	require.False(checkResult.IsMember)
 }
 
-func newLocalDispatcher(require *require.Assertions) (Dispatcher, uint64) {
+func newLocalDispatcher(require *require.Assertions) (Dispatcher, decimal.Decimal) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 

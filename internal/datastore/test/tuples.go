@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -41,7 +42,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 
 			ctx := context.Background()
 
-			var lastRevision uint64
+			var lastRevision datastore.Revision
 			for i := 0; i < numTuples; i++ {
 				resourceName := fmt.Sprintf("resource%d", i)
 				userName := fmt.Sprintf("user%d", i)
@@ -55,11 +56,9 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 					[]*pb.RelationTupleUpdate{tuple.Create(newTuple)},
 				)
 				require.NoError(err)
-				require.Greater(writtenAt, lastRevision)
+				require.True(writtenAt.GreaterThan(lastRevision))
 
 				tRequire.TupleExists(ctx, newTuple, writtenAt)
-				tRequire.TupleExists(ctx, newTuple, writtenAt+100)
-				tRequire.NoTupleExists(ctx, newTuple, writtenAt-1)
 
 				lastRevision = writtenAt
 			}
@@ -147,7 +146,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			// Verify it can still be read at the old revision
-			tRequire.TupleExists(ctx, testTuples[0], deletedAt-1)
+			tRequire.TupleExists(ctx, testTuples[0], lastRevision)
 
 			// Verify that it does not show up at the new revision
 			tRequire.NoTupleExists(ctx, testTuples[0], deletedAt)
@@ -214,35 +213,34 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 	// Get the new now revision
 	nowRevision, err := ds.SyncRevision(ctx)
 	require.NoError(err)
-	require.GreaterOrEqual(nowRevision, uint64(0))
+	require.True(nowRevision.GreaterThan(datastore.NoRevision))
 
-	foundAnotherRevision := false
+	foundLowerRevision := false
 	for start := time.Now(); time.Since(start) < 20*time.Millisecond; {
 		testRevision, err := ds.Revision(ctx)
 		require.NoError(err)
-		require.LessOrEqual(testRevision, nowRevision)
-		if testRevision < nowRevision {
-			foundAnotherRevision = true
+		if testRevision.LessThan(nowRevision) {
+			foundLowerRevision = true
 			break
 		}
 	}
 
-	require.True(foundAnotherRevision)
+	require.True(foundLowerRevision)
 
 	// Let the fuzzing window expire
 	time.Sleep(fuzzingRange)
 
-	// Now we should ONLY get the now revision
+	// Now we should ONLY get revisions later than the now revision
 	for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
 		testRevision, err := ds.Revision(ctx)
 		require.NoError(err)
-		require.Equal(nowRevision, testRevision)
+		require.True(testRevision.GreaterThanOrEqual(nowRevision))
 	}
 }
 
 func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 	t.Run("revision expiration", func(t *testing.T) {
-		testGCDuration := 10 * time.Millisecond
+		testGCDuration := 40 * time.Millisecond
 
 		require := require.New(t)
 
@@ -254,7 +252,7 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 		ctx := context.Background()
 
 		// Check that we get an error when there are no revisions
-		err = ds.CheckRevision(ctx, 0)
+		err = ds.CheckRevision(ctx, datastore.NoRevision)
 		require.Equal(datastore.ErrInvalidRevision, err)
 
 		newTuple := makeTestTuple("one", "one")
@@ -271,10 +269,6 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 
 		// Wait the duration required to allow the revision to expire
 		time.Sleep(testGCDuration * 2)
-
-		// Check that we can still read the just written revision even though it's expired
-		err = ds.CheckRevision(ctx, firstWrite)
-		require.NoError(err)
 
 		// Write another tuple which will allow the first revision to expire
 		nextWrite, err := ds.WriteTuples(
@@ -293,11 +287,7 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 		require.Equal(datastore.ErrInvalidRevision, err)
 
 		// Check that we can't read a revision that's ahead of the latest
-		err = ds.CheckRevision(ctx, nextWrite+1)
-		require.Equal(datastore.ErrInvalidRevision, err)
-
-		// Check that we can't read a revision that's WAY ahead of the latest
-		err = ds.CheckRevision(ctx, nextWrite+1000000)
+		err = ds.CheckRevision(ctx, nextWrite.Add(decimal.NewFromInt(1_000_000_000)))
 		require.Equal(datastore.ErrInvalidRevision, err)
 	})
 }

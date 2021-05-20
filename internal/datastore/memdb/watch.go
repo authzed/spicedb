@@ -14,7 +14,7 @@ const (
 	errWatcherFellBehind = "watcher fell behind, disconnecting"
 )
 
-func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision uint64) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errors := make(chan error, 1)
 
@@ -22,7 +22,7 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision uint64) (<-c
 		defer close(updates)
 		defer close(errors)
 
-		currentTxn := afterRevision
+		currentTxn := uint64(afterRevision.IntPart())
 
 		for {
 			var stagedUpdates []*datastore.RevisionChanges
@@ -77,7 +77,7 @@ func (mds *memdbDatastore) loadChanges(currentTxn uint64) ([]*datastore.Revision
 	for newChangeRaw := it.Next(); newChangeRaw != nil; newChangeRaw = it.Next() {
 		newChange := newChangeRaw.(*tupleChangelog)
 		stagedUpdates = append(stagedUpdates, &datastore.RevisionChanges{
-			Revision: newChange.id,
+			Revision: revisionFromVersion(newChange.id),
 			Changes:  newChange.changes,
 		})
 		currentTxn = newChange.id

@@ -32,10 +32,10 @@ var (
 	queryTupleExists = psql.Select(colID).From(tableTuple)
 )
 
-func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
+func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (datastore.Revision, error) {
 	tx, err := pgd.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 	defer tx.Rollback()
 
@@ -43,21 +43,21 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 	for _, tpl := range preconditions {
 		sql, args, err := queryTupleExists.Where(exactTupleClause(tpl)).Limit(1).ToSql()
 		if err != nil {
-			return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
 		foundID := -1
 		if err := tx.QueryRowxContext(separateContextWithTracing(ctx), sql, args...).Scan(&foundID); err != nil {
 			if err == dbsql.ErrNoRows {
-				return 0, datastore.ErrPreconditionFailed
+				return datastore.NoRevision, datastore.ErrPreconditionFailed
 			}
-			return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 	}
 
 	newTxnID, err := createNewTransaction(ctx, tx)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	bulkWrite := writeTuple
@@ -70,11 +70,11 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 		if mutation.Operation == pb.RelationTupleUpdate_TOUCH || mutation.Operation == pb.RelationTupleUpdate_DELETE {
 			sql, args, err := deleteTuple.Where(exactTupleClause(tpl)).Set(colDeletedTxn, newTxnID).ToSql()
 			if err != nil {
-				return 0, fmt.Errorf(errUnableToWriteTuples, err)
+				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 
 			if _, err := tx.ExecContext(separateContextWithTracing(ctx), sql, args...); err != nil {
-				return 0, fmt.Errorf(errUnableToWriteTuples, err)
+				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		}
 
@@ -95,21 +95,21 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 	if bulkWriteHasValues {
 		sql, args, err := bulkWrite.ToSql()
 		if err != nil {
-			return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
 		_, err = tx.ExecContext(separateContextWithTracing(ctx), sql, args...)
 		if err != nil {
-			return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
-	return newTxnID, nil
+	return revisionFromTransaction(newTxnID), nil
 }
 
 func exactTupleClause(tpl *pb.RelationTuple) sq.Eq {

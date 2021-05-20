@@ -30,12 +30,12 @@ var (
 	).From(tableTuple)
 )
 
-func (pgd *pgDatastore) QueryTuples(namespace string, revision uint64) datastore.TupleQuery {
+func (pgd *pgDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
 	return pgTupleQuery{
 		db: pgd.db,
 		query: queryTuples.
 			Where(sq.Eq{colNamespace: namespace}).
-			Where(sq.LtOrEq{colCreatedTxn: revision}).
+			Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 			Where(sq.Or{
 				sq.Eq{colDeletedTxn: liveDeletedTxnID},
 				sq.Gt{colDeletedTxn: revision},

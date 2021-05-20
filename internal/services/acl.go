@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -161,15 +162,15 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 		}
 	}
 
-	var atRevision uint64
+	var atRevision decimal.Decimal
 	if req.AtRevision != nil {
 		// Read should attempt to use the exact revision requested
-		decoded, err := zookie.Decode(req.AtRevision)
+		decoded, err := zookie.DecodeRevision(req.AtRevision)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "bad request revision: %s", err)
 		}
 
-		atRevision = decoded.GetV1().Revision
+		atRevision = decoded
 	} else {
 		// No revision provided, we'll pick one
 		var err error
@@ -255,7 +256,7 @@ func (as *aclServer) ContentChangeCheck(ctx context.Context, req *api.ContentCha
 
 func (as *aclServer) commonCheck(
 	ctx context.Context,
-	atRevision uint64,
+	atRevision decimal.Decimal,
 	start *api.ObjectAndRelation,
 	goal *api.ObjectAndRelation,
 ) (*api.CheckResponse, error) {
@@ -428,20 +429,19 @@ func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) 
 	return as.defaultDepth, nil
 }
 
-func (as *aclServer) pickBestRevision(ctx context.Context, requested *api.Zookie) (uint64, error) {
+func (as *aclServer) pickBestRevision(ctx context.Context, requested *api.Zookie) (decimal.Decimal, error) {
 	databaseRev, err := as.ds.Revision(ctx)
 	if err != nil {
-		return 0, err
+		return decimal.Zero, err
 	}
 
 	if requested != nil {
-		decoded, err := zookie.Decode(requested)
+		requestedRev, err := zookie.DecodeRevision(requested)
 		if err != nil {
-			return 0, errInvalidZookie
+			return decimal.Zero, errInvalidZookie
 		}
 
-		requestedRev := decoded.GetV1().Revision
-		if requestedRev > databaseRev {
+		if requestedRev.GreaterThan(databaseRev) {
 			return requestedRev, nil
 		}
 		return databaseRev, nil

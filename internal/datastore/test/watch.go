@@ -45,28 +45,26 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			changes, errchan := ds.Watch(ctx, 0)
+			lowestRevision, err := ds.SyncRevision(ctx)
+			require.NoError(err)
+
+			changes, errchan := ds.Watch(ctx, lowestRevision)
 			require.Zero(len(errchan))
 
 			var testUpdates []*pb.RelationTupleUpdate
-			lowestRevision := ^uint64(0)
 			for i := 0; i < tc.numTuples; i++ {
 				newUpdate := tuple.Create(
 					makeTestTuple(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)),
 				)
 				testUpdates = append(testUpdates, newUpdate)
-				newRevision, err := ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{newUpdate})
+				_, err := ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{newUpdate})
 				require.NoError(err)
-
-				if newRevision < lowestRevision {
-					lowestRevision = newRevision
-				}
 			}
 
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
 			// Test the catch-up case
-			changes, errchan = ds.Watch(ctx, lowestRevision-1)
+			changes, errchan = ds.Watch(ctx, lowestRevision)
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 		})
 	}
@@ -113,7 +111,7 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 	setupDatastore(ds, require)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	changes, errchan := ds.Watch(ctx, 0)
+	changes, errchan := ds.Watch(ctx, datastore.NoRevision)
 	require.Zero(len(errchan))
 
 	_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{
@@ -132,7 +130,7 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 					[]*pb.RelationTupleUpdate{tuple.Create(makeTestTuple("test", "test"))},
 					created.Changes,
 				)
-				require.Greater(created.Revision, uint64(0))
+				require.True(created.Revision.GreaterThan(datastore.NoRevision))
 			} else {
 				errWait := time.NewTimer(100 * time.Millisecond)
 				require.Zero(created)

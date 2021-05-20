@@ -17,19 +17,19 @@ const (
 	errUnableToDeleteConfig = "unable to delete namespace config: %w"
 )
 
-func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (uint64, error) {
+func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (datastore.Revision, error) {
 	txn := mds.db.Txn(true)
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
 	newVersion, err := nextChangelogID(txn)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
 	foundRaw, err := txn.First(tableNamespaceConfig, indexID, newConfig.Name)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
 	var replacing *pb.NamespaceDefinition
@@ -54,50 +54,50 @@ func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Nam
 
 	time.Sleep(mds.simulatedLatency)
 	if err := txn.Insert(tableNamespaceConfig, newConfigEntry); err != nil {
-		return 0, fmt.Errorf(errUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
 	time.Sleep(mds.simulatedLatency)
 	if err := txn.Insert(tableNamespaceChangelog, changeLogEntry); err != nil {
-		return 0, fmt.Errorf(errUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
 	txn.Commit()
 
-	return newVersion, nil
+	return revisionFromVersion(newVersion), nil
 }
 
 // ReadNamespace reads a namespace definition and version and returns it if found.
-func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
+func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, datastore.Revision, error) {
 	txn := mds.db.Txn(false)
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
 	foundRaw, err := txn.First(tableNamespaceConfig, indexID, nsName)
 	if err != nil {
-		return nil, 0, fmt.Errorf(errUnableToReadConfig, err)
+		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
 	if foundRaw == nil {
-		return nil, 0, datastore.ErrNamespaceNotFound
+		return nil, datastore.NoRevision, datastore.ErrNamespaceNotFound
 	}
 
 	found := foundRaw.(*namespace)
 
-	return found.config, found.version, nil
+	return found.config, revisionFromVersion(found.version), nil
 }
 
-func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (uint64, error) {
+func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
 	txn := mds.db.Txn(true)
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
 	foundRaw, err := txn.First(tableNamespaceConfig, indexID, nsName)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 	if foundRaw == nil {
-		return 0, datastore.ErrNamespaceNotFound
+		return datastore.NoRevision, datastore.ErrNamespaceNotFound
 	}
 
 	found := foundRaw.(*namespace)
@@ -105,7 +105,7 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	time.Sleep(mds.simulatedLatency)
 	newChangelogID, err := nextChangelogID(txn)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	changeLogEntry := &changelog{
@@ -119,26 +119,26 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	time.Sleep(mds.simulatedLatency)
 	err = txn.Delete(tableNamespaceConfig, found)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	// Write the changelog that we delete the namespace
 	time.Sleep(mds.simulatedLatency)
 	err = txn.Insert(tableNamespaceChangelog, changeLogEntry)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	// Delete the tuples in this namespace
 	time.Sleep(mds.simulatedLatency)
 	_, err = txn.DeleteAll(tableTuple, indexNamespace, nsName)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	txn.Commit()
 
-	return found.version, nil
+	return revisionFromVersion(found.version), nil
 }
 
 func nextChangelogID(txn *memdb.Txn) (uint64, error) {

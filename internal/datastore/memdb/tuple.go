@@ -21,7 +21,12 @@ const (
 
 const deletedTransactionID = ^uint64(0)
 
-func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (uint64, error) {
+func (mds *memdbDatastore) WriteTuples(
+	ctx context.Context,
+	preconditions []*pb.RelationTuple,
+	mutations []*pb.RelationTupleUpdate,
+) (datastore.Revision, error) {
+
 	txn := mds.db.Txn(true)
 	defer txn.Abort()
 
@@ -29,11 +34,11 @@ func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.
 	for _, expectedTuple := range preconditions {
 		found, err := findTuple(txn, expectedTuple)
 		if err != nil {
-			return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
 		if found == nil {
-			return 0, datastore.ErrPreconditionFailed
+			return datastore.NoRevision, datastore.ErrPreconditionFailed
 		}
 	}
 
@@ -41,7 +46,7 @@ func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.
 	time.Sleep(mds.simulatedLatency)
 	newChangelogID, err := nextTupleChangelogID(txn)
 	if err != nil {
-		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	newChangelogEntry := &tupleChangelog{
@@ -51,7 +56,7 @@ func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.
 	}
 
 	if err := txn.Insert(tableChangelog, newChangelogEntry); err != nil {
-		return 0, fmt.Errorf(errUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	// Apply the mutations
@@ -69,7 +74,7 @@ func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.
 
 		existing, err := findTuple(txn, mutation.Tuple)
 		if err != nil {
-			return 0, fmt.Errorf(errUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
 		var deletedExisting tupleEntry
@@ -81,25 +86,25 @@ func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.
 		switch mutation.Operation {
 		case pb.RelationTupleUpdate_CREATE:
 			if err := txn.Insert(tableTuple, newVersion); err != nil {
-				return 0, fmt.Errorf(errUnableToWriteTuples, err)
+				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		case pb.RelationTupleUpdate_DELETE:
 			if existing != nil {
 				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
-					return 0, fmt.Errorf(errUnableToWriteTuples, err)
+					return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 				}
 			}
 		case pb.RelationTupleUpdate_TOUCH:
 			if existing != nil {
 				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
-					return 0, fmt.Errorf(errUnableToWriteTuples, err)
+					return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 				}
 			}
 			if err := txn.Insert(tableTuple, newVersion); err != nil {
-				return 0, fmt.Errorf(errUnableToWriteTuples, err)
+				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		default:
-			return 0, fmt.Errorf(
+			return datastore.NoRevision, fmt.Errorf(
 				errUnableToWriteTuples,
 				fmt.Errorf("unknown tuple mutation operation type: %s", mutation.Operation),
 			)
@@ -108,10 +113,10 @@ func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.
 
 	txn.Commit()
 
-	return newChangelogID, nil
+	return revisionFromVersion(newChangelogID), nil
 }
 
-func (mds *memdbDatastore) QueryTuples(namespace string, revision uint64) datastore.TupleQuery {
+func (mds *memdbDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
 	return &memdbTupleQuery{
 		db:               mds.db,
 		namespace:        namespace,
@@ -120,7 +125,7 @@ func (mds *memdbDatastore) QueryTuples(namespace string, revision uint64) datast
 	}
 }
 
-func (mds *memdbDatastore) ReverseQueryTuples(revision uint64) datastore.ReverseTupleQuery {
+func (mds *memdbDatastore) ReverseQueryTuples(revision datastore.Revision) datastore.ReverseTupleQuery {
 	return &memdbReverseTupleQuery{
 		db:               mds.db,
 		revision:         revision,
@@ -128,22 +133,22 @@ func (mds *memdbDatastore) ReverseQueryTuples(revision uint64) datastore.Reverse
 	}
 }
 
-func (mds *memdbDatastore) SyncRevision(ctx context.Context) (uint64, error) {
+func (mds *memdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
 	// Compute the current revision
 	txn := mds.db.Txn(false)
 	defer txn.Abort()
 
 	lastRaw, err := txn.Last(tableChangelog, indexID)
 	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 	if lastRaw != nil {
-		return lastRaw.(*tupleChangelog).id, nil
+		return revisionFromVersion(lastRaw.(*tupleChangelog).id), nil
 	}
-	return 0, nil
+	return datastore.NoRevision, nil
 }
 
-func (mds *memdbDatastore) Revision(ctx context.Context) (uint64, error) {
+func (mds *memdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
 	txn := mds.db.Txn(false)
 	defer txn.Abort()
 
@@ -152,12 +157,12 @@ func (mds *memdbDatastore) Revision(ctx context.Context) (uint64, error) {
 	time.Sleep(mds.simulatedLatency)
 	iter, err := txn.LowerBound(tableChangelog, indexTimestamp, lowerBound)
 	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
-	var candidates []uint64
+	var candidates []datastore.Revision
 	for oneChange := iter.Next(); oneChange != nil; oneChange = iter.Next() {
-		candidates = append(candidates, oneChange.(*tupleChangelog).id)
+		candidates = append(candidates, revisionFromVersion(oneChange.(*tupleChangelog).id))
 	}
 
 	if len(candidates) > 0 {
@@ -167,7 +172,7 @@ func (mds *memdbDatastore) Revision(ctx context.Context) (uint64, error) {
 	}
 }
 
-func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision uint64) error {
+func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	txn := mds.db.Txn(false)
 	defer txn.Abort()
 
@@ -181,9 +186,9 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision uint64) e
 		return datastore.ErrInvalidRevision
 	}
 
-	highest := lastRaw.(*tupleChangelog).id
+	highest := revisionFromVersion(lastRaw.(*tupleChangelog).id)
 
-	if revision > highest {
+	if revision.GreaterThan(highest) {
 		return datastore.ErrInvalidRevision
 	}
 
@@ -195,11 +200,11 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision uint64) e
 	}
 
 	firstValid := iter.Next()
-	if firstValid == nil && revision != highest {
+	if firstValid == nil && !revision.Equal(highest) {
 		return datastore.ErrInvalidRevision
 	}
 
-	if firstValid != nil && revision < firstValid.(*tupleChangelog).id {
+	if firstValid != nil && revision.LessThan(revisionFromVersion(firstValid.(*tupleChangelog).id)) {
 		return datastore.ErrInvalidRevision
 	}
 

@@ -10,6 +10,7 @@ import (
 
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	zookie "github.com/authzed/spicedb/pkg/REDACTEDapi/impl"
+	"github.com/shopspring/decimal"
 )
 
 // Public facing errors
@@ -25,12 +26,12 @@ var (
 )
 
 // NewFromRevision generates an encoded zookie from an integral revision.
-func NewFromRevision(revision uint64) *pb.Zookie {
+func NewFromRevision(revision decimal.Decimal) *pb.Zookie {
 	toEncode := &zookie.DecodedZookie{
-		Version: 1,
-		VersionOneof: &zookie.DecodedZookie_V1{
-			V1: &zookie.DecodedZookie_V1Zookie{
-				Revision: revision,
+		Version: 2,
+		VersionOneof: &zookie.DecodedZookie_V2{
+			V2: &zookie.DecodedZookie_V2Zookie{
+				Revision: revision.String(),
 			},
 		},
 	}
@@ -69,4 +70,24 @@ func Decode(encoded *pb.Zookie) (*zookie.DecodedZookie, error) {
 		return nil, fmt.Errorf(errDecodeError, err)
 	}
 	return decoded, nil
+}
+
+func DecodeRevision(encoded *pb.Zookie) (decimal.Decimal, error) {
+	decoded, err := Decode(encoded)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	switch decoded.Version {
+	case 1:
+		return decimal.NewFromInt(int64(decoded.GetV1().Revision)), nil
+	case 2:
+		parsed, err := decimal.NewFromString(decoded.GetV2().Revision)
+		if err != nil {
+			return decimal.Zero, fmt.Errorf(errDecodeError, err)
+		}
+		return parsed, nil
+	default:
+		return decimal.Zero, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %d", decoded.Version))
+	}
 }

@@ -2,54 +2,101 @@ package zookie
 
 import (
 	"testing"
+	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
-var encodeRevisionTests = []uint64{
-	0, 1, 2, 4, 8, 16, 128, 256, ^uint64(0),
+var encodeRevisionTests = []decimal.Decimal{
+	decimal.Zero,
+	decimal.NewFromInt(1),
+	decimal.NewFromInt(2),
+	decimal.NewFromInt(4),
+	decimal.NewFromInt(8),
+	decimal.NewFromInt(16),
+	decimal.NewFromInt(128),
+	decimal.NewFromInt(256),
+	decimal.NewFromInt((time.Now().UnixNano())),
+	decimal.New(12345, -2),
+	decimal.New(0, -10),
 }
 
 func TestZookieEncode(t *testing.T) {
 	assert := assert.New(t)
 	for _, rev := range encodeRevisionTests {
 		encoded := NewFromRevision(rev)
-		decoded, err := Decode(encoded)
+		decoded, err := DecodeRevision(encoded)
 		assert.Nil(err)
-		assert.Equal(rev, decoded.GetV1().Revision)
+		assert.True(rev.Equal(decoded))
 	}
 }
 
 var decodeTests = []struct {
 	token            string
-	expectedRevision uint64
+	expectedRevision decimal.Decimal
 	expectError      bool
 }{
 	{
 		token:            "abc",
-		expectedRevision: 0,
+		expectedRevision: decimal.Zero,
 		expectError:      true,
 	},
 	{
 		token:            "CAESAA==",
-		expectedRevision: 0,
+		expectedRevision: decimal.Zero,
 		expectError:      false,
 	},
 	{
 		token:            "CAESAggB",
-		expectedRevision: 1,
+		expectedRevision: decimal.NewFromInt(1),
 		expectError:      false,
 	},
 	{
 		token:            "CAESAggC",
-		expectedRevision: 2,
+		expectedRevision: decimal.NewFromInt(2),
 		expectError:      false,
 	},
 	{
 		token:            "CAESAwiAAg==",
-		expectedRevision: 256,
+		expectedRevision: decimal.NewFromInt(256),
+		expectError:      false,
+	},
+	{
+		token:            "CAIaAwoBMA==",
+		expectedRevision: decimal.Zero,
+		expectError:      false,
+	},
+	{
+		token:            "CAIaAwoBMQ==",
+		expectedRevision: decimal.NewFromInt(1),
+		expectError:      false,
+	},
+	{
+		token:            "CAIaAwoBMg==",
+		expectedRevision: decimal.NewFromInt(2),
+		expectError:      false,
+	},
+	{
+		token:            "CAIaAwoBNA==",
+		expectedRevision: decimal.NewFromInt(4),
+		expectError:      false,
+	},
+	{
+		token:            "CAIaFQoTMTYyMTUzODE4OTAyODkyODAwMA==",
+		expectedRevision: decimal.NewFromInt(1621538189028928000),
+		expectError:      false,
+	},
+	{
+		token:            "CAIaCAoGMTIzLjQ1",
+		expectedRevision: decimal.New(12345, -2),
+		expectError:      false,
+	},
+	{
+		token:            "CAIaAwoBMA==",
+		expectedRevision: decimal.Zero,
 		expectError:      false,
 	},
 }
@@ -57,11 +104,16 @@ var decodeTests = []struct {
 func TestDecode(t *testing.T) {
 	assert := assert.New(t)
 	for _, testCase := range decodeTests {
-		decoded, err := Decode(&pb.Zookie{
+		decoded, err := DecodeRevision(&pb.Zookie{
 			Token: testCase.token,
 		})
 		if err == nil {
-			assert.Equal(testCase.expectedRevision, decoded.GetV1().Revision)
+			assert.True(
+				testCase.expectedRevision.Equal(decoded),
+				"%s != %s",
+				testCase.expectedRevision,
+				decoded,
+			)
 		}
 
 		assert.Equal(testCase.expectError, err != nil)

@@ -31,14 +31,14 @@ func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 
 	deletedRev, err := ds.DeleteNamespace(ctx, testfixtures.DocumentNS.Name)
 	require.NoError(err)
-	require.Greater(deletedRev, uint64(0))
+	require.True(deletedRev.GreaterThan(datastore.NoRevision))
 
 	_, _, err = ds.ReadNamespace(ctx, testfixtures.DocumentNS.Name)
 	require.Equal(datastore.ErrNamespaceNotFound, err)
 
 	found, ver, err := ds.ReadNamespace(ctx, testfixtures.FolderNS.Name)
 	require.NotNil(found)
-	require.Greater(ver, uint64(0))
+	require.True(ver.GreaterThan(datastore.NoRevision))
 	require.NoError(err)
 
 	deletedRevision, err := ds.SyncRevision(ctx)
