@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime"
 
@@ -21,8 +20,6 @@ var (
 const errUnableToQueryTuples = "unable to query tuples: %w"
 
 var (
-	errClosedIterator = errors.New("unable to iterate: iterator closed")
-
 	queryTuples = psql.Select(
 		colNamespace,
 		colObjectID,
@@ -134,53 +131,9 @@ func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, e
 
 	span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 
-	iter := &pgTupleIterator{
-		tuples: tuples,
-	}
+	iter := datastore.NewSliceTupleIterator(tuples)
 
-	runtime.SetFinalizer(iter, func(iter *pgTupleIterator) {
-		if !iter.closed {
-			panic(fmt.Sprintf(
-				"Tuple iterator garbage collected before Close() was called\n sql: %s\n args: %#v\n",
-				sql,
-				args,
-			))
-		}
-	})
+	runtime.SetFinalizer(iter, datastore.BuildFinalizerFunction(sql, args))
 
 	return iter, nil
-}
-
-type pgTupleIterator struct {
-	tuples []*pb.RelationTuple
-	closed bool
-	err    error
-}
-
-func (pti *pgTupleIterator) Next() *pb.RelationTuple {
-	if pti.closed {
-		pti.err = errClosedIterator
-		return nil
-	}
-
-	if len(pti.tuples) > 0 {
-		first := pti.tuples[0]
-		pti.tuples = pti.tuples[1:]
-		return first
-	}
-
-	return nil
-}
-
-func (pti *pgTupleIterator) Err() error {
-	return pti.err
-}
-
-func (pti *pgTupleIterator) Close() {
-	if pti.closed {
-		panic("postgres iterator double closed")
-	}
-
-	pti.tuples = nil
-	pti.closed = true
 }
