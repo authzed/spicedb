@@ -1,0 +1,100 @@
+package crdb
+
+import (
+	"fmt"
+	"time"
+)
+
+type crdbOptions struct {
+	connMaxIdleTime *time.Duration
+	connMaxLifetime *time.Duration
+	maxIdleConns    *int
+	maxOpenConns    *int
+
+	watchBufferLength    uint16
+	revisionQuantization time.Duration
+	gcWindow             time.Duration
+
+	enablePrometheusStats bool
+
+	driver string
+}
+
+const (
+	errQuantizationTooLarge = "revision quantization (%s) must be less than GC window (%s)"
+
+	defaultWatchBufferLength = 128
+)
+
+type CRDBOption func(*crdbOptions)
+
+func generateConfig(options []CRDBOption) (crdbOptions, error) {
+	computed := crdbOptions{
+		gcWindow:          24 * time.Hour,
+		watchBufferLength: defaultWatchBufferLength,
+		driver:            "postgres",
+	}
+
+	for _, option := range options {
+		option(&computed)
+	}
+
+	// Run any checks on the config that need to be done
+	if computed.revisionQuantization >= computed.gcWindow {
+		return computed, fmt.Errorf(
+			errQuantizationTooLarge,
+			computed.revisionQuantization,
+			computed.gcWindow,
+		)
+	}
+
+	return computed, nil
+}
+
+func ConnMaxIdleTime(idle time.Duration) CRDBOption {
+	return func(po *crdbOptions) {
+		po.connMaxIdleTime = &idle
+	}
+}
+
+func ConnMaxLifetime(lifetime time.Duration) CRDBOption {
+	return func(po *crdbOptions) {
+		po.connMaxLifetime = &lifetime
+	}
+}
+
+func MaxIdleConns(conns int) CRDBOption {
+	return func(po *crdbOptions) {
+		po.maxIdleConns = &conns
+	}
+}
+
+func MaxOpenConns(conns int) CRDBOption {
+	return func(po *crdbOptions) {
+		po.maxOpenConns = &conns
+	}
+}
+
+func WatchBufferLength(watchBufferLength uint16) CRDBOption {
+	return func(po *crdbOptions) {
+		po.watchBufferLength = watchBufferLength
+	}
+}
+
+func RevisionQuantization(delta time.Duration) CRDBOption {
+	return func(po *crdbOptions) {
+		po.revisionQuantization = delta
+	}
+}
+
+func GCWindow(window time.Duration) CRDBOption {
+	return func(po *crdbOptions) {
+		po.gcWindow = window
+	}
+}
+
+func EnablePrometheusStats() CRDBOption {
+	return func(po *crdbOptions) {
+		po.enablePrometheusStats = true
+	}
+}

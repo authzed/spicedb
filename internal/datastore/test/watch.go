@@ -53,13 +53,23 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 
 			var testUpdates []*pb.RelationTupleUpdate
 			for i := 0; i < tc.numTuples; i++ {
-				newUpdate := tuple.Create(
+				newUpdate := tuple.Touch(
 					makeTestTuple(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)),
 				)
 				testUpdates = append(testUpdates, newUpdate)
 				_, err := ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{newUpdate})
 				require.NoError(err)
 			}
+
+			updateUpdate := tuple.Touch(makeTestTuple("relation0", "user0"))
+			_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{updateUpdate})
+			require.NoError(err)
+
+			deleteUpdate := tuple.Delete(makeTestTuple("relation0", "user0"))
+			_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{deleteUpdate})
+			require.NoError(err)
+
+			testUpdates = append(testUpdates, updateUpdate, deleteUpdate)
 
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
@@ -78,7 +88,7 @@ func verifyUpdates(
 	expectDisconnect bool,
 ) {
 	for _, expected := range testUpdates {
-		changeWait := time.NewTimer(250 * time.Millisecond)
+		changeWait := time.NewTimer(1 * time.Second)
 		select {
 		case change, ok := <-changes:
 			if !ok {
