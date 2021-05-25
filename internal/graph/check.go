@@ -250,7 +250,7 @@ func Difference(ctx context.Context, requests []ReduceableCheckFunc) CheckResult
 				return base
 			}
 		case sub := <-othersChan:
-			if sub.Err == nil || sub.IsMember {
+			if sub.Err != nil || sub.IsMember {
 				return CheckResult{IsMember: false, Err: sub.Err}
 			}
 		case <-ctx.Done():
