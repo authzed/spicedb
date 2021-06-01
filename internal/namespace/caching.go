@@ -12,6 +12,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/namespace"
 )
 
 const (
@@ -95,6 +96,9 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb
 	if err != nil {
 		return nil, decimal.Zero, err
 	}
+
+	// Remove metadata.
+	loaded = namespace.StripMetadata(loaded)
 
 	// Save it to the cache
 	newEntry := cacheEntry{
