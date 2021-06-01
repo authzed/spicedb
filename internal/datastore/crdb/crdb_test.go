@@ -32,7 +32,7 @@ var crdbContainer = &dockertest.RunOptions{
 	Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
 }
 
-func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (datastore.Datastore, error) {
+func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 	uniquePortion, err := secrets.TokenHex(4)
 	if err != nil {
 		return nil, err
@@ -66,6 +66,7 @@ func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (datasto
 		connectStr,
 		GCWindow(gcWindow),
 		RevisionQuantization(revisionFuzzingTimedelta),
+		WatchBufferLength(watchBufferLength),
 	)
 }
 

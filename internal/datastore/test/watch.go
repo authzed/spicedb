@@ -37,7 +37,7 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 		t.Run(strconv.Itoa(tc.numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(0, disableGC)
+			ds, err := tester.New(0, disableGC, 16)
 			require.NoError(err)
 
 			setupDatastore(ds, require)
@@ -88,12 +88,12 @@ func verifyUpdates(
 	expectDisconnect bool,
 ) {
 	for _, expected := range testUpdates {
-		changeWait := time.NewTimer(1 * time.Second)
+		changeWait := time.NewTimer(5 * time.Second)
 		select {
 		case change, ok := <-changes:
 			if !ok {
 				require.True(expectDisconnect)
-				errWait := time.NewTimer(100 * time.Millisecond)
+				errWait := time.NewTimer(2 * time.Second)
 				select {
 				case err := <-errchan:
 					require.Equal(datastore.ErrWatchDisconnected, err)
@@ -115,13 +115,13 @@ func verifyUpdates(
 func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, disableGC)
+	ds, err := tester.New(0, disableGC, 1)
 	require.NoError(err)
 
-	setupDatastore(ds, require)
+	startWatchRevision := setupDatastore(ds, require)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	changes, errchan := ds.Watch(ctx, datastore.NoRevision)
+	changes, errchan := ds.Watch(ctx, startWatchRevision)
 	require.Zero(len(errchan))
 
 	_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{

@@ -31,7 +31,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 		t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(0, disableGC)
+			ds, err := tester.New(0, disableGC, 1)
 			require.NoError(err)
 
 			setupDatastore(ds, require)
@@ -163,7 +163,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 func TestPreconditions(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, disableGC)
+	ds, err := tester.New(0, disableGC, 1)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -196,7 +196,7 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 
 	fuzzingRange := 100 * time.Millisecond
 
-	ds, err := tester.New(fuzzingRange, disableGC)
+	ds, err := tester.New(fuzzingRange, disableGC, 1)
 	require.NoError(err)
 
 	setupDatastore(ds, require)
@@ -244,7 +244,7 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 
 		require := require.New(t)
 
-		ds, err := tester.New(0, testGCDuration)
+		ds, err := tester.New(0, testGCDuration, 1)
 		require.NoError(err)
 
 		setupDatastore(ds, require)

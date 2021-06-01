@@ -20,7 +20,7 @@ var crdbContainer = &dockertest.RunOptions{
 	Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
 }
 
-func TestCRDBDatastore(t *testing.T) {
+func TestCRDBPGDatastore(t *testing.T) {
 	tester := newTester(crdbContainer, "root:fake", 26257)
 	defer tester.cleanup()
 
@@ -33,7 +33,7 @@ func BenchmarkCRDBQuery(b *testing.B) {
 	tester := newTester(crdbContainer, "root:fake", 26257)
 	defer tester.cleanup()
 
-	ds, err := tester.New(0, 24*time.Hour)
+	ds, err := tester.New(0, 24*time.Hour, 1)
 	req.NoError(err)
 
 	_, revision := testfixtures.StandardDatastoreWithData(ds, req)

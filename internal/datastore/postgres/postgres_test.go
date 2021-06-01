@@ -34,7 +34,7 @@ var postgresContainer = &dockertest.RunOptions{
 	Env:        []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},
 }
 
-func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (datastore.Datastore, error) {
+func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 	uniquePortion, err := secrets.TokenHex(4)
 	if err != nil {
 		return nil, err
@@ -68,6 +68,7 @@ func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration) (datasto
 		connectStr,
 		RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
 		GCWindow(gcWindow),
+		WatchBufferLength(watchBufferLength),
 	)
 }
 
@@ -84,7 +85,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 	tester := newTester(postgresContainer, "postgres:secret", 5432)
 	defer tester.cleanup()
 
-	ds, err := tester.New(0, 24*time.Hour)
+	ds, err := tester.New(0, 24*time.Hour, 1)
 	req.NoError(err)
 
 	_, revision := testfixtures.StandardDatastoreWithData(ds, req)

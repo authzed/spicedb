@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -19,7 +20,7 @@ const disableGC = time.Duration(math.MaxInt64)
 
 type DatastoreTester interface {
 	// Creates a new datastore instance for a single test
-	New(revisionFuzzingTimedelta, gcWindow time.Duration) (datastore.Datastore, error)
+	New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 }
 
 func TestAll(t *testing.T, tester DatastoreTester) {
@@ -58,12 +59,14 @@ func makeTestTuple(resourceID, userID string) *pb.RelationTuple {
 	}
 }
 
-func setupDatastore(ds datastore.Datastore, require *require.Assertions) {
+func setupDatastore(ds datastore.Datastore, require *require.Assertions) decimal.Decimal {
 	ctx := context.Background()
 
 	_, err := ds.WriteNamespace(ctx, testResourceNS)
 	require.NoError(err)
 
-	_, err = ds.WriteNamespace(ctx, testUserNS)
+	revision, err := ds.WriteNamespace(ctx, testUserNS)
 	require.NoError(err)
+
+	return revision
 }
