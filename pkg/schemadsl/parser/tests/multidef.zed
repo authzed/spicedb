@@ -8,7 +8,7 @@ definition namespace {
 definition repository {
     relation namespace: namespace
     relation reader: user
-    relation writer: user
+    relation writer: user#anotherrel
 
     permission read = reader + writer + namespace->admin
     permission write = writer

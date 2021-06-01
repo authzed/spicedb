@@ -1,0 +1,6 @@
+foo
+bar
+baz
+some cool line
+another thing here
+ayup!

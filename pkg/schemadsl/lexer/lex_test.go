@@ -42,6 +42,16 @@ var lexerTests = []lexerTest{
 
 	{"right arrow", "->", []Lexeme{Lexeme{TokenTypeRightArrow, 0, "->"}, tEOF}},
 
+	{"hash", "#", []Lexeme{Lexeme{TokenTypeHash, 0, "#"}, tEOF}},
+	{"ellipsis", "...", []Lexeme{Lexeme{TokenTypeEllipsis, 0, "..."}, tEOF}},
+
+	{"relation reference", "foo#...", []Lexeme{
+		Lexeme{TokenTypeIdentifier, 0, "foo"},
+		Lexeme{TokenTypeHash, 0, "#"},
+		Lexeme{TokenTypeEllipsis, 0, "..."},
+		tEOF,
+	}},
+
 	{"plus", "+", []Lexeme{Lexeme{TokenTypePlus, 0, "+"}, tEOF}},
 	{"minus", "-", []Lexeme{Lexeme{TokenTypeMinus, 0, "-"}, tEOF}},
 

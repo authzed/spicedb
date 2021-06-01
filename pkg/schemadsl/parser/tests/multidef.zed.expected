@@ -1,5 +1,5 @@
 NodeTypeFile
-  end-rune = 302
+  end-rune = 313
   input-source = multiple definition test
   start-rune = 0
   child-node =>
@@ -43,7 +43,7 @@ NodeTypeFile
               start-rune = 93
     NodeTypeDefinition
       definition-name = repository
-      end-rune = 302
+      end-rune = 313
       input-source = multiple definition test
       start-rune = 104
       child-node =>
@@ -80,73 +80,74 @@ NodeTypeFile
                   start-rune = 183
                   type-name = user
         NodeTypeRelation
-          end-rune = 212
+          end-rune = 223
           input-source = multiple definition test
           relation-name = writer
           start-rune = 192
           allowed-types =>
             NodeTypeTypeReference
-              end-rune = 212
+              end-rune = 223
               input-source = multiple definition test
               start-rune = 209
               type-ref-type =>
                 NodeTypeSpecificTypeReference
-                  end-rune = 212
+                  end-rune = 223
                   input-source = multiple definition test
+                  relation-name = anotherrel
                   start-rune = 209
                   type-name = user
         NodeTypePermission
-          end-rune = 270
+          end-rune = 281
           input-source = multiple definition test
           relation-name = read
-          start-rune = 219
+          start-rune = 230
           compute-expression =>
             NodeTypeUnionExpression
-              end-rune = 270
+              end-rune = 281
               input-source = multiple definition test
-              start-rune = 244
+              start-rune = 255
               left-expr =>
                 NodeTypeUnionExpression
-                  end-rune = 251
+                  end-rune = 262
                   input-source = multiple definition test
-                  start-rune = 237
+                  start-rune = 248
                   left-expr =>
                     NodeTypeIdentifier
-                      end-rune = 242
+                      end-rune = 253
                       identifier-value = reader
                       input-source = multiple definition test
-                      start-rune = 237
+                      start-rune = 248
                   right-expr =>
                     NodeTypeIdentifier
-                      end-rune = 251
+                      end-rune = 262
                       identifier-value = writer
                       input-source = multiple definition test
-                      start-rune = 246
+                      start-rune = 257
               right-expr =>
                 NodeTypeArrowExpression
-                  end-rune = 270
+                  end-rune = 281
                   input-source = multiple definition test
-                  start-rune = 255
+                  start-rune = 266
                   left-expr =>
                     NodeTypeIdentifier
-                      end-rune = 263
+                      end-rune = 274
                       identifier-value = namespace
                       input-source = multiple definition test
-                      start-rune = 255
+                      start-rune = 266
                   right-expr =>
                     NodeTypeIdentifier
-                      end-rune = 270
+                      end-rune = 281
                       identifier-value = admin
                       input-source = multiple definition test
-                      start-rune = 266
+                      start-rune = 277
         NodeTypePermission
-          end-rune = 300
+          end-rune = 311
           input-source = multiple definition test
           relation-name = write
-          start-rune = 276
+          start-rune = 287
           compute-expression =>
             NodeTypeIdentifier
-              end-rune = 300
+              end-rune = 311
               identifier-value = writer
               input-source = multiple definition test
-              start-rune = 295
+              start-rune = 306

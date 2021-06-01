@@ -161,6 +161,20 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 	}
 
 	specificNode.Decorate(dslshape.NodeSpecificReferencePredicateType, typeName)
+
+	// Check for a relation specified.
+	if _, ok := p.tryConsume(lexer.TokenTypeHash); !ok {
+		return specificNode
+	}
+
+	// Consume an identifier or an ellipsis.
+	consumed, ok := p.consume(lexer.TokenTypeIdentifier, lexer.TokenTypeEllipsis)
+	if !ok {
+		return specificNode
+	}
+
+	specificNode.Decorate(dslshape.NodeSpecificReferencePredicateRelation, consumed.Value)
+
 	return specificNode
 }
 

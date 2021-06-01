@@ -46,6 +46,8 @@ const (
 	TokenTypeColon      // :
 	TokenTypeSemicolon  // ;
 	TokenTypeRightArrow // ->
+	TokenTypeHash       // #
+	TokenTypeEllipsis   // ...
 )
 
 // keywords contains the full set of keywords supported.
@@ -101,6 +103,16 @@ Loop:
 
 		case r == ';':
 			l.emit(TokenTypeSemicolon)
+
+		case r == '#':
+			l.emit(TokenTypeHash)
+
+		case r == '.':
+			if l.acceptString("..") {
+				l.emit(TokenTypeEllipsis)
+			} else {
+				return l.errorf("unrecognized character at this location: %#U", r)
+			}
 
 		case r == '-':
 			if l.accept(">") {

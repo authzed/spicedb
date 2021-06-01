@@ -113,6 +113,9 @@ const (
 	// A type under a type reference.
 	NodeSpecificReferencePredicateType = "type-name"
 
+	// A relation under a type reference.
+	NodeSpecificReferencePredicateRelation = "relation-name"
+
 	//
 	// NodeTypePermission
 	//
