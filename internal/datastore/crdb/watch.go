@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"sort"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/shopspring/decimal"
 )
 
-const queryChangefeed = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s';"
+const queryChangefeed = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s';"
 
 func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, cds.watchBufferLength)
@@ -21,6 +23,8 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 	go func() {
 		defer close(updates)
 		defer close(errors)
+
+		pendingChanges := make(map[decimal.Decimal][]*pb.RelationTupleUpdate)
 
 		changes, err := cds.conn.Query(ctx, interpolated)
 		if err != nil {
@@ -34,14 +38,77 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		defer func() { go changes.Close() }()
 
 		for changes.Next() {
-			var tableName string
-			var primaryKeyValuesJson, changeJson []byte
-			if err := changes.Scan(&tableName, &primaryKeyValuesJson, &changeJson); err != nil {
+			sqlValues, err := changes.Values()
+			if err != nil {
 				if ctx.Err() == context.Canceled {
 					errors <- datastore.ErrWatchCanceled
 				} else {
 					errors <- err
 				}
+				return
+			}
+			if len(sqlValues) != 3 {
+				errors <- fmt.Errorf("wrong number of changefeed values %d != 3", len(sqlValues))
+				return
+			}
+
+			changeJson, ok := sqlValues[2].([]byte)
+			if !ok {
+				errors <- fmt.Errorf("wrong type for change JSON, != []byte")
+				return
+			}
+
+			var changeDetails map[string]interface{}
+			if err := json.Unmarshal(changeJson, &changeDetails); err != nil {
+				errors <- err
+				return
+			}
+
+			if resolvedUntyped, ok := changeDetails["resolved"]; ok {
+				// This entry indicates that we are ready to potentially emit some changes
+				resolvedStr, ok := resolvedUntyped.(string)
+				if !ok {
+					errors <- fmt.Errorf("resolved value of wrong type: != string")
+					return
+				}
+
+				resolved, err := decimal.NewFromString(resolvedStr)
+				if err != nil {
+					errors <- err
+					return
+				}
+
+				var toEmit []*datastore.RevisionChanges
+				for ts, values := range pendingChanges {
+					if ts.LessThanOrEqual(resolved) {
+						delete(pendingChanges, ts)
+
+						toEmit = append(toEmit, &datastore.RevisionChanges{
+							Revision: ts,
+							Changes:  values,
+						})
+					}
+				}
+
+				sort.Slice(toEmit, func(i, j int) bool {
+					return toEmit[i].Revision.LessThan(toEmit[j].Revision)
+				})
+
+				for _, change := range toEmit {
+					select {
+					case updates <- change:
+					default:
+						errors <- datastore.ErrWatchDisconnected
+						return
+					}
+				}
+
+				continue
+			}
+
+			primaryKeyValuesJson, ok := sqlValues[1].([]byte)
+			if !ok {
+				errors <- fmt.Errorf("wrong type for PK JSON, %s != []byte", reflect.TypeOf(sqlValues[1]))
 				return
 			}
 
@@ -51,19 +118,10 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				return
 			}
 
-			fmt.Printf("\n\n%#v\n\n", pkValues)
-
 			if len(pkValues) != 6 {
 				errors <- fmt.Errorf("wrong number of pk values %d != 6", len(pkValues))
-			}
-
-			var changeDetails map[string]interface{}
-			if err := json.Unmarshal(changeJson, &changeDetails); err != nil {
-				errors <- err
 				return
 			}
-
-			fmt.Printf("\n\n%#v\n\n", changeDetails)
 
 			afterBlock, hasAfter := changeDetails["after"]
 			if !hasAfter {
@@ -86,10 +144,6 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 			if err != nil {
 				errors <- fmt.Errorf("malformed update timestamp: %w", err)
 				return
-			}
-
-			change := &datastore.RevisionChanges{
-				Revision: revision,
 			}
 
 			oneChange := &pb.RelationTupleUpdate{
@@ -116,14 +170,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				oneChange.Operation = pb.RelationTupleUpdate_TOUCH
 			}
 
-			change.Changes = append(change.Changes, oneChange)
-
-			select {
-			case updates <- change:
-			default:
-				errors <- datastore.ErrWatchDisconnected
-				return
-			}
+			pendingChanges[revision] = append(pendingChanges[revision], oneChange)
 		}
 		if changes.Err() != nil {
 			if ctx.Err() == context.Canceled {
