@@ -6,7 +6,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
-	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -19,16 +19,8 @@ const (
 )
 
 var (
-	queryWriteTuple = psql.Insert(tableTuple).Columns(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-	)
 	upsertTupleSuffix = fmt.Sprintf(
-		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now()",
+		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now() %s",
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -36,7 +28,16 @@ var (
 		colUsersetObjectID,
 		colUsersetRelation,
 		colTimestamp,
+		queryReturningTimestamp,
 	)
+	queryWriteTuple = psql.Insert(tableTuple).Columns(
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+	).Suffix(upsertTupleSuffix)
 
 	queryDeleteTuples = psql.Delete(tableTuple)
 
@@ -97,29 +98,21 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.R
 		}
 	}
 
+	var nowRevision decimal.Decimal
 	if bulkWriteCount > 0 {
-		sql, args, err := bulkWrite.Suffix(upsertTupleSuffix).ToSql()
+		sql, args, err := bulkWrite.ToSql()
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
-		writtenResponse, err := tx.Exec(ctx, sql, args...)
+		if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+		}
+	} else {
+		nowRevision, err = readCRDBNow(ctx, tx)
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
-
-		numWritten := writtenResponse.RowsAffected()
-		if numWritten != bulkWriteCount {
-			log.Error().
-				Int64("written", numWritten).
-				Int64("expected", bulkWriteCount).
-				Msg("wrong number of rows written")
-		}
-	}
-
-	nowRevision, err := readCRDBNow(ctx, tx)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	err = tx.Commit(ctx)

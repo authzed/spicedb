@@ -9,6 +9,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -22,11 +23,17 @@ const (
 )
 
 var (
+	upsertNamespaceSuffix = fmt.Sprintf(
+		"ON CONFLICT (%s) DO UPDATE SET %s = excluded.%s %s",
+		colNamespace,
+		colConfig,
+		colConfig,
+		queryReturningTimestamp,
+	)
 	queryWriteNamespace = psql.Insert(tableNamespace).Columns(
 		colNamespace,
 		colConfig,
-	)
-	upsertNamespaceSuffix = fmt.Sprintf("ON CONFLICT (%s) DO UPDATE SET %s = excluded.%s", colNamespace, colConfig, colConfig)
+	).Suffix(upsertNamespaceSuffix)
 
 	queryReadNamespace = psql.Select(colConfig, colTimestamp).From(tableNamespace)
 
@@ -34,12 +41,6 @@ var (
 )
 
 func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (datastore.Revision, error) {
-	tx, err := cds.conn.Begin(ctx)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
-	}
-	defer tx.Rollback(ctx)
-
 	serialized, err := proto.Marshal(newConfig)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
@@ -47,27 +48,17 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Name
 
 	writeSql, writeArgs, err := queryWriteNamespace.
 		Values(newConfig.Name, serialized).
-		Suffix(upsertNamespaceSuffix).
 		ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	_, err = tx.Exec(ctx, writeSql, writeArgs...)
-	if err != nil {
+	var hlcNow decimal.Decimal
+	if err := cds.conn.QueryRow(ctx, writeSql, writeArgs...).Scan(&hlcNow); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	now, err := readCRDBNow(ctx, tx)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
-	}
-
-	return now, nil
+	return hlcNow, nil
 }
 
 func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, datastore.Revision, error) {

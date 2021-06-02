@@ -4,8 +4,6 @@ package crdb
 // TODO: add tracing
 // TODO: make sure that DB connections don't get canceled when an error occurs (separate context)
 // TODO: make sure that we're using connection pooling
-// TODO: implement watch
-// TODO: use RETURNING cluster_logical_timestamp() to reduce round trips
 
 import (
 	"context"
@@ -42,7 +40,8 @@ const (
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	errRevision            = "unable to find revision: %w"
 
-	querySelectNow = "SELECT cluster_logical_timestamp()"
+	querySelectNow          = "SELECT cluster_logical_timestamp()"
+	queryReturningTimestamp = "RETURNING cluster_logical_timestamp()"
 )
 
 func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, error) {
