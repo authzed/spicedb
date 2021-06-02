@@ -254,6 +254,24 @@ func NewMemdbDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
 	}
 
+	txn := db.Txn(true)
+	defer txn.Abort()
+
+	newChangelogID, err := nextTupleChangelogID(txn)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
+	}
+
+	newChangelogEntry := &tupleChangelog{
+		id:        newChangelogID,
+		timestamp: uint64(time.Now().UnixNano()),
+	}
+	if err := txn.Insert(tableChangelog, newChangelogEntry); err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
+	}
+
+	txn.Commit()
+
 	if watchBufferLength == 0 {
 		watchBufferLength = defaultWatchBufferLength
 	}
