@@ -1,6 +1,5 @@
 package crdb
 
-// TODO: check that the GC window is <= the configured GC window from the server
 // TODO: add tracing
 // TODO: make sure that DB connections don't get canceled when an error occurs (separate context)
 // TODO: make sure that we're using connection pooling
@@ -8,6 +7,8 @@ package crdb
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -22,6 +23,8 @@ import (
 
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	gcTTLRegex = regexp.MustCompile(`gc\.ttlseconds\s*=\s*([1-9][0-9]+)`)
 )
 
 const (
@@ -42,6 +45,7 @@ const (
 
 	querySelectNow          = "SELECT cluster_logical_timestamp()"
 	queryReturningTimestamp = "RETURNING cluster_logical_timestamp()"
+	queryShowZoneConfig     = "SHOW ZONE CONFIGURATION FOR RANGE default;"
 )
 
 func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, error) {
@@ -51,7 +55,6 @@ func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, e
 	}
 
 	quantizationNanos := config.revisionQuantization.Nanoseconds()
-	gcWindowNanos := config.gcWindow.Nanoseconds()
 
 	poolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
@@ -63,6 +66,22 @@ func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, e
 	conn, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	gcWindowNanos := config.gcWindow.Nanoseconds()
+	clusterTTLNanos, err := readClusterTTLNanos(conn)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	if clusterTTLNanos < gcWindowNanos {
+		return nil, fmt.Errorf(
+			errUnableToInstantiate,
+			fmt.Errorf("cluster gc window is less than requested gc window %d < %d",
+				clusterTTLNanos,
+				gcWindowNanos,
+			),
+		)
 	}
 
 	return &crdbDatastore{
@@ -138,6 +157,28 @@ func readCRDBNow(ctx context.Context, tx pgx.Tx) (decimal.Decimal, error) {
 	}
 
 	return hlcNow, nil
+}
+
+func readClusterTTLNanos(conn *pgxpool.Pool) (int64, error) {
+	var target, configSQL string
+	if err := conn.
+		QueryRow(context.Background(), queryShowZoneConfig).
+		Scan(&target, &configSQL); err != nil {
+
+		return 0, err
+	}
+
+	groups := gcTTLRegex.FindStringSubmatch(configSQL)
+	if groups == nil || len(groups) != 2 {
+		return 0, fmt.Errorf("CRDB zone config unexpected format")
+	}
+
+	gcSeconds, err := strconv.ParseInt(groups[1], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return gcSeconds * 1_000_000_000, nil
 }
 
 func revisionFromTimestamp(t time.Time) datastore.Revision {

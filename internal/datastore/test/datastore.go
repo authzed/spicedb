@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"math"
 	"testing"
 	"time"
 
@@ -14,9 +13,9 @@ import (
 	"github.com/authzed/spicedb/pkg/namespace"
 )
 
-// disableGC is the largest possible time duration, which when passed to a constructor should
-// disable garbage collection.
-const disableGC = time.Duration(math.MaxInt64)
+// veryLargeGCWindow is a very large time duration, which when passed to a constructor should
+// effectively disable garbage collection.
+const veryLargeGCWindow = 90000 * time.Second
 
 type DatastoreTester interface {
 	// Creates a new datastore instance for a single test
