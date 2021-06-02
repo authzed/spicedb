@@ -123,7 +123,10 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 
 	now := nowHLC.IntPart()
 
-	quantized := now - (now % cds.quantizationNanos)
+	quantized := now
+	if cds.quantizationNanos > 0 {
+		quantized -= (now % cds.quantizationNanos)
+	}
 
 	return decimal.NewFromInt(quantized), nil
 }

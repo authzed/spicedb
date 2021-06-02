@@ -21,7 +21,8 @@ type crdbOptions struct {
 const (
 	errQuantizationTooLarge = "revision quantization (%s) must be less than GC window (%s)"
 
-	defaultWatchBufferLength = 128
+	defaultRevisionQuantization = 5 * time.Second
+	defaultWatchBufferLength    = 128
 )
 
 type CRDBOption func(*crdbOptions)
@@ -79,9 +80,9 @@ func WatchBufferLength(watchBufferLength uint16) CRDBOption {
 	}
 }
 
-func RevisionQuantization(delta time.Duration) CRDBOption {
+func RevisionQuantization(bucketSize time.Duration) CRDBOption {
 	return func(po *crdbOptions) {
-		po.revisionQuantization = delta
+		po.revisionQuantization = bucketSize
 	}
 }
 

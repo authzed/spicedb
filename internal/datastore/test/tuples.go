@@ -191,53 +191,6 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 }
 
-func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
-	require := require.New(t)
-
-	fuzzingRange := 100 * time.Millisecond
-
-	ds, err := tester.New(fuzzingRange, veryLargeGCWindow, 1)
-	require.NoError(err)
-
-	setupDatastore(ds, require)
-
-	ctx := context.Background()
-
-	// Create some revisions
-	tpl := makeTestTuple("first", "owner")
-	for i := 0; i < 10; i++ {
-		_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{tuple.Touch(tpl)})
-		require.NoError(err)
-	}
-
-	// Get the new now revision
-	nowRevision, err := ds.SyncRevision(ctx)
-	require.NoError(err)
-	require.True(nowRevision.GreaterThan(datastore.NoRevision))
-
-	foundLowerRevision := false
-	for start := time.Now(); time.Since(start) < 20*time.Millisecond; {
-		testRevision, err := ds.Revision(ctx)
-		require.NoError(err)
-		if testRevision.LessThan(nowRevision) {
-			foundLowerRevision = true
-			break
-		}
-	}
-
-	require.True(foundLowerRevision)
-
-	// Let the fuzzing window expire
-	time.Sleep(fuzzingRange)
-
-	// Now we should ONLY get revisions later than the now revision
-	for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
-		testRevision, err := ds.Revision(ctx)
-		require.NoError(err)
-		require.True(testRevision.GreaterThanOrEqual(nowRevision))
-	}
-}
-
 func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 	t.Run("revision expiration", func(t *testing.T) {
 		testGCDuration := 40 * time.Millisecond
