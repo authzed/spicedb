@@ -14,8 +14,6 @@ type crdbOptions struct {
 	watchBufferLength    uint16
 	revisionQuantization time.Duration
 	gcWindow             time.Duration
-
-	enablePrometheusStats bool
 }
 
 const (
@@ -89,11 +87,5 @@ func RevisionQuantization(bucketSize time.Duration) CRDBOption {
 func GCWindow(window time.Duration) CRDBOption {
 	return func(po *crdbOptions) {
 		po.gcWindow = window
-	}
-}
-
-func EnablePrometheusStats() CRDBOption {
-	return func(po *crdbOptions) {
-		po.enablePrometheusStats = true
 	}
 }
