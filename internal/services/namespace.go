@@ -69,7 +69,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 						return nil, rewriteNamespaceError(query.Err())
 					}
 
-					return nil, rewriteNamespaceError(fmt.Errorf("cannot delete relation `%s` in namespace `%s`, as a tuple exists under it", delta.RelationName, config.Name))
+					return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("cannot delete relation `%s` in namespace `%s`, as a tuple exists under it", delta.RelationName, config.Name))
 				}
 
 				// Also check for right sides of tuples.
@@ -87,7 +87,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 						return nil, rewriteNamespaceError(query.Err())
 					}
 
-					return nil, rewriteNamespaceError(fmt.Errorf("cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name))
+					return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name))
 				}
 
 			case namespace.RelationDirectTypeRemoved:
@@ -106,7 +106,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 						return nil, rewriteNamespaceError(query.Err())
 					}
 
-					return nil, rewriteNamespaceError(fmt.Errorf("cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it", delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name))
+					return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it", delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name))
 				}
 			}
 		}

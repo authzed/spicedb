@@ -21,8 +21,10 @@ type concurrentLookup struct {
 	nsm namespace.Manager
 }
 
-const MaxUint = ^uint(0)
-const MaxInt = int(MaxUint >> 1)
+// Calculate the maximum int value to allow us to effectively set no limit on certain recursive
+// lookup calls.
+const maxUint = ^uint(0)
+const noLimit = int(maxUint >> 1)
 
 func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) ReduceableLookupFunc {
 	log.Trace().Object("lookup", req).Send()
@@ -193,7 +195,7 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 				Namespace: allowedDirectType.Namespace,
 				Relation:  allowedDirectType.Relation,
 			},
-			Limit:          MaxInt, // Since this is an inferred lookup, we can't limit.
+			Limit:          noLimit, // Since this is an inferred lookup, we can't limit.
 			AtRevision:     req.AtRevision,
 			DepthRemaining: req.DepthRemaining - 1,
 			DirectStack:    directStack,
@@ -336,7 +338,7 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 				Namespace: directRelation.Namespace,
 				Relation:  ttu.ComputedUserset.Relation,
 			},
-			Limit:          MaxInt, // Since this is a step in the lookup.
+			Limit:          noLimit, // Since this is a step in the lookup.
 			AtRevision:     req.AtRevision,
 			DepthRemaining: req.DepthRemaining - 1,
 			DirectStack:    req.DirectStack,
@@ -622,84 +624,6 @@ func ResolveError(err error) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
 		resultChan <- LookupResult{Err: err}
 	}
-}
-
-type resolvedObjectSet struct {
-	entries map[string]ResolvedObject
-}
-
-func newSet() *resolvedObjectSet {
-	return &resolvedObjectSet{
-		entries: map[string]ResolvedObject{},
-	}
-}
-
-func (s *resolvedObjectSet) key(value ResolvedObject) string {
-	return fmt.Sprintf("%s:%s#%s", value.ONR.Namespace, value.ONR.ObjectId, value.ONR.Relation)
-}
-
-func (s *resolvedObjectSet) add(value ResolvedObject) bool {
-	_, ok := s.entries[s.key(value)]
-	if ok {
-		return false
-	}
-
-	s.entries[s.key(value)] = value
-	return true
-}
-
-func (s *resolvedObjectSet) update(ros []ResolvedObject) bool {
-	changed := false
-	for _, value := range ros {
-		if s.add(value) {
-			changed = true
-		}
-	}
-	return changed
-}
-
-func (s *resolvedObjectSet) EmitForTrace(tracer DebugTracer) {
-	for _, value := range s.entries {
-		tracer.Child(tuple.StringONR(value.ONR))
-	}
-}
-
-func (s *resolvedObjectSet) length() int {
-	return len(s.entries)
-}
-
-func (s *resolvedObjectSet) asSlice() []ResolvedObject {
-	slice := []ResolvedObject{}
-	for _, value := range s.entries {
-		slice = append(slice, value)
-	}
-	return slice
-}
-
-func (s *resolvedObjectSet) remove(value ResolvedObject) {
-	delete(s.entries, s.key(value))
-}
-
-func (s *resolvedObjectSet) intersect(otherSet *resolvedObjectSet) *resolvedObjectSet {
-	updated := newSet()
-	for key, value := range s.entries {
-		_, ok := otherSet.entries[key]
-		if ok {
-			updated.add(value)
-		}
-	}
-	return updated
-}
-
-func (s *resolvedObjectSet) exclude(otherSet *resolvedObjectSet) *resolvedObjectSet {
-	updated := newSet()
-	updated.update(s.asSlice())
-
-	for _, value := range otherSet.entries {
-		updated.remove(value)
-	}
-
-	return updated
 }
 
 func limitedSlice(slice []ResolvedObject, limit int) []ResolvedObject {

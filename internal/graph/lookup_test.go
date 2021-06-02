@@ -1,6 +1,5 @@
 package graph
 
-/*
 import (
 	"context"
 	"fmt"
@@ -37,83 +36,60 @@ func init() {
 
 func TestSimpleLookup(t *testing.T) {
 	testCases := []struct {
-		relation        *pb.RelationReference
-		start           *pb.ObjectAndRelation
-		isRootRequest   bool
+		start           *pb.RelationReference
+		target          *pb.ObjectAndRelation
 		resolvedObjects []ResolvedObject
 	}{
 		{
 			RR("document", "viewer"),
 			ONR("user", "unknown", "..."),
-			true,
 			[]ResolvedObject{},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "eng_lead", "..."),
-			true,
 			[]ResolvedObject{
-				{ONR("document", "masterplan", "viewer"), ""},
+				{ONR("document", "masterplan", "viewer")},
 			},
 		},
 		{
 			RR("document", "owner"),
 			ONR("user", "product_manager", "..."),
-			true,
 			[]ResolvedObject{
-				{ONR("document", "masterplan", "owner"), ""},
+				{ONR("document", "masterplan", "owner")},
 			},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "legal", "..."),
-			true,
 			[]ResolvedObject{
-				{ONR("document", "companyplan", "viewer"), ""},
-				{ONR("document", "masterplan", "viewer"), ""},
+				{ONR("document", "companyplan", "viewer")},
+				{ONR("document", "masterplan", "viewer")},
 			},
 		},
 		{
 			RR("document", "viewer_and_editor"),
 			ONR("user", "multiroleguy", "..."),
-			true,
 			[]ResolvedObject{
-				{ONR("document", "specialplan", "viewer_and_editor"), ""},
-			},
-		},
-		{
-			RR("document", "viewer_and_editor"),
-			ONR("user", "multiroleguy", "..."),
-			false,
-			[]ResolvedObject{
-				{
-					ONR:             ONR("document", "specialplan", "viewer_and_editor"),
-					ReductionNodeID: "document#viewer_and_editor::3",
-				},
-				{
-					ONR:             ONR("document", "specialplan", "viewer_and_editor"),
-					ReductionNodeID: "document#viewer_and_editor::4",
-				},
+				{ONR("document", "specialplan", "viewer_and_editor")},
 			},
 		},
 		{
 			RR("folder", "viewer"),
 			ONR("user", "owner", "..."),
-			true,
 			[]ResolvedObject{
-				{ONR("folder", "strategy", "viewer"), ""},
-				{ONR("folder", "company", "viewer"), ""},
+				{ONR("folder", "strategy", "viewer")},
+				{ONR("folder", "company", "viewer")},
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		name := fmt.Sprintf(
-			"%s->%s#%s::%v",
-			tuple.StringONR(tc.start),
-			tc.relation.Namespace,
-			tc.relation.Relation,
-			tc.isRootRequest,
+			"%s#%s->%s",
+			tc.start.Namespace,
+			tc.start.Relation,
+			tuple.StringONR(tc.target),
 		)
 
 		t.Run(name, func(t *testing.T) {
@@ -122,12 +98,14 @@ func TestSimpleLookup(t *testing.T) {
 			dispatch, revision := newLocalDispatcher(require)
 
 			lookupResult := dispatch.Lookup(context.Background(), LookupRequest{
-				Start:          tc.start,
-				TargetRelation: tc.relation,
-				IsRootRequest:  tc.isRootRequest,
+				StartRelation:  tc.start,
+				TargetONR:      tc.target,
 				AtRevision:     revision,
 				DepthRemaining: 50,
 				Limit:          10,
+				DirectStack:    namespace.NewONRSet(),
+				TTUStack:       namespace.NewONRSet(),
+				DebugTracer:    NewNullTracer(),
 			})
 
 			sort.Sort(OrderedResolved(tc.resolvedObjects))
@@ -153,12 +131,14 @@ func TestMaxDepthLookup(t *testing.T) {
 	require.NoError(err)
 
 	lookupResult := dispatch.Lookup(context.Background(), LookupRequest{
-		Start:          ONR("user", "legal", "..."),
-		TargetRelation: RR("document", "viewer"),
-		IsRootRequest:  true,
+		StartRelation:  RR("document", "viewer"),
+		TargetONR:      ONR("user", "legal", "..."),
 		AtRevision:     revision,
-		DepthRemaining: 1,
+		DepthRemaining: 0,
 		Limit:          10,
+		DirectStack:    namespace.NewONRSet(),
+		TTUStack:       namespace.NewONRSet(),
+		DebugTracer:    NewNullTracer(),
 	})
 
 	require.Error(lookupResult.Err)
@@ -169,17 +149,7 @@ type OrderedResolved []ResolvedObject
 func (a OrderedResolved) Len() int { return len(a) }
 
 func (a OrderedResolved) Less(i, j int) bool {
-	result := strings.Compare(tuple.StringONR(a[i].ONR), tuple.StringONR(a[j].ONR))
-	if result < 0 {
-		return false
-	}
-
-	if result > 0 {
-		return true
-	}
-
-	return strings.Compare(string(a[i].ReductionNodeID), string(a[j].ReductionNodeID)) < 0
+	return strings.Compare(tuple.StringONR(a[i].ONR), tuple.StringONR(a[j].ONR)) < 0
 }
 
 func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-*/

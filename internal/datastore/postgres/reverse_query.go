@@ -58,6 +58,10 @@ func (ptq pgReverseTupleQuery) WithObjectRelation(namespaceName string, relation
 }
 
 func (ptq pgReverseTupleQuery) WithSubjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
+	if ptq.subNamespaceName != "" {
+		panic("WithSubject or WithSubjectRelation already called")
+	}
+
 	ptq.subNamespaceName = namespaceName
 	ptq.subRelationName = relationName
 	ptq.query = ptq.query.Where(sq.Eq{
@@ -68,6 +72,10 @@ func (ptq pgReverseTupleQuery) WithSubjectRelation(namespaceName string, relatio
 }
 
 func (ptq pgReverseTupleQuery) WithSubject(onr *pb.ObjectAndRelation) datastore.ReverseTupleQuery {
+	if ptq.subNamespaceName != "" {
+		panic("WithSubject or WithSubjectRelation already called")
+	}
+
 	ptq.subNamespaceName = onr.Namespace
 	ptq.subRelationName = onr.Relation
 	ptq.subObjectId = onr.ObjectId

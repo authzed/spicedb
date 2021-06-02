@@ -28,7 +28,8 @@ func (ons *ONRSet) Has(onr *pb.ObjectAndRelation) bool {
 	return ok
 }
 
-// Add adds the given ONR to the set.
+// Add adds the given ONR to the set. Returns true if the object was not in the set before this
+// call and false otherwise.
 func (ons *ONRSet) Add(onr *pb.ObjectAndRelation) bool {
 	_, ok := ons.onrs[tuple.StringONR(onr)]
 	if ok {

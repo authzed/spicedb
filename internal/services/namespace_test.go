@@ -213,7 +213,9 @@ func TestNamespaceChanged(t *testing.T) {
 
 			if tc.expectedError != "" {
 				require.Error(err)
-				require.Equal(err.Error(), tc.expectedError)
+				requireGRPCStatus(codes.InvalidArgument, err, require)
+
+				require.Contains(err.Error(), tc.expectedError)
 			} else {
 				require.Nil(err)
 			}

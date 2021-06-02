@@ -9,6 +9,6 @@ import (
 func requireGRPCStatus(expectedCode codes.Code, err error, require *require.Assertions) {
 	require.Error(err)
 	asStatus, ok := status.FromError(err)
-	require.True(ok)
+	require.True(ok, "Expected gRPC error, found: %v", err)
 	require.Equal(expectedCode, asStatus.Code())
 }
