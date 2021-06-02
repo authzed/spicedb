@@ -1,8 +1,5 @@
 package crdb
 
-// TODO: add tracing
-// TODO: make sure that DB connections don't get canceled when an error occurs (separate context)
-
 import (
 	"context"
 	"fmt"
@@ -16,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
@@ -24,6 +22,8 @@ var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	gcTTLRegex = regexp.MustCompile(`gc\.ttlseconds\s*=\s*([1-9][0-9]+)`)
+
+	tracer = otel.Tracer("spicedb/internal/datastore/crdb")
 )
 
 const (
@@ -115,6 +115,9 @@ type crdbDatastore struct {
 }
 
 func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "Revision")
+	defer span.End()
+
 	// Get the current system revision and round it down to the nearest quantization
 	nowHLC, err := cds.SyncRevision(ctx)
 	if err != nil {
@@ -132,6 +135,9 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 }
 
 func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "SyncRevision")
+	defer span.End()
+
 	// Return the current system time
 	tx, err := cds.conn.Begin(ctx)
 	defer tx.Rollback(ctx)
@@ -143,8 +149,10 @@ func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision,
 }
 
 func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	// Make sure the system time indicated is within the software GC window
+	ctx, span := tracer.Start(ctx, "CheckRevision")
+	defer span.End()
 
+	// Make sure the system time indicated is within the software GC window
 	now, err := cds.SyncRevision(ctx)
 	if err != nil {
 		return err
@@ -169,6 +177,9 @@ func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.
 }
 
 func readCRDBNow(ctx context.Context, tx pgx.Tx) (decimal.Decimal, error) {
+	ctx, span := tracer.Start(ctx, "readCRDBNow")
+	defer span.End()
+
 	var hlcNow decimal.Decimal
 	if err := tx.QueryRow(ctx, querySelectNow).Scan(&hlcNow); err != nil {
 		return decimal.Decimal{}, fmt.Errorf("unable to read timestamp: %w", err)

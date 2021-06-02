@@ -83,8 +83,6 @@ func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, e
 	span.SetAttributes(namespaceNameKey.String(ptq.namespace))
 	span.SetAttributes(relationNameKey.String(ptq.relation))
 
-	span.AddEvent("DB transaction established")
-
 	sql, args, err := ptq.query.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)

@@ -7,6 +7,8 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
@@ -65,16 +67,23 @@ func (ctq crdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.T
 }
 
 func (ctq crdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
+	ctx, span := tracer.Start(ctx, "ExecuteTupleQuery")
+	defer span.End()
+
 	sql, args, err := ctq.query.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
+
+	span.AddEvent("Query converted to SQL")
 
 	tx, err := ctq.conn.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 	defer tx.Rollback(ctx)
+
+	span.AddEvent("DB transaction established")
 
 	setTxTime := fmt.Sprintf(querySetTransactionTime, ctq.revision)
 	if _, err := tx.Exec(ctx, setTxTime); err != nil {
@@ -86,6 +95,8 @@ func (ctq crdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator,
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 	defer rows.Close()
+
+	span.AddEvent("Query issued to CRDB")
 
 	var tuples []*pb.RelationTuple
 	for rows.Next() {
@@ -115,6 +126,8 @@ func (ctq crdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator,
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
+
+	span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 
 	iter := datastore.NewSliceTupleIterator(tuples)
 
