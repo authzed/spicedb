@@ -8,7 +8,7 @@ import (
 type crdbOptions struct {
 	connMaxIdleTime *time.Duration
 	connMaxLifetime *time.Duration
-	maxIdleConns    *int
+	minOpenConns    *int
 	maxOpenConns    *int
 
 	watchBufferLength    uint16
@@ -16,8 +16,6 @@ type crdbOptions struct {
 	gcWindow             time.Duration
 
 	enablePrometheusStats bool
-
-	driver string
 }
 
 const (
@@ -30,9 +28,9 @@ type CRDBOption func(*crdbOptions)
 
 func generateConfig(options []CRDBOption) (crdbOptions, error) {
 	computed := crdbOptions{
-		gcWindow:          24 * time.Hour,
-		watchBufferLength: defaultWatchBufferLength,
-		driver:            "postgres",
+		gcWindow:             24 * time.Hour,
+		watchBufferLength:    defaultWatchBufferLength,
+		revisionQuantization: defaultRevisionQuantization,
 	}
 
 	for _, option := range options {
@@ -63,9 +61,9 @@ func ConnMaxLifetime(lifetime time.Duration) CRDBOption {
 	}
 }
 
-func MaxIdleConns(conns int) CRDBOption {
+func MinOpenConns(conns int) CRDBOption {
 	return func(po *crdbOptions) {
-		po.maxIdleConns = &conns
+		po.minOpenConns = &conns
 	}
 }
 

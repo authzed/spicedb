@@ -2,7 +2,6 @@ package crdb
 
 // TODO: add tracing
 // TODO: make sure that DB connections don't get canceled when an error occurs (separate context)
-// TODO: make sure that we're using connection pooling
 
 import (
 	"context"
@@ -59,6 +58,22 @@ func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, e
 	poolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	if config.maxOpenConns != nil {
+		poolConfig.MaxConns = int32(*config.maxOpenConns)
+	}
+
+	if config.minOpenConns != nil {
+		poolConfig.MinConns = int32(*config.minOpenConns)
+	}
+
+	if config.connMaxIdleTime != nil {
+		poolConfig.MaxConnIdleTime = *config.connMaxIdleTime
+	}
+
+	if config.connMaxLifetime != nil {
+		poolConfig.MaxConnLifetime = *config.connMaxLifetime
 	}
 
 	poolConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
