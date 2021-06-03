@@ -124,7 +124,7 @@ func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) Lookup
 
 	if req.Limit <= 0 {
 		return LookupResult{
-			ResolvedObjects: []ResolvedObject{},
+			ResolvedObjects: []*pb.ObjectAndRelation{},
 		}
 	}
 

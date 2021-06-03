@@ -29,12 +29,12 @@ const noLimit = int(maxUint >> 1)
 func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) ReduceableLookupFunc {
 	log.Trace().Object("lookup", req).Send()
 
-	objSet := newSet()
+	objSet := namespace.NewONRSet()
 
 	// If we've found the target ONR, add it to the set of resolved objects. Note that we still need
 	// to continue processing, as this may also be an intermediate step in resolution.
 	if req.StartRelation.Namespace == req.TargetONR.Namespace && req.StartRelation.Relation == req.TargetONR.Relation {
-		objSet.add(ResolvedObject{req.TargetONR})
+		objSet.Add(req.TargetONR)
 		req.DebugTracer.Child("(self)")
 	}
 
@@ -62,14 +62,14 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 		return ResolveError(err)
 	}
 
-	objSet.update(result.ResolvedObjects)
+	objSet.Update(result.ResolvedObjects)
 
 	// Recursively perform lookup on any of the ONRs found that do not match the target ONR.
 	// This ensures that we resolve the full transitive closure of all objects.
 	recursiveTracer := req.DebugTracer.Child("Recursive")
 	toCheck := objSet
 	for {
-		if toCheck.length() == 0 || objSet.length() >= req.Limit {
+		if toCheck.Length() == 0 || objSet.Length() >= req.Limit {
 			break
 		}
 
@@ -77,23 +77,23 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 		outgoingTracer := loopTracer.Child("Outgoing")
 
 		var requests []ReduceableLookupFunc
-		for _, obj := range toCheck.asSlice() {
+		for _, obj := range toCheck.AsSlice() {
 			// If we've already found the target ONR, no further resolution is necessary.
-			if obj.ONR.Namespace == req.TargetONR.Namespace &&
-				obj.ONR.Relation == req.TargetONR.Relation &&
-				obj.ONR.ObjectId == req.TargetONR.ObjectId {
+			if obj.Namespace == req.TargetONR.Namespace &&
+				obj.Relation == req.TargetONR.Relation &&
+				obj.ObjectId == req.TargetONR.ObjectId {
 				continue
 			}
 
 			requests = append(requests, cl.dispatch(LookupRequest{
-				TargetONR:      obj.ONR,
+				TargetONR:      obj,
 				StartRelation:  req.StartRelation,
-				Limit:          req.Limit - objSet.length(),
+				Limit:          req.Limit - objSet.Length(),
 				AtRevision:     req.AtRevision,
 				DepthRemaining: req.DepthRemaining - 1,
 				DirectStack:    req.DirectStack,
 				TTUStack:       req.TTUStack,
-				DebugTracer:    outgoingTracer.Childf("%s", tuple.StringONR(obj.ONR)),
+				DebugTracer:    outgoingTracer.Childf("%s", tuple.StringONR(obj)),
 			}))
 		}
 
@@ -106,25 +106,25 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 			return ResolveError(err)
 		}
 
-		toCheck = newSet()
+		toCheck = namespace.NewONRSet()
 
 		resultsTracer := loopTracer.Child("Results")
 		for _, obj := range result.ResolvedObjects {
-			resultsTracer.ChildONR(obj.ONR)
+			resultsTracer.ChildONR(obj)
 
 			// Only check recursively for new objects.
-			if objSet.add(obj) {
-				toCheck.add(obj)
+			if objSet.Add(obj) {
+				toCheck.Add(obj)
 			}
 		}
 	}
 
-	return ResolvedObjects(limitedSlice(objSet.asSlice(), req.Limit))
+	return ResolvedObjects(limitedSlice(objSet.AsSlice(), req.Limit))
 }
 
 func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest, tracer DebugTracer, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
 	// Check for the target ONR directly.
-	objects := newSet()
+	objects := namespace.NewONRSet()
 	it, err := cl.ds.ReverseQueryTuples(req.AtRevision).
 		WithObjectRelation(req.StartRelation.Namespace, req.StartRelation.Relation).
 		WithSubject(req.TargetONR).
@@ -135,7 +135,7 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 	defer it.Close()
 
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-		objects.add(ResolvedObject{tpl.ObjectAndRelation})
+		objects.Add(tpl.ObjectAndRelation)
 	}
 
 	if it.Err() != nil {
@@ -143,11 +143,11 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 	}
 
 	thisTracer := tracer.Child("_this")
-	thisTracer.Add("Local", objects)
+	thisTracer.Add("Local", EmittableObjectSet(*objects))
 
 	// If we've hit the limit of results already, then nothing more to do.
-	if objects.length() >= req.Limit {
-		return ResolvedObjects(limitedSlice(objects.asSlice(), req.Limit))
+	if objects.Length() >= req.Limit {
+		return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
 	}
 
 	// Dispatch to any allowed direct relation types that don't match the target ONR, collect
@@ -205,7 +205,7 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 	}
 
 	if len(requests) == 0 {
-		return ResolvedObjects(objects.asSlice())
+		return ResolvedObjects(objects.AsSlice())
 	}
 
 	// TODO(jschorr): Turn this into a parallel Lookup+Map?
@@ -217,11 +217,11 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 	// For each inferred object found, check for the target ONR.
 	resultsTracer := directTracer.Child("Results To Check")
 	for _, resolvedObj := range result.ResolvedObjects {
-		resultTracer := resultsTracer.Child(tuple.StringONR(resolvedObj.ONR))
+		resultTracer := resultsTracer.Child(tuple.StringONR(resolvedObj))
 
 		it, err := cl.ds.QueryTuples(req.StartRelation.Namespace, req.AtRevision).
 			WithRelation(req.StartRelation.Relation).
-			WithUserset(resolvedObj.ONR).
+			WithUserset(resolvedObj).
 			Execute(ctx)
 		if err != nil {
 			return ResolveError(err)
@@ -231,9 +231,9 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 			resultTracer.Child(tuple.StringONR(tpl.ObjectAndRelation))
 
-			objects.add(ResolvedObject{tpl.ObjectAndRelation})
-			if objects.length() >= req.Limit {
-				return ResolvedObjects(limitedSlice(objects.asSlice(), req.Limit))
+			objects.Add(tpl.ObjectAndRelation)
+			if objects.Length() >= req.Limit {
+				return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
 			}
 		}
 
@@ -242,7 +242,7 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 		}
 	}
 
-	return ResolvedObjects(limitedSlice(objects.asSlice(), req.Limit))
+	return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
 }
 
 func (cl *concurrentLookup) processRewrite(ctx context.Context, req LookupRequest, tracer DebugTracer, nsdef *pb.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, usr *pb.UsersetRewrite) ReduceableLookupFunc {
@@ -301,7 +301,7 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 	}
 	if req.TTUStack.Has(onr) {
 		tracer.Childf("recursive ttu %s#%s", req.StartRelation.Namespace, req.StartRelation.Relation)
-		return ResolvedObjects([]ResolvedObject{})
+		return ResolvedObjects([]*pb.ObjectAndRelation{})
 	}
 
 	tuplesetDirectRelations, err := typeSystem.AllowedDirectRelations(ttu.Tupleset.Relation)
@@ -353,25 +353,25 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 		return ResolveError(result.Err)
 	}
 
-	objects := newSet()
+	objects := namespace.NewONRSet()
 	computedUsersetResultsTracer := computedUsersetTracer.Childf("Results")
 	for _, resolvedObj := range result.ResolvedObjects {
-		tuplesetResultsTracer := computedUsersetResultsTracer.Childf("tupleset from %s", tuple.StringONR(resolvedObj.ONR))
+		tuplesetResultsTracer := computedUsersetResultsTracer.Childf("tupleset from %s", tuple.StringONR(resolvedObj))
 
 		// Determine the relation(s) to use or the tupleset. This is determined based on the allowed direct relations and
 		// we always check for both the actual relation resolved, as well as `...`
 		allowedRelations := []string{}
-		allowedDirect, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.ONR.Namespace, resolvedObj.ONR.Relation)
+		allowedDirect, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.Namespace, resolvedObj.Relation)
 		if err != nil {
 			return ResolveError(err)
 		}
 
 		if allowedDirect == namespace.DirectRelationValid {
-			allowedRelations = append(allowedRelations, resolvedObj.ONR.Relation)
+			allowedRelations = append(allowedRelations, resolvedObj.Relation)
 		}
 
-		if resolvedObj.ONR.Relation != Ellipsis {
-			allowedEllipsis, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.ONR.Namespace, Ellipsis)
+		if resolvedObj.Relation != Ellipsis {
+			allowedEllipsis, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.Namespace, Ellipsis)
 			if err != nil {
 				return ResolveError(err)
 			}
@@ -383,8 +383,8 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 
 		for _, allowedRelation := range allowedRelations {
 			userset := &pb.ObjectAndRelation{
-				Namespace: resolvedObj.ONR.Namespace,
-				ObjectId:  resolvedObj.ONR.ObjectId,
+				Namespace: resolvedObj.Namespace,
+				ObjectId:  resolvedObj.ObjectId,
 				Relation:  allowedRelation,
 			}
 
@@ -405,16 +405,14 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 					return ResolveError(fmt.Errorf("got unexpected namespace"))
 				}
 
-				objects.add(ResolvedObject{
-					ONR: &pb.ObjectAndRelation{
-						Namespace: req.StartRelation.Namespace,
-						ObjectId:  tpl.ObjectAndRelation.ObjectId,
-						Relation:  req.StartRelation.Relation,
-					},
+				objects.Add(&pb.ObjectAndRelation{
+					Namespace: req.StartRelation.Namespace,
+					ObjectId:  tpl.ObjectAndRelation.ObjectId,
+					Relation:  req.StartRelation.Relation,
 				})
 
-				if objects.length() >= req.Limit {
-					return ResolvedObjects(limitedSlice(objects.asSlice(), req.Limit))
+				if objects.Length() >= req.Limit {
+					return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
 				}
 			}
 
@@ -424,8 +422,8 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 		}
 	}
 
-	ttuTracer.Add("ttu Results", objects)
-	return ResolvedObjects(objects.asSlice())
+	ttuTracer.Add("ttu Results", EmittableObjectSet(*objects))
+	return ResolvedObjects(objects.AsSlice())
 }
 
 func (cl *concurrentLookup) lookupComputed(ctx context.Context, req LookupRequest, tracer DebugTracer, cu *pb.ComputedUserset) ReduceableLookupFunc {
@@ -452,19 +450,18 @@ func (cl *concurrentLookup) lookupComputed(ctx context.Context, req LookupReques
 	}
 
 	// Rewrite the found ONRs to be this relation.
-	rewrittenResolved := make([]ResolvedObject, 0, len(result.ResolvedObjects))
+	rewrittenResolved := make([]*pb.ObjectAndRelation, 0, len(result.ResolvedObjects))
 	for _, resolved := range result.ResolvedObjects {
-		if resolved.ONR.Namespace != req.StartRelation.Namespace {
-			return ResolveError(fmt.Errorf("invalid namespace: %s vs %s", tuple.StringONR(resolved.ONR), req.StartRelation.Namespace))
+		if resolved.Namespace != req.StartRelation.Namespace {
+			return ResolveError(fmt.Errorf("invalid namespace: %s vs %s", tuple.StringONR(resolved), req.StartRelation.Namespace))
 		}
 
-		rewrittenResolved = append(rewrittenResolved, ResolvedObject{
-			ONR: &pb.ObjectAndRelation{
-				Namespace: resolved.ONR.Namespace,
+		rewrittenResolved = append(rewrittenResolved,
+			&pb.ObjectAndRelation{
+				Namespace: resolved.Namespace,
 				Relation:  req.StartRelation.Relation,
-				ObjectId:  resolved.ONR.ObjectId,
-			},
-		})
+				ObjectId:  resolved.ObjectId,
+			})
 	}
 
 	return ResolvedObjects(rewrittenResolved)
@@ -504,7 +501,7 @@ func LookupAny(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 		go req(childCtx, resultChan)
 	}
 
-	objects := newSet()
+	objects := namespace.NewONRSet()
 	for _, resultChan := range resultChans {
 		select {
 		case result := <-resultChan:
@@ -512,11 +509,11 @@ func LookupAny(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 				return LookupResult{Err: result.Err}
 			}
 
-			objects.update(result.ResolvedObjects)
+			objects.Update(result.ResolvedObjects)
 
-			if objects.length() >= int(limit) {
+			if objects.Length() >= int(limit) {
 				return LookupResult{
-					ResolvedObjects: limitedSlice(objects.asSlice(), limit),
+					ResolvedObjects: limitedSlice(objects.AsSlice(), limit),
 				}
 			}
 		case <-ctx.Done():
@@ -525,13 +522,13 @@ func LookupAny(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 	}
 
 	return LookupResult{
-		ResolvedObjects: limitedSlice(objects.asSlice(), limit),
+		ResolvedObjects: limitedSlice(objects.AsSlice(), limit),
 	}
 }
 
 func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc) LookupResult {
 	if len(requests) == 0 {
-		return LookupResult{[]ResolvedObject{}, nil}
+		return LookupResult{[]*pb.ObjectAndRelation{}, nil}
 	}
 
 	resultChan := make(chan LookupResult, len(requests))
@@ -542,7 +539,7 @@ func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 		go req(childCtx, resultChan)
 	}
 
-	objSet := newSet()
+	objSet := namespace.NewONRSet()
 
 	for i := 0; i < len(requests); i++ {
 		select {
@@ -551,24 +548,24 @@ func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 				return result
 			}
 
-			subSet := newSet()
-			subSet.update(result.ResolvedObjects)
+			subSet := namespace.NewONRSet()
+			subSet.Update(result.ResolvedObjects)
 
 			if i == 0 {
 				objSet = subSet
 			} else {
-				objSet = objSet.intersect(subSet)
+				objSet = objSet.Intersect(subSet)
 			}
 
-			if objSet.length() == 0 {
-				return LookupResult{[]ResolvedObject{}, nil}
+			if objSet.Length() == 0 {
+				return LookupResult{[]*pb.ObjectAndRelation{}, nil}
 			}
 		case <-ctx.Done():
 			return LookupResult{Err: ErrRequestCanceled}
 		}
 	}
 
-	return LookupResult{objSet.asSlice(), nil}
+	return LookupResult{objSet.AsSlice(), nil}
 }
 
 func LookupExclude(ctx context.Context, limit int, requests []ReduceableLookupFunc) LookupResult {
@@ -583,8 +580,8 @@ func LookupExclude(ctx context.Context, limit int, requests []ReduceableLookupFu
 		go req(childCtx, othersChan)
 	}
 
-	objSet := newSet()
-	excSet := newSet()
+	objSet := namespace.NewONRSet()
+	excSet := namespace.NewONRSet()
 
 	for i := 0; i < len(requests); i++ {
 		select {
@@ -592,31 +589,31 @@ func LookupExclude(ctx context.Context, limit int, requests []ReduceableLookupFu
 			if base.Err != nil {
 				return base
 			}
-			objSet.update(base.ResolvedObjects)
+			objSet.Update(base.ResolvedObjects)
 
 		case sub := <-othersChan:
 			if sub.Err != nil {
 				return sub
 			}
 
-			excSet.update(sub.ResolvedObjects)
+			excSet.Update(sub.ResolvedObjects)
 		case <-ctx.Done():
 			return LookupResult{Err: ErrRequestCanceled}
 		}
 	}
 
-	return LookupResult{limitedSlice(objSet.exclude(excSet).asSlice(), limit), nil}
+	return LookupResult{limitedSlice(objSet.Subtract(excSet).AsSlice(), limit), nil}
 }
 
-func ResolvedObjects(resolved []ResolvedObject) ReduceableLookupFunc {
+func ResolvedObjects(resolved []*pb.ObjectAndRelation) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
 		resultChan <- LookupResult{ResolvedObjects: resolved}
 	}
 }
 
-func Resolved(resolved ResolvedObject) ReduceableLookupFunc {
+func Resolved(resolved *pb.ObjectAndRelation) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		resultChan <- LookupResult{ResolvedObjects: []ResolvedObject{resolved}}
+		resultChan <- LookupResult{ResolvedObjects: []*pb.ObjectAndRelation{resolved}}
 	}
 }
 
@@ -626,7 +623,7 @@ func ResolveError(err error) ReduceableLookupFunc {
 	}
 }
 
-func limitedSlice(slice []ResolvedObject, limit int) []ResolvedObject {
+func limitedSlice(slice []*pb.ObjectAndRelation, limit int) []*pb.ObjectAndRelation {
 	if len(slice) > int(limit) {
 		return slice[0:limit]
 	}
@@ -634,10 +631,19 @@ func limitedSlice(slice []ResolvedObject, limit int) []ResolvedObject {
 	return slice
 }
 
-type EmittableObjectSlice []ResolvedObject
+type EmittableObjectSlice []*pb.ObjectAndRelation
 
 func (s EmittableObjectSlice) EmitForTrace(tracer DebugTracer) {
 	for _, value := range s {
-		tracer.Child(tuple.StringONR(value.ONR))
+		tracer.Child(tuple.StringONR(value))
+	}
+}
+
+type EmittableObjectSet namespace.ONRSet
+
+func (s EmittableObjectSet) EmitForTrace(tracer DebugTracer) {
+	onrset := namespace.ONRSet(s)
+	for _, value := range onrset.AsSlice() {
+		tracer.Child(tuple.StringONR(value))
 	}
 }

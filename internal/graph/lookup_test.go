@@ -38,48 +38,48 @@ func TestSimpleLookup(t *testing.T) {
 	testCases := []struct {
 		start           *pb.RelationReference
 		target          *pb.ObjectAndRelation
-		resolvedObjects []ResolvedObject
+		resolvedObjects []*pb.ObjectAndRelation
 	}{
 		{
 			RR("document", "viewer"),
 			ONR("user", "unknown", "..."),
-			[]ResolvedObject{},
+			[]*pb.ObjectAndRelation{},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "eng_lead", "..."),
-			[]ResolvedObject{
-				{ONR("document", "masterplan", "viewer")},
+			[]*pb.ObjectAndRelation{
+				ONR("document", "masterplan", "viewer"),
 			},
 		},
 		{
 			RR("document", "owner"),
 			ONR("user", "product_manager", "..."),
-			[]ResolvedObject{
-				{ONR("document", "masterplan", "owner")},
+			[]*pb.ObjectAndRelation{
+				ONR("document", "masterplan", "owner"),
 			},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "legal", "..."),
-			[]ResolvedObject{
-				{ONR("document", "companyplan", "viewer")},
-				{ONR("document", "masterplan", "viewer")},
+			[]*pb.ObjectAndRelation{
+				ONR("document", "companyplan", "viewer"),
+				ONR("document", "masterplan", "viewer"),
 			},
 		},
 		{
 			RR("document", "viewer_and_editor"),
 			ONR("user", "multiroleguy", "..."),
-			[]ResolvedObject{
-				{ONR("document", "specialplan", "viewer_and_editor")},
+			[]*pb.ObjectAndRelation{
+				ONR("document", "specialplan", "viewer_and_editor"),
 			},
 		},
 		{
 			RR("folder", "viewer"),
 			ONR("user", "owner", "..."),
-			[]ResolvedObject{
-				{ONR("folder", "strategy", "viewer")},
-				{ONR("folder", "company", "viewer")},
+			[]*pb.ObjectAndRelation{
+				ONR("folder", "strategy", "viewer"),
+				ONR("folder", "company", "viewer"),
 			},
 		},
 	}
@@ -144,12 +144,12 @@ func TestMaxDepthLookup(t *testing.T) {
 	require.Error(lookupResult.Err)
 }
 
-type OrderedResolved []ResolvedObject
+type OrderedResolved []*pb.ObjectAndRelation
 
 func (a OrderedResolved) Len() int { return len(a) }
 
 func (a OrderedResolved) Less(i, j int) bool {
-	return strings.Compare(tuple.StringONR(a[i].ONR), tuple.StringONR(a[j].ONR)) < 0
+	return strings.Compare(tuple.StringONR(a[i]), tuple.StringONR(a[j])) < 0
 }
 
 func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }

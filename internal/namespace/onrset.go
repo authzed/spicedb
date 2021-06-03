@@ -17,6 +17,11 @@ func NewONRSet() *ONRSet {
 	}
 }
 
+// Length returns the size of the set.
+func (ons *ONRSet) Length() int {
+	return len(ons.onrs)
+}
+
 // IsEmpty returns whether the set is empty.
 func (ons *ONRSet) IsEmpty() bool {
 	return len(ons.onrs) == 0

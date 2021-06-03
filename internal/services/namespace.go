@@ -44,8 +44,11 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 		}
 
 		// Ensure that the updated namespace does not break the existing tuple data.
-		existing, revision, err := nss.nsm.ReadNamespace(ctx, config.Name)
-		if err != nil && err != namespace.ErrInvalidNamespace {
+		//
+		// NOTE: We use the datastore here to read the namespace, rather than the namespace manager,
+		// to ensure there is no caching being used.
+		existing, revision, err := nss.ds.ReadNamespace(ctx, config.Name)
+		if err != nil && err != datastore.ErrNamespaceNotFound {
 			return nil, rewriteNamespaceError(err)
 		}
 

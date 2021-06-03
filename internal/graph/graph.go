@@ -71,13 +71,9 @@ type LookupRequest struct {
 	DebugTracer    DebugTracer
 }
 
-type ResolvedObject struct {
-	ONR *pb.ObjectAndRelation
-}
-
 // LookupResult is the data that is returned by a single lookup or sub-lookup.
 type LookupResult struct {
-	ResolvedObjects []ResolvedObject
+	ResolvedObjects []*pb.ObjectAndRelation
 	Err             error
 }
 

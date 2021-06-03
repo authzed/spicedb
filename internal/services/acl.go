@@ -391,11 +391,11 @@ func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.L
 
 	resolvedObjectIDs := []string{}
 	for _, found := range resp.ResolvedObjects {
-		if found.ONR.Namespace != req.ObjectRelation.Namespace {
-			return nil, rewriteACLError(fmt.Errorf("got invalid resolved object %v (expected %v)", found.ONR, req.ObjectRelation))
+		if found.Namespace != req.ObjectRelation.Namespace {
+			return nil, rewriteACLError(fmt.Errorf("got invalid resolved object %v (expected %v)", found, req.ObjectRelation))
 		}
 
-		resolvedObjectIDs = append(resolvedObjectIDs, found.ONR.ObjectId)
+		resolvedObjectIDs = append(resolvedObjectIDs, found.ObjectId)
 	}
 
 	return &api.LookupResponse{
