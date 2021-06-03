@@ -66,13 +66,9 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 				}
 				defer query.Close()
 
-				rt := query.Next()
-				if rt != nil {
-					if query.Err() != nil {
-						return nil, rewriteNamespaceError(query.Err())
-					}
-
-					return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("cannot delete relation `%s` in namespace `%s`, as a tuple exists under it", delta.RelationName, config.Name))
+				err = errorIfTupleIteratorReturnsTuples(query, "cannot delete relation `%s` in namespace `%s`, as a tuple exists under it", delta.RelationName, config.Name)
+				if err != nil {
+					return nil, rewriteNamespaceError(err)
 				}
 
 				// Also check for right sides of tuples.
@@ -84,13 +80,9 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 				}
 				defer query.Close()
 
-				rt = query.Next()
-				if rt != nil {
-					if query.Err() != nil {
-						return nil, rewriteNamespaceError(query.Err())
-					}
-
-					return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name))
+				err = errorIfTupleIteratorReturnsTuples(query, "cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name)
+				if err != nil {
+					return nil, rewriteNamespaceError(err)
 				}
 
 			case namespace.RelationDirectTypeRemoved:
@@ -103,13 +95,9 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 				}
 				defer query.Close()
 
-				rt := query.Next()
-				if rt != nil {
-					if query.Err() != nil {
-						return nil, rewriteNamespaceError(query.Err())
-					}
-
-					return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it", delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name))
+				err = errorIfTupleIteratorReturnsTuples(query, "cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it", delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name)
+				if err != nil {
+					return nil, rewriteNamespaceError(err)
 				}
 			}
 		}
@@ -140,6 +128,18 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *api.ReadConfigRequest)
 		Config:    found,
 		Revision:  zookie.NewFromRevision(version),
 	}, nil
+}
+
+func errorIfTupleIteratorReturnsTuples(query datastore.TupleIterator, message string, args ...interface{}) error {
+	rt := query.Next()
+	if rt != nil {
+		if query.Err() != nil {
+			return rewriteNamespaceError(query.Err())
+		}
+
+		return status.Errorf(codes.InvalidArgument, fmt.Sprintf(message, args...))
+	}
+	return nil
 }
 
 func rewriteNamespaceError(err error) error {
