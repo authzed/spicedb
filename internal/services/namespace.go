@@ -66,7 +66,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 			switch delta.Type {
 			case namespace.RemovedRelation:
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.QueryTuples(config.Name, revision).WithRelation(delta.RelationName).Limit(1),
+					nss.ds.QueryTuples(config.Name, revision).WithRelation(delta.RelationName),
 					ctx,
 					"cannot delete relation `%s` in namespace `%s`, as a tuple exists under it", delta.RelationName, config.Name)
 				if err != nil {
@@ -75,7 +75,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 
 				// Also check for right sides of tuples.
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.ReverseQueryTuples(revision).WithSubjectRelation(config.Name, delta.RelationName).Limit(1),
+					nss.ds.ReverseQueryTuples(revision).WithSubjectRelation(config.Name, delta.RelationName),
 					ctx,
 					"cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name)
 				if err != nil {
@@ -86,8 +86,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 				err = errorIfTupleIteratorReturnsTuples(
 					nss.ds.ReverseQueryTuples(revision).
 						WithObjectRelation(config.Name, delta.RelationName).
-						WithSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation).
-						Limit(1),
+						WithSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation),
 					ctx,
 					"cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it",
 					delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name)
@@ -126,7 +125,7 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *api.ReadConfigRequest)
 }
 
 func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx context.Context, message string, args ...interface{}) error {
-	qy, err := query.Execute(ctx)
+	qy, err := query.Limit(1).Execute(ctx)
 	if err != nil {
 		return err
 	}

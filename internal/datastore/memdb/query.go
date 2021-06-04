@@ -25,7 +25,7 @@ type memdbTupleQuery struct {
 	simulatedLatency time.Duration
 }
 
-func (mtq memdbTupleQuery) Limit(limit uint64) datastore.TupleQuery {
+func (mtq memdbTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	mtq.limit = &limit
 	return mtq
 }

@@ -28,7 +28,7 @@ type memdbReverseTupleQuery struct {
 	simulatedLatency time.Duration
 }
 
-func (mtq memdbReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
+func (mtq memdbReverseTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	mtq.limit = &limit
 	return mtq
 }
