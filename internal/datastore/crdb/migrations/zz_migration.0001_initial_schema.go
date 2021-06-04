@@ -2,13 +2,14 @@ package migrations
 
 import "context"
 
-const createNamespaceConfig = `CREATE TABLE namespace_config (
+const (
+	createNamespaceConfig = `CREATE TABLE namespace_config (
     namespace VARCHAR PRIMARY KEY,
     serialized_config BYTEA NOT NULL,
     timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL
 );`
 
-const createRelationTuple = `CREATE TABLE relation_tuple (
+	createRelationTuple = `CREATE TABLE relation_tuple (
     namespace VARCHAR NOT NULL,
     object_id VARCHAR NOT NULL,
     relation VARCHAR NOT NULL,
@@ -19,13 +20,17 @@ const createRelationTuple = `CREATE TABLE relation_tuple (
     CONSTRAINT pk_relation_tuple PRIMARY KEY (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation)
 );`
 
-const createSchemaVersion = `CREATE TABLE schema_version (
+	createSchemaVersion = `CREATE TABLE schema_version (
 	version_num VARCHAR NOT NULL
 );`
 
-const insertEmptyVersion = `INSERT INTO schema_version (version_num) VALUES ('');`
+	insertEmptyVersion = `INSERT INTO schema_version (version_num) VALUES ('');`
 
-const enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
+	enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
+
+	createReverseQueryIndex = `CREATE INDEX ix_relation_tuple_by_subject ON relation_tuple (userset_object_id, userset_namespace, userset_relation, namespace, relation)`
+	createReverseCheckIndex = `CREATE INDEX ix_relation_tuple_by_subject_relation ON relation_tuple (userset_namespace, userset_relation, namespace, relation)`
+)
 
 func init() {
 	CRDBMigrations.Register("initial", "", func(apd *CRDBDriver) error {
@@ -47,6 +52,8 @@ func init() {
 			createRelationTuple,
 			createSchemaVersion,
 			insertEmptyVersion,
+			createReverseQueryIndex,
+			createReverseCheckIndex,
 		}
 		for _, stmt := range statements {
 			_, err := tx.Exec(ctx, stmt)

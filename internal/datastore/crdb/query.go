@@ -33,18 +33,30 @@ var (
 
 func (cds *crdbDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
 	return crdbTupleQuery{
-		conn:      cds.conn,
-		query:     queryTuples.Where(sq.Eq{colNamespace: namespace}),
+		commonTupleQuery: commonTupleQuery{
+			conn:     cds.conn,
+			query:    queryTuples.Where(sq.Eq{colNamespace: namespace}),
+			revision: revision,
+		},
 		namespace: namespace,
-		revision:  revision,
 	}
 }
 
+type commonTupleQuery struct {
+	conn     *pgxpool.Pool
+	query    sq.SelectBuilder
+	revision datastore.Revision
+}
+
 type crdbTupleQuery struct {
-	conn      *pgxpool.Pool
-	query     sq.SelectBuilder
+	commonTupleQuery
+
 	namespace string
-	revision  datastore.Revision
+}
+
+func (ctq commonTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
+	ctq.query = ctq.query.Limit(limit)
+	return ctq
 }
 
 func (ctq crdbTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
@@ -66,7 +78,7 @@ func (ctq crdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.T
 	return ctq
 }
 
-func (ctq crdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
+func (ctq commonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	ctx, span := tracer.Start(ctx, "ExecuteTupleQuery")
 	defer span.End()
 
