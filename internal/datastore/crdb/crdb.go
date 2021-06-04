@@ -53,8 +53,6 @@ func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, e
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	quantizationNanos := config.revisionQuantization.Nanoseconds()
-
 	poolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -102,7 +100,7 @@ func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, e
 	return &crdbDatastore{
 		conn:              conn,
 		watchBufferLength: config.watchBufferLength,
-		quantizationNanos: quantizationNanos,
+		quantizationNanos: config.revisionQuantization.Nanoseconds(),
 		gcWindowNanos:     gcWindowNanos,
 	}, nil
 }
@@ -118,17 +116,15 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 	ctx, span := tracer.Start(ctx, "Revision")
 	defer span.End()
 
-	// Get the current system revision and round it down to the nearest quantization
 	nowHLC, err := cds.SyncRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
 
-	now := nowHLC.IntPart()
-
-	quantized := now
+	// Round the revision down to the nearest quantization
+	quantized := nowHLC.IntPart()
 	if cds.quantizationNanos > 0 {
-		quantized -= (now % cds.quantizationNanos)
+		quantized -= (quantized % cds.quantizationNanos)
 	}
 
 	return decimal.NewFromInt(quantized), nil
@@ -138,7 +134,6 @@ func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision,
 	ctx, span := tracer.Start(ctx, "SyncRevision")
 	defer span.End()
 
-	// Return the current system time
 	tx, err := cds.conn.Begin(ctx)
 	defer tx.Rollback(ctx)
 	if err != nil {
@@ -161,15 +156,10 @@ func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.
 	nowNanos := now.IntPart()
 	revisionNanos := revision.IntPart()
 
-	if revisionNanos < (nowNanos - cds.gcWindowNanos) {
-		fmt.Printf("revision was too old %d < %d - %d\n", revisionNanos, nowNanos, cds.gcWindowNanos)
-	}
-
-	if revisionNanos > nowNanos {
-		fmt.Println("revision in the future ")
-	}
-
-	if (revisionNanos < (nowNanos - cds.gcWindowNanos)) || (revisionNanos > nowNanos) {
+	staleRevision := revisionNanos < (nowNanos - cds.gcWindowNanos)
+	futureRevision := revisionNanos > nowNanos
+	if staleRevision || futureRevision {
+		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("invalid revision")
 		return datastore.ErrInvalidRevision
 	}
 

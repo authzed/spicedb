@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"sort"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -35,11 +34,17 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 			}
 			return
 		}
+
+		// We call Close async here because it can be slow and blocks closing the channels. There is
+		// no return value so we're not really losing anything.
 		defer func() { go changes.Close() }()
 
 		for changes.Next() {
-			sqlValues, err := changes.Values()
-			if err != nil {
+			var unused interface{}
+			var changeJson []byte
+			var primaryKeyValuesJson []byte
+
+			if err := changes.Scan(&unused, &primaryKeyValuesJson, &changeJson); err != nil {
 				if ctx.Err() == context.Canceled {
 					errors <- datastore.ErrWatchCanceled
 				} else {
@@ -47,32 +52,20 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				}
 				return
 			}
-			if len(sqlValues) != 3 {
-				errors <- fmt.Errorf("wrong number of changefeed values %d != 3", len(sqlValues))
-				return
-			}
 
-			changeJson, ok := sqlValues[2].([]byte)
-			if !ok {
-				errors <- fmt.Errorf("wrong type for change JSON, != []byte")
-				return
+			var changeDetails struct {
+				Resolved string
+				Updated  string
+				After    interface{}
 			}
-
-			var changeDetails map[string]interface{}
 			if err := json.Unmarshal(changeJson, &changeDetails); err != nil {
 				errors <- err
 				return
 			}
 
-			if resolvedUntyped, ok := changeDetails["resolved"]; ok {
+			if changeDetails.Resolved != "" {
 				// This entry indicates that we are ready to potentially emit some changes
-				resolvedStr, ok := resolvedUntyped.(string)
-				if !ok {
-					errors <- fmt.Errorf("resolved value of wrong type: != string")
-					return
-				}
-
-				resolved, err := decimal.NewFromString(resolvedStr)
+				resolved, err := decimal.NewFromString(changeDetails.Resolved)
 				if err != nil {
 					errors <- err
 					return
@@ -106,41 +99,13 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				continue
 			}
 
-			primaryKeyValuesJson, ok := sqlValues[1].([]byte)
-			if !ok {
-				errors <- fmt.Errorf("wrong type for PK JSON, %s != []byte", reflect.TypeOf(sqlValues[1]))
-				return
-			}
-
-			var pkValues []string
+			var pkValues [6]string
 			if err := json.Unmarshal(primaryKeyValuesJson, &pkValues); err != nil {
 				errors <- err
 				return
 			}
 
-			if len(pkValues) != 6 {
-				errors <- fmt.Errorf("wrong number of pk values %d != 6", len(pkValues))
-				return
-			}
-
-			afterBlock, hasAfter := changeDetails["after"]
-			if !hasAfter {
-				errors <- fmt.Errorf("malformed update block, missing 'after' key")
-				return
-			}
-
-			timestamp, hasTimestamp := changeDetails["updated"]
-			if !hasTimestamp {
-				errors <- fmt.Errorf("malformed update block, missing 'updated' key")
-				return
-			}
-			tsString, ok := timestamp.(string)
-			if !ok {
-				errors <- fmt.Errorf("malformed update timestamp: %w", err)
-				return
-			}
-
-			revision, err := decimal.NewFromString(tsString)
+			revision, err := decimal.NewFromString(changeDetails.Updated)
 			if err != nil {
 				errors <- fmt.Errorf("malformed update timestamp: %w", err)
 				return
@@ -164,7 +129,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 					},
 				},
 			}
-			if afterBlock == nil {
+			if changeDetails.After == nil {
 				oneChange.Operation = pb.RelationTupleUpdate_DELETE
 			} else {
 				oneChange.Operation = pb.RelationTupleUpdate_TOUCH

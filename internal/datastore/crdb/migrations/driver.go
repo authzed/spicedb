@@ -6,11 +6,18 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/log/zerologadapter"
+	"github.com/rs/zerolog/log"
 )
 
-const errUnableToInstantiate = "unable to instantiate CRDBDriver: %w"
+const (
+	errUnableToInstantiate = "unable to instantiate CRDBDriver: %w"
 
-const postgresMissingTableErrorCode = "42P01"
+	postgresMissingTableErrorCode = "42P01"
+
+	queryLoadVersion  = "SELECT version_num from schema_version"
+	queryWriteVersion = "UPDATE schema_version SET version_num=$1 WHERE version_num=$2"
+)
 
 type CRDBDriver struct {
 	db *pgx.Conn
@@ -22,7 +29,7 @@ func NewCRDBDriver(url string) (*CRDBDriver, error) {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	// connConfig.Logger = zerologadapter.NewLogger(log.Logger)
+	connConfig.Logger = zerologadapter.NewLogger(log.Logger)
 
 	db, err := pgx.ConnectConfig(context.Background(), connConfig)
 	if err != nil {
@@ -35,7 +42,7 @@ func NewCRDBDriver(url string) (*CRDBDriver, error) {
 func (apd *CRDBDriver) Version() (string, error) {
 	var loaded string
 
-	if err := apd.db.QueryRow(context.Background(), "SELECT version_num from schema_version").Scan(&loaded); err != nil {
+	if err := apd.db.QueryRow(context.Background(), queryLoadVersion).Scan(&loaded); err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == postgresMissingTableErrorCode {
 			return "", nil
 		}
@@ -46,7 +53,7 @@ func (apd *CRDBDriver) Version() (string, error) {
 }
 
 func (apd *CRDBDriver) WriteVersion(version, replaced string) error {
-	result, err := apd.db.Exec(context.Background(), "UPDATE schema_version SET version_num=$1 WHERE version_num=$2", version, replaced)
+	result, err := apd.db.Exec(context.Background(), queryWriteVersion, version, replaced)
 	if err != nil {
 		return fmt.Errorf("unable to update version row: %w", err)
 	}

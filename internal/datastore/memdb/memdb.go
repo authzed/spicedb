@@ -257,6 +257,8 @@ func NewMemdbDatastore(
 	txn := db.Txn(true)
 	defer txn.Abort()
 
+	// Add a changelog entry to make the first revision non-zero, matching the other datastore
+	// implementations.
 	newChangelogID, err := nextTupleChangelogID(txn)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)

@@ -131,6 +131,10 @@ type TupleIterator interface {
 	Close()
 }
 
+// Add a type alias to make changing the revision type a little bit easier if we need to do it in
+// the future. Implementations should code directly against decimal.Decimal when creating or parsing.
 type Revision = decimal.Decimal
 
+// A zero type for the revision that will make changing the revision type in the future a bit easier
+// if necessary. Implementations should use any time they want to signal an empty/error revision.
 var NoRevision Revision

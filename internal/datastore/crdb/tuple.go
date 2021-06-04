@@ -6,6 +6,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -74,18 +75,8 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.R
 	for _, mutation := range mutations {
 		tpl := mutation.Tuple
 
-		if mutation.Operation == pb.RelationTupleUpdate_DELETE {
-			sql, args, err := queryDeleteTuples.Where(exactTupleClause(tpl)).ToSql()
-			if err != nil {
-				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
-			}
-
-			if _, err := tx.Exec(ctx, sql, args...); err != nil {
-				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
-			}
-		}
-
-		if mutation.Operation == pb.RelationTupleUpdate_TOUCH || mutation.Operation == pb.RelationTupleUpdate_CREATE {
+		switch mutation.Operation {
+		case pb.RelationTupleUpdate_TOUCH, pb.RelationTupleUpdate_CREATE:
 			bulkWrite = bulkWrite.Values(
 				tpl.ObjectAndRelation.Namespace,
 				tpl.ObjectAndRelation.ObjectId,
@@ -95,6 +86,20 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.R
 				tpl.User.GetUserset().Relation,
 			)
 			bulkWriteCount++
+		case pb.RelationTupleUpdate_DELETE:
+			sql, args, err := queryDeleteTuples.Where(exactTupleClause(tpl)).ToSql()
+			if err != nil {
+				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+			}
+
+			if _, err := tx.Exec(ctx, sql, args...); err != nil {
+				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+			}
+		default:
+			log.Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
+			return datastore.NoRevision, fmt.Errorf(
+				errUnableToWriteTuples,
+				fmt.Errorf("unknown mutation operation: %s", mutation.Operation))
 		}
 	}
 

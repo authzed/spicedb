@@ -22,6 +22,13 @@ const (
 	errUnableToDeleteConfig = "unable to delete namespace config: %w"
 )
 
+type updateIntention bool
+
+var (
+	forUpdate updateIntention = true
+	readOnly  updateIntention = false
+)
+
 var (
 	upsertNamespaceSuffix = fmt.Sprintf(
 		"ON CONFLICT (%s) DO UPDATE SET %s = excluded.%s %s",
@@ -68,13 +75,11 @@ func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb
 	}
 	defer tx.Rollback(ctx)
 
-	config, timestamp, err := loadNamespace(ctx, tx, nsName)
-	switch err {
-	case datastore.ErrNamespaceNotFound:
-		return nil, datastore.NoRevision, err
-	case nil:
-		break
-	default:
+	config, timestamp, err := loadNamespace(ctx, tx, nsName, readOnly)
+	if err != nil {
+		if errors.Is(err, datastore.ErrNamespaceNotFound) {
+			return nil, datastore.NoRevision, err
+		}
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
@@ -88,13 +93,11 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 	}
 	defer tx.Rollback(ctx)
 
-	_, timestamp, err := loadNamespace(ctx, tx, nsName)
-	switch err {
-	case datastore.ErrNamespaceNotFound:
-		return datastore.NoRevision, err
-	case nil:
-		break
-	default:
+	_, timestamp, err := loadNamespace(ctx, tx, nsName, forUpdate)
+	if err != nil {
+		if errors.Is(err, datastore.ErrNamespaceNotFound) {
+			return datastore.NoRevision, err
+		}
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
@@ -110,12 +113,8 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 	numDeleted := deletedNSResult.RowsAffected()
-	if numDeleted == 0 {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, errors.New("delete conflict"))
-	}
-	if numDeleted > 1 {
-		log.Error().Int64("numDeleted", numDeleted).Msg("call to delete deleted too many namespaces")
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, errors.New("internal error"))
+	if numDeleted != 1 {
+		log.Warn().Int64("numDeleted", numDeleted).Msg("deleted wrong number of namespaces")
 	}
 
 	deleteTupleSQL, deleteTupleArgs, err := queryDeleteTuples.
@@ -138,8 +137,14 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 	return revisionFromTimestamp(timestamp), nil
 }
 
-func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*pb.NamespaceDefinition, time.Time, error) {
-	sql, args, err := queryReadNamespace.Where(sq.Eq{colNamespace: nsName}).ToSql()
+func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string, forUpdate updateIntention) (*pb.NamespaceDefinition, time.Time, error) {
+	query := queryReadNamespace.Where(sq.Eq{colNamespace: nsName})
+
+	if forUpdate {
+		query.Suffix("FOR UPDATE")
+	}
+
+	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, time.Time{}, err
 	}
