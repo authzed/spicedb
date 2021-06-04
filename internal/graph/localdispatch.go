@@ -59,6 +59,14 @@ func (onr stringableOnr) String() string {
 	return tuple.StringONR(onr.ObjectAndRelation)
 }
 
+type stringableRelRef struct {
+	*pb.RelationReference
+}
+
+func (rr stringableRelRef) String() string {
+	return fmt.Sprintf("%s::%s", rr.Namespace, rr.Relation)
+}
+
 func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
 	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
 		attribute.Stringer("start", stringableOnr{req.Start}),
@@ -100,6 +108,34 @@ func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) Expand
 
 	asyncExpand := expand.expand(ctx, req, relation)
 	return ExpandOne(ctx, asyncExpand)
+}
+
+func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) LookupResult {
+	ctx, span := tracer.Start(ctx, "DispatchLookup", trace.WithAttributes(
+		attribute.Stringer("start", stringableRelRef{req.StartRelation}),
+		attribute.Stringer("target", stringableOnr{req.TargetONR}),
+		attribute.Int64("limit", int64(req.Limit)),
+	))
+	defer span.End()
+
+	if req.DepthRemaining < 1 {
+		return LookupResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
+	}
+
+	if req.Limit <= 0 {
+		return LookupResult{
+			ResolvedObjects: []*pb.ObjectAndRelation{},
+		}
+	}
+
+	lookup := newConcurrentLookup(ld, ld.ds, ld.nsm)
+	tracer := req.DebugTracer.Childf("Dispatched: %s#%s -> %s", req.StartRelation.Namespace, req.StartRelation.Relation, tuple.StringONR(req.TargetONR))
+	req.DebugTracer = tracer
+
+	asyncLookup := lookup.lookup(ctx, req)
+	result := LookupAny(ctx, req.Limit, []ReduceableLookupFunc{asyncLookup})
+	tracer.Add("Response", EmittableObjectSlice(result.ResolvedObjects))
+	return result
 }
 
 func rewriteError(original error) error {

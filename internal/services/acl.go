@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
@@ -28,7 +29,9 @@ type aclServer struct {
 }
 
 const (
-	maxUInt16 = int(^uint16(0))
+	maxUInt16          = int(^uint16(0))
+	lookupDefaultLimit = 25
+	lookupMaximumLimit = 100
 
 	depthRemainingHeader = "authzed-depth-remaining"
 )
@@ -67,6 +70,23 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 			true, // Allow Ellipsis
 		); err != nil {
 			return nil, rewriteACLError(err)
+		}
+
+		_, ts, _, err := as.nsm.ReadNamespaceAndTypes(ctx, mutation.Tuple.ObjectAndRelation.Namespace)
+		if err != nil {
+			return nil, rewriteACLError(err)
+		}
+
+		isAllowed, err := ts.IsAllowedDirectRelation(
+			mutation.Tuple.ObjectAndRelation.Relation,
+			mutation.Tuple.User.GetUserset().Namespace,
+			mutation.Tuple.User.GetUserset().Relation)
+		if err != nil {
+			return nil, rewriteACLError(err)
+		}
+
+		if isAllowed == namespace.DirectRelationNotValid {
+			return nil, status.Errorf(codes.InvalidArgument, "Relation %v is not allowed on the right hand side of %v", mutation.Tuple.User, mutation.Tuple.ObjectAndRelation)
 		}
 	}
 
@@ -310,6 +330,77 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 	return &api.ExpandResponse{
 		TreeNode: resp.Tree,
 		Revision: zookie.NewFromRevision(atRevision),
+	}, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.LookupResponse, error) {
+	err := req.Validate()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, false)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
+	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
+	if err != nil {
+		return nil, rewriteACLError(err)
+	}
+
+	depth, err := as.calculateRequestDepth(ctx)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	limit := int(req.Limit)
+	if limit == 0 {
+		limit = lookupDefaultLimit
+	}
+	limit = min(limit, lookupMaximumLimit)
+
+	tracer := graph.NewNullTracer()
+	resp := as.dispatch.Lookup(ctx, graph.LookupRequest{
+		TargetONR:      req.User,
+		StartRelation:  req.ObjectRelation,
+		Limit:          limit,
+		AtRevision:     atRevision,
+		DepthRemaining: depth,
+		DirectStack:    namespace.NewONRSet(),
+		TTUStack:       namespace.NewONRSet(),
+		DebugTracer:    tracer.Childf("%s#%s -> %s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.User)),
+	})
+	//fmt.Println(tracer.String())
+
+	if resp.Err != nil {
+		return nil, rewriteACLError(resp.Err)
+	}
+
+	resolvedObjectIDs := []string{}
+	for _, found := range resp.ResolvedObjects {
+		if found.Namespace != req.ObjectRelation.Namespace {
+			return nil, rewriteACLError(fmt.Errorf("got invalid resolved object %v (expected %v)", found, req.ObjectRelation))
+		}
+
+		resolvedObjectIDs = append(resolvedObjectIDs, found.ObjectId)
+	}
+
+	return &api.LookupResponse{
+		Revision:          zookie.NewFromRevision(atRevision),
+		ResolvedObjectIds: resolvedObjectIDs,
 	}, nil
 }
 

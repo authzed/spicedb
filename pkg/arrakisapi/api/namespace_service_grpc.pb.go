@@ -11,6 +11,7 @@ import (
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
 // NamespaceServiceClient is the client API for NamespaceService service.
@@ -76,7 +77,7 @@ type UnsafeNamespaceServiceServer interface {
 }
 
 func RegisterNamespaceServiceServer(s grpc.ServiceRegistrar, srv NamespaceServiceServer) {
-	s.RegisterService(&_NamespaceService_serviceDesc, srv)
+	s.RegisterService(&NamespaceService_ServiceDesc, srv)
 }
 
 func _NamespaceService_ReadConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -115,7 +116,10 @@ func _NamespaceService_WriteConfig_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-var _NamespaceService_serviceDesc = grpc.ServiceDesc{
+// NamespaceService_ServiceDesc is the grpc.ServiceDesc for NamespaceService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var NamespaceService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "NamespaceService",
 	HandlerType: (*NamespaceServiceServer)(nil),
 	Methods: []grpc.MethodDesc{

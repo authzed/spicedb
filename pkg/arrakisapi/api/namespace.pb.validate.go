@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,7 +30,7 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
 )
 
 // Validate checks the field values on NamespaceDefinition with the rules
@@ -162,6 +162,16 @@ func (m *Relation) Validate() error {
 		}
 	}
 
+	if v, ok := interface{}(m.GetTypeInformation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RelationValidationError{
+				field:  "TypeInformation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -220,6 +230,86 @@ var _ interface {
 } = RelationValidationError{}
 
 var _Relation_Name_Pattern = regexp.MustCompile("^[a-z][a-z0-9_]{2,62}[a-z0-9]$")
+
+// Validate checks the field values on TypeInformation with the rules defined
+// in the proto definition for this message. If any rules are violated, an
+// error is returned.
+func (m *TypeInformation) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	for idx, item := range m.GetAllowedDirectRelations() {
+		_, _ = idx, item
+
+		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return TypeInformationValidationError{
+					field:  fmt.Sprintf("AllowedDirectRelations[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	return nil
+}
+
+// TypeInformationValidationError is the validation error returned by
+// TypeInformation.Validate if the designated constraints aren't met.
+type TypeInformationValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e TypeInformationValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e TypeInformationValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e TypeInformationValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e TypeInformationValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e TypeInformationValidationError) ErrorName() string { return "TypeInformationValidationError" }
+
+// Error satisfies the builtin error interface
+func (e TypeInformationValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sTypeInformation.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = TypeInformationValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = TypeInformationValidationError{}
 
 // Validate checks the field values on UsersetRewrite with the rules defined in
 // the proto definition for this message. If any rules are violated, an error

@@ -8,6 +8,9 @@ type ValidationFile struct {
 	// NamespaceConfigs are the namespace configuration protos, in text format.
 	NamespaceConfigs []string `yaml:"namespace_configs"`
 
+	// RelationTuples are the preloaded relation tuples, in tuple string syntax.
+	RelationTuples []string `yaml:"relation_tuples"`
+
 	// ValidationTuples are the validation tuples, in tuple string syntax.
 	ValidationTuples []string `yaml:"validation_tuples"`
 }

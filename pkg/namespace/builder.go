@@ -13,10 +13,26 @@ func Namespace(name string, relations ...*pb.Relation) *pb.NamespaceDefinition {
 }
 
 // Relation creates a relation definition with an optional rewrite definition.
-func Relation(name string, rewrite *pb.UsersetRewrite) *pb.Relation {
+func Relation(name string, rewrite *pb.UsersetRewrite, allowedDirectRelations ...*pb.RelationReference) *pb.Relation {
+	var typeInfo *pb.TypeInformation
+	if len(allowedDirectRelations) > 0 {
+		typeInfo = &pb.TypeInformation{
+			AllowedDirectRelations: allowedDirectRelations,
+		}
+	}
+
 	return &pb.Relation{
-		Name:           name,
-		UsersetRewrite: rewrite,
+		Name:            name,
+		UsersetRewrite:  rewrite,
+		TypeInformation: typeInfo,
+	}
+}
+
+// RelationReference creates a relation reference.
+func RelationReference(namespaceName string, relationName string) *pb.RelationReference {
+	return &pb.RelationReference{
+		Namespace: namespaceName,
+		Relation:  relationName,
 	}
 }
 

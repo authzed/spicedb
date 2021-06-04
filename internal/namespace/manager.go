@@ -17,4 +17,7 @@ type Manager interface {
 	// CheckNamespaceAndRelation checks that the specified namespace and relation exist in the
 	// datastore.
 	CheckNamespaceAndRelation(ctx context.Context, namespace, relation string, allowEllipsis bool) error
+
+	// ReadNamespaceAndTypes reads a namespace definition, version, and type system and returns it if found.
+	ReadNamespaceAndTypes(ctx context.Context, nsName string) (*pb.NamespaceDefinition, *NamespaceTypeSystem, uint64, error)
 }

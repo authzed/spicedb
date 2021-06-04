@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -23,6 +24,13 @@ import (
 )
 
 var ONR = tuple.ObjectAndRelation
+
+func RR(namespaceName string, relationName string) *api.RelationReference {
+	return &api.RelationReference{
+		Namespace: namespaceName,
+		Relation:  relationName,
+	}
+}
 
 var testTimedeltas = []time.Duration{0, 1 * time.Second}
 
@@ -45,11 +53,15 @@ func TestRead(t *testing.T) {
 			&api.RelationTupleFilter{Namespace: tf.DocumentNS.Name},
 			codes.OK,
 			[]string{
+				"document:companyplan#parent@folder:company#...",
 				"document:masterplan#parent@folder:strategy#...",
 				"document:masterplan#owner@user:product_manager#...",
 				"document:masterplan#viewer@user:eng_lead#...",
 				"document:masterplan#parent@folder:plans#...",
 				"document:healthplan#parent@folder:plans#...",
+				"document:specialplan#editor@user:multiroleguy#...",
+				"document:specialplan#viewer_and_editor@user:multiroleguy#...",
+				"document:specialplan#viewer_and_editor@user:missingrolegal#...",
 			},
 		},
 		{
@@ -77,6 +89,7 @@ func TestRead(t *testing.T) {
 			},
 			codes.OK,
 			[]string{
+				"document:companyplan#parent@folder:company#...",
 				"document:masterplan#parent@folder:strategy#...",
 				"document:masterplan#parent@folder:plans#...",
 				"document:healthplan#parent@folder:plans#...",
@@ -385,6 +398,12 @@ func TestInvalidWriteArguments(t *testing.T) {
 			[]string{"document:newdoc#parent@folder:afolder#adsfasfsd"},
 			codes.FailedPrecondition,
 		},
+		{
+			"bad write wrong relation type",
+			nil,
+			[]string{"document:newdoc#parent@user:someuser#..."},
+			codes.InvalidArgument,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -583,6 +602,174 @@ func TestExpand(t *testing.T) {
 						require.NotEmpty(expanded.Revision.Token)
 
 						require.Equal(tc.expandRelatedCount, len(g.Simplify(expanded.TreeNode)))
+					} else {
+						requireGRPCStatus(tc.expectedErrorCode, err, require)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestLookup(t *testing.T) {
+	testCases := []struct {
+		relation          *api.RelationReference
+		user              *api.ObjectAndRelation
+		expectedObjectIds []string
+		expectedErrorCode codes.Code
+	}{
+		{
+			RR("document", "viewer"),
+			ONR("user", "eng_lead", "..."),
+			[]string{"masterplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer"),
+			ONR("user", "product_manager", "..."),
+			[]string{"masterplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer"),
+			ONR("user", "chief_financial_officer", "..."),
+			[]string{"masterplan", "healthplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer"),
+			ONR("user", "auditor", "..."),
+			[]string{"masterplan", "companyplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer"),
+			ONR("user", "vp_product", "..."),
+			[]string{"masterplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer"),
+			ONR("user", "legal", "..."),
+			[]string{"masterplan", "companyplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer"),
+			ONR("user", "owner", "..."),
+			[]string{"masterplan", "companyplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer"),
+			ONR("user", "villain", "..."),
+			[]string{},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer"),
+			ONR("user", "unknowngal", "..."),
+			[]string{},
+			codes.OK,
+		},
+
+		{
+			RR("document", "viewer_and_editor"),
+			ONR("user", "eng_lead", "..."),
+			[]string{},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer_and_editor"),
+			ONR("user", "multiroleguy", "..."),
+			[]string{"specialplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer_and_editor"),
+			ONR("user", "missingrolegal", "..."),
+			[]string{},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer_and_editor_derived"),
+			ONR("user", "multiroleguy", "..."),
+			[]string{"specialplan"},
+			codes.OK,
+		},
+		{
+			RR("document", "viewer_and_editor_derived"),
+			ONR("user", "missingrolegal", "..."),
+			[]string{},
+			codes.OK,
+		},
+		{
+			RR("document", "invalidrelation"),
+			ONR("user", "missingrolegal", "..."),
+			[]string{},
+			codes.FailedPrecondition,
+		},
+		{
+			RR("document", "viewer_and_editor_derived"),
+			ONR("user", "someuser", "invalidrelation"),
+			[]string{},
+			codes.FailedPrecondition,
+		},
+		{
+			RR("invalidnamespace", "viewer_and_editor_derived"),
+			ONR("user", "someuser", "..."),
+			[]string{},
+			codes.FailedPrecondition,
+		},
+		{
+			RR("document", "viewer_and_editor_derived"),
+			ONR("invalidnamespace", "someuser", "..."),
+			[]string{},
+			codes.FailedPrecondition,
+		},
+	}
+
+	for _, delta := range testTimedeltas {
+		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			for _, tc := range testCases {
+				t.Run(fmt.Sprintf("%s::%s from %s", tc.relation.Namespace, tc.relation.Relation, tuple.StringONR(tc.user)), func(t *testing.T) {
+					require := require.New(t)
+					srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+
+					result, err := srv.Lookup(context.Background(), &api.LookupRequest{
+						User:           tc.user,
+						ObjectRelation: tc.relation,
+						Limit:          100,
+						AtRevision:     zookie.NewFromRevision(revision),
+					})
+					if tc.expectedErrorCode == codes.OK {
+						require.NoError(err)
+						require.NotNil(result.Revision)
+						require.NotEmpty(result.Revision.Token)
+
+						sort.Strings(tc.expectedObjectIds)
+						sort.Strings(result.ResolvedObjectIds)
+
+						require.Equal(tc.expectedObjectIds, result.ResolvedObjectIds)
+
+						// Sanity check: Issue a check on every ID returned.
+						for _, objId := range result.ResolvedObjectIds {
+							checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
+								TestUserset: &api.ObjectAndRelation{
+									Namespace: tc.relation.Namespace,
+									Relation:  tc.relation.Relation,
+									ObjectId:  objId,
+								},
+								User: &api.User{
+									UserOneof: &api.User_Userset{
+										Userset: tc.user,
+									},
+								},
+								AtRevision: zookie.NewFromRevision(revision),
+							})
+							require.NoError(err)
+							require.Equal(true, checkResp.IsMember, "Object ID %s is not a member", objId)
+						}
 					} else {
 						requireGRPCStatus(tc.expectedErrorCode, err, require)
 					}

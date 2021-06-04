@@ -20,8 +20,14 @@ type memdbTupleQuery struct {
 	objectIDFilter *string
 	relationFilter *string
 	usersetFilter  *pb.ObjectAndRelation
+	limit          *uint64
 
 	simulatedLatency time.Duration
+}
+
+func (mtq memdbTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
+	mtq.limit = &limit
+	return mtq
 }
 
 func (mtq memdbTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
@@ -102,8 +108,9 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 	})
 
 	iter := &memdbTupleIterator{
-		txn: txn,
-		it:  filteredIterator,
+		txn:   txn,
+		it:    filteredIterator,
+		limit: mtq.limit,
 	}
 
 	runtime.SetFinalizer(iter, func(iter *memdbTupleIterator) {
@@ -116,8 +123,10 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 }
 
 type memdbTupleIterator struct {
-	txn *memdb.Txn
-	it  memdb.ResultIterator
+	txn   *memdb.Txn
+	it    memdb.ResultIterator
+	limit *uint64
+	count uint64
 }
 
 func (mti *memdbTupleIterator) Next() *pb.RelationTuple {
@@ -125,6 +134,11 @@ func (mti *memdbTupleIterator) Next() *pb.RelationTuple {
 	if foundRaw == nil {
 		return nil
 	}
+
+	if mti.limit != nil && mti.count >= *mti.limit {
+		return nil
+	}
+	mti.count += 1
 
 	found := foundRaw.(*tupleEntry)
 

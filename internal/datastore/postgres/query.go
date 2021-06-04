@@ -54,6 +54,11 @@ type pgTupleQuery struct {
 	relation  string
 }
 
+func (ptq pgTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
+	ptq.query = ptq.query.Limit(limit)
+	return ptq
+}
+
 func (ptq pgTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
 	ptq.query = ptq.query.Where(sq.Eq{colObjectID: objectID})
 	return ptq

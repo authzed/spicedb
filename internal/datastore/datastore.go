@@ -64,9 +64,39 @@ type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
 	QueryTuples(namespace string, revision uint64) TupleQuery
 
+	// ReverseQueryTuples creates a builder for reading tuples from subject onward from the datastore.
+	ReverseQueryTuples(revision uint64) ReverseTupleQuery
+
 	// CheckRevision checks the specified revision to make sure it's valid and hasn't been
 	// garbage collected.
 	CheckRevision(ctx context.Context, revision uint64) error
+}
+
+// CommonTupleQuery is the common interface shared between TupleQuery and ReverseTupleQuery.
+type CommonTupleQuery interface {
+	// Execute runs the tuple query and returns a result iterator.
+	Execute(ctx context.Context) (TupleIterator, error)
+
+	// Limit sets a limit on the query.
+	Limit(limit uint64) CommonTupleQuery
+}
+
+// ReverseTupleQuery is a builder for constructing reverse tuple queries.
+type ReverseTupleQuery interface {
+	// WithSubjectRelation filters to tuples with the given subject relation on the right hand side.
+	WithSubjectRelation(namespace string, relation string) ReverseTupleQuery
+
+	// WithObjectRelation filters to tuples with the given object relation on the left hand side.
+	WithObjectRelation(namespace string, relation string) ReverseTupleQuery
+
+	// WithSubject filters to tuples with the given subject on the right hand side.
+	WithSubject(userset *pb.ObjectAndRelation) ReverseTupleQuery
+
+	// Limit sets a limit on the query.
+	Limit(limit uint64) CommonTupleQuery
+
+	// Execute runs the tuple query and returns a result iterator.
+	Execute(ctx context.Context) (TupleIterator, error)
 }
 
 // TupleQuery is a builder for constructing tuple queries.
@@ -79,6 +109,9 @@ type TupleQuery interface {
 
 	// WithUserset adds a userset filter to the query.
 	WithUserset(userset *pb.ObjectAndRelation) TupleQuery
+
+	// Limit sets a limit on the query.
+	Limit(limit uint64) CommonTupleQuery
 
 	// Execute runs the tuple query and returns a result iterator.
 	Execute(ctx context.Context) (TupleIterator, error)

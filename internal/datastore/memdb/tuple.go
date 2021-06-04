@@ -120,6 +120,14 @@ func (mds *memdbDatastore) QueryTuples(namespace string, revision uint64) datast
 	}
 }
 
+func (mds *memdbDatastore) ReverseQueryTuples(revision uint64) datastore.ReverseTupleQuery {
+	return &memdbReverseTupleQuery{
+		db:               mds.db,
+		revision:         revision,
+		simulatedLatency: mds.simulatedLatency,
+	}
+}
+
 func (mds *memdbDatastore) SyncRevision(ctx context.Context) (uint64, error) {
 	// Compute the current revision
 	txn := mds.db.Txn(false)

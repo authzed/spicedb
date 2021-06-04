@@ -15,36 +15,70 @@ var UserNS = ns.Namespace("user")
 
 var DocumentNS = ns.Namespace(
 	"document",
-	ns.Relation("owner", nil),
-	ns.Relation("editor", ns.Union(
-		ns.This(),
-		ns.ComputedUserset("owner"),
-	)),
-	ns.Relation("parent", nil),
+	ns.Relation("owner",
+		nil,
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("editor",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("owner"),
+		),
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("parent", nil, ns.RelationReference("folder", "...")),
 	ns.Relation("lock", nil),
-	ns.Relation("viewer", ns.Union(
-		ns.This(),
-		ns.ComputedUserset("editor"),
-		ns.TupleToUserset("parent", "viewer"),
-	)),
+	ns.Relation("viewer",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("editor"),
+			ns.TupleToUserset("parent", "viewer"),
+		),
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("viewer_and_editor",
+		ns.Intersection(
+			ns.This(),
+			ns.ComputedUserset("editor"),
+		),
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("viewer_and_editor_derived",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("viewer_and_editor"),
+		),
+		ns.RelationReference("user", "..."),
+	),
 )
 
 var FolderNS = ns.Namespace(
 	"folder",
-	ns.Relation("owner", nil),
-	ns.Relation("parent", nil),
-	ns.Relation("editor", ns.Union(
-		ns.This(),
-		ns.ComputedUserset("owner"),
-	)),
-	ns.Relation("viewer", ns.Union(
-		ns.This(),
-		ns.ComputedUserset("editor"),
-		ns.TupleToUserset("parent", "viewer"),
-	)),
+	ns.Relation("owner",
+		nil,
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("parent", nil, ns.RelationReference("folder", "...")),
+	ns.Relation("editor",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("owner"),
+		),
+		ns.RelationReference("user", "..."),
+	),
+	ns.Relation("viewer",
+		ns.Union(
+			ns.This(),
+			ns.ComputedUserset("editor"),
+			ns.TupleToUserset("parent", "viewer"),
+		),
+		ns.RelationReference("user", "..."),
+		ns.RelationReference("folder", "viewer"),
+	),
 )
 
 var StandardTuples = []string{
+	"document:companyplan#parent@folder:company#...",
 	"document:masterplan#parent@folder:strategy#...",
 	"folder:strategy#parent@folder:company#...",
 	"folder:company#owner@user:owner#...",
@@ -58,13 +92,16 @@ var StandardTuples = []string{
 	"folder:company#viewer@folder:auditors#viewer",
 	"document:healthplan#parent@folder:plans#...",
 	"folder:isolated#viewer@user:villain#...",
+	"document:specialplan#viewer_and_editor@user:multiroleguy#...",
+	"document:specialplan#editor@user:multiroleguy#...",
+	"document:specialplan#viewer_and_editor@user:missingrolegal#...",
 }
 
 func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, uint64) {
 	ctx := context.Background()
 
 	var lastRevision uint64
-	for _, namespace := range []*pb.NamespaceDefinition{UserNS, DocumentNS, FolderNS} {
+	for _, namespace := range []*pb.NamespaceDefinition{UserNS, FolderNS, DocumentNS} {
 		var err error
 		lastRevision, err = ds.WriteNamespace(ctx, namespace)
 		require.NoError(err)
@@ -106,6 +143,17 @@ func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *pb.RelationT
 	return iter
 }
 
+func (tc TupleChecker) VerifyIteratorCount(iter datastore.TupleIterator, count int) {
+	defer iter.Close()
+
+	foundCount := 0
+	for found := iter.Next(); found != nil; found = iter.Next() {
+		foundCount += 1
+	}
+	tc.Require.NoError(iter.Err())
+	tc.Require.Equal(count, foundCount)
+}
+
 func (tc TupleChecker) VerifyIteratorResults(iter datastore.TupleIterator, tpls ...*pb.RelationTuple) {
 	defer iter.Close()
 
@@ -119,7 +167,7 @@ func (tc TupleChecker) VerifyIteratorResults(iter datastore.TupleIterator, tpls 
 		tc.Require.NoError(iter.Err())
 		foundStr := tuple.String(found)
 		_, ok := toFind[foundStr]
-		tc.Require.True(ok)
+		tc.Require.True(ok, "Did not find expected tuple %s in %v", foundStr, toFind)
 		delete(toFind, foundStr)
 	}
 	tc.Require.NoError(iter.Err())

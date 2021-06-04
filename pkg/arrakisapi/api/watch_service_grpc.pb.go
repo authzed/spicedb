@@ -11,6 +11,7 @@ import (
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
 // WatchServiceClient is the client API for WatchService service.
@@ -29,7 +30,7 @@ func NewWatchServiceClient(cc grpc.ClientConnInterface) WatchServiceClient {
 }
 
 func (c *watchServiceClient) Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (WatchService_WatchClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_WatchService_serviceDesc.Streams[0], "/WatchService/Watch", opts...)
+	stream, err := c.cc.NewStream(ctx, &WatchService_ServiceDesc.Streams[0], "/WatchService/Watch", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ type UnsafeWatchServiceServer interface {
 }
 
 func RegisterWatchServiceServer(s grpc.ServiceRegistrar, srv WatchServiceServer) {
-	s.RegisterService(&_WatchService_serviceDesc, srv)
+	s.RegisterService(&WatchService_ServiceDesc, srv)
 }
 
 func _WatchService_Watch_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -109,7 +110,10 @@ func (x *watchServiceWatchServer) Send(m *WatchResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-var _WatchService_serviceDesc = grpc.ServiceDesc{
+// WatchService_ServiceDesc is the grpc.ServiceDesc for WatchService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var WatchService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "WatchService",
 	HandlerType: (*WatchServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},

@@ -28,6 +28,11 @@ func onrEqual(lhs, rhs *pb.ObjectAndRelation) bool {
 }
 
 func (cc *concurrentChecker) check(ctx context.Context, req CheckRequest, relation *pb.Relation) ReduceableCheckFunc {
+	// If we have found the goal's ONR, then we know that the ONR is a member.
+	if onrEqual(req.Goal, req.Start) {
+		return AlwaysMember()
+	}
+
 	if relation.UsersetRewrite == nil {
 		return cc.checkDirect(ctx, req)
 	}
@@ -130,12 +135,19 @@ func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *pb.Compu
 		}
 	}
 
+	targetOnr := &pb.ObjectAndRelation{
+		Namespace: start.Namespace,
+		ObjectId:  start.ObjectId,
+		Relation:  cu.Relation,
+	}
+
+	// If we will be dispatching to the goal's ONR, then we know that the ONR is a member.
+	if onrEqual(req.Goal, targetOnr) {
+		return AlwaysMember()
+	}
+
 	return cc.dispatch(CheckRequest{
-		Start: &pb.ObjectAndRelation{
-			Namespace: start.Namespace,
-			ObjectId:  start.ObjectId,
-			Relation:  cu.Relation,
-		},
+		Start:          targetOnr,
 		Goal:           req.Goal,
 		AtRevision:     req.AtRevision,
 		DepthRemaining: req.DepthRemaining - 1,
@@ -194,6 +206,13 @@ func All(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	}
 
 	return CheckResult{IsMember: true, Err: nil}
+}
+
+// AlwaysMember returns that the check always passes.
+func AlwaysMember() ReduceableCheckFunc {
+	return func(ctx context.Context, resultChan chan<- CheckResult) {
+		resultChan <- CheckResult{true, nil}
+	}
 }
 
 // Any returns whether any one of the lazy checks pass, and is used for union.

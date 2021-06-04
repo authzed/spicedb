@@ -59,6 +59,17 @@ func NewCachingNamespaceManager(
 	}, nil
 }
 
+func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string) (*pb.NamespaceDefinition, *NamespaceTypeSystem, uint64, error) {
+	nsDef, rev, err := nsc.ReadNamespace(ctx, nsName)
+	if err != nil {
+		return nsDef, nil, rev, err
+	}
+
+	// TODO(jschorr): Cache the type system too
+	ts, terr := BuildNamespaceTypeSystem(nsDef, nsc)
+	return nsDef, ts, rev, terr
+}
+
 func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, uint64, error) {
 	ctx, span := tracer.Start(ctx, "ReadNamespace")
 	defer span.End()
