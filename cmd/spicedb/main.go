@@ -229,7 +229,7 @@ func RegisterGrpcServices(
 	api.RegisterACLServiceServer(srv, services.NewACLServer(ds, nsm, dispatch, maxDepth))
 	healthSrv.SetServingStatus("ACLService", healthpb.HealthCheckResponse_SERVING)
 
-	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds, nsm))
+	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds))
 	healthSrv.SetServingStatus("NamespaceService", healthpb.HealthCheckResponse_SERVING)
 
 	api.RegisterWatchServiceServer(srv, services.NewWatchServer(ds, nsm))

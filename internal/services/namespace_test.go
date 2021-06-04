@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -11,7 +10,6 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	ns "github.com/authzed/spicedb/pkg/namespace"
@@ -24,10 +22,7 @@ func TestNamespace(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 0*time.Second, nil)
-	require.NoError(err)
-
-	srv := NewNamespaceServer(ds, nsm)
+	srv := NewNamespaceServer(ds)
 
 	_, err = srv.ReadConfig(context.Background(), &api.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
@@ -183,10 +178,7 @@ func TestNamespaceChanged(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 			require.NoError(err)
 
-			nsm, err := namespace.NewCachingNamespaceManager(ds, 0*time.Second, nil)
-			require.NoError(err)
-
-			srv := NewNamespaceServer(ds, nsm)
+			srv := NewNamespaceServer(ds)
 
 			_, err = srv.ReadConfig(context.Background(), &api.ReadConfigRequest{
 				Namespace: testfixtures.DocumentNS.Name,

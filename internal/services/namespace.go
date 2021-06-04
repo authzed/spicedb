@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -16,13 +17,12 @@ import (
 type nsServer struct {
 	api.UnimplementedNamespaceServiceServer
 
-	ds  datastore.Datastore
-	nsm namespace.Manager
+	ds datastore.Datastore
 }
 
 // NewNamespaceServer creates an instance of the namespace server.
-func NewNamespaceServer(ds datastore.Datastore, nsm namespace.Manager) api.NamespaceServiceServer {
-	s := &nsServer{ds: ds, nsm: nsm}
+func NewNamespaceServer(ds datastore.Datastore) api.NamespaceServiceServer {
+	s := &nsServer{ds: ds}
 	return s
 }
 
@@ -31,9 +31,14 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 		return nil, rewriteNamespaceError(err)
 	}
 
+	nsm, err := namespace.NewCachingNamespaceManager(nss.ds, 0*time.Second, nil)
+	if err != nil {
+		return nil, rewriteNamespaceError(err)
+	}
+
 	for _, config := range req.Configs {
 		// Validate the type system for the updated namespace.
-		ts, terr := namespace.BuildNamespaceTypeSystem(config, nss.nsm, req.Configs...)
+		ts, terr := namespace.BuildNamespaceTypeSystem(config, nsm, req.Configs...)
 		if terr != nil {
 			return nil, rewriteNamespaceError(terr)
 		}
