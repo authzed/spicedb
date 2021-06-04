@@ -76,7 +76,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 
 				// Also check for right sides of tuples.
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.ReverseQueryTuples(revision).WithSubjectRelation(config.Name, delta.RelationName),
+					nss.ds.ReverseQueryTuplesFromSubjectRelation(config.Name, delta.RelationName, revision),
 					ctx,
 					"cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name)
 				if err != nil {
@@ -85,9 +85,8 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 
 			case namespace.RelationDirectTypeRemoved:
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.ReverseQueryTuples(revision).
-						WithObjectRelation(config.Name, delta.RelationName).
-						WithSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation),
+					nss.ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, revision).
+						WithObjectRelation(config.Name, delta.RelationName),
 					ctx,
 					"cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it",
 					delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name)

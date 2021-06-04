@@ -7,11 +7,28 @@ import (
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
-func (cds *crdbDatastore) ReverseQueryTuples(revision datastore.Revision) datastore.ReverseTupleQuery {
+func (cds *crdbDatastore) ReverseQueryTuplesFromSubject(subject *pb.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return crdbReverseTupleQuery{
 		commonTupleQuery: commonTupleQuery{
-			conn:     cds.conn,
-			query:    queryTuples,
+			conn: cds.conn,
+			query: queryTuples.Where(sq.Eq{
+				colUsersetNamespace: subject.Namespace,
+				colUsersetRelation:  subject.Relation,
+				colUsersetObjectID:  subject.ObjectId,
+			}),
+			revision: revision,
+		},
+	}
+}
+
+func (cds *crdbDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	return crdbReverseTupleQuery{
+		commonTupleQuery: commonTupleQuery{
+			conn: cds.conn,
+			query: queryTuples.Where(sq.Eq{
+				colUsersetNamespace: subjectNamespace,
+				colUsersetRelation:  subjectRelation,
+			}),
 			revision: revision,
 		},
 	}
@@ -19,8 +36,6 @@ func (cds *crdbDatastore) ReverseQueryTuples(revision datastore.Revision) datast
 
 type crdbReverseTupleQuery struct {
 	commonTupleQuery
-
-	subNamespaceName string
 }
 
 func (crtq crdbReverseTupleQuery) WithObjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
@@ -29,34 +44,5 @@ func (crtq crdbReverseTupleQuery) WithObjectRelation(namespaceName string, relat
 			colNamespace: namespaceName,
 			colRelation:  relationName,
 		})
-	return crtq
-}
-
-func (crtq crdbReverseTupleQuery) WithSubjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
-	if crtq.subNamespaceName != "" {
-		panic("WithSubject or WithSubjectRelation already called")
-	}
-
-	crtq.subNamespaceName = namespaceName
-
-	crtq.query = crtq.query.Where(sq.Eq{
-		colUsersetNamespace: namespaceName,
-		colUsersetRelation:  relationName,
-	})
-	return crtq
-}
-
-func (crtq crdbReverseTupleQuery) WithSubject(onr *pb.ObjectAndRelation) datastore.ReverseTupleQuery {
-	if crtq.subNamespaceName != "" {
-		panic("WithSubject or WithSubjectRelation already called")
-	}
-
-	crtq.subNamespaceName = onr.Namespace
-
-	crtq.query = crtq.query.Where(sq.Eq{
-		colUsersetNamespace: onr.Namespace,
-		colUsersetRelation:  onr.Relation,
-		colUsersetObjectID:  onr.ObjectId,
-	})
 	return crtq
 }

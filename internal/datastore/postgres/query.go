@@ -32,28 +32,34 @@ var (
 
 func (pgd *pgDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
 	return pgTupleQuery{
-		db: pgd.db,
-		query: queryTuples.
-			Where(sq.Eq{colNamespace: namespace}).
-			Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
-			Where(sq.Or{
-				sq.Eq{colDeletedTxn: liveDeletedTxnID},
-				sq.Gt{colDeletedTxn: revision},
-			}),
-		namespace: namespace,
+		commonTupleQuery: commonTupleQuery{
+			db: pgd.db,
+			query: queryTuples.
+				Where(sq.Eq{colNamespace: namespace}).
+				Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+				Where(sq.Or{
+					sq.Eq{colDeletedTxn: liveDeletedTxnID},
+					sq.Gt{colDeletedTxn: revision},
+				}),
+			tracerAttributes: []attribute.KeyValue{namespaceNameKey.String(namespace)},
+		},
 	}
 }
 
-type pgTupleQuery struct {
-	db        *sqlx.DB
-	query     sq.SelectBuilder
-	namespace string
-	relation  string
+type commonTupleQuery struct {
+	db    *sqlx.DB
+	query sq.SelectBuilder
+
+	tracerAttributes []attribute.KeyValue
 }
 
-func (ptq pgTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	ptq.query = ptq.query.Limit(limit)
-	return ptq
+type pgTupleQuery struct {
+	commonTupleQuery
+}
+
+func (ctq commonTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
+	ctq.query = ctq.query.Limit(limit)
+	return ctq
 }
 
 func (ptq pgTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
@@ -63,7 +69,7 @@ func (ptq pgTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
 
 func (ptq pgTupleQuery) WithRelation(relation string) datastore.TupleQuery {
 	ptq.query = ptq.query.Where(sq.Eq{colRelation: relation})
-	ptq.relation = relation
+	ptq.tracerAttributes = append(ptq.tracerAttributes, relationNameKey.String(relation))
 	return ptq
 }
 
@@ -76,21 +82,20 @@ func (ptq pgTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.Tup
 	return ptq
 }
 
-func (ptq pgTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
+func (ctq commonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	ctx, span := tracer.Start(ctx, "ExecuteTupleQuery")
 	defer span.End()
 
-	span.SetAttributes(namespaceNameKey.String(ptq.namespace))
-	span.SetAttributes(relationNameKey.String(ptq.relation))
+	span.SetAttributes(ctq.tracerAttributes...)
 
-	sql, args, err := ptq.query.ToSql()
+	sql, args, err := ctq.query.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 
 	span.AddEvent("Query converted to SQL")
 
-	rows, err := ptq.db.QueryxContext(separateContextWithTracing(ctx), sql, args...)
+	rows, err := ctq.db.QueryxContext(separateContextWithTracing(ctx), sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}

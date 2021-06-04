@@ -125,9 +125,8 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest, tracer DebugTracer, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
 	// Check for the target ONR directly.
 	objects := namespace.NewONRSet()
-	it, err := cl.ds.ReverseQueryTuples(req.AtRevision).
+	it, err := cl.ds.ReverseQueryTuplesFromSubject(req.TargetONR, req.AtRevision).
 		WithObjectRelation(req.StartRelation.Namespace, req.StartRelation.Relation).
-		WithSubject(req.TargetONR).
 		Execute(ctx)
 	if err != nil {
 		return ResolveError(err)

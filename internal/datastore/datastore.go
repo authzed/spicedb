@@ -66,8 +66,13 @@ type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
 	QueryTuples(namespace string, revision Revision) TupleQuery
 
-	// ReverseQueryTuples creates a builder for reading tuples from subject onward from the datastore.
-	ReverseQueryTuples(revision Revision) ReverseTupleQuery
+	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from subject onward
+	// from the datastore.
+	ReverseQueryTuplesFromSubject(subject *pb.ObjectAndRelation, revision Revision) ReverseTupleQuery
+
+	// ReverseQueryTuplesFromSubjectRelation creates a builder for reading tuples from a subject
+	// relation onward from the datastore.
+	ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision Revision) ReverseTupleQuery
 
 	// CheckRevision checks the specified revision to make sure it's valid and hasn't been
 	// garbage collected.
@@ -85,24 +90,16 @@ type CommonTupleQuery interface {
 
 // ReverseTupleQuery is a builder for constructing reverse tuple queries.
 type ReverseTupleQuery interface {
-	// WithSubjectRelation filters to tuples with the given subject relation on the right hand side.
-	WithSubjectRelation(namespace string, relation string) ReverseTupleQuery
+	CommonTupleQuery
 
 	// WithObjectRelation filters to tuples with the given object relation on the left hand side.
 	WithObjectRelation(namespace string, relation string) ReverseTupleQuery
-
-	// WithSubject filters to tuples with the given subject on the right hand side.
-	WithSubject(userset *pb.ObjectAndRelation) ReverseTupleQuery
-
-	// Limit sets a limit on the query.
-	Limit(limit uint64) CommonTupleQuery
-
-	// Execute runs the tuple query and returns a result iterator.
-	Execute(ctx context.Context) (TupleIterator, error)
 }
 
 // TupleQuery is a builder for constructing tuple queries.
 type TupleQuery interface {
+	CommonTupleQuery
+
 	// WithObjectID adds an object ID filter to the query.
 	WithObjectID(objectID string) TupleQuery
 
@@ -111,12 +108,6 @@ type TupleQuery interface {
 
 	// WithUserset adds a userset filter to the query.
 	WithUserset(userset *pb.ObjectAndRelation) TupleQuery
-
-	// Limit sets a limit on the query.
-	Limit(limit uint64) CommonTupleQuery
-
-	// Execute runs the tuple query and returns a result iterator.
-	Execute(ctx context.Context) (TupleIterator, error)
 }
 
 // TupleIterator is an iterator over matched tuples.

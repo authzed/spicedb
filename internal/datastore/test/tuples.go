@@ -66,7 +66,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			for _, tupleToFind := range testTuples {
 				// Check that we can find the tuple a number of ways
 				q := ds.QueryTuples(tupleToFind.ObjectAndRelation.Namespace, lastRevision)
-				rq := ds.ReverseQueryTuples(lastRevision)
+				rq := ds.ReverseQueryTuplesFromSubject(tupleToFind.User.GetUserset(), lastRevision)
 
 				queries := []datastore.CommonTupleQuery{
 					q.WithObjectID(tupleToFind.ObjectAndRelation.ObjectId),
@@ -75,9 +75,8 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 					q.WithObjectID(tupleToFind.ObjectAndRelation.ObjectId).WithUserset(tupleToFind.User.GetUserset()),
 					q.WithRelation(tupleToFind.ObjectAndRelation.Relation).WithUserset(tupleToFind.User.GetUserset()),
 					q.WithRelation(tupleToFind.ObjectAndRelation.Relation).WithUserset(tupleToFind.User.GetUserset()).Limit(1),
-					rq.WithSubject(tupleToFind.User.GetUserset()),
-					rq.WithSubject(tupleToFind.User.GetUserset()).WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation),
-					rq.WithSubject(tupleToFind.User.GetUserset()).WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation).Limit(1),
+					rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation),
+					rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation).Limit(1),
 				}
 				for _, query := range queries {
 					iter, err := query.Execute(ctx)
@@ -87,16 +86,15 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Check for larger reverse queries.
-			rq := ds.ReverseQueryTuples(lastRevision)
-			iter, err := rq.WithSubjectRelation(testUserNamespace, ellipsis).Execute(ctx)
+			rq := ds.ReverseQueryTuplesFromSubjectRelation(testUserNamespace, ellipsis, lastRevision)
+			iter, err := rq.Execute(ctx)
 			require.NoError(err)
 
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			// Check limit.
 			if len(testTuples) > 1 {
-				rq = ds.ReverseQueryTuples(lastRevision)
-				iter, err = rq.WithSubjectRelation(testUserNamespace, ellipsis).Limit(uint64(len(testTuples) - 1)).Execute(ctx)
+				iter, err = rq.Limit(uint64(len(testTuples) - 1)).Execute(ctx)
 				require.NoError(err)
 				tRequire.VerifyIteratorCount(iter, len(testTuples)-1)
 			}
