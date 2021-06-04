@@ -46,6 +46,11 @@ var (
 	subObjectIDKey  = attribute.Key("authzed.com/spicedb/subObjectId")
 )
 
+func (ptq pgReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
+	ptq.query = ptq.query.Limit(limit)
+	return ptq
+}
+
 func (ptq pgReverseTupleQuery) WithObjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
 	ptq.objNamespaceName = namespaceName
 	ptq.objRelationName = relationName

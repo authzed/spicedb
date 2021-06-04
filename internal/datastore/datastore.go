@@ -72,6 +72,12 @@ type GraphDatastore interface {
 	CheckRevision(ctx context.Context, revision uint64) error
 }
 
+// CommonTupleQuery is the common interface shared between TupleQuery and ReverseTupleQuery.
+type CommonTupleQuery interface {
+	// Execute runs the tuple query and returns a result iterator.
+	Execute(ctx context.Context) (TupleIterator, error)
+}
+
 // ReverseTupleQuery is a builder for constructing reverse tuple queries.
 type ReverseTupleQuery interface {
 	// WithSubjectRelation filters to tuples with the given subject relation on the right hand side.
@@ -82,6 +88,9 @@ type ReverseTupleQuery interface {
 
 	// WithSubject filters to tuples with the given subject on the right hand side.
 	WithSubject(userset *pb.ObjectAndRelation) ReverseTupleQuery
+
+	// Limit sets a limit on the query.
+	Limit(limit uint64) ReverseTupleQuery
 
 	// Execute runs the tuple query and returns a result iterator.
 	Execute(ctx context.Context) (TupleIterator, error)
@@ -97,6 +106,9 @@ type TupleQuery interface {
 
 	// WithUserset adds a userset filter to the query.
 	WithUserset(userset *pb.ObjectAndRelation) TupleQuery
+
+	// Limit sets a limit on the query.
+	Limit(limit uint64) TupleQuery
 
 	// Execute runs the tuple query and returns a result iterator.
 	Execute(ctx context.Context) (TupleIterator, error)

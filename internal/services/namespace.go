@@ -60,42 +60,32 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 		for _, delta := range diff.Deltas() {
 			switch delta.Type {
 			case namespace.RemovedRelation:
-				query, err := nss.ds.QueryTuples(config.Name, revision).WithRelation(delta.RelationName).Execute(ctx)
-				if err != nil {
-					return nil, rewriteNamespaceError(err)
-				}
-				defer query.Close()
-
-				err = errorIfTupleIteratorReturnsTuples(query, "cannot delete relation `%s` in namespace `%s`, as a tuple exists under it", delta.RelationName, config.Name)
+				err = errorIfTupleIteratorReturnsTuples(
+					nss.ds.QueryTuples(config.Name, revision).WithRelation(delta.RelationName).Limit(1),
+					ctx,
+					"cannot delete relation `%s` in namespace `%s`, as a tuple exists under it", delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(err)
 				}
 
 				// Also check for right sides of tuples.
-				query, err = nss.ds.ReverseQueryTuples(revision).
-					WithSubjectRelation(config.Name, delta.RelationName).
-					Execute(ctx)
-				if err != nil {
-					return nil, rewriteNamespaceError(err)
-				}
-				defer query.Close()
-
-				err = errorIfTupleIteratorReturnsTuples(query, "cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name)
+				err = errorIfTupleIteratorReturnsTuples(
+					nss.ds.ReverseQueryTuples(revision).WithSubjectRelation(config.Name, delta.RelationName).Limit(1),
+					ctx,
+					"cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(err)
 				}
 
 			case namespace.RelationDirectTypeRemoved:
-				query, err := nss.ds.ReverseQueryTuples(revision).
-					WithObjectRelation(config.Name, delta.RelationName).
-					WithSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation).
-					Execute(ctx)
-				if err != nil {
-					return nil, rewriteNamespaceError(err)
-				}
-				defer query.Close()
-
-				err = errorIfTupleIteratorReturnsTuples(query, "cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it", delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name)
+				err = errorIfTupleIteratorReturnsTuples(
+					nss.ds.ReverseQueryTuples(revision).
+						WithObjectRelation(config.Name, delta.RelationName).
+						WithSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation).
+						Limit(1),
+					ctx,
+					"cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it",
+					delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(err)
 				}
@@ -130,11 +120,17 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *api.ReadConfigRequest)
 	}, nil
 }
 
-func errorIfTupleIteratorReturnsTuples(query datastore.TupleIterator, message string, args ...interface{}) error {
-	rt := query.Next()
+func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx context.Context, message string, args ...interface{}) error {
+	qy, err := query.Execute(ctx)
+	if err != nil {
+		return err
+	}
+	defer qy.Close()
+
+	rt := qy.Next()
 	if rt != nil {
-		if query.Err() != nil {
-			return rewriteNamespaceError(query.Err())
+		if qy.Err() != nil {
+			return qy.Err()
 		}
 
 		return status.Errorf(codes.InvalidArgument, fmt.Sprintf(message, args...))

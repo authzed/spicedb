@@ -23,7 +23,14 @@ type memdbReverseTupleQuery struct {
 	subRelationName  string
 	subObjectId      string
 
+	limit *uint64
+
 	simulatedLatency time.Duration
+}
+
+func (mtq memdbReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
+	mtq.limit = &limit
+	return mtq
 }
 
 func (mtq memdbReverseTupleQuery) WithObjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
@@ -108,8 +115,9 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 	})
 
 	iter := &memdbTupleIterator{
-		txn: txn,
-		it:  filteredIterator,
+		txn:   txn,
+		it:    filteredIterator,
+		limit: mtq.limit,
 	}
 
 	runtime.SetFinalizer(iter, func(iter *memdbTupleIterator) {
