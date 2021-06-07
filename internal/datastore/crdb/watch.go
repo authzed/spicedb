@@ -23,7 +23,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		defer close(updates)
 		defer close(errors)
 
-		pendingChanges := make(map[decimal.Decimal][]*pb.RelationTupleUpdate)
+		pendingChanges := make(map[string]*datastore.RevisionChanges)
 
 		changes, err := cds.conn.Query(ctx, interpolated)
 		if err != nil {
@@ -73,13 +73,10 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 				var toEmit []*datastore.RevisionChanges
 				for ts, values := range pendingChanges {
-					if ts.LessThanOrEqual(resolved) {
+					if values.Revision.LessThanOrEqual(resolved) {
 						delete(pendingChanges, ts)
 
-						toEmit = append(toEmit, &datastore.RevisionChanges{
-							Revision: ts,
-							Changes:  values,
-						})
+						toEmit = append(toEmit, values)
 					}
 				}
 
@@ -129,13 +126,21 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 					},
 				},
 			}
+
 			if changeDetails.After == nil {
 				oneChange.Operation = pb.RelationTupleUpdate_DELETE
 			} else {
 				oneChange.Operation = pb.RelationTupleUpdate_TOUCH
 			}
 
-			pendingChanges[revision] = append(pendingChanges[revision], oneChange)
+			pending, ok := pendingChanges[changeDetails.Updated]
+			if !ok {
+				pending = &datastore.RevisionChanges{
+					Revision: revision,
+				}
+				pendingChanges[changeDetails.Updated] = pending
+			}
+			pending.Changes = append(pending.Changes, oneChange)
 		}
 		if changes.Err() != nil {
 			if ctx.Err() == context.Canceled {
