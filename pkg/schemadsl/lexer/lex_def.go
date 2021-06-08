@@ -5,11 +5,11 @@ package lexer
 import (
 	"unicode"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/common"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 // Lex creates a new scanner for the input string.
-func Lex(source common.InputSource, input string) *Lexer {
+func Lex(source input.InputSource, input string) *Lexer {
 	return createLexer(source, input)
 }
 

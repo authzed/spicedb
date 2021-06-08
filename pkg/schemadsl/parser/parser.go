@@ -2,13 +2,13 @@
 package parser
 
 import (
-	"github.com/authzed/spicedb/pkg/schemadsl/common"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
 )
 
 // Parse parses the given Schema DSL source into a parse tree.
-func Parse(builder NodeBuilder, source common.InputSource, input string) AstNode {
+func Parse(builder NodeBuilder, source input.InputSource, input string) AstNode {
 	lx := lexer.Lex(source, input)
 	parser := buildParser(lx, builder, source, input)
 	return parser.consumeTopLevel()

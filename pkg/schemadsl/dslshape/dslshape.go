@@ -3,8 +3,6 @@
 // Package dslshape defines the types representing the structure of schema DSL.
 package dslshape
 
-import "strconv"
-
 // NodeType identifies the type of AST node.
 type NodeType int
 
@@ -30,22 +28,6 @@ const (
 
 	NodeTypeIdentifier // An identifier under an expression.
 )
-
-func (t NodeType) Name() string {
-	return "NodeType"
-}
-
-func (t NodeType) Value() string {
-	return strconv.Itoa(int(t))
-}
-
-func (t NodeType) Build(value string) interface{} {
-	i, err := strconv.Atoi(value)
-	if err != nil {
-		panic("Invalid value for NodeType: " + value)
-	}
-	return NodeType(i)
-}
 
 const (
 	//

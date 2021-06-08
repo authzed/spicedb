@@ -3,7 +3,7 @@ package lexer
 import (
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/common"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 type lexerTest struct {
@@ -110,7 +110,7 @@ func TestLexer(t *testing.T) {
 }
 
 func performLex(t *lexerTest) (tokens []Lexeme) {
-	l := Lex(common.InputSource(t.name), t.input)
+	l := Lex(input.InputSource(t.name), t.input)
 	for {
 		token := l.nextToken()
 		tokens = append(tokens, token)

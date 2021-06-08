@@ -8,13 +8,13 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/common"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 const EOFRUNE = -1
 
 // createLexer creates a new scanner for the input string.
-func createLexer(source common.InputSource, input string) *Lexer {
+func createLexer(source input.InputSource, input string) *Lexer {
 	l := &Lexer{
 		source: source,
 		input:  input,
@@ -34,9 +34,9 @@ func (l *Lexer) run() {
 
 // Lexeme represents a token returned from scanning the contents of a file.
 type Lexeme struct {
-	Kind     TokenType           // The type of this lexeme.
-	Position common.BytePosition // The starting position of this token in the input string.
-	Value    string              // The textual value of this token.
+	Kind     TokenType          // The type of this lexeme.
+	Position input.BytePosition // The starting position of this token in the input string.
+	Value    string             // The textual value of this token.
 }
 
 // stateFn represents the state of the scanner as a function that returns the next state.
@@ -44,17 +44,17 @@ type stateFn func(*Lexer) stateFn
 
 // Lexer holds the state of the scanner.
 type Lexer struct {
-	source                 common.InputSource  // the name of the input; used only for error reports
-	input                  string              // the string being scanned
-	state                  stateFn             // the next lexing function to enter
-	pos                    common.BytePosition // current position in the input
-	start                  common.BytePosition // start position of this token
-	width                  common.BytePosition // width of last rune read from input
-	lastPos                common.BytePosition // position of most recent token returned by nextToken
-	tokens                 chan Lexeme         // channel of scanned lexemes
-	currentToken           Lexeme              // The current token if any
-	lastNonWhitespaceToken Lexeme              // The last token returned that is non-whitespace
-	lastNonIgnoredToken    Lexeme              // The last token returned that is non-whitespace and non-comment
+	source                 input.InputSource  // the name of the input; used only for error reports
+	input                  string             // the string being scanned
+	state                  stateFn            // the next lexing function to enter
+	pos                    input.BytePosition // current position in the input
+	start                  input.BytePosition // start position of this token
+	width                  input.BytePosition // width of last rune read from input
+	lastPos                input.BytePosition // position of most recent token returned by nextToken
+	tokens                 chan Lexeme        // channel of scanned lexemes
+	currentToken           Lexeme             // The current token if any
+	lastNonWhitespaceToken Lexeme             // The last token returned that is non-whitespace
+	lastNonIgnoredToken    Lexeme             // The last token returned that is non-whitespace and non-comment
 }
 
 // nextToken returns the next token from the input.
@@ -71,7 +71,7 @@ func (l *Lexer) next() rune {
 		return EOFRUNE
 	}
 	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
-	l.width = common.BytePosition(w)
+	l.width = input.BytePosition(w)
 	l.pos += l.width
 	return r
 }

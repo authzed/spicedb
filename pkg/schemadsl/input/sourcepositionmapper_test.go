@@ -1,4 +1,4 @@
-package common
+package input
 
 import (
 	"io/ioutil"
