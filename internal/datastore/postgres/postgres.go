@@ -15,7 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
@@ -192,7 +191,9 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 	}
 
 	var highest uint64
-	err = pgd.db.QueryRowxContext(separateContextWithTracing(ctx), sql, args...).Scan(&highest)
+	err = pgd.db.QueryRowxContext(
+		datastore.SeparateContextWithTracing(ctx), sql, args...,
+	).Scan(&highest)
 	if err == dbsql.ErrNoRows {
 		return datastore.ErrInvalidRevision
 	}
@@ -217,7 +218,9 @@ func (pgd *pgDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	}
 
 	var revision uint64
-	err = pgd.db.QueryRowxContext(separateContextWithTracing(ctx), sql, args...).Scan(&revision)
+	err = pgd.db.QueryRowxContext(
+		datastore.SeparateContextWithTracing(ctx), sql, args...,
+	).Scan(&revision)
 	if err != nil {
 		if err == dbsql.ErrNoRows {
 			return 0, nil
@@ -238,7 +241,9 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 	}
 
 	var now time.Time
-	err = pgd.db.QueryRowContext(separateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
+	err = pgd.db.QueryRowContext(
+		datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...,
+	).Scan(&now)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -253,7 +258,9 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 	}
 
 	var lower, upper dbsql.NullInt64
-	err = pgd.db.QueryRowxContext(separateContextWithTracing(ctx), sql, args...).Scan(&lower, &upper)
+	err = pgd.db.QueryRowxContext(
+		datastore.SeparateContextWithTracing(ctx), sql, args...,
+	).Scan(&lower, &upper)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -271,7 +278,7 @@ func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, er
 	ctx, span := tracer.Start(ctx, "computeNewTransaction")
 	defer span.End()
 
-	err = tx.QueryRowxContext(separateContextWithTracing(ctx), createTxn).Scan(&newTxnID)
+	err = tx.QueryRowxContext(datastore.SeparateContextWithTracing(ctx), createTxn).Scan(&newTxnID)
 	return
 }
 
@@ -281,12 +288,4 @@ func revisionFromTransaction(txID uint64) datastore.Revision {
 
 func transactionFromRevision(revision datastore.Revision) uint64 {
 	return uint64(revision.IntPart())
-}
-
-// We're severing the context between grpc and the database to prevent context
-// cancellation from killing database connections that should otherwise go back
-// to the connection pool.
-func separateContextWithTracing(ctx context.Context) context.Context {
-	span := trace.SpanFromContext(ctx)
-	return trace.ContextWithSpan(context.Background(), span)
 }

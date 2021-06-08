@@ -61,7 +61,9 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Name
 	}
 
 	var hlcNow decimal.Decimal
-	if err := cds.conn.QueryRow(ctx, writeSql, writeArgs...).Scan(&hlcNow); err != nil {
+	if err := cds.conn.QueryRow(
+		datastore.SeparateContextWithTracing(ctx), writeSql, writeArgs...,
+	).Scan(&hlcNow); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
@@ -69,6 +71,8 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Name
 }
 
 func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, datastore.Revision, error) {
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
 	tx, err := cds.conn.Begin(ctx)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
@@ -87,6 +91,8 @@ func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb
 }
 
 func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
 	tx, err := cds.conn.Begin(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)

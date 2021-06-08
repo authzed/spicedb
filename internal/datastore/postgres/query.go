@@ -95,7 +95,7 @@ func (ctq commonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterato
 
 	span.AddEvent("Query converted to SQL")
 
-	rows, err := ctq.db.QueryxContext(separateContextWithTracing(ctx), sql, args...)
+	rows, err := ctq.db.QueryxContext(datastore.SeparateContextWithTracing(ctx), sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}

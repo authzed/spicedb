@@ -79,6 +79,8 @@ func (ctq crdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.T
 }
 
 func (ctq commonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
 	ctx, span := tracer.Start(ctx, "ExecuteTupleQuery")
 	defer span.End()
 

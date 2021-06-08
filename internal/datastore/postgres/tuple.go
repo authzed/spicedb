@@ -47,7 +47,9 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 		}
 
 		foundID := -1
-		if err := tx.QueryRowxContext(separateContextWithTracing(ctx), sql, args...).Scan(&foundID); err != nil {
+		if err := tx.QueryRowxContext(
+			datastore.SeparateContextWithTracing(ctx), sql, args...,
+		).Scan(&foundID); err != nil {
 			if err == dbsql.ErrNoRows {
 				return datastore.NoRevision, datastore.ErrPreconditionFailed
 			}
@@ -73,7 +75,9 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 
-			if _, err := tx.ExecContext(separateContextWithTracing(ctx), sql, args...); err != nil {
+			if _, err := tx.ExecContext(
+				datastore.SeparateContextWithTracing(ctx), sql, args...,
+			); err != nil {
 				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		}
@@ -98,7 +102,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
-		_, err = tx.ExecContext(separateContextWithTracing(ctx), sql, args...)
+		_, err = tx.ExecContext(datastore.SeparateContextWithTracing(ctx), sql, args...)
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
