@@ -28,6 +28,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/graph"
@@ -54,14 +55,19 @@ func main() {
 	rootCmd.Flags().String("metrics-addr", ":9090", "address to listen on for serving metrics and profiles")
 	rootCmd.Flags().String("preshared-key", "", "preshared key to require on authenticated requests")
 	rootCmd.Flags().Uint16("max-depth", 50, "maximum recursion depth for nested calls")
-	rootCmd.Flags().String("datastore-url", "memory:///", "connection url of storage layer")
+	rootCmd.Flags().String("datastore-engine", "memory", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
+	rootCmd.Flags().String("datastore-url", "", "connection url (e.g. postgres://postgres:password@localhost:5432/spicedb) of storage layer for those engines that support it (postgres, crdb)")
 	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	rootCmd.Flags().Duration("gc-window", 24*time.Hour, "amount of time before a revision is garbage collected")
 	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
-	rootCmd.Flags().Int("pg-max-conn-open", 20, "number of concurrent connections open in a the postgres connection pool")
-	rootCmd.Flags().Int("pg-max-conn-idle", 20, "number of idle connections open in a the postgres connection pool")
+	rootCmd.Flags().Int("pg-max-conn-open", 20, "number of concurrent connections open in the postgres connection pool")
+	rootCmd.Flags().Int("pg-max-conn-idle", 20, "number of idle connections open in the postgres connection pool")
 	rootCmd.Flags().Duration("pg-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the postgres connection pool")
 	rootCmd.Flags().Duration("pg-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the postgres connection pool")
+	rootCmd.Flags().Int("crdb-max-conn-open", 20, "number of concurrent connections open in the cockroachdb connection pool")
+	rootCmd.Flags().Int("crdb-min-conn-open", 20, "number of idle connections to keep open in the cockroachdb connection pool")
+	rootCmd.Flags().Duration("crdb-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the cockroachdb connection pool")
+	rootCmd.Flags().Duration("crdb-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the cockroachdb connection pool")
 
 	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
 	cmdutil.RegisterTracingPersistentFlags(rootCmd)
@@ -74,7 +80,8 @@ func main() {
 		Args:              cobra.ExactArgs(1),
 	}
 
-	migrateCmd.Flags().String("datastore-url", "", "connection url of storage layer")
+	migrateCmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
+	migrateCmd.Flags().String("datastore-url", "", "connection url (e.g. postgres://postgres:password@localhost:5432/spicedb) of storage layer for those engines that support it (postgres, crdb)")
 	rootCmd.AddCommand(migrateCmd)
 
 	var headCmd = &cobra.Command{
@@ -83,6 +90,7 @@ func main() {
 		Run:   headRevisionRun,
 		Args:  cobra.ExactArgs(0),
 	}
+	headCmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
 	rootCmd.AddCommand(headCmd)
 
 	rootCmd.Execute()
@@ -125,6 +133,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
 	datastoreUrl := cobrautil.MustGetString(cmd, "datastore-url")
 
 	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "revision-fuzzing-duration")
@@ -132,13 +141,27 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	var ds datastore.Datastore
 	var err error
-	if datastoreUrl == "memory:///" {
+	if datastoreEngine == "memory" {
 		log.Info().Msg("using in-memory datastore")
 		ds, err = memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, 0)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to init datastore")
 		}
-	} else {
+	} else if datastoreEngine == "cockroachdb" {
+		log.Info().Msg("using cockroachdb datastore")
+		ds, err = crdb.NewCRDBDatastore(
+			datastoreUrl,
+			crdb.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "crdb-max-conn-idletime")),
+			crdb.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "crdb-max-conn-lifetime")),
+			crdb.MaxOpenConns(cobrautil.MustGetInt(cmd, "crdb-max-conn-open")),
+			crdb.MinOpenConns(cobrautil.MustGetInt(cmd, "crdb-min-conn-open")),
+			crdb.RevisionQuantization(revisionFuzzingTimedelta),
+			crdb.GCWindow(gcWindow),
+		)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to init datastore")
+		}
+	} else if datastoreEngine == "postgres" {
 		log.Info().Msg("using postgres datastore")
 		ds, err = postgres.NewPostgresDatastore(
 			datastoreUrl,
@@ -154,6 +177,8 @@ func rootRun(cmd *cobra.Command, args []string) {
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to init datastore")
 		}
+	} else {
+		log.Fatal().Str("datastore-engine", datastoreEngine).Msg("unknown datastore engine type")
 	}
 
 	nsCacheExpiration := cobrautil.MustGetDuration(cmd, "ns-cache-expiration")

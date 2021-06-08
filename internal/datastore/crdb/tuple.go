@@ -46,6 +46,8 @@ var (
 )
 
 func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (datastore.Revision, error) {
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
 	tx, err := cds.conn.Begin(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)

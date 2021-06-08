@@ -171,7 +171,10 @@ func readCRDBNow(ctx context.Context, tx pgx.Tx) (decimal.Decimal, error) {
 	defer span.End()
 
 	var hlcNow decimal.Decimal
-	if err := tx.QueryRow(ctx, querySelectNow).Scan(&hlcNow); err != nil {
+	if err := tx.QueryRow(
+		datastore.SeparateContextWithTracing(ctx),
+		querySelectNow,
+	).Scan(&hlcNow); err != nil {
 		return decimal.Decimal{}, fmt.Errorf("unable to read timestamp: %w", err)
 	}
 
