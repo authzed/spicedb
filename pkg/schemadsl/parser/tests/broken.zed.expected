@@ -1,0 +1,21 @@
+NodeTypeFile
+  end-rune = 17
+  input-source = broken test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = foo
+      end-rune = 17
+      input-source = broken test
+      start-rune = 0
+      child-node =>
+        NodeTypeError
+          end-rune = 17
+          error-message = Expected end of statement or definition, found: TokenTypeError
+          input-source = broken test
+          start-rune = 0
+    NodeTypeError
+      end-rune = 17
+      error-message = Unexpected token at root level: TokenTypeError
+      input-source = broken test
+      start-rune = 0

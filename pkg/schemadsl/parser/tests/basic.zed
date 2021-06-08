@@ -1,0 +1,10 @@
+definition mydefinition {
+    /**
+     * some doc comment
+     */
+    relation foo: sometype#... | anothertype#somerel
+
+    // My cool permission
+    permission bar = foo + baz - meh
+    permission another = (foo - meh) + bar
+}
