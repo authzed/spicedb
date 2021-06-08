@@ -1,6 +1,10 @@
 package compiler
 
 import (
+	"fmt"
+
+	"github.com/jzelinskie/stringz"
+
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
@@ -243,9 +247,15 @@ func translateTypeReference(typeRefNode *dslNode, tctx translationContext) ([]*p
 }
 
 func translateSpecificTypeReference(typeRefNode *dslNode, tctx translationContext) (*pb.RelationReference, error) {
-	typeName, err := typeRefNode.GetString(dslshape.NodeSpecificReferencePredicateType)
+	typePath, err := typeRefNode.GetString(dslshape.NodeSpecificReferencePredicateType)
 	if err != nil {
 		return nil, typeRefNode.Errorf("invalid type name: %w", err)
+	}
+
+	var typePrefix, typeName string
+	if err := stringz.SplitExact(typePath, "/", &typePrefix, &typeName); err != nil {
+		typePrefix = tctx.objectTypePrefix
+		typeName = typePath
 	}
 
 	relationName := Ellipsis
@@ -257,7 +267,7 @@ func translateSpecificTypeReference(typeRefNode *dslNode, tctx translationContex
 	}
 
 	return &pb.RelationReference{
-		Namespace: tctx.NamespacePath(typeName),
+		Namespace: fmt.Sprintf("%s/%s", typePrefix, typeName),
 		Relation:  relationName,
 	}, nil
 }

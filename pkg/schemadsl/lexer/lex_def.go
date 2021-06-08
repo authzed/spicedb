@@ -41,6 +41,7 @@ const (
 	TokenTypePlus  // +
 	TokenTypeMinus // -
 	TokenTypeAnd   // &
+	TokenTypeDiv   // /
 
 	TokenTypeEquals     // =
 	TokenTypeColon      // :
@@ -149,8 +150,7 @@ Loop:
 				return lexMultilineComment
 			}
 
-			return l.errorf("unrecognized character at this location: %#U", r)
-
+			l.emit(TokenTypeDiv)
 		default:
 			return l.errorf("unrecognized character at this location: %#U", r)
 		}

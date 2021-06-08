@@ -3,9 +3,10 @@ package generator
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/namespace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGenerator(t *testing.T) {
@@ -20,7 +21,7 @@ func TestGenerator(t *testing.T) {
 		{
 			"empty",
 			namespace.Namespace("foo/test"),
-			"definition test {}",
+			"definition foo/test {}",
 		},
 		{
 			"simple relation",
@@ -30,8 +31,8 @@ func TestGenerator(t *testing.T) {
 					Relation:  "hiya",
 				}),
 			),
-			`definition test {
-	relation somerel: bar#hiya
+			`definition foo/test {
+	relation somerel: foo/bar#hiya
 }`,
 		},
 		{
@@ -41,7 +42,7 @@ func TestGenerator(t *testing.T) {
 					namespace.ComputedUserset("anotherrel"),
 				)),
 			),
-			`definition test {
+			`definition foo/test {
 	permission someperm = anotherrel
 }`,
 		},
@@ -59,7 +60,7 @@ func TestGenerator(t *testing.T) {
 					namespace.ComputedUserset("c"),
 				)),
 			),
-			`definition test {
+			`definition foo/test {
 	permission someperm = (a - b - y->z) + c
 }`,
 		},
@@ -74,8 +75,8 @@ func TestGenerator(t *testing.T) {
 					Relation:  "hiya",
 				}),
 			),
-			`definition test {
-	relation somerel: bar#hiya = (/* _this unsupported here. Please rewrite into a relation and permission */) + anotherrel
+			`definition foo/test {
+	relation somerel: foo/bar#hiya = (/* _this unsupported here. Please rewrite into a relation and permission */) + anotherrel
 }`,
 		},
 		{
@@ -83,7 +84,7 @@ func TestGenerator(t *testing.T) {
 			namespace.Namespace("foo/test",
 				namespace.Relation("somerel", nil),
 			),
-			`definition test {
+			`definition foo/test {
 	relation somerel: /* missing allowed types */
 }`,
 		},
@@ -112,9 +113,9 @@ func TestGenerator(t *testing.T) {
 					namespace.ComputedUserset("owner"),
 				)),
 			),
-			`definition document {
-	relation owner: user
-	relation reader: user | group#member
+			`definition foo/document {
+	relation owner: foo/user
+	relation reader: foo/user | foo/group#member
 	permission read = reader + owner
 }`,
 		},

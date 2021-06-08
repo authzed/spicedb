@@ -100,6 +100,7 @@ func TestParser(t *testing.T) {
 		parserTest{"permission missing expression test", "permission_missing_expression"},
 		parserTest{"relation invalid type test", "relation_invalid_type"},
 		parserTest{"permission invalid expression test", "permission_invalid_expression"},
+		parserTest{"cross tenant test", "crosstenant"},
 	}
 
 	for _, test := range parserTests {

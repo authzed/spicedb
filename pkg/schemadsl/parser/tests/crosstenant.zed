@@ -1,0 +1,3 @@
+definition sometenant/somedef {
+    relation somerel: anothertenant/someobject
+}

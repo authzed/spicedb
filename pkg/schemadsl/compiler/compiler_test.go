@@ -75,6 +75,20 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
+			"cross tenant relation",
+			`definition simple {
+				relation foo: anothertenant/bar#meh;
+			}`,
+			"",
+			[]*pb.NamespaceDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.Relation("foo", nil,
+						namespace.RelationReference("anothertenant/bar", "meh"),
+					),
+				),
+			},
+		},
+		{
 			"multiple relations",
 			`definition simple {
 				relation foo: bar#meh;

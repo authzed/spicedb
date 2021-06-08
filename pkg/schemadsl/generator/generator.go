@@ -1,12 +1,11 @@
 package generator
 
 import (
-	"strings"
-
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/graph"
 )
 
+// Ellipsis is the relation name for terminal subjects.
 const Ellipsis = "..."
 
 // generateSource generates a DSL view of the given namespace definition.
@@ -21,11 +20,8 @@ func generateSource(namespace *pb.NamespaceDefinition) []byte {
 }
 
 func (sg *sourceGenerator) emitNamespace(namespace *pb.NamespaceDefinition) {
-	parts := strings.Split(namespace.Name, "/")
-	namespaceName := parts[len(parts)-1]
-
 	sg.append("definition ")
-	sg.append(namespaceName)
+	sg.append(namespace.Name)
 
 	if len(namespace.Relation) == 0 {
 		sg.append(" {}")
@@ -80,10 +76,7 @@ func (sg *sourceGenerator) emitRelation(relation *pb.Relation) {
 }
 
 func (sg *sourceGenerator) emitRelationReference(relationReference *pb.RelationReference) {
-	parts := strings.Split(relationReference.Namespace, "/")
-	namespaceName := parts[len(parts)-1]
-
-	sg.append(namespaceName)
+	sg.append(relationReference.Namespace)
 	if relationReference.Relation != Ellipsis {
 		sg.append("#")
 		sg.append(relationReference.Relation)
