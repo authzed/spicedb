@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 func TestNamespaceValidation(t *testing.T) {

@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
+	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"google.golang.org/protobuf/encoding/prototext"
 )
 
 // DevContext holds the various helper types for running the developer calls.

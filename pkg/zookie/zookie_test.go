@@ -7,7 +7,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 var encodeRevisionTests = []decimal.Decimal{

@@ -8,7 +8,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/zookie"
 	"github.com/shopspring/decimal"
 )

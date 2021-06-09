@@ -11,8 +11,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

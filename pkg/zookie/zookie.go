@@ -8,8 +8,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	zookie "github.com/authzed/spicedb/pkg/REDACTEDapi/impl"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	zookie "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/impl"
 	"github.com/shopspring/decimal"
 )
 

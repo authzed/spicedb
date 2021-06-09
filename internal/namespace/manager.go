@@ -3,9 +3,10 @@ package namespace
 import (
 	"context"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
+
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 var tracer = otel.Tracer("spicedb/internal/namespace")

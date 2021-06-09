@@ -3,8 +3,8 @@ package membership
 import (
 	"testing"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/graph"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/stretchr/testify/require"
 )

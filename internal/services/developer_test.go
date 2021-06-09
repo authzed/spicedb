@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

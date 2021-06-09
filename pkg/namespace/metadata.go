@@ -2,8 +2,9 @@ package namespace
 
 import (
 	"github.com/golang/protobuf/ptypes"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"google.golang.org/protobuf/proto"
+
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 // StripMetadata removes all metadata from the given namespace.

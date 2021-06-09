@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 	"github.com/shopspring/decimal"
 )
 

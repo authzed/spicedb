@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/authzed/spicedb/internal/namespace"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 type invalidRelationError struct {

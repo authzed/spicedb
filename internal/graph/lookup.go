@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/rs/zerolog/log"
 )
 
 func newConcurrentLookup(d Dispatcher, ds datastore.GraphDatastore, nsm namespace.Manager) lookupHandler {

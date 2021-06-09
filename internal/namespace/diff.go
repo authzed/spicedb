@@ -4,9 +4,10 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/jsonpb"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/scylladb/go-set/strset"
+
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // DeltaType defines the type of namespace deltas.

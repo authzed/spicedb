@@ -34,9 +34,9 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/cmdutil"
 	"github.com/authzed/spicedb/pkg/grpcutil"
+	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 func main() {

@@ -5,8 +5,9 @@ import (
 
 	"github.com/golang/protobuf/ptypes"
 	anypb "github.com/golang/protobuf/ptypes/any"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/stretchr/testify/require"
+
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 func TestMetadata(t *testing.T) {
@@ -25,7 +26,7 @@ func TestMetadata(t *testing.T) {
 	ns := &pb.NamespaceDefinition{
 		Name: "somens",
 		Relation: []*pb.Relation{
-			&pb.Relation{
+			{
 				Name: "somerelation",
 				Metadata: &pb.Metadata{
 					MetadataMessage: []*anypb.Any{
@@ -33,7 +34,7 @@ func TestMetadata(t *testing.T) {
 					},
 				},
 			},
-			&pb.Relation{
+			{
 				Name: "anotherrelation",
 			},
 		},

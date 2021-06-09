@@ -3,9 +3,10 @@ package datastore
 import (
 	"fmt"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/rs/zerolog"
+
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // ErrNamespaceNotFound occurs when a namespace was not found.

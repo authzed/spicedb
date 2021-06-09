@@ -3,9 +3,10 @@ package graph
 import (
 	"context"
 
-	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/rs/zerolog/log"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 func newConcurrentChecker(d Dispatcher, ds datastore.GraphDatastore) checker {

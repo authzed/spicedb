@@ -1,7 +1,7 @@
 package graph
 
 import (
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 // WalkHandler is a function invoked for each node in the rewrite tree. If it returns non-nil,

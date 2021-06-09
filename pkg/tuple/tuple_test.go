@@ -3,8 +3,9 @@ package tuple
 import (
 	"testing"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/stretchr/testify/require"
+
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 func makeTuple(onr *pb.ObjectAndRelation, userset *pb.ObjectAndRelation) *pb.RelationTuple {

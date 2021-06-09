@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	"github.com/authzed/spicedb/pkg/zookie"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/namespace"
+	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type nsServer struct {

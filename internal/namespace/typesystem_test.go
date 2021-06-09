@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 func TestTypeSystem(t *testing.T) {

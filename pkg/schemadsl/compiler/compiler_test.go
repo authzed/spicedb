@@ -3,8 +3,8 @@ package compiler
 import (
 	"testing"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/namespace"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/stretchr/testify/require"
 )

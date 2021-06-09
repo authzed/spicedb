@@ -18,8 +18,8 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	g "github.com/authzed/spicedb/pkg/graph"
+	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )

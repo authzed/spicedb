@@ -1,7 +1,7 @@
 package namespace
 
 import (
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 // Namespace creates a namespace definition with one or more defined relations.

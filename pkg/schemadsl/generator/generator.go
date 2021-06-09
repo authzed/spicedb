@@ -1,8 +1,8 @@
 package generator
 
 import (
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/graph"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 // Ellipsis is the relation name for terminal subjects.

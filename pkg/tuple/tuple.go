@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 const (

@@ -3,7 +3,7 @@ package graph
 import (
 	"fmt"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 func Simplify(node *pb.RelationTupleTreeNode) []*pb.User {

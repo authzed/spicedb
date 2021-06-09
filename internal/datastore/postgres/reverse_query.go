@@ -2,10 +2,11 @@ package postgres
 
 import (
 	sq "github.com/Masterminds/squirrel"
-	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 func (pgd *pgDatastore) ReverseQueryTuplesFromSubject(subject *pb.ObjectAndRelation, revision decimal.Decimal) datastore.ReverseTupleQuery {

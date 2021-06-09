@@ -22,8 +22,8 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/authzed/spicedb/internal/services"
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/grpcutil"
+	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
 func developerServiceRun(cmd *cobra.Command, args []string) {
