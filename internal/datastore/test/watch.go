@@ -108,11 +108,8 @@ func verifyUpdates(
 				return
 			}
 
-			require.Equal(len(expected), len(change.Changes))
-
 			expectedChangeSet := setOfChanges(expected)
 			actualChangeSet := setOfChanges(change.Changes)
-
 			require.True(expectedChangeSet.IsEqual(actualChangeSet))
 		case <-changeWait.C:
 			require.Fail("Timed out")
