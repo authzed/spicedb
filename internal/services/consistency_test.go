@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	graphpkg "github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/zookie"
@@ -117,6 +118,102 @@ func TestConsistency(t *testing.T) {
 						switch m := tpl.User.UserOneof.(type) {
 						case *api.User_Userset:
 							subjects.Add(m.Userset)
+						}
+					}
+
+					// Run a fully recursive expand on each relation and ensure all terminal subjects are reached.
+					for _, nsDef := range fullyResolved.NamespaceDefinitions {
+						allObjectIds, ok := objectsPerNamespace.Get(nsDef.Name)
+						if !ok {
+							return
+						}
+
+						for _, relation := range nsDef.Relation {
+							for _, objectId := range allObjectIds {
+								objectIdStr := objectId.(string)
+								t.Run(fmt.Sprintf("expand_%s_%s_%s", nsDef.Name, objectIdStr, relation.Name), func(t *testing.T) {
+									vrequire := require.New(t)
+
+									// Collect all accessible terminal subjects.
+									accessibleTerminalSubjects := namespace.NewONRSet()
+									for _, subject := range subjects.AsSlice() {
+										if subject.Relation != "..." {
+											continue
+										}
+
+										objectIdStr := objectId.(string)
+										checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
+											TestUserset: &api.ObjectAndRelation{
+												Namespace: nsDef.Name,
+												Relation:  relation.Name,
+												ObjectId:  objectIdStr,
+											},
+											User: &api.User{
+												UserOneof: &api.User_Userset{
+													Userset: subject,
+												},
+											},
+											AtRevision: zookie.NewFromRevision(revision),
+										})
+										vrequire.NoError(err)
+										if checkResp.IsMember {
+											accessibleTerminalSubjects.Add(subject)
+										}
+									}
+
+									// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
+									resp := dispatch.Expand(context.Background(), graph.ExpandRequest{
+										Start: &api.ObjectAndRelation{
+											Namespace: nsDef.Name,
+											Relation:  relation.Name,
+											ObjectId:  objectIdStr,
+										},
+										AtRevision:     revision,
+										DepthRemaining: 100,
+										ExpansionMode:  graph.RecursiveExpansion,
+									})
+
+									vrequire.NoError(resp.Err)
+
+									subjectsFound := graphpkg.Simplify(resp.Tree)
+									subjectsFoundSet := namespace.NewONRSet()
+
+									for _, subjectUser := range subjectsFound {
+										subjectsFoundSet.Add(subjectUser.GetUserset())
+									}
+
+									// Ensure all terminal subjects were found in the expansion.
+									vrequire.Equal(0, accessibleTerminalSubjects.Subtract(subjectsFoundSet).Length())
+
+									// Ensure every subject found matches Check.
+									for _, subjectUser := range subjectsFound {
+										subject := subjectUser.GetUserset()
+
+										checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
+											TestUserset: &api.ObjectAndRelation{
+												Namespace: nsDef.Name,
+												Relation:  relation.Name,
+												ObjectId:  objectIdStr,
+											},
+											User: &api.User{
+												UserOneof: &api.User_Userset{
+													Userset: subject,
+												},
+											},
+											AtRevision: zookie.NewFromRevision(revision),
+										})
+										vrequire.NoError(err)
+										vrequire.True(
+											checkResp.IsMember,
+											"Found Check under Expand failure for relation %s:%s#%s and subject %s",
+											nsDef.Name,
+											objectIdStr,
+											relation.Name,
+											tuple.StringONR(subject),
+										)
+									}
+								})
+							}
 						}
 					}
 

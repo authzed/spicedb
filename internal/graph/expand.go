@@ -57,13 +57,14 @@ func (ce *concurrentExpander) expandDirect(
 		}
 		defer it.Close()
 
-		var foundUsersets []*pb.User
+		var foundNonTerminalUsersets []*pb.User
+		var foundTerminalUsersets []*pb.User
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-			foundUsersets = append(foundUsersets, &pb.User{
-				UserOneof: &pb.User_Userset{
-					Userset: tpl.User.GetUserset(),
-				},
-			})
+			if tpl.User.GetUserset().Relation == Ellipsis {
+				foundTerminalUsersets = append(foundTerminalUsersets, tpl.User)
+			} else {
+				foundNonTerminalUsersets = append(foundNonTerminalUsersets, tpl.User)
+			}
 		}
 		if it.Err() != nil {
 			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, it.Err())}
@@ -76,17 +77,51 @@ func (ce *concurrentExpander) expandDirect(
 			start = req.Start
 		}
 
-		resultChan <- ExpandResult{
-			Tree: &pb.RelationTupleTreeNode{
-				NodeType: &pb.RelationTupleTreeNode_LeafNode{
-					LeafNode: &pb.DirectUserset{
-						Users: foundUsersets,
+		// If only shallow expansion was required, or there are no non-terminal subjects found,
+		// nothing more to do.
+		if req.ExpansionMode != RecursiveExpansion || len(foundNonTerminalUsersets) == 0 {
+			resultChan <- ExpandResult{
+				Tree: &pb.RelationTupleTreeNode{
+					NodeType: &pb.RelationTupleTreeNode_LeafNode{
+						LeafNode: &pb.DirectUserset{
+							Users: append(foundTerminalUsersets, foundNonTerminalUsersets...),
+						},
 					},
+					Expanded: start,
 				},
-				Expanded: start,
-			},
-			Err: nil,
+				Err: nil,
+			}
+			return
 		}
+
+		// Otherwise, recursively issue expansion and collect the results from that, plus the
+		// found terminals together.
+		var requestsToDispatch []ReduceableExpandFunc
+		for _, nonTerminalUser := range foundNonTerminalUsersets {
+			requestsToDispatch = append(requestsToDispatch, ce.dispatch(ExpandRequest{
+				Start:          nonTerminalUser.GetUserset(),
+				AtRevision:     req.AtRevision,
+				DepthRemaining: req.DepthRemaining - 1,
+				ExpansionMode:  req.ExpansionMode,
+			}))
+		}
+
+		result := ExpandAny(ctx, req.Start, requestsToDispatch)
+		if result.Err != nil {
+			resultChan <- result
+			return
+		}
+
+		unionNode := result.Tree.GetIntermediateNode()
+		unionNode.ChildNodes = append(unionNode.ChildNodes, &pb.RelationTupleTreeNode{
+			NodeType: &pb.RelationTupleTreeNode_LeafNode{
+				LeafNode: &pb.DirectUserset{
+					Users: append(foundTerminalUsersets, foundNonTerminalUsersets...),
+				},
+			},
+			Expanded: start,
+		})
+		resultChan <- result
 	}
 }
 
@@ -159,6 +194,7 @@ func (ce *concurrentExpander) expandComputedUserset(req ExpandRequest, cu *pb.Co
 		},
 		AtRevision:     req.AtRevision,
 		DepthRemaining: req.DepthRemaining - 1,
+		ExpansionMode:  req.ExpansionMode,
 	})
 }
 

@@ -43,11 +43,19 @@ type CheckResult struct {
 	Err      error
 }
 
+type ExpansionMode int
+
+const (
+	ShallowExpansion   ExpansionMode = 0
+	RecursiveExpansion ExpansionMode = 1
+)
+
 // ExpandRequest contains the data for a single expand request.
 type ExpandRequest struct {
 	Start          *pb.ObjectAndRelation
 	AtRevision     decimal.Decimal
 	DepthRemaining uint16
+	ExpansionMode  ExpansionMode
 }
 
 // ExpandResult is the data that is returned by a single expand or sub-expand.

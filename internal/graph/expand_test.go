@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
@@ -32,14 +33,43 @@ var (
 		graph.Leaf(_this),
 		companyOwner,
 	)
+
 	companyViewer = graph.Union(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("folder", "auditors", "viewer")),
 			tuple.User(ONR("user", "legal", "...")),
+			tuple.User(ONR("folder", "auditors", "viewer")),
 		),
 		companyEditor,
 		graph.Union(ONR("folder", "company", "viewer")),
 	)
+
+	auditorsOwner = graph.Leaf(ONR("folder", "auditors", "owner"))
+
+	auditorsEditor = graph.Union(ONR("folder", "auditors", "editor"),
+		graph.Leaf(_this),
+		auditorsOwner,
+	)
+
+	auditorsViewerRecursive = graph.Union(ONR("folder", "auditors", "viewer"),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "auditor", "...")),
+		),
+		auditorsEditor,
+		graph.Union(ONR("folder", "auditors", "viewer")),
+	)
+
+	companyViewerRecursive = graph.Union(ONR("folder", "company", "viewer"),
+		graph.Union(ONR("folder", "company", "viewer"),
+			auditorsViewerRecursive,
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "legal", "...")),
+				tuple.User(ONR("folder", "auditors", "viewer")),
+			),
+		),
+		companyEditor,
+		graph.Union(ONR("folder", "company", "viewer")),
+	)
+
 	docOwner = graph.Leaf(ONR("document", "masterplan", "owner"),
 		tuple.User(ONR("user", "product_manager", "...")),
 	)
@@ -81,32 +111,45 @@ var (
 
 func TestExpand(t *testing.T) {
 	testCases := []struct {
-		start    *pb.ObjectAndRelation
-		expected *pb.RelationTupleTreeNode
+		start         *pb.ObjectAndRelation
+		expansionMode ExpansionMode
+		expected      *pb.RelationTupleTreeNode
 	}{
-		{start: ONR("folder", "company", "owner"), expected: companyOwner},
-		{start: ONR("folder", "company", "editor"), expected: companyEditor},
-		{start: ONR("folder", "company", "viewer"), expected: companyViewer},
-		{start: ONR("document", "masterplan", "owner"), expected: docOwner},
-		{start: ONR("document", "masterplan", "editor"), expected: docEditor},
-		{start: ONR("document", "masterplan", "viewer"), expected: docViewer},
+		{start: ONR("folder", "company", "owner"), expansionMode: ShallowExpansion, expected: companyOwner},
+		{start: ONR("folder", "company", "editor"), expansionMode: ShallowExpansion, expected: companyEditor},
+		{start: ONR("folder", "company", "viewer"), expansionMode: ShallowExpansion, expected: companyViewer},
+		{start: ONR("document", "masterplan", "owner"), expansionMode: ShallowExpansion, expected: docOwner},
+		{start: ONR("document", "masterplan", "editor"), expansionMode: ShallowExpansion, expected: docEditor},
+		{start: ONR("document", "masterplan", "viewer"), expansionMode: ShallowExpansion, expected: docViewer},
+
+		{start: ONR("folder", "auditors", "owner"), expansionMode: RecursiveExpansion, expected: auditorsOwner},
+		{start: ONR("folder", "auditors", "editor"), expansionMode: RecursiveExpansion, expected: auditorsEditor},
+		{start: ONR("folder", "auditors", "viewer"), expansionMode: RecursiveExpansion, expected: auditorsViewerRecursive},
+
+		{start: ONR("folder", "company", "owner"), expansionMode: RecursiveExpansion, expected: companyOwner},
+		{start: ONR("folder", "company", "editor"), expansionMode: RecursiveExpansion, expected: companyEditor},
+		{start: ONR("folder", "company", "viewer"), expansionMode: RecursiveExpansion, expected: companyViewerRecursive},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s-%v", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
 			require := require.New(t)
 
 			dispatch, revision := newLocalDispatcher(require)
 
-			checkResult := dispatch.Expand(context.Background(), ExpandRequest{
+			expandResult := dispatch.Expand(context.Background(), ExpandRequest{
 				Start:          tc.start,
 				AtRevision:     revision,
 				DepthRemaining: 50,
+				ExpansionMode:  tc.expansionMode,
 			})
 
-			if diff := cmp.Diff(tc.expected, checkResult.Tree, protocmp.Transform()); diff != "" {
+			require.NoError(expandResult.Err)
+			require.NotNil(expandResult.Tree)
+
+			if diff := cmp.Diff(tc.expected, expandResult.Tree, protocmp.Transform()); diff != "" {
 				fset := token.NewFileSet()
-				err := printer.Fprint(os.Stdout, fset, serializeToFile(checkResult.Tree))
+				err := printer.Fprint(os.Stdout, fset, serializeToFile(expandResult.Tree))
 				require.NoError(err)
 				t.Errorf("unexpected difference:\n%v", diff)
 			}
@@ -141,7 +184,10 @@ func serializeToFile(node *pb.RelationTupleTreeNode) *ast.File {
 }
 
 func serialize(node *pb.RelationTupleTreeNode) *ast.CallExpr {
-	expanded := onrExpr(node.Expanded)
+	var expanded ast.Expr = ast.NewIdent("_this")
+	if node.Expanded != nil {
+		expanded = onrExpr(node.Expanded)
+	}
 
 	children := []ast.Expr{expanded}
 
@@ -222,6 +268,7 @@ func TestMaxDepthExpand(t *testing.T) {
 		Start:          ONR("folder", "oops", "viewer"),
 		AtRevision:     revision,
 		DepthRemaining: 50,
+		ExpansionMode:  ShallowExpansion,
 	})
 
 	require.Error(checkResult.Err)

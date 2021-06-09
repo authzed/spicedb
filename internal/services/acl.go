@@ -323,6 +323,7 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 		Start:          req.Userset,
 		AtRevision:     atRevision,
 		DepthRemaining: depth,
+		ExpansionMode:  graph.ShallowExpansion,
 	})
 	if resp.Err != nil {
 		return nil, rewriteACLError(resp.Err)
