@@ -7,6 +7,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.0
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
+	github.com/aws/aws-sdk-go v1.38.59
 	github.com/cockroachdb/cockroach v20.1.15+incompatible
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
 	github.com/dgraph-io/ristretto v0.0.3
@@ -27,6 +28,7 @@ require (
 	github.com/jackc/pgconn v1.8.1
 	github.com/jackc/pgx/v4 v4.11.0
 	github.com/jmoiron/sqlx v1.3.1
+	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd
 	github.com/lib/pq v1.9.0

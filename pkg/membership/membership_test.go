@@ -1,0 +1,82 @@
+package membership
+
+import (
+	"testing"
+
+	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/graph"
+	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/stretchr/testify/require"
+)
+
+var ONR = tuple.ObjectAndRelation
+var Ellipsis = "..."
+
+var (
+	_this *pb.ObjectAndRelation
+
+	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
+		tuple.User(ONR("user", "owner", Ellipsis)),
+	)
+	companyEditor = graph.Union(ONR("folder", "company", "editor"),
+		graph.Leaf(_this, tuple.User(ONR("user", "writer", Ellipsis))),
+		companyOwner,
+	)
+
+	auditorsOwner = graph.Leaf(ONR("folder", "auditors", "owner"))
+
+	auditorsEditor = graph.Union(ONR("folder", "auditors", "editor"),
+		graph.Leaf(_this),
+		auditorsOwner,
+	)
+
+	auditorsViewerRecursive = graph.Union(ONR("folder", "auditors", "viewer"),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "auditor", "...")),
+		),
+		auditorsEditor,
+		graph.Union(ONR("folder", "auditors", "viewer")),
+	)
+
+	companyViewerRecursive = graph.Union(ONR("folder", "company", "viewer"),
+		graph.Union(ONR("folder", "company", "viewer"),
+			auditorsViewerRecursive,
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "legal", "...")),
+				tuple.User(ONR("folder", "auditors", "viewer")),
+			),
+		),
+		companyEditor,
+		graph.Union(ONR("folder", "company", "viewer")),
+	)
+)
+
+func TestMembershipSet(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	verifySubjects := func(fs FoundSubjects, expected ...string) {
+		foundSubjects := []*pb.ObjectAndRelation{}
+		for _, found := range fs.ListFound() {
+			foundSubjects = append(foundSubjects, found.Subject())
+
+			_, ok := fs.LookupSubject(found.Subject())
+			require.True(ok)
+		}
+
+		require.Equal(expected, tuple.StringsONRs(foundSubjects))
+	}
+
+	// Add some expansion trees.
+	fso, ok := ms.AddExpansion(ONR("folder", "company", "owner"), companyOwner)
+	require.True(ok)
+	verifySubjects(fso, "user:owner#...")
+
+	fse, ok := ms.AddExpansion(ONR("folder", "company", "editor"), companyEditor)
+	require.True(ok)
+	verifySubjects(fse, "user:owner#...", "user:writer#...")
+
+	fsv, ok := ms.AddExpansion(ONR("folder", "company", "viewer"), companyViewerRecursive)
+	require.True(ok)
+	verifySubjects(fsv, "folder:auditors#viewer", "user:auditor#...", "user:legal#...", "user:owner#...", "user:writer#...")
+}

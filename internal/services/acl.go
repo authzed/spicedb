@@ -56,39 +56,9 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 	}
 
 	for _, mutation := range req.Updates {
-		if err := as.nsm.CheckNamespaceAndRelation(
-			ctx,
-			mutation.Tuple.ObjectAndRelation.Namespace,
-			mutation.Tuple.ObjectAndRelation.Relation,
-			false, // Disallow ellipsis
-		); err != nil {
-			return nil, rewriteACLError(err)
-		}
-
-		if err = as.nsm.CheckNamespaceAndRelation(
-			ctx,
-			mutation.Tuple.User.GetUserset().Namespace,
-			mutation.Tuple.User.GetUserset().Relation,
-			true, // Allow Ellipsis
-		); err != nil {
-			return nil, rewriteACLError(err)
-		}
-
-		_, ts, _, err := as.nsm.ReadNamespaceAndTypes(ctx, mutation.Tuple.ObjectAndRelation.Namespace)
+		err := validateTupleWrite(ctx, mutation.Tuple, as.nsm)
 		if err != nil {
 			return nil, rewriteACLError(err)
-		}
-
-		isAllowed, err := ts.IsAllowedDirectRelation(
-			mutation.Tuple.ObjectAndRelation.Relation,
-			mutation.Tuple.User.GetUserset().Namespace,
-			mutation.Tuple.User.GetUserset().Relation)
-		if err != nil {
-			return nil, rewriteACLError(err)
-		}
-
-		if isAllowed == namespace.DirectRelationNotValid {
-			return nil, status.Errorf(codes.InvalidArgument, "Relation %v is not allowed on the right hand side of %v", mutation.Tuple.User, mutation.Tuple.ObjectAndRelation)
 		}
 	}
 
@@ -386,7 +356,6 @@ func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.L
 		TTUStack:       tuple.NewONRSet(),
 		DebugTracer:    tracer.Childf("%s#%s -> %s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.User)),
 	})
-	//fmt.Println(tracer.String())
 
 	if resp.Err != nil {
 		return nil, rewriteACLError(resp.Err)
@@ -477,6 +446,10 @@ func rewriteACLError(err error) error {
 		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 
 	default:
+		if _, ok := err.(invalidRelationError); ok {
+			return status.Errorf(codes.InvalidArgument, "%s", err.Error())
+		}
+
 		log.Err(err)
 		return err
 	}
