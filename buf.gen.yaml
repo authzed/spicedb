@@ -1,3 +1,4 @@
+#!/usr/bin/env -S buf generate ../protos --template
 version: "v1beta1"
 plugins:
   - name: "go"
