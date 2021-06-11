@@ -16,6 +16,7 @@ require (
 	github.com/emirpasic/gods v1.12.0
 	github.com/envoyproxy/protoc-gen-validate v0.1.0
 	github.com/gogo/protobuf v1.3.1
+	github.com/golang/protobuf v1.4.3
 	github.com/google/go-cmp v0.5.5
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
