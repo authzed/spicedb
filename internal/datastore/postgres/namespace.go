@@ -66,6 +66,19 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 	}
 	span.AddEvent("Model transaction created")
 
+	delSQL, delArgs, err := deleteNamespace.
+		Set(colDeletedTxn, newTxnID).
+		Where(sq.Eq{colNamespace: newConfig.Name, colDeletedTxn: liveDeletedTxnID}).
+		ToSql()
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
+	}
+
+	_, err = tx.ExecContext(datastore.SeparateContextWithTracing(ctx), delSQL, delArgs...)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
+	}
+
 	sql, args, err := writeNamespace.Values(newConfig.Name, serialized, newTxnID).ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
