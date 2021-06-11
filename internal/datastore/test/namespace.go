@@ -4,12 +4,53 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+var (
+	testNamespace = ns.Namespace("test/test",
+		ns.Relation("editor", nil, ns.RelationReference(testUserNS.Name, "...")),
+	)
+
+	updatedNamespace = ns.Namespace(testNamespace.Name,
+		ns.Relation("reader", nil, ns.RelationReference(testUserNS.Name, "...")),
+		ns.Relation("editor", nil, ns.RelationReference(testUserNS.Name, "...")),
+	)
+)
+
+func TestNamespaceWrite(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ctx := context.Background()
+	_, err = ds.WriteNamespace(ctx, testUserNS)
+	require.NoError(err)
+
+	_, err = ds.WriteNamespace(ctx, testNamespace)
+	require.NoError(err)
+
+	found, _, err := ds.ReadNamespace(ctx, testNamespace.Name)
+	require.NoError(err)
+	foundDiff := cmp.Diff(testNamespace, found, protocmp.Transform())
+	require.Empty(foundDiff)
+
+	_, err = ds.WriteNamespace(ctx, updatedNamespace)
+	require.NoError(err)
+
+	checkUpdated, _, err := ds.ReadNamespace(ctx, testNamespace.Name)
+	require.NoError(err)
+	foundUpdated := cmp.Diff(updatedNamespace, checkUpdated, protocmp.Transform())
+	require.Empty(foundUpdated)
+}
 
 func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
