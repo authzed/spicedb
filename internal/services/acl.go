@@ -382,8 +382,8 @@ func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.L
 		Limit:          limit,
 		AtRevision:     atRevision,
 		DepthRemaining: depth,
-		DirectStack:    namespace.NewONRSet(),
-		TTUStack:       namespace.NewONRSet(),
+		DirectStack:    tuple.NewONRSet(),
+		TTUStack:       tuple.NewONRSet(),
 		DebugTracer:    tracer.Childf("%s#%s -> %s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.User)),
 	})
 	//fmt.Println(tracer.String())

@@ -111,7 +111,7 @@ func TestConsistency(t *testing.T) {
 
 					// Collect the set of objects and subjects.
 					objectsPerNamespace := setmultimap.New()
-					subjects := namespace.NewONRSet()
+					subjects := tuple.NewONRSet()
 					for _, tpl := range fullyResolved.Tuples {
 						objectsPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl.ObjectAndRelation.ObjectId)
 
@@ -135,7 +135,7 @@ func TestConsistency(t *testing.T) {
 									vrequire := require.New(t)
 
 									// Collect all accessible terminal subjects.
-									accessibleTerminalSubjects := namespace.NewONRSet()
+									accessibleTerminalSubjects := tuple.NewONRSet()
 									for _, subject := range subjects.AsSlice() {
 										if subject.Relation != "..." {
 											continue
@@ -176,7 +176,7 @@ func TestConsistency(t *testing.T) {
 									vrequire.NoError(resp.Err)
 
 									subjectsFound := graphpkg.Simplify(resp.Tree)
-									subjectsFoundSet := namespace.NewONRSet()
+									subjectsFoundSet := tuple.NewONRSet()
 
 									for _, subjectUser := range subjectsFound {
 										subjectsFoundSet.Add(subjectUser.GetUserset())

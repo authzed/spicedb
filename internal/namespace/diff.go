@@ -5,6 +5,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/scylladb/go-set/strset"
 )
 
@@ -161,8 +162,8 @@ func DiffNamespaces(existing *pb.NamespaceDefinition, updated *pb.NamespaceDefin
 			updatedTypeInfo = &pb.TypeInformation{}
 		}
 
-		existingAllowedRels := NewONRSet()
-		updatedAllowedRels := NewONRSet()
+		existingAllowedRels := tuple.NewONRSet()
+		updatedAllowedRels := tuple.NewONRSet()
 
 		for _, existingAllowed := range existingTypeInfo.AllowedDirectRelations {
 			existingAllowedRels.Add(&pb.ObjectAndRelation{
