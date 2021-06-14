@@ -55,28 +55,28 @@ func TestMembershipSet(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	verifySubjects := func(fs FoundSubjects, expected ...string) {
-		foundSubjects := []*pb.ObjectAndRelation{}
-		for _, found := range fs.ListFound() {
-			foundSubjects = append(foundSubjects, found.Subject())
-
-			_, ok := fs.LookupSubject(found.Subject())
-			require.True(ok)
-		}
-
-		require.Equal(expected, tuple.StringsONRs(foundSubjects))
-	}
-
 	// Add some expansion trees.
 	fso, ok := ms.AddExpansion(ONR("folder", "company", "owner"), companyOwner)
 	require.True(ok)
-	verifySubjects(fso, "user:owner#...")
+	verifySubjects(require, fso, "user:owner#...")
 
 	fse, ok := ms.AddExpansion(ONR("folder", "company", "editor"), companyEditor)
 	require.True(ok)
-	verifySubjects(fse, "user:owner#...", "user:writer#...")
+	verifySubjects(require, fse, "user:owner#...", "user:writer#...")
 
 	fsv, ok := ms.AddExpansion(ONR("folder", "company", "viewer"), companyViewerRecursive)
 	require.True(ok)
-	verifySubjects(fsv, "folder:auditors#viewer", "user:auditor#...", "user:legal#...", "user:owner#...", "user:writer#...")
+	verifySubjects(require, fsv, "folder:auditors#viewer", "user:auditor#...", "user:legal#...", "user:owner#...", "user:writer#...")
+}
+
+func verifySubjects(require *require.Assertions, fs FoundSubjects, expected ...string) {
+	foundSubjects := []*pb.ObjectAndRelation{}
+	for _, found := range fs.ListFound() {
+		foundSubjects = append(foundSubjects, found.Subject())
+
+		_, ok := fs.LookupSubject(found.Subject())
+		require.True(ok)
+	}
+
+	require.Equal(expected, tuple.StringsONRs(foundSubjects))
 }

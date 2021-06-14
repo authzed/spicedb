@@ -32,10 +32,9 @@ const maxDepth = 25
 
 // NewDeveloperServer creates an instance of the developer server.
 func NewDeveloperServer(store ShareStore) api.DeveloperServiceServer {
-	s := &devServer{
+	return &devServer{
 		shareStore: store,
 	}
-	return s
 }
 
 func (ds *devServer) Share(ctx context.Context, req *api.ShareRequest) (*api.ShareResponse, error) {
@@ -57,15 +56,15 @@ func (ds *devServer) Share(ctx context.Context, req *api.ShareRequest) (*api.Sha
 
 func (ds *devServer) LookupShared(ctx context.Context, req *api.LookupShareRequest) (*api.LookupShareResponse, error) {
 	shared, ok, err := ds.shareStore.LookupSharedByReference(req.ShareReference)
-	if !ok {
-		return &api.LookupShareResponse{
-			Status: api.LookupShareResponse_UNKNOWN_REFERENCE,
-		}, nil
-	}
-
 	if err != nil {
 		return &api.LookupShareResponse{
 			Status: api.LookupShareResponse_FAILED_TO_LOOKUP,
+		}, nil
+	}
+
+	if !ok {
+		return &api.LookupShareResponse{
+			Status: api.LookupShareResponse_UNKNOWN_REFERENCE,
 		}, nil
 	}
 
@@ -79,12 +78,12 @@ func (ds *devServer) LookupShared(ctx context.Context, req *api.LookupShareReque
 }
 
 func (ds *devServer) EditCheck(ctx context.Context, req *api.EditCheckRequest) (*api.EditCheckResponse, error) {
-	devContext, okay, err := NewDevContext(ctx, req.Context)
+	devContext, ok, err := NewDevContext(ctx, req.Context)
 	if err != nil {
 		return nil, err
 	}
 
-	if !okay {
+	if !ok {
 		return &api.EditCheckResponse{
 			ContextNamespaces: devContext.Namespaces,
 			AdditionalErrors:  devContext.Errors,
@@ -92,7 +91,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *api.EditCheckRequest) (
 	}
 
 	// Run the checks and store their output.
-	results := []*api.EditCheckResult{}
+	var results []*api.EditCheckResult
 	for _, checkTpl := range req.CheckTuples {
 		cr := devContext.Dispatcher.Check(ctx, graph.CheckRequest{
 			Start:          checkTpl.ObjectAndRelation,
@@ -120,12 +119,12 @@ func (ds *devServer) EditCheck(ctx context.Context, req *api.EditCheckRequest) (
 }
 
 func (ds *devServer) Validate(ctx context.Context, req *api.ValidateRequest) (*api.ValidateResponse, error) {
-	devContext, okay, err := NewDevContext(ctx, req.Context)
+	devContext, ok, err := NewDevContext(ctx, req.Context)
 	if err != nil {
 		return nil, err
 	}
 
-	if !okay {
+	if !ok {
 		return &api.ValidateResponse{
 			ContextNamespaces: devContext.Namespaces,
 			ValidationErrors:  devContext.Errors,
@@ -171,52 +170,17 @@ func (ds *devServer) Validate(ctx context.Context, req *api.ValidateRequest) (*a
 		}, nil
 	}
 
-	failures := []*api.ValidationError{}
-	for _, relationship := range assertTrueRelationships {
-		cr := devContext.Dispatcher.Check(ctx, graph.CheckRequest{
-			Start:          relationship.ObjectAndRelation,
-			Goal:           relationship.User.GetUserset(),
-			AtRevision:     devContext.Revision,
-			DepthRemaining: maxDepth,
-		})
-		if cr.Err != nil {
-			validationErrs, wireErr := rewriteGraphError(api.ValidationError_ASSERTION, tuple.String(relationship), cr.Err)
-			failures = append(failures, validationErrs...)
-			if wireErr != nil {
-				return nil, wireErr
-			}
-		} else if !cr.IsMember {
-			failures = append(failures, &api.ValidationError{
-				Message:  fmt.Sprintf("Expected relation or permission %s to exist", tuple.String(relationship)),
-				Source:   api.ValidationError_ASSERTION,
-				Kind:     api.ValidationError_ASSERTION_FAILED,
-				Metadata: tuple.String(relationship),
-			})
-		}
+	trueFailures, err := runAssertions(ctx, devContext, assertTrueRelationships, true, "Expected relation or permission %s to exist")
+	if err != nil {
+		return nil, err
 	}
 
-	for _, relationship := range assertFalseRelationships {
-		cr := devContext.Dispatcher.Check(ctx, graph.CheckRequest{
-			Start:          relationship.ObjectAndRelation,
-			Goal:           relationship.User.GetUserset(),
-			AtRevision:     devContext.Revision,
-			DepthRemaining: maxDepth,
-		})
-		if cr.Err != nil {
-			validationErrs, wireErr := rewriteGraphError(api.ValidationError_ASSERTION, tuple.String(relationship), cr.Err)
-			failures = append(failures, validationErrs...)
-			if wireErr != nil {
-				return nil, wireErr
-			}
-		} else if cr.IsMember {
-			failures = append(failures, &api.ValidationError{
-				Message:  fmt.Sprintf("Expected relation or permission %s to not exist", tuple.String(relationship)),
-				Source:   api.ValidationError_ASSERTION,
-				Kind:     api.ValidationError_ASSERTION_FAILED,
-				Metadata: tuple.String(relationship),
-			})
-		}
+	falseFailures, err := runAssertions(ctx, devContext, assertFalseRelationships, false, "Expected relation or permission %s to not exist")
+	if err != nil {
+		return nil, err
 	}
+
+	failures := append(trueFailures, falseFailures...)
 
 	// Run validation.
 	membershipSet, validationFailures, wireErr := runValidation(ctx, devContext, validation)
@@ -240,11 +204,39 @@ func (ds *devServer) Validate(ctx context.Context, req *api.ValidateRequest) (*a
 	}, nil
 }
 
+func runAssertions(ctx context.Context, devContext *DevContext, relationships []*api.RelationTuple, expected bool, fmtString string) ([]*api.ValidationError, error) {
+	var failures []*api.ValidationError
+	for _, relationship := range relationships {
+		cr := devContext.Dispatcher.Check(ctx, graph.CheckRequest{
+			Start:          relationship.ObjectAndRelation,
+			Goal:           relationship.User.GetUserset(),
+			AtRevision:     devContext.Revision,
+			DepthRemaining: maxDepth,
+		})
+		if cr.Err != nil {
+			validationErrs, wireErr := rewriteGraphError(api.ValidationError_ASSERTION, tuple.String(relationship), cr.Err)
+			failures = append(failures, validationErrs...)
+			if wireErr != nil {
+				return nil, wireErr
+			}
+		} else if cr.IsMember != expected {
+			failures = append(failures, &api.ValidationError{
+				Message:  fmt.Sprintf(fmtString, tuple.String(relationship)),
+				Source:   api.ValidationError_ASSERTION,
+				Kind:     api.ValidationError_ASSERTION_FAILED,
+				Metadata: tuple.String(relationship),
+			})
+		}
+	}
+
+	return failures, nil
+}
+
 func generateValidation(membershipSet *membership.MembershipSet) (string, error) {
 	validationMap := validationfile.ValidationMap{}
 	subjectsByONR := membershipSet.SubjectsByONR()
 
-	onrStrings := []string{}
+	var onrStrings []string
 	for onrString := range subjectsByONR {
 		onrStrings = append(onrStrings, onrString)
 	}
@@ -254,7 +246,7 @@ func generateValidation(membershipSet *membership.MembershipSet) (string, error)
 
 	for _, onrString := range onrStrings {
 		foundSubjects := subjectsByONR[onrString]
-		strs := []string{}
+		var strs []string
 		for _, fs := range foundSubjects.ListFound() {
 			strs = append(strs,
 				fmt.Sprintf("[%s] is %s",
@@ -266,7 +258,7 @@ func generateValidation(membershipSet *membership.MembershipSet) (string, error)
 		// Sort to ensure stability of output.
 		sort.Strings(strs)
 
-		validationStrings := []validationfile.ValidationString{}
+		var validationStrings []validationfile.ValidationString
 		for _, s := range strs {
 			validationStrings = append(validationStrings, validationfile.ValidationString(s))
 		}
@@ -277,12 +269,12 @@ func generateValidation(membershipSet *membership.MembershipSet) (string, error)
 	return validationMap.AsYAML()
 }
 
-func runValidation(ctx context.Context, devContext DevContext, validation validationfile.ValidationMap) (*membership.MembershipSet, []*api.ValidationError, error) {
-	failures := []*api.ValidationError{}
+func runValidation(ctx context.Context, devContext *DevContext, validation validationfile.ValidationMap) (*membership.MembershipSet, []*api.ValidationError, error) {
+	var failures []*api.ValidationError
 	membershipSet := membership.NewMembershipSet()
 
 	for onrKey, validationStrings := range validation {
-		// Parse the ONR to expand.
+		// Unmarshal the ONR to expand from its string form.
 		onr, err := onrKey.ONR()
 		if err != nil {
 			failures = append(failures,
@@ -310,7 +302,7 @@ func runValidation(ctx context.Context, devContext DevContext, validation valida
 				continue
 			}
 
-			return nil, []*api.ValidationError{}, wireErr
+			return nil, nil, wireErr
 		}
 
 		// Add the ONR and its expansion to the membership set.
@@ -325,7 +317,7 @@ func runValidation(ctx context.Context, devContext DevContext, validation valida
 }
 
 func wrapRelationships(onrStrings []string) []string {
-	wrapped := []string{}
+	var wrapped []string
 	for _, str := range onrStrings {
 		wrapped = append(wrapped, fmt.Sprintf("<%s>", str))
 	}
@@ -336,10 +328,10 @@ func wrapRelationships(onrStrings []string) []string {
 }
 
 func validateSubjects(onr *api.ObjectAndRelation, fs membership.FoundSubjects, validationStrings []validationfile.ValidationString) []*api.ValidationError {
-	failures := []*api.ValidationError{}
+	var failures []*api.ValidationError
 
 	// Verify that every referenced subject is found in the membership.
-	encounteredSubjects := map[string]bool{}
+	encounteredSubjects := map[string]struct{}{}
 	for _, validationString := range validationStrings {
 		subjectONR, err := validationString.Subject()
 		if err != nil {
@@ -356,7 +348,7 @@ func validateSubjects(onr *api.ObjectAndRelation, fs membership.FoundSubjects, v
 			continue
 		}
 
-		encounteredSubjects[tuple.StringONR(subjectONR)] = true
+		encounteredSubjects[tuple.StringONR(subjectONR)] = struct{}{}
 
 		expectedRelationships, err := validationString.ONRS()
 		if err != nil {
@@ -444,7 +436,7 @@ func rewriteGraphError(source api.ValidationError_Source, metadata string, check
 		}, nil
 	}
 
-	return []*api.ValidationError{}, rewriteACLError(checkError)
+	return nil, rewriteACLError(checkError)
 }
 
 func convertSourceError(source api.ValidationError_Source, err *validationfile.ErrorWithSource) *api.ValidationError {
@@ -464,6 +456,8 @@ func convertYamlError(source api.ValidationError_Source, err error) *api.Validat
 
 	pieces := yamlLineRegex.FindStringSubmatch(err.Error())
 	if len(pieces) == 3 {
+		// We can safely ignore the error here because it will default to 0, which is the not found
+		// case.
 		lineNumber, _ = strconv.ParseUint(pieces[1], 10, 0)
 		msg = pieces[2]
 	}

@@ -104,6 +104,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 	healthSrv := grpcutil.NewAuthlessHealthServer()
 
 	api.RegisterDeveloperServiceServer(grpcServer, services.NewDeveloperServer(shareStore))
+	healthSrv.SetServingStatus("DeveloperService", healthpb.HealthCheckResponse_SERVING)
 
 	healthpb.RegisterHealthServer(grpcServer, healthSrv)
 	reflection.Register(grpcServer)

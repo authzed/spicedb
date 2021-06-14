@@ -56,11 +56,7 @@ type ValidationMap map[ObjectRelationString][]ValidationString
 
 func (vm ValidationMap) AsYAML() (string, error) {
 	data, err := yaml.Marshal(vm)
-	if err != nil {
-		return "", err
-	}
-
-	return string(data), nil
+	return string(data), err
 }
 
 // ObjectRelationString represents an ONR defined as a string in the key for the ValidationMap.
@@ -74,8 +70,10 @@ func (ors ObjectRelationString) ONR() (*api.ObjectAndRelation, *ErrorWithSource)
 	return parsed, nil
 }
 
-var vsSubjectRegex = regexp.MustCompile(`(.*?)\[(?P<user_str>.*)\](.*?)`)
-var vsObjectAndRelationRegex = regexp.MustCompile(`(.*?)<(?P<onr_str>[^\>]+)>(.*?)`)
+var (
+	vsSubjectRegex           = regexp.MustCompile(`(.*?)\[(?P<user_str>.*)\](.*?)`)
+	vsObjectAndRelationRegex = regexp.MustCompile(`(.*?)<(?P<onr_str>[^\>]+)>(.*?)`)
+)
 
 // ValidationString holds a validation string containing a Subject and one or more Relations to
 // the parent Object.
@@ -151,7 +149,7 @@ type ErrorWithSource struct {
 
 // AssertTrueRelationships returns the relationships for which to assert existance.
 func (a Assertions) AssertTrueRelationships() ([]*api.RelationTuple, *ErrorWithSource) {
-	relationships := []*api.RelationTuple{}
+	var relationships []*api.RelationTuple
 	for _, tplString := range a.AssertTrue {
 		parsed := tuple.Scan(tplString)
 		if parsed == nil {
@@ -164,7 +162,7 @@ func (a Assertions) AssertTrueRelationships() ([]*api.RelationTuple, *ErrorWithS
 
 // AssertFalseRelationships returns the relationships for which to assert non-existance.
 func (a Assertions) AssertFalseRelationships() ([]*api.RelationTuple, *ErrorWithSource) {
-	relationships := []*api.RelationTuple{}
+	var relationships []*api.RelationTuple
 	for _, tplString := range a.AssertFalse {
 		parsed := tuple.Scan(tplString)
 		if parsed == nil {

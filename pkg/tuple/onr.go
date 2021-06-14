@@ -53,11 +53,11 @@ func StringONR(onr *pb.ObjectAndRelation) string {
 
 // StringsONRs converts ONR objects to a string slice, sorted.
 func StringsONRs(onrs []*pb.ObjectAndRelation) []string {
-	strings := []string{}
+	var onrstrings []string
 	for _, onr := range onrs {
-		strings = append(strings, StringONR(onr))
+		onrstrings = append(onrstrings, StringONR(onr))
 	}
 
-	sort.Strings(strings)
-	return strings
+	sort.Strings(onrstrings)
+	return onrstrings
 }
