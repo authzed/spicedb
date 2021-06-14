@@ -405,12 +405,13 @@ func validateSubjects(onr *api.ObjectAndRelation, fs membership.FoundSubjects, v
 		_, ok := encounteredSubjects[tuple.StringONR(foundSubject.Subject())]
 		if !ok {
 			failures = append(failures, &api.ValidationError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, found unspecified subject `%s`",
+				Message: fmt.Sprintf("For object and permission/relation `%s`, subject `%s` found but missing from specified",
 					tuple.StringONR(onr),
 					tuple.StringONR(foundSubject.Subject()),
 				),
-				Source: api.ValidationError_VALIDATION_YAML,
-				Kind:   api.ValidationError_EXTRA_TUPLE_FOUND,
+				Source:   api.ValidationError_VALIDATION_YAML,
+				Kind:     api.ValidationError_EXTRA_TUPLE_FOUND,
+				Metadata: tuple.StringONR(onr),
 			})
 		}
 	}

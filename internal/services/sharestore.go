@@ -42,10 +42,11 @@ type ShareStore interface {
 	StoreShared(data SharedData) (string, error)
 }
 
-func newInMemoryShareStore() *inMemoryShareStore {
+// NewInMemoryShareStore creates a new in memory share store.
+func NewInMemoryShareStore(salt string) *inMemoryShareStore {
 	return &inMemoryShareStore{
 		shared: map[string]SharedData{},
-		salt:   "flavored",
+		salt:   salt,
 	}
 }
 

@@ -93,6 +93,25 @@ func main() {
 	headCmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
 	rootCmd.AddCommand(headCmd)
 
+	var developerServiceCmd = &cobra.Command{
+		Use:   "developer-service",
+		Short: "runs the developer service",
+		Run:   developerServiceRun,
+		Args:  cobra.ExactArgs(0),
+	}
+	developerServiceCmd.Flags().String("grpc-addr", ":50053", "address to listen on for serving gRPC services")
+	developerServiceCmd.Flags().String("grpc-cert-path", "", "local path to the TLS certificate used to serve gRPC services")
+	developerServiceCmd.Flags().String("grpc-key-path", "", "local path to the TLS key used to serve gRPC services")
+	developerServiceCmd.Flags().Bool("grpc-no-tls", false, "serve unencrypted gRPC services")
+	developerServiceCmd.Flags().Duration("grpc-max-conn-age", 60*time.Second, "how long a connection should be able to live")
+	developerServiceCmd.Flags().String("share-store", "inmemory", "kind of share store to use")
+	developerServiceCmd.Flags().String("share-store-salt", "", "salt for share store hashing")
+	developerServiceCmd.Flags().String("s3-access-key", "", "s3 access key for s3 share store")
+	developerServiceCmd.Flags().String("s3-secret-key", "", "s3 secret key for s3 share store")
+	developerServiceCmd.Flags().String("s3-bucket", "", "s3 bucket name for s3 share store")
+	developerServiceCmd.Flags().String("s3-endpoint", "", "s3 endpoint for s3 share store")
+	rootCmd.AddCommand(developerServiceCmd)
+
 	rootCmd.Execute()
 }
 

@@ -13,7 +13,7 @@ import (
 func TestSharing(t *testing.T) {
 	require := require.New(t)
 
-	store := newInMemoryShareStore()
+	store := NewInMemoryShareStore("flavored")
 	srv := NewDeveloperServer(store)
 
 	// Check for non-existent share.
@@ -125,7 +125,7 @@ func TestEditCheck(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			store := newInMemoryShareStore()
+			store := NewInMemoryShareStore("flavored")
 			srv := NewDeveloperServer(store)
 
 			resp, err := srv.EditCheck(context.Background(), &api.EditCheckRequest{
@@ -351,9 +351,10 @@ func TestValidate(t *testing.T) {
 			`assertTrue:
 - document:somedoc#viewer@user:jimmy#...`,
 			&api.ValidationError{
-				Message: "For object and permission/relation `document:somedoc#viewer`, found unspecified subject `user:jimmy#...`",
-				Kind:    api.ValidationError_EXTRA_TUPLE_FOUND,
-				Source:  api.ValidationError_VALIDATION_YAML,
+				Message:  "For object and permission/relation `document:somedoc#viewer`, subject `user:jimmy#...` found but missing from specified",
+				Kind:     api.ValidationError_EXTRA_TUPLE_FOUND,
+				Source:   api.ValidationError_VALIDATION_YAML,
+				Metadata: "document:somedoc#viewer",
 			},
 			`document:somedoc#viewer:
 - '[user:jimmy#...] is <document:somedoc#writer>'
@@ -729,7 +730,7 @@ assertFalse:
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			store := newInMemoryShareStore()
+			store := NewInMemoryShareStore("flavored")
 			srv := NewDeveloperServer(store)
 
 			resp, err := srv.Validate(context.Background(), &api.ValidateRequest{
