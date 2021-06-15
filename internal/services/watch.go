@@ -1,6 +1,8 @@
 package services
 
 import (
+	"errors"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -71,10 +73,10 @@ func (ws *watchServer) Watch(req *api.WatchRequest, stream api.WatchService_Watc
 				}
 			}
 		case err := <-errchan:
-			switch err {
-			case datastore.ErrWatchCanceled:
+			switch {
+			case errors.As(err, &datastore.ErrWatchCanceled{}):
 				return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
-			case datastore.ErrWatchDisconnected:
+			case errors.As(err, &datastore.ErrWatchDisconnected{}):
 				return status.Errorf(codes.ResourceExhausted, "watch disconnected: %s", err)
 			default:
 				return status.Errorf(codes.Internal, "watch error: %s", err)
