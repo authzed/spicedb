@@ -29,7 +29,7 @@ func migrateRun(cmd *cobra.Command, args []string) {
 		log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
 		err = crdbmigrations.CRDBMigrations.Run(migrationDriver, targetRevision, migrate.LiveRun)
 		if err != nil {
-			log.Fatal().Msg("unable to complete request migrations")
+			log.Fatal().Err(err).Msg("unable to complete requested migrations")
 		}
 	} else if datastoreEngine == "postgres" {
 		log.Info().Msg("migrating postgres datastore")
@@ -43,7 +43,7 @@ func migrateRun(cmd *cobra.Command, args []string) {
 		log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
 		err = migrations.DatabaseMigrations.Run(migrationDriver, targetRevision, migrate.LiveRun)
 		if err != nil {
-			log.Fatal().Msg("unable to complete request migrations")
+			log.Fatal().Err(err).Msg("unable to complete requested migrations")
 		}
 	} else {
 		log.Fatal().Str("datastore-engine", datastoreEngine).Msg("cannot migrate datastore engine type")
