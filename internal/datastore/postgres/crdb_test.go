@@ -16,7 +16,7 @@ import (
 
 var crdbContainer = &dockertest.RunOptions{
 	Repository: "cockroachdb/cockroach",
-	Tag:        "v20.2.7",
+	Tag:        "v21.1.2",
 	Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
 }
 
