@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"errors"
 
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -16,18 +15,7 @@ import (
 // Ellipsis relation is used to signify a semantic-free relationship.
 const Ellipsis = "..."
 
-// ErrAlwaysFail is returned when an internal error leads to an operation
-// guaranteed to fail.
-var ErrAlwaysFail = errors.New("always fail")
-
 var tracer = otel.Tracer("spicedb/internal/graph")
-
-// Publicly exposed errors from methods in this package.
-var (
-	ErrNamespaceNotFound = errors.New("namespace not found")
-	ErrRelationNotFound  = errors.New("relation not found")
-	ErrRequestCanceled   = errors.New("request canceled")
-)
 
 // CheckRequest contains the data for a single check request.
 type CheckRequest struct {
@@ -106,7 +94,7 @@ type Reducer func(ctx context.Context, requests []ReduceableCheckFunc) CheckResu
 
 // AlwaysFail is a ReduceableCheckFunc which will always fail when reduced.
 func AlwaysFail(ctx context.Context, resultChan chan<- CheckResult) {
-	resultChan <- CheckResult{IsMember: false, Err: ErrAlwaysFail}
+	resultChan <- CheckResult{IsMember: false, Err: NewAlwaysFailErr()}
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
@@ -135,7 +123,7 @@ type ReduceableExpandFunc func(ctx context.Context, resultChan chan<- ExpandResu
 
 // AlwaysFailExpand is a ReduceableExpandFunc which will always fail when reduced.
 func AlwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {
-	resultChan <- ExpandResult{Tree: nil, Err: ErrAlwaysFail}
+	resultChan <- ExpandResult{Tree: nil, Err: NewAlwaysFailErr()}
 }
 
 // ExpandReducer is a type for the functions Any and All which combine check results.

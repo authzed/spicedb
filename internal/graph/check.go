@@ -2,15 +2,10 @@ package graph
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/rs/zerolog/log"
-)
-
-const (
-	errCheckError = "error performing check: %w"
 )
 
 func newConcurrentChecker(d Dispatcher, ds datastore.GraphDatastore) checker {
@@ -56,7 +51,7 @@ func (cc *concurrentChecker) checkDirect(ctx context.Context, req CheckRequest) 
 			WithRelation(req.Start.Relation).
 			Execute(ctx)
 		if err != nil {
-			resultChan <- CheckResult{false, fmt.Errorf(errCheckError, err)}
+			resultChan <- CheckResult{false, NewCheckFailureErr(err)}
 			return
 		}
 		defer it.Close()
@@ -79,7 +74,7 @@ func (cc *concurrentChecker) checkDirect(ctx context.Context, req CheckRequest) 
 			}
 		}
 		if it.Err() != nil {
-			resultChan <- CheckResult{false, fmt.Errorf(errCheckError, it.Err())}
+			resultChan <- CheckResult{false, NewCheckFailureErr(it.Err())}
 			return
 		}
 		resultChan <- Any(ctx, requestsToDispatch)
@@ -162,7 +157,7 @@ func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req CheckR
 			WithRelation(ttu.Tupleset.Relation).
 			Execute(ctx)
 		if err != nil {
-			resultChan <- CheckResult{false, fmt.Errorf(errCheckError, err)}
+			resultChan <- CheckResult{false, NewCheckFailureErr(err)}
 			return
 		}
 		defer it.Close()
@@ -172,7 +167,7 @@ func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req CheckR
 			requestsToDispatch = append(requestsToDispatch, cc.checkComputedUserset(req, ttu.ComputedUserset, tpl))
 		}
 		if it.Err() != nil {
-			resultChan <- CheckResult{false, fmt.Errorf(errCheckError, it.Err())}
+			resultChan <- CheckResult{false, NewCheckFailureErr(it.Err())}
 			return
 		}
 
@@ -201,7 +196,7 @@ func All(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 				return result
 			}
 		case <-ctx.Done():
-			return CheckResult{IsMember: false, Err: ErrRequestCanceled}
+			return CheckResult{IsMember: false, Err: NewRequestCanceledErr()}
 		}
 	}
 
@@ -242,7 +237,7 @@ func Any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 			}
 		case <-ctx.Done():
 			log.Trace().Msg("any canceled")
-			return CheckResult{IsMember: false, Err: ErrRequestCanceled}
+			return CheckResult{IsMember: false, Err: NewRequestCanceledErr()}
 		}
 	}
 
@@ -273,7 +268,7 @@ func Difference(ctx context.Context, requests []ReduceableCheckFunc) CheckResult
 				return CheckResult{IsMember: false, Err: sub.Err}
 			}
 		case <-ctx.Done():
-			return CheckResult{IsMember: false, Err: ErrRequestCanceled}
+			return CheckResult{IsMember: false, Err: NewRequestCanceledErr()}
 		}
 	}
 
