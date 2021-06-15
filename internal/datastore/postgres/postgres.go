@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/ngrok/sqlmw"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
@@ -77,7 +78,6 @@ func NewPostgresDatastore(
 	options ...PostgresOption,
 ) (datastore.Datastore, error) {
 
-	// TODO update config to match pgx config
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -111,12 +111,11 @@ func NewPostgresDatastore(
 	}
 
 	if config.enablePrometheusStats {
-		// TODO
-		// collector := sqlstats.NewStatsCollector("spicedb", dbpool)
-		// err := prometheus.Register(collector)
-		// if err != nil {
-		// 	return nil, fmt.Errorf(errUnableToInstantiate, err)
-		// }
+		collector := NewPgxpoolStatsCollector(dbpool, "spicedb")
+		err := prometheus.Register(collector)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
 	}
 
 	return &pgDatastore{
