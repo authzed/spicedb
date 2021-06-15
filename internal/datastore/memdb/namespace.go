@@ -79,7 +79,7 @@ func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*p
 	}
 
 	if foundRaw == nil {
-		return nil, datastore.NoRevision, datastore.ErrNamespaceNotFound
+		return nil, datastore.NoRevision, datastore.NewNamespaceNotFoundErr(nsName)
 	}
 
 	found := foundRaw.(*namespace)
@@ -97,7 +97,7 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 	if foundRaw == nil {
-		return datastore.NoRevision, datastore.ErrNamespaceNotFound
+		return datastore.NoRevision, datastore.NewNamespaceNotFoundErr(nsName)
 	}
 
 	found := foundRaw.(*namespace)

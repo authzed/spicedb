@@ -2,7 +2,6 @@ package datastore
 
 import (
 	"context"
-	"errors"
 
 	"github.com/shopspring/decimal"
 
@@ -13,16 +12,6 @@ const (
 	// Ellipsis is a special relation that is assumed to be valid on the right
 	// hand side of a tuple.
 	Ellipsis = "..."
-)
-
-// Publicly facing errors
-var (
-	ErrNamespaceNotFound  = errors.New("unable to find namespace")
-	ErrRelationNotFound   = errors.New("unable to find relation")
-	ErrPreconditionFailed = errors.New("unable to satisfy write precondition")
-	ErrWatchDisconnected  = errors.New("watch fell too far behind and was disconnected")
-	ErrWatchCanceled      = errors.New("watch was canceled by the caller")
-	ErrInvalidRevision    = errors.New("revision was invalid")
 )
 
 // RevisionChanges represents the changes in a single transaction.

@@ -39,7 +39,7 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 				select {
 				case updates <- changeToWrite:
 				default:
-					errors <- datastore.ErrWatchDisconnected
+					errors <- datastore.NewWatchDisconnectedErr()
 					return
 				}
 			}
@@ -52,7 +52,7 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 			if err != nil {
 				switch err {
 				case context.Canceled:
-					errors <- datastore.ErrWatchCanceled
+					errors <- datastore.NewWatchCanceledErr()
 				default:
 					errors <- fmt.Errorf(errWatchError, err)
 				}

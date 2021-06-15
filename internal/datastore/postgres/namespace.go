@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	dbsql "database/sql"
+	"errors"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
@@ -112,10 +113,10 @@ func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.N
 	defer tx.Rollback()
 
 	loaded, version, err := loadNamespace(ctx, nsName, tx)
-	switch err {
-	case datastore.ErrNamespaceNotFound:
+	switch {
+	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
-	case nil:
+	case err == nil:
 		return loaded, version, nil
 	default:
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
@@ -130,10 +131,10 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (dat
 	defer tx.Rollback()
 
 	_, version, err := loadNamespace(ctx, nsName, tx)
-	switch err {
-	case datastore.ErrNamespaceNotFound:
+	switch {
+	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return datastore.NoRevision, err
-	case nil:
+	case err == nil:
 		break
 	default:
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
@@ -196,7 +197,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx) (*pb.Name
 	).Scan(&config, &version)
 	if err != nil {
 		if err == dbsql.ErrNoRows {
-			err = datastore.ErrNamespaceNotFound
+			err = datastore.NewNamespaceNotFoundErr(namespace)
 		}
 		return nil, datastore.NoRevision, err
 	}

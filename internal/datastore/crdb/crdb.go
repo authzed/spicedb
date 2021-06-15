@@ -157,10 +157,15 @@ func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.
 	revisionNanos := revision.IntPart()
 
 	staleRevision := revisionNanos < (nowNanos - cds.gcWindowNanos)
+	if staleRevision {
+		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("stale revision")
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
+	}
+
 	futureRevision := revisionNanos > nowNanos
-	if staleRevision || futureRevision {
-		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("invalid revision")
-		return datastore.ErrInvalidRevision
+	if futureRevision {
+		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("future revision")
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
 	}
 
 	return nil

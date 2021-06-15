@@ -81,7 +81,7 @@ func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb
 
 	config, timestamp, err := loadNamespace(ctx, tx, nsName, readOnly)
 	if err != nil {
-		if errors.Is(err, datastore.ErrNamespaceNotFound) {
+		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return nil, datastore.NoRevision, err
 		}
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
@@ -101,7 +101,7 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 
 	_, timestamp, err := loadNamespace(ctx, tx, nsName, forUpdate)
 	if err != nil {
-		if errors.Is(err, datastore.ErrNamespaceNotFound) {
+		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return datastore.NoRevision, err
 		}
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
@@ -159,7 +159,7 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string, forUpdate upda
 	var timestamp time.Time
 	if err := tx.QueryRow(ctx, sql, args...).Scan(&config, &timestamp); err != nil {
 		if err == pgx.ErrNoRows {
-			err = datastore.ErrNamespaceNotFound
+			err = datastore.NewNamespaceNotFoundErr(nsName)
 		}
 		return nil, time.Time{}, err
 	}

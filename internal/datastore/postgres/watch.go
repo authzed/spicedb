@@ -47,7 +47,7 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 			stagedUpdates, currentTxn, err = pgd.loadChanges(ctx, currentTxn)
 			if err != nil {
 				if ctx.Err() == context.Canceled {
-					errors <- datastore.ErrWatchCanceled
+					errors <- datastore.NewWatchCanceledErr()
 				} else {
 					errors <- err
 				}
@@ -59,7 +59,7 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 				select {
 				case updates <- changeToWrite:
 				default:
-					errors <- datastore.ErrWatchDisconnected
+					errors <- datastore.NewWatchDisconnectedErr()
 					return
 				}
 			}
@@ -72,7 +72,7 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 				case <-sleep.C:
 					break
 				case <-ctx.Done():
-					errors <- datastore.ErrWatchCanceled
+					errors <- datastore.NewWatchCanceledErr()
 					return
 				}
 			}
@@ -114,7 +114,7 @@ func (pgd *pgDatastore) loadChanges(
 	rows, err := pgd.db.QueryxContext(ctx, sql, args...)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			err = datastore.ErrWatchCanceled
+			err = datastore.NewWatchCanceledErr()
 		}
 		return
 	}
