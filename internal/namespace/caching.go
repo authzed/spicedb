@@ -19,11 +19,6 @@ const (
 	errInitialization = "unable to initialize namespace manager: %w"
 )
 
-var (
-	ErrInvalidNamespace = errors.New("invalid namespace")
-	ErrInvalidRelation  = errors.New("invalid relation")
-)
-
 type cachingManager struct {
 	delegate   datastore.Datastore
 	expiration time.Duration
@@ -90,8 +85,8 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb
 
 	// We couldn't use the cached entry, load one
 	loaded, version, err := nsc.delegate.ReadNamespace(ctx, nsName)
-	if err == datastore.ErrNamespaceNotFound {
-		return nil, decimal.Zero, ErrInvalidNamespace
+	if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
+		return nil, decimal.Zero, NewNamespaceNotFoundErr(nsName)
 	}
 	if err != nil {
 		return nil, decimal.Zero, err
@@ -129,5 +124,5 @@ func (nsc cachingManager) CheckNamespaceAndRelation(ctx context.Context, namespa
 		}
 	}
 
-	return datastore.ErrRelationNotFound
+	return NewRelationNotFoundErr(namespace, relation)
 }
