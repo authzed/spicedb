@@ -1,6 +1,10 @@
 package namespace
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/rs/zerolog"
+)
 
 // ErrNamespaceNotFound occurs when a namespace was not found.
 type ErrNamespaceNotFound struct {
@@ -8,10 +12,16 @@ type ErrNamespaceNotFound struct {
 	namespaceName string
 }
 
+// NotFoundNamespaceName returns the name of the namespace that was not found.
 func (enf ErrNamespaceNotFound) NotFoundNamespaceName() string {
 	return enf.namespaceName
 }
 
+func (enf ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("error", enf.Error()).Str("namespace", enf.namespaceName)
+}
+
+// NewNamespaceNotFoundErr constructs a new namespace not found error.
 func NewNamespaceNotFoundErr(nsName string) error {
 	return ErrNamespaceNotFound{
 		error:         fmt.Errorf("namespace `%s` not found", nsName),
@@ -26,14 +36,21 @@ type ErrRelationNotFound struct {
 	relationName  string
 }
 
+// NamespaceName returns the name of the namespace in which the relation was not found.
 func (erf ErrRelationNotFound) NamespaceName() string {
 	return erf.namespaceName
 }
 
+// NotFoundRelationName returns the name of the relation not found.
 func (erf ErrRelationNotFound) NotFoundRelationName() string {
 	return erf.relationName
 }
 
+func (erf ErrRelationNotFound) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("error", erf.Error()).Str("namespace", erf.namespaceName).Str("relation", erf.relationName)
+}
+
+// NewRelationNotFoundErr constructs a new relation not found error.
 func NewRelationNotFoundErr(nsName string, relationName string) error {
 	return ErrRelationNotFound{
 		error:         fmt.Errorf("relation/permission `%s` not found under namespace `%s`", relationName, nsName),

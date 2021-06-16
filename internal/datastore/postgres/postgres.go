@@ -177,9 +177,9 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 		} else if revisionTx > upper {
 			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
-		} else {
-			return nil
 		}
+
+		return nil
 	}
 
 	if err != dbsql.ErrNoRows {
