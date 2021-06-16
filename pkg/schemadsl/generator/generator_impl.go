@@ -1,16 +1,15 @@
 package generator
 
 import (
-	"bytes"
 	"strings"
 )
 
 type sourceGenerator struct {
-	buf                bytes.Buffer // The buffer for the new source code.
-	indentationLevel   int          // The current indentation level.
-	hasNewline         bool         // Whether there is a newline at the end of the buffer.
-	hasBlankline       bool         // Whether there is a blank line at the end of the buffer.
-	existingLineLength int          // Length of the existing line.
+	buf                strings.Builder // The buffer for the new source code.
+	indentationLevel   int             // The current indentation level.
+	hasNewline         bool            // Whether there is a newline at the end of the buffer.
+	hasBlankline       bool            // Whether there is a blank line at the end of the buffer.
+	existingLineLength int             // Length of the existing line.
 }
 
 // ensureBlankLine ensures that there is a blank line at the tail of the buffer. If not,

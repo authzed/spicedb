@@ -9,14 +9,14 @@ import (
 const Ellipsis = "..."
 
 // generateSource generates a DSL view of the given namespace definition.
-func generateSource(namespace *pb.NamespaceDefinition) []byte {
+func generateSource(namespace *pb.NamespaceDefinition) string {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
 	}
 
 	generator.emitNamespace(namespace)
-	return generator.buf.Bytes()
+	return generator.buf.String()
 }
 
 func (sg *sourceGenerator) emitNamespace(namespace *pb.NamespaceDefinition) {

@@ -32,9 +32,9 @@ func Compile(schemas []InputSchema, objectTypePrefix string) ([]*pb.NamespaceDef
 			return []*pb.NamespaceDefinition{}, err
 		}
 
-		translatedDefs, err := translate(root, translationContext{
+		translatedDefs, err := translate(translationContext{
 			objectTypePrefix: objectTypePrefix,
-		})
+		}, root)
 		if err != nil {
 			return []*pb.NamespaceDefinition{}, err
 		}
