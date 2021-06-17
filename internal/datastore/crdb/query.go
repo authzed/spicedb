@@ -17,7 +17,7 @@ import (
 const (
 	errUnableToQueryTuples = "unable to query tuples: %w"
 
-	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
+	querySetTransactionTime = "SET TRANSACTION READ ONLY AS OF SYSTEM TIME %s"
 )
 
 var (
