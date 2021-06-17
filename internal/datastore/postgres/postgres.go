@@ -252,6 +252,8 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 	if err != nil {
 		return 0, 0, err
 	}
+	// RelationTupleTransaction is not timezone aware
+	// Explicitly use UTC before using as a query arg
 	now = now.UTC()
 
 	span.AddEvent("DB returned value for NOW()")
