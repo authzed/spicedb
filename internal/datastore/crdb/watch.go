@@ -28,7 +28,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		changes, err := cds.conn.Query(ctx, interpolated)
 		if err != nil {
 			if ctx.Err() == context.Canceled {
-				errors <- datastore.ErrWatchCanceled
+				errors <- datastore.NewWatchCanceledErr()
 			} else {
 				errors <- err
 			}
@@ -46,7 +46,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 			if err := changes.Scan(&unused, &primaryKeyValuesJson, &changeJson); err != nil {
 				if ctx.Err() == context.Canceled {
-					errors <- datastore.ErrWatchCanceled
+					errors <- datastore.NewWatchCanceledErr()
 				} else {
 					errors <- err
 				}
@@ -88,7 +88,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 					select {
 					case updates <- change:
 					default:
-						errors <- datastore.ErrWatchDisconnected
+						errors <- datastore.NewWatchDisconnectedErr()
 						return
 					}
 				}
@@ -144,7 +144,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		}
 		if changes.Err() != nil {
 			if ctx.Err() == context.Canceled {
-				errors <- datastore.ErrWatchCanceled
+				errors <- datastore.NewWatchCanceledErr()
 			} else {
 				errors <- changes.Err()
 			}

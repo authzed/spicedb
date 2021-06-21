@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -54,7 +55,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 		// NOTE: We use the datastore here to read the namespace, rather than the namespace manager,
 		// to ensure there is no caching being used.
 		existing, revision, err := nss.ds.ReadNamespace(ctx, config.Name)
-		if err != nil && err != datastore.ErrNamespaceNotFound {
+		if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return nil, rewriteNamespaceError(err)
 		}
 
@@ -143,8 +144,8 @@ func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx con
 }
 
 func rewriteNamespaceError(err error) error {
-	switch err {
-	case datastore.ErrNamespaceNotFound:
+	switch {
+	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return status.Errorf(codes.NotFound, "namespace not found: %s", err)
 	default:
 		log.Err(err)

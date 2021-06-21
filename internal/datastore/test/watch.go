@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"testing"
@@ -100,7 +101,7 @@ func verifyUpdates(
 				errWait := time.NewTimer(2 * time.Second)
 				select {
 				case err := <-errchan:
-					require.Equal(datastore.ErrWatchDisconnected, err)
+					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
 					return
 				case <-errWait.C:
 					require.Fail("Timed out")
@@ -165,7 +166,7 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 				require.Zero(created)
 				select {
 				case err := <-errchan:
-					require.Equal(datastore.ErrWatchCanceled, err)
+					require.True(errors.As(err, &datastore.ErrWatchCanceled{}))
 					return
 				case <-errWait.C:
 					require.Fail("Timed out")

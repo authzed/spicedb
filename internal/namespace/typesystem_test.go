@@ -89,7 +89,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*pb.NamespaceDefinition{},
-			"Could not lookup namespace `someinvalidns` for relation `owner`: invalid namespace",
+			"Could not lookup namespace `someinvalidns` for relation `owner`: namespace `someinvalidns` not found",
 		},
 		{
 			"relation in relation types has invalid relation",

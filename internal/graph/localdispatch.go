@@ -45,7 +45,7 @@ func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationNam
 	}
 
 	if relation == nil {
-		return nil, ErrRelationNotFound
+		return nil, NewRelationNotFoundErr(nsName, relationName)
 	}
 
 	return relation, nil
@@ -139,12 +139,14 @@ func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) Lookup
 }
 
 func rewriteError(original error) error {
-	switch original {
-	case datastore.ErrNamespaceNotFound:
-		return ErrNamespaceNotFound
-	case ErrNamespaceNotFound:
+	nsNotFound := datastore.ErrNamespaceNotFound{}
+
+	switch {
+	case errors.As(original, &nsNotFound):
+		return NewNamespaceNotFoundErr(nsNotFound.NotFoundNamespaceName())
+	case errors.As(original, &ErrNamespaceNotFound{}):
 		fallthrough
-	case ErrRelationNotFound:
+	case errors.As(original, &ErrRelationNotFound{}):
 		return original
 	default:
 		return fmt.Errorf(errDispatch, original)

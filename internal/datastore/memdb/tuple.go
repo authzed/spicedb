@@ -38,7 +38,7 @@ func (mds *memdbDatastore) WriteTuples(
 		}
 
 		if found == nil {
-			return datastore.NoRevision, datastore.ErrPreconditionFailed
+			return datastore.NoRevision, datastore.NewPreconditionFailedErr(expectedTuple)
 		}
 	}
 
@@ -198,13 +198,13 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore
 		return fmt.Errorf(errCheckRevision, err)
 	}
 	if lastRaw == nil {
-		return datastore.ErrInvalidRevision
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 
 	highest := revisionFromVersion(lastRaw.(*tupleChangelog).id)
 
 	if revision.GreaterThan(highest) {
-		return datastore.ErrInvalidRevision
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
 	}
 
 	lowerBound := uint64(time.Now().Add(mds.gcWindowInverted).UnixNano())
@@ -216,11 +216,11 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore
 
 	firstValid := iter.Next()
 	if firstValid == nil && !revision.Equal(highest) {
-		return datastore.ErrInvalidRevision
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
 	if firstValid != nil && revision.LessThan(revisionFromVersion(firstValid.(*tupleChangelog).id)) {
-		return datastore.ErrInvalidRevision
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
 	return nil

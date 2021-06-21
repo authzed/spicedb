@@ -485,7 +485,7 @@ func LookupOne(ctx context.Context, request ReduceableLookupFunc) LookupResult {
 	case result := <-resultChan:
 		return result
 	case <-ctx.Done():
-		return LookupResult{Err: ErrRequestCanceled}
+		return LookupResult{Err: NewRequestCanceledErr()}
 	}
 }
 
@@ -516,7 +516,7 @@ func LookupAny(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 				}
 			}
 		case <-ctx.Done():
-			return LookupResult{Err: ErrRequestCanceled}
+			return LookupResult{Err: NewRequestCanceledErr()}
 		}
 	}
 
@@ -560,7 +560,7 @@ func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 				return LookupResult{[]*pb.ObjectAndRelation{}, nil}
 			}
 		case <-ctx.Done():
-			return LookupResult{Err: ErrRequestCanceled}
+			return LookupResult{Err: NewRequestCanceledErr()}
 		}
 	}
 
@@ -597,7 +597,7 @@ func LookupExclude(ctx context.Context, limit int, requests []ReduceableLookupFu
 
 			excSet.Update(sub.ResolvedObjects)
 		case <-ctx.Done():
-			return LookupResult{Err: ErrRequestCanceled}
+			return LookupResult{Err: NewRequestCanceledErr()}
 		}
 	}
 

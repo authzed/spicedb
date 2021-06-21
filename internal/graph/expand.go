@@ -3,15 +3,10 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/rs/zerolog/log"
-)
-
-const (
-	errExpandError = "error performing expand: %w"
 )
 
 type startInclusion int
@@ -52,7 +47,7 @@ func (ce *concurrentExpander) expandDirect(
 			WithRelation(req.Start.Relation).
 			Execute(ctx)
 		if err != nil {
-			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, err)}
+			resultChan <- ExpandResult{nil, NewExpansionFailureErr(err)}
 			return
 		}
 		defer it.Close()
@@ -67,7 +62,7 @@ func (ce *concurrentExpander) expandDirect(
 			}
 		}
 		if it.Err() != nil {
-			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, it.Err())}
+			resultChan <- ExpandResult{nil, NewExpansionFailureErr(it.Err())}
 			return
 		}
 
@@ -205,7 +200,7 @@ func (ce *concurrentExpander) expandTupleToUserset(ctx context.Context, req Expa
 			WithRelation(ttu.Tupleset.Relation).
 			Execute(ctx)
 		if err != nil {
-			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, err)}
+			resultChan <- ExpandResult{nil, NewExpansionFailureErr(err)}
 			return
 		}
 		defer it.Close()
@@ -215,7 +210,7 @@ func (ce *concurrentExpander) expandTupleToUserset(ctx context.Context, req Expa
 			requestsToDispatch = append(requestsToDispatch, ce.expandComputedUserset(req, ttu.ComputedUserset, tpl))
 		}
 		if it.Err() != nil {
-			resultChan <- ExpandResult{nil, fmt.Errorf(errExpandError, it.Err())}
+			resultChan <- ExpandResult{nil, NewExpansionFailureErr(it.Err())}
 			return
 		}
 
@@ -268,7 +263,7 @@ func expandSetOperation(
 			}
 			children = append(children, result.Tree)
 		case <-ctx.Done():
-			return ExpandResult{Tree: nil, Err: ErrRequestCanceled}
+			return ExpandResult{Tree: nil, Err: NewRequestCanceledErr()}
 		}
 	}
 
@@ -302,7 +297,7 @@ func ExpandOne(ctx context.Context, request ReduceableExpandFunc) ExpandResult {
 		}
 		return result
 	case <-ctx.Done():
-		return ExpandResult{Tree: nil, Err: ErrRequestCanceled}
+		return ExpandResult{Tree: nil, Err: NewRequestCanceledErr()}
 	}
 }
 

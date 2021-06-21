@@ -173,11 +173,13 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 
 	lower, upper, err := pgd.computeRevisionRange(ctx, pgd.gcWindowInverted)
 	if err == nil {
-		if revisionTx >= lower && revisionTx <= upper {
-			return nil
-		} else {
-			return datastore.ErrInvalidRevision
+		if revisionTx < lower {
+			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
+		} else if revisionTx > upper {
+			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
 		}
+
+		return nil
 	}
 
 	if err != dbsql.ErrNoRows {
@@ -195,14 +197,16 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
 	).Scan(&highest)
 	if err == dbsql.ErrNoRows {
-		return datastore.ErrInvalidRevision
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
-	if revisionTx != highest {
-		return datastore.ErrInvalidRevision
+	if revisionTx < highest {
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
+	} else if revisionTx > highest {
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
 	}
 
 	return nil

@@ -64,7 +64,7 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.R
 		var foundObjectID string
 		if err := tx.QueryRow(ctx, sql, args...).Scan(&foundObjectID); err != nil {
 			if err == pgx.ErrNoRows {
-				return datastore.NoRevision, datastore.ErrPreconditionFailed
+				return datastore.NoRevision, datastore.NewPreconditionFailedErr(tpl)
 			}
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}

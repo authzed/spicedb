@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
@@ -452,29 +453,29 @@ func (as *aclServer) pickBestRevision(ctx context.Context, requested *api.Zookie
 }
 
 func rewriteACLError(err error) error {
-	switch err {
-	case errInvalidZookie:
+	var nsNotFoundError sharederrors.UnknownNamespaceError = nil
+	var relNotFoundError sharederrors.UnknownRelationError = nil
+
+	switch {
+	case err == errInvalidZookie:
 		return status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	case graph.ErrNamespaceNotFound:
+
+	case errors.As(err, &nsNotFoundError):
 		fallthrough
-	case graph.ErrRelationNotFound:
-		return status.Errorf(codes.FailedPrecondition, "data error: %s", err)
-	case graph.ErrRequestCanceled:
-		return status.Errorf(codes.Canceled, "request canceled: %s", err)
-	case datastore.ErrNamespaceNotFound:
+	case errors.As(err, &relNotFoundError):
 		fallthrough
-	case datastore.ErrRelationNotFound:
-		fallthrough
-	case namespace.ErrInvalidNamespace:
-		fallthrough
-	case namespace.ErrInvalidRelation:
-		fallthrough
-	case datastore.ErrPreconditionFailed:
+	case errors.As(err, &datastore.ErrPreconditionFailed{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
-	case datastore.ErrInvalidRevision:
-		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
-	case graph.ErrAlwaysFail:
+
+	case errors.As(err, &graph.ErrRequestCanceled{}):
+		return status.Errorf(codes.Canceled, "request canceled: %s", err)
+
+	case errors.As(err, &graph.ErrAlwaysFail{}):
 		fallthrough
+
+	case errors.As(err, &datastore.ErrInvalidRevision{}):
+		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
+
 	default:
 		log.Err(err)
 		return err

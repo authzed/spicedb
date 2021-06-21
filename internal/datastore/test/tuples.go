@@ -176,7 +176,7 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 		[]*pb.RelationTuple{first},
 		[]*pb.RelationTupleUpdate{tuple.Create(second)},
 	)
-	require.True(errors.Is(err, datastore.ErrPreconditionFailed))
+	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
 
 	_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{tuple.Create(first)})
 	require.NoError(err)
@@ -204,7 +204,9 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 
 		// Check that we get an error when there are no revisions
 		err = ds.CheckRevision(ctx, datastore.NoRevision)
-		require.Equal(datastore.ErrInvalidRevision, err)
+
+		revisionErr := datastore.ErrInvalidRevision{}
+		require.True(errors.As(err, &revisionErr))
 
 		newTuple := makeTestTuple("one", "one")
 		firstWrite, err := ds.WriteTuples(
@@ -235,10 +237,12 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 
 		// Check that we can no longer read the old revision (now allowed to expire)
 		err = ds.CheckRevision(ctx, firstWrite)
-		require.Equal(datastore.ErrInvalidRevision, err)
+		require.True(errors.As(err, &revisionErr))
+		require.Equal(datastore.RevisionStale, revisionErr.Reason())
 
 		// Check that we can't read a revision that's ahead of the latest
 		err = ds.CheckRevision(ctx, nextWrite.Add(decimal.NewFromInt(1_000_000_000)))
-		require.Equal(datastore.ErrInvalidRevision, err)
+		require.True(errors.As(err, &revisionErr))
+		require.Equal(datastore.RevisionInFuture, revisionErr.Reason())
 	})
 }

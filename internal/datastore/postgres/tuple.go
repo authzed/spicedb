@@ -51,7 +51,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 			datastore.SeparateContextWithTracing(ctx), sql, args...,
 		).Scan(&foundID); err != nil {
 			if err == dbsql.ErrNoRows {
-				return datastore.NoRevision, datastore.ErrPreconditionFailed
+				return datastore.NoRevision, datastore.NewPreconditionFailedErr(tpl)
 			}
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}

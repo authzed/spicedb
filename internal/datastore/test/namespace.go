@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -75,7 +76,7 @@ func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	require.True(deletedRev.GreaterThan(datastore.NoRevision))
 
 	_, _, err = ds.ReadNamespace(ctx, testfixtures.DocumentNS.Name)
-	require.Equal(datastore.ErrNamespaceNotFound, err)
+	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
 
 	found, ver, err := ds.ReadNamespace(ctx, testfixtures.FolderNS.Name)
 	require.NotNil(found)
