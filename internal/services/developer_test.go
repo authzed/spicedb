@@ -309,7 +309,7 @@ func TestValidate(t *testing.T) {
 			`assertFalse:
 - document:somedoc#viewer@user:jimmy#...`,
 			&api.ValidationError{
-				Message:  "Unknown relation in check document:somedoc#viewer@user:jimmy#...",
+				Message:  "relation/permission `viewer` not found under namespace `document`",
 				Kind:     api.ValidationError_UNKNOWN_RELATION,
 				Source:   api.ValidationError_ASSERTION,
 				Metadata: "document:somedoc#viewer@user:jimmy#...",
@@ -692,7 +692,7 @@ assertFalse:
 			``,
 			``,
 			&api.ValidationError{
-				Message:  "Unknown namespace in check document:somedoc#writer@user:jimmy#...",
+				Message:  "namespace `document` not found",
 				Kind:     api.ValidationError_UNKNOWN_NAMESPACE,
 				Source:   api.ValidationError_VALIDATION_TUPLE,
 				Metadata: `document:somedoc#writer@user:jimmy#...`,
@@ -717,7 +717,7 @@ assertFalse:
 			``,
 			``,
 			&api.ValidationError{
-				Message:  "Unknown relation in check document:somedoc#writer@user:jimmy#...",
+				Message:  "relation/permission `writer` not found under namespace `document`",
 				Kind:     api.ValidationError_UNKNOWN_RELATION,
 				Source:   api.ValidationError_VALIDATION_TUPLE,
 				Metadata: `document:somedoc#writer@user:jimmy#...`,

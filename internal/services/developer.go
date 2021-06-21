@@ -11,9 +11,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/graph"
-	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/grpcutil"
 	"github.com/authzed/spicedb/pkg/membership"
@@ -412,12 +411,13 @@ func validateSubjects(onr *api.ObjectAndRelation, fs membership.FoundSubjects, v
 }
 
 func rewriteGraphError(source api.ValidationError_Source, metadata string, checkError error) ([]*api.ValidationError, error) {
-	// TODO(jschorr): once the errors returned by the graph are more detailed,
-	// extract the information here and unify all of this. See: https://github.com/REDACTED/code/issues/800
-	if errors.Is(checkError, graph.ErrNamespaceNotFound) || errors.Is(checkError, namespace.ErrInvalidNamespace) {
+	var nsNotFoundError sharederrors.UnknownNamespaceError = nil
+	var relNotFoundError sharederrors.UnknownRelationError = nil
+
+	if errors.As(checkError, &nsNotFoundError) {
 		return []*api.ValidationError{
 			&api.ValidationError{
-				Message:  fmt.Sprintf("Unknown namespace in check %s", metadata),
+				Message:  checkError.Error(),
 				Source:   source,
 				Kind:     api.ValidationError_UNKNOWN_NAMESPACE,
 				Metadata: metadata,
@@ -425,10 +425,10 @@ func rewriteGraphError(source api.ValidationError_Source, metadata string, check
 		}, nil
 	}
 
-	if errors.Is(checkError, graph.ErrRelationNotFound) || errors.Is(checkError, namespace.ErrInvalidRelation) || errors.Is(checkError, datastore.ErrRelationNotFound) {
+	if errors.As(checkError, &relNotFoundError) {
 		return []*api.ValidationError{
 			&api.ValidationError{
-				Message:  fmt.Sprintf("Unknown relation in check %s", metadata),
+				Message:  checkError.Error(),
 				Source:   source,
 				Kind:     api.ValidationError_UNKNOWN_RELATION,
 				Metadata: metadata,
