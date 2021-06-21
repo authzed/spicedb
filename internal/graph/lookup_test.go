@@ -103,8 +103,8 @@ func TestSimpleLookup(t *testing.T) {
 				AtRevision:     revision,
 				DepthRemaining: 50,
 				Limit:          10,
-				DirectStack:    namespace.NewONRSet(),
-				TTUStack:       namespace.NewONRSet(),
+				DirectStack:    tuple.NewONRSet(),
+				TTUStack:       tuple.NewONRSet(),
 				DebugTracer:    NewNullTracer(),
 			})
 
@@ -136,8 +136,8 @@ func TestMaxDepthLookup(t *testing.T) {
 		AtRevision:     revision,
 		DepthRemaining: 0,
 		Limit:          10,
-		DirectStack:    namespace.NewONRSet(),
-		TTUStack:       namespace.NewONRSet(),
+		DirectStack:    tuple.NewONRSet(),
+		TTUStack:       tuple.NewONRSet(),
 		DebugTracer:    NewNullTracer(),
 	})
 

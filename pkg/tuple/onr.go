@@ -3,6 +3,7 @@ package tuple
 import (
 	"fmt"
 	"regexp"
+	"sort"
 
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
@@ -48,4 +49,15 @@ func StringONR(onr *pb.ObjectAndRelation) string {
 	}
 
 	return fmt.Sprintf(onrFormat, onr.Namespace, onr.ObjectId, onr.Relation)
+}
+
+// StringsONRs converts ONR objects to a string slice, sorted.
+func StringsONRs(onrs []*pb.ObjectAndRelation) []string {
+	var onrstrings []string
+	for _, onr := range onrs {
+		onrstrings = append(onrstrings, StringONR(onr))
+	}
+
+	sort.Strings(onrstrings)
+	return onrstrings
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
-	"github.com/authzed/spicedb/internal/namespace"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -63,8 +62,8 @@ type LookupRequest struct {
 	Limit          int
 	AtRevision     decimal.Decimal
 	DepthRemaining uint16
-	DirectStack    *namespace.ONRSet
-	TTUStack       *namespace.ONRSet
+	DirectStack    *tuple.ONRSet
+	TTUStack       *tuple.ONRSet
 	DebugTracer    DebugTracer
 }
 

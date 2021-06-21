@@ -1,8 +1,7 @@
-package namespace
+package tuple
 
 import (
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // ONRSet is a set of ObjectAndRelation's.
@@ -29,19 +28,19 @@ func (ons *ONRSet) IsEmpty() bool {
 
 // Has returns true if the set contains the given ONR.
 func (ons *ONRSet) Has(onr *pb.ObjectAndRelation) bool {
-	_, ok := ons.onrs[tuple.StringONR(onr)]
+	_, ok := ons.onrs[StringONR(onr)]
 	return ok
 }
 
 // Add adds the given ONR to the set. Returns true if the object was not in the set before this
 // call and false otherwise.
 func (ons *ONRSet) Add(onr *pb.ObjectAndRelation) bool {
-	_, ok := ons.onrs[tuple.StringONR(onr)]
+	_, ok := ons.onrs[StringONR(onr)]
 	if ok {
 		return false
 	}
 
-	ons.onrs[tuple.StringONR(onr)] = onr
+	ons.onrs[StringONR(onr)] = onr
 	return true
 }
 

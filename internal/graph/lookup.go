@@ -29,7 +29,7 @@ const noLimit = int(maxUint >> 1)
 func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) ReduceableLookupFunc {
 	log.Trace().Object("lookup", req).Send()
 
-	objSet := namespace.NewONRSet()
+	objSet := tuple.NewONRSet()
 
 	// If we've found the target ONR, add it to the set of resolved objects. Note that we still need
 	// to continue processing, as this may also be an intermediate step in resolution.
@@ -106,7 +106,7 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 			return ResolveError(err)
 		}
 
-		toCheck = namespace.NewONRSet()
+		toCheck = tuple.NewONRSet()
 
 		resultsTracer := loopTracer.Child("Results")
 		for _, obj := range result.ResolvedObjects {
@@ -124,7 +124,7 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 
 func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest, tracer DebugTracer, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
 	// Check for the target ONR directly.
-	objects := namespace.NewONRSet()
+	objects := tuple.NewONRSet()
 	it, err := cl.ds.ReverseQueryTuplesFromSubject(req.TargetONR, req.AtRevision).
 		WithObjectRelation(req.StartRelation.Namespace, req.StartRelation.Relation).
 		Execute(ctx)
@@ -352,7 +352,7 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 		return ResolveError(result.Err)
 	}
 
-	objects := namespace.NewONRSet()
+	objects := tuple.NewONRSet()
 	computedUsersetResultsTracer := computedUsersetTracer.Childf("Results")
 	for _, resolvedObj := range result.ResolvedObjects {
 		tuplesetResultsTracer := computedUsersetResultsTracer.Childf("tupleset from %s", tuple.StringONR(resolvedObj))
@@ -500,7 +500,7 @@ func LookupAny(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 		go req(childCtx, resultChan)
 	}
 
-	objects := namespace.NewONRSet()
+	objects := tuple.NewONRSet()
 	for _, resultChan := range resultChans {
 		select {
 		case result := <-resultChan:
@@ -538,7 +538,7 @@ func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 		go req(childCtx, resultChan)
 	}
 
-	objSet := namespace.NewONRSet()
+	objSet := tuple.NewONRSet()
 
 	for i := 0; i < len(requests); i++ {
 		select {
@@ -547,7 +547,7 @@ func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 				return result
 			}
 
-			subSet := namespace.NewONRSet()
+			subSet := tuple.NewONRSet()
 			subSet.Update(result.ResolvedObjects)
 
 			if i == 0 {
@@ -579,8 +579,8 @@ func LookupExclude(ctx context.Context, limit int, requests []ReduceableLookupFu
 		go req(childCtx, othersChan)
 	}
 
-	objSet := namespace.NewONRSet()
-	excSet := namespace.NewONRSet()
+	objSet := tuple.NewONRSet()
+	excSet := tuple.NewONRSet()
 
 	for i := 0; i < len(requests); i++ {
 		select {
@@ -638,10 +638,10 @@ func (s EmittableObjectSlice) EmitForTrace(tracer DebugTracer) {
 	}
 }
 
-type EmittableObjectSet namespace.ONRSet
+type EmittableObjectSet tuple.ONRSet
 
 func (s EmittableObjectSet) EmitForTrace(tracer DebugTracer) {
-	onrset := namespace.ONRSet(s)
+	onrset := tuple.ONRSet(s)
 	for _, value := range onrset.AsSlice() {
 		tracer.Child(tuple.StringONR(value))
 	}
