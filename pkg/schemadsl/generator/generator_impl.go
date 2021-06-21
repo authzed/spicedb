@@ -9,6 +9,7 @@ type sourceGenerator struct {
 	indentationLevel   int             // The current indentation level.
 	hasNewline         bool            // Whether there is a newline at the end of the buffer.
 	hasBlankline       bool            // Whether there is a blank line at the end of the buffer.
+	hasIssue           bool            // Whether there is a translation issue.
 	existingLineLength int             // Length of the existing line.
 }
 
@@ -39,6 +40,14 @@ func (sf *sourceGenerator) appendRaw(value string) {
 	}
 
 	sf.buf.WriteString(value)
+}
+
+// appendIssue adds an issue found in generation.
+func (sf *sourceGenerator) appendIssue(description string) {
+	sf.append("/* ")
+	sf.append(description)
+	sf.append(" */")
+	sf.hasIssue = true
 }
 
 // append adds the given value to the buffer, indenting as necessary.

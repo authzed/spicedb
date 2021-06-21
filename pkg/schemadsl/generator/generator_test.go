@@ -15,6 +15,7 @@ func TestGenerator(t *testing.T) {
 		name     string
 		input    *pb.NamespaceDefinition
 		expected string
+		okay     bool
 	}
 
 	tests := []generatorTest{
@@ -22,6 +23,7 @@ func TestGenerator(t *testing.T) {
 			"empty",
 			namespace.Namespace("foo/test"),
 			"definition foo/test {}",
+			true,
 		},
 		{
 			"simple relation",
@@ -34,6 +36,7 @@ func TestGenerator(t *testing.T) {
 			`definition foo/test {
 	relation somerel: foo/bar#hiya
 }`,
+			true,
 		},
 		{
 			"simple permission",
@@ -45,6 +48,7 @@ func TestGenerator(t *testing.T) {
 			`definition foo/test {
 	permission someperm = anotherrel
 }`,
+			true,
 		},
 		{
 			"complex permission",
@@ -63,6 +67,7 @@ func TestGenerator(t *testing.T) {
 			`definition foo/test {
 	permission someperm = (a - b - y->z) + c
 }`,
+			true,
 		},
 		{
 			"legacy relation",
@@ -76,8 +81,9 @@ func TestGenerator(t *testing.T) {
 				}),
 			),
 			`definition foo/test {
-	relation somerel: foo/bar#hiya = (/* _this unsupported here. Please rewrite into a relation and permission */) + anotherrel
+	relation somerel: foo/bar#hiya = /* _this unsupported here. Please rewrite into a relation and permission */ + anotherrel
 }`,
+			false,
 		},
 		{
 			"missing type information",
@@ -87,6 +93,7 @@ func TestGenerator(t *testing.T) {
 			`definition foo/test {
 	relation somerel: /* missing allowed types */
 }`,
+			false,
 		},
 
 		{
@@ -118,14 +125,16 @@ func TestGenerator(t *testing.T) {
 	relation reader: foo/user | foo/group#member
 	permission read = reader + owner
 }`,
+			true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			source := generateSource(test.input)
+			source, ok := generateSource(test.input)
 			require.Equal(test.expected, source)
+			require.Equal(test.okay, ok)
 		})
 	}
 }

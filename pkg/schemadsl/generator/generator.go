@@ -9,14 +9,14 @@ import (
 const Ellipsis = "..."
 
 // generateSource generates a DSL view of the given namespace definition.
-func generateSource(namespace *pb.NamespaceDefinition) string {
+func generateSource(namespace *pb.NamespaceDefinition) (string, bool) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
 	}
 
 	generator.emitNamespace(namespace)
-	return generator.buf.String()
+	return generator.buf.String(), !generator.hasIssue
 }
 
 func (sg *sourceGenerator) emitNamespace(namespace *pb.NamespaceDefinition) {
@@ -55,7 +55,7 @@ func (sg *sourceGenerator) emitRelation(relation *pb.Relation) {
 	if !isPermission {
 		sg.append(": ")
 		if relation.TypeInformation == nil || relation.TypeInformation.AllowedDirectRelations == nil || len(relation.TypeInformation.AllowedDirectRelations) == 0 {
-			sg.append("/* missing allowed types */")
+			sg.appendIssue("missing allowed types")
 		} else {
 			for index, relationRef := range relation.TypeInformation.AllowedDirectRelations {
 				if index > 0 {
@@ -113,9 +113,7 @@ func (sg *sourceGenerator) emitSetOpChild(setOpChild *pb.SetOperation_Child) {
 		sg.append(")")
 
 	case *pb.SetOperation_Child_XThis:
-		sg.append("(")
-		sg.append("/* _this unsupported here. Please rewrite into a relation and permission */")
-		sg.append(")")
+		sg.appendIssue("_this unsupported here. Please rewrite into a relation and permission")
 
 	case *pb.SetOperation_Child_ComputedUserset:
 		sg.append(child.ComputedUserset.Relation)
