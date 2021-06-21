@@ -26,17 +26,18 @@ func _() {
 	_ = x[TokenTypePlus-15]
 	_ = x[TokenTypeMinus-16]
 	_ = x[TokenTypeAnd-17]
-	_ = x[TokenTypeEquals-18]
-	_ = x[TokenTypeColon-19]
-	_ = x[TokenTypeSemicolon-20]
-	_ = x[TokenTypeRightArrow-21]
-	_ = x[TokenTypeHash-22]
-	_ = x[TokenTypeEllipsis-23]
+	_ = x[TokenTypeDiv-18]
+	_ = x[TokenTypeEquals-19]
+	_ = x[TokenTypeColon-20]
+	_ = x[TokenTypeSemicolon-21]
+	_ = x[TokenTypeRightArrow-22]
+	_ = x[TokenTypeHash-23]
+	_ = x[TokenTypeEllipsis-24]
 }
 
-const _TokenType_name = "TokenTypeErrorTokenTypeSyntheticSemicolonTokenTypeEOFTokenTypeWhitespaceTokenTypeSinglelineCommentTokenTypeMultilineCommentTokenTypeNewlineTokenTypeKeywordTokenTypeIdentifierTokenTypeNumberTokenTypeLeftBraceTokenTypeRightBraceTokenTypeLeftParenTokenTypeRightParenTokenTypePipeTokenTypePlusTokenTypeMinusTokenTypeAndTokenTypeEqualsTokenTypeColonTokenTypeSemicolonTokenTypeRightArrowTokenTypeHashTokenTypeEllipsis"
+const _TokenType_name = "TokenTypeErrorTokenTypeSyntheticSemicolonTokenTypeEOFTokenTypeWhitespaceTokenTypeSinglelineCommentTokenTypeMultilineCommentTokenTypeNewlineTokenTypeKeywordTokenTypeIdentifierTokenTypeNumberTokenTypeLeftBraceTokenTypeRightBraceTokenTypeLeftParenTokenTypeRightParenTokenTypePipeTokenTypePlusTokenTypeMinusTokenTypeAndTokenTypeDivTokenTypeEqualsTokenTypeColonTokenTypeSemicolonTokenTypeRightArrowTokenTypeHashTokenTypeEllipsis"
 
-var _TokenType_index = [...]uint16{0, 14, 41, 53, 72, 98, 123, 139, 155, 174, 189, 207, 226, 244, 263, 276, 289, 303, 315, 330, 344, 362, 381, 394, 411}
+var _TokenType_index = [...]uint16{0, 14, 41, 53, 72, 98, 123, 139, 155, 174, 189, 207, 226, 244, 263, 276, 289, 303, 315, 327, 342, 356, 374, 393, 406, 423}
 
 func (i TokenType) String() string {
 	if i < 0 || i >= TokenType(len(_TokenType_index)-1) {

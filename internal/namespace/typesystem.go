@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/authzed/spicedb/pkg/graph"
 )
 
 type AllowedDirectRelation int
@@ -100,7 +101,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 	for _, relation := range nts.relationMap {
 		// Validate the usersets's.
 		usersetRewrite := relation.GetUsersetRewrite()
-		rerr := walkRewrite(usersetRewrite, func(childOneof *pb.SetOperation_Child) interface{} {
+		rerr := graph.WalkRewrite(usersetRewrite, func(childOneof *pb.SetOperation_Child) interface{} {
 			switch child := childOneof.ChildType.(type) {
 			case *pb.SetOperation_Child_ComputedUserset:
 				relationName := child.ComputedUserset.GetRelation()
@@ -141,13 +142,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 
 		// Check for a _this or the lack of a userset_rewrite. If either is found,
 		// then the allowed list must have at least one type.
-		hasThis := walkRewrite(usersetRewrite, func(childOneof *pb.SetOperation_Child) interface{} {
-			switch childOneof.ChildType.(type) {
-			case *pb.SetOperation_Child_XThis:
-				return true
-			}
-			return nil
-		})
+		hasThis := graph.HasThis(usersetRewrite)
 
 		if usersetRewrite == nil || hasThis == true {
 			if len(allowedDirectRelations) == 0 {
@@ -210,41 +205,4 @@ func (nts *NamespaceTypeSystem) typeSystemForNamespace(ctx context.Context, name
 	}
 
 	return BuildNamespaceTypeSystem(otherNamespaceDef, nts.manager)
-}
-
-type walkHandler func(childOneof *pb.SetOperation_Child) interface{}
-
-func walkRewrite(rewrite *pb.UsersetRewrite, handler walkHandler) interface{} {
-	if rewrite == nil {
-		return nil
-	}
-
-	switch rw := rewrite.RewriteOperation.(type) {
-	case *pb.UsersetRewrite_Union:
-		return walkRewriteChildren(rw.Union, handler)
-	case *pb.UsersetRewrite_Intersection:
-		return walkRewriteChildren(rw.Intersection, handler)
-	case *pb.UsersetRewrite_Exclusion:
-		return walkRewriteChildren(rw.Exclusion, handler)
-	}
-	return nil
-}
-
-func walkRewriteChildren(so *pb.SetOperation, handler walkHandler) interface{} {
-	for _, childOneof := range so.Child {
-		vle := handler(childOneof)
-		if vle != nil {
-			return vle
-		}
-
-		switch child := childOneof.ChildType.(type) {
-		case *pb.SetOperation_Child_UsersetRewrite:
-			rvle := walkRewrite(child.UsersetRewrite, handler)
-			if rvle != nil {
-				return rvle
-			}
-		}
-	}
-
-	return nil
 }

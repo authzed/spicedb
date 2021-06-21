@@ -107,3 +107,12 @@ func TupleToUserset(tuplesetRelation, usersetRelation string) *pb.SetOperation_C
 		},
 	}
 }
+
+// Rewrite wraps a rewrite as a set operation child of another rewrite.
+func Rewrite(rewrite *pb.UsersetRewrite) *pb.SetOperation_Child {
+	return &pb.SetOperation_Child{
+		ChildType: &pb.SetOperation_Child_UsersetRewrite{
+			UsersetRewrite: rewrite,
+		},
+	}
+}

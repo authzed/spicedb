@@ -2,6 +2,8 @@
 package parser
 
 import (
+	"fmt"
+
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
@@ -68,7 +70,7 @@ func (p *sourceParser) consumeDefinition() AstNode {
 
 	// definition ...
 	p.consumeKeyword("definition")
-	definitionName, ok := p.consumeIdentifier()
+	definitionName, ok := p.consumeTypePath()
 	if !ok {
 		return defNode
 	}
@@ -155,7 +157,7 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 	specificNode := p.startNode(dslshape.NodeTypeSpecificTypeReference)
 	defer p.finishNode()
 
-	typeName, ok := p.consumeIdentifier()
+	typeName, ok := p.consumeTypePath()
 	if !ok {
 		return specificNode
 	}
@@ -176,6 +178,25 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 	specificNode.Decorate(dslshape.NodeSpecificReferencePredicateRelation, consumed.Value)
 
 	return specificNode
+}
+
+func (p *sourceParser) consumeTypePath() (string, bool) {
+	typeNameOrNamespace, ok := p.consumeIdentifier()
+	if !ok {
+		return "", false
+	}
+
+	_, ok = p.tryConsume(lexer.TokenTypeDiv)
+	if !ok {
+		return typeNameOrNamespace, true
+	}
+
+	typeName, ok := p.consumeIdentifier()
+	if !ok {
+		return "", false
+	}
+
+	return fmt.Sprintf("%s/%s", typeNameOrNamespace, typeName), true
 }
 
 // consumePermission consumes a permission.

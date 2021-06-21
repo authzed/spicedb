@@ -31,6 +31,7 @@ require (
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd
+	github.com/jzelinskie/stringz v0.0.0-20210604201827-321bc7aaa2dc // indirect
 	github.com/lib/pq v1.9.0
 	github.com/ngrok/sqlmw v0.0.0-20200129213757-d5c93a81bec6
 	github.com/opencontainers/image-spec v1.0.1 // indirect
