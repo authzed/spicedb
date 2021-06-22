@@ -22,6 +22,7 @@ type DeveloperServiceClient interface {
 	Validate(ctx context.Context, in *ValidateRequest, opts ...grpc.CallOption) (*ValidateResponse, error)
 	Share(ctx context.Context, in *ShareRequest, opts ...grpc.CallOption) (*ShareResponse, error)
 	LookupShared(ctx context.Context, in *LookupShareRequest, opts ...grpc.CallOption) (*LookupShareResponse, error)
+	UpgradeSchema(ctx context.Context, in *UpgradeSchemaRequest, opts ...grpc.CallOption) (*UpgradeSchemaResponse, error)
 }
 
 type developerServiceClient struct {
@@ -68,6 +69,15 @@ func (c *developerServiceClient) LookupShared(ctx context.Context, in *LookupSha
 	return out, nil
 }
 
+func (c *developerServiceClient) UpgradeSchema(ctx context.Context, in *UpgradeSchemaRequest, opts ...grpc.CallOption) (*UpgradeSchemaResponse, error) {
+	out := new(UpgradeSchemaResponse)
+	err := c.cc.Invoke(ctx, "/authzed.api.v0.DeveloperService/UpgradeSchema", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DeveloperServiceServer is the server API for DeveloperService service.
 // All implementations must embed UnimplementedDeveloperServiceServer
 // for forward compatibility
@@ -76,6 +86,7 @@ type DeveloperServiceServer interface {
 	Validate(context.Context, *ValidateRequest) (*ValidateResponse, error)
 	Share(context.Context, *ShareRequest) (*ShareResponse, error)
 	LookupShared(context.Context, *LookupShareRequest) (*LookupShareResponse, error)
+	UpgradeSchema(context.Context, *UpgradeSchemaRequest) (*UpgradeSchemaResponse, error)
 	mustEmbedUnimplementedDeveloperServiceServer()
 }
 
@@ -94,6 +105,9 @@ func (UnimplementedDeveloperServiceServer) Share(context.Context, *ShareRequest)
 }
 func (UnimplementedDeveloperServiceServer) LookupShared(context.Context, *LookupShareRequest) (*LookupShareResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LookupShared not implemented")
+}
+func (UnimplementedDeveloperServiceServer) UpgradeSchema(context.Context, *UpgradeSchemaRequest) (*UpgradeSchemaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpgradeSchema not implemented")
 }
 func (UnimplementedDeveloperServiceServer) mustEmbedUnimplementedDeveloperServiceServer() {}
 
@@ -180,6 +194,24 @@ func _DeveloperService_LookupShared_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DeveloperService_UpgradeSchema_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpgradeSchemaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeveloperServiceServer).UpgradeSchema(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/authzed.api.v0.DeveloperService/UpgradeSchema",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeveloperServiceServer).UpgradeSchema(ctx, req.(*UpgradeSchemaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DeveloperService_ServiceDesc is the grpc.ServiceDesc for DeveloperService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -202,6 +234,10 @@ var DeveloperService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LookupShared",
 			Handler:    _DeveloperService_LookupShared_Handler,
+		},
+		{
+			MethodName: "UpgradeSchema",
+			Handler:    _DeveloperService_UpgradeSchema_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

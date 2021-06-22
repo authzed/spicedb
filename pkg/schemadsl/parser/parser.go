@@ -46,6 +46,10 @@ Loop:
 		// Consume a statement terminator if one was found.
 		p.tryConsumeStatementTerminator()
 
+		if p.isToken(lexer.TokenTypeEOF) {
+			break Loop
+		}
+
 		// The top level of the DSL is a set of definitions:
 		// definition foobar { ... }
 

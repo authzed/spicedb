@@ -18,13 +18,17 @@ import (
 )
 
 const (
-	sharedDataVersion = "1"
+	sharedDataVersion = "2"
 	maximumDataSize   = 1024 * 1024 * 1024 // 1 MB
 	hashPrefixSize    = 12
 )
 
-// SharedData represents the data stored in a shared playground file.
-type SharedData struct {
+type versioned struct {
+	Version string `json:"version"`
+}
+
+// SharedDataV1 represents the data stored in a shared playground file.
+type SharedDataV1 struct {
 	Version          string   `json:"version"`
 	NamespaceConfigs []string `json:"namespace_configs"`
 	RelationTuples   string   `json:"relation_tuples"`
@@ -32,41 +36,62 @@ type SharedData struct {
 	AssertionsYaml   string   `json:"assertions_yaml"`
 }
 
+// SharedDataV2 represents the data stored in a shared playground file.
+type SharedDataV2 struct {
+	Version           string `json:"version"`
+	Schema            string `json:"schema"`
+	RelationshipsYaml string `json:"relationships_yaml"`
+	ValidationYaml    string `json:"validation_yaml"`
+	AssertionsYaml    string `json:"assertions_yaml"`
+}
+
+type LookupStatus int
+
+const (
+	LookupError LookupStatus = iota
+	LookupNotFound
+	LookupSuccess
+	LookupConverted
+)
+
 // ShareStore defines the interface for sharing and loading shared playground files.
 type ShareStore interface {
 	// LookupSharedByReference returns the shared data for the given reference hash, if any.
-	LookupSharedByReference(reference string) (SharedData, bool, error)
+	LookupSharedByReference(reference string) (SharedDataV2, LookupStatus, error)
 
 	// StoreShared stores the given shared playground data in the backing storage, and returns
 	// its reference hash.
-	StoreShared(data SharedData) (string, error)
+	StoreShared(data SharedDataV2) (string, error)
 }
 
 // NewInMemoryShareStore creates a new in memory share store.
 func NewInMemoryShareStore(salt string) *inMemoryShareStore {
 	return &inMemoryShareStore{
-		shared: map[string]SharedData{},
+		shared: map[string][]byte{},
 		salt:   salt,
 	}
 }
 
 type inMemoryShareStore struct {
-	shared map[string]SharedData
+	shared map[string][]byte
 	salt   string
 }
 
-func (ims *inMemoryShareStore) LookupSharedByReference(reference string) (SharedData, bool, error) {
+func (ims *inMemoryShareStore) LookupSharedByReference(reference string) (SharedDataV2, LookupStatus, error) {
 	found, ok := ims.shared[reference]
-	return found, ok, nil
+	if !ok {
+		return SharedDataV2{}, LookupNotFound, nil
+	}
+
+	return unmarshalShared(found)
 }
 
-func (ims *inMemoryShareStore) StoreShared(data SharedData) (string, error) {
-	m, err := json.Marshal(data)
+func (ims *inMemoryShareStore) StoreShared(shared SharedDataV2) (string, error) {
+	data, reference, err := marshalShared(shared, ims.salt)
 	if err != nil {
 		return "", err
 	}
 
-	reference := computeShareHash(ims.salt, m)
 	ims.shared[reference] = data
 	return reference, nil
 }
@@ -118,10 +143,10 @@ func (s3s *s3ShareStore) key(reference string) (string, error) {
 	return "shared/" + reference, nil
 }
 
-func (s3s *s3ShareStore) LookupSharedByReference(reference string) (SharedData, bool, error) {
+func (s3s *s3ShareStore) LookupSharedByReference(reference string) (SharedDataV2, LookupStatus, error) {
 	key, err := s3s.key(reference)
 	if err != nil {
-		return SharedData{}, false, err
+		return SharedDataV2{}, LookupError, err
 	}
 
 	ctx := context.Background()
@@ -133,37 +158,26 @@ func (s3s *s3ShareStore) LookupSharedByReference(reference string) (SharedData, 
 	if err != nil {
 		aerr, ok := err.(awserr.Error)
 		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
-			return SharedData{}, false, nil
+			return SharedDataV2{}, LookupNotFound, nil
 		}
-		return SharedData{}, false, aerr
+		return SharedDataV2{}, LookupError, aerr
 	}
 	defer result.Body.Close()
 
 	contentBytes, err := ioutil.ReadAll(result.Body)
 	if err != nil {
-		return SharedData{}, false, err
+		return SharedDataV2{}, LookupError, err
 	}
 
-	var sd SharedData
-	err = json.Unmarshal(contentBytes, &sd)
-	if err != nil {
-		return SharedData{}, false, err
-	}
-
-	if sd.Version != sharedDataVersion {
-		return sd, false, fmt.Errorf("unsupported version")
-	}
-
-	return sd, true, nil
+	return unmarshalShared(contentBytes)
 }
 
-func (s3s *s3ShareStore) StoreShared(data SharedData) (string, error) {
-	m, err := json.Marshal(data)
+func (s3s *s3ShareStore) StoreShared(shared SharedDataV2) (string, error) {
+	data, reference, err := marshalShared(shared, s3s.salt)
 	if err != nil {
 		return "", err
 	}
 
-	reference := computeShareHash(s3s.salt, m)
 	key, err := s3s.key(reference)
 	if err != nil {
 		return "", err
@@ -174,7 +188,7 @@ func (s3s *s3ShareStore) StoreShared(data SharedData) (string, error) {
 	_, err = s3s.s3Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(s3s.bucket),
 		Key:    aws.String(key),
-		Body:   bytes.NewReader(m),
+		Body:   bytes.NewReader(data),
 	})
 
 	return reference, err
@@ -199,4 +213,54 @@ func computeShareHash(salt string, data []byte) string {
 		hashLen++
 	}
 	return string(b)[:hashLen]
+}
+
+func marshalShared(shared SharedDataV2, salt string) ([]byte, string, error) {
+	marshalled, err := json.Marshal(shared)
+	if err != nil {
+		return []byte{}, "", err
+	}
+
+	return marshalled, computeShareHash(salt, marshalled), nil
+}
+
+func unmarshalShared(data []byte) (SharedDataV2, LookupStatus, error) {
+	var v versioned
+	err := json.Unmarshal(data, &v)
+	if err != nil {
+		return SharedDataV2{}, LookupError, err
+	}
+
+	switch v.Version {
+	case "2":
+		var v2 SharedDataV2
+		err = json.Unmarshal(data, &v2)
+		if err != nil {
+			return SharedDataV2{}, LookupError, err
+		}
+		return v2, LookupSuccess, nil
+
+	case "1":
+		var v1 SharedDataV1
+		err = json.Unmarshal(data, &v1)
+		if err != nil {
+			return SharedDataV2{}, LookupError, err
+		}
+
+		// Convert to a V2 data structure.
+		upgraded, err := upgradeSchema(v1.NamespaceConfigs)
+		if err != nil {
+			return SharedDataV2{}, LookupError, err
+		}
+
+		return SharedDataV2{
+			Schema:            upgraded,
+			RelationshipsYaml: v1.RelationTuples,
+			ValidationYaml:    v1.ValidationYaml,
+			AssertionsYaml:    v1.AssertionsYaml,
+		}, LookupConverted, nil
+
+	default:
+		panic("Unsupported version")
+	}
 }

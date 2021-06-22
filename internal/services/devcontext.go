@@ -2,28 +2,30 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/shopspring/decimal"
-	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // DevContext holds the various helper types for running the developer calls.
 type DevContext struct {
-	Datastore  datastore.Datastore
-	Revision   decimal.Decimal
-	Namespaces []*v0.NamespaceInformation
-	Dispatcher graph.Dispatcher
-	Errors     []*v0.ValidationError
+	Datastore     datastore.Datastore
+	Revision      decimal.Decimal
+	Namespaces    []*v0.NamespaceDefinition
+	Dispatcher    graph.Dispatcher
+	RequestErrors []*v0.DeveloperError
 }
 
 var lineColRegex = regexp.MustCompile(`\(line ([0-9]+):([0-9]+)\): (.+)`)
@@ -46,127 +48,109 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 		return nil, false, err
 	}
 
-	namespaces, ok := parseNamespaces(requestContext.Namespaces)
-	if !ok {
-		return &DevContext{Namespaces: namespaces}, false, nil
+	empty := ""
+	namespaces, err := compiler.Compile([]compiler.InputSchema{
+		{
+			Source:       input.InputSource("schema"),
+			SchemaString: requestContext.Schema,
+		},
+	}, &empty)
+
+	fmt.Println(namespaces)
+
+	var contextError compiler.ErrorWithContext
+	if errors.As(err, &contextError) {
+		line, col, err := contextError.SourceRange.Start().LineAndColumn()
+		if err != nil {
+			return nil, false, err
+		}
+
+		return &DevContext{
+			RequestErrors: []*v0.DeveloperError{
+				{
+					Message: contextError.Error(),
+					Kind:    v0.DeveloperError_SCHEMA_ISSUE,
+					Source:  v0.DeveloperError_SCHEMA,
+					Line:    uint32(line) + 1, // 0-indexed in parser.
+					Column:  uint32(col) + 1,  // 0-indexed in parser.
+				},
+			},
+		}, false, nil
 	}
 
-	err = loadNamespaces(ctx, namespaces, nsm, ds)
 	if err != nil {
 		return &DevContext{Namespaces: namespaces}, false, err
 	}
 
-	revision, validationErrors, err := loadTuples(ctx, requestContext.Tuples, nsm, ds)
+	requestErrors, err := loadNamespaces(ctx, namespaces, nsm, ds)
+	if err != nil {
+		return &DevContext{}, false, err
+	}
+
+	if len(requestErrors) > 0 {
+		return &DevContext{RequestErrors: requestErrors}, false, nil
+	}
+
+	revision, requestErrors, err := loadTuples(ctx, requestContext.Relationships, nsm, ds)
 	if err != nil {
 		return &DevContext{Namespaces: namespaces}, false, err
 	}
 
 	return &DevContext{
-		Datastore:  ds,
-		Namespaces: namespaces,
-		Revision:   revision,
-		Dispatcher: dispatcher,
-		Errors:     validationErrors,
-	}, len(validationErrors) == 0, nil
+		Datastore:     ds,
+		Namespaces:    namespaces,
+		Revision:      revision,
+		Dispatcher:    dispatcher,
+		RequestErrors: requestErrors,
+	}, len(requestErrors) == 0, nil
 }
 
-func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.Manager, ds datastore.Datastore) (decimal.Decimal, []*v0.ValidationError, error) {
-	var validationErrors []*v0.ValidationError
+func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.Manager, ds datastore.Datastore) (decimal.Decimal, []*v0.DeveloperError, error) {
+	var errors []*v0.DeveloperError
 	var updates []*v0.RelationTupleUpdate
 	for _, tpl := range tuples {
 		err := validateTupleWrite(ctx, tpl, nsm)
 		if err != nil {
-			verrs, wireErr := rewriteGraphError(v0.ValidationError_VALIDATION_TUPLE, tuple.String(tpl), err)
+			verrs, wireErr := rewriteGraphError(v0.DeveloperError_RELATIONSHIP, tuple.String(tpl), err)
 			if wireErr == nil {
-				validationErrors = append(validationErrors, verrs...)
+				errors = append(errors, verrs...)
 				continue
 			}
 
-			return decimal.NewFromInt(0), validationErrors, wireErr
+			return decimal.NewFromInt(0), errors, wireErr
 		}
 
 		updates = append(updates, tuple.Touch(tpl))
 	}
 
 	revision, err := ds.WriteTuples(ctx, []*v0.RelationTuple{}, updates)
-	return revision, validationErrors, err
+	return revision, errors, err
 }
 
-func loadNamespaces(ctx context.Context, namespaces []*v0.NamespaceInformation, nsm namespace.Manager, ds datastore.Datastore) error {
-	var nsDefs []*v0.NamespaceDefinition
-	for _, nsInfo := range namespaces {
-		nsDefs = append(nsDefs, nsInfo.Parsed)
-	}
-
-	for _, nsInfo := range namespaces {
-		nsDef := nsInfo.Parsed
-		ts, terr := namespace.BuildNamespaceTypeSystem(nsDef, nsm, nsDefs...)
+func loadNamespaces(ctx context.Context, namespaces []*v0.NamespaceDefinition, nsm namespace.Manager, ds datastore.Datastore) ([]*v0.DeveloperError, error) {
+	var errors []*v0.DeveloperError
+	for _, nsDef := range namespaces {
+		ts, terr := namespace.BuildNamespaceTypeSystem(nsDef, nsm, namespaces...)
 		if terr != nil {
-			return terr
+			return errors, terr
 		}
 
 		tverr := ts.Validate(ctx)
 		if tverr == nil {
 			_, err := ds.WriteNamespace(ctx, nsDef)
 			if err != nil {
-				return err
+				return errors, err
 			}
 			continue
 		}
 
-		nsInfo.Errors = append(nsInfo.Errors, &v0.ValidationError{
+		errors = append(errors, &v0.DeveloperError{
 			Message: tverr.Error(),
-			Kind:    v0.ValidationError_NAMESPACE_CONFIG_ISSUE,
-			Source:  v0.ValidationError_NAMESPACE_CONFIG,
+			Kind:    v0.DeveloperError_SCHEMA_ISSUE,
+			Source:  v0.DeveloperError_SCHEMA,
+			Context: nsDef.Name,
 		})
 	}
 
-	return nil
-}
-
-func parseNamespaces(nsContexts []*v0.NamespaceContext) ([]*v0.NamespaceInformation, bool) {
-	var namespaces []*v0.NamespaceInformation
-	var validationFailed = false
-	for _, ns := range nsContexts {
-		nsDef := v0.NamespaceDefinition{}
-		nerr := prototext.Unmarshal([]byte(ns.Config), &nsDef)
-		if nerr == nil {
-			namespaces = append(namespaces, &v0.NamespaceInformation{
-				Handle: ns.Handle,
-				Parsed: &nsDef,
-			})
-			continue
-		}
-
-		var lineNumber uint64 = 0
-		var columnNumber uint64 = 0
-		var msg = nerr.Error()
-
-		// NOTE: The use of a regex here is quite annoying, but as prototext does not currently
-		// return *any* structured debug information, it is the only way to extract the
-		// line and column position information.
-		pieces := lineColRegex.FindStringSubmatch(nerr.Error())
-		if len(pieces) == 4 {
-			// We can ignore the errors here because the defaults are 0, which means not found.
-			lineNumber, _ = strconv.ParseUint(pieces[1], 10, 0)
-			columnNumber, _ = strconv.ParseUint(pieces[2], 10, 0)
-			msg = pieces[3]
-		}
-
-		namespaces = append(namespaces, &v0.NamespaceInformation{
-			Handle: ns.Handle,
-			Errors: []*v0.ValidationError{
-				&v0.ValidationError{
-					Message: msg,
-					Kind:    v0.ValidationError_NAMESPACE_CONFIG_ISSUE,
-					Source:  v0.ValidationError_NAMESPACE_CONFIG,
-					Line:    uint32(lineNumber),
-					Column:  uint32(columnNumber),
-				},
-			},
-		})
-		validationFailed = true
-	}
-
-	return namespaces, !validationFailed
+	return errors, nil
 }

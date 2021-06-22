@@ -23,6 +23,11 @@ func (tctx translationContext) namespacePath(namespaceName string) (string, erro
 		prefix = *tctx.objectTypePrefix
 		name = namespaceName
 	}
+
+	if prefix == "" {
+		return name, nil
+	}
+
 	return stringz.Join("/", prefix, name), nil
 }
 
