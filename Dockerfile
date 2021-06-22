@@ -14,4 +14,5 @@ FROM alpine:3.13
 
 COPY ./contrib/grpc_health_probe-linux-amd64 /usr/local/bin
 COPY --from=build /go/bin/spicedb /usr/local/bin/spicedb
+COPY --from=build /go/bin/zed-testserver /usr/local/bin/zed-testserver
 CMD ["spicedb"]
