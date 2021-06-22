@@ -189,5 +189,8 @@ func newLocalDispatcher(require *require.Assertions) (Dispatcher, decimal.Decima
 	dispatch, err := NewLocalDispatcher(nsm, ds)
 	require.NoError(err)
 
-	return dispatch, revision
+	cachingDispatcher, err := NewCachingDispatcher(dispatch, nil, DisablePromMetrics)
+	require.NoError(err)
+
+	return cachingDispatcher, revision
 }

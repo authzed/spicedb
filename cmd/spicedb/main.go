@@ -208,10 +208,15 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	dispatch, err := graph.NewLocalDispatcher(nsm, ds)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize check dispatcher")
+		log.Fatal().Err(err).Msg("failed to initialize dispatcher")
 	}
 
-	RegisterGrpcServices(grpcServer, ds, nsm, dispatch, cobrautil.MustGetUint16(cmd, "max-depth"))
+	cachingDispatch, err := graph.NewCachingDispatcher(dispatch, nil, graph.RegisterPromMetrics)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize dispatcher cache")
+	}
+
+	RegisterGrpcServices(grpcServer, ds, nsm, cachingDispatch, cobrautil.MustGetUint16(cmd, "max-depth"))
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
