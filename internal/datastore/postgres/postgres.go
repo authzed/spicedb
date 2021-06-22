@@ -8,9 +8,9 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/dlmiddlecote/sqlstats"
-	"github.com/jmoiron/sqlx"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/ngrok/sqlmw"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
@@ -49,7 +49,7 @@ const (
 )
 
 func init() {
-	dbsql.Register(tracingDriverName, sqlmw.Driver(pq.Driver{}, new(traceInterceptor)))
+	dbsql.Register(tracingDriverName, sqlmw.Driver(stdlib.GetDefaultDriver(), new(traceInterceptor)))
 }
 
 var (
@@ -77,44 +77,49 @@ func NewPostgresDatastore(
 	url string,
 	options ...PostgresOption,
 ) (datastore.Datastore, error) {
-	connectStr, err := pq.ParseURL(url)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
-	}
 
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	db, err := sqlx.Connect(config.driver, connectStr)
+	// config must be initialized by ParseConfig
+	pgxConfig, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	if config.maxOpenConns != nil {
+		pgxConfig.MaxConns = int32(*config.maxOpenConns)
+	}
+	if config.minOpenConns != nil {
+		pgxConfig.MinConns = int32(*config.minOpenConns)
+	}
+	if config.connMaxIdleTime != nil {
+		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
+	}
+	if config.connMaxLifetime != nil {
+		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
+	}
+	if config.healthCheckPeriod != nil {
+		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
+	}
+
+	dbpool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
 	if config.enablePrometheusStats {
-		collector := sqlstats.NewStatsCollector("spicedb", db)
+		collector := NewPgxpoolStatsCollector(dbpool, "spicedb")
 		err := prometheus.Register(collector)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 	}
 
-	if config.maxOpenConns != nil {
-		db.SetMaxOpenConns(*config.maxOpenConns)
-	}
-	if config.maxIdleConns != nil {
-		db.SetMaxIdleConns(*config.maxIdleConns)
-	}
-	if config.connMaxIdleTime != nil {
-		db.SetConnMaxIdleTime(*config.connMaxIdleTime)
-	}
-	if config.connMaxLifetime != nil {
-		db.SetConnMaxLifetime(*config.connMaxLifetime)
-	}
-
 	return &pgDatastore{
-		db:                       db,
+		dbpool:                   dbpool,
 		watchBufferLength:        config.watchBufferLength,
 		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
 		gcWindowInverted:         -1 * config.gcWindow,
@@ -122,7 +127,7 @@ func NewPostgresDatastore(
 }
 
 type pgDatastore struct {
-	db                       *sqlx.DB
+	dbpool                   *pgxpool.Pool
 	watchBufferLength        uint16
 	revisionFuzzingTimedelta time.Duration
 	gcWindowInverted         time.Duration
@@ -145,11 +150,11 @@ func (pgd *pgDatastore) Revision(ctx context.Context) (datastore.Revision, error
 	defer span.End()
 
 	lower, upper, err := pgd.computeRevisionRange(ctx, -1*pgd.revisionFuzzingTimedelta)
-	if err != nil && err != dbsql.ErrNoRows {
+	if err != nil && err != pgx.ErrNoRows {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
-	if err == dbsql.ErrNoRows {
+	if err == pgx.ErrNoRows {
 		revision, err := pgd.loadRevision(ctx)
 		if err != nil {
 			return datastore.NoRevision, err
@@ -182,7 +187,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 		return nil
 	}
 
-	if err != dbsql.ErrNoRows {
+	if err != pgx.ErrNoRows {
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
@@ -193,10 +198,10 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 	}
 
 	var highest uint64
-	err = pgd.db.QueryRowxContext(
+	err = pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
 	).Scan(&highest)
-	if err == dbsql.ErrNoRows {
+	if err == pgx.ErrNoRows {
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 	if err != nil {
@@ -222,11 +227,9 @@ func (pgd *pgDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	}
 
 	var revision uint64
-	err = pgd.db.QueryRowxContext(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
-	).Scan(&revision)
+	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), sql, args...).Scan(&revision)
 	if err != nil {
-		if err == dbsql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			return 0, nil
 		}
 		return 0, fmt.Errorf(errRevision, err)
@@ -245,12 +248,13 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 	}
 
 	var now time.Time
-	err = pgd.db.QueryRowContext(
-		datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...,
-	).Scan(&now)
+	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
 	if err != nil {
 		return 0, 0, err
 	}
+	// RelationTupleTransaction is not timezone aware
+	// Explicitly use UTC before using as a query arg
+	now = now.UTC()
 
 	span.AddEvent("DB returned value for NOW()")
 
@@ -262,7 +266,7 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 	}
 
 	var lower, upper dbsql.NullInt64
-	err = pgd.db.QueryRowxContext(
+	err = pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
 	).Scan(&lower, &upper)
 	if err != nil {
@@ -272,17 +276,17 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 	span.AddEvent("DB returned revision range")
 
 	if !lower.Valid || !upper.Valid {
-		return 0, 0, dbsql.ErrNoRows
+		return 0, 0, pgx.ErrNoRows
 	}
 
 	return uint64(lower.Int64), uint64(upper.Int64), nil
 }
 
-func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
+func createNewTransaction(ctx context.Context, tx pgx.Tx) (newTxnID uint64, err error) {
 	ctx, span := tracer.Start(ctx, "computeNewTransaction")
 	defer span.End()
 
-	err = tx.QueryRowxContext(datastore.SeparateContextWithTracing(ctx), createTxn).Scan(&newTxnID)
+	err = tx.QueryRow(ctx, createTxn).Scan(&newTxnID)
 	return
 }
 

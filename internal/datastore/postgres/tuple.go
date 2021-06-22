@@ -2,10 +2,10 @@ package postgres
 
 import (
 	"context"
-	dbsql "database/sql"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v4"
 	"github.com/authzed/spicedb/internal/datastore"
 	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
@@ -33,11 +33,13 @@ var (
 )
 
 func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (datastore.Revision, error) {
-	tx, err := pgd.db.BeginTxx(ctx, nil)
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
+	tx, err := pgd.dbpool.Begin(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback(ctx)
 
 	// Check the preconditions
 	for _, tpl := range preconditions {
@@ -47,10 +49,10 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 		}
 
 		foundID := -1
-		if err := tx.QueryRowxContext(
+		if err := tx.QueryRow(
 			datastore.SeparateContextWithTracing(ctx), sql, args...,
 		).Scan(&foundID); err != nil {
-			if err == dbsql.ErrNoRows {
+			if err == pgx.ErrNoRows {
 				return datastore.NoRevision, datastore.NewPreconditionFailedErr(tpl)
 			}
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
@@ -75,9 +77,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 
-			if _, err := tx.ExecContext(
-				datastore.SeparateContextWithTracing(ctx), sql, args...,
-			); err != nil {
+			if _, err := tx.Exec(ctx, sql, args...); err != nil {
 				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		}
@@ -102,13 +102,13 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
-		_, err = tx.ExecContext(datastore.SeparateContextWithTracing(ctx), sql, args...)
+		_, err = tx.Exec(ctx, sql, args...)
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 	}
 
-	err = tx.Commit()
+	err = tx.Commit(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}

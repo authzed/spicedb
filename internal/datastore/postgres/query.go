@@ -6,11 +6,12 @@ import (
 	"runtime"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jmoiron/sqlx"
-	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 )
 
 var (
@@ -33,7 +34,7 @@ var (
 func (pgd *pgDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
 	return pgTupleQuery{
 		commonTupleQuery: commonTupleQuery{
-			db: pgd.db,
+			dbpool: pgd.dbpool,
 			query: queryTuples.
 				Where(sq.Eq{colNamespace: namespace}).
 				Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
@@ -47,8 +48,8 @@ func (pgd *pgDatastore) QueryTuples(namespace string, revision datastore.Revisio
 }
 
 type commonTupleQuery struct {
-	db    *sqlx.DB
-	query sq.SelectBuilder
+	dbpool *pgxpool.Pool
+	query  sq.SelectBuilder
 
 	tracerAttributes []attribute.KeyValue
 }
@@ -95,7 +96,7 @@ func (ctq commonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterato
 
 	span.AddEvent("Query converted to SQL")
 
-	rows, err := ctq.db.QueryxContext(datastore.SeparateContextWithTracing(ctx), sql, args...)
+	rows, err := ctq.dbpool.Query(datastore.SeparateContextWithTracing(ctx), sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}

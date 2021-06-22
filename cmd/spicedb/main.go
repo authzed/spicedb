@@ -60,10 +60,11 @@ func main() {
 	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	rootCmd.Flags().Duration("gc-window", 24*time.Hour, "amount of time before a revision is garbage collected")
 	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
-	rootCmd.Flags().Int("pg-max-conn-open", 20, "number of concurrent connections open in the postgres connection pool")
-	rootCmd.Flags().Int("pg-max-conn-idle", 20, "number of idle connections open in the postgres connection pool")
+	rootCmd.Flags().Int("pg-max-conn-open", 20, "number of concurrent connections open in a the postgres connection pool")
+	rootCmd.Flags().Int("pg-min-conn-open", 10, "number of minimum concurrent connections open in a the postgres connection pool")
 	rootCmd.Flags().Duration("pg-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the postgres connection pool")
 	rootCmd.Flags().Duration("pg-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the postgres connection pool")
+	rootCmd.Flags().Duration("pg-health-check-period", 30*time.Second, "duration between checks of the health of idle connections")
 	rootCmd.Flags().Int("crdb-max-conn-open", 20, "number of concurrent connections open in the cockroachdb connection pool")
 	rootCmd.Flags().Int("crdb-min-conn-open", 20, "number of idle connections to keep open in the cockroachdb connection pool")
 	rootCmd.Flags().Duration("crdb-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the cockroachdb connection pool")
@@ -186,8 +187,9 @@ func rootRun(cmd *cobra.Command, args []string) {
 			datastoreUrl,
 			postgres.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "pg-max-conn-idletime")),
 			postgres.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "pg-max-conn-lifetime")),
+			postgres.HealthCheckPeriod(cobrautil.MustGetDuration(cmd, "pg-health-check-period")),
 			postgres.MaxOpenConns(cobrautil.MustGetInt(cmd, "pg-max-conn-open")),
-			postgres.MaxIdleConns(cobrautil.MustGetInt(cmd, "pg-max-conn-idle")),
+			postgres.MinOpenConns(cobrautil.MustGetInt(cmd, "pg-min-conn-open")),
 			postgres.RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
 			postgres.GCWindow(gcWindow),
 			postgres.EnablePrometheusStats(),

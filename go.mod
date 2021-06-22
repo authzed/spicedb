@@ -11,7 +11,6 @@ require (
 	github.com/cockroachdb/cockroach v20.1.15+incompatible
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
 	github.com/dgraph-io/ristretto v0.0.3
-	github.com/dlmiddlecote/sqlstats v1.0.2
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/emirpasic/gods v1.12.0
