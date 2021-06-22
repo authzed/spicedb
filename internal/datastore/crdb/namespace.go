@@ -73,7 +73,7 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Name
 func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	tx, err := cds.conn.Begin(ctx)
+	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}

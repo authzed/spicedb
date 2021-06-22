@@ -134,7 +134,7 @@ func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision,
 	ctx, span := tracer.Start(ctx, "SyncRevision")
 	defer span.End()
 
-	tx, err := cds.conn.Begin(ctx)
+	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	defer tx.Rollback(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
