@@ -55,6 +55,10 @@ func translateDefinition(tctx translationContext, defNode *dslNode) (*v0.Namespa
 
 	relationsAndPermissions := []*v0.Relation{}
 	for _, relationOrPermissionNode := range defNode.GetChildren() {
+		if relationOrPermissionNode.GetType() == dslshape.NodeTypeComment {
+			continue
+		}
+
 		relationOrPermission, err := translateRelationOrPermission(tctx, relationOrPermissionNode)
 		if err != nil {
 			return nil, err

@@ -38,6 +38,21 @@ func NewDeveloperServer(store ShareStore) v0.DeveloperServiceServer {
 	}
 }
 
+func (ds *devServer) UpgradeSchema(ctx context.Context, req *v0.UpgradeSchemaRequest) (*v0.UpgradeSchemaResponse, error) {
+	upgraded, err := upgradeSchema(req.NamespaceConfigs)
+	if err != nil {
+		return &v0.UpgradeSchemaResponse{
+			Error: &v0.DeveloperError{
+				Message: err.Error(),
+			},
+		}, nil
+	}
+
+	return &v0.UpgradeSchemaResponse{
+		UpgradedSchema: upgraded,
+	}, nil
+}
+
 func (ds *devServer) Share(ctx context.Context, req *v0.ShareRequest) (*v0.ShareResponse, error) {
 	reference, err := ds.shareStore.StoreShared(SharedDataV2{
 		Version:           sharedDataVersion,
@@ -434,6 +449,18 @@ func rewriteGraphError(source v0.DeveloperError_Source, context string, checkErr
 	}
 
 	if errors.As(checkError, &relNotFoundError) {
+		return []*v0.DeveloperError{
+			&v0.DeveloperError{
+				Message: checkError.Error(),
+				Source:  source,
+				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
+				Context: context,
+			},
+		}, nil
+	}
+
+	var ire invalidRelationError
+	if errors.As(checkError, &ire) {
 		return []*v0.DeveloperError{
 			&v0.DeveloperError{
 				Message: checkError.Error(),

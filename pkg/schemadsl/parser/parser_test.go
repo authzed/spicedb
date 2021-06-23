@@ -94,6 +94,7 @@ func TestParser(t *testing.T) {
 	var parserTests = []parserTest{
 		parserTest{"empty file test", "empty"},
 		parserTest{"basic definition test", "basic"},
+		parserTest{"doc comments test", "doccomments"},
 		parserTest{"arrow test", "arrow"},
 		parserTest{"multiple definition test", "multidef"},
 		parserTest{"broken test", "broken"},
