@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
+	zookie "github.com/authzed/spicedb/internal/proto/impl/v1"
 	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
-	zookie "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/impl"
-	"github.com/shopspring/decimal"
 )
 
 // Public facing errors

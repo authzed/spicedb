@@ -1,0 +1,14 @@
+syntax = "proto3";
+package impl.v1;
+
+option go_package = "github.com/REDACTED/code/zookie";
+
+message DecodedZookie {
+  uint32 version = 1;
+  message V1Zookie { uint64 revision = 1; }
+  message V2Zookie { string revision = 1; }
+  oneof version_oneof {
+    V1Zookie v1 = 2;
+    V2Zookie v2 = 3;
+  }
+}
