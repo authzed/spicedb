@@ -18,7 +18,15 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SchemaServiceClient interface {
+	// Read returns the current Object Definitions for a Permissions System.
+	//
+	// Errors include:
+	// - INVALID_ARGUMENT: a provided value has failed to semantically validate
+	// - NOT_FOUND: one of the Object Definitions being requested does not exist
 	Read(ctx context.Context, in *SchemaServiceReadRequest, opts ...grpc.CallOption) (*SchemaServiceReadResponse, error)
+	// Write overwrites the current Object Definitions for a Permissions System.
+	//
+	// Any Object Definitions that exist, but are not included will be deleted.
 	Write(ctx context.Context, in *SchemaServiceWriteRequest, opts ...grpc.CallOption) (*SchemaServiceWriteResponse, error)
 }
 
@@ -52,7 +60,15 @@ func (c *schemaServiceClient) Write(ctx context.Context, in *SchemaServiceWriteR
 // All implementations must embed UnimplementedSchemaServiceServer
 // for forward compatibility
 type SchemaServiceServer interface {
+	// Read returns the current Object Definitions for a Permissions System.
+	//
+	// Errors include:
+	// - INVALID_ARGUMENT: a provided value has failed to semantically validate
+	// - NOT_FOUND: one of the Object Definitions being requested does not exist
 	Read(context.Context, *SchemaServiceReadRequest) (*SchemaServiceReadResponse, error)
+	// Write overwrites the current Object Definitions for a Permissions System.
+	//
+	// Any Object Definitions that exist, but are not included will be deleted.
 	Write(context.Context, *SchemaServiceWriteRequest) (*SchemaServiceWriteResponse, error)
 	mustEmbedUnimplementedSchemaServiceServer()
 }

@@ -62,7 +62,7 @@ func (m *Metadata) Validate() error {
 			if _, ok := _Metadata_MetadataMessage_InLookup[a.GetTypeUrl()]; !ok {
 				return MetadataValidationError{
 					field:  fmt.Sprintf("MetadataMessage[%v]", idx),
-					reason: "type URL must be in list [type.googleapis.com/com.authzed.metadata.DocComment type.googleapis.com/com.authzed.metadata.RelationMetadata]",
+					reason: "type URL must be in list [type.googleapis.com/impl.v1.DocComment type.googleapis.com/impl.v1.RelationMetadata]",
 				}
 			}
 

@@ -4,6 +4,8 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/protobuf/proto"
 
+	// TODO: stop exposing private pb types in package's API
+	ppb "github.com/authzed/spicedb/internal/proto/impl/v1"
 	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
 )
 
@@ -26,7 +28,7 @@ func GetComments(metadata *pb.Metadata) []string {
 
 	comments := []string{}
 	for _, msg := range metadata.MetadataMessage {
-		var dc pb.DocComment
+		var dc ppb.DocComment
 		if err := ptypes.UnmarshalAny(msg, &dc); err == nil {
 			comments = append(comments, dc.Comment)
 		}
@@ -36,18 +38,18 @@ func GetComments(metadata *pb.Metadata) []string {
 }
 
 // GetRelationKind returns the kind of the relation.
-func GetRelationKind(relation *pb.Relation) pb.RelationMetadata_RelationKind {
+func GetRelationKind(relation *pb.Relation) ppb.RelationMetadata_RelationKind {
 	metadata := relation.Metadata
 	if metadata == nil {
-		return pb.RelationMetadata_UNKNOWN_KIND
+		return ppb.RelationMetadata_UNKNOWN_KIND
 	}
 
 	for _, msg := range metadata.MetadataMessage {
-		var rm pb.RelationMetadata
+		var rm ppb.RelationMetadata
 		if err := ptypes.UnmarshalAny(msg, &rm); err == nil {
 			return rm.Kind
 		}
 	}
 
-	return pb.RelationMetadata_UNKNOWN_KIND
+	return ppb.RelationMetadata_UNKNOWN_KIND
 }
