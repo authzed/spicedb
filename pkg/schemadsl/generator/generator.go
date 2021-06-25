@@ -8,8 +8,8 @@ import (
 // Ellipsis is the relation name for terminal subjects.
 const Ellipsis = "..."
 
-// generateSource generates a DSL view of the given namespace definition.
-func generateSource(namespace *v0.NamespaceDefinition) (string, bool) {
+// GenerateSource generates a DSL view of the given namespace definition.
+func GenerateSource(namespace *v0.NamespaceDefinition) (string, bool) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,

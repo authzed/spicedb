@@ -34,9 +34,11 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
+	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/cmdutil"
 	"github.com/authzed/spicedb/pkg/grpcutil"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	"github.com/authzed/spicedb/pkg/proto/authzed/api/v1alpha1"
 )
 
 func main() {
@@ -285,6 +287,9 @@ func RegisterGrpcServices(
 
 	v0.RegisterWatchServiceServer(srv, services.NewWatchServer(ds, nsm))
 	healthSrv.SetServingStatus("WatchService", healthpb.HealthCheckResponse_SERVING)
+
+	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(ds))
+	healthSrv.SetServingStatus("SchemaService", healthpb.HealthCheckResponse_SERVING)
 
 	healthpb.RegisterHealthServer(srv, healthSrv)
 	reflection.Register(srv)
