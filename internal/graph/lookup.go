@@ -8,7 +8,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -162,7 +162,7 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 	directTracer := thisTracer.Child("Inferred")
 	requestsTracer := directTracer.Child("Requests")
 
-	directStack := req.DirectStack.With(&pb.ObjectAndRelation{
+	directStack := req.DirectStack.With(&v0.ObjectAndRelation{
 		Namespace: req.StartRelation.Namespace,
 		Relation:  req.StartRelation.Relation,
 		ObjectId:  "",
@@ -179,7 +179,7 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 		}
 
 		// Prevent recursive inferred lookups, which can cause an infinite loop.
-		onr := &pb.ObjectAndRelation{
+		onr := &v0.ObjectAndRelation{
 			Namespace: allowedDirectType.Namespace,
 			Relation:  allowedDirectType.Relation,
 			ObjectId:  "",
@@ -191,7 +191,7 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 
 		requests = append(requests, cl.dispatch(LookupRequest{
 			TargetONR: req.TargetONR,
-			StartRelation: &pb.RelationReference{
+			StartRelation: &v0.RelationReference{
 				Namespace: allowedDirectType.Namespace,
 				Relation:  allowedDirectType.Relation,
 			},
@@ -245,32 +245,32 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 	return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
 }
 
-func (cl *concurrentLookup) processRewrite(ctx context.Context, req LookupRequest, tracer DebugTracer, nsdef *pb.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, usr *pb.UsersetRewrite) ReduceableLookupFunc {
+func (cl *concurrentLookup) processRewrite(ctx context.Context, req LookupRequest, tracer DebugTracer, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, usr *v0.UsersetRewrite) ReduceableLookupFunc {
 	switch rw := usr.RewriteOperation.(type) {
-	case *pb.UsersetRewrite_Union:
+	case *v0.UsersetRewrite_Union:
 		return cl.processSetOperation(ctx, req, tracer.Child("union"), nsdef, typeSystem, rw.Union, LookupAny)
-	case *pb.UsersetRewrite_Intersection:
+	case *v0.UsersetRewrite_Intersection:
 		return cl.processSetOperation(ctx, req, tracer.Child("intersection"), nsdef, typeSystem, rw.Intersection, LookupAll)
-	case *pb.UsersetRewrite_Exclusion:
+	case *v0.UsersetRewrite_Exclusion:
 		return cl.processSetOperation(ctx, req, tracer.Child("exclusion"), nsdef, typeSystem, rw.Exclusion, LookupExclude)
 	default:
 		return ResolveError(fmt.Errorf("unknown userset rewrite kind under `%s#%s`", req.StartRelation.Namespace, req.StartRelation.Relation))
 	}
 }
 
-func (cl *concurrentLookup) processSetOperation(ctx context.Context, req LookupRequest, parentTracer DebugTracer, nsdef *pb.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, so *pb.SetOperation, reducer LookupReducer) ReduceableLookupFunc {
+func (cl *concurrentLookup) processSetOperation(ctx context.Context, req LookupRequest, parentTracer DebugTracer, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, so *v0.SetOperation, reducer LookupReducer) ReduceableLookupFunc {
 	var requests []ReduceableLookupFunc
 
 	tracer := parentTracer.Child("rewrite")
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
-		case *pb.SetOperation_Child_XThis:
+		case *v0.SetOperation_Child_XThis:
 			requests = append(requests, cl.lookupDirect(ctx, req, tracer, typeSystem))
-		case *pb.SetOperation_Child_ComputedUserset:
+		case *v0.SetOperation_Child_ComputedUserset:
 			requests = append(requests, cl.lookupComputed(ctx, req, tracer, child.ComputedUserset))
-		case *pb.SetOperation_Child_UsersetRewrite:
+		case *v0.SetOperation_Child_UsersetRewrite:
 			requests = append(requests, cl.processRewrite(ctx, req, tracer, nsdef, typeSystem, child.UsersetRewrite))
-		case *pb.SetOperation_Child_TupleToUserset:
+		case *v0.SetOperation_Child_TupleToUserset:
 			requests = append(requests, cl.processTupleToUserset(ctx, req, tracer, nsdef, typeSystem, child.TupleToUserset))
 		default:
 			return ResolveError(fmt.Errorf("unknown set operation child"))
@@ -282,7 +282,7 @@ func (cl *concurrentLookup) processSetOperation(ctx context.Context, req LookupR
 	}
 }
 
-func findRelation(nsdef *pb.NamespaceDefinition, relationName string) (*pb.Relation, bool) {
+func findRelation(nsdef *v0.NamespaceDefinition, relationName string) (*v0.Relation, bool) {
 	for _, relation := range nsdef.Relation {
 		if relation.Name == relationName {
 			return relation, true
@@ -292,16 +292,16 @@ func findRelation(nsdef *pb.NamespaceDefinition, relationName string) (*pb.Relat
 	return nil, false
 }
 
-func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req LookupRequest, tracer DebugTracer, nsdef *pb.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, ttu *pb.TupleToUserset) ReduceableLookupFunc {
+func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req LookupRequest, tracer DebugTracer, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, ttu *v0.TupleToUserset) ReduceableLookupFunc {
 	// Ensure that we don't process TTUs recursively, as that can cause an infinite loop.
-	onr := &pb.ObjectAndRelation{
+	onr := &v0.ObjectAndRelation{
 		Namespace: req.StartRelation.Namespace,
 		Relation:  req.StartRelation.Relation,
 		ObjectId:  "",
 	}
 	if req.TTUStack.Has(onr) {
 		tracer.Childf("recursive ttu %s#%s", req.StartRelation.Namespace, req.StartRelation.Relation)
-		return ResolvedObjects([]*pb.ObjectAndRelation{})
+		return ResolvedObjects([]*v0.ObjectAndRelation{})
 	}
 
 	tuplesetDirectRelations, err := typeSystem.AllowedDirectRelations(ttu.Tupleset.Relation)
@@ -334,7 +334,7 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 		namespaces[directRelation.Namespace] = true
 		requests = append(requests, cl.dispatch(LookupRequest{
 			TargetONR: req.TargetONR,
-			StartRelation: &pb.RelationReference{
+			StartRelation: &v0.RelationReference{
 				Namespace: directRelation.Namespace,
 				Relation:  ttu.ComputedUserset.Relation,
 			},
@@ -382,7 +382,7 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 		}
 
 		for _, allowedRelation := range allowedRelations {
-			userset := &pb.ObjectAndRelation{
+			userset := &v0.ObjectAndRelation{
 				Namespace: resolvedObj.Namespace,
 				ObjectId:  resolvedObj.ObjectId,
 				Relation:  allowedRelation,
@@ -405,7 +405,7 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 					return ResolveError(fmt.Errorf("got unexpected namespace"))
 				}
 
-				objects.Add(&pb.ObjectAndRelation{
+				objects.Add(&v0.ObjectAndRelation{
 					Namespace: req.StartRelation.Namespace,
 					ObjectId:  tpl.ObjectAndRelation.ObjectId,
 					Relation:  req.StartRelation.Relation,
@@ -426,17 +426,17 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 	return ResolvedObjects(objects.AsSlice())
 }
 
-func (cl *concurrentLookup) lookupComputed(ctx context.Context, req LookupRequest, tracer DebugTracer, cu *pb.ComputedUserset) ReduceableLookupFunc {
+func (cl *concurrentLookup) lookupComputed(ctx context.Context, req LookupRequest, tracer DebugTracer, cu *v0.ComputedUserset) ReduceableLookupFunc {
 	result := LookupOne(ctx, cl.dispatch(LookupRequest{
 		TargetONR: req.TargetONR,
-		StartRelation: &pb.RelationReference{
+		StartRelation: &v0.RelationReference{
 			Namespace: req.StartRelation.Namespace,
 			Relation:  cu.Relation,
 		},
 		Limit:          req.Limit,
 		AtRevision:     req.AtRevision,
 		DepthRemaining: req.DepthRemaining - 1,
-		DirectStack: req.DirectStack.With(&pb.ObjectAndRelation{
+		DirectStack: req.DirectStack.With(&v0.ObjectAndRelation{
 			Namespace: req.StartRelation.Namespace,
 			Relation:  req.StartRelation.Relation,
 			ObjectId:  "",
@@ -450,14 +450,14 @@ func (cl *concurrentLookup) lookupComputed(ctx context.Context, req LookupReques
 	}
 
 	// Rewrite the found ONRs to be this relation.
-	rewrittenResolved := make([]*pb.ObjectAndRelation, 0, len(result.ResolvedObjects))
+	rewrittenResolved := make([]*v0.ObjectAndRelation, 0, len(result.ResolvedObjects))
 	for _, resolved := range result.ResolvedObjects {
 		if resolved.Namespace != req.StartRelation.Namespace {
 			return ResolveError(fmt.Errorf("invalid namespace: %s vs %s", tuple.StringONR(resolved), req.StartRelation.Namespace))
 		}
 
 		rewrittenResolved = append(rewrittenResolved,
-			&pb.ObjectAndRelation{
+			&v0.ObjectAndRelation{
 				Namespace: resolved.Namespace,
 				Relation:  req.StartRelation.Relation,
 				ObjectId:  resolved.ObjectId,
@@ -528,7 +528,7 @@ func LookupAny(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 
 func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc) LookupResult {
 	if len(requests) == 0 {
-		return LookupResult{[]*pb.ObjectAndRelation{}, nil}
+		return LookupResult{[]*v0.ObjectAndRelation{}, nil}
 	}
 
 	resultChan := make(chan LookupResult, len(requests))
@@ -558,7 +558,7 @@ func LookupAll(ctx context.Context, limit int, requests []ReduceableLookupFunc) 
 			}
 
 			if objSet.Length() == 0 {
-				return LookupResult{[]*pb.ObjectAndRelation{}, nil}
+				return LookupResult{[]*v0.ObjectAndRelation{}, nil}
 			}
 		case <-ctx.Done():
 			return LookupResult{Err: NewRequestCanceledErr()}
@@ -605,15 +605,15 @@ func LookupExclude(ctx context.Context, limit int, requests []ReduceableLookupFu
 	return LookupResult{limitedSlice(objSet.Subtract(excSet).AsSlice(), limit), nil}
 }
 
-func ResolvedObjects(resolved []*pb.ObjectAndRelation) ReduceableLookupFunc {
+func ResolvedObjects(resolved []*v0.ObjectAndRelation) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
 		resultChan <- LookupResult{ResolvedObjects: resolved}
 	}
 }
 
-func Resolved(resolved *pb.ObjectAndRelation) ReduceableLookupFunc {
+func Resolved(resolved *v0.ObjectAndRelation) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		resultChan <- LookupResult{ResolvedObjects: []*pb.ObjectAndRelation{resolved}}
+		resultChan <- LookupResult{ResolvedObjects: []*v0.ObjectAndRelation{resolved}}
 	}
 }
 
@@ -623,7 +623,7 @@ func ResolveError(err error) ReduceableLookupFunc {
 	}
 }
 
-func limitedSlice(slice []*pb.ObjectAndRelation, limit int) []*pb.ObjectAndRelation {
+func limitedSlice(slice []*v0.ObjectAndRelation, limit int) []*v0.ObjectAndRelation {
 	if len(slice) > int(limit) {
 		return slice[0:limit]
 	}
@@ -631,7 +631,7 @@ func limitedSlice(slice []*pb.ObjectAndRelation, limit int) []*pb.ObjectAndRelat
 	return slice
 }
 
-type EmittableObjectSlice []*pb.ObjectAndRelation
+type EmittableObjectSlice []*v0.ObjectAndRelation
 
 func (s EmittableObjectSlice) EmitForTrace(tracer DebugTracer) {
 	for _, value := range s {

@@ -4,10 +4,10 @@ import (
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
-func (cds *crdbDatastore) ReverseQueryTuplesFromSubject(subject *pb.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (cds *crdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return crdbReverseTupleQuery{
 		commonTupleQuery: commonTupleQuery{
 			conn: cds.conn,

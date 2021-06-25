@@ -6,7 +6,7 @@ import (
 	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/pkg/namespace"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 )
 
@@ -20,12 +20,12 @@ func (tc translationContext) NamespacePath(namespaceName string) string {
 
 const Ellipsis = "..."
 
-func translate(tctx translationContext, root *dslNode) ([]*pb.NamespaceDefinition, error) {
-	definitions := []*pb.NamespaceDefinition{}
+func translate(tctx translationContext, root *dslNode) ([]*v0.NamespaceDefinition, error) {
+	definitions := []*v0.NamespaceDefinition{}
 	for _, definitionNode := range root.GetChildren() {
 		definition, err := translateDefinition(tctx, definitionNode)
 		if err != nil {
-			return []*pb.NamespaceDefinition{}, err
+			return []*v0.NamespaceDefinition{}, err
 		}
 
 		definitions = append(definitions, definition)
@@ -34,13 +34,13 @@ func translate(tctx translationContext, root *dslNode) ([]*pb.NamespaceDefinitio
 	return definitions, nil
 }
 
-func translateDefinition(tctx translationContext, defNode *dslNode) (*pb.NamespaceDefinition, error) {
+func translateDefinition(tctx translationContext, defNode *dslNode) (*v0.NamespaceDefinition, error) {
 	definitionName, err := defNode.GetString(dslshape.NodeDefinitionPredicateName)
 	if err != nil {
 		return nil, defNode.Errorf("invalid definition name: %w", err)
 	}
 
-	relationsAndPermissions := []*pb.Relation{}
+	relationsAndPermissions := []*v0.Relation{}
 	for _, relationOrPermissionNode := range defNode.GetChildren() {
 		relationOrPermission, err := translateRelationOrPermission(tctx, relationOrPermissionNode)
 		if err != nil {
@@ -57,7 +57,7 @@ func translateDefinition(tctx translationContext, defNode *dslNode) (*pb.Namespa
 	return namespace.Namespace(tctx.NamespacePath(definitionName), relationsAndPermissions...), nil
 }
 
-func translateRelationOrPermission(tctx translationContext, relOrPermNode *dslNode) (*pb.Relation, error) {
+func translateRelationOrPermission(tctx translationContext, relOrPermNode *dslNode) (*v0.Relation, error) {
 	switch relOrPermNode.GetType() {
 	case dslshape.NodeTypeRelation:
 		return translateRelation(tctx, relOrPermNode)
@@ -70,13 +70,13 @@ func translateRelationOrPermission(tctx translationContext, relOrPermNode *dslNo
 	}
 }
 
-func translateRelation(tctx translationContext, relationNode *dslNode) (*pb.Relation, error) {
+func translateRelation(tctx translationContext, relationNode *dslNode) (*v0.Relation, error) {
 	relationName, err := relationNode.GetString(dslshape.NodePredicateName)
 	if err != nil {
 		return nil, relationNode.Errorf("invalid relation name: %w", err)
 	}
 
-	allowedDirectTypes := []*pb.RelationReference{}
+	allowedDirectTypes := []*v0.RelationReference{}
 	for _, typeRef := range relationNode.List(dslshape.NodeRelationPredicateAllowedTypes) {
 		relReferences, err := translateTypeReference(tctx, typeRef)
 		if err != nil {
@@ -89,7 +89,7 @@ func translateRelation(tctx translationContext, relationNode *dslNode) (*pb.Rela
 	return namespace.Relation(relationName, nil, allowedDirectTypes...), nil
 }
 
-func translatePermission(tctx translationContext, permissionNode *dslNode) (*pb.Relation, error) {
+func translatePermission(tctx translationContext, permissionNode *dslNode) (*v0.Relation, error) {
 	permissionName, err := permissionNode.GetString(dslshape.NodePredicateName)
 	if err != nil {
 		return nil, permissionNode.Errorf("invalid permission name: %w", err)
@@ -108,7 +108,7 @@ func translatePermission(tctx translationContext, permissionNode *dslNode) (*pb.
 	return namespace.Relation(permissionName, rewrite), nil
 }
 
-func translateBinary(tctx translationContext, expressionNode *dslNode) (*pb.SetOperation_Child, *pb.SetOperation_Child, error) {
+func translateBinary(tctx translationContext, expressionNode *dslNode) (*v0.SetOperation_Child, *v0.SetOperation_Child, error) {
 	leftChild, err := expressionNode.Lookup(dslshape.NodeExpressionPredicateLeftExpr)
 	if err != nil {
 		return nil, nil, err
@@ -132,7 +132,7 @@ func translateBinary(tctx translationContext, expressionNode *dslNode) (*pb.SetO
 	return leftOperation, rightOperation, nil
 }
 
-func translateExpression(tctx translationContext, expressionNode *dslNode) (*pb.UsersetRewrite, error) {
+func translateExpression(tctx translationContext, expressionNode *dslNode) (*v0.UsersetRewrite, error) {
 	switch expressionNode.GetType() {
 	case dslshape.NodeTypeUnionExpression:
 		leftOperation, rightOperation, err := translateBinary(tctx, expressionNode)
@@ -165,7 +165,7 @@ func translateExpression(tctx translationContext, expressionNode *dslNode) (*pb.
 	}
 }
 
-func translateExpressionOperation(tctx translationContext, expressionOpNode *dslNode) (*pb.SetOperation_Child, error) {
+func translateExpressionOperation(tctx translationContext, expressionOpNode *dslNode) (*v0.SetOperation_Child, error) {
 	switch expressionOpNode.GetType() {
 	case dslshape.NodeTypeIdentifier:
 		referencedRelationName, err := expressionOpNode.GetString(dslshape.NodeIdentiferPredicateValue)
@@ -220,14 +220,14 @@ func translateExpressionOperation(tctx translationContext, expressionOpNode *dsl
 	}
 }
 
-func translateTypeReference(tctx translationContext, typeRefNode *dslNode) ([]*pb.RelationReference, error) {
+func translateTypeReference(tctx translationContext, typeRefNode *dslNode) ([]*v0.RelationReference, error) {
 	switch typeRefNode.GetType() {
 	case dslshape.NodeTypeTypeReference:
-		references := []*pb.RelationReference{}
+		references := []*v0.RelationReference{}
 		for _, subRefNode := range typeRefNode.List(dslshape.NodeTypeReferencePredicateType) {
 			subReferences, err := translateTypeReference(tctx, subRefNode)
 			if err != nil {
-				return []*pb.RelationReference{}, err
+				return []*v0.RelationReference{}, err
 			}
 
 			references = append(references, subReferences...)
@@ -237,16 +237,16 @@ func translateTypeReference(tctx translationContext, typeRefNode *dslNode) ([]*p
 	case dslshape.NodeTypeSpecificTypeReference:
 		ref, err := translateSpecificTypeReference(tctx, typeRefNode)
 		if err != nil {
-			return []*pb.RelationReference{}, err
+			return []*v0.RelationReference{}, err
 		}
-		return []*pb.RelationReference{ref}, nil
+		return []*v0.RelationReference{ref}, nil
 
 	default:
 		return nil, typeRefNode.Errorf("unknown type ref node type %s", typeRefNode.GetType())
 	}
 }
 
-func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNode) (*pb.RelationReference, error) {
+func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNode) (*v0.RelationReference, error) {
 	typePath, err := typeRefNode.GetString(dslshape.NodeSpecificReferencePredicateType)
 	if err != nil {
 		return nil, typeRefNode.Errorf("invalid type name: %w", err)
@@ -266,7 +266,7 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		}
 	}
 
-	return &pb.RelationReference{
+	return &v0.RelationReference{
 		Namespace: fmt.Sprintf("%s/%s", typePrefix, typeName),
 		Relation:  relationName,
 	}, nil

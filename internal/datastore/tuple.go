@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 var (
@@ -12,18 +12,18 @@ var (
 )
 
 // NewSliceTupleIterator creates a datastore.TupleIterator instance from a materialized slice of tuples.
-func NewSliceTupleIterator(tuples []*pb.RelationTuple) TupleIterator {
+func NewSliceTupleIterator(tuples []*v0.RelationTuple) TupleIterator {
 	return &sliceTupleIterator{tuples: tuples}
 }
 
 type sliceTupleIterator struct {
-	tuples []*pb.RelationTuple
+	tuples []*v0.RelationTuple
 	closed bool
 	err    error
 }
 
 // Next implements TupleIterator
-func (sti *sliceTupleIterator) Next() *pb.RelationTuple {
+func (sti *sliceTupleIterator) Next() *v0.RelationTuple {
 	if sti.closed {
 		sti.err = errClosedIterator
 		return nil

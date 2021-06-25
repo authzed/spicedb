@@ -13,7 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -21,16 +21,16 @@ import (
 type DevContext struct {
 	Datastore  datastore.Datastore
 	Revision   decimal.Decimal
-	Namespaces []*api.NamespaceInformation
+	Namespaces []*v0.NamespaceInformation
 	Dispatcher graph.Dispatcher
-	Errors     []*api.ValidationError
+	Errors     []*v0.ValidationError
 }
 
 var lineColRegex = regexp.MustCompile(`\(line ([0-9]+):([0-9]+)\): (.+)`)
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
 // the datastore as needed.
-func NewDevContext(ctx context.Context, requestContext *api.RequestContext) (*DevContext, bool, error) {
+func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*DevContext, bool, error) {
 	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, 0*time.Second, 0*time.Second)
 	if err != nil {
 		return nil, false, err
@@ -70,13 +70,13 @@ func NewDevContext(ctx context.Context, requestContext *api.RequestContext) (*De
 	}, len(validationErrors) == 0, nil
 }
 
-func loadTuples(ctx context.Context, tuples []*api.RelationTuple, nsm namespace.Manager, ds datastore.Datastore) (decimal.Decimal, []*api.ValidationError, error) {
-	var validationErrors []*api.ValidationError
-	var updates []*api.RelationTupleUpdate
+func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.Manager, ds datastore.Datastore) (decimal.Decimal, []*v0.ValidationError, error) {
+	var validationErrors []*v0.ValidationError
+	var updates []*v0.RelationTupleUpdate
 	for _, tpl := range tuples {
 		err := validateTupleWrite(ctx, tpl, nsm)
 		if err != nil {
-			verrs, wireErr := rewriteGraphError(api.ValidationError_VALIDATION_TUPLE, tuple.String(tpl), err)
+			verrs, wireErr := rewriteGraphError(v0.ValidationError_VALIDATION_TUPLE, tuple.String(tpl), err)
 			if wireErr == nil {
 				validationErrors = append(validationErrors, verrs...)
 				continue
@@ -88,12 +88,12 @@ func loadTuples(ctx context.Context, tuples []*api.RelationTuple, nsm namespace.
 		updates = append(updates, tuple.Touch(tpl))
 	}
 
-	revision, err := ds.WriteTuples(ctx, []*api.RelationTuple{}, updates)
+	revision, err := ds.WriteTuples(ctx, []*v0.RelationTuple{}, updates)
 	return revision, validationErrors, err
 }
 
-func loadNamespaces(ctx context.Context, namespaces []*api.NamespaceInformation, nsm namespace.Manager, ds datastore.Datastore) error {
-	var nsDefs []*api.NamespaceDefinition
+func loadNamespaces(ctx context.Context, namespaces []*v0.NamespaceInformation, nsm namespace.Manager, ds datastore.Datastore) error {
+	var nsDefs []*v0.NamespaceDefinition
 	for _, nsInfo := range namespaces {
 		nsDefs = append(nsDefs, nsInfo.Parsed)
 	}
@@ -114,24 +114,24 @@ func loadNamespaces(ctx context.Context, namespaces []*api.NamespaceInformation,
 			continue
 		}
 
-		nsInfo.Errors = append(nsInfo.Errors, &api.ValidationError{
+		nsInfo.Errors = append(nsInfo.Errors, &v0.ValidationError{
 			Message: tverr.Error(),
-			Kind:    api.ValidationError_NAMESPACE_CONFIG_ISSUE,
-			Source:  api.ValidationError_NAMESPACE_CONFIG,
+			Kind:    v0.ValidationError_NAMESPACE_CONFIG_ISSUE,
+			Source:  v0.ValidationError_NAMESPACE_CONFIG,
 		})
 	}
 
 	return nil
 }
 
-func parseNamespaces(nsContexts []*api.NamespaceContext) ([]*api.NamespaceInformation, bool) {
-	var namespaces []*api.NamespaceInformation
+func parseNamespaces(nsContexts []*v0.NamespaceContext) ([]*v0.NamespaceInformation, bool) {
+	var namespaces []*v0.NamespaceInformation
 	var validationFailed = false
 	for _, ns := range nsContexts {
-		nsDef := api.NamespaceDefinition{}
+		nsDef := v0.NamespaceDefinition{}
 		nerr := prototext.Unmarshal([]byte(ns.Config), &nsDef)
 		if nerr == nil {
-			namespaces = append(namespaces, &api.NamespaceInformation{
+			namespaces = append(namespaces, &v0.NamespaceInformation{
 				Handle: ns.Handle,
 				Parsed: &nsDef,
 			})
@@ -153,13 +153,13 @@ func parseNamespaces(nsContexts []*api.NamespaceContext) ([]*api.NamespaceInform
 			msg = pieces[3]
 		}
 
-		namespaces = append(namespaces, &api.NamespaceInformation{
+		namespaces = append(namespaces, &v0.NamespaceInformation{
 			Handle: ns.Handle,
-			Errors: []*api.ValidationError{
-				&api.ValidationError{
+			Errors: []*v0.ValidationError{
+				&v0.ValidationError{
 					Message: msg,
-					Kind:    api.ValidationError_NAMESPACE_CONFIG_ISSUE,
-					Source:  api.ValidationError_NAMESPACE_CONFIG,
+					Kind:    v0.ValidationError_NAMESPACE_CONFIG_ISSUE,
+					Source:  v0.ValidationError_NAMESPACE_CONFIG,
 					Line:    uint32(lineNumber),
 					Column:  uint32(columnNumber),
 				},

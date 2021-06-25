@@ -16,7 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -42,7 +42,7 @@ func TestSimple(t *testing.T) {
 	}
 
 	type userset struct {
-		userset  *pb.ObjectAndRelation
+		userset  *v0.ObjectAndRelation
 		expected []expected
 	}
 
@@ -147,8 +147,8 @@ func TestMaxDepth(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	mutations := []*pb.RelationTupleUpdate{
-		tuple.Create(&pb.RelationTuple{
+	mutations := []*v0.RelationTupleUpdate{
+		tuple.Create(&v0.RelationTuple{
 			ObjectAndRelation: ONR("folder", "oops", "owner"),
 			User:              tuple.User(ONR("folder", "oops", "editor")),
 		}),

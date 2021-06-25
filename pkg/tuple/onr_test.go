@@ -5,12 +5,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 var onrTestCases = []struct {
 	serialized   string
-	objectFormat *pb.ObjectAndRelation
+	objectFormat *v0.ObjectAndRelation
 }{
 	{
 		serialized:   "tenant/testns:testobj#testrel",

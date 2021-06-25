@@ -19,15 +19,15 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	g "github.com/authzed/spicedb/pkg/graph"
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 var ONR = tuple.ObjectAndRelation
 
-func RR(namespaceName string, relationName string) *api.RelationReference {
-	return &api.RelationReference{
+func RR(namespaceName string, relationName string) *v0.RelationReference {
+	return &v0.RelationReference{
 		Namespace: namespaceName,
 		Relation:  relationName,
 	}
@@ -45,13 +45,13 @@ func init() {
 func TestRead(t *testing.T) {
 	testCases := []struct {
 		name         string
-		filter       *api.RelationTupleFilter
+		filter       *v0.RelationTupleFilter
 		expectedCode codes.Code
 		expected     []string
 	}{
 		{
 			"namespace only",
-			&api.RelationTupleFilter{Namespace: tf.DocumentNS.Name},
+			&v0.RelationTupleFilter{Namespace: tf.DocumentNS.Name},
 			codes.OK,
 			[]string{
 				"document:companyplan#parent@folder:company#...",
@@ -67,11 +67,11 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"namespace and object id",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				ObjectId:  "healthplan",
-				Filters: []api.RelationTupleFilter_Filter{
-					api.RelationTupleFilter_OBJECT_ID,
+				Filters: []v0.RelationTupleFilter_Filter{
+					v0.RelationTupleFilter_OBJECT_ID,
 				},
 			},
 			codes.OK,
@@ -81,11 +81,11 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"namespace and relation",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				Relation:  "parent",
-				Filters: []api.RelationTupleFilter_Filter{
-					api.RelationTupleFilter_RELATION,
+				Filters: []v0.RelationTupleFilter_Filter{
+					v0.RelationTupleFilter_RELATION,
 				},
 			},
 			codes.OK,
@@ -98,11 +98,11 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"namespace and userset",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				Userset:   ONR("folder", "plans", "..."),
-				Filters: []api.RelationTupleFilter_Filter{
-					api.RelationTupleFilter_USERSET,
+				Filters: []v0.RelationTupleFilter_Filter{
+					v0.RelationTupleFilter_USERSET,
 				},
 			},
 			codes.OK,
@@ -113,13 +113,13 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"multiple filters",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				ObjectId:  "masterplan",
 				Userset:   ONR("folder", "plans", "..."),
-				Filters: []api.RelationTupleFilter_Filter{
-					api.RelationTupleFilter_USERSET,
-					api.RelationTupleFilter_OBJECT_ID,
+				Filters: []v0.RelationTupleFilter_Filter{
+					v0.RelationTupleFilter_USERSET,
+					v0.RelationTupleFilter_OBJECT_ID,
 				},
 			},
 			codes.OK,
@@ -129,19 +129,19 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"bad namespace",
-			&api.RelationTupleFilter{Namespace: ""},
+			&v0.RelationTupleFilter{Namespace: ""},
 			codes.InvalidArgument,
 			nil,
 		},
 		{
 			"bad objectId",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				ObjectId:  "ma",
 				Userset:   ONR("folder", "plans", "..."),
-				Filters: []api.RelationTupleFilter_Filter{
-					api.RelationTupleFilter_USERSET,
-					api.RelationTupleFilter_OBJECT_ID,
+				Filters: []v0.RelationTupleFilter_Filter{
+					v0.RelationTupleFilter_USERSET,
+					v0.RelationTupleFilter_OBJECT_ID,
 				},
 			},
 			codes.InvalidArgument,
@@ -149,11 +149,11 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"bad object relation",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				Relation:  "ad",
-				Filters: []api.RelationTupleFilter_Filter{
-					api.RelationTupleFilter_RELATION,
+				Filters: []v0.RelationTupleFilter_Filter{
+					v0.RelationTupleFilter_RELATION,
 				},
 			},
 			codes.InvalidArgument,
@@ -161,13 +161,13 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"bad userset",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				ObjectId:  "ma",
 				Userset:   ONR("folder", "", "..."),
-				Filters: []api.RelationTupleFilter_Filter{
-					api.RelationTupleFilter_USERSET,
-					api.RelationTupleFilter_OBJECT_ID,
+				Filters: []v0.RelationTupleFilter_Filter{
+					v0.RelationTupleFilter_USERSET,
+					v0.RelationTupleFilter_OBJECT_ID,
 				},
 			},
 			codes.InvalidArgument,
@@ -175,11 +175,11 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"nil argument required filter",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				Userset:   nil,
-				Filters: []api.RelationTupleFilter_Filter{
-					api.RelationTupleFilter_OBJECT_ID,
+				Filters: []v0.RelationTupleFilter_Filter{
+					v0.RelationTupleFilter_OBJECT_ID,
 				},
 			},
 			codes.InvalidArgument,
@@ -187,7 +187,7 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"missing namespace",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: "doesnotexist",
 			},
 			codes.FailedPrecondition,
@@ -195,11 +195,11 @@ func TestRead(t *testing.T) {
 		},
 		{
 			"missing relation",
-			&api.RelationTupleFilter{
+			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
 				Relation:  "invalidrelation",
-				Filters: []api.RelationTupleFilter_Filter{
-					api.RelationTupleFilter_RELATION,
+				Filters: []v0.RelationTupleFilter_Filter{
+					v0.RelationTupleFilter_RELATION,
 				},
 			},
 			codes.FailedPrecondition,
@@ -215,8 +215,8 @@ func TestRead(t *testing.T) {
 
 					srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
 
-					resp, err := srv.Read(context.Background(), &api.ReadRequest{
-						Tuplesets:  []*api.RelationTupleFilter{tc.filter},
+					resp, err := srv.Read(context.Background(), &v0.ReadRequest{
+						Tuplesets:  []*v0.RelationTupleFilter{tc.filter},
 						AtRevision: zookie.NewFromRevision(revision),
 					})
 
@@ -240,16 +240,16 @@ func TestReadBadZookie(t *testing.T) {
 
 	srv, revision := newACLServicer(require, 0, 10*time.Millisecond, 0)
 
-	_, err := srv.Read(context.Background(), &api.ReadRequest{
-		Tuplesets: []*api.RelationTupleFilter{
+	_, err := srv.Read(context.Background(), &v0.ReadRequest{
+		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
 		AtRevision: zookie.NewFromRevision(revision),
 	})
 	require.NoError(err)
 
-	_, err = srv.Read(context.Background(), &api.ReadRequest{
-		Tuplesets: []*api.RelationTupleFilter{
+	_, err = srv.Read(context.Background(), &v0.ReadRequest{
+		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
 		AtRevision: zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1))),
@@ -259,24 +259,24 @@ func TestReadBadZookie(t *testing.T) {
 	// Wait until the gc window expires
 	time.Sleep(20 * time.Millisecond)
 
-	_, err = srv.Read(context.Background(), &api.ReadRequest{
-		Tuplesets: []*api.RelationTupleFilter{
+	_, err = srv.Read(context.Background(), &v0.ReadRequest{
+		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
 		AtRevision: zookie.NewFromRevision(revision),
 	})
 	require.NoError(err)
 
-	_, err = srv.Read(context.Background(), &api.ReadRequest{
-		Tuplesets: []*api.RelationTupleFilter{
+	_, err = srv.Read(context.Background(), &v0.ReadRequest{
+		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
 		AtRevision: zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1))),
 	})
 	requireGRPCStatus(codes.OutOfRange, err, require)
 
-	_, err = srv.Read(context.Background(), &api.ReadRequest{
-		Tuplesets: []*api.RelationTupleFilter{
+	_, err = srv.Read(context.Background(), &v0.ReadRequest{
+		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
 		AtRevision: zookie.NewFromRevision(revision.Add(decimal.NewFromInt(1))),
@@ -293,9 +293,9 @@ func TestWrite(t *testing.T) {
 	toWrite := tuple.Scan(toWriteStr)
 	require.NotNil(toWrite)
 
-	resp, err := srv.Write(context.Background(), &api.WriteRequest{
-		WriteConditions: []*api.RelationTuple{toWrite},
-		Updates:         []*api.RelationTupleUpdate{tuple.Create(toWrite)},
+	resp, err := srv.Write(context.Background(), &v0.WriteRequest{
+		WriteConditions: []*v0.RelationTuple{toWrite},
+		Updates:         []*v0.RelationTupleUpdate{tuple.Create(toWrite)},
 	})
 	require.Nil(resp)
 	requireGRPCStatus(codes.FailedPrecondition, err, require)
@@ -303,24 +303,24 @@ func TestWrite(t *testing.T) {
 	existing := tuple.Scan(tf.StandardTuples[0])
 	require.NotNil(existing)
 
-	resp, err = srv.Write(context.Background(), &api.WriteRequest{
-		WriteConditions: []*api.RelationTuple{existing},
-		Updates:         []*api.RelationTupleUpdate{tuple.Create(toWrite)},
+	resp, err = srv.Write(context.Background(), &v0.WriteRequest{
+		WriteConditions: []*v0.RelationTuple{existing},
+		Updates:         []*v0.RelationTupleUpdate{tuple.Create(toWrite)},
 	})
 	require.NoError(err)
 	require.NotNil(resp.Revision)
 	require.NotZero(resp.Revision.Token)
 
-	findWritten := []*api.RelationTupleFilter{
+	findWritten := []*v0.RelationTupleFilter{
 		{
 			Namespace: "document",
 			ObjectId:  "totallynew",
-			Filters: []api.RelationTupleFilter_Filter{
-				api.RelationTupleFilter_OBJECT_ID,
+			Filters: []v0.RelationTupleFilter_Filter{
+				v0.RelationTupleFilter_OBJECT_ID,
 			},
 		},
 	}
-	readBack, err := srv.Read(context.Background(), &api.ReadRequest{
+	readBack, err := srv.Read(context.Background(), &v0.ReadRequest{
 		AtRevision: resp.Revision,
 		Tuplesets:  findWritten,
 	})
@@ -329,12 +329,12 @@ func TestWrite(t *testing.T) {
 
 	verifyTuples([]string{toWriteStr}, readBack.Tuplesets[0].Tuples, require)
 
-	deleted, err := srv.Write(context.Background(), &api.WriteRequest{
-		Updates: []*api.RelationTupleUpdate{tuple.Delete(toWrite)},
+	deleted, err := srv.Write(context.Background(), &v0.WriteRequest{
+		Updates: []*v0.RelationTupleUpdate{tuple.Delete(toWrite)},
 	})
 	require.NoError(err)
 
-	verifyMissing, err := srv.Read(context.Background(), &api.ReadRequest{
+	verifyMissing, err := srv.Read(context.Background(), &v0.ReadRequest{
 		AtRevision: deleted.Revision,
 		Tuplesets:  findWritten,
 	})
@@ -412,17 +412,17 @@ func TestInvalidWriteArguments(t *testing.T) {
 			require := require.New(t)
 			srv, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
 
-			var preconditions []*api.RelationTuple
+			var preconditions []*v0.RelationTuple
 			for _, p := range tc.preconditions {
 				preconditions = append(preconditions, tuple.Scan(p))
 			}
 
-			var mutations []*api.RelationTupleUpdate
+			var mutations []*v0.RelationTupleUpdate
 			for _, tpl := range tc.tuples {
 				mutations = append(mutations, tuple.Touch(tuple.Scan(tpl)))
 			}
 
-			_, err := srv.Write(context.Background(), &api.WriteRequest{
+			_, err := srv.Write(context.Background(), &v0.WriteRequest{
 				WriteConditions: preconditions,
 				Updates:         mutations,
 			})
@@ -433,12 +433,12 @@ func TestInvalidWriteArguments(t *testing.T) {
 
 func TestCheck(t *testing.T) {
 	type checkTest struct {
-		user       *api.ObjectAndRelation
+		user       *v0.ObjectAndRelation
 		membership bool
 	}
 
 	testCases := []struct {
-		start             *api.ObjectAndRelation
+		start             *v0.ObjectAndRelation
 		expectedErrorCode codes.Code
 		checkTests        []checkTest
 	}{
@@ -505,20 +505,20 @@ func TestCheck(t *testing.T) {
 							require := require.New(t)
 							srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
 
-							resp, err := srv.Check(context.Background(), &api.CheckRequest{
+							resp, err := srv.Check(context.Background(), &v0.CheckRequest{
 								TestUserset: tc.start,
-								User: &api.User{
-									UserOneof: &api.User_Userset{
+								User: &v0.User{
+									UserOneof: &v0.User_Userset{
 										Userset: checkTest.user,
 									},
 								},
 								AtRevision: zookie.NewFromRevision(revision),
 							})
 
-							ccResp, ccErr := srv.ContentChangeCheck(context.Background(), &api.ContentChangeCheckRequest{
+							ccResp, ccErr := srv.ContentChangeCheck(context.Background(), &v0.ContentChangeCheckRequest{
 								TestUserset: tc.start,
-								User: &api.User{
-									UserOneof: &api.User_Userset{
+								User: &v0.User{
+									UserOneof: &v0.User_Userset{
 										Userset: checkTest.user,
 									},
 								},
@@ -534,11 +534,11 @@ func TestCheck(t *testing.T) {
 								require.Equal(checkTest.membership, resp.IsMember)
 								require.Equal(checkTest.membership, ccResp.IsMember)
 								if checkTest.membership {
-									require.Equal(api.CheckResponse_MEMBER, resp.Membership)
-									require.Equal(api.CheckResponse_MEMBER, ccResp.Membership)
+									require.Equal(v0.CheckResponse_MEMBER, resp.Membership)
+									require.Equal(v0.CheckResponse_MEMBER, ccResp.Membership)
 								} else {
-									require.Equal(api.CheckResponse_NOT_MEMBER, resp.Membership)
-									require.Equal(api.CheckResponse_NOT_MEMBER, ccResp.Membership)
+									require.Equal(v0.CheckResponse_NOT_MEMBER, resp.Membership)
+									require.Equal(v0.CheckResponse_NOT_MEMBER, ccResp.Membership)
 								}
 							} else {
 								requireGRPCStatus(tc.expectedErrorCode, err, require)
@@ -558,24 +558,24 @@ func BenchmarkACL(b *testing.B) {
 
 	b.Run("check", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			resp, err := srv.Check(context.Background(), &api.CheckRequest{
+			resp, err := srv.Check(context.Background(), &v0.CheckRequest{
 				TestUserset: ONR("document", "masterplan", "viewer"),
-				User: &api.User{
-					UserOneof: &api.User_Userset{
+				User: &v0.User{
+					UserOneof: &v0.User_Userset{
 						Userset: ONR("user", "villain", "..."),
 					},
 				},
 				AtRevision: zookie.NewFromRevision(revision),
 			})
 			require.NoError(err)
-			require.Equal(api.CheckResponse_NOT_MEMBER, resp.Membership)
+			require.Equal(v0.CheckResponse_NOT_MEMBER, resp.Membership)
 		}
 	})
 }
 
 func TestExpand(t *testing.T) {
 	testCases := []struct {
-		start              *api.ObjectAndRelation
+		start              *v0.ObjectAndRelation
 		expandRelatedCount int
 		expectedErrorCode  codes.Code
 	}{
@@ -593,7 +593,7 @@ func TestExpand(t *testing.T) {
 					require := require.New(t)
 					srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
 
-					expanded, err := srv.Expand(context.Background(), &api.ExpandRequest{
+					expanded, err := srv.Expand(context.Background(), &v0.ExpandRequest{
 						Userset:    tc.start,
 						AtRevision: zookie.NewFromRevision(revision),
 					})
@@ -614,8 +614,8 @@ func TestExpand(t *testing.T) {
 
 func TestLookup(t *testing.T) {
 	testCases := []struct {
-		relation          *api.RelationReference
-		user              *api.ObjectAndRelation
+		relation          *v0.RelationReference
+		user              *v0.ObjectAndRelation
 		expectedObjectIds []string
 		expectedErrorCode codes.Code
 	}{
@@ -737,7 +737,7 @@ func TestLookup(t *testing.T) {
 					require := require.New(t)
 					srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
 
-					result, err := srv.Lookup(context.Background(), &api.LookupRequest{
+					result, err := srv.Lookup(context.Background(), &v0.LookupRequest{
 						User:           tc.user,
 						ObjectRelation: tc.relation,
 						Limit:          100,
@@ -755,14 +755,14 @@ func TestLookup(t *testing.T) {
 
 						// Sanity check: Issue a check on every ID returned.
 						for _, objId := range result.ResolvedObjectIds {
-							checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
-								TestUserset: &api.ObjectAndRelation{
+							checkResp, err := srv.Check(context.Background(), &v0.CheckRequest{
+								TestUserset: &v0.ObjectAndRelation{
 									Namespace: tc.relation.Namespace,
 									Relation:  tc.relation.Relation,
 									ObjectId:  objId,
 								},
-								User: &api.User{
-									UserOneof: &api.User_Userset{
+								User: &v0.User{
+									UserOneof: &v0.User_Userset{
 										Userset: tc.user,
 									},
 								},
@@ -785,7 +785,7 @@ func newACLServicer(
 	revisionFuzzingTimedelta time.Duration,
 	gcWindow time.Duration,
 	simulatedLatency time.Duration,
-) (api.ACLServiceServer, decimal.Decimal) {
+) (v0.ACLServiceServer, decimal.Decimal) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
 	require.NoError(err)
 
@@ -800,7 +800,7 @@ func newACLServicer(
 	return NewACLServer(ds, ns, dispatch, 50), revision
 }
 
-func verifyTuples(expected []string, found []*api.RelationTuple, require *require.Assertions) {
+func verifyTuples(expected []string, found []*v0.RelationTuple, require *require.Assertions) {
 	expectedTuples := make(map[string]struct{}, len(expected))
 	for _, expTpl := range expected {
 		expectedTuples[expTpl] = struct{}{}

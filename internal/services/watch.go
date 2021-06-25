@@ -8,25 +8,25 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/zookie"
 	"github.com/shopspring/decimal"
 )
 
 type watchServer struct {
-	api.UnimplementedWatchServiceServer
+	v0.UnimplementedWatchServiceServer
 
 	ds  datastore.Datastore
 	nsm namespace.Manager
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(ds datastore.Datastore, nsm namespace.Manager) api.WatchServiceServer {
+func NewWatchServer(ds datastore.Datastore, nsm namespace.Manager) v0.WatchServiceServer {
 	s := &watchServer{ds: ds}
 	return s
 }
 
-func (ws *watchServer) Watch(req *api.WatchRequest, stream api.WatchService_WatchServer) error {
+func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchServer) error {
 	err := req.Validate()
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -66,7 +66,7 @@ func (ws *watchServer) Watch(req *api.WatchRequest, stream api.WatchService_Watc
 			if ok {
 				filtered := filter.filterUpdates(update.Changes)
 				if len(filtered) > 0 {
-					stream.Send(&api.WatchResponse{
+					stream.Send(&v0.WatchResponse{
 						Updates:     update.Changes,
 						EndRevision: zookie.NewFromRevision(update.Revision),
 					})
@@ -89,8 +89,8 @@ type namespaceFilter struct {
 	namespaces map[string]struct{}
 }
 
-func (nf namespaceFilter) filterUpdates(candidates []*api.RelationTupleUpdate) []*api.RelationTupleUpdate {
-	var filtered []*api.RelationTupleUpdate
+func (nf namespaceFilter) filterUpdates(candidates []*v0.RelationTupleUpdate) []*v0.RelationTupleUpdate {
+	var filtered []*v0.RelationTupleUpdate
 
 	for _, update := range candidates {
 		if _, ok := nf.namespaces[update.Tuple.ObjectAndRelation.Namespace]; ok {

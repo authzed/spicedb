@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -41,7 +41,7 @@ var (
 	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 )
 
-func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (datastore.Revision, error) {
+func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
@@ -101,7 +101,7 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Namesp
 	return revisionFromTransaction(newTxnID), nil
 }
 
-func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, datastore.Revision, error) {
+func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
@@ -182,7 +182,7 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (dat
 	return version, nil
 }
 
-func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx) (*pb.NamespaceDefinition, datastore.Revision, error) {
+func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx) (*v0.NamespaceDefinition, datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "loadNamespace")
@@ -203,7 +203,7 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx) (*pb.Namesp
 		return nil, datastore.NoRevision, err
 	}
 
-	loaded := &pb.NamespaceDefinition{}
+	loaded := &v0.NamespaceDefinition{}
 	err = proto.Unmarshal(config, loaded)
 	if err != nil {
 		return nil, datastore.NoRevision, err

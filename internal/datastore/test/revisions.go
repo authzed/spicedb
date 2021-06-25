@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -41,7 +41,7 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 			// Create some revisions
 			tpl := makeTestTuple("first", "owner")
 			for i := 0; i < 10; i++ {
-				_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{tuple.Touch(tpl)})
+				_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{tuple.Touch(tpl)})
 				require.NoError(err)
 			}
 

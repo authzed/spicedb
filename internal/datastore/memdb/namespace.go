@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 	errUnableToDeleteConfig = "unable to delete namespace config: %w"
 )
 
-func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (datastore.Revision, error) {
+func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
 	txn := mds.db.Txn(true)
 	defer txn.Abort()
 
@@ -32,7 +32,7 @@ func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Nam
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	var replacing *pb.NamespaceDefinition
+	var replacing *v0.NamespaceDefinition
 	var oldVersion uint64
 	if foundRaw != nil {
 		found := foundRaw.(*namespace)
@@ -68,7 +68,7 @@ func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Nam
 }
 
 // ReadNamespace reads a namespace definition and version and returns it if found.
-func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, datastore.Revision, error) {
+func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
 	txn := mds.db.Txn(false)
 	defer txn.Abort()
 

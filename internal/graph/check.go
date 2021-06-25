@@ -6,7 +6,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 func newConcurrentChecker(d Dispatcher, ds datastore.GraphDatastore) checker {
@@ -18,12 +18,12 @@ type concurrentChecker struct {
 	ds datastore.GraphDatastore
 }
 
-func onrEqual(lhs, rhs *pb.ObjectAndRelation) bool {
+func onrEqual(lhs, rhs *v0.ObjectAndRelation) bool {
 	// Properties are sorted by highest to lowest cardinality to optimize for short-circuiting.
 	return lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation && lhs.Namespace == rhs.Namespace
 }
 
-func (cc *concurrentChecker) check(ctx context.Context, req CheckRequest, relation *pb.Relation) ReduceableCheckFunc {
+func (cc *concurrentChecker) check(ctx context.Context, req CheckRequest, relation *v0.Relation) ReduceableCheckFunc {
 	// If we have found the goal's ONR, then we know that the ONR is a member.
 	if onrEqual(req.Goal, req.Start) {
 		return AlwaysMember()
@@ -82,30 +82,30 @@ func (cc *concurrentChecker) checkDirect(ctx context.Context, req CheckRequest) 
 	}
 }
 
-func (cc *concurrentChecker) checkUsersetRewrite(ctx context.Context, req CheckRequest, usr *pb.UsersetRewrite) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkUsersetRewrite(ctx context.Context, req CheckRequest, usr *v0.UsersetRewrite) ReduceableCheckFunc {
 	switch rw := usr.RewriteOperation.(type) {
-	case *pb.UsersetRewrite_Union:
+	case *v0.UsersetRewrite_Union:
 		return cc.checkSetOperation(ctx, req, rw.Union, Any)
-	case *pb.UsersetRewrite_Intersection:
+	case *v0.UsersetRewrite_Intersection:
 		return cc.checkSetOperation(ctx, req, rw.Intersection, All)
-	case *pb.UsersetRewrite_Exclusion:
+	case *v0.UsersetRewrite_Exclusion:
 		return cc.checkSetOperation(ctx, req, rw.Exclusion, Difference)
 	default:
 		return AlwaysFail
 	}
 }
 
-func (cc *concurrentChecker) checkSetOperation(ctx context.Context, req CheckRequest, so *pb.SetOperation, reducer Reducer) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkSetOperation(ctx context.Context, req CheckRequest, so *v0.SetOperation, reducer Reducer) ReduceableCheckFunc {
 	var requests []ReduceableCheckFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
-		case *pb.SetOperation_Child_XThis:
+		case *v0.SetOperation_Child_XThis:
 			requests = append(requests, cc.checkDirect(ctx, req))
-		case *pb.SetOperation_Child_ComputedUserset:
+		case *v0.SetOperation_Child_ComputedUserset:
 			requests = append(requests, cc.checkComputedUserset(req, child.ComputedUserset, nil))
-		case *pb.SetOperation_Child_UsersetRewrite:
+		case *v0.SetOperation_Child_UsersetRewrite:
 			requests = append(requests, cc.checkUsersetRewrite(ctx, req, child.UsersetRewrite))
-		case *pb.SetOperation_Child_TupleToUserset:
+		case *v0.SetOperation_Child_TupleToUserset:
 			requests = append(requests, cc.checkTupleToUserset(ctx, req, child.TupleToUserset))
 		}
 	}
@@ -115,15 +115,15 @@ func (cc *concurrentChecker) checkSetOperation(ctx context.Context, req CheckReq
 	}
 }
 
-func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *pb.ComputedUserset, tpl *pb.RelationTuple) ReduceableCheckFunc {
-	var start *pb.ObjectAndRelation
-	if cu.Object == pb.ComputedUserset_TUPLE_USERSET_OBJECT {
+func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableCheckFunc {
+	var start *v0.ObjectAndRelation
+	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if tpl == nil {
 			panic("computed userset for tupleset without tuple")
 		}
 
 		start = tpl.User.GetUserset()
-	} else if cu.Object == pb.ComputedUserset_TUPLE_OBJECT {
+	} else if cu.Object == v0.ComputedUserset_TUPLE_OBJECT {
 		if tpl != nil {
 			start = tpl.ObjectAndRelation
 		} else {
@@ -131,7 +131,7 @@ func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *pb.Compu
 		}
 	}
 
-	targetOnr := &pb.ObjectAndRelation{
+	targetOnr := &v0.ObjectAndRelation{
 		Namespace: start.Namespace,
 		ObjectId:  start.ObjectId,
 		Relation:  cu.Relation,
@@ -150,7 +150,7 @@ func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *pb.Compu
 	})
 }
 
-func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req CheckRequest, ttu *pb.TupleToUserset) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req CheckRequest, ttu *v0.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Trace().Object("ttu", req).Send()
 		it, err := cc.ds.QueryTuples(req.Start.Namespace, req.AtRevision).

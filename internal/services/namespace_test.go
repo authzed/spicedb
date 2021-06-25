@@ -12,7 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	ns "github.com/authzed/spicedb/pkg/namespace"
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -24,17 +24,17 @@ func TestNamespace(t *testing.T) {
 
 	srv := NewNamespaceServer(ds)
 
-	_, err = srv.ReadConfig(context.Background(), &api.ReadConfigRequest{
+	_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
 	})
 	requireGRPCStatus(codes.NotFound, err, require)
 
-	_, err = srv.WriteConfig(context.Background(), &api.WriteConfigRequest{
-		Configs: []*api.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS},
+	_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+		Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS},
 	})
 	require.NoError(err)
 
-	readBack, err := srv.ReadConfig(context.Background(), &api.ReadConfigRequest{
+	readBack, err := srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
 	})
 	require.NoError(err)
@@ -44,7 +44,7 @@ func TestNamespace(t *testing.T) {
 		require.Fail("should have read back the same config")
 	}
 
-	_, err = srv.ReadConfig(context.Background(), &api.ReadConfigRequest{
+	_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: "fake",
 	})
 	requireGRPCStatus(codes.NotFound, err, require)
@@ -53,9 +53,9 @@ func TestNamespace(t *testing.T) {
 func TestNamespaceChanged(t *testing.T) {
 	testCases := []struct {
 		name             string
-		initialNamespace *api.NamespaceDefinition
-		tuples           []*api.RelationTuple
-		updatedNamespace *api.NamespaceDefinition
+		initialNamespace *v0.NamespaceDefinition
+		tuples           []*v0.RelationTuple
+		updatedNamespace *v0.NamespaceDefinition
 		expectedError    string
 	}{
 		{
@@ -67,7 +67,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*api.RelationTuple{},
+			[]*v0.RelationTuple{},
 			ns.Namespace(
 				"folder",
 			),
@@ -82,7 +82,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*api.RelationTuple{tuple.Scan("folder:somefolder#viewer@user:someuser#...")},
+			[]*v0.RelationTuple{tuple.Scan("folder:somefolder#viewer@user:someuser#...")},
 			ns.Namespace(
 				"folder",
 			),
@@ -101,7 +101,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*api.RelationTuple{tuple.Scan("folder:somefolder#anotherrel@folder:somefolder#viewer")},
+			[]*v0.RelationTuple{tuple.Scan("folder:somefolder#anotherrel@folder:somefolder#viewer")},
 			ns.Namespace(
 				"folder",
 				ns.Relation("anotherrel",
@@ -120,7 +120,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*api.RelationTuple{tuple.Scan("folder:somefolder#viewer@user:someuser#...")},
+			[]*v0.RelationTuple{tuple.Scan("folder:somefolder#viewer@user:someuser#...")},
 			ns.Namespace(
 				"folder",
 				ns.Relation("viewer",
@@ -139,7 +139,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*api.RelationTuple{},
+			[]*v0.RelationTuple{},
 			ns.Namespace(
 				"folder",
 				ns.Relation("viewer",
@@ -158,7 +158,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*api.RelationTuple{tuple.Scan("folder:somefolder#viewer@user:someuser#...")},
+			[]*v0.RelationTuple{tuple.Scan("folder:somefolder#viewer@user:someuser#...")},
 			ns.Namespace(
 				"folder",
 				ns.Relation("viewer",
@@ -180,18 +180,18 @@ func TestNamespaceChanged(t *testing.T) {
 
 			srv := NewNamespaceServer(ds)
 
-			_, err = srv.ReadConfig(context.Background(), &api.ReadConfigRequest{
+			_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 				Namespace: testfixtures.DocumentNS.Name,
 			})
 			requireGRPCStatus(codes.NotFound, err, require)
 
-			_, err = srv.WriteConfig(context.Background(), &api.WriteConfigRequest{
-				Configs: []*api.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace},
+			_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+				Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace},
 			})
 			require.NoError(err)
 
 			// Write a tuple into the relation.
-			updates := []*api.RelationTupleUpdate{}
+			updates := []*v0.RelationTupleUpdate{}
 			for _, tpl := range tc.tuples {
 				updates = append(updates, tuple.Create(tpl))
 			}
@@ -199,8 +199,8 @@ func TestNamespaceChanged(t *testing.T) {
 			_, err = ds.WriteTuples(context.Background(), nil, updates)
 			require.NoError(err)
 
-			_, err = srv.WriteConfig(context.Background(), &api.WriteConfigRequest{
-				Configs: []*api.NamespaceDefinition{tc.updatedNamespace},
+			_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+				Configs: []*v0.NamespaceDefinition{tc.updatedNamespace},
 			})
 
 			if tc.expectedError != "" {

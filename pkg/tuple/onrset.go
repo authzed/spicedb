@@ -1,18 +1,18 @@
 package tuple
 
 import (
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 // ONRSet is a set of ObjectAndRelation's.
 type ONRSet struct {
-	onrs map[string]*pb.ObjectAndRelation
+	onrs map[string]*v0.ObjectAndRelation
 }
 
 // NewONRSet creates a new set.
 func NewONRSet() *ONRSet {
 	return &ONRSet{
-		onrs: map[string]*pb.ObjectAndRelation{},
+		onrs: map[string]*v0.ObjectAndRelation{},
 	}
 }
 
@@ -27,14 +27,14 @@ func (ons *ONRSet) IsEmpty() bool {
 }
 
 // Has returns true if the set contains the given ONR.
-func (ons *ONRSet) Has(onr *pb.ObjectAndRelation) bool {
+func (ons *ONRSet) Has(onr *v0.ObjectAndRelation) bool {
 	_, ok := ons.onrs[StringONR(onr)]
 	return ok
 }
 
 // Add adds the given ONR to the set. Returns true if the object was not in the set before this
 // call and false otherwise.
-func (ons *ONRSet) Add(onr *pb.ObjectAndRelation) bool {
+func (ons *ONRSet) Add(onr *v0.ObjectAndRelation) bool {
 	_, ok := ons.onrs[StringONR(onr)]
 	if ok {
 		return false
@@ -45,7 +45,7 @@ func (ons *ONRSet) Add(onr *pb.ObjectAndRelation) bool {
 }
 
 // Update updates the set by adding the given ONRs to it.
-func (ons *ONRSet) Update(onrs []*pb.ObjectAndRelation) {
+func (ons *ONRSet) Update(onrs []*v0.ObjectAndRelation) {
 	for _, onr := range onrs {
 		ons.Add(onr)
 	}
@@ -81,7 +81,7 @@ func (ons *ONRSet) Subtract(otherSet *ONRSet) *ONRSet {
 }
 
 // With returns a copy of this ONR set with the given element added.
-func (ons *ONRSet) With(onr *pb.ObjectAndRelation) *ONRSet {
+func (ons *ONRSet) With(onr *v0.ObjectAndRelation) *ONRSet {
 	updated := NewONRSet()
 	for _, current := range ons.onrs {
 		updated.Add(current)
@@ -91,8 +91,8 @@ func (ons *ONRSet) With(onr *pb.ObjectAndRelation) *ONRSet {
 }
 
 // AsSlice returns the ONRs found in the set as a slice.
-func (ons *ONRSet) AsSlice() []*pb.ObjectAndRelation {
-	slice := make([]*pb.ObjectAndRelation, 0, len(ons.onrs))
+func (ons *ONRSet) AsSlice() []*v0.ObjectAndRelation {
+	slice := make([]*v0.ObjectAndRelation, 0, len(ons.onrs))
 	for _, onr := range ons.onrs {
 		slice = append(slice, onr)
 	}

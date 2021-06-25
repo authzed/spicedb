@@ -2,14 +2,14 @@ package generator
 
 import (
 	"github.com/authzed/spicedb/pkg/graph"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 // Ellipsis is the relation name for terminal subjects.
 const Ellipsis = "..."
 
 // generateSource generates a DSL view of the given namespace definition.
-func generateSource(namespace *pb.NamespaceDefinition) (string, bool) {
+func generateSource(namespace *v0.NamespaceDefinition) (string, bool) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
@@ -19,7 +19,7 @@ func generateSource(namespace *pb.NamespaceDefinition) (string, bool) {
 	return generator.buf.String(), !generator.hasIssue
 }
 
-func (sg *sourceGenerator) emitNamespace(namespace *pb.NamespaceDefinition) {
+func (sg *sourceGenerator) emitNamespace(namespace *v0.NamespaceDefinition) {
 	sg.append("definition ")
 	sg.append(namespace.Name)
 
@@ -40,7 +40,7 @@ func (sg *sourceGenerator) emitNamespace(namespace *pb.NamespaceDefinition) {
 	sg.append("}")
 }
 
-func (sg *sourceGenerator) emitRelation(relation *pb.Relation) {
+func (sg *sourceGenerator) emitRelation(relation *v0.Relation) {
 	hasThis := graph.HasThis(relation.UsersetRewrite)
 	isPermission := relation.UsersetRewrite != nil && !hasThis
 
@@ -75,7 +75,7 @@ func (sg *sourceGenerator) emitRelation(relation *pb.Relation) {
 	sg.appendLine()
 }
 
-func (sg *sourceGenerator) emitRelationReference(relationReference *pb.RelationReference) {
+func (sg *sourceGenerator) emitRelationReference(relationReference *v0.RelationReference) {
 	sg.append(relationReference.Namespace)
 	if relationReference.Relation != Ellipsis {
 		sg.append("#")
@@ -83,19 +83,19 @@ func (sg *sourceGenerator) emitRelationReference(relationReference *pb.RelationR
 	}
 }
 
-func (sg *sourceGenerator) emitRewrite(rewrite *pb.UsersetRewrite) {
+func (sg *sourceGenerator) emitRewrite(rewrite *v0.UsersetRewrite) {
 	switch rw := rewrite.RewriteOperation.(type) {
-	case *pb.UsersetRewrite_Union:
+	case *v0.UsersetRewrite_Union:
 		sg.emitRewriteOps(rw.Union, "+")
-	case *pb.UsersetRewrite_Intersection:
+	case *v0.UsersetRewrite_Intersection:
 		sg.emitRewriteOps(rw.Intersection, "&")
-	case *pb.UsersetRewrite_Exclusion:
+	case *v0.UsersetRewrite_Exclusion:
 		sg.emitRewriteOps(rw.Exclusion, "-")
 	}
 
 }
 
-func (sg *sourceGenerator) emitRewriteOps(setOp *pb.SetOperation, op string) {
+func (sg *sourceGenerator) emitRewriteOps(setOp *v0.SetOperation, op string) {
 	for index, child := range setOp.Child {
 		if index > 0 {
 			sg.append(" " + op + " ")
@@ -105,20 +105,20 @@ func (sg *sourceGenerator) emitRewriteOps(setOp *pb.SetOperation, op string) {
 	}
 }
 
-func (sg *sourceGenerator) emitSetOpChild(setOpChild *pb.SetOperation_Child) {
+func (sg *sourceGenerator) emitSetOpChild(setOpChild *v0.SetOperation_Child) {
 	switch child := setOpChild.ChildType.(type) {
-	case *pb.SetOperation_Child_UsersetRewrite:
+	case *v0.SetOperation_Child_UsersetRewrite:
 		sg.append("(")
 		sg.emitRewrite(child.UsersetRewrite)
 		sg.append(")")
 
-	case *pb.SetOperation_Child_XThis:
+	case *v0.SetOperation_Child_XThis:
 		sg.appendIssue("_this unsupported here. Please rewrite into a relation and permission")
 
-	case *pb.SetOperation_Child_ComputedUserset:
+	case *v0.SetOperation_Child_ComputedUserset:
 		sg.append(child.ComputedUserset.Relation)
 
-	case *pb.SetOperation_Child_TupleToUserset:
+	case *v0.SetOperation_Child_TupleToUserset:
 		sg.append(child.TupleToUserset.Tupleset.Relation)
 		sg.append("->")
 		sg.append(child.TupleToUserset.ComputedUserset.Relation)

@@ -6,14 +6,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/namespace"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 func TestGenerator(t *testing.T) {
 
 	type generatorTest struct {
 		name     string
-		input    *pb.NamespaceDefinition
+		input    *v0.NamespaceDefinition
 		expected string
 		okay     bool
 	}
@@ -28,7 +28,7 @@ func TestGenerator(t *testing.T) {
 		{
 			"simple relation",
 			namespace.Namespace("foo/test",
-				namespace.Relation("somerel", nil, &pb.RelationReference{
+				namespace.Relation("somerel", nil, &v0.RelationReference{
 					Namespace: "foo/bar",
 					Relation:  "hiya",
 				}),
@@ -75,7 +75,7 @@ func TestGenerator(t *testing.T) {
 				namespace.Relation("somerel", namespace.Union(
 					namespace.This(),
 					namespace.ComputedUserset("anotherrel"),
-				), &pb.RelationReference{
+				), &v0.RelationReference{
 					Namespace: "foo/bar",
 					Relation:  "hiya",
 				}),
@@ -100,17 +100,17 @@ func TestGenerator(t *testing.T) {
 			"full example",
 			namespace.Namespace("foo/document",
 				namespace.Relation("owner", nil,
-					&pb.RelationReference{
+					&v0.RelationReference{
 						Namespace: "foo/user",
 						Relation:  "...",
 					},
 				),
 				namespace.Relation("reader", nil,
-					&pb.RelationReference{
+					&v0.RelationReference{
 						Namespace: "foo/user",
 						Relation:  "...",
 					},
-					&pb.RelationReference{
+					&v0.RelationReference{
 						Namespace: "foo/group",
 						Relation:  "member",
 					},

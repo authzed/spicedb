@@ -36,7 +36,7 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	"github.com/authzed/spicedb/pkg/cmdutil"
 	"github.com/authzed/spicedb/pkg/grpcutil"
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 func main() {
@@ -277,13 +277,13 @@ func RegisterGrpcServices(
 ) {
 	healthSrv := grpcutil.NewAuthlessHealthServer()
 
-	api.RegisterACLServiceServer(srv, services.NewACLServer(ds, nsm, dispatch, maxDepth))
+	v0.RegisterACLServiceServer(srv, services.NewACLServer(ds, nsm, dispatch, maxDepth))
 	healthSrv.SetServingStatus("ACLService", healthpb.HealthCheckResponse_SERVING)
 
-	api.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds))
+	v0.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds))
 	healthSrv.SetServingStatus("NamespaceService", healthpb.HealthCheckResponse_SERVING)
 
-	api.RegisterWatchServiceServer(srv, services.NewWatchServer(ds, nsm))
+	v0.RegisterWatchServiceServer(srv, services.NewWatchServer(ds, nsm))
 	healthSrv.SetServingStatus("WatchService", healthpb.HealthCheckResponse_SERVING)
 
 	healthpb.RegisterHealthServer(srv, healthSrv)

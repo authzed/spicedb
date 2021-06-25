@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -47,7 +47,7 @@ var (
 	queryDeleteNamespace = psql.Delete(tableNamespace)
 )
 
-func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (datastore.Revision, error) {
+func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
 	serialized, err := proto.Marshal(newConfig)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
@@ -70,7 +70,7 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *pb.Name
 	return hlcNow, nil
 }
 
-func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, datastore.Revision, error) {
+func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := cds.conn.Begin(ctx)
@@ -143,7 +143,7 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 	return revisionFromTimestamp(timestamp), nil
 }
 
-func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string, forUpdate updateIntention) (*pb.NamespaceDefinition, time.Time, error) {
+func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string, forUpdate updateIntention) (*v0.NamespaceDefinition, time.Time, error) {
 	query := queryReadNamespace.Where(sq.Eq{colNamespace: nsName})
 
 	if forUpdate {
@@ -164,7 +164,7 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string, forUpdate upda
 		return nil, time.Time{}, err
 	}
 
-	loaded := &pb.NamespaceDefinition{}
+	loaded := &v0.NamespaceDefinition{}
 	err = proto.Unmarshal(config, loaded)
 	if err != nil {
 		return nil, time.Time{}, err

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -16,13 +16,13 @@ var (
 func TestSimplify(t *testing.T) {
 	testCases := []struct {
 		name     string
-		tree     *pb.RelationTupleTreeNode
-		expected []*pb.ObjectAndRelation
+		tree     *v0.RelationTupleTreeNode
+		expected []*v0.ObjectAndRelation
 	}{
 		{
 			"simple leaf",
 			Leaf(nil, tuple.User(ONR("user", "user1", "..."))),
-			[]*pb.ObjectAndRelation{ONR("user", "user1", "...")},
+			[]*v0.ObjectAndRelation{ONR("user", "user1", "...")},
 		},
 		{
 			"simple union",
@@ -31,7 +31,7 @@ func TestSimplify(t *testing.T) {
 				Leaf(nil, tuple.User(ONR("user", "user2", "..."))),
 				Leaf(nil, tuple.User(ONR("user", "user3", "..."))),
 			),
-			[]*pb.ObjectAndRelation{
+			[]*v0.ObjectAndRelation{
 				ONR("user", "user1", "..."),
 				ONR("user", "user2", "..."),
 				ONR("user", "user3", "..."),
@@ -53,7 +53,7 @@ func TestSimplify(t *testing.T) {
 					tuple.User(ONR("user", "user4", "...")),
 				),
 			),
-			[]*pb.ObjectAndRelation{ONR("user", "user2", "...")},
+			[]*v0.ObjectAndRelation{ONR("user", "user2", "...")},
 		},
 		{
 			"empty intersection",
@@ -67,7 +67,7 @@ func TestSimplify(t *testing.T) {
 					tuple.User(ONR("user", "user4", "...")),
 				),
 			),
-			[]*pb.ObjectAndRelation{},
+			[]*v0.ObjectAndRelation{},
 		},
 		{
 			"simple exclusion",
@@ -79,7 +79,7 @@ func TestSimplify(t *testing.T) {
 				Leaf(nil, tuple.User(ONR("user", "user2", "..."))),
 				Leaf(nil, tuple.User(ONR("user", "user3", "..."))),
 			),
-			[]*pb.ObjectAndRelation{ONR("user", "user1", "...")},
+			[]*v0.ObjectAndRelation{ONR("user", "user1", "...")},
 		},
 		{
 			"empty exclusion",
@@ -91,7 +91,7 @@ func TestSimplify(t *testing.T) {
 				Leaf(nil, tuple.User(ONR("user", "user1", "..."))),
 				Leaf(nil, tuple.User(ONR("user", "user2", "..."))),
 			),
-			[]*pb.ObjectAndRelation{},
+			[]*v0.ObjectAndRelation{},
 		},
 	}
 

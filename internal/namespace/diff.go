@@ -6,7 +6,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/scylladb/go-set/strset"
 
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -41,8 +41,8 @@ const (
 
 // NamespaceDiff holds the diff between two namespaces.
 type NamespaceDiff struct {
-	existing *pb.NamespaceDefinition
-	updated  *pb.NamespaceDefinition
+	existing *v0.NamespaceDefinition
+	updated  *v0.NamespaceDefinition
 	deltas   []Delta
 }
 
@@ -59,12 +59,12 @@ type Delta struct {
 	RelationName string
 
 	// DirectType is the direct relation type added or removed, if any.
-	DirectType *pb.RelationReference
+	DirectType *v0.RelationReference
 }
 
 // DiffNamespaces performs a diff between two namespace definitions. One or both of the definitions
 // can be `nil`, which will be treated as an add/remove as applicable.
-func DiffNamespaces(existing *pb.NamespaceDefinition, updated *pb.NamespaceDefinition) (*NamespaceDiff, error) {
+func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefinition) (*NamespaceDiff, error) {
 	// Check for the namespaces themselves.
 	if existing == nil && updated == nil {
 		return &NamespaceDiff{existing, updated, []Delta{}}, nil
@@ -97,10 +97,10 @@ func DiffNamespaces(existing *pb.NamespaceDefinition, updated *pb.NamespaceDefin
 	// Collect up relations and check.
 	deltas := []Delta{}
 
-	existingRels := map[string]*pb.Relation{}
+	existingRels := map[string]*v0.Relation{}
 	existingRelNames := strset.New()
 
-	updatedRels := map[string]*pb.Relation{}
+	updatedRels := map[string]*v0.Relation{}
 	updatedRelNames := strset.New()
 
 	for _, relation := range existing.Relation {
@@ -155,19 +155,19 @@ func DiffNamespaces(existing *pb.NamespaceDefinition, updated *pb.NamespaceDefin
 		// Compare type information.
 		existingTypeInfo := existingRel.TypeInformation
 		if existingTypeInfo == nil {
-			existingTypeInfo = &pb.TypeInformation{}
+			existingTypeInfo = &v0.TypeInformation{}
 		}
 
 		updatedTypeInfo := updatedRel.TypeInformation
 		if updatedTypeInfo == nil {
-			updatedTypeInfo = &pb.TypeInformation{}
+			updatedTypeInfo = &v0.TypeInformation{}
 		}
 
 		existingAllowedRels := tuple.NewONRSet()
 		updatedAllowedRels := tuple.NewONRSet()
 
 		for _, existingAllowed := range existingTypeInfo.AllowedDirectRelations {
-			existingAllowedRels.Add(&pb.ObjectAndRelation{
+			existingAllowedRels.Add(&v0.ObjectAndRelation{
 				Namespace: existingAllowed.Namespace,
 				Relation:  existingAllowed.Relation,
 				ObjectId:  "",
@@ -175,7 +175,7 @@ func DiffNamespaces(existing *pb.NamespaceDefinition, updated *pb.NamespaceDefin
 		}
 
 		for _, updatedAllowed := range updatedTypeInfo.AllowedDirectRelations {
-			updatedAllowedRels.Add(&pb.ObjectAndRelation{
+			updatedAllowedRels.Add(&v0.ObjectAndRelation{
 				Namespace: updatedAllowed.Namespace,
 				Relation:  updatedAllowed.Relation,
 				ObjectId:  "",
@@ -186,7 +186,7 @@ func DiffNamespaces(existing *pb.NamespaceDefinition, updated *pb.NamespaceDefin
 			deltas = append(deltas, Delta{
 				Type:         RelationDirectTypeRemoved,
 				RelationName: shared,
-				DirectType: &pb.RelationReference{
+				DirectType: &v0.RelationReference{
 					Namespace: removed.Namespace,
 					Relation:  removed.Relation,
 				},
@@ -197,7 +197,7 @@ func DiffNamespaces(existing *pb.NamespaceDefinition, updated *pb.NamespaceDefin
 			deltas = append(deltas, Delta{
 				Type:         RelationDirectTypeAdded,
 				RelationName: shared,
-				DirectType: &pb.RelationReference{
+				DirectType: &v0.RelationReference{
 					Namespace: added.Namespace,
 					Relation:  added.Relation,
 				},

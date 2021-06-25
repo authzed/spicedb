@@ -23,7 +23,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/services"
 	"github.com/authzed/spicedb/pkg/grpcutil"
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 func developerServiceRun(cmd *cobra.Command, args []string) {
@@ -103,7 +103,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 
 	healthSrv := grpcutil.NewAuthlessHealthServer()
 
-	api.RegisterDeveloperServiceServer(grpcServer, services.NewDeveloperServer(shareStore))
+	v0.RegisterDeveloperServiceServer(grpcServer, services.NewDeveloperServer(shareStore))
 	healthSrv.SetServingStatus("DeveloperService", healthpb.HealthCheckResponse_SERVING)
 
 	healthpb.RegisterHealthServer(grpcServer, healthSrv)

@@ -16,13 +16,13 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/sharederrors"
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type aclServer struct {
-	api.UnimplementedACLServiceServer
+	v0.UnimplementedACLServiceServer
 
 	ds           datastore.Datastore
 	nsm          namespace.Manager
@@ -44,12 +44,12 @@ var (
 )
 
 // NewACLServer creates an instance of the ACL server.
-func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch graph.Dispatcher, defaultDepth uint16) api.ACLServiceServer {
+func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch graph.Dispatcher, defaultDepth uint16) v0.ACLServiceServer {
 	s := &aclServer{ds: ds, nsm: nsm, dispatch: dispatch, defaultDepth: defaultDepth}
 	return s
 }
 
-func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.WriteResponse, error) {
+func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.WriteResponse, error) {
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -67,12 +67,12 @@ func (as *aclServer) Write(ctx context.Context, req *api.WriteRequest) (*api.Wri
 		return nil, rewriteACLError(err)
 	}
 
-	return &api.WriteResponse{
+	return &v0.WriteResponse{
 		Revision: zookie.NewFromRevision(revision),
 	}, nil
 }
 
-func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadResponse, error) {
+func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadResponse, error) {
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -82,14 +82,14 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 		checkedRelation := false
 		for _, filter := range tuplesetFilter.Filters {
 			switch filter {
-			case api.RelationTupleFilter_OBJECT_ID:
+			case v0.RelationTupleFilter_OBJECT_ID:
 				if tuplesetFilter.ObjectId == "" {
 					return nil, status.Errorf(
 						codes.InvalidArgument,
 						"object ID filter specified but not object ID provided.",
 					)
 				}
-			case api.RelationTupleFilter_RELATION:
+			case v0.RelationTupleFilter_RELATION:
 				if tuplesetFilter.Relation == "" {
 					return nil, status.Errorf(
 						codes.InvalidArgument,
@@ -105,7 +105,7 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 					return nil, rewriteACLError(err)
 				}
 				checkedRelation = true
-			case api.RelationTupleFilter_USERSET:
+			case v0.RelationTupleFilter_USERSET:
 				if tuplesetFilter.Userset == nil {
 					return nil, status.Errorf(
 						codes.InvalidArgument,
@@ -156,17 +156,17 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 		return nil, rewriteACLError(err)
 	}
 
-	var allTuplesetResults []*api.ReadResponse_Tupleset
+	var allTuplesetResults []*v0.ReadResponse_Tupleset
 
 	for _, tuplesetFilter := range req.Tuplesets {
 		queryBuilder := as.ds.QueryTuples(tuplesetFilter.Namespace, atRevision)
 		for _, filter := range tuplesetFilter.Filters {
 			switch filter {
-			case api.RelationTupleFilter_OBJECT_ID:
+			case v0.RelationTupleFilter_OBJECT_ID:
 				queryBuilder = queryBuilder.WithObjectID(tuplesetFilter.ObjectId)
-			case api.RelationTupleFilter_RELATION:
+			case v0.RelationTupleFilter_RELATION:
 				queryBuilder = queryBuilder.WithRelation(tuplesetFilter.Relation)
-			case api.RelationTupleFilter_USERSET:
+			case v0.RelationTupleFilter_USERSET:
 				queryBuilder = queryBuilder.WithUserset(tuplesetFilter.Userset)
 			default:
 				return nil, status.Errorf(codes.InvalidArgument, "unknown tupleset filter type: %s", filter)
@@ -180,7 +180,7 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 
 		defer tupleIterator.Close()
 
-		tuplesetResult := &api.ReadResponse_Tupleset{}
+		tuplesetResult := &v0.ReadResponse_Tupleset{}
 		for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
 			tuplesetResult.Tuples = append(tuplesetResult.Tuples, tuple)
 		}
@@ -191,13 +191,13 @@ func (as *aclServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadR
 		allTuplesetResults = append(allTuplesetResults, tuplesetResult)
 	}
 
-	return &api.ReadResponse{
+	return &v0.ReadResponse{
 		Tuplesets: allTuplesetResults,
 		Revision:  zookie.NewFromRevision(atRevision),
 	}, nil
 }
 
-func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.CheckResponse, error) {
+func (as *aclServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.CheckResponse, error) {
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -211,7 +211,7 @@ func (as *aclServer) Check(ctx context.Context, req *api.CheckRequest) (*api.Che
 	return as.commonCheck(ctx, atRevision, req.TestUserset, req.User.GetUserset())
 }
 
-func (as *aclServer) ContentChangeCheck(ctx context.Context, req *api.ContentChangeCheckRequest) (*api.CheckResponse, error) {
+func (as *aclServer) ContentChangeCheck(ctx context.Context, req *v0.ContentChangeCheckRequest) (*v0.CheckResponse, error) {
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -228,9 +228,9 @@ func (as *aclServer) ContentChangeCheck(ctx context.Context, req *api.ContentCha
 func (as *aclServer) commonCheck(
 	ctx context.Context,
 	atRevision decimal.Decimal,
-	start *api.ObjectAndRelation,
-	goal *api.ObjectAndRelation,
-) (*api.CheckResponse, error) {
+	start *v0.ObjectAndRelation,
+	goal *v0.ObjectAndRelation,
+) (*v0.CheckResponse, error) {
 	err := as.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, start.Relation, false)
 	if err != nil {
 		return nil, rewriteACLError(err)
@@ -256,12 +256,12 @@ func (as *aclServer) commonCheck(
 		return nil, rewriteACLError(cr.Err)
 	}
 
-	membership := api.CheckResponse_NOT_MEMBER
+	membership := v0.CheckResponse_NOT_MEMBER
 	if cr.IsMember {
-		membership = api.CheckResponse_MEMBER
+		membership = v0.CheckResponse_MEMBER
 	}
 
-	return &api.CheckResponse{
+	return &v0.CheckResponse{
 		IsMember:   cr.IsMember,
 		Revision:   zookie.NewFromRevision(atRevision),
 		Membership: membership,
@@ -269,7 +269,7 @@ func (as *aclServer) commonCheck(
 
 }
 
-func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.ExpandResponse, error) {
+func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.ExpandResponse, error) {
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -300,7 +300,7 @@ func (as *aclServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.E
 		return nil, rewriteACLError(resp.Err)
 	}
 
-	return &api.ExpandResponse{
+	return &v0.ExpandResponse{
 		TreeNode: resp.Tree,
 		Revision: zookie.NewFromRevision(atRevision),
 	}, nil
@@ -313,7 +313,7 @@ func min(a, b int) int {
 	return b
 }
 
-func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.LookupResponse, error) {
+func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.LookupResponse, error) {
 	err := req.Validate()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
@@ -370,7 +370,7 @@ func (as *aclServer) Lookup(ctx context.Context, req *api.LookupRequest) (*api.L
 		resolvedObjectIDs = append(resolvedObjectIDs, found.ObjectId)
 	}
 
-	return &api.LookupResponse{
+	return &v0.LookupResponse{
 		Revision:          zookie.NewFromRevision(atRevision),
 		ResolvedObjectIds: resolvedObjectIDs,
 	}, nil
@@ -400,7 +400,7 @@ func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) 
 	return as.defaultDepth, nil
 }
 
-func (as *aclServer) pickBestRevision(ctx context.Context, requested *api.Zookie) (decimal.Decimal, error) {
+func (as *aclServer) pickBestRevision(ctx context.Context, requested *v0.Zookie) (decimal.Decimal, error) {
 	databaseRev, err := as.ds.Revision(ctx)
 	if err != nil {
 		return decimal.Zero, err

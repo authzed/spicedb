@@ -16,12 +16,12 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func RR(namespaceName string, relationName string) *pb.RelationReference {
-	return &pb.RelationReference{
+func RR(namespaceName string, relationName string) *v0.RelationReference {
+	return &v0.RelationReference{
 		Namespace: namespaceName,
 		Relation:  relationName,
 	}
@@ -36,33 +36,33 @@ func init() {
 
 func TestSimpleLookup(t *testing.T) {
 	testCases := []struct {
-		start           *pb.RelationReference
-		target          *pb.ObjectAndRelation
-		resolvedObjects []*pb.ObjectAndRelation
+		start           *v0.RelationReference
+		target          *v0.ObjectAndRelation
+		resolvedObjects []*v0.ObjectAndRelation
 	}{
 		{
 			RR("document", "viewer"),
 			ONR("user", "unknown", "..."),
-			[]*pb.ObjectAndRelation{},
+			[]*v0.ObjectAndRelation{},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "eng_lead", "..."),
-			[]*pb.ObjectAndRelation{
+			[]*v0.ObjectAndRelation{
 				ONR("document", "masterplan", "viewer"),
 			},
 		},
 		{
 			RR("document", "owner"),
 			ONR("user", "product_manager", "..."),
-			[]*pb.ObjectAndRelation{
+			[]*v0.ObjectAndRelation{
 				ONR("document", "masterplan", "owner"),
 			},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "legal", "..."),
-			[]*pb.ObjectAndRelation{
+			[]*v0.ObjectAndRelation{
 				ONR("document", "companyplan", "viewer"),
 				ONR("document", "masterplan", "viewer"),
 			},
@@ -70,14 +70,14 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "viewer_and_editor"),
 			ONR("user", "multiroleguy", "..."),
-			[]*pb.ObjectAndRelation{
+			[]*v0.ObjectAndRelation{
 				ONR("document", "specialplan", "viewer_and_editor"),
 			},
 		},
 		{
 			RR("folder", "viewer"),
 			ONR("user", "owner", "..."),
-			[]*pb.ObjectAndRelation{
+			[]*v0.ObjectAndRelation{
 				ONR("folder", "strategy", "viewer"),
 				ONR("folder", "company", "viewer"),
 			},
@@ -144,7 +144,7 @@ func TestMaxDepthLookup(t *testing.T) {
 	require.Error(lookupResult.Err)
 }
 
-type OrderedResolved []*pb.ObjectAndRelation
+type OrderedResolved []*v0.ObjectAndRelation
 
 func (a OrderedResolved) Len() int { return len(a) }
 

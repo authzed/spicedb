@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -17,14 +17,14 @@ func TestSharing(t *testing.T) {
 	srv := NewDeveloperServer(store)
 
 	// Check for non-existent share.
-	resp, err := srv.LookupShared(context.Background(), &api.LookupShareRequest{
+	resp, err := srv.LookupShared(context.Background(), &v0.LookupShareRequest{
 		ShareReference: "someref",
 	})
 	require.NoError(err)
-	require.Equal(api.LookupShareResponse_UNKNOWN_REFERENCE, resp.Status)
+	require.Equal(v0.LookupShareResponse_UNKNOWN_REFERENCE, resp.Status)
 
 	// Add a share resource.
-	sresp, err := srv.Share(context.Background(), &api.ShareRequest{
+	sresp, err := srv.Share(context.Background(), &v0.ShareRequest{
 		NamespaceConfigs: []string{"foo", "bar"},
 		RelationTuples:   "rt",
 		ValidationYaml:   "vy",
@@ -33,65 +33,65 @@ func TestSharing(t *testing.T) {
 	require.NoError(err)
 
 	// Lookup again.
-	lresp, err := srv.LookupShared(context.Background(), &api.LookupShareRequest{
+	lresp, err := srv.LookupShared(context.Background(), &v0.LookupShareRequest{
 		ShareReference: sresp.ShareReference,
 	})
 	require.NoError(err)
-	require.Equal(api.LookupShareResponse_VALID_REFERENCE, lresp.Status)
+	require.Equal(v0.LookupShareResponse_VALID_REFERENCE, lresp.Status)
 	require.Equal([]string{"foo", "bar"}, lresp.NamespaceConfigs)
 }
 
 func TestEditCheck(t *testing.T) {
 	type testCase struct {
 		name            string
-		namespaces      []*api.NamespaceContext
-		tuples          []*api.RelationTuple
-		checkTuples     []*api.RelationTuple
-		expectedError   *api.ValidationError
-		expectedResults []*api.EditCheckResult
+		namespaces      []*v0.NamespaceContext
+		tuples          []*v0.RelationTuple
+		checkTuples     []*v0.RelationTuple
+		expectedError   *v0.ValidationError
+		expectedResults []*v0.EditCheckResult
 	}
 
 	tests := []testCase{
 		{
 			"invalid namespace",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "somenamespace",
 					Config: "name: foo\"",
 				},
 			},
-			[]*api.RelationTuple{},
-			[]*api.RelationTuple{},
-			&api.ValidationError{
+			[]*v0.RelationTuple{},
+			[]*v0.RelationTuple{},
+			&v0.ValidationError{
 				Message: "invalid value for string type: foo",
-				Kind:    api.ValidationError_NAMESPACE_CONFIG_ISSUE,
-				Source:  api.ValidationError_NAMESPACE_CONFIG,
+				Kind:    v0.ValidationError_NAMESPACE_CONFIG_ISSUE,
+				Source:  v0.ValidationError_NAMESPACE_CONFIG,
 				Line:    1,
 				Column:  7,
 			},
-			[]*api.EditCheckResult{},
+			[]*v0.EditCheckResult{},
 		},
 		{
 			"valid namespace",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "somenamespace",
 					Config: "name: \"somenamespace\"",
 				},
 			},
-			[]*api.RelationTuple{},
-			[]*api.RelationTuple{},
+			[]*v0.RelationTuple{},
+			[]*v0.RelationTuple{},
 			nil,
-			[]*api.EditCheckResult{},
+			[]*v0.EditCheckResult{},
 		},
 		{
 			"valid checks",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: `name: "user"`,
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "somenamespace",
 					Config: `name: "somenamespace"
 
@@ -100,20 +100,20 @@ func TestEditCheck(t *testing.T) {
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("somenamespace:someobj#somerel@user:foo#..."),
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("somenamespace:someobj#somerel@user:foo#..."),
 				tuple.Scan("somenamespace:someobj#somerel@user:anotheruser#..."),
 			},
 			nil,
-			[]*api.EditCheckResult{
-				&api.EditCheckResult{
+			[]*v0.EditCheckResult{
+				&v0.EditCheckResult{
 					Tuple:    tuple.Scan("somenamespace:someobj#somerel@user:foo#..."),
 					IsMember: true,
 				},
-				&api.EditCheckResult{
+				&v0.EditCheckResult{
 					Tuple:    tuple.Scan("somenamespace:someobj#somerel@user:anotheruser#..."),
 					IsMember: false,
 				},
@@ -128,8 +128,8 @@ func TestEditCheck(t *testing.T) {
 			store := NewInMemoryShareStore("flavored")
 			srv := NewDeveloperServer(store)
 
-			resp, err := srv.EditCheck(context.Background(), &api.EditCheckRequest{
-				Context: &api.RequestContext{
+			resp, err := srv.EditCheck(context.Background(), &v0.EditCheckRequest{
+				Context: &v0.RequestContext{
 					Namespaces: tc.namespaces,
 					Tuples:     tc.tuples,
 				},
@@ -151,30 +151,30 @@ func TestEditCheck(t *testing.T) {
 func TestValidate(t *testing.T) {
 	type testCase struct {
 		name                   string
-		namespaces             []*api.NamespaceContext
-		tuples                 []*api.RelationTuple
+		namespaces             []*v0.NamespaceContext
+		tuples                 []*v0.RelationTuple
 		validationYaml         string
 		assertionsYaml         string
-		expectedError          *api.ValidationError
+		expectedError          *v0.ValidationError
 		expectedValidationYaml string
 	}
 
 	tests := []testCase{
 		{
 			"invalid namespace",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "somenamespace",
 					Config: "name: foo\"",
 				},
 			},
-			[]*api.RelationTuple{},
+			[]*v0.RelationTuple{},
 			"",
 			"",
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message: "invalid value for string type: foo",
-				Kind:    api.ValidationError_NAMESPACE_CONFIG_ISSUE,
-				Source:  api.ValidationError_NAMESPACE_CONFIG,
+				Kind:    v0.ValidationError_NAMESPACE_CONFIG_ISSUE,
+				Source:  v0.ValidationError_NAMESPACE_CONFIG,
 				Line:    1,
 				Column:  7,
 			},
@@ -182,13 +182,13 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			"valid namespace",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "somenamespace",
 					Config: "name: \"somenamespace\"",
 				},
 			},
-			[]*api.RelationTuple{},
+			[]*v0.RelationTuple{},
 			"",
 			"",
 			nil,
@@ -196,50 +196,50 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			"invalid validation yaml",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "somenamespace",
 					Config: "name: \"somenamespace\"",
 				},
 			},
-			[]*api.RelationTuple{},
+			[]*v0.RelationTuple{},
 			`asdkjhgasd`,
 			"",
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message: "cannot unmarshal !!str `asdkjhgasd` into validationfile.ValidationMap",
-				Kind:    api.ValidationError_PARSE_ERROR,
-				Source:  api.ValidationError_VALIDATION_YAML,
+				Kind:    v0.ValidationError_PARSE_ERROR,
+				Source:  v0.ValidationError_VALIDATION_YAML,
 				Line:    1,
 			},
 			"",
 		},
 		{
 			"invalid assertions yaml",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "somenamespace",
 					Config: "name: \"somenamespace\"",
 				},
 			},
-			[]*api.RelationTuple{},
+			[]*v0.RelationTuple{},
 			"",
 			`asdhasjdkhjasd`,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message: "cannot unmarshal !!str `asdhasj...` into validationfile.Assertions",
-				Kind:    api.ValidationError_PARSE_ERROR,
-				Source:  api.ValidationError_ASSERTION,
+				Kind:    v0.ValidationError_PARSE_ERROR,
+				Source:  v0.ValidationError_ASSERTION,
 				Line:    1,
 			},
 			"",
 		},
 		{
 			"assertion true failure",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 
@@ -248,28 +248,28 @@ func TestValidate(t *testing.T) {
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#viewer@user:jimmy#..."),
 			},
 			"",
 			`assertTrue:
 - document:somedoc#viewer@user:jake#...`,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "Expected relation or permission document:somedoc#viewer@user:jake#... to exist",
-				Kind:     api.ValidationError_ASSERTION_FAILED,
-				Source:   api.ValidationError_ASSERTION,
+				Kind:     v0.ValidationError_ASSERTION_FAILED,
+				Source:   v0.ValidationError_ASSERTION,
 				Metadata: "document:somedoc#viewer@user:jake#...",
 			},
 			"{}\n",
 		},
 		{
 			"assertion false failure",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 
@@ -278,52 +278,52 @@ func TestValidate(t *testing.T) {
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#viewer@user:jimmy#..."),
 			},
 			"",
 			`assertFalse:
 - document:somedoc#viewer@user:jimmy#...`,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "Expected relation or permission document:somedoc#viewer@user:jimmy#... to not exist",
-				Kind:     api.ValidationError_ASSERTION_FAILED,
-				Source:   api.ValidationError_ASSERTION,
+				Kind:     v0.ValidationError_ASSERTION_FAILED,
+				Source:   v0.ValidationError_ASSERTION,
 				Metadata: "document:somedoc#viewer@user:jimmy#...",
 			},
 			"{}\n",
 		},
 		{
 			"assertion invalid relation",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"`,
 				},
 			},
-			[]*api.RelationTuple{},
+			[]*v0.RelationTuple{},
 			"",
 			`assertFalse:
 - document:somedoc#viewer@user:jimmy#...`,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "relation/permission `viewer` not found under namespace `document`",
-				Kind:     api.ValidationError_UNKNOWN_RELATION,
-				Source:   api.ValidationError_ASSERTION,
+				Kind:     v0.ValidationError_UNKNOWN_RELATION,
+				Source:   v0.ValidationError_ASSERTION,
 				Metadata: "document:somedoc#viewer@user:jimmy#...",
 			},
 			"{}\n",
 		},
 		{
 			"missing subject",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 					
@@ -344,16 +344,16 @@ func TestValidate(t *testing.T) {
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 			},
 			`"document:somedoc#viewer":`,
 			`assertTrue:
 - document:somedoc#viewer@user:jimmy#...`,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "For object and permission/relation `document:somedoc#viewer`, subject `user:jimmy#...` found but missing from specified",
-				Kind:     api.ValidationError_EXTRA_TUPLE_FOUND,
-				Source:   api.ValidationError_VALIDATION_YAML,
+				Kind:     v0.ValidationError_EXTRA_TUPLE_FOUND,
+				Source:   v0.ValidationError_VALIDATION_YAML,
 				Metadata: "document:somedoc#viewer",
 			},
 			`document:somedoc#viewer:
@@ -362,12 +362,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			"extra subject",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 					
@@ -388,7 +388,7 @@ func TestValidate(t *testing.T) {
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 			},
 			`"document:somedoc#viewer":
@@ -396,10 +396,10 @@ func TestValidate(t *testing.T) {
 - "[user:jake#...] is <document:somedoc#viewer>"`,
 			`assertTrue:
 - document:somedoc#viewer@user:jimmy#...`,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "For object and permission/relation `document:somedoc#viewer`, missing expected subject `user:jake#...`",
-				Kind:     api.ValidationError_MISSING_EXPECTED_TUPLE,
-				Source:   api.ValidationError_VALIDATION_YAML,
+				Kind:     v0.ValidationError_MISSING_EXPECTED_TUPLE,
+				Source:   v0.ValidationError_VALIDATION_YAML,
 				Metadata: "user:jake#...",
 			},
 			`document:somedoc#viewer:
@@ -408,12 +408,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			"parse error in validation",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 					
@@ -434,17 +434,17 @@ func TestValidate(t *testing.T) {
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 			},
 			`"document:somedoc#viewer":
 - "[user] is <document:somedoc#writer>"`,
 			`assertTrue:
 - document:somedoc#viewer@user:jimmy#...`,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "For object and permission/relation `document:somedoc#viewer`, invalid subject: user",
-				Kind:     api.ValidationError_PARSE_ERROR,
-				Source:   api.ValidationError_VALIDATION_YAML,
+				Kind:     v0.ValidationError_PARSE_ERROR,
+				Source:   v0.ValidationError_VALIDATION_YAML,
 				Metadata: "[user]",
 			},
 			`document:somedoc#viewer:
@@ -453,12 +453,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			"parse error in validation relationships",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 					
@@ -479,17 +479,17 @@ func TestValidate(t *testing.T) {
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 			},
 			`"document:somedoc#viewer":
 - "[user:jimmy#...] is <document:som>"`,
 			`assertTrue:
 - document:somedoc#viewer@user:jimmy#...`,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "For object and permission/relation `document:somedoc#viewer`, invalid object and relation: document:som",
-				Kind:     api.ValidationError_PARSE_ERROR,
-				Source:   api.ValidationError_VALIDATION_YAML,
+				Kind:     v0.ValidationError_PARSE_ERROR,
+				Source:   v0.ValidationError_VALIDATION_YAML,
 				Metadata: "<document:som>",
 			},
 			`document:somedoc#viewer:
@@ -498,12 +498,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			"different relations",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 					
@@ -524,17 +524,17 @@ func TestValidate(t *testing.T) {
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 			},
 			`"document:somedoc#viewer":
 - "[user:jimmy#...] is <document:somedoc#viewer>"`,
 			`assertTrue:
 - document:somedoc#viewer@user:jimmy#...`,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "For object and permission/relation `document:somedoc#viewer`, found different relationships for subject `user:jimmy#...`: Specified: `<document:somedoc#viewer>`, Computed: `<document:somedoc#writer>`",
-				Kind:     api.ValidationError_MISSING_EXPECTED_TUPLE,
-				Source:   api.ValidationError_VALIDATION_YAML,
+				Kind:     v0.ValidationError_MISSING_EXPECTED_TUPLE,
+				Source:   v0.ValidationError_VALIDATION_YAML,
 				Metadata: `[user:jimmy#...] is <document:somedoc#viewer>`,
 			},
 			`document:somedoc#viewer:
@@ -543,12 +543,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			"full valid",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 					
@@ -569,7 +569,7 @@ func TestValidate(t *testing.T) {
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 				tuple.Scan("document:somedoc#viewer@user:jake#..."),
 			},
@@ -591,12 +591,12 @@ assertFalse:
 		},
 		{
 			"muiltipath",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 					
@@ -617,7 +617,7 @@ assertFalse:
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 				tuple.Scan("document:somedoc#viewer@user:jimmy#..."),
 			},
@@ -633,12 +633,12 @@ assertFalse:
 		},
 		{
 			"muiltipath missing relationship",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: `name: "document"
 					
@@ -659,7 +659,7 @@ assertFalse:
 					}`,
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 				tuple.Scan("document:somedoc#viewer@user:jimmy#..."),
 			},
@@ -668,10 +668,10 @@ assertFalse:
 			`assertTrue:
 - document:somedoc#writer@user:jimmy#...
 `,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "For object and permission/relation `document:somedoc#viewer`, found different relationships for subject `user:jimmy#...`: Specified: `<document:somedoc#writer>`, Computed: `<document:somedoc#viewer>/<document:somedoc#writer>`",
-				Kind:     api.ValidationError_MISSING_EXPECTED_TUPLE,
-				Source:   api.ValidationError_VALIDATION_YAML,
+				Kind:     v0.ValidationError_MISSING_EXPECTED_TUPLE,
+				Source:   v0.ValidationError_VALIDATION_YAML,
 				Metadata: `[user:jimmy#...] is <document:somedoc#writer>`,
 			},
 			`document:somedoc#viewer:
@@ -680,46 +680,46 @@ assertFalse:
 		},
 		{
 			"invalid namespace on tuple",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 			},
 			``,
 			``,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "namespace `document` not found",
-				Kind:     api.ValidationError_UNKNOWN_NAMESPACE,
-				Source:   api.ValidationError_VALIDATION_TUPLE,
+				Kind:     v0.ValidationError_UNKNOWN_NAMESPACE,
+				Source:   v0.ValidationError_VALIDATION_TUPLE,
 				Metadata: `document:somedoc#writer@user:jimmy#...`,
 			},
 			``,
 		},
 		{
 			"invalid relation on tuple",
-			[]*api.NamespaceContext{
-				&api.NamespaceContext{
+			[]*v0.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "user",
 					Config: "name: \"user\"",
 				},
-				&api.NamespaceContext{
+				&v0.NamespaceContext{
 					Handle: "document",
 					Config: "name: \"document\"",
 				},
 			},
-			[]*api.RelationTuple{
+			[]*v0.RelationTuple{
 				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
 			},
 			``,
 			``,
-			&api.ValidationError{
+			&v0.ValidationError{
 				Message:  "relation/permission `writer` not found under namespace `document`",
-				Kind:     api.ValidationError_UNKNOWN_RELATION,
-				Source:   api.ValidationError_VALIDATION_TUPLE,
+				Kind:     v0.ValidationError_UNKNOWN_RELATION,
+				Source:   v0.ValidationError_VALIDATION_TUPLE,
 				Metadata: `document:somedoc#writer@user:jimmy#...`,
 			},
 			``,
@@ -733,8 +733,8 @@ assertFalse:
 			store := NewInMemoryShareStore("flavored")
 			srv := NewDeveloperServer(store)
 
-			resp, err := srv.Validate(context.Background(), &api.ValidateRequest{
-				Context: &api.RequestContext{
+			resp, err := srv.Validate(context.Background(), &v0.ValidateRequest{
+				Context: &v0.RequestContext{
 					Namespaces: tc.namespaces,
 					Tuples:     tc.tuples,
 				},

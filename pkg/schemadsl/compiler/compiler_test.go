@@ -3,10 +3,11 @@ package compiler
 import (
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/namespace"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/namespace"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 func TestCompile(t *testing.T) {
@@ -14,7 +15,7 @@ func TestCompile(t *testing.T) {
 		name          string
 		input         string
 		expectedError string
-		expectedProto []*pb.NamespaceDefinition
+		expectedProto []*v0.NamespaceDefinition
 	}
 
 	tests := []compileTest{
@@ -22,13 +23,13 @@ func TestCompile(t *testing.T) {
 			"empty",
 			"",
 			"",
-			[]*pb.NamespaceDefinition{},
+			[]*v0.NamespaceDefinition{},
 		},
 		{
 			"parse error",
 			"foo",
 			"parse error in `parse error`, line 1, column 1: Unexpected token at root level: TokenTypeIdentifier",
-			[]*pb.NamespaceDefinition{},
+			[]*v0.NamespaceDefinition{},
 		},
 		{
 			"nested parse error",
@@ -36,13 +37,13 @@ func TestCompile(t *testing.T) {
 				relation something: a | b + c	
 			}`,
 			"parse error in `nested parse error`, line 2, column 31: Expected end of statement or definition, found: TokenTypePlus",
-			[]*pb.NamespaceDefinition{},
+			[]*v0.NamespaceDefinition{},
 		},
 		{
 			"empty def",
 			`definition empty {}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/empty"),
 			},
 		},
@@ -52,7 +53,7 @@ func TestCompile(t *testing.T) {
 				relation foo: bar;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foo", nil,
 						namespace.RelationReference("sometenant/bar", "..."),
@@ -66,7 +67,7 @@ func TestCompile(t *testing.T) {
 				relation foo: bar#meh;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foo", nil,
 						namespace.RelationReference("sometenant/bar", "meh"),
@@ -80,7 +81,7 @@ func TestCompile(t *testing.T) {
 				relation foo: anothertenant/bar#meh;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foo", nil,
 						namespace.RelationReference("anothertenant/bar", "meh"),
@@ -95,7 +96,7 @@ func TestCompile(t *testing.T) {
 				relation hi: there | world;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foo", nil,
 						namespace.RelationReference("sometenant/bar", "meh"),
@@ -113,7 +114,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foo",
 						namespace.Union(
@@ -129,7 +130,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar + baz;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foo",
 						namespace.Union(
@@ -146,7 +147,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar & baz;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foo",
 						namespace.Intersection(
@@ -163,7 +164,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar - baz;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foo",
 						namespace.Exclusion(
@@ -180,7 +181,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar + baz + meh;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foo",
 						namespace.Union(
@@ -202,7 +203,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar + baz - meh;
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/complex",
 					namespace.Relation("foo",
 						namespace.Exclusion(
@@ -224,7 +225,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar + (baz - meh);
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/complex",
 					namespace.Relation("foo",
 						namespace.Union(
@@ -246,7 +247,7 @@ func TestCompile(t *testing.T) {
 				permission foo = bar->baz
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/arrowed",
 					namespace.Relation("foo",
 						namespace.Union(
@@ -264,7 +265,7 @@ func TestCompile(t *testing.T) {
 				permission foo = a->b->c
 			}`,
 			"Nested arrows not yet supported",
-			[]*pb.NamespaceDefinition{},
+			[]*v0.NamespaceDefinition{},
 		},
 
 		/*
@@ -276,7 +277,7 @@ func TestCompile(t *testing.T) {
 					permission foo = a->b->c
 				}`,
 				"",
-				[]*pb.NamespaceDefinition{
+				[]*v0.NamespaceDefinition{
 					namespace.Namespace("sometenant/arrowed",
 						namespace.Relation("foo",
 							namespace.Union(
@@ -294,7 +295,7 @@ func TestCompile(t *testing.T) {
 				permission foo = ((a->b) + c) - d
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/expressioned",
 					namespace.Relation("foo",
 						namespace.Exclusion(
@@ -319,7 +320,7 @@ func TestCompile(t *testing.T) {
 				permission fourth = bar->baz
 			}`,
 			"",
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/multiple",
 					namespace.Relation("first",
 						namespace.Union(

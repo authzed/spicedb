@@ -6,10 +6,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
-func (pgd *pgDatastore) ReverseQueryTuplesFromSubject(subject *pb.ObjectAndRelation, revision decimal.Decimal) datastore.ReverseTupleQuery {
+func (pgd *pgDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision decimal.Decimal) datastore.ReverseTupleQuery {
 	baseQuery := pgd.newBaseQuery(subject.Namespace, subject.Relation, revision)
 	baseQuery.query = baseQuery.query.Where(sq.Eq{colUsersetObjectID: subject.ObjectId})
 	baseQuery.tracerAttributes = append(baseQuery.tracerAttributes, subObjectIDKey.String(subject.ObjectId))

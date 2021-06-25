@@ -7,7 +7,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -18,8 +18,8 @@ var tracer = otel.Tracer("spicedb/internal/graph")
 
 // CheckRequest contains the data for a single check request.
 type CheckRequest struct {
-	Start          *pb.ObjectAndRelation
-	Goal           *pb.ObjectAndRelation
+	Start          *v0.ObjectAndRelation
+	Goal           *v0.ObjectAndRelation
 	AtRevision     decimal.Decimal
 	DepthRemaining uint16
 }
@@ -39,7 +39,7 @@ const (
 
 // ExpandRequest contains the data for a single expand request.
 type ExpandRequest struct {
-	Start          *pb.ObjectAndRelation
+	Start          *v0.ObjectAndRelation
 	AtRevision     decimal.Decimal
 	DepthRemaining uint16
 	ExpansionMode  ExpansionMode
@@ -47,17 +47,17 @@ type ExpandRequest struct {
 
 // ExpandResult is the data that is returned by a single expand or sub-expand.
 type ExpandResult struct {
-	Tree *pb.RelationTupleTreeNode
+	Tree *v0.RelationTupleTreeNode
 	Err  error
 }
 
 // LookupRequest contains the data for a single lookup request.
 type LookupRequest struct {
 	// StartRelation is the relation at which to start the lookup.
-	StartRelation *pb.RelationReference
+	StartRelation *v0.RelationReference
 
 	// TargetONR is the target ONR that we are trying to reach.
-	TargetONR *pb.ObjectAndRelation
+	TargetONR *v0.ObjectAndRelation
 
 	Limit          int
 	AtRevision     decimal.Decimal
@@ -69,7 +69,7 @@ type LookupRequest struct {
 
 // LookupResult is the data that is returned by a single lookup or sub-lookup.
 type LookupResult struct {
-	ResolvedObjects []*pb.ObjectAndRelation
+	ResolvedObjects []*v0.ObjectAndRelation
 	Err             error
 }
 
@@ -98,10 +98,10 @@ func AlwaysFail(ctx context.Context, resultChan chan<- CheckResult) {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (cr CheckRequest) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("request", tuple.String(&pb.RelationTuple{
+	e.Str("request", tuple.String(&v0.RelationTuple{
 		ObjectAndRelation: cr.Start,
-		User: &pb.User{
-			UserOneof: &pb.User_Userset{
+		User: &v0.User{
+			UserOneof: &v0.User_Userset{
 				Userset: cr.Goal,
 			},
 		},
@@ -114,7 +114,7 @@ func (cr CheckResult) MarshalZerologObject(e *zerolog.Event) {
 }
 
 type checker interface {
-	check(ctx context.Context, req CheckRequest, relation *pb.Relation) ReduceableCheckFunc
+	check(ctx context.Context, req CheckRequest, relation *v0.Relation) ReduceableCheckFunc
 }
 
 // ReduceableExpandFunc is a function that can be bound to a execution context.
@@ -128,12 +128,12 @@ func AlwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {
 // ExpandReducer is a type for the functions Any and All which combine check results.
 type ExpandReducer func(
 	ctx context.Context,
-	start *pb.ObjectAndRelation,
+	start *v0.ObjectAndRelation,
 	requests []ReduceableExpandFunc,
 ) ExpandResult
 
 type expander interface {
-	expand(ctx context.Context, req ExpandRequest, relation *pb.Relation) ReduceableExpandFunc
+	expand(ctx context.Context, req ExpandRequest, relation *v0.Relation) ReduceableExpandFunc
 }
 
 // MarshalZerologObject implements zerolog object marshalling.

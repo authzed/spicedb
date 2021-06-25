@@ -5,7 +5,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -27,11 +27,11 @@ func (enf ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
 // ErrPreconditionFailed occurs when the precondition to a write tuple call does not match.
 type ErrPreconditionFailed struct {
 	error
-	precondition *pb.RelationTuple
+	precondition *v0.RelationTuple
 }
 
 // FailedPrecondition is the tuple that was not found but was required as a precondition of a write.
-func (epf ErrPreconditionFailed) FailedPrecondition() *pb.RelationTuple {
+func (epf ErrPreconditionFailed) FailedPrecondition() *v0.RelationTuple {
 	return epf.precondition
 }
 
@@ -98,7 +98,7 @@ func NewNamespaceNotFoundErr(nsName string) error {
 }
 
 // NewPreconditionFailedErr constructs a new precondition failed error.
-func NewPreconditionFailedErr(precondition *pb.RelationTuple) error {
+func NewPreconditionFailedErr(precondition *v0.RelationTuple) error {
 	return ErrPreconditionFailed{
 		error:        fmt.Errorf("unable to satisfy write precondition `%s`", tuple.String(precondition)),
 		precondition: precondition,

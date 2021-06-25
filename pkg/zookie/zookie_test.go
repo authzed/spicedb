@@ -7,7 +7,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 var encodeRevisionTests = []decimal.Decimal{
@@ -104,7 +104,7 @@ var decodeTests = []struct {
 func TestDecode(t *testing.T) {
 	assert := assert.New(t)
 	for _, testCase := range decodeTests {
-		decoded, err := DecodeRevision(&pb.Zookie{
+		decoded, err := DecodeRevision(&v0.Zookie{
 			Token: testCase.token,
 		})
 		if err == nil {

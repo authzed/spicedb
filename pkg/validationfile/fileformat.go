@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -62,7 +62,7 @@ func (vm ValidationMap) AsYAML() (string, error) {
 // ObjectRelationString represents an ONR defined as a string in the key for the ValidationMap.
 type ObjectRelationString string
 
-func (ors ObjectRelationString) ONR() (*api.ObjectAndRelation, *ErrorWithSource) {
+func (ors ObjectRelationString) ONR() (*v0.ObjectAndRelation, *ErrorWithSource) {
 	parsed := tuple.ScanONR(string(ors))
 	if parsed == nil {
 		return nil, &ErrorWithSource{fmt.Errorf("could not parse %s", ors), string(ors)}
@@ -91,7 +91,7 @@ func (vs ValidationString) SubjectString() (string, bool) {
 }
 
 // Subject returns the subject contained in the ValidationString, if any. If none, returns nil.
-func (vs ValidationString) Subject() (*api.ObjectAndRelation, *ErrorWithSource) {
+func (vs ValidationString) Subject() (*v0.ObjectAndRelation, *ErrorWithSource) {
 	subjectStr, ok := vs.SubjectString()
 	if !ok {
 		return nil, nil
@@ -115,10 +115,10 @@ func (vs ValidationString) ONRStrings() []string {
 }
 
 // ONRS returns the subject ONRs in the ValidationString, if any.
-func (vs ValidationString) ONRS() ([]*api.ObjectAndRelation, *ErrorWithSource) {
+func (vs ValidationString) ONRS() ([]*v0.ObjectAndRelation, *ErrorWithSource) {
 	onrStrings := vs.ONRStrings()
 
-	onrs := []*api.ObjectAndRelation{}
+	onrs := []*v0.ObjectAndRelation{}
 	for _, onrString := range onrStrings {
 		found := tuple.ScanONR(onrString)
 		if found == nil {
@@ -148,8 +148,8 @@ type ErrorWithSource struct {
 }
 
 // AssertTrueRelationships returns the relationships for which to assert existance.
-func (a Assertions) AssertTrueRelationships() ([]*api.RelationTuple, *ErrorWithSource) {
-	var relationships []*api.RelationTuple
+func (a Assertions) AssertTrueRelationships() ([]*v0.RelationTuple, *ErrorWithSource) {
+	var relationships []*v0.RelationTuple
 	for _, tplString := range a.AssertTrue {
 		parsed := tuple.Scan(tplString)
 		if parsed == nil {
@@ -161,8 +161,8 @@ func (a Assertions) AssertTrueRelationships() ([]*api.RelationTuple, *ErrorWithS
 }
 
 // AssertFalseRelationships returns the relationships for which to assert non-existance.
-func (a Assertions) AssertFalseRelationships() ([]*api.RelationTuple, *ErrorWithSource) {
-	var relationships []*api.RelationTuple
+func (a Assertions) AssertFalseRelationships() ([]*v0.RelationTuple, *ErrorWithSource) {
+	var relationships []*v0.RelationTuple
 	for _, tplString := range a.AssertFalse {
 		parsed := tuple.Scan(tplString)
 		if parsed == nil {

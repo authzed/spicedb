@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 type memdbTupleQuery struct {
@@ -19,7 +19,7 @@ type memdbTupleQuery struct {
 
 	objectIDFilter *string
 	relationFilter *string
-	usersetFilter  *pb.ObjectAndRelation
+	usersetFilter  *v0.ObjectAndRelation
 	limit          *uint64
 
 	simulatedLatency time.Duration
@@ -40,7 +40,7 @@ func (mtq memdbTupleQuery) WithRelation(relation string) datastore.TupleQuery {
 	return mtq
 }
 
-func (mtq memdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.TupleQuery {
+func (mtq memdbTupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.TupleQuery {
 	mtq.usersetFilter = userset
 	return mtq
 }
@@ -129,7 +129,7 @@ type memdbTupleIterator struct {
 	count uint64
 }
 
-func (mti *memdbTupleIterator) Next() *pb.RelationTuple {
+func (mti *memdbTupleIterator) Next() *v0.RelationTuple {
 	foundRaw := mti.it.Next()
 	if foundRaw == nil {
 		return nil
@@ -142,15 +142,15 @@ func (mti *memdbTupleIterator) Next() *pb.RelationTuple {
 
 	found := foundRaw.(*tupleEntry)
 
-	return &pb.RelationTuple{
-		ObjectAndRelation: &pb.ObjectAndRelation{
+	return &v0.RelationTuple{
+		ObjectAndRelation: &v0.ObjectAndRelation{
 			Namespace: found.namespace,
 			ObjectId:  found.objectID,
 			Relation:  found.relation,
 		},
-		User: &pb.User{
-			UserOneof: &pb.User_Userset{
-				Userset: &pb.ObjectAndRelation{
+		User: &v0.User{
+			UserOneof: &v0.User_Userset{
+				Userset: &v0.ObjectAndRelation{
 					Namespace: found.usersetNamespace,
 					ObjectId:  found.usersetObjectID,
 					Relation:  found.usersetRelation,

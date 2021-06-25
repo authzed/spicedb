@@ -3,7 +3,7 @@ package compiler
 import (
 	"fmt"
 
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/parser"
@@ -19,24 +19,24 @@ type InputSchema struct {
 }
 
 // Compile compilers the input schema(s) into a set of namespace definition protos.
-func Compile(schemas []InputSchema, objectTypePrefix string) ([]*pb.NamespaceDefinition, error) {
+func Compile(schemas []InputSchema, objectTypePrefix string) ([]*v0.NamespaceDefinition, error) {
 	mapper := newPositionMapper(schemas)
 
 	// Parse and translate the various schemas.
-	definitions := []*pb.NamespaceDefinition{}
+	definitions := []*v0.NamespaceDefinition{}
 	for _, schema := range schemas {
 		root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
 		errors := root.FindAll(dslshape.NodeTypeError)
 		if len(errors) > 0 {
 			err := errorNodeToError(errors[0], mapper)
-			return []*pb.NamespaceDefinition{}, err
+			return []*v0.NamespaceDefinition{}, err
 		}
 
 		translatedDefs, err := translate(translationContext{
 			objectTypePrefix: objectTypePrefix,
 		}, root)
 		if err != nil {
-			return []*pb.NamespaceDefinition{}, err
+			return []*v0.NamespaceDefinition{}, err
 		}
 
 		definitions = append(definitions, translatedDefs...)

@@ -6,16 +6,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ns "github.com/authzed/spicedb/pkg/namespace"
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 func TestNamespaceValidation(t *testing.T) {
 	testCases := []struct {
 		name        string
 		expectError bool
-		config      *pb.NamespaceDefinition
+		config      *v0.NamespaceDefinition
 	}{
-		{"empty", true, &pb.NamespaceDefinition{}},
+		{"empty", true, &v0.NamespaceDefinition{}},
 		{"simple", false, ns.Namespace("user")},
 		{"full", false, ns.Namespace(
 			"document",
@@ -52,27 +52,27 @@ func TestNamespaceValidation(t *testing.T) {
 		)},
 		{"bad rewrite", true, ns.Namespace(
 			"document",
-			ns.Relation("editor", &pb.UsersetRewrite{}),
+			ns.Relation("editor", &v0.UsersetRewrite{}),
 		)},
 		{"nil union", true, ns.Namespace(
 			"document",
-			ns.Relation("editor", &pb.UsersetRewrite{
-				RewriteOperation: &pb.UsersetRewrite_Union{},
+			ns.Relation("editor", &v0.UsersetRewrite{
+				RewriteOperation: &v0.UsersetRewrite_Union{},
 			}),
 		)},
 		{"no children", true, ns.Namespace(
 			"document",
-			ns.Relation("editor", &pb.UsersetRewrite{
-				RewriteOperation: &pb.UsersetRewrite_Union{
-					Union: &pb.SetOperation{},
+			ns.Relation("editor", &v0.UsersetRewrite{
+				RewriteOperation: &v0.UsersetRewrite_Union{
+					Union: &v0.SetOperation{},
 				},
 			}),
 		)},
 		{"empty child", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_TupleToUserset{},
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_TupleToUserset{},
 				},
 			)),
 		)},
@@ -85,15 +85,15 @@ func TestNamespaceValidation(t *testing.T) {
 		{"nil child", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{},
+				&v0.SetOperation_Child{},
 			)),
 		)},
 		{"bad ttu", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_TupleToUserset{
-						TupleToUserset: &pb.TupleToUserset{},
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_TupleToUserset{
+						TupleToUserset: &v0.TupleToUserset{},
 					},
 				},
 			)),
@@ -101,11 +101,11 @@ func TestNamespaceValidation(t *testing.T) {
 		{"ttu missing tupleset", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_TupleToUserset{
-						TupleToUserset: &pb.TupleToUserset{
-							ComputedUserset: &pb.ComputedUserset{
-								Object:   pb.ComputedUserset_TUPLE_USERSET_OBJECT,
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_TupleToUserset{
+						TupleToUserset: &v0.TupleToUserset{
+							ComputedUserset: &v0.ComputedUserset{
+								Object:   v0.ComputedUserset_TUPLE_USERSET_OBJECT,
 								Relation: "admin",
 							},
 						},
@@ -116,10 +116,10 @@ func TestNamespaceValidation(t *testing.T) {
 		{"ttu missing rewrite", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_TupleToUserset{
-						TupleToUserset: &pb.TupleToUserset{
-							Tupleset: &pb.TupleToUserset_Tupleset{
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_TupleToUserset{
+						TupleToUserset: &v0.TupleToUserset{
+							Tupleset: &v0.TupleToUserset_Tupleset{
 								Relation: "parent",
 							},
 						},
@@ -130,14 +130,14 @@ func TestNamespaceValidation(t *testing.T) {
 		{"ttu bad relation", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_TupleToUserset{
-						TupleToUserset: &pb.TupleToUserset{
-							Tupleset: &pb.TupleToUserset_Tupleset{
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_TupleToUserset{
+						TupleToUserset: &v0.TupleToUserset{
+							Tupleset: &v0.TupleToUserset_Tupleset{
 								Relation: "",
 							},
-							ComputedUserset: &pb.ComputedUserset{
-								Object:   pb.ComputedUserset_TUPLE_USERSET_OBJECT,
+							ComputedUserset: &v0.ComputedUserset{
+								Object:   v0.ComputedUserset_TUPLE_USERSET_OBJECT,
 								Relation: "admin",
 							},
 						},
@@ -148,14 +148,14 @@ func TestNamespaceValidation(t *testing.T) {
 		{"ttu bad computed relation", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_TupleToUserset{
-						TupleToUserset: &pb.TupleToUserset{
-							Tupleset: &pb.TupleToUserset_Tupleset{
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_TupleToUserset{
+						TupleToUserset: &v0.TupleToUserset{
+							Tupleset: &v0.TupleToUserset_Tupleset{
 								Relation: "parent",
 							},
-							ComputedUserset: &pb.ComputedUserset{
-								Object:   pb.ComputedUserset_TUPLE_USERSET_OBJECT,
+							ComputedUserset: &v0.ComputedUserset{
+								Object:   v0.ComputedUserset_TUPLE_USERSET_OBJECT,
 								Relation: "",
 							},
 						},
@@ -166,14 +166,14 @@ func TestNamespaceValidation(t *testing.T) {
 		{"ttu nil computed relation", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_TupleToUserset{
-						TupleToUserset: &pb.TupleToUserset{
-							Tupleset: &pb.TupleToUserset_Tupleset{
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_TupleToUserset{
+						TupleToUserset: &v0.TupleToUserset{
+							Tupleset: &v0.TupleToUserset_Tupleset{
 								Relation: "parent",
 							},
-							ComputedUserset: &pb.ComputedUserset{
-								Object: pb.ComputedUserset_TUPLE_USERSET_OBJECT,
+							ComputedUserset: &v0.ComputedUserset{
+								Object: v0.ComputedUserset_TUPLE_USERSET_OBJECT,
 							},
 						},
 					},
@@ -183,17 +183,17 @@ func TestNamespaceValidation(t *testing.T) {
 		{"empty cu", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_ComputedUserset{},
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_ComputedUserset{},
 				},
 			)),
 		)},
 		{"cu empty relation", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_ComputedUserset{
-						ComputedUserset: &pb.ComputedUserset{},
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_ComputedUserset{
+						ComputedUserset: &v0.ComputedUserset{},
 					},
 				},
 			)),
@@ -201,9 +201,9 @@ func TestNamespaceValidation(t *testing.T) {
 		{"cu bad relation name", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_ComputedUserset{
-						ComputedUserset: &pb.ComputedUserset{
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_ComputedUserset{
+						ComputedUserset: &v0.ComputedUserset{
 							Relation: "ab",
 						},
 					},
@@ -213,9 +213,9 @@ func TestNamespaceValidation(t *testing.T) {
 		{"cu bad object type", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_ComputedUserset{
-						ComputedUserset: &pb.ComputedUserset{
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_ComputedUserset{
+						ComputedUserset: &v0.ComputedUserset{
 							Relation: "admin",
 							Object:   3,
 						},
@@ -226,17 +226,17 @@ func TestNamespaceValidation(t *testing.T) {
 		{"child nil rewrite", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_UsersetRewrite{},
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_UsersetRewrite{},
 				},
 			)),
 		)},
 		{"child bad rewrite", true, ns.Namespace(
 			"document",
 			ns.Relation("viewer", ns.Union(
-				&pb.SetOperation_Child{
-					ChildType: &pb.SetOperation_Child_UsersetRewrite{
-						UsersetRewrite: &pb.UsersetRewrite{},
+				&v0.SetOperation_Child{
+					ChildType: &v0.SetOperation_Child_UsersetRewrite{
+						UsersetRewrite: &v0.UsersetRewrite{},
 					},
 				},
 			)),

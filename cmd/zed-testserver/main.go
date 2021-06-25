@@ -24,7 +24,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
-	api "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -64,8 +64,8 @@ func runTestServer(cmd *cobra.Command, args []string) {
 		configFilePaths: configFilePaths,
 	}
 
-	api.RegisterACLServiceServer(grpcServer, server)
-	api.RegisterNamespaceServiceServer(grpcServer, server)
+	v0.RegisterACLServiceServer(grpcServer, server)
+	v0.RegisterNamespaceServiceServer(grpcServer, server)
 	reflection.Register(grpcServer)
 
 	go func() {
@@ -95,8 +95,8 @@ type model struct {
 }
 
 type tokenBasedServer struct {
-	api.UnimplementedACLServiceServer
-	api.UnimplementedNamespaceServiceServer
+	v0.UnimplementedACLServiceServer
+	v0.UnimplementedNamespaceServiceServer
 
 	configFilePaths []string
 	modelByToken    sync.Map
@@ -115,41 +115,41 @@ func (tbs *tokenBasedServer) modelForContext(ctx context.Context) model {
 	return model
 }
 
-func (tbs *tokenBasedServer) nsServer(ctx context.Context) api.NamespaceServiceServer {
+func (tbs *tokenBasedServer) nsServer(ctx context.Context) v0.NamespaceServiceServer {
 	model := tbs.modelForContext(ctx)
 	return services.NewNamespaceServer(model.datastore)
 }
 
-func (tbs *tokenBasedServer) WriteConfig(ctx context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {
+func (tbs *tokenBasedServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest) (*v0.WriteConfigResponse, error) {
 	return tbs.nsServer(ctx).WriteConfig(ctx, req)
 }
 
-func (tbs *tokenBasedServer) ReadConfig(ctx context.Context, req *api.ReadConfigRequest) (*api.ReadConfigResponse, error) {
+func (tbs *tokenBasedServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) (*v0.ReadConfigResponse, error) {
 	return tbs.nsServer(ctx).ReadConfig(ctx, req)
 }
 
-func (tbs *tokenBasedServer) aclServer(ctx context.Context) api.ACLServiceServer {
+func (tbs *tokenBasedServer) aclServer(ctx context.Context) v0.ACLServiceServer {
 	model := tbs.modelForContext(ctx)
 	return services.NewACLServer(model.datastore, model.namespaceManager, model.dispatcher, MAX_DEPTH)
 }
 
-func (tbs *tokenBasedServer) Read(ctx context.Context, req *api.ReadRequest) (*api.ReadResponse, error) {
+func (tbs *tokenBasedServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadResponse, error) {
 	return tbs.aclServer(ctx).Read(ctx, req)
 }
 
-func (tbs *tokenBasedServer) Write(ctx context.Context, req *api.WriteRequest) (*api.WriteResponse, error) {
+func (tbs *tokenBasedServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.WriteResponse, error) {
 	return tbs.aclServer(ctx).Write(ctx, req)
 }
 
-func (tbs *tokenBasedServer) Check(ctx context.Context, req *api.CheckRequest) (*api.CheckResponse, error) {
+func (tbs *tokenBasedServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.CheckResponse, error) {
 	return tbs.aclServer(ctx).Check(ctx, req)
 }
 
-func (tbs *tokenBasedServer) ContentChangeCheck(ctx context.Context, req *api.ContentChangeCheckRequest) (*api.CheckResponse, error) {
+func (tbs *tokenBasedServer) ContentChangeCheck(ctx context.Context, req *v0.ContentChangeCheckRequest) (*v0.CheckResponse, error) {
 	return tbs.aclServer(ctx).ContentChangeCheck(ctx, req)
 }
 
-func (tbs *tokenBasedServer) Expand(ctx context.Context, req *api.ExpandRequest) (*api.ExpandResponse, error) {
+func (tbs *tokenBasedServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.ExpandResponse, error) {
 	return tbs.aclServer(ctx).Expand(ctx, req)
 }
 

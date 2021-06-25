@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/authzed/spicedb/internal/datastore"
 
-	pb "github.com/authzed/spicedb/pkg/proto/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -33,7 +33,7 @@ var (
 	queryTupleExists = psql.Select(colID).From(tableTuple)
 )
 
-func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (datastore.Revision, error) {
+func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := pgd.dbpool.Begin(ctx)
@@ -72,7 +72,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 	for _, mutation := range mutations {
 		tpl := mutation.Tuple
 
-		if mutation.Operation == pb.RelationTupleUpdate_TOUCH || mutation.Operation == pb.RelationTupleUpdate_DELETE {
+		if mutation.Operation == v0.RelationTupleUpdate_TOUCH || mutation.Operation == v0.RelationTupleUpdate_DELETE {
 			sql, args, err := deleteTuple.Where(exactTupleClause(tpl)).Set(colDeletedTxn, newTxnID).ToSql()
 			if err != nil {
 				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
@@ -83,7 +83,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 			}
 		}
 
-		if mutation.Operation == pb.RelationTupleUpdate_TOUCH || mutation.Operation == pb.RelationTupleUpdate_CREATE {
+		if mutation.Operation == v0.RelationTupleUpdate_TOUCH || mutation.Operation == v0.RelationTupleUpdate_CREATE {
 			bulkWrite = bulkWrite.Values(
 				tpl.ObjectAndRelation.Namespace,
 				tpl.ObjectAndRelation.ObjectId,
@@ -117,7 +117,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*pb.Rel
 	return revisionFromTransaction(newTxnID), nil
 }
 
-func exactTupleClause(tpl *pb.RelationTuple) sq.Eq {
+func exactTupleClause(tpl *v0.RelationTuple) sq.Eq {
 	return sq.Eq{
 		colNamespace:        tpl.ObjectAndRelation.Namespace,
 		colObjectID:         tpl.ObjectAndRelation.ObjectId,
