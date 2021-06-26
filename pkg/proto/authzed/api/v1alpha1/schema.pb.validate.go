@@ -33,10 +33,10 @@ var (
 	_ = anypb.Any{}
 )
 
-// Validate checks the field values on SchemaServiceReadRequest with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
-func (m *SchemaServiceReadRequest) Validate() error {
+// Validate checks the field values on ReadSchemaRequest with the rules defined
+// in the proto definition for this message. If any rules are violated, an
+// error is returned.
+func (m *ReadSchemaRequest) Validate() error {
 	if m == nil {
 		return nil
 	}
@@ -45,14 +45,14 @@ func (m *SchemaServiceReadRequest) Validate() error {
 		_, _ = idx, item
 
 		if len(item) > 128 {
-			return SchemaServiceReadRequestValidationError{
+			return ReadSchemaRequestValidationError{
 				field:  fmt.Sprintf("ObjectDefinitionNames[%v]", idx),
 				reason: "value length must be at most 128 bytes",
 			}
 		}
 
-		if !_SchemaServiceReadRequest_ObjectDefinitionNames_Pattern.MatchString(item) {
-			return SchemaServiceReadRequestValidationError{
+		if !_ReadSchemaRequest_ObjectDefinitionNames_Pattern.MatchString(item) {
+			return ReadSchemaRequestValidationError{
 				field:  fmt.Sprintf("ObjectDefinitionNames[%v]", idx),
 				reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
 			}
@@ -63,9 +63,9 @@ func (m *SchemaServiceReadRequest) Validate() error {
 	return nil
 }
 
-// SchemaServiceReadRequestValidationError is the validation error returned by
-// SchemaServiceReadRequest.Validate if the designated constraints aren't met.
-type SchemaServiceReadRequestValidationError struct {
+// ReadSchemaRequestValidationError is the validation error returned by
+// ReadSchemaRequest.Validate if the designated constraints aren't met.
+type ReadSchemaRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -73,24 +73,24 @@ type SchemaServiceReadRequestValidationError struct {
 }
 
 // Field function returns field value.
-func (e SchemaServiceReadRequestValidationError) Field() string { return e.field }
+func (e ReadSchemaRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e SchemaServiceReadRequestValidationError) Reason() string { return e.reason }
+func (e ReadSchemaRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e SchemaServiceReadRequestValidationError) Cause() error { return e.cause }
+func (e ReadSchemaRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e SchemaServiceReadRequestValidationError) Key() bool { return e.key }
+func (e ReadSchemaRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e SchemaServiceReadRequestValidationError) ErrorName() string {
-	return "SchemaServiceReadRequestValidationError"
+func (e ReadSchemaRequestValidationError) ErrorName() string {
+	return "ReadSchemaRequestValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e SchemaServiceReadRequestValidationError) Error() string {
+func (e ReadSchemaRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -102,14 +102,14 @@ func (e SchemaServiceReadRequestValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sSchemaServiceReadRequest.%s: %s%s",
+		"invalid %sReadSchemaRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = SchemaServiceReadRequestValidationError{}
+var _ error = ReadSchemaRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -117,14 +117,14 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = SchemaServiceReadRequestValidationError{}
+} = ReadSchemaRequestValidationError{}
 
-var _SchemaServiceReadRequest_ObjectDefinitionNames_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$")
+var _ReadSchemaRequest_ObjectDefinitionNames_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$")
 
-// Validate checks the field values on SchemaServiceReadResponse with the rules
+// Validate checks the field values on ReadSchemaResponse with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, an error is returned.
-func (m *SchemaServiceReadResponse) Validate() error {
+func (m *ReadSchemaResponse) Validate() error {
 	if m == nil {
 		return nil
 	}
@@ -132,9 +132,9 @@ func (m *SchemaServiceReadResponse) Validate() error {
 	return nil
 }
 
-// SchemaServiceReadResponseValidationError is the validation error returned by
-// SchemaServiceReadResponse.Validate if the designated constraints aren't met.
-type SchemaServiceReadResponseValidationError struct {
+// ReadSchemaResponseValidationError is the validation error returned by
+// ReadSchemaResponse.Validate if the designated constraints aren't met.
+type ReadSchemaResponseValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -142,24 +142,24 @@ type SchemaServiceReadResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e SchemaServiceReadResponseValidationError) Field() string { return e.field }
+func (e ReadSchemaResponseValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e SchemaServiceReadResponseValidationError) Reason() string { return e.reason }
+func (e ReadSchemaResponseValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e SchemaServiceReadResponseValidationError) Cause() error { return e.cause }
+func (e ReadSchemaResponseValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e SchemaServiceReadResponseValidationError) Key() bool { return e.key }
+func (e ReadSchemaResponseValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e SchemaServiceReadResponseValidationError) ErrorName() string {
-	return "SchemaServiceReadResponseValidationError"
+func (e ReadSchemaResponseValidationError) ErrorName() string {
+	return "ReadSchemaResponseValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e SchemaServiceReadResponseValidationError) Error() string {
+func (e ReadSchemaResponseValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -171,14 +171,14 @@ func (e SchemaServiceReadResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sSchemaServiceReadResponse.%s: %s%s",
+		"invalid %sReadSchemaResponse.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = SchemaServiceReadResponseValidationError{}
+var _ error = ReadSchemaResponseValidationError{}
 
 var _ interface {
 	Field() string
@@ -186,32 +186,32 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = SchemaServiceReadResponseValidationError{}
+} = ReadSchemaResponseValidationError{}
 
-// Validate checks the field values on SchemaServiceWriteRequest with the rules
+// Validate checks the field values on WriteSchemaRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, an error is returned.
-func (m *SchemaServiceWriteRequest) Validate() error {
+func (m *WriteSchemaRequest) Validate() error {
 	if m == nil {
 		return nil
 	}
 
 	if len(m.GetImplicitPermissionsSystem()) > 128 {
-		return SchemaServiceWriteRequestValidationError{
+		return WriteSchemaRequestValidationError{
 			field:  "ImplicitPermissionsSystem",
 			reason: "value length must be at most 128 bytes",
 		}
 	}
 
-	if !_SchemaServiceWriteRequest_ImplicitPermissionsSystem_Pattern.MatchString(m.GetImplicitPermissionsSystem()) {
-		return SchemaServiceWriteRequestValidationError{
+	if !_WriteSchemaRequest_ImplicitPermissionsSystem_Pattern.MatchString(m.GetImplicitPermissionsSystem()) {
+		return WriteSchemaRequestValidationError{
 			field:  "ImplicitPermissionsSystem",
 			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
 		}
 	}
 
 	if len(m.GetObjectDefinitions()) < 1 {
-		return SchemaServiceWriteRequestValidationError{
+		return WriteSchemaRequestValidationError{
 			field:  "ObjectDefinitions",
 			reason: "value must contain at least 1 item(s)",
 		}
@@ -220,9 +220,9 @@ func (m *SchemaServiceWriteRequest) Validate() error {
 	return nil
 }
 
-// SchemaServiceWriteRequestValidationError is the validation error returned by
-// SchemaServiceWriteRequest.Validate if the designated constraints aren't met.
-type SchemaServiceWriteRequestValidationError struct {
+// WriteSchemaRequestValidationError is the validation error returned by
+// WriteSchemaRequest.Validate if the designated constraints aren't met.
+type WriteSchemaRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -230,24 +230,24 @@ type SchemaServiceWriteRequestValidationError struct {
 }
 
 // Field function returns field value.
-func (e SchemaServiceWriteRequestValidationError) Field() string { return e.field }
+func (e WriteSchemaRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e SchemaServiceWriteRequestValidationError) Reason() string { return e.reason }
+func (e WriteSchemaRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e SchemaServiceWriteRequestValidationError) Cause() error { return e.cause }
+func (e WriteSchemaRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e SchemaServiceWriteRequestValidationError) Key() bool { return e.key }
+func (e WriteSchemaRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e SchemaServiceWriteRequestValidationError) ErrorName() string {
-	return "SchemaServiceWriteRequestValidationError"
+func (e WriteSchemaRequestValidationError) ErrorName() string {
+	return "WriteSchemaRequestValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e SchemaServiceWriteRequestValidationError) Error() string {
+func (e WriteSchemaRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -259,14 +259,14 @@ func (e SchemaServiceWriteRequestValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sSchemaServiceWriteRequest.%s: %s%s",
+		"invalid %sWriteSchemaRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = SchemaServiceWriteRequestValidationError{}
+var _ error = WriteSchemaRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -274,14 +274,14 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = SchemaServiceWriteRequestValidationError{}
+} = WriteSchemaRequestValidationError{}
 
-var _SchemaServiceWriteRequest_ImplicitPermissionsSystem_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$")
+var _WriteSchemaRequest_ImplicitPermissionsSystem_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$")
 
-// Validate checks the field values on SchemaServiceWriteResponse with the
-// rules defined in the proto definition for this message. If any rules are
+// Validate checks the field values on WriteSchemaResponse with the rules
+// defined in the proto definition for this message. If any rules are
 // violated, an error is returned.
-func (m *SchemaServiceWriteResponse) Validate() error {
+func (m *WriteSchemaResponse) Validate() error {
 	if m == nil {
 		return nil
 	}
@@ -289,9 +289,9 @@ func (m *SchemaServiceWriteResponse) Validate() error {
 	return nil
 }
 
-// SchemaServiceWriteResponseValidationError is the validation error returned
-// by SchemaServiceWriteResponse.Validate if the designated constraints aren't met.
-type SchemaServiceWriteResponseValidationError struct {
+// WriteSchemaResponseValidationError is the validation error returned by
+// WriteSchemaResponse.Validate if the designated constraints aren't met.
+type WriteSchemaResponseValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -299,24 +299,24 @@ type SchemaServiceWriteResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e SchemaServiceWriteResponseValidationError) Field() string { return e.field }
+func (e WriteSchemaResponseValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e SchemaServiceWriteResponseValidationError) Reason() string { return e.reason }
+func (e WriteSchemaResponseValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e SchemaServiceWriteResponseValidationError) Cause() error { return e.cause }
+func (e WriteSchemaResponseValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e SchemaServiceWriteResponseValidationError) Key() bool { return e.key }
+func (e WriteSchemaResponseValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e SchemaServiceWriteResponseValidationError) ErrorName() string {
-	return "SchemaServiceWriteResponseValidationError"
+func (e WriteSchemaResponseValidationError) ErrorName() string {
+	return "WriteSchemaResponseValidationError"
 }
 
 // Error satisfies the builtin error interface
-func (e SchemaServiceWriteResponseValidationError) Error() string {
+func (e WriteSchemaResponseValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -328,14 +328,14 @@ func (e SchemaServiceWriteResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sSchemaServiceWriteResponse.%s: %s%s",
+		"invalid %sWriteSchemaResponse.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = SchemaServiceWriteResponseValidationError{}
+var _ error = WriteSchemaResponseValidationError{}
 
 var _ interface {
 	Field() string
@@ -343,4 +343,4 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = SchemaServiceWriteResponseValidationError{}
+} = WriteSchemaResponseValidationError{}

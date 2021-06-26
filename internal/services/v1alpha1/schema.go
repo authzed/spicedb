@@ -30,7 +30,7 @@ func NewSchemaServer(ds datastore.Datastore) v1alpha1.SchemaServiceServer {
 	return &schemaServiceServer{ds: ds}
 }
 
-func (ss *schemaServiceServer) Read(ctx context.Context, in *v1alpha1.SchemaServiceReadRequest) (*v1alpha1.SchemaServiceReadResponse, error) {
+func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
 	var objectDefs []string
 	for _, objectDefName := range in.GetObjectDefinitionNames() {
 		found, _, err := ss.ds.ReadNamespace(ctx, objectDefName)
@@ -40,13 +40,13 @@ func (ss *schemaServiceServer) Read(ctx context.Context, in *v1alpha1.SchemaServ
 
 		objectDef, ok := generator.GenerateSource(found)
 		if !ok {
-			return nil, rewriteError(errors.New("failed to generate ObjectDefinition"))
+			return nil, rewriteError(errors.New("failed to generate Object Definition"))
 		}
 
 		objectDefs = append(objectDefs, objectDef)
 	}
 
-	return &v1alpha1.SchemaServiceReadResponse{
+	return &v1alpha1.ReadSchemaResponse{
 		ObjectDefinitions: objectDefs,
 	}, nil
 }
@@ -61,7 +61,9 @@ func rewriteError(err error) error {
 	}
 }
 
-func (ss *schemaServiceServer) Write(ctx context.Context, in *v1alpha1.SchemaServiceWriteRequest) (*v1alpha1.SchemaServiceWriteResponse, error) {
+func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {
+	log.Trace().Interface("object definitions", in.GetObjectDefinitions()).Msg("requested Object Definitions to be written")
+
 	nsm, err := namespace.NewCachingNamespaceManager(ss.ds, 0, nil) // non-caching manager
 	if err != nil {
 		return nil, rewriteError(err)
@@ -79,6 +81,7 @@ func (ss *schemaServiceServer) Write(ctx context.Context, in *v1alpha1.SchemaSer
 	if err != nil {
 		return nil, rewriteError(err)
 	}
+	log.Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
 
 	for _, nsdef := range nsdefs {
 		ts, err := namespace.BuildNamespaceTypeSystem(nsdef, nsm, nsdefs...)
@@ -94,14 +97,16 @@ func (ss *schemaServiceServer) Write(ctx context.Context, in *v1alpha1.SchemaSer
 			return nil, rewriteError(err)
 		}
 	}
+	log.Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
 
 	for _, nsdef := range nsdefs {
 		if _, err := ss.ds.WriteNamespace(ctx, nsdef); err != nil {
 			return nil, rewriteError(err)
 		}
 	}
+	log.Trace().Interface("namespace definitions", nsdefs).Msg("wrote namespace definitions")
 
-	return &v1alpha1.SchemaServiceWriteResponse{}, nil
+	return &v1alpha1.WriteSchemaResponse{}, nil
 }
 
 // TODO(jzelinskie): figure how to deduplicate this code across v0 and v1 APIs.

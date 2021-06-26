@@ -23,11 +23,11 @@ type SchemaServiceClient interface {
 	// Errors include:
 	// - INVALID_ARGUMENT: a provided value has failed to semantically validate
 	// - NOT_FOUND: one of the Object Definitions being requested does not exist
-	Read(ctx context.Context, in *SchemaServiceReadRequest, opts ...grpc.CallOption) (*SchemaServiceReadResponse, error)
+	ReadSchema(ctx context.Context, in *ReadSchemaRequest, opts ...grpc.CallOption) (*ReadSchemaResponse, error)
 	// Write overwrites the current Object Definitions for a Permissions System.
 	//
 	// Any Object Definitions that exist, but are not included will be deleted.
-	Write(ctx context.Context, in *SchemaServiceWriteRequest, opts ...grpc.CallOption) (*SchemaServiceWriteResponse, error)
+	WriteSchema(ctx context.Context, in *WriteSchemaRequest, opts ...grpc.CallOption) (*WriteSchemaResponse, error)
 }
 
 type schemaServiceClient struct {
@@ -38,18 +38,18 @@ func NewSchemaServiceClient(cc grpc.ClientConnInterface) SchemaServiceClient {
 	return &schemaServiceClient{cc}
 }
 
-func (c *schemaServiceClient) Read(ctx context.Context, in *SchemaServiceReadRequest, opts ...grpc.CallOption) (*SchemaServiceReadResponse, error) {
-	out := new(SchemaServiceReadResponse)
-	err := c.cc.Invoke(ctx, "/authzed.api.v1alpha1.SchemaService/Read", in, out, opts...)
+func (c *schemaServiceClient) ReadSchema(ctx context.Context, in *ReadSchemaRequest, opts ...grpc.CallOption) (*ReadSchemaResponse, error) {
+	out := new(ReadSchemaResponse)
+	err := c.cc.Invoke(ctx, "/authzed.api.v1alpha1.SchemaService/ReadSchema", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *schemaServiceClient) Write(ctx context.Context, in *SchemaServiceWriteRequest, opts ...grpc.CallOption) (*SchemaServiceWriteResponse, error) {
-	out := new(SchemaServiceWriteResponse)
-	err := c.cc.Invoke(ctx, "/authzed.api.v1alpha1.SchemaService/Write", in, out, opts...)
+func (c *schemaServiceClient) WriteSchema(ctx context.Context, in *WriteSchemaRequest, opts ...grpc.CallOption) (*WriteSchemaResponse, error) {
+	out := new(WriteSchemaResponse)
+	err := c.cc.Invoke(ctx, "/authzed.api.v1alpha1.SchemaService/WriteSchema", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -65,11 +65,11 @@ type SchemaServiceServer interface {
 	// Errors include:
 	// - INVALID_ARGUMENT: a provided value has failed to semantically validate
 	// - NOT_FOUND: one of the Object Definitions being requested does not exist
-	Read(context.Context, *SchemaServiceReadRequest) (*SchemaServiceReadResponse, error)
+	ReadSchema(context.Context, *ReadSchemaRequest) (*ReadSchemaResponse, error)
 	// Write overwrites the current Object Definitions for a Permissions System.
 	//
 	// Any Object Definitions that exist, but are not included will be deleted.
-	Write(context.Context, *SchemaServiceWriteRequest) (*SchemaServiceWriteResponse, error)
+	WriteSchema(context.Context, *WriteSchemaRequest) (*WriteSchemaResponse, error)
 	mustEmbedUnimplementedSchemaServiceServer()
 }
 
@@ -77,11 +77,11 @@ type SchemaServiceServer interface {
 type UnimplementedSchemaServiceServer struct {
 }
 
-func (UnimplementedSchemaServiceServer) Read(context.Context, *SchemaServiceReadRequest) (*SchemaServiceReadResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Read not implemented")
+func (UnimplementedSchemaServiceServer) ReadSchema(context.Context, *ReadSchemaRequest) (*ReadSchemaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReadSchema not implemented")
 }
-func (UnimplementedSchemaServiceServer) Write(context.Context, *SchemaServiceWriteRequest) (*SchemaServiceWriteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Write not implemented")
+func (UnimplementedSchemaServiceServer) WriteSchema(context.Context, *WriteSchemaRequest) (*WriteSchemaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WriteSchema not implemented")
 }
 func (UnimplementedSchemaServiceServer) mustEmbedUnimplementedSchemaServiceServer() {}
 
@@ -96,38 +96,38 @@ func RegisterSchemaServiceServer(s grpc.ServiceRegistrar, srv SchemaServiceServe
 	s.RegisterService(&SchemaService_ServiceDesc, srv)
 }
 
-func _SchemaService_Read_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SchemaServiceReadRequest)
+func _SchemaService_ReadSchema_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReadSchemaRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SchemaServiceServer).Read(ctx, in)
+		return srv.(SchemaServiceServer).ReadSchema(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/authzed.api.v1alpha1.SchemaService/Read",
+		FullMethod: "/authzed.api.v1alpha1.SchemaService/ReadSchema",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SchemaServiceServer).Read(ctx, req.(*SchemaServiceReadRequest))
+		return srv.(SchemaServiceServer).ReadSchema(ctx, req.(*ReadSchemaRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SchemaService_Write_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SchemaServiceWriteRequest)
+func _SchemaService_WriteSchema_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WriteSchemaRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SchemaServiceServer).Write(ctx, in)
+		return srv.(SchemaServiceServer).WriteSchema(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/authzed.api.v1alpha1.SchemaService/Write",
+		FullMethod: "/authzed.api.v1alpha1.SchemaService/WriteSchema",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SchemaServiceServer).Write(ctx, req.(*SchemaServiceWriteRequest))
+		return srv.(SchemaServiceServer).WriteSchema(ctx, req.(*WriteSchemaRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -140,12 +140,12 @@ var SchemaService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*SchemaServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Read",
-			Handler:    _SchemaService_Read_Handler,
+			MethodName: "ReadSchema",
+			Handler:    _SchemaService_ReadSchema_Handler,
 		},
 		{
-			MethodName: "Write",
-			Handler:    _SchemaService_Write_Handler,
+			MethodName: "WriteSchema",
+			Handler:    _SchemaService_WriteSchema_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
