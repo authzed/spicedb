@@ -19,7 +19,7 @@ type InputSchema struct {
 }
 
 // Compile compilers the input schema(s) into a set of namespace definition protos.
-func Compile(schemas []InputSchema, objectTypePrefix string) ([]*v0.NamespaceDefinition, error) {
+func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*v0.NamespaceDefinition, error) {
 	mapper := newPositionMapper(schemas)
 
 	// Parse and translate the various schemas.

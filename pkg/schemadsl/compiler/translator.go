@@ -11,11 +11,19 @@ import (
 )
 
 type translationContext struct {
-	objectTypePrefix string
+	objectTypePrefix *string
 }
 
-func (tc translationContext) NamespacePath(namespaceName string) string {
-	return tc.objectTypePrefix + "/" + namespaceName
+func (tctx translationContext) NamespacePath(namespaceName string) (string, error) {
+	var prefix, name string
+	if err := stringz.SplitExact(namespaceName, "/", &prefix, &name); err != nil {
+		if tctx.objectTypePrefix == nil {
+			return "", fmt.Errorf("found reference `%s` without prefix", namespaceName)
+		}
+		prefix = *tctx.objectTypePrefix
+		name = namespaceName
+	}
+	return stringz.Join("/", prefix, name), nil
 }
 
 const Ellipsis = "..."
@@ -50,11 +58,16 @@ func translateDefinition(tctx translationContext, defNode *dslNode) (*v0.Namespa
 		relationsAndPermissions = append(relationsAndPermissions, relationOrPermission)
 	}
 
-	if len(relationsAndPermissions) == 0 {
-		return namespace.Namespace(tctx.NamespacePath(definitionName)), nil
+	nspath, err := tctx.NamespacePath(definitionName)
+	if err != nil {
+		return nil, defNode.Errorf("%w", err)
 	}
 
-	return namespace.Namespace(tctx.NamespacePath(definitionName), relationsAndPermissions...), nil
+	if len(relationsAndPermissions) == 0 {
+		return namespace.Namespace(nspath), nil
+	}
+
+	return namespace.Namespace(nspath, relationsAndPermissions...), nil
 }
 
 func translateRelationOrPermission(tctx translationContext, relOrPermNode *dslNode) (*v0.Relation, error) {
@@ -252,10 +265,9 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		return nil, typeRefNode.Errorf("invalid type name: %w", err)
 	}
 
-	var typePrefix, typeName string
-	if err := stringz.SplitExact(typePath, "/", &typePrefix, &typeName); err != nil {
-		typePrefix = tctx.objectTypePrefix
-		typeName = typePath
+	nspath, err := tctx.NamespacePath(typePath)
+	if err != nil {
+		return nil, typeRefNode.Errorf("%w", err)
 	}
 
 	relationName := Ellipsis
@@ -267,7 +279,7 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 	}
 
 	return &v0.RelationReference{
-		Namespace: fmt.Sprintf("%s/%s", typePrefix, typeName),
+		Namespace: nspath,
 		Relation:  relationName,
 	}, nil
 }

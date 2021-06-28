@@ -72,12 +72,12 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	var inputSchemas []compiler.InputSchema
 	for _, objectDef := range in.GetObjectDefinitions() {
 		inputSchemas = append(inputSchemas, compiler.InputSchema{
-			Source:       input.InputSource(""), // TODO(jzelinskie): find a better value for this
+			Source:       input.InputSource("schema"),
 			SchemaString: objectDef,
 		})
 	}
 
-	nsdefs, err := compiler.Compile(inputSchemas, in.ImplicitPermissionsSystem)
+	nsdefs, err := compiler.Compile(inputSchemas, nil)
 	if err != nil {
 		return nil, rewriteError(err)
 	}

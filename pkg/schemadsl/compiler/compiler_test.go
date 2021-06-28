@@ -10,29 +10,35 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
+var someTenant = "sometenant"
+
 func TestCompile(t *testing.T) {
 	type compileTest struct {
-		name          string
-		input         string
-		expectedError string
-		expectedProto []*v0.NamespaceDefinition
+		name           string
+		implicitTenant *string
+		input          string
+		expectedError  string
+		expectedProto  []*v0.NamespaceDefinition
 	}
 
 	tests := []compileTest{
 		{
 			"empty",
+			&someTenant,
 			"",
 			"",
 			[]*v0.NamespaceDefinition{},
 		},
 		{
 			"parse error",
+			&someTenant,
 			"foo",
 			"parse error in `parse error`, line 1, column 1: Unexpected token at root level: TokenTypeIdentifier",
 			[]*v0.NamespaceDefinition{},
 		},
 		{
 			"nested parse error",
+			&someTenant,
 			`definition foo {
 				relation something: a | b + c	
 			}`,
@@ -41,6 +47,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"empty def",
+			&someTenant,
 			`definition empty {}`,
 			"",
 			[]*v0.NamespaceDefinition{
@@ -49,6 +56,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"simple def",
+			&someTenant,
 			`definition simple {
 				relation foo: bar;
 			}`,
@@ -63,6 +71,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"explicit relation",
+			&someTenant,
 			`definition simple {
 				relation foo: bar#meh;
 			}`,
@@ -77,6 +86,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"cross tenant relation",
+			&someTenant,
 			`definition simple {
 				relation foo: anothertenant/bar#meh;
 			}`,
@@ -91,6 +101,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multiple relations",
+			&someTenant,
 			`definition simple {
 				relation foo: bar#meh;
 				relation hi: there | world;
@@ -110,6 +121,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"simple permission",
+			&someTenant,
 			`definition simple {
 				permission foo = bar;
 			}`,
@@ -126,6 +138,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"union permission",
+			&someTenant,
 			`definition simple {
 				permission foo = bar + baz;
 			}`,
@@ -143,6 +156,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"intersection permission",
+			&someTenant,
 			`definition simple {
 				permission foo = bar & baz;
 			}`,
@@ -160,6 +174,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"exclusion permission",
+			&someTenant,
 			`definition simple {
 				permission foo = bar - baz;
 			}`,
@@ -177,6 +192,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multi-union permission",
+			&someTenant,
 			`definition simple {
 				permission foo = bar + baz + meh;
 			}`,
@@ -199,6 +215,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"complex permission",
+			&someTenant,
 			`definition complex {
 				permission foo = bar + baz - meh;
 			}`,
@@ -221,6 +238,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"complex parens permission",
+			&someTenant,
 			`definition complex {
 				permission foo = bar + (baz - meh);
 			}`,
@@ -243,6 +261,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"arrow permission",
+			&someTenant,
 			`definition arrowed {
 				permission foo = bar->baz
 			}`,
@@ -260,6 +279,7 @@ func TestCompile(t *testing.T) {
 
 		{
 			"multiarrow permission",
+			&someTenant,
 			`definition arrowed {
 				relation a: something;
 				permission foo = a->b->c
@@ -291,6 +311,7 @@ func TestCompile(t *testing.T) {
 
 		{
 			"expression permission",
+			&someTenant,
 			`definition expressioned {
 				permission foo = ((a->b) + c) - d
 			}`,
@@ -313,6 +334,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multiple permission",
+			&someTenant,
 			`definition multiple {
 				permission first = bar + baz
 				permission second = bar - baz
@@ -348,14 +370,56 @@ func TestCompile(t *testing.T) {
 				),
 			},
 		},
+		{
+			"no implicit tenant with unspecified tenant",
+			nil,
+			`definition foo {}`,
+			"found reference `foo` without prefix",
+			[]*v0.NamespaceDefinition{},
+		},
+		{
+			"no implicit tenant with specified tenant",
+			nil,
+			`definition someTenant/foo {}`,
+			"",
+			[]*v0.NamespaceDefinition{
+				namespace.Namespace("someTenant/foo"),
+			},
+		},
+		{
+			"no implicit tenant with unspecified tenant on type ref",
+			nil,
+			`definition someTenant/foo {
+				relation somerel: bar
+			}`,
+			"found reference `bar` without prefix",
+			[]*v0.NamespaceDefinition{},
+		},
+		{
+			"no implicit tenant with specified tenant on type ref",
+			nil,
+			`definition someTenant/foo {
+				relation somerel: someTenant/bar
+			}`,
+			"",
+			[]*v0.NamespaceDefinition{
+				namespace.Namespace("someTenant/foo",
+					namespace.Relation(
+						"somerel",
+						nil,
+						namespace.RelationReference("someTenant/bar", "..."),
+					),
+				),
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 			defs, err := Compile([]InputSchema{
-				InputSchema{input.InputSource(test.name), test.input},
-			}, "sometenant")
+				{input.InputSource(test.name), test.input},
+			}, test.implicitTenant)
 
 			if test.expectedError != "" {
 				require.Error(err)
