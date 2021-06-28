@@ -196,20 +196,6 @@ func (m *WriteSchemaRequest) Validate() error {
 		return nil
 	}
 
-	if len(m.GetImplicitPermissionsSystem()) > 128 {
-		return WriteSchemaRequestValidationError{
-			field:  "ImplicitPermissionsSystem",
-			reason: "value length must be at most 128 bytes",
-		}
-	}
-
-	if !_WriteSchemaRequest_ImplicitPermissionsSystem_Pattern.MatchString(m.GetImplicitPermissionsSystem()) {
-		return WriteSchemaRequestValidationError{
-			field:  "ImplicitPermissionsSystem",
-			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
-		}
-	}
-
 	if len(m.GetObjectDefinitions()) < 1 {
 		return WriteSchemaRequestValidationError{
 			field:  "ObjectDefinitions",
@@ -275,8 +261,6 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = WriteSchemaRequestValidationError{}
-
-var _WriteSchemaRequest_ImplicitPermissionsSystem_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$")
 
 // Validate checks the field values on WriteSchemaResponse with the rules
 // defined in the proto definition for this message. If any rules are
