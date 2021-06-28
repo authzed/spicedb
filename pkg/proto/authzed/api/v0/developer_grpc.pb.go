@@ -23,6 +23,7 @@ type DeveloperServiceClient interface {
 	Share(ctx context.Context, in *ShareRequest, opts ...grpc.CallOption) (*ShareResponse, error)
 	LookupShared(ctx context.Context, in *LookupShareRequest, opts ...grpc.CallOption) (*LookupShareResponse, error)
 	UpgradeSchema(ctx context.Context, in *UpgradeSchemaRequest, opts ...grpc.CallOption) (*UpgradeSchemaResponse, error)
+	FormatSchema(ctx context.Context, in *FormatSchemaRequest, opts ...grpc.CallOption) (*FormatSchemaResponse, error)
 }
 
 type developerServiceClient struct {
@@ -78,6 +79,15 @@ func (c *developerServiceClient) UpgradeSchema(ctx context.Context, in *UpgradeS
 	return out, nil
 }
 
+func (c *developerServiceClient) FormatSchema(ctx context.Context, in *FormatSchemaRequest, opts ...grpc.CallOption) (*FormatSchemaResponse, error) {
+	out := new(FormatSchemaResponse)
+	err := c.cc.Invoke(ctx, "/authzed.api.v0.DeveloperService/FormatSchema", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DeveloperServiceServer is the server API for DeveloperService service.
 // All implementations must embed UnimplementedDeveloperServiceServer
 // for forward compatibility
@@ -87,6 +97,7 @@ type DeveloperServiceServer interface {
 	Share(context.Context, *ShareRequest) (*ShareResponse, error)
 	LookupShared(context.Context, *LookupShareRequest) (*LookupShareResponse, error)
 	UpgradeSchema(context.Context, *UpgradeSchemaRequest) (*UpgradeSchemaResponse, error)
+	FormatSchema(context.Context, *FormatSchemaRequest) (*FormatSchemaResponse, error)
 	mustEmbedUnimplementedDeveloperServiceServer()
 }
 
@@ -108,6 +119,9 @@ func (UnimplementedDeveloperServiceServer) LookupShared(context.Context, *Lookup
 }
 func (UnimplementedDeveloperServiceServer) UpgradeSchema(context.Context, *UpgradeSchemaRequest) (*UpgradeSchemaResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpgradeSchema not implemented")
+}
+func (UnimplementedDeveloperServiceServer) FormatSchema(context.Context, *FormatSchemaRequest) (*FormatSchemaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FormatSchema not implemented")
 }
 func (UnimplementedDeveloperServiceServer) mustEmbedUnimplementedDeveloperServiceServer() {}
 
@@ -212,6 +226,24 @@ func _DeveloperService_UpgradeSchema_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DeveloperService_FormatSchema_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FormatSchemaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeveloperServiceServer).FormatSchema(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/authzed.api.v0.DeveloperService/FormatSchema",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeveloperServiceServer).FormatSchema(ctx, req.(*FormatSchemaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DeveloperService_ServiceDesc is the grpc.ServiceDesc for DeveloperService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -238,6 +270,10 @@ var DeveloperService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpgradeSchema",
 			Handler:    _DeveloperService_UpgradeSchema_Handler,
+		},
+		{
+			MethodName: "FormatSchema",
+			Handler:    _DeveloperService_FormatSchema_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

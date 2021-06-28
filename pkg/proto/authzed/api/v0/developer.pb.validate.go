@@ -33,6 +33,154 @@ var (
 	_ = anypb.Any{}
 )
 
+// Validate checks the field values on FormatSchemaRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *FormatSchemaRequest) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	// no validation rules for Schema
+
+	return nil
+}
+
+// FormatSchemaRequestValidationError is the validation error returned by
+// FormatSchemaRequest.Validate if the designated constraints aren't met.
+type FormatSchemaRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e FormatSchemaRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e FormatSchemaRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e FormatSchemaRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e FormatSchemaRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e FormatSchemaRequestValidationError) ErrorName() string {
+	return "FormatSchemaRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e FormatSchemaRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sFormatSchemaRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = FormatSchemaRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = FormatSchemaRequestValidationError{}
+
+// Validate checks the field values on FormatSchemaResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *FormatSchemaResponse) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	if v, ok := interface{}(m.GetError()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return FormatSchemaResponseValidationError{
+				field:  "Error",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for FormattedSchema
+
+	return nil
+}
+
+// FormatSchemaResponseValidationError is the validation error returned by
+// FormatSchemaResponse.Validate if the designated constraints aren't met.
+type FormatSchemaResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e FormatSchemaResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e FormatSchemaResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e FormatSchemaResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e FormatSchemaResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e FormatSchemaResponseValidationError) ErrorName() string {
+	return "FormatSchemaResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e FormatSchemaResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sFormatSchemaResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = FormatSchemaResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = FormatSchemaResponseValidationError{}
+
 // Validate checks the field values on UpgradeSchemaRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, an error is returned.

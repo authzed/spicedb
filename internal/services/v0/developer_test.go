@@ -605,3 +605,17 @@ assertFalse:
 		})
 	}
 }
+
+func TestFormatSchema(t *testing.T) {
+	require := require.New(t)
+
+	store := NewInMemoryShareStore("flavored")
+	srv := NewDeveloperServer(store)
+
+	lresp, err := srv.FormatSchema(context.Background(), &v0.FormatSchemaRequest{
+		Schema: "definition foo {} definition bar{}",
+	})
+
+	require.NoError(err)
+	require.Equal("definition foo {}\n\ndefinition bar {}", lresp.FormattedSchema)
+}
