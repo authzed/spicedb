@@ -3,6 +3,6 @@
 package v0
 
 var _Metadata_MetadataMessage_InLookup = map[string]struct{}{
-	"type.googleapis.com/com.authzed.metadata.DocComment":       {},
-	"type.googleapis.com/com.authzed.metadata.RelationMetadata": {},
+	"type.googleapis.com/impl.v1.DocComment":       {},
+	"type.googleapis.com/impl.v1.RelationMetadata": {},
 }

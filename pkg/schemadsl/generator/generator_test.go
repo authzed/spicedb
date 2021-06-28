@@ -132,7 +132,7 @@ func TestGenerator(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			source, ok := generateSource(test.input)
+			source, ok := GenerateSource(test.input)
 			require.Equal(test.expected, source)
 			require.Equal(test.okay, ok)
 		})
