@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -17,7 +18,7 @@ import (
 const (
 	errUnableToQueryTuples = "unable to query tuples: %w"
 
-	querySetTransactionTime = "SET TRANSACTION READ ONLY AS OF SYSTEM TIME %s"
+	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
 )
 
 var (
@@ -91,7 +92,7 @@ func (ctq commonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterato
 
 	span.AddEvent("Query converted to SQL")
 
-	tx, err := ctq.conn.Begin(ctx)
+	tx, err := ctq.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
