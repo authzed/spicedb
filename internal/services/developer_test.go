@@ -121,7 +121,7 @@ func TestEditCheck(t *testing.T) {
 				tuple.Scan("somenamespace:someobj#anotherrel@user:foo#..."),
 			},
 			&v0.DeveloperError{
-				Message: "relation/permission `anotherrel` not found under namespace `somenamespace`",
+				Message: "relation/permission `anotherrel` not found under definition `somenamespace`",
 				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
 				Source:  v0.DeveloperError_CHECK_WATCH,
 				Context: "somenamespace:someobj#anotherrel@user:foo#...",
@@ -286,7 +286,7 @@ func TestValidate(t *testing.T) {
 			`assertFalse:
 - document:somedoc#viewer@user:jimmy#...`,
 			&v0.DeveloperError{
-				Message: "relation/permission `viewer` not found under namespace `document`",
+				Message: "relation/permission `viewer` not found under definition `document`",
 				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
 				Source:  v0.DeveloperError_ASSERTION,
 				Context: "document:somedoc#viewer@user:jimmy#...",
@@ -522,7 +522,7 @@ assertFalse:
 			``,
 			``,
 			&v0.DeveloperError{
-				Message: "namespace `document` not found",
+				Message: "object definition `document` not found",
 				Kind:    v0.DeveloperError_UNKNOWN_OBJECT_TYPE,
 				Source:  v0.DeveloperError_RELATIONSHIP,
 				Context: `document:somedoc#writer@user:jimmy#...`,
@@ -541,7 +541,7 @@ assertFalse:
 			``,
 			``,
 			&v0.DeveloperError{
-				Message: "relation/permission `writer` not found under namespace `document`",
+				Message: "relation/permission `writer` not found under definition `document`",
 				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
 				Source:  v0.DeveloperError_RELATIONSHIP,
 				Context: `document:somedoc#writer@user:jimmy#...`,
