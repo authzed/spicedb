@@ -169,9 +169,14 @@ func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx con
 }
 
 func rewriteError(err error) error {
-	switch typedErr := err.(type) {
-	case sharederrors.UnknownNamespaceError:
-		return status.Errorf(codes.NotFound, "Object Definition `%s` not found", typedErr.NotFoundNamespaceName())
+	var nsNotFoundError sharederrors.UnknownNamespaceError = nil
+	var errWithContext compiler.ErrorWithContext
+
+	switch {
+	case errors.As(err, &nsNotFoundError):
+		return status.Errorf(codes.NotFound, "Object Definition `%s` not found", nsNotFoundError.NotFoundNamespaceName())
+	case errors.As(err, &errWithContext):
+		return status.Errorf(codes.InvalidArgument, "%s", err)
 	default:
 		log.Err(err)
 		return err
