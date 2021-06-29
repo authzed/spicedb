@@ -148,6 +148,10 @@ func rewriteNamespaceError(err error) error {
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return status.Errorf(codes.NotFound, "namespace not found: %s", err)
+
+	case errors.As(err, &datastore.ErrReadOnly{}):
+		return status.Errorf(codes.Unavailable, "service is read-only")
+
 	default:
 		log.Err(err)
 		return err

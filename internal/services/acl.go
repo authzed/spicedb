@@ -445,6 +445,9 @@ func rewriteACLError(err error) error {
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
 		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 
+	case errors.As(err, &datastore.ErrReadOnly{}):
+		return status.Errorf(codes.Unavailable, "service is read-only")
+
 	default:
 		if _, ok := err.(invalidRelationError); ok {
 			return status.Errorf(codes.InvalidArgument, "%s", err.Error())

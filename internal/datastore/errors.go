@@ -50,6 +50,12 @@ type ErrWatchCanceled struct {
 	error
 }
 
+// ErrReadOnly is returned when the operation cannot be completed because the datastore is in
+// read-only mode.
+type ErrReadOnly struct {
+	error
+}
+
 // InvalidRevisionReason is the reason the revision could not be used.
 type InvalidRevisionReason int
 
@@ -116,6 +122,12 @@ func NewWatchDisconnectedErr() error {
 func NewWatchCanceledErr() error {
 	return ErrWatchCanceled{
 		error: fmt.Errorf("watch was canceled by the caller"),
+	}
+}
+
+func NewReadonlyErr() error {
+	return ErrReadOnly{
+		error: fmt.Errorf("datastore is in read-only mode"),
 	}
 }
 
