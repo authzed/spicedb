@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/sharederrors"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	v1alpha1 "github.com/authzed/spicedb/pkg/proto/authzed/api/v1alpha1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -40,7 +41,7 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 
 		objectDef, ok := generator.GenerateSource(found)
 		if !ok {
-			return nil, rewriteError(errors.New("failed to generate Object Definition"))
+			return nil, rewriteError(fmt.Errorf("failed to upgrade legacy Namespace Config `%s` into Object Definition", found.Name))
 		}
 
 		objectDefs = append(objectDefs, objectDef)
@@ -49,16 +50,6 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 	return &v1alpha1.ReadSchemaResponse{
 		ObjectDefinitions: objectDefs,
 	}, nil
-}
-
-func rewriteError(err error) error {
-	switch {
-	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
-		return status.Errorf(codes.NotFound, "Object Definition not found: %s", err)
-	default:
-		log.Err(err)
-		return err
-	}
 }
 
 func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {
@@ -176,4 +167,14 @@ func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx con
 		return status.Errorf(codes.InvalidArgument, fmt.Sprintf(message, args...))
 	}
 	return nil
+}
+
+func rewriteError(err error) error {
+	switch typedErr := err.(type) {
+	case sharederrors.UnknownNamespaceError:
+		return status.Errorf(codes.NotFound, "Object Definition `%s` not found", typedErr.NotFoundNamespaceName())
+	default:
+		log.Err(err)
+		return err
+	}
 }

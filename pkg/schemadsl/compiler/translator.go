@@ -14,7 +14,7 @@ type translationContext struct {
 	objectTypePrefix *string
 }
 
-func (tctx translationContext) NamespacePath(namespaceName string) (string, error) {
+func (tctx translationContext) namespacePath(namespaceName string) (string, error) {
 	var prefix, name string
 	if err := stringz.SplitExact(namespaceName, "/", &prefix, &name); err != nil {
 		if tctx.objectTypePrefix == nil {
@@ -58,7 +58,7 @@ func translateDefinition(tctx translationContext, defNode *dslNode) (*v0.Namespa
 		relationsAndPermissions = append(relationsAndPermissions, relationOrPermission)
 	}
 
-	nspath, err := tctx.NamespacePath(definitionName)
+	nspath, err := tctx.namespacePath(definitionName)
 	if err != nil {
 		return nil, defNode.Errorf("%w", err)
 	}
@@ -265,7 +265,7 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		return nil, typeRefNode.Errorf("invalid type name: %w", err)
 	}
 
-	nspath, err := tctx.NamespacePath(typePath)
+	nspath, err := tctx.namespacePath(typePath)
 	if err != nil {
 		return nil, typeRefNode.Errorf("%w", err)
 	}
