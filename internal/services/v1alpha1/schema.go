@@ -89,14 +89,19 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	}
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
 
+	var paths []string
 	for _, nsdef := range nsdefs {
 		if _, err := ss.ds.WriteNamespace(ctx, nsdef); err != nil {
 			return nil, rewriteError(err)
 		}
+
+		paths = append(paths, nsdef.Name)
 	}
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("wrote namespace definitions")
 
-	return &v1alpha1.WriteSchemaResponse{}, nil
+	return &v1alpha1.WriteSchemaResponse{
+		ObjectDefinitionPaths: paths,
+	}, nil
 }
 
 // TODO(jzelinskie): figure how to deduplicate this code across v0 and v1 APIs.
