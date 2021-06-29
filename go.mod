@@ -7,10 +7,10 @@ require (
 	github.com/Masterminds/squirrel v1.5.0
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
-	github.com/aws/aws-sdk-go v1.38.63
+	github.com/aws/aws-sdk-go v1.38.69
 	github.com/cockroachdb/cockroach v20.1.15+incompatible
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
-	github.com/dgraph-io/ristretto v0.0.3
+	github.com/dgraph-io/ristretto v0.1.0
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/emirpasic/gods v1.12.0
@@ -26,12 +26,12 @@ require (
 	github.com/hashicorp/go-memdb v1.3.2
 	github.com/jackc/pgconn v1.8.1
 	github.com/jackc/pgx/v4 v4.11.0
-	github.com/jmoiron/sqlx v1.3.1
+	github.com/jmoiron/sqlx v1.3.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd
 	github.com/jzelinskie/stringz v0.0.0-20210604201827-321bc7aaa2dc
-	github.com/lib/pq v1.9.0
+	github.com/lib/pq v1.10.2
 	github.com/ngrok/sqlmw v0.0.0-20200129213757-d5c93a81bec6
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
@@ -51,9 +51,9 @@ require (
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5 // indirect
 	golang.org/x/sys v0.0.0-20210601080250-7ecdf8ef093b // indirect
 	golang.org/x/tools v0.1.2 // indirect
-	google.golang.org/grpc v1.36.0
+	google.golang.org/grpc v1.39.0
 	google.golang.org/grpc/examples v0.0.0-20210316215007-967933baf52a // indirect
-	google.golang.org/protobuf v1.26.0
+	google.golang.org/protobuf v1.27.0
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible // indirect
 )
