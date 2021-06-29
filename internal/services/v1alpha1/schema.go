@@ -3,7 +3,6 @@ package v1alpha1
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
@@ -41,7 +40,7 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 
 		objectDef, ok := generator.GenerateSource(found)
 		if !ok {
-			return nil, rewriteError(fmt.Errorf("failed to upgrade legacy Namespace Config `%s` into Object Definition", found.Name))
+			return nil, status.Errorf(codes.InvalidArgument, "failed to upgrade legacy Namespace Config `%s` into Object Definition", found.Name)
 		}
 
 		objectDefs = append(objectDefs, objectDef)
@@ -164,7 +163,7 @@ func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx con
 			return qy.Err()
 		}
 
-		return status.Errorf(codes.InvalidArgument, fmt.Sprintf(message, args...))
+		return status.Errorf(codes.InvalidArgument, message, args...)
 	}
 	return nil
 }
