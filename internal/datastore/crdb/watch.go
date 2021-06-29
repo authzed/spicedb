@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/shopspring/decimal"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const queryChangefeed = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s';"
@@ -108,16 +109,16 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				return
 			}
 
-			oneChange := &pb.RelationTupleUpdate{
-				Tuple: &pb.RelationTuple{
-					ObjectAndRelation: &pb.ObjectAndRelation{
+			oneChange := &v0.RelationTupleUpdate{
+				Tuple: &v0.RelationTuple{
+					ObjectAndRelation: &v0.ObjectAndRelation{
 						Namespace: pkValues[0],
 						ObjectId:  pkValues[1],
 						Relation:  pkValues[2],
 					},
-					User: &pb.User{
-						UserOneof: &pb.User_Userset{
-							Userset: &pb.ObjectAndRelation{
+					User: &v0.User{
+						UserOneof: &v0.User_Userset{
+							Userset: &v0.ObjectAndRelation{
 								Namespace: pkValues[3],
 								ObjectId:  pkValues[4],
 								Relation:  pkValues[5],
@@ -128,9 +129,9 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 			}
 
 			if changeDetails.After == nil {
-				oneChange.Operation = pb.RelationTupleUpdate_DELETE
+				oneChange.Operation = v0.RelationTupleUpdate_DELETE
 			} else {
-				oneChange.Operation = pb.RelationTupleUpdate_TOUCH
+				oneChange.Operation = v0.RelationTupleUpdate_TOUCH
 			}
 
 			pending, ok := pendingChanges[changeDetails.Updated]

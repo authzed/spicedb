@@ -8,15 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 func TestTypeSystem(t *testing.T) {
 	testCases := []struct {
 		name            string
-		toCheck         *pb.NamespaceDefinition
-		otherNamespaces []*pb.NamespaceDefinition
+		toCheck         *v0.NamespaceDefinition
+		otherNamespaces []*v0.NamespaceDefinition
 		expectedError   string
 	}{
 		{
@@ -36,7 +36,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parent", "viewer"),
 				)),
 			),
-			[]*pb.NamespaceDefinition{},
+			[]*v0.NamespaceDefinition{},
 			"In computed_userset for relation `viewer`: relation `editors` not found",
 		},
 		{
@@ -56,7 +56,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parents", "viewer"),
 				)),
 			),
-			[]*pb.NamespaceDefinition{},
+			[]*v0.NamespaceDefinition{},
 			"In tuple_to_userset for relation `viewer`: relation `parents` not found",
 		},
 		{
@@ -68,7 +68,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.ComputedUserset("owner"),
 				), ns.RelationReference("document", "owner")),
 			),
-			[]*pb.NamespaceDefinition{},
+			[]*v0.NamespaceDefinition{},
 			"No direct relations are allowed under relation `editor`",
 		},
 		{
@@ -88,7 +88,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parent", "viewer"),
 				)),
 			),
-			[]*pb.NamespaceDefinition{},
+			[]*v0.NamespaceDefinition{},
 			"Could not lookup namespace `someinvalidns` for relation `owner`: namespace `someinvalidns` not found",
 		},
 		{
@@ -108,7 +108,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parent", "viewer"),
 				)),
 			),
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				ns.Namespace(
 					"anotherns",
 				),
@@ -139,7 +139,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parent", "viewer"),
 				), ns.RelationReference("user", "...")),
 			),
-			[]*pb.NamespaceDefinition{
+			[]*v0.NamespaceDefinition{
 				ns.Namespace("user"),
 				ns.Namespace(
 					"folder",

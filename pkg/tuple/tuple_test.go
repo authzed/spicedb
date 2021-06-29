@@ -3,15 +3,16 @@ package tuple
 import (
 	"testing"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/stretchr/testify/require"
+
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
-func makeTuple(onr *pb.ObjectAndRelation, userset *pb.ObjectAndRelation) *pb.RelationTuple {
-	return &pb.RelationTuple{
+func makeTuple(onr *v0.ObjectAndRelation, userset *v0.ObjectAndRelation) *v0.RelationTuple {
+	return &v0.RelationTuple{
 		ObjectAndRelation: onr,
-		User: &pb.User{
-			UserOneof: &pb.User_Userset{
+		User: &v0.User{
+			UserOneof: &v0.User_Userset{
 				Userset: userset,
 			},
 		},
@@ -20,7 +21,7 @@ func makeTuple(onr *pb.ObjectAndRelation, userset *pb.ObjectAndRelation) *pb.Rel
 
 var testCases = []struct {
 	serialized   string
-	objectFormat *pb.RelationTuple
+	objectFormat *v0.RelationTuple
 }{
 	{
 		serialized: "tenant/testns:testobj#testrel@tenant/user:testusr#...",

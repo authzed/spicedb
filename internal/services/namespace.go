@@ -6,29 +6,30 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	"github.com/authzed/spicedb/pkg/zookie"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/namespace"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type nsServer struct {
-	api.UnimplementedNamespaceServiceServer
+	v0.UnimplementedNamespaceServiceServer
 
 	ds datastore.Datastore
 }
 
 // NewNamespaceServer creates an instance of the namespace server.
-func NewNamespaceServer(ds datastore.Datastore) api.NamespaceServiceServer {
+func NewNamespaceServer(ds datastore.Datastore) v0.NamespaceServiceServer {
 	s := &nsServer{ds: ds}
 	return s
 }
 
-func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigRequest) (*api.WriteConfigResponse, error) {
+func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest) (*v0.WriteConfigResponse, error) {
 	if err := req.Validate(); err != nil {
 		return nil, rewriteNamespaceError(err)
 	}
@@ -107,18 +108,18 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *api.WriteConfigReques
 		}
 	}
 
-	return &api.WriteConfigResponse{
+	return &v0.WriteConfigResponse{
 		Revision: zookie.NewFromRevision(revision),
 	}, nil
 }
 
-func (nss *nsServer) ReadConfig(ctx context.Context, req *api.ReadConfigRequest) (*api.ReadConfigResponse, error) {
+func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) (*v0.ReadConfigResponse, error) {
 	found, version, err := nss.ds.ReadNamespace(ctx, req.Namespace)
 	if err != nil {
 		return nil, rewriteNamespaceError(err)
 	}
 
-	return &api.ReadConfigResponse{
+	return &v0.ReadConfigResponse{
 		Namespace: req.Namespace,
 		Config:    found,
 		Revision:  zookie.NewFromRevision(version),

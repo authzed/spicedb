@@ -13,7 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -38,7 +38,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
-			var testTuples []*pb.RelationTuple
+			var testTuples []*v0.RelationTuple
 
 			ctx := context.Background()
 
@@ -53,7 +53,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 				writtenAt, err := ds.WriteTuples(
 					ctx,
 					nil,
-					[]*pb.RelationTupleUpdate{tuple.Create(newTuple)},
+					[]*v0.RelationTupleUpdate{tuple.Create(newTuple)},
 				)
 				require.NoError(err)
 				require.True(writtenAt.GreaterThan(lastRevision))
@@ -115,7 +115,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			// Try some bad queries
 			badQueries := []datastore.TupleQuery{
 				q.WithObjectID("fakeobjectid"),
-				q.WithUserset(&pb.ObjectAndRelation{
+				q.WithUserset(&v0.ObjectAndRelation{
 					Namespace: "test/user",
 					ObjectId:  "fakeuser",
 					Relation:  ellipsis,
@@ -131,7 +131,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			deletedAt, err := ds.WriteTuples(
 				ctx,
 				nil,
-				[]*pb.RelationTupleUpdate{tuple.Delete(testTuples[0])},
+				[]*v0.RelationTupleUpdate{tuple.Delete(testTuples[0])},
 			)
 			require.NoError(err)
 
@@ -139,7 +139,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			_, err = ds.WriteTuples(
 				ctx,
 				nil,
-				[]*pb.RelationTupleUpdate{tuple.Delete(testTuples[0])},
+				[]*v0.RelationTupleUpdate{tuple.Delete(testTuples[0])},
 			)
 			require.NoError(err)
 
@@ -173,18 +173,18 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 
 	_, err = ds.WriteTuples(
 		ctx,
-		[]*pb.RelationTuple{first},
-		[]*pb.RelationTupleUpdate{tuple.Create(second)},
+		[]*v0.RelationTuple{first},
+		[]*v0.RelationTupleUpdate{tuple.Create(second)},
 	)
 	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
 
-	_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{tuple.Create(first)})
+	_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{tuple.Create(first)})
 	require.NoError(err)
 
 	_, err = ds.WriteTuples(
 		ctx,
-		[]*pb.RelationTuple{first},
-		[]*pb.RelationTupleUpdate{tuple.Create(second)},
+		[]*v0.RelationTuple{first},
+		[]*v0.RelationTupleUpdate{tuple.Create(second)},
 	)
 	require.NoError(err)
 }
@@ -212,7 +212,7 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 		firstWrite, err := ds.WriteTuples(
 			ctx,
 			nil,
-			[]*pb.RelationTupleUpdate{tuple.Create(newTuple)},
+			[]*v0.RelationTupleUpdate{tuple.Create(newTuple)},
 		)
 		require.NoError(err)
 
@@ -227,7 +227,7 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 		nextWrite, err := ds.WriteTuples(
 			ctx,
 			nil,
-			[]*pb.RelationTupleUpdate{tuple.Touch(newTuple)},
+			[]*v0.RelationTupleUpdate{tuple.Touch(newTuple)},
 		)
 		require.NoError(err)
 

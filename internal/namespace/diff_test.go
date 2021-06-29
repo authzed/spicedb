@@ -3,16 +3,17 @@ package namespace
 import (
 	"testing"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/stretchr/testify/require"
+
+	ns "github.com/authzed/spicedb/pkg/namespace"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 func TestNamespaceDiff(t *testing.T) {
 	testCases := []struct {
 		name           string
-		existing       *pb.NamespaceDefinition
-		updated        *pb.NamespaceDefinition
+		existing       *v0.NamespaceDefinition
+		updated        *v0.NamespaceDefinition
 		expectedDeltas []Delta
 	}{
 		{
@@ -128,7 +129,7 @@ func TestNamespaceDiff(t *testing.T) {
 				), ns.RelationReference("foo", "bar")),
 			),
 			[]Delta{
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &pb.RelationReference{
+				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
 					Namespace: "foo",
 					Relation:  "bar",
 				}},
@@ -151,7 +152,7 @@ func TestNamespaceDiff(t *testing.T) {
 				)),
 			),
 			[]Delta{
-				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &pb.RelationReference{
+				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &v0.RelationReference{
 					Namespace: "foo",
 					Relation:  "bar",
 				}},
@@ -192,11 +193,11 @@ func TestNamespaceDiff(t *testing.T) {
 				), ns.RelationReference("foo2", "bar")),
 			),
 			[]Delta{
-				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &pb.RelationReference{
+				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &v0.RelationReference{
 					Namespace: "foo",
 					Relation:  "bar",
 				}},
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &pb.RelationReference{
+				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
 					Namespace: "foo2",
 					Relation:  "bar",
 				}},

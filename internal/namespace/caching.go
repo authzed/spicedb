@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/namespace"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -26,7 +26,7 @@ type cachingManager struct {
 }
 
 type cacheEntry struct {
-	definition *pb.NamespaceDefinition
+	definition *v0.NamespaceDefinition
 	version    decimal.Decimal
 	expiration time.Time
 }
@@ -56,7 +56,7 @@ func NewCachingNamespaceManager(
 	}, nil
 }
 
-func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string) (*pb.NamespaceDefinition, *NamespaceTypeSystem, decimal.Decimal, error) {
+func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string) (*v0.NamespaceDefinition, *NamespaceTypeSystem, decimal.Decimal, error) {
 	nsDef, rev, err := nsc.ReadNamespace(ctx, nsName)
 	if err != nil {
 		return nsDef, nil, rev, err
@@ -67,7 +67,7 @@ func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName stri
 	return nsDef, ts, rev, terr
 }
 
-func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, decimal.Decimal, error) {
+func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, decimal.Decimal, error) {
 	ctx, span := tracer.Start(ctx, "ReadNamespace")
 	defer span.End()
 

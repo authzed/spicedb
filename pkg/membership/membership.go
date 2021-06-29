@@ -1,7 +1,7 @@
 package membership
 
 import (
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -33,7 +33,7 @@ func (fs FoundSubjects) ListFound() []FoundSubject {
 }
 
 // LookupSubject returns the FoundSubject for a matching subject, if any.
-func (fs FoundSubjects) LookupSubject(subject *pb.ObjectAndRelation) (FoundSubject, bool) {
+func (fs FoundSubjects) LookupSubject(subject *v0.ObjectAndRelation) (FoundSubject, bool) {
 	onrString := tuple.StringONR(subject)
 	found, ok := fs.subjects[onrString]
 	return found, ok
@@ -43,7 +43,7 @@ func (fs FoundSubjects) LookupSubject(subject *pb.ObjectAndRelation) (FoundSubje
 // is a member which were found via the ONRs expansion.
 type FoundSubject struct {
 	// subject is the subject found.
-	subject *pb.ObjectAndRelation
+	subject *v0.ObjectAndRelation
 
 	// relations are the relations under which the subject lives that informed the locating
 	// of this subject for the root ONR.
@@ -51,12 +51,12 @@ type FoundSubject struct {
 }
 
 // Subject returns the Subject of the FoundSubject.
-func (fs FoundSubject) Subject() *pb.ObjectAndRelation {
+func (fs FoundSubject) Subject() *v0.ObjectAndRelation {
 	return fs.subject
 }
 
 // Relationships returns all the relationships in which the subject was found as per the expand.
-func (fs FoundSubject) Relationships() []*pb.ObjectAndRelation {
+func (fs FoundSubject) Relationships() []*v0.ObjectAndRelation {
 	return fs.relationships.AsSlice()
 }
 
@@ -73,7 +73,7 @@ func NewMembershipSet() *MembershipSet {
 // AddExpansion adds the expansion of an ONR to the membership set. Returns false if the ONR was already added.
 //
 // NOTE: The expansion tree *should* be the fully recursive expansion.
-func (ms *MembershipSet) AddExpansion(onr *pb.ObjectAndRelation, expansion *pb.RelationTupleTreeNode) (FoundSubjects, bool) {
+func (ms *MembershipSet) AddExpansion(onr *v0.ObjectAndRelation, expansion *v0.RelationTupleTreeNode) (FoundSubjects, bool) {
 	onrString := tuple.StringONR(onr)
 	existing, ok := ms.objectsAndRelations[onrString]
 	if ok {
@@ -90,22 +90,22 @@ func (ms *MembershipSet) AddExpansion(onr *pb.ObjectAndRelation, expansion *pb.R
 	return fs, true
 }
 
-func (ms *MembershipSet) populateFoundSubjects(foundSubjectsMap map[string]FoundSubject, rootONR *pb.ObjectAndRelation, treeNode *pb.RelationTupleTreeNode) {
+func (ms *MembershipSet) populateFoundSubjects(foundSubjectsMap map[string]FoundSubject, rootONR *v0.ObjectAndRelation, treeNode *v0.RelationTupleTreeNode) {
 	relationship := rootONR
 	if treeNode.Expanded != nil {
 		relationship = treeNode.Expanded
 	}
 
 	switch typed := treeNode.NodeType.(type) {
-	case *pb.RelationTupleTreeNode_IntermediateNode:
+	case *v0.RelationTupleTreeNode_IntermediateNode:
 		switch typed.IntermediateNode.Operation {
-		case pb.SetOperationUserset_UNION:
+		case v0.SetOperationUserset_UNION:
 			fallthrough
 
-		case pb.SetOperationUserset_INTERSECTION:
+		case v0.SetOperationUserset_INTERSECTION:
 			fallthrough
 
-		case pb.SetOperationUserset_EXCLUSION:
+		case v0.SetOperationUserset_EXCLUSION:
 			for _, child := range typed.IntermediateNode.ChildNodes {
 				ms.populateFoundSubjects(foundSubjectsMap, rootONR, child)
 			}
@@ -114,7 +114,7 @@ func (ms *MembershipSet) populateFoundSubjects(foundSubjectsMap map[string]Found
 			panic("unknown expand operation")
 		}
 
-	case *pb.RelationTupleTreeNode_LeafNode:
+	case *v0.RelationTupleTreeNode_LeafNode:
 		for _, user := range typed.LeafNode.Users {
 			subjectONRString := tuple.StringONR(user.GetUserset())
 			_, ok := foundSubjectsMap[subjectONRString]

@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/namespace"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 // veryLargeGCWindow is a very large time duration, which when passed to a constructor should
@@ -40,16 +40,16 @@ var testResourceNS = namespace.Namespace(
 
 var testUserNS = namespace.Namespace(testUserNamespace)
 
-func makeTestTuple(resourceID, userID string) *pb.RelationTuple {
-	return &pb.RelationTuple{
-		ObjectAndRelation: &pb.ObjectAndRelation{
+func makeTestTuple(resourceID, userID string) *v0.RelationTuple {
+	return &v0.RelationTuple{
+		ObjectAndRelation: &v0.ObjectAndRelation{
 			Namespace: testResourceNamespace,
 			ObjectId:  resourceID,
 			Relation:  testReaderRelation,
 		},
-		User: &pb.User{
-			UserOneof: &pb.User_Userset{
-				Userset: &pb.ObjectAndRelation{
+		User: &v0.User{
+			UserOneof: &v0.User_Userset{
+				Userset: &v0.ObjectAndRelation{
 					Namespace: testUserNamespace,
 					ObjectId:  userID,
 					Relation:  ellipsis,

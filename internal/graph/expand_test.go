@@ -18,13 +18,13 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/graph"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var (
-	_this *pb.ObjectAndRelation
+	_this *v0.ObjectAndRelation
 
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
 		tuple.User(ONR("user", "owner", Ellipsis)),
@@ -111,9 +111,9 @@ var (
 
 func TestExpand(t *testing.T) {
 	testCases := []struct {
-		start         *pb.ObjectAndRelation
+		start         *v0.ObjectAndRelation
 		expansionMode ExpansionMode
-		expected      *pb.RelationTupleTreeNode
+		expected      *v0.RelationTupleTreeNode
 	}{
 		{start: ONR("folder", "company", "owner"), expansionMode: ShallowExpansion, expected: companyOwner},
 		{start: ONR("folder", "company", "editor"), expansionMode: ShallowExpansion, expected: companyEditor},
@@ -157,7 +157,7 @@ func TestExpand(t *testing.T) {
 	}
 }
 
-func serializeToFile(node *pb.RelationTupleTreeNode) *ast.File {
+func serializeToFile(node *v0.RelationTupleTreeNode) *ast.File {
 	return &ast.File{
 		Package: 1,
 		Name: &ast.Ident{
@@ -183,7 +183,7 @@ func serializeToFile(node *pb.RelationTupleTreeNode) *ast.File {
 	}
 }
 
-func serialize(node *pb.RelationTupleTreeNode) *ast.CallExpr {
+func serialize(node *v0.RelationTupleTreeNode) *ast.CallExpr {
 	var expanded ast.Expr = ast.NewIdent("_this")
 	if node.Expanded != nil {
 		expanded = onrExpr(node.Expanded)
@@ -193,13 +193,13 @@ func serialize(node *pb.RelationTupleTreeNode) *ast.CallExpr {
 
 	var fName string
 	switch node.NodeType.(type) {
-	case *pb.RelationTupleTreeNode_IntermediateNode:
+	case *v0.RelationTupleTreeNode_IntermediateNode:
 		switch node.GetIntermediateNode().Operation {
-		case pb.SetOperationUserset_EXCLUSION:
+		case v0.SetOperationUserset_EXCLUSION:
 			fName = "tf.E"
-		case pb.SetOperationUserset_INTERSECTION:
+		case v0.SetOperationUserset_INTERSECTION:
 			fName = "tf.I"
-		case pb.SetOperationUserset_UNION:
+		case v0.SetOperationUserset_UNION:
 			fName = "tf.U"
 		default:
 			panic("Unknown set operation")
@@ -209,7 +209,7 @@ func serialize(node *pb.RelationTupleTreeNode) *ast.CallExpr {
 			children = append(children, serialize(child))
 		}
 
-	case *pb.RelationTupleTreeNode_LeafNode:
+	case *v0.RelationTupleTreeNode_LeafNode:
 		fName = "tf.Leaf"
 		for _, user := range node.GetLeafNode().Users {
 			onrExpr := onrExpr(user.GetUserset())
@@ -226,7 +226,7 @@ func serialize(node *pb.RelationTupleTreeNode) *ast.CallExpr {
 	}
 }
 
-func onrExpr(onr *pb.ObjectAndRelation) ast.Expr {
+func onrExpr(onr *v0.ObjectAndRelation) ast.Expr {
 	return &ast.CallExpr{
 		Fun: ast.NewIdent("tf.ONR"),
 		Args: []ast.Expr{
@@ -245,8 +245,8 @@ func TestMaxDepthExpand(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	mutations := []*pb.RelationTupleUpdate{
-		tuple.Create(&pb.RelationTuple{
+	mutations := []*v0.RelationTupleUpdate{
+		tuple.Create(&v0.RelationTuple{
 			ObjectAndRelation: ONR("folder", "oops", "parent"),
 			User:              tuple.User(ONR("folder", "oops", Ellipsis)),
 		}),

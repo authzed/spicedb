@@ -10,7 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -29,14 +29,14 @@ type localDispatcher struct {
 	ds  datastore.GraphDatastore
 }
 
-func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string) (*pb.Relation, error) {
+func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string) (*v0.Relation, error) {
 	// Load namespace and relation from the datastore
 	ns, _, err := ld.nsm.ReadNamespace(ctx, nsName)
 	if err != nil {
 		return nil, rewriteError(err)
 	}
 
-	var relation *pb.Relation
+	var relation *v0.Relation
 	for _, candidate := range ns.Relation {
 		if candidate.Name == relationName {
 			relation = candidate
@@ -52,7 +52,7 @@ func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationNam
 }
 
 type stringableOnr struct {
-	*pb.ObjectAndRelation
+	*v0.ObjectAndRelation
 }
 
 func (onr stringableOnr) String() string {
@@ -60,7 +60,7 @@ func (onr stringableOnr) String() string {
 }
 
 type stringableRelRef struct {
-	*pb.RelationReference
+	*v0.RelationReference
 }
 
 func (rr stringableRelRef) String() string {
@@ -124,7 +124,7 @@ func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) Lookup
 
 	if req.Limit <= 0 {
 		return LookupResult{
-			ResolvedObjects: []*pb.ObjectAndRelation{},
+			ResolvedObjects: []*v0.ObjectAndRelation{},
 		}
 	}
 

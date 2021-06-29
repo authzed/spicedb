@@ -2,7 +2,8 @@ package graph
 
 import (
 	"github.com/cockroachdb/cockroach/pkg/util/treeprinter"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -13,7 +14,7 @@ type DebugTracerEmitter interface {
 type DebugTracer interface {
 	Child(name string) DebugTracer
 	Childf(format string, a ...interface{}) DebugTracer
-	ChildONR(onr *pb.ObjectAndRelation) DebugTracer
+	ChildONR(onr *v0.ObjectAndRelation) DebugTracer
 	Add(name string, value DebugTracerEmitter)
 	String() string
 }
@@ -33,7 +34,7 @@ func (nt nullTracer) Childf(format string, a ...interface{}) DebugTracer {
 	return nt
 }
 
-func (nt nullTracer) ChildONR(onr *pb.ObjectAndRelation) DebugTracer {
+func (nt nullTracer) ChildONR(onr *v0.ObjectAndRelation) DebugTracer {
 	return nt
 }
 
@@ -56,7 +57,7 @@ func (pt *printerTracer) Child(name string) DebugTracer {
 	return &printerTracer{pt.tpNode.Child(name)}
 }
 
-func (pt *printerTracer) ChildONR(onr *pb.ObjectAndRelation) DebugTracer {
+func (pt *printerTracer) ChildONR(onr *v0.ObjectAndRelation) DebugTracer {
 	return pt.Child(tuple.StringONR(onr))
 }
 

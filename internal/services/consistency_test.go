@@ -14,15 +14,16 @@ import (
 
 	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/jwangsadinata/go-multimap/slicemultimap"
+	"github.com/stretchr/testify/require"
+
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	api "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	graphpkg "github.com/authzed/spicedb/pkg/graph"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/zookie"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConsistency(t *testing.T) {
@@ -80,9 +81,9 @@ func TestConsistency(t *testing.T) {
 
 					// Read all tuples defined in the namespaces.
 					for _, nsDef := range fullyResolved.NamespaceDefinitions {
-						result, err := srv.Read(context.Background(), &api.ReadRequest{
-							Tuplesets: []*api.RelationTupleFilter{
-								&api.RelationTupleFilter{Namespace: nsDef.Name},
+						result, err := srv.Read(context.Background(), &v0.ReadRequest{
+							Tuplesets: []*v0.RelationTupleFilter{
+								&v0.RelationTupleFilter{Namespace: nsDef.Name},
 							},
 							AtRevision: zookie.NewFromRevision(revision),
 						})
@@ -100,10 +101,10 @@ func TestConsistency(t *testing.T) {
 						}
 
 						for _, itpl := range tuples {
-							tpl := itpl.(*api.RelationTuple)
-							_, err = srv.Write(context.Background(), &api.WriteRequest{
-								WriteConditions: []*api.RelationTuple{tpl},
-								Updates:         []*api.RelationTupleUpdate{tuple.Touch(tpl)},
+							tpl := itpl.(*v0.RelationTuple)
+							_, err = srv.Write(context.Background(), &v0.WriteRequest{
+								WriteConditions: []*v0.RelationTuple{tpl},
+								Updates:         []*v0.RelationTupleUpdate{tuple.Touch(tpl)},
 							})
 							lrequire.NoError(err)
 						}
@@ -116,7 +117,7 @@ func TestConsistency(t *testing.T) {
 						objectsPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl.ObjectAndRelation.ObjectId)
 
 						switch m := tpl.User.UserOneof.(type) {
-						case *api.User_Userset:
+						case *v0.User_Userset:
 							subjects.Add(m.Userset)
 						}
 					}
@@ -142,14 +143,14 @@ func TestConsistency(t *testing.T) {
 										}
 
 										objectIdStr := objectId.(string)
-										checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
-											TestUserset: &api.ObjectAndRelation{
+										checkResp, err := srv.Check(context.Background(), &v0.CheckRequest{
+											TestUserset: &v0.ObjectAndRelation{
 												Namespace: nsDef.Name,
 												Relation:  relation.Name,
 												ObjectId:  objectIdStr,
 											},
-											User: &api.User{
-												UserOneof: &api.User_Userset{
+											User: &v0.User{
+												UserOneof: &v0.User_Userset{
 													Userset: subject,
 												},
 											},
@@ -163,7 +164,7 @@ func TestConsistency(t *testing.T) {
 
 									// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
 									resp := dispatch.Expand(context.Background(), graph.ExpandRequest{
-										Start: &api.ObjectAndRelation{
+										Start: &v0.ObjectAndRelation{
 											Namespace: nsDef.Name,
 											Relation:  relation.Name,
 											ObjectId:  objectIdStr,
@@ -189,14 +190,14 @@ func TestConsistency(t *testing.T) {
 									for _, subjectUser := range subjectsFound {
 										subject := subjectUser.GetUserset()
 
-										checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
-											TestUserset: &api.ObjectAndRelation{
+										checkResp, err := srv.Check(context.Background(), &v0.CheckRequest{
+											TestUserset: &v0.ObjectAndRelation{
 												Namespace: nsDef.Name,
 												Relation:  relation.Name,
 												ObjectId:  objectIdStr,
 											},
-											User: &api.User{
-												UserOneof: &api.User_Userset{
+											User: &v0.User{
+												UserOneof: &v0.User_Userset{
 													Userset: subject,
 												},
 											},
@@ -222,7 +223,7 @@ func TestConsistency(t *testing.T) {
 					for _, nsDef := range fullyResolved.NamespaceDefinitions {
 						for _, relation := range nsDef.Relation {
 							for _, subject := range subjects.AsSlice() {
-								objectRelation := &api.RelationReference{
+								objectRelation := &v0.RelationReference{
 									Namespace: nsDef.Name,
 									Relation:  relation.Name,
 								}
@@ -239,14 +240,14 @@ func TestConsistency(t *testing.T) {
 									// Collect all accessible objects.
 									for _, objectId := range allObjectIds {
 										objectIdStr := objectId.(string)
-										checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
-											TestUserset: &api.ObjectAndRelation{
+										checkResp, err := srv.Check(context.Background(), &v0.CheckRequest{
+											TestUserset: &v0.ObjectAndRelation{
 												Namespace: nsDef.Name,
 												Relation:  relation.Name,
 												ObjectId:  objectIdStr,
 											},
-											User: &api.User{
-												UserOneof: &api.User_Userset{
+											User: &v0.User{
+												UserOneof: &v0.User_Userset{
 													Userset: subject,
 												},
 											},
@@ -259,7 +260,7 @@ func TestConsistency(t *testing.T) {
 									}
 
 									// Perform a lookup call and ensure it returns the at least the same set of object IDs.
-									result, err := srv.Lookup(context.Background(), &api.LookupRequest{
+									result, err := srv.Lookup(context.Background(), &v0.LookupRequest{
 										User:           subject,
 										ObjectRelation: objectRelation,
 										Limit:          uint32(len(accessibleObjects) + 100),
@@ -285,14 +286,14 @@ func TestConsistency(t *testing.T) {
 
 									// Ensure that every returned object Checks.
 									for _, resolvedObjectId := range result.ResolvedObjectIds {
-										checkResp, err := srv.Check(context.Background(), &api.CheckRequest{
-											TestUserset: &api.ObjectAndRelation{
+										checkResp, err := srv.Check(context.Background(), &v0.CheckRequest{
+											TestUserset: &v0.ObjectAndRelation{
 												Namespace: nsDef.Name,
 												Relation:  relation.Name,
 												ObjectId:  resolvedObjectId,
 											},
-											User: &api.User{
-												UserOneof: &api.User_Userset{
+											User: &v0.User{
+												UserOneof: &v0.User_Userset{
 													Userset: subject,
 												},
 											},

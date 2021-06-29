@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-memdb"
-	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/shopspring/decimal"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const DisableGC = time.Duration(math.MaxInt64)
@@ -40,20 +41,20 @@ const (
 type changelog struct {
 	id         uint64
 	name       string
-	replaces   *pb.NamespaceDefinition
+	replaces   *v0.NamespaceDefinition
 	oldVersion uint64
 }
 
 type namespace struct {
 	name    string
-	config  *pb.NamespaceDefinition
+	config  *v0.NamespaceDefinition
 	version uint64
 }
 
 type tupleChangelog struct {
 	id        uint64
 	timestamp uint64
-	changes   []*pb.RelationTupleUpdate
+	changes   []*v0.RelationTupleUpdate
 }
 
 type tupleEntry struct {

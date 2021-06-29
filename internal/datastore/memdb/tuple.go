@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -23,8 +23,8 @@ const deletedTransactionID = ^uint64(0)
 
 func (mds *memdbDatastore) WriteTuples(
 	ctx context.Context,
-	preconditions []*pb.RelationTuple,
-	mutations []*pb.RelationTupleUpdate,
+	preconditions []*v0.RelationTuple,
+	mutations []*v0.RelationTupleUpdate,
 ) (datastore.Revision, error) {
 
 	txn := mds.db.Txn(true)
@@ -84,17 +84,17 @@ func (mds *memdbDatastore) WriteTuples(
 		}
 
 		switch mutation.Operation {
-		case pb.RelationTupleUpdate_CREATE:
+		case v0.RelationTupleUpdate_CREATE:
 			if err := txn.Insert(tableTuple, newVersion); err != nil {
 				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
-		case pb.RelationTupleUpdate_DELETE:
+		case v0.RelationTupleUpdate_DELETE:
 			if existing != nil {
 				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
 					return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 				}
 			}
-		case pb.RelationTupleUpdate_TOUCH:
+		case v0.RelationTupleUpdate_TOUCH:
 			if existing != nil {
 				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
 					return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
@@ -125,7 +125,7 @@ func (mds *memdbDatastore) QueryTuples(namespace string, revision datastore.Revi
 	}
 }
 
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubject(subject *pb.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (mds *memdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return &memdbReverseTupleQuery{
 		db:               mds.db,
 		revision:         revision,
@@ -226,7 +226,7 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore
 	return nil
 }
 
-func findTuple(txn *memdb.Txn, toFind *pb.RelationTuple) (*tupleEntry, error) {
+func findTuple(txn *memdb.Txn, toFind *v0.RelationTuple) (*tupleEntry, error) {
 	foundRaw, err := txn.First(
 		tableTuple,
 		indexLive,

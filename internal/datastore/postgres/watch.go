@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -122,11 +122,11 @@ func (pgd *pgDatastore) loadChanges(
 	stagedChanges := make(map[uint64]*changeRecord)
 
 	for rows.Next() {
-		userset := &pb.ObjectAndRelation{}
-		tpl := &pb.RelationTuple{
-			ObjectAndRelation: &pb.ObjectAndRelation{},
-			User: &pb.User{
-				UserOneof: &pb.User_Userset{
+		userset := &v0.ObjectAndRelation{}
+		tpl := &v0.RelationTuple{
+			ObjectAndRelation: &v0.ObjectAndRelation{},
+			User: &v0.User{
+				UserOneof: &v0.User_Userset{
 					Userset: userset,
 				},
 			},
@@ -149,11 +149,11 @@ func (pgd *pgDatastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			addChange(stagedChanges, createdTxn, tpl, pb.RelationTupleUpdate_TOUCH)
+			addChange(stagedChanges, createdTxn, tpl, v0.RelationTupleUpdate_TOUCH)
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			addChange(stagedChanges, deletedTxn, tpl, pb.RelationTupleUpdate_DELETE)
+			addChange(stagedChanges, deletedTxn, tpl, v0.RelationTupleUpdate_DELETE)
 		}
 	}
 	if err = rows.Err(); err != nil {
@@ -175,14 +175,14 @@ func (pgd *pgDatastore) loadChanges(
 
 		revisionChangeRecord := stagedChanges[rev]
 		for _, tpl := range revisionChangeRecord.tupleTouches {
-			revisionChange.Changes = append(revisionChange.Changes, &pb.RelationTupleUpdate{
-				Operation: pb.RelationTupleUpdate_TOUCH,
+			revisionChange.Changes = append(revisionChange.Changes, &v0.RelationTupleUpdate{
+				Operation: v0.RelationTupleUpdate_TOUCH,
 				Tuple:     tpl,
 			})
 		}
 		for _, tpl := range revisionChangeRecord.tupleDeletes {
-			revisionChange.Changes = append(revisionChange.Changes, &pb.RelationTupleUpdate{
-				Operation: pb.RelationTupleUpdate_DELETE,
+			revisionChange.Changes = append(revisionChange.Changes, &v0.RelationTupleUpdate{
+				Operation: v0.RelationTupleUpdate_DELETE,
 				Tuple:     tpl,
 			})
 		}
@@ -193,21 +193,21 @@ func (pgd *pgDatastore) loadChanges(
 }
 
 type changeRecord struct {
-	tupleTouches map[string]*pb.RelationTuple
-	tupleDeletes map[string]*pb.RelationTuple
+	tupleTouches map[string]*v0.RelationTuple
+	tupleDeletes map[string]*v0.RelationTuple
 }
 
 func addChange(
 	changes map[uint64]*changeRecord,
 	revision uint64,
-	tpl *pb.RelationTuple,
-	op pb.RelationTupleUpdate_Operation,
+	tpl *v0.RelationTuple,
+	op v0.RelationTupleUpdate_Operation,
 ) {
 	revisionChanges, ok := changes[revision]
 	if !ok {
 		revisionChanges = &changeRecord{
-			tupleTouches: make(map[string]*pb.RelationTuple),
-			tupleDeletes: make(map[string]*pb.RelationTuple),
+			tupleTouches: make(map[string]*v0.RelationTuple),
+			tupleDeletes: make(map[string]*v0.RelationTuple),
 		}
 		changes[revision] = revisionChanges
 	}
@@ -215,13 +215,13 @@ func addChange(
 	tplKey := tuple.String(tpl)
 
 	switch op {
-	case pb.RelationTupleUpdate_TOUCH:
+	case v0.RelationTupleUpdate_TOUCH:
 		// If there was a delete for the same tuple at the same revision, drop it
 		delete(revisionChanges.tupleDeletes, tplKey)
 
 		revisionChanges.tupleTouches[tplKey] = tpl
 
-	case pb.RelationTupleUpdate_DELETE:
+	case v0.RelationTupleUpdate_DELETE:
 		_, alreadyTouched := revisionChanges.tupleTouches[tplKey]
 		if !alreadyTouched {
 			revisionChanges.tupleDeletes[tplKey] = tpl

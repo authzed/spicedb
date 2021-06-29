@@ -10,7 +10,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -45,7 +45,7 @@ var (
 	queryTupleExists = psql.Select(colObjectID).From(tableTuple)
 )
 
-func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (datastore.Revision, error) {
+func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := cds.conn.Begin(ctx)
@@ -78,7 +78,7 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.R
 		tpl := mutation.Tuple
 
 		switch mutation.Operation {
-		case pb.RelationTupleUpdate_TOUCH, pb.RelationTupleUpdate_CREATE:
+		case v0.RelationTupleUpdate_TOUCH, v0.RelationTupleUpdate_CREATE:
 			bulkWrite = bulkWrite.Values(
 				tpl.ObjectAndRelation.Namespace,
 				tpl.ObjectAndRelation.ObjectId,
@@ -88,7 +88,7 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.R
 				tpl.User.GetUserset().Relation,
 			)
 			bulkWriteCount++
-		case pb.RelationTupleUpdate_DELETE:
+		case v0.RelationTupleUpdate_DELETE:
 			sql, args, err := queryDeleteTuples.Where(exactTupleClause(tpl)).ToSql()
 			if err != nil {
 				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
@@ -130,7 +130,7 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*pb.R
 	return nowRevision, nil
 }
 
-func exactTupleClause(tpl *pb.RelationTuple) sq.Eq {
+func exactTupleClause(tpl *v0.RelationTuple) sq.Eq {
 	return sq.Eq{
 		colNamespace:        tpl.ObjectAndRelation.Namespace,
 		colObjectID:         tpl.ObjectAndRelation.ObjectId,

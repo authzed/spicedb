@@ -5,16 +5,16 @@ import (
 	"fmt"
 
 	"github.com/authzed/spicedb/internal/namespace"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 type invalidRelationError struct {
 	error
-	subject *pb.User
-	onr     *pb.ObjectAndRelation
+	subject *v0.User
+	onr     *v0.ObjectAndRelation
 }
 
-func validateTupleWrite(ctx context.Context, tpl *pb.RelationTuple, nsm namespace.Manager) error {
+func validateTupleWrite(ctx context.Context, tpl *v0.RelationTuple, nsm namespace.Manager) error {
 	if err := nsm.CheckNamespaceAndRelation(
 		ctx,
 		tpl.ObjectAndRelation.Namespace,

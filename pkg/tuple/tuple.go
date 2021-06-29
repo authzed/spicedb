@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -15,7 +15,7 @@ const (
 var parserRegex = regexp.MustCompile(`([^:]*):([^#]*)#([^@]*)@([^:]*):([^#]*)#(.*)`)
 
 // String converts a tuple to a string
-func String(tpl *pb.RelationTuple) string {
+func String(tpl *v0.RelationTuple) string {
 	if tpl == nil || tpl.ObjectAndRelation == nil || tpl.User == nil || tpl.User.GetUserset() == nil {
 		return ""
 	}
@@ -32,22 +32,22 @@ func String(tpl *pb.RelationTuple) string {
 }
 
 // Scan converts a serialized tuple into the proto version
-func Scan(tpl string) *pb.RelationTuple {
+func Scan(tpl string) *v0.RelationTuple {
 	groups := parserRegex.FindStringSubmatch(tpl)
 
 	if len(groups) != 7 {
 		return nil
 	}
 
-	return &pb.RelationTuple{
-		ObjectAndRelation: &pb.ObjectAndRelation{
+	return &v0.RelationTuple{
+		ObjectAndRelation: &v0.ObjectAndRelation{
 			Namespace: groups[1],
 			ObjectId:  groups[2],
 			Relation:  groups[3],
 		},
-		User: &pb.User{
-			UserOneof: &pb.User_Userset{
-				Userset: &pb.ObjectAndRelation{
+		User: &v0.User{
+			UserOneof: &v0.User_Userset{
+				Userset: &v0.ObjectAndRelation{
 					Namespace: groups[4],
 					ObjectId:  groups[5],
 					Relation:  groups[6],
@@ -57,23 +57,23 @@ func Scan(tpl string) *pb.RelationTuple {
 	}
 }
 
-func Create(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
-	return &pb.RelationTupleUpdate{
-		Operation: pb.RelationTupleUpdate_CREATE,
+func Create(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
+	return &v0.RelationTupleUpdate{
+		Operation: v0.RelationTupleUpdate_CREATE,
 		Tuple:     tpl,
 	}
 }
 
-func Touch(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
-	return &pb.RelationTupleUpdate{
-		Operation: pb.RelationTupleUpdate_TOUCH,
+func Touch(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
+	return &v0.RelationTupleUpdate{
+		Operation: v0.RelationTupleUpdate_TOUCH,
 		Tuple:     tpl,
 	}
 }
 
-func Delete(tpl *pb.RelationTuple) *pb.RelationTupleUpdate {
-	return &pb.RelationTupleUpdate{
-		Operation: pb.RelationTupleUpdate_DELETE,
+func Delete(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
+	return &v0.RelationTupleUpdate{
+		Operation: v0.RelationTupleUpdate_DELETE,
 		Tuple:     tpl,
 	}
 }

@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -70,7 +70,7 @@ func (ctq crdbTupleQuery) WithRelation(relation string) datastore.TupleQuery {
 	return ctq
 }
 
-func (ctq crdbTupleQuery) WithUserset(userset *pb.ObjectAndRelation) datastore.TupleQuery {
+func (ctq crdbTupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.TupleQuery {
 	ctq.query = ctq.query.Where(sq.Eq{
 		colUsersetNamespace: userset.Namespace,
 		colUsersetObjectID:  userset.ObjectId,
@@ -113,13 +113,13 @@ func (ctq commonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterato
 
 	span.AddEvent("Query issued to CRDB")
 
-	var tuples []*pb.RelationTuple
+	var tuples []*v0.RelationTuple
 	for rows.Next() {
-		nextTuple := &pb.RelationTuple{
-			ObjectAndRelation: &pb.ObjectAndRelation{},
-			User: &pb.User{
-				UserOneof: &pb.User_Userset{
-					Userset: &pb.ObjectAndRelation{},
+		nextTuple := &v0.RelationTuple{
+			ObjectAndRelation: &v0.ObjectAndRelation{},
+			User: &v0.User{
+				UserOneof: &v0.User_Userset{
+					Userset: &v0.ObjectAndRelation{},
 				},
 			},
 		}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 // RevisionChanges represents the changes in a single transaction.
 type RevisionChanges struct {
 	Revision Revision
-	Changes  []*pb.RelationTupleUpdate
+	Changes  []*v0.RelationTupleUpdate
 }
 
 // Datastore represents tuple access for a single namespace.
@@ -26,7 +26,7 @@ type Datastore interface {
 
 	// WriteTuples takes a list of existing tuples that must exist, and a list of tuple
 	// mutations and applies it to the datastore for the specified namespace.
-	WriteTuples(ctx context.Context, preconditions []*pb.RelationTuple, mutations []*pb.RelationTupleUpdate) (Revision, error)
+	WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (Revision, error)
 
 	// Revision gets the currently replicated revision for this datastore.
 	Revision(ctx context.Context) (Revision, error)
@@ -41,10 +41,10 @@ type Datastore interface {
 
 	// WriteNamespace takes a proto namespace definition and persists it,
 	// returning the version of the namespace that was created.
-	WriteNamespace(ctx context.Context, newConfig *pb.NamespaceDefinition) (Revision, error)
+	WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (Revision, error)
 
 	// ReadNamespace reads a namespace definition and version and returns it if found.
-	ReadNamespace(ctx context.Context, nsName string) (*pb.NamespaceDefinition, Revision, error)
+	ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, Revision, error)
 
 	// DeleteNamespace deletes a namespace and any associated tuples.
 	DeleteNamespace(ctx context.Context, nsName string) (Revision, error)
@@ -57,7 +57,7 @@ type GraphDatastore interface {
 
 	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from subject onward
 	// from the datastore.
-	ReverseQueryTuplesFromSubject(subject *pb.ObjectAndRelation, revision Revision) ReverseTupleQuery
+	ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision Revision) ReverseTupleQuery
 
 	// ReverseQueryTuplesFromSubjectRelation creates a builder for reading tuples from a subject
 	// relation onward from the datastore.
@@ -96,13 +96,13 @@ type TupleQuery interface {
 	WithRelation(relation string) TupleQuery
 
 	// WithUserset adds a userset filter to the query.
-	WithUserset(userset *pb.ObjectAndRelation) TupleQuery
+	WithUserset(userset *v0.ObjectAndRelation) TupleQuery
 }
 
 // TupleIterator is an iterator over matched tuples.
 type TupleIterator interface {
 	// Next returns the next tuple in the result set.
-	Next() *pb.RelationTuple
+	Next() *v0.RelationTuple
 
 	// After receiving a nil response, the caller must check for an error.
 	Err() error

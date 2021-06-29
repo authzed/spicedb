@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -53,12 +53,12 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 			changes, errchan := ds.Watch(ctx, lowestRevision)
 			require.Zero(len(errchan))
 
-			var testUpdates [][]*pb.RelationTupleUpdate
+			var testUpdates [][]*v0.RelationTupleUpdate
 			for i := 0; i < tc.numTuples; i++ {
 				newUpdate := tuple.Touch(
 					makeTestTuple(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)),
 				)
-				batch := []*pb.RelationTupleUpdate{newUpdate}
+				batch := []*v0.RelationTupleUpdate{newUpdate}
 				testUpdates = append(testUpdates, batch)
 				_, err := ds.WriteTuples(ctx, nil, batch)
 				require.NoError(err)
@@ -66,15 +66,15 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 
 			updateUpdate := tuple.Touch(makeTestTuple("relation0", "user0"))
 			createUpdate := tuple.Touch(makeTestTuple("another_relation", "somestuff"))
-			batch := []*pb.RelationTupleUpdate{updateUpdate, createUpdate}
+			batch := []*v0.RelationTupleUpdate{updateUpdate, createUpdate}
 			_, err = ds.WriteTuples(ctx, nil, batch)
 			require.NoError(err)
 
 			deleteUpdate := tuple.Delete(makeTestTuple("relation0", "user0"))
-			_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{deleteUpdate})
+			_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{deleteUpdate})
 			require.NoError(err)
 
-			testUpdates = append(testUpdates, batch, []*pb.RelationTupleUpdate{deleteUpdate})
+			testUpdates = append(testUpdates, batch, []*v0.RelationTupleUpdate{deleteUpdate})
 
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
@@ -87,7 +87,7 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 
 func verifyUpdates(
 	require *require.Assertions,
-	testUpdates [][]*pb.RelationTupleUpdate,
+	testUpdates [][]*v0.RelationTupleUpdate,
 	changes <-chan *datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
@@ -120,11 +120,11 @@ func verifyUpdates(
 	require.False(expectDisconnect)
 }
 
-func updateString(update *pb.RelationTupleUpdate) string {
+func updateString(update *v0.RelationTupleUpdate) string {
 	return fmt.Sprintf("%s(%s)", update.Operation, tuple.String(update.Tuple))
 }
 
-func setOfChanges(changes []*pb.RelationTupleUpdate) *strset.Set {
+func setOfChanges(changes []*v0.RelationTupleUpdate) *strset.Set {
 	changeSet := strset.NewWithSize(len(changes))
 	for _, oneChange := range changes {
 		changeSet.Add(updateString(oneChange))
@@ -144,7 +144,7 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, startWatchRevision)
 	require.Zero(len(errchan))
 
-	_, err = ds.WriteTuples(ctx, nil, []*pb.RelationTupleUpdate{
+	_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{
 		tuple.Create(makeTestTuple("test", "test")),
 	})
 	require.NoError(err)
@@ -157,7 +157,7 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 		case created, ok := <-changes:
 			if ok {
 				require.Equal(
-					[]*pb.RelationTupleUpdate{tuple.Create(makeTestTuple("test", "test"))},
+					[]*v0.RelationTupleUpdate{tuple.Create(makeTestTuple("test", "test"))},
 					created.Changes,
 				)
 				require.True(created.Revision.GreaterThan(datastore.NoRevision))

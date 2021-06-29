@@ -1,0 +1,26 @@
+syntax = "proto3";
+package impl.v1;
+
+option go_package = "github.com/authzed/spicedb/internal/proto/impl/v1";
+
+message DecodedZookie {
+  uint32 version = 1;
+  message V1Zookie { uint64 revision = 1; }
+  message V2Zookie { string revision = 1; }
+  oneof version_oneof {
+    V1Zookie v1 = 2;
+    V2Zookie v2 = 3;
+  }
+}
+
+message DocComment { string comment = 1; }
+
+message RelationMetadata {
+  enum RelationKind {
+    UNKNOWN_KIND = 0;
+    RELATION = 1;
+    PERMISSION = 2;
+  }
+
+  RelationKind kind = 1;
+}

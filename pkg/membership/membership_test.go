@@ -3,17 +3,18 @@ package membership
 import (
 	"testing"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
-	"github.com/authzed/spicedb/pkg/graph"
-	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/graph"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var ONR = tuple.ObjectAndRelation
 var Ellipsis = "..."
 
 var (
-	_this *pb.ObjectAndRelation
+	_this *v0.ObjectAndRelation
 
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
 		tuple.User(ONR("user", "owner", Ellipsis)),
@@ -70,7 +71,7 @@ func TestMembershipSet(t *testing.T) {
 }
 
 func verifySubjects(require *require.Assertions, fs FoundSubjects, expected ...string) {
-	foundSubjects := []*pb.ObjectAndRelation{}
+	foundSubjects := []*v0.ObjectAndRelation{}
 	for _, found := range fs.ListFound() {
 		foundSubjects = append(foundSubjects, found.Subject())
 

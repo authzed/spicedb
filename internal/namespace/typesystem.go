@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/authzed/spicedb/pkg/graph"
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 type AllowedDirectRelation int
@@ -25,8 +25,8 @@ const (
 )
 
 // BuildNamespaceTypeSystem constructs a type system view of a namespace definition.
-func BuildNamespaceTypeSystem(nsDef *pb.NamespaceDefinition, manager Manager, additionalDefinitions ...*pb.NamespaceDefinition) (*NamespaceTypeSystem, error) {
-	relationMap := map[string]*pb.Relation{}
+func BuildNamespaceTypeSystem(nsDef *v0.NamespaceDefinition, manager Manager, additionalDefinitions ...*v0.NamespaceDefinition) (*NamespaceTypeSystem, error) {
+	relationMap := map[string]*v0.Relation{}
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
 		if existing {
@@ -47,9 +47,9 @@ func BuildNamespaceTypeSystem(nsDef *pb.NamespaceDefinition, manager Manager, ad
 // NamespaceTypeSystem represents typing information found in a namespace.
 type NamespaceTypeSystem struct {
 	manager        Manager
-	nsDef          *pb.NamespaceDefinition
-	relationMap    map[string]*pb.Relation
-	additionalDefs []*pb.NamespaceDefinition
+	nsDef          *v0.NamespaceDefinition
+	relationMap    map[string]*v0.Relation
+	additionalDefs []*v0.NamespaceDefinition
 }
 
 // HasRelation returns true if the namespace has the given relation defined.
@@ -82,15 +82,15 @@ func (nts *NamespaceTypeSystem) IsAllowedDirectRelation(sourceRelationName strin
 }
 
 // AllowedDirectRelations returns the allowed subject relations for a source relation.
-func (nts *NamespaceTypeSystem) AllowedDirectRelations(sourceRelationName string) ([]*pb.RelationReference, error) {
+func (nts *NamespaceTypeSystem) AllowedDirectRelations(sourceRelationName string) ([]*v0.RelationReference, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
-		return []*pb.RelationReference{}, fmt.Errorf("Unknown relation %s", sourceRelationName)
+		return []*v0.RelationReference{}, fmt.Errorf("Unknown relation %s", sourceRelationName)
 	}
 
 	typeInfo := found.GetTypeInformation()
 	if typeInfo == nil {
-		return []*pb.RelationReference{}, nil
+		return []*v0.RelationReference{}, nil
 	}
 
 	return typeInfo.GetAllowedDirectRelations(), nil
@@ -101,15 +101,15 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 	for _, relation := range nts.relationMap {
 		// Validate the usersets's.
 		usersetRewrite := relation.GetUsersetRewrite()
-		rerr := graph.WalkRewrite(usersetRewrite, func(childOneof *pb.SetOperation_Child) interface{} {
+		rerr := graph.WalkRewrite(usersetRewrite, func(childOneof *v0.SetOperation_Child) interface{} {
 			switch child := childOneof.ChildType.(type) {
-			case *pb.SetOperation_Child_ComputedUserset:
+			case *v0.SetOperation_Child_ComputedUserset:
 				relationName := child.ComputedUserset.GetRelation()
 				_, ok := nts.relationMap[relationName]
 				if !ok {
 					return fmt.Errorf("In computed_userset for relation `%s`: relation `%s` not found", relation.Name, relationName)
 				}
-			case *pb.SetOperation_Child_TupleToUserset:
+			case *v0.SetOperation_Child_TupleToUserset:
 				ttu := child.TupleToUserset
 				if ttu == nil {
 					return nil

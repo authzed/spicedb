@@ -3,13 +3,14 @@ package tuple
 import (
 	"testing"
 
-	pb "github.com/authzed/spicedb/pkg/REDACTEDapi/api"
 	"github.com/stretchr/testify/require"
+
+	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 var onrTestCases = []struct {
 	serialized   string
-	objectFormat *pb.ObjectAndRelation
+	objectFormat *v0.ObjectAndRelation
 }{
 	{
 		serialized:   "tenant/testns:testobj#testrel",
