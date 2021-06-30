@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	v1alpha1 "github.com/authzed/spicedb/pkg/proto/authzed/api/v1alpha1"
@@ -179,6 +180,8 @@ func rewriteError(err error) error {
 		return status.Errorf(codes.NotFound, "Object Definition `%s` not found", nsNotFoundError.NotFoundNamespaceName())
 	case errors.As(err, &errWithContext):
 		return status.Errorf(codes.InvalidArgument, "%s", err)
+	case errors.As(err, &datastore.ErrReadOnly{}):
+		return serviceerrors.ErrServiceReadOnly
 	default:
 		log.Err(err)
 		return err

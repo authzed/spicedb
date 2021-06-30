@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -446,7 +447,7 @@ func rewriteACLError(err error) error {
 		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 
 	case errors.As(err, &datastore.ErrReadOnly{}):
-		return status.Errorf(codes.Unavailable, "service is read-only")
+		return serviceerrors.ErrServiceReadOnly
 
 	default:
 		if _, ok := err.(invalidRelationError); ok {

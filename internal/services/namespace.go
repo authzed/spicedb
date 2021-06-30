@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -150,7 +151,7 @@ func rewriteNamespaceError(err error) error {
 		return status.Errorf(codes.NotFound, "namespace not found: %s", err)
 
 	case errors.As(err, &datastore.ErrReadOnly{}):
-		return status.Errorf(codes.Unavailable, "service is read-only")
+		return serviceerrors.ErrServiceReadOnly
 
 	default:
 		log.Err(err)
