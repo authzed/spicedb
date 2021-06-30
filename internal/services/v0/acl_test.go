@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	g "github.com/authzed/spicedb/pkg/graph"
+	"github.com/authzed/spicedb/pkg/grpcutil"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
@@ -227,7 +228,7 @@ func TestRead(t *testing.T) {
 
 						verifyTuples(tc.expected, resp.Tuplesets[0].Tuples, require)
 					} else {
-						requireGRPCStatus(tc.expectedCode, err, require)
+						grpcutil.RequireStatus(t, tc.expectedCode, err)
 					}
 				})
 			}
@@ -273,7 +274,7 @@ func TestReadBadZookie(t *testing.T) {
 		},
 		AtRevision: zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1))),
 	})
-	requireGRPCStatus(codes.OutOfRange, err, require)
+	grpcutil.RequireStatus(t, codes.OutOfRange, err)
 
 	_, err = srv.Read(context.Background(), &v0.ReadRequest{
 		Tuplesets: []*v0.RelationTupleFilter{
@@ -281,7 +282,7 @@ func TestReadBadZookie(t *testing.T) {
 		},
 		AtRevision: zookie.NewFromRevision(revision.Add(decimal.NewFromInt(1))),
 	})
-	requireGRPCStatus(codes.OutOfRange, err, require)
+	grpcutil.RequireStatus(t, codes.OutOfRange, err)
 }
 
 func TestWrite(t *testing.T) {
@@ -298,7 +299,7 @@ func TestWrite(t *testing.T) {
 		Updates:         []*v0.RelationTupleUpdate{tuple.Create(toWrite)},
 	})
 	require.Nil(resp)
-	requireGRPCStatus(codes.FailedPrecondition, err, require)
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 
 	existing := tuple.Scan(tf.StandardTuples[0])
 	require.NotNil(existing)
@@ -426,7 +427,7 @@ func TestInvalidWriteArguments(t *testing.T) {
 				WriteConditions: preconditions,
 				Updates:         mutations,
 			})
-			requireGRPCStatus(tc.expectedCode, err, require)
+			grpcutil.RequireStatus(t, tc.expectedCode, err)
 		})
 	}
 }
@@ -541,8 +542,8 @@ func TestCheck(t *testing.T) {
 									require.Equal(v0.CheckResponse_NOT_MEMBER, ccResp.Membership)
 								}
 							} else {
-								requireGRPCStatus(tc.expectedErrorCode, err, require)
-								requireGRPCStatus(tc.expectedErrorCode, ccErr, require)
+								grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
+								grpcutil.RequireStatus(t, tc.expectedErrorCode, ccErr)
 							}
 						})
 					}
@@ -604,7 +605,7 @@ func TestExpand(t *testing.T) {
 
 						require.Equal(tc.expandRelatedCount, len(g.Simplify(expanded.TreeNode)))
 					} else {
-						requireGRPCStatus(tc.expectedErrorCode, err, require)
+						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
 					}
 				})
 			}
@@ -772,7 +773,7 @@ func TestLookup(t *testing.T) {
 							require.Equal(true, checkResp.IsMember, "Object ID %s is not a member", objId)
 						}
 					} else {
-						requireGRPCStatus(tc.expectedErrorCode, err, require)
+						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
 					}
 				})
 			}
