@@ -36,7 +36,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/ory/dockertest v3.3.5+incompatible
-	github.com/prometheus/client_golang v1.9.0
+	github.com/prometheus/client_golang v1.11.0
 	github.com/rs/zerolog v1.20.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/shopspring/decimal v1.2.0
@@ -49,7 +49,6 @@ require (
 	go.opentelemetry.io/otel/trace v0.19.0
 	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5 // indirect
-	golang.org/x/sys v0.0.0-20210601080250-7ecdf8ef093b // indirect
 	golang.org/x/tools v0.1.2 // indirect
 	google.golang.org/grpc v1.39.0
 	google.golang.org/grpc/examples v0.0.0-20210316215007-967933baf52a // indirect
