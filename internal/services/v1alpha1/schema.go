@@ -32,6 +32,10 @@ func NewSchemaServer(ds datastore.Datastore) v1alpha1.SchemaServiceServer {
 }
 
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
+	if err := in.Validate(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
+
 	var objectDefs []string
 	for _, objectDefName := range in.GetObjectDefinitionsNames() {
 		found, _, err := ss.ds.ReadNamespace(ctx, objectDefName)
@@ -54,6 +58,9 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 
 func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {
 	log.Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
+	if err := in.Validate(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
+	}
 
 	nsm, err := namespace.NewCachingNamespaceManager(ss.ds, 0, nil) // non-caching manager
 	if err != nil {
