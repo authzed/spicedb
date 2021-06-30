@@ -34,7 +34,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/readonly"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/services"
+	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/cmdutil"
 	"github.com/authzed/spicedb/pkg/grpcutil"
@@ -286,13 +286,13 @@ func RegisterGrpcServices(
 ) {
 	healthSrv := grpcutil.NewAuthlessHealthServer()
 
-	v0.RegisterACLServiceServer(srv, services.NewACLServer(ds, nsm, dispatch, maxDepth))
+	v0.RegisterACLServiceServer(srv, v0svc.NewACLServer(ds, nsm, dispatch, maxDepth))
 	healthSrv.SetServingStatus("ACLService", healthpb.HealthCheckResponse_SERVING)
 
-	v0.RegisterNamespaceServiceServer(srv, services.NewNamespaceServer(ds))
+	v0.RegisterNamespaceServiceServer(srv, v0svc.NewNamespaceServer(ds))
 	healthSrv.SetServingStatus("NamespaceService", healthpb.HealthCheckResponse_SERVING)
 
-	v0.RegisterWatchServiceServer(srv, services.NewWatchServer(ds, nsm))
+	v0.RegisterWatchServiceServer(srv, v0svc.NewWatchServer(ds, nsm))
 	healthSrv.SetServingStatus("WatchService", healthpb.HealthCheckResponse_SERVING)
 
 	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(ds))

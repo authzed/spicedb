@@ -23,7 +23,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/services"
+	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	v1alpha1 "github.com/authzed/spicedb/pkg/proto/authzed/api/v1alpha1"
@@ -134,7 +134,7 @@ func (tbs *tokenBasedServer) ReadSchema(ctx context.Context, req *v1alpha1.ReadS
 
 func (tbs *tokenBasedServer) nsServer(ctx context.Context) v0.NamespaceServiceServer {
 	model := tbs.modelForContext(ctx)
-	return services.NewNamespaceServer(model.datastore)
+	return v0svc.NewNamespaceServer(model.datastore)
 }
 
 func (tbs *tokenBasedServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest) (*v0.WriteConfigResponse, error) {
@@ -147,7 +147,7 @@ func (tbs *tokenBasedServer) ReadConfig(ctx context.Context, req *v0.ReadConfigR
 
 func (tbs *tokenBasedServer) aclServer(ctx context.Context) v0.ACLServiceServer {
 	model := tbs.modelForContext(ctx)
-	return services.NewACLServer(model.datastore, model.namespaceManager, model.dispatcher, MAX_DEPTH)
+	return v0svc.NewACLServer(model.datastore, model.namespaceManager, model.dispatcher, MAX_DEPTH)
 }
 
 func (tbs *tokenBasedServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadResponse, error) {

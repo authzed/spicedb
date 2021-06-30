@@ -21,7 +21,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/authzed/spicedb/internal/services"
+	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/pkg/grpcutil"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
@@ -56,10 +56,10 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 	shareStoreKind := cobrautil.MustGetString(cmd, "share-store")
 	shareStoreSalt := cobrautil.MustGetString(cmd, "share-store-salt")
 
-	var shareStore services.ShareStore
+	var shareStore v0svc.ShareStore
 	if shareStoreKind == "inmemory" {
 		log.Info().Msg("using in-memory sharestore")
-		shareStore = services.NewInMemoryShareStore(shareStoreSalt)
+		shareStore = v0svc.NewInMemoryShareStore(shareStoreSalt)
 	} else if shareStoreKind == "s3" {
 		bucketName := cobrautil.MustGetString(cmd, "s3-bucket")
 		if len(bucketName) == 0 {
@@ -90,7 +90,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 			Endpoint: aws.String(endpoint),
 		}
 
-		s3store, err := services.NewS3ShareStore(bucketName, shareStoreSalt, config)
+		s3store, err := v0svc.NewS3ShareStore(bucketName, shareStoreSalt, config)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to create S3 share store")
 		}
@@ -103,7 +103,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 
 	healthSrv := grpcutil.NewAuthlessHealthServer()
 
-	v0.RegisterDeveloperServiceServer(grpcServer, services.NewDeveloperServer(shareStore))
+	v0.RegisterDeveloperServiceServer(grpcServer, v0svc.NewDeveloperServer(shareStore))
 	healthSrv.SetServingStatus("DeveloperService", healthpb.HealthCheckResponse_SERVING)
 
 	healthpb.RegisterHealthServer(grpcServer, healthSrv)
