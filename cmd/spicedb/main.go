@@ -31,6 +31,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
+	"github.com/authzed/spicedb/internal/datastore/readonly"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
@@ -71,6 +72,7 @@ func main() {
 	rootCmd.Flags().Int("crdb-min-conn-open", 20, "number of idle connections to keep open in the cockroachdb connection pool")
 	rootCmd.Flags().Duration("crdb-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the cockroachdb connection pool")
 	rootCmd.Flags().Duration("crdb-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the cockroachdb connection pool")
+	rootCmd.Flags().Bool("read-only", false, "set the service to read-only mode")
 
 	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
 	cmdutil.RegisterTracingPersistentFlags(rootCmd)
@@ -202,6 +204,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 	} else {
 		log.Fatal().Str("datastore-engine", datastoreEngine).Msg("unknown datastore engine type")
+	}
+
+	if cobrautil.MustGetBool(cmd, "read-only") {
+		log.Warn().Msg("setting the service to read-only")
+		ds = readonly.NewReadonlyDatastore(ds)
 	}
 
 	nsCacheExpiration := cobrautil.MustGetDuration(cmd, "ns-cache-expiration")
