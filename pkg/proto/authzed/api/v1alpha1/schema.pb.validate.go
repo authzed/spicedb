@@ -41,19 +41,19 @@ func (m *ReadSchemaRequest) Validate() error {
 		return nil
 	}
 
-	for idx, item := range m.GetObjectDefinitionNames() {
+	for idx, item := range m.GetObjectDefinitionsNames() {
 		_, _ = idx, item
 
 		if len(item) > 128 {
 			return ReadSchemaRequestValidationError{
-				field:  fmt.Sprintf("ObjectDefinitionNames[%v]", idx),
+				field:  fmt.Sprintf("ObjectDefinitionsNames[%v]", idx),
 				reason: "value length must be at most 128 bytes",
 			}
 		}
 
-		if !_ReadSchemaRequest_ObjectDefinitionNames_Pattern.MatchString(item) {
+		if !_ReadSchemaRequest_ObjectDefinitionsNames_Pattern.MatchString(item) {
 			return ReadSchemaRequestValidationError{
-				field:  fmt.Sprintf("ObjectDefinitionNames[%v]", idx),
+				field:  fmt.Sprintf("ObjectDefinitionsNames[%v]", idx),
 				reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
 			}
 		}
@@ -119,7 +119,7 @@ var _ interface {
 	ErrorName() string
 } = ReadSchemaRequestValidationError{}
 
-var _ReadSchemaRequest_ObjectDefinitionNames_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$")
+var _ReadSchemaRequest_ObjectDefinitionsNames_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$")
 
 // Validate checks the field values on ReadSchemaResponse with the rules
 // defined in the proto definition for this message. If any rules are
@@ -196,10 +196,10 @@ func (m *WriteSchemaRequest) Validate() error {
 		return nil
 	}
 
-	if len(m.GetObjectDefinitions()) < 1 {
+	if len(m.GetSchema()) > 262144 {
 		return WriteSchemaRequestValidationError{
-			field:  "ObjectDefinitions",
-			reason: "value must contain at least 1 item(s)",
+			field:  "Schema",
+			reason: "value length must be at most 262144 bytes",
 		}
 	}
 

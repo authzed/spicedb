@@ -32,7 +32,7 @@ func NewSchemaServer(ds datastore.Datastore) v1alpha1.SchemaServiceServer {
 
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
 	var objectDefs []string
-	for _, objectDefName := range in.GetObjectDefinitionNames() {
+	for _, objectDefName := range in.GetObjectDefinitionsNames() {
 		found, _, err := ss.ds.ReadNamespace(ctx, objectDefName)
 		if err != nil {
 			return nil, rewriteError(err)
@@ -52,22 +52,19 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 }
 
 func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {
-	log.Trace().Interface("object definitions", in.GetObjectDefinitions()).Msg("requested Object Definitions to be written")
+	log.Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 
 	nsm, err := namespace.NewCachingNamespaceManager(ss.ds, 0, nil) // non-caching manager
 	if err != nil {
 		return nil, rewriteError(err)
 	}
 
-	var inputSchemas []compiler.InputSchema
-	for _, objectDef := range in.GetObjectDefinitions() {
-		inputSchemas = append(inputSchemas, compiler.InputSchema{
-			Source:       input.InputSource("schema"),
-			SchemaString: objectDef,
-		})
+	inputSchema := compiler.InputSchema{
+		Source:       input.InputSource("schema"),
+		SchemaString: in.GetSchema(),
 	}
 
-	nsdefs, err := compiler.Compile(inputSchemas, nil)
+	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, nil)
 	if err != nil {
 		return nil, rewriteError(err)
 	}
@@ -89,18 +86,18 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	}
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
 
-	var paths []string
+	var names []string
 	for _, nsdef := range nsdefs {
 		if _, err := ss.ds.WriteNamespace(ctx, nsdef); err != nil {
 			return nil, rewriteError(err)
 		}
 
-		paths = append(paths, nsdef.Name)
+		names = append(names, nsdef.Name)
 	}
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("wrote namespace definitions")
 
 	return &v1alpha1.WriteSchemaResponse{
-		ObjectDefinitionPaths: paths,
+		ObjectDefinitionsNames: names,
 	}, nil
 }
 
