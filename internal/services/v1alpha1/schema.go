@@ -89,14 +89,19 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	}
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
 
+	var paths []string
 	for _, nsdef := range nsdefs {
 		if _, err := ss.ds.WriteNamespace(ctx, nsdef); err != nil {
 			return nil, rewriteError(err)
 		}
+
+		paths = append(paths, nsdef.Name)
 	}
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("wrote namespace definitions")
 
-	return &v1alpha1.WriteSchemaResponse{}, nil
+	return &v1alpha1.WriteSchemaResponse{
+		ObjectDefinitionPaths: paths,
+	}, nil
 }
 
 // TODO(jzelinskie): figure how to deduplicate this code across v0 and v1 APIs.
@@ -169,9 +174,14 @@ func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx con
 }
 
 func rewriteError(err error) error {
-	switch typedErr := err.(type) {
-	case sharederrors.UnknownNamespaceError:
-		return status.Errorf(codes.NotFound, "Object Definition `%s` not found", typedErr.NotFoundNamespaceName())
+	var nsNotFoundError sharederrors.UnknownNamespaceError = nil
+	var errWithContext compiler.ErrorWithContext
+
+	switch {
+	case errors.As(err, &nsNotFoundError):
+		return status.Errorf(codes.NotFound, "Object Definition `%s` not found", nsNotFoundError.NotFoundNamespaceName())
+	case errors.As(err, &errWithContext):
+		return status.Errorf(codes.InvalidArgument, "%s", err)
 	default:
 		log.Err(err)
 		return err

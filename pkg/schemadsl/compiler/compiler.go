@@ -18,6 +18,13 @@ type InputSchema struct {
 	SchemaString string
 }
 
+// ErrorWithContext defines an error which contains contextual information.
+type ErrorWithContext struct {
+	error
+	SourceRange input.SourceRange
+	Source      input.InputSource
+}
+
 // Compile compilers the input schema(s) into a set of namespace definition protos.
 func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*v0.NamespaceDefinition, error) {
 	mapper := newPositionMapper(schemas)
@@ -65,7 +72,16 @@ func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {
 		return err
 	}
 
-	return fmt.Errorf("parse error in %s: %s", formattedRange, errMessage)
+	source, err := node.GetString(dslshape.NodePredicateSource)
+	if err != nil {
+		return fmt.Errorf("missing source for node: %w", err)
+	}
+
+	return ErrorWithContext{
+		error:       fmt.Errorf("parse error in %s: %s", formattedRange, errMessage),
+		SourceRange: sourceRange,
+		Source:      input.InputSource(source),
+	}
 }
 
 func formatRange(rnge input.SourceRange) (string, error) {

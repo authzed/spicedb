@@ -38,20 +38,20 @@ func TestS3ShareStore(t *testing.T) {
 	require.Error(err)
 
 	// Check for non-existent share.
-	_, ok, err := sharestore.LookupSharedByReference("someref")
+	_, status, err := sharestore.LookupSharedByReference("someref")
 	require.NoError(err)
-	require.False(ok)
+	require.Equal(LookupNotFound, status)
 
 	// Add a share.
-	reference, err := sharestore.StoreShared(SharedData{
-		Version:          sharedDataVersion,
-		NamespaceConfigs: []string{"foo", "bar"},
+	reference, err := sharestore.StoreShared(SharedDataV2{
+		Version: sharedDataVersion,
+		Schema:  "foo",
 	})
 	require.NoError(err)
 
 	// Lookup the share and compare.
-	sd, ok, err := sharestore.LookupSharedByReference(reference)
+	sd, status, err := sharestore.LookupSharedByReference(reference)
 	require.NoError(err)
-	require.True(ok)
-	require.Equal([]string{"foo", "bar"}, sd.NamespaceConfigs)
+	require.Equal(LookupSuccess, status)
+	require.Equal("foo", sd.Schema)
 }

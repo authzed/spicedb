@@ -412,6 +412,37 @@ func TestCompile(t *testing.T) {
 				),
 			},
 		},
+		{
+			"doc comments",
+			&someTenant,
+			`
+			/**
+			 * user is a user
+			 */
+			definition user {}
+
+			/**
+			 * single is a thing
+			 */
+			definition single {
+				/**
+				 * some permission
+				 */
+				permission first = bar + baz
+			}`,
+			"",
+			[]*v0.NamespaceDefinition{
+				namespace.Namespace("sometenant/user"),
+				namespace.Namespace("sometenant/single",
+					namespace.Relation("first",
+						namespace.Union(
+							namespace.ComputedUserset("bar"),
+							namespace.ComputedUserset("baz"),
+						),
+					),
+				),
+			},
+		},
 	}
 
 	for _, test := range tests {

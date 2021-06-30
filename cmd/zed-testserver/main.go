@@ -24,7 +24,9 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
+	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	v1alpha1 "github.com/authzed/spicedb/pkg/proto/authzed/api/v1alpha1"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -66,6 +68,7 @@ func runTestServer(cmd *cobra.Command, args []string) {
 
 	v0.RegisterACLServiceServer(grpcServer, server)
 	v0.RegisterNamespaceServiceServer(grpcServer, server)
+	v1alpha1.RegisterSchemaServiceServer(grpcServer, server)
 	reflection.Register(grpcServer)
 
 	go func() {
@@ -97,6 +100,7 @@ type model struct {
 type tokenBasedServer struct {
 	v0.UnimplementedACLServiceServer
 	v0.UnimplementedNamespaceServiceServer
+	v1alpha1.UnimplementedSchemaServiceServer
 
 	configFilePaths []string
 	modelByToken    sync.Map
@@ -113,6 +117,19 @@ func (tbs *tokenBasedServer) modelForContext(ctx context.Context) model {
 	model := tbs.createModel()
 	tbs.modelByToken.Store(tokenStr, model)
 	return model
+}
+
+func (tbs *tokenBasedServer) schemaServer(ctx context.Context) v1alpha1.SchemaServiceServer {
+	model := tbs.modelForContext(ctx)
+	return v1alpha1svc.NewSchemaServer(model.datastore)
+}
+
+func (tbs *tokenBasedServer) WriteSchema(ctx context.Context, req *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {
+	return tbs.schemaServer(ctx).WriteSchema(ctx, req)
+}
+
+func (tbs *tokenBasedServer) ReadSchema(ctx context.Context, req *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
+	return tbs.schemaServer(ctx).ReadSchema(ctx, req)
 }
 
 func (tbs *tokenBasedServer) nsServer(ctx context.Context) v0.NamespaceServiceServer {

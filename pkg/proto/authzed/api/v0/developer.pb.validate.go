@@ -33,6 +33,152 @@ var (
 	_ = anypb.Any{}
 )
 
+// Validate checks the field values on UpgradeSchemaRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *UpgradeSchemaRequest) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	return nil
+}
+
+// UpgradeSchemaRequestValidationError is the validation error returned by
+// UpgradeSchemaRequest.Validate if the designated constraints aren't met.
+type UpgradeSchemaRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpgradeSchemaRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpgradeSchemaRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpgradeSchemaRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpgradeSchemaRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpgradeSchemaRequestValidationError) ErrorName() string {
+	return "UpgradeSchemaRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpgradeSchemaRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpgradeSchemaRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpgradeSchemaRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpgradeSchemaRequestValidationError{}
+
+// Validate checks the field values on UpgradeSchemaResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *UpgradeSchemaResponse) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	if v, ok := interface{}(m.GetError()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpgradeSchemaResponseValidationError{
+				field:  "Error",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for UpgradedSchema
+
+	return nil
+}
+
+// UpgradeSchemaResponseValidationError is the validation error returned by
+// UpgradeSchemaResponse.Validate if the designated constraints aren't met.
+type UpgradeSchemaResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpgradeSchemaResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpgradeSchemaResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpgradeSchemaResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpgradeSchemaResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpgradeSchemaResponseValidationError) ErrorName() string {
+	return "UpgradeSchemaResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpgradeSchemaResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpgradeSchemaResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpgradeSchemaResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpgradeSchemaResponseValidationError{}
+
 // Validate checks the field values on ShareRequest with the rules defined in
 // the proto definition for this message. If any rules are violated, an error
 // is returned.
@@ -41,7 +187,9 @@ func (m *ShareRequest) Validate() error {
 		return nil
 	}
 
-	// no validation rules for RelationTuples
+	// no validation rules for Schema
+
+	// no validation rules for RelationshipsYaml
 
 	// no validation rules for ValidationYaml
 
@@ -250,7 +398,9 @@ func (m *LookupShareResponse) Validate() error {
 
 	// no validation rules for Status
 
-	// no validation rules for RelationTuples
+	// no validation rules for Schema
+
+	// no validation rules for RelationshipsYaml
 
 	// no validation rules for ValidationYaml
 
@@ -315,75 +465,6 @@ var _ interface {
 	ErrorName() string
 } = LookupShareResponseValidationError{}
 
-// Validate checks the field values on NamespaceContext with the rules defined
-// in the proto definition for this message. If any rules are violated, an
-// error is returned.
-func (m *NamespaceContext) Validate() error {
-	if m == nil {
-		return nil
-	}
-
-	// no validation rules for Handle
-
-	// no validation rules for Config
-
-	return nil
-}
-
-// NamespaceContextValidationError is the validation error returned by
-// NamespaceContext.Validate if the designated constraints aren't met.
-type NamespaceContextValidationError struct {
-	field  string
-	reason string
-	cause  error
-	key    bool
-}
-
-// Field function returns field value.
-func (e NamespaceContextValidationError) Field() string { return e.field }
-
-// Reason function returns reason value.
-func (e NamespaceContextValidationError) Reason() string { return e.reason }
-
-// Cause function returns cause value.
-func (e NamespaceContextValidationError) Cause() error { return e.cause }
-
-// Key function returns key value.
-func (e NamespaceContextValidationError) Key() bool { return e.key }
-
-// ErrorName returns error name.
-func (e NamespaceContextValidationError) ErrorName() string { return "NamespaceContextValidationError" }
-
-// Error satisfies the builtin error interface
-func (e NamespaceContextValidationError) Error() string {
-	cause := ""
-	if e.cause != nil {
-		cause = fmt.Sprintf(" | caused by: %v", e.cause)
-	}
-
-	key := ""
-	if e.key {
-		key = "key for "
-	}
-
-	return fmt.Sprintf(
-		"invalid %sNamespaceContext.%s: %s%s",
-		key,
-		e.field,
-		e.reason,
-		cause)
-}
-
-var _ error = NamespaceContextValidationError{}
-
-var _ interface {
-	Field() string
-	Reason() string
-	Key() bool
-	Cause() error
-	ErrorName() string
-} = NamespaceContextValidationError{}
-
 // Validate checks the field values on RequestContext with the rules defined in
 // the proto definition for this message. If any rules are violated, an error
 // is returned.
@@ -392,28 +473,15 @@ func (m *RequestContext) Validate() error {
 		return nil
 	}
 
-	for idx, item := range m.GetNamespaces() {
+	// no validation rules for Schema
+
+	for idx, item := range m.GetRelationships() {
 		_, _ = idx, item
 
 		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return RequestContextValidationError{
-					field:  fmt.Sprintf("Namespaces[%v]", idx),
-					reason: "embedded message failed validation",
-					cause:  err,
-				}
-			}
-		}
-
-	}
-
-	for idx, item := range m.GetTuples() {
-		_, _ = idx, item
-
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return RequestContextValidationError{
-					field:  fmt.Sprintf("Tuples[%v]", idx),
+					field:  fmt.Sprintf("Relationships[%v]", idx),
 					reason: "embedded message failed validation",
 					cause:  err,
 				}
@@ -479,100 +547,6 @@ var _ interface {
 	ErrorName() string
 } = RequestContextValidationError{}
 
-// Validate checks the field values on NamespaceInformation with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
-func (m *NamespaceInformation) Validate() error {
-	if m == nil {
-		return nil
-	}
-
-	// no validation rules for Handle
-
-	if v, ok := interface{}(m.GetParsed()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return NamespaceInformationValidationError{
-				field:  "Parsed",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
-
-	for idx, item := range m.GetErrors() {
-		_, _ = idx, item
-
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return NamespaceInformationValidationError{
-					field:  fmt.Sprintf("Errors[%v]", idx),
-					reason: "embedded message failed validation",
-					cause:  err,
-				}
-			}
-		}
-
-	}
-
-	return nil
-}
-
-// NamespaceInformationValidationError is the validation error returned by
-// NamespaceInformation.Validate if the designated constraints aren't met.
-type NamespaceInformationValidationError struct {
-	field  string
-	reason string
-	cause  error
-	key    bool
-}
-
-// Field function returns field value.
-func (e NamespaceInformationValidationError) Field() string { return e.field }
-
-// Reason function returns reason value.
-func (e NamespaceInformationValidationError) Reason() string { return e.reason }
-
-// Cause function returns cause value.
-func (e NamespaceInformationValidationError) Cause() error { return e.cause }
-
-// Key function returns key value.
-func (e NamespaceInformationValidationError) Key() bool { return e.key }
-
-// ErrorName returns error name.
-func (e NamespaceInformationValidationError) ErrorName() string {
-	return "NamespaceInformationValidationError"
-}
-
-// Error satisfies the builtin error interface
-func (e NamespaceInformationValidationError) Error() string {
-	cause := ""
-	if e.cause != nil {
-		cause = fmt.Sprintf(" | caused by: %v", e.cause)
-	}
-
-	key := ""
-	if e.key {
-		key = "key for "
-	}
-
-	return fmt.Sprintf(
-		"invalid %sNamespaceInformation.%s: %s%s",
-		key,
-		e.field,
-		e.reason,
-		cause)
-}
-
-var _ error = NamespaceInformationValidationError{}
-
-var _ interface {
-	Field() string
-	Reason() string
-	Key() bool
-	Cause() error
-	ErrorName() string
-} = NamespaceInformationValidationError{}
-
 // Validate checks the field values on EditCheckRequest with the rules defined
 // in the proto definition for this message. If any rules are violated, an
 // error is returned.
@@ -591,13 +565,13 @@ func (m *EditCheckRequest) Validate() error {
 		}
 	}
 
-	for idx, item := range m.GetCheckTuples() {
+	for idx, item := range m.GetCheckRelationships() {
 		_, _ = idx, item
 
 		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return EditCheckRequestValidationError{
-					field:  fmt.Sprintf("CheckTuples[%v]", idx),
+					field:  fmt.Sprintf("CheckRelationships[%v]", idx),
 					reason: "embedded message failed validation",
 					cause:  err,
 				}
@@ -671,10 +645,10 @@ func (m *EditCheckResult) Validate() error {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetTuple()).(interface{ Validate() error }); ok {
+	if v, ok := interface{}(m.GetRelationship()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return EditCheckResultValidationError{
-				field:  "Tuple",
+				field:  "Relationship",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
@@ -758,28 +732,13 @@ func (m *EditCheckResponse) Validate() error {
 		return nil
 	}
 
-	for idx, item := range m.GetContextNamespaces() {
+	for idx, item := range m.GetRequestErrors() {
 		_, _ = idx, item
 
 		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return EditCheckResponseValidationError{
-					field:  fmt.Sprintf("ContextNamespaces[%v]", idx),
-					reason: "embedded message failed validation",
-					cause:  err,
-				}
-			}
-		}
-
-	}
-
-	for idx, item := range m.GetAdditionalErrors() {
-		_, _ = idx, item
-
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return EditCheckResponseValidationError{
-					field:  fmt.Sprintf("AdditionalErrors[%v]", idx),
+					field:  fmt.Sprintf("RequestErrors[%v]", idx),
 					reason: "embedded message failed validation",
 					cause:  err,
 				}
@@ -943,83 +902,6 @@ var _ interface {
 	ErrorName() string
 } = ValidateRequestValidationError{}
 
-// Validate checks the field values on ValidationError with the rules defined
-// in the proto definition for this message. If any rules are violated, an
-// error is returned.
-func (m *ValidationError) Validate() error {
-	if m == nil {
-		return nil
-	}
-
-	// no validation rules for Message
-
-	// no validation rules for Line
-
-	// no validation rules for Column
-
-	// no validation rules for Source
-
-	// no validation rules for Kind
-
-	// no validation rules for Metadata
-
-	return nil
-}
-
-// ValidationErrorValidationError is the validation error returned by
-// ValidationError.Validate if the designated constraints aren't met.
-type ValidationErrorValidationError struct {
-	field  string
-	reason string
-	cause  error
-	key    bool
-}
-
-// Field function returns field value.
-func (e ValidationErrorValidationError) Field() string { return e.field }
-
-// Reason function returns reason value.
-func (e ValidationErrorValidationError) Reason() string { return e.reason }
-
-// Cause function returns cause value.
-func (e ValidationErrorValidationError) Cause() error { return e.cause }
-
-// Key function returns key value.
-func (e ValidationErrorValidationError) Key() bool { return e.key }
-
-// ErrorName returns error name.
-func (e ValidationErrorValidationError) ErrorName() string { return "ValidationErrorValidationError" }
-
-// Error satisfies the builtin error interface
-func (e ValidationErrorValidationError) Error() string {
-	cause := ""
-	if e.cause != nil {
-		cause = fmt.Sprintf(" | caused by: %v", e.cause)
-	}
-
-	key := ""
-	if e.key {
-		key = "key for "
-	}
-
-	return fmt.Sprintf(
-		"invalid %sValidationError.%s: %s%s",
-		key,
-		e.field,
-		e.reason,
-		cause)
-}
-
-var _ error = ValidationErrorValidationError{}
-
-var _ interface {
-	Field() string
-	Reason() string
-	Key() bool
-	Cause() error
-	ErrorName() string
-} = ValidationErrorValidationError{}
-
 // Validate checks the field values on ValidateResponse with the rules defined
 // in the proto definition for this message. If any rules are violated, an
 // error is returned.
@@ -1028,13 +910,13 @@ func (m *ValidateResponse) Validate() error {
 		return nil
 	}
 
-	for idx, item := range m.GetContextNamespaces() {
+	for idx, item := range m.GetRequestErrors() {
 		_, _ = idx, item
 
 		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return ValidateResponseValidationError{
-					field:  fmt.Sprintf("ContextNamespaces[%v]", idx),
+					field:  fmt.Sprintf("RequestErrors[%v]", idx),
 					reason: "embedded message failed validation",
 					cause:  err,
 				}
@@ -1116,3 +998,80 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ValidateResponseValidationError{}
+
+// Validate checks the field values on DeveloperError with the rules defined in
+// the proto definition for this message. If any rules are violated, an error
+// is returned.
+func (m *DeveloperError) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	// no validation rules for Message
+
+	// no validation rules for Line
+
+	// no validation rules for Column
+
+	// no validation rules for Source
+
+	// no validation rules for Kind
+
+	// no validation rules for Context
+
+	return nil
+}
+
+// DeveloperErrorValidationError is the validation error returned by
+// DeveloperError.Validate if the designated constraints aren't met.
+type DeveloperErrorValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeveloperErrorValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeveloperErrorValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeveloperErrorValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeveloperErrorValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeveloperErrorValidationError) ErrorName() string { return "DeveloperErrorValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DeveloperErrorValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeveloperError.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeveloperErrorValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeveloperErrorValidationError{}
