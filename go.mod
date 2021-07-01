@@ -15,7 +15,7 @@ require (
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/emirpasic/gods v1.12.0
 	github.com/envoyproxy/protoc-gen-validate v0.6.0
-	github.com/gogo/protobuf v1.3.1
+	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.5
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
@@ -29,7 +29,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
-	github.com/jzelinskie/cobrautil v0.0.0-20210330205530-45d5fbfe45dd
+	github.com/jzelinskie/cobrautil v0.0.0-20210619202150-2fc07a6abd5e
 	github.com/jzelinskie/stringz v0.0.0-20210604201827-321bc7aaa2dc
 	github.com/lib/pq v1.10.2
 	github.com/ngrok/sqlmw v0.0.0-20200129213757-d5c93a81bec6
@@ -37,10 +37,11 @@ require (
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/prometheus/client_golang v1.11.0
-	github.com/rs/zerolog v1.20.0
+	github.com/rs/zerolog v1.23.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/shopspring/decimal v1.2.0
 	github.com/spf13/cobra v1.1.3
+	github.com/spf13/viper v1.8.1 // indirect
 	github.com/stretchr/testify v1.7.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.19.0
 	go.opentelemetry.io/otel v0.19.0
@@ -49,6 +50,7 @@ require (
 	go.opentelemetry.io/otel/trace v0.19.0
 	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5 // indirect
+	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 	google.golang.org/genproto v0.0.0-20210630183607-d20f26d13c79
 	google.golang.org/grpc v1.39.0
 	google.golang.org/grpc/examples v0.0.0-20210316215007-967933baf52a // indirect
