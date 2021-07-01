@@ -86,7 +86,7 @@ func TestNamespaceChanged(t *testing.T) {
 			ns.Namespace(
 				"folder",
 			),
-			"cannot delete relation `viewer` in namespace `folder`, as a tuple exists under it",
+			"cannot delete relation `viewer` in definition `folder`, as a relationship exists under it",
 		},
 		{
 			"relation referenced by tuples",
@@ -109,7 +109,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("folder", "..."),
 				),
 			),
-			"cannot delete relation `viewer` in namespace `folder`, as a tuple references it",
+			"cannot delete relation `viewer` in definition `folder`, as a relationship references it",
 		},
 		{
 			"direct type removed",
@@ -128,7 +128,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("folder", "..."),
 				),
 			),
-			"cannot remove allowed direct relation `user#...` from relation `viewer` in namespace `folder`, as a tuple exists with it",
+			"cannot remove allowed relation/permission `user#...` from relation `viewer` in definition `folder`, as a relationship exists with it",
 		},
 		{
 			"direct type removed with no references",

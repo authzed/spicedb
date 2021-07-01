@@ -72,7 +72,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 				err = errorIfTupleIteratorReturnsTuples(
 					nss.ds.QueryTuples(config.Name, revision).WithRelation(delta.RelationName),
 					ctx,
-					"cannot delete relation `%s` in namespace `%s`, as a tuple exists under it", delta.RelationName, config.Name)
+					"cannot delete relation `%s` in definition `%s`, as a relationship exists under it", delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(err)
 				}
@@ -81,7 +81,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 				err = errorIfTupleIteratorReturnsTuples(
 					nss.ds.ReverseQueryTuplesFromSubjectRelation(config.Name, delta.RelationName, revision),
 					ctx,
-					"cannot delete relation `%s` in namespace `%s`, as a tuple references it", delta.RelationName, config.Name)
+					"cannot delete relation `%s` in definition `%s`, as a relationship references it", delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(err)
 				}
@@ -91,7 +91,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 					nss.ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, revision).
 						WithObjectRelation(config.Name, delta.RelationName),
 					ctx,
-					"cannot remove allowed direct relation `%s#%s` from relation `%s` in namespace `%s`, as a tuple exists with it",
+					"cannot remove allowed relation/permission `%s#%s` from relation `%s` in definition `%s`, as a relationship exists with it",
 					delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(err)
@@ -148,7 +148,7 @@ func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx con
 func rewriteNamespaceError(err error) error {
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
-		return status.Errorf(codes.NotFound, "namespace not found: %s", err)
+		return status.Errorf(codes.NotFound, "object definition not found: %s", err)
 
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return serviceerrors.ErrServiceReadOnly

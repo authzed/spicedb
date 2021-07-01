@@ -48,7 +48,7 @@ func validateTupleWrite(ctx context.Context, tpl *v0.RelationTuple, nsm namespac
 
 	if isAllowed == namespace.DirectRelationNotValid {
 		return invalidRelationError{
-			error:   fmt.Errorf("relation %v is not allowed on the right hand side of %v", tpl.User, tpl.ObjectAndRelation),
+			error:   fmt.Errorf("relation/permission %v is not allowed as the subject of %v", tpl.User, tpl.ObjectAndRelation),
 			subject: tpl.User,
 			onr:     tpl.ObjectAndRelation,
 		}

@@ -30,7 +30,7 @@ func BuildNamespaceTypeSystem(nsDef *v0.NamespaceDefinition, manager Manager, ad
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
 		if existing {
-			return nil, fmt.Errorf("Found duplicate relation name %s", relation.Name)
+			return nil, fmt.Errorf("found duplicate relation/permission name %s", relation.Name)
 		}
 
 		relationMap[relation.Name] = relation
@@ -63,7 +63,7 @@ func (nts *NamespaceTypeSystem) HasRelation(relationName string) bool {
 func (nts *NamespaceTypeSystem) IsAllowedDirectRelation(sourceRelationName string, targetNamespaceName string, targetRelationName string) (AllowedDirectRelation, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
-		return UnknownIfRelationAllowed, fmt.Errorf("Unknown relation %s", sourceRelationName)
+		return UnknownIfRelationAllowed, fmt.Errorf("unknown relation/permission %s", sourceRelationName)
 	}
 
 	typeInfo := found.GetTypeInformation()
@@ -85,7 +85,7 @@ func (nts *NamespaceTypeSystem) IsAllowedDirectRelation(sourceRelationName strin
 func (nts *NamespaceTypeSystem) AllowedDirectRelations(sourceRelationName string) ([]*v0.RelationReference, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
-		return []*v0.RelationReference{}, fmt.Errorf("Unknown relation %s", sourceRelationName)
+		return []*v0.RelationReference{}, fmt.Errorf("unknown relation/permission %s", sourceRelationName)
 	}
 
 	typeInfo := found.GetTypeInformation()
@@ -107,7 +107,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 				relationName := child.ComputedUserset.GetRelation()
 				_, ok := nts.relationMap[relationName]
 				if !ok {
-					return fmt.Errorf("In computed_userset for relation `%s`: relation `%s` not found", relation.Name, relationName)
+					return fmt.Errorf("under permission `%s`: relation/permission `%s` was not found", relation.Name, relationName)
 				}
 			case *v0.SetOperation_Child_TupleToUserset:
 				ttu := child.TupleToUserset
@@ -123,7 +123,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 				relationName := tupleset.GetRelation()
 				_, ok := nts.relationMap[relationName]
 				if !ok {
-					return fmt.Errorf("In tuple_to_userset for relation `%s`: relation `%s` not found", relation.Name, relationName)
+					return fmt.Errorf("under permission `%s`: relation/permission `%s` was not found", relation.Name, relationName)
 				}
 			}
 			return nil
@@ -144,13 +144,13 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 		// then the allowed list must have at least one type.
 		hasThis := graph.HasThis(usersetRewrite)
 
-		if usersetRewrite == nil || hasThis == true {
+		if usersetRewrite == nil || hasThis {
 			if len(allowedDirectRelations) == 0 {
-				return fmt.Errorf("At least one allowed relation is required in relation `%s`", relation.Name)
+				return fmt.Errorf("at least one allowed relation/permission is required in relation `%s`", relation.Name)
 			}
 		} else {
 			if len(allowedDirectRelations) != 0 {
-				return fmt.Errorf("No direct relations are allowed under relation `%s`", relation.Name)
+				return fmt.Errorf("direct relations are not allowed under relation `%s`", relation.Name)
 			}
 		}
 
@@ -161,19 +161,19 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 				if allowedRelation.GetRelation() != "..." {
 					_, ok := nts.relationMap[allowedRelation.GetRelation()]
 					if !ok {
-						return fmt.Errorf("For relation `%s`: relation `%s` not found under namespace `%s`", relation.Name, allowedRelation.GetRelation(), allowedRelation.GetNamespace())
+						return fmt.Errorf("for relation `%s`: relation/permission `%s` was not found under definition `%s`", relation.Name, allowedRelation.GetRelation(), allowedRelation.GetNamespace())
 					}
 				}
 			} else {
 				subjectTS, err := nts.typeSystemForNamespace(ctx, allowedRelation.GetNamespace())
 				if err != nil {
-					return fmt.Errorf("Could not lookup namespace `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err)
+					return fmt.Errorf("could not lookup definition `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err)
 				}
 
 				if allowedRelation.GetRelation() != "..." {
 					ok := subjectTS.HasRelation(allowedRelation.GetRelation())
 					if !ok {
-						return fmt.Errorf("For relation `%s`: relation `%s` not found under namespace `%s`", relation.Name, allowedRelation.GetRelation(), allowedRelation.GetNamespace())
+						return fmt.Errorf("for relation `%s`: relation/permission `%s` was not found under definition `%s`", relation.Name, allowedRelation.GetRelation(), allowedRelation.GetNamespace())
 					}
 				}
 			}

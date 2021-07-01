@@ -37,7 +37,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*v0.NamespaceDefinition{},
-			"In computed_userset for relation `viewer`: relation `editors` not found",
+			"under permission `viewer`: relation/permission `editors` was not found",
 		},
 		{
 			"invalid relation in tuple_to_userset",
@@ -57,7 +57,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*v0.NamespaceDefinition{},
-			"In tuple_to_userset for relation `viewer`: relation `parents` not found",
+			"under permission `viewer`: relation/permission `parents` was not found",
 		},
 		{
 			"rewrite without this and types",
@@ -69,7 +69,7 @@ func TestTypeSystem(t *testing.T) {
 				), ns.RelationReference("document", "owner")),
 			),
 			[]*v0.NamespaceDefinition{},
-			"No direct relations are allowed under relation `editor`",
+			"direct relations are not allowed under relation `editor`",
 		},
 		{
 			"relation in relation types has invalid namespace",
@@ -89,7 +89,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*v0.NamespaceDefinition{},
-			"Could not lookup namespace `someinvalidns` for relation `owner`: namespace `someinvalidns` not found",
+			"could not lookup definition `someinvalidns` for relation `owner`: object definition `someinvalidns` not found",
 		},
 		{
 			"relation in relation types has invalid relation",
@@ -113,7 +113,7 @@ func TestTypeSystem(t *testing.T) {
 					"anotherns",
 				),
 			},
-			"For relation `owner`: relation `foobar` not found under namespace `anotherns`",
+			"for relation `owner`: relation/permission `foobar` was not found under definition `anotherns`",
 		},
 		{
 			"full type check",

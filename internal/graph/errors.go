@@ -25,7 +25,7 @@ func (enf ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
 // NewNamespaceNotFoundErr constructs a new namespace not found error.
 func NewNamespaceNotFoundErr(nsName string) error {
 	return ErrNamespaceNotFound{
-		error:         fmt.Errorf("namespace `%s` not found", nsName),
+		error:         fmt.Errorf("object definition `%s` not found", nsName),
 		namespaceName: nsName,
 	}
 }
@@ -54,7 +54,7 @@ func (erf ErrRelationNotFound) MarshalZerologObject(e *zerolog.Event) {
 // NewRelationNotFoundErr constructs a new relation not found error.
 func NewRelationNotFoundErr(nsName string, relationName string) error {
 	return ErrRelationNotFound{
-		error:         fmt.Errorf("relation/permission `%s` not found under namespace `%s`", relationName, nsName),
+		error:         fmt.Errorf("relation/permission `%s` not found under definition `%s`", relationName, nsName),
 		namespaceName: nsName,
 		relationName:  relationName,
 	}
