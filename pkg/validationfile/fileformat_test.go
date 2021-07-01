@@ -106,12 +106,12 @@ func TestAssertions(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			a := Assertions{AssertTrue: []string{tc.input}}
+			a := Assertions{AssertTrue: []Assertion{{tc.input, 0, 0}}}
 
 			foundRelationships := []string{}
-			tpls, _ := a.AssertTrueRelationships()
-			for _, tpl := range tpls {
-				foundRelationships = append(foundRelationships, tuple.String(tpl))
+			assertions, _ := a.AssertTrueRelationships()
+			for _, assertion := range assertions {
+				foundRelationships = append(foundRelationships, tuple.String(assertion.Relationship))
 			}
 
 			if tc.expected {

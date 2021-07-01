@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -20,9 +21,51 @@ func ParseValidationBlock(contents []byte) (ValidationMap, error) {
 
 // ParseAssertionsBlock attempts to parse the given contents as a YAML assertions block.
 func ParseAssertionsBlock(contents []byte) (Assertions, error) {
-	block := Assertions{}
-	err := yaml.Unmarshal(contents, &block)
-	return block, err
+	var node yamlv3.Node
+	err := yamlv3.Unmarshal(contents, &node)
+	if err != nil {
+		return Assertions{}, err
+	}
+
+	if len(node.Content) == 0 {
+		return Assertions{}, nil
+	}
+
+	if node.Content[0].Kind != yamlv3.MappingNode {
+		return Assertions{}, fmt.Errorf("expected object at top level")
+	}
+
+	mapping := node.Content[0]
+	var key = ""
+	var parsed Assertions
+	for _, child := range mapping.Content {
+		if child.Kind == yamlv3.ScalarNode {
+			key = child.Value
+			continue
+		}
+
+		if child.Kind == yamlv3.SequenceNode {
+			for _, contentChild := range child.Content {
+				if contentChild.Kind == yamlv3.ScalarNode {
+					assertion := Assertion{
+						relationshipString: contentChild.Value,
+						lineNumber:         contentChild.Line,
+						columnPosition:     contentChild.Column,
+					}
+
+					switch key {
+					case "assertTrue":
+						parsed.AssertTrue = append(parsed.AssertTrue, assertion)
+
+					case "assertFalse":
+						parsed.AssertFalse = append(parsed.AssertFalse, assertion)
+					}
+				}
+			}
+		}
+	}
+
+	return parsed, nil
 }
 
 // ParseValidationFile attempts to parse the given contents as a YAML
@@ -65,7 +108,7 @@ type ObjectRelationString string
 func (ors ObjectRelationString) ONR() (*v0.ObjectAndRelation, *ErrorWithSource) {
 	parsed := tuple.ScanONR(string(ors))
 	if parsed == nil {
-		return nil, &ErrorWithSource{fmt.Errorf("could not parse %s", ors), string(ors)}
+		return nil, &ErrorWithSource{fmt.Errorf("could not parse %s", ors), string(ors), 0, 0}
 	}
 	return parsed, nil
 }
@@ -99,7 +142,7 @@ func (vs ValidationString) Subject() (*v0.ObjectAndRelation, *ErrorWithSource) {
 
 	found := tuple.ScanONR(subjectStr)
 	if found == nil {
-		return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", subjectStr), subjectStr}
+		return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", subjectStr), subjectStr, 0, 0}
 	}
 	return found, nil
 }
@@ -122,7 +165,7 @@ func (vs ValidationString) ONRS() ([]*v0.ObjectAndRelation, *ErrorWithSource) {
 	for _, onrString := range onrStrings {
 		found := tuple.ScanONR(onrString)
 		if found == nil {
-			return nil, &ErrorWithSource{fmt.Errorf("invalid object and relation: %s", onrString), onrString}
+			return nil, &ErrorWithSource{fmt.Errorf("invalid object and relation: %s", onrString), onrString, 0, 0}
 		}
 
 		onrs = append(onrs, found)
@@ -130,45 +173,79 @@ func (vs ValidationString) ONRS() ([]*v0.ObjectAndRelation, *ErrorWithSource) {
 	return onrs, nil
 }
 
+// Assertion is an unparsed assertion.
+type Assertion struct {
+	relationshipString string
+	lineNumber         int
+	columnPosition     int
+}
+
 // Assertions represents assertions defined in the validation file.
 type Assertions struct {
 	// AssertTrue is the set of relationships to assert true.
-	AssertTrue []string `yaml:"assertTrue"`
+	AssertTrue []Assertion `yaml:"assertTrue"`
 
 	// AssertFalse is the set of relationships to assert false.
-	AssertFalse []string `yaml:"assertFalse"`
+	AssertFalse []Assertion `yaml:"assertFalse"`
 }
 
-// ErrorWithSource is an error that includes the source text.
+// ErrorWithSource is an error that includes the source text and position information.
 type ErrorWithSource struct {
 	error
 
 	// Source is the source text for the error.
-	Source string
+	Source         string
+	LineNumber     uint32
+	ColumnPosition uint32
+}
+
+// ParsedAssertion contains information about a parsed assertion relationship.
+type ParsedAssertion struct {
+	Relationship   *v0.RelationTuple
+	LineNumber     uint32
+	ColumnPosition uint32
 }
 
 // AssertTrueRelationships returns the relationships for which to assert existance.
-func (a Assertions) AssertTrueRelationships() ([]*v0.RelationTuple, *ErrorWithSource) {
-	var relationships []*v0.RelationTuple
-	for _, tplString := range a.AssertTrue {
-		parsed := tuple.Scan(tplString)
+func (a Assertions) AssertTrueRelationships() ([]ParsedAssertion, *ErrorWithSource) {
+	var relationships []ParsedAssertion
+	for _, assertion := range a.AssertTrue {
+		parsed := tuple.Scan(assertion.relationshipString)
 		if parsed == nil {
-			return relationships, &ErrorWithSource{fmt.Errorf("could not parse relationship %s", tplString), tplString}
+			return relationships, &ErrorWithSource{
+				fmt.Errorf("could not parse relationship `%s`", assertion.relationshipString),
+				assertion.relationshipString,
+				uint32(assertion.lineNumber),
+				uint32(assertion.columnPosition),
+			}
 		}
-		relationships = append(relationships, parsed)
+		relationships = append(relationships, ParsedAssertion{
+			Relationship:   parsed,
+			LineNumber:     uint32(assertion.lineNumber),
+			ColumnPosition: uint32(assertion.columnPosition),
+		})
 	}
 	return relationships, nil
 }
 
 // AssertFalseRelationships returns the relationships for which to assert non-existance.
-func (a Assertions) AssertFalseRelationships() ([]*v0.RelationTuple, *ErrorWithSource) {
-	var relationships []*v0.RelationTuple
-	for _, tplString := range a.AssertFalse {
-		parsed := tuple.Scan(tplString)
+func (a Assertions) AssertFalseRelationships() ([]ParsedAssertion, *ErrorWithSource) {
+	var relationships []ParsedAssertion
+	for _, assertion := range a.AssertFalse {
+		parsed := tuple.Scan(assertion.relationshipString)
 		if parsed == nil {
-			return relationships, &ErrorWithSource{fmt.Errorf("could not parse relationship %s", tplString), tplString}
+			return relationships, &ErrorWithSource{
+				fmt.Errorf("could not parse relationship `%s`", assertion.relationshipString),
+				assertion.relationshipString,
+				uint32(assertion.lineNumber),
+				uint32(assertion.columnPosition),
+			}
 		}
-		relationships = append(relationships, parsed)
+		relationships = append(relationships, ParsedAssertion{
+			Relationship:   parsed,
+			LineNumber:     uint32(assertion.lineNumber),
+			ColumnPosition: uint32(assertion.columnPosition),
+		})
 	}
 	return relationships, nil
 }

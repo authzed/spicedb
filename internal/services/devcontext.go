@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"regexp"
 	"time"
 
@@ -55,8 +54,6 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 			SchemaString: requestContext.Schema,
 		},
 	}, &empty)
-
-	fmt.Println(namespaces)
 
 	var contextError compiler.ErrorWithContext
 	if errors.As(err, &contextError) {
@@ -111,7 +108,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 	for _, tpl := range tuples {
 		err := validateTupleWrite(ctx, tpl, nsm)
 		if err != nil {
-			verrs, wireErr := rewriteGraphError(v0.DeveloperError_RELATIONSHIP, tuple.String(tpl), err)
+			verrs, wireErr := rewriteGraphError(v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl), err)
 			if wireErr == nil {
 				errors = append(errors, verrs...)
 				continue

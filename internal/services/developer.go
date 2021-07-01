@@ -125,7 +125,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 			DepthRemaining: maxDepth,
 		})
 		if cr.Err != nil {
-			requestErrors, wireErr := rewriteGraphError(v0.DeveloperError_CHECK_WATCH, tuple.String(checkTpl), cr.Err)
+			requestErrors, wireErr := rewriteGraphError(v0.DeveloperError_CHECK_WATCH, 0, 0, tuple.String(checkTpl), cr.Err)
 			return &v0.EditCheckResponse{
 				RequestErrors: requestErrors,
 			}, wireErr
@@ -226,27 +226,35 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	}, nil
 }
 
-func runAssertions(ctx context.Context, devContext *DevContext, relationships []*v0.RelationTuple, expected bool, fmtString string) ([]*v0.DeveloperError, error) {
+func runAssertions(ctx context.Context, devContext *DevContext, assertions []validationfile.ParsedAssertion, expected bool, fmtString string) ([]*v0.DeveloperError, error) {
 	var failures []*v0.DeveloperError
-	for _, relationship := range relationships {
+	for _, assertion := range assertions {
 		cr := devContext.Dispatcher.Check(ctx, graph.CheckRequest{
-			Start:          relationship.ObjectAndRelation,
-			Goal:           relationship.User.GetUserset(),
+			Start:          assertion.Relationship.ObjectAndRelation,
+			Goal:           assertion.Relationship.User.GetUserset(),
 			AtRevision:     devContext.Revision,
 			DepthRemaining: maxDepth,
 		})
 		if cr.Err != nil {
-			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_ASSERTION, tuple.String(relationship), cr.Err)
+			validationErrs, wireErr := rewriteGraphError(
+				v0.DeveloperError_ASSERTION,
+				assertion.LineNumber,
+				assertion.ColumnPosition,
+				tuple.String(assertion.Relationship),
+				cr.Err,
+			)
 			failures = append(failures, validationErrs...)
 			if wireErr != nil {
 				return nil, wireErr
 			}
 		} else if cr.IsMember != expected {
 			failures = append(failures, &v0.DeveloperError{
-				Message: fmt.Sprintf(fmtString, tuple.String(relationship)),
+				Message: fmt.Sprintf(fmtString, tuple.String(assertion.Relationship)),
 				Source:  v0.DeveloperError_ASSERTION,
 				Kind:    v0.DeveloperError_ASSERTION_FAILED,
-				Context: tuple.String(relationship),
+				Context: tuple.String(assertion.Relationship),
+				Line:    assertion.LineNumber,
+				Column:  assertion.ColumnPosition,
 			})
 		}
 	}
@@ -318,7 +326,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 			ExpansionMode:  graph.RecursiveExpansion,
 		})
 		if er.Err != nil {
-			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, string(onrKey), er.Err)
+			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), er.Err)
 			if validationErrs != nil {
 				failures = append(failures, validationErrs...)
 				continue
@@ -433,7 +441,7 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, va
 	return failures
 }
 
-func rewriteGraphError(source v0.DeveloperError_Source, context string, checkError error) ([]*v0.DeveloperError, error) {
+func rewriteGraphError(source v0.DeveloperError_Source, line uint32, column uint32, context string, checkError error) ([]*v0.DeveloperError, error) {
 	var nsNotFoundError sharederrors.UnknownNamespaceError = nil
 	var relNotFoundError sharederrors.UnknownRelationError = nil
 
@@ -443,6 +451,8 @@ func rewriteGraphError(source v0.DeveloperError_Source, context string, checkErr
 				Message: checkError.Error(),
 				Source:  source,
 				Kind:    v0.DeveloperError_UNKNOWN_OBJECT_TYPE,
+				Line:    line,
+				Column:  column,
 				Context: context,
 			},
 		}, nil
@@ -454,6 +464,8 @@ func rewriteGraphError(source v0.DeveloperError_Source, context string, checkErr
 				Message: checkError.Error(),
 				Source:  source,
 				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
+				Line:    line,
+				Column:  column,
 				Context: context,
 			},
 		}, nil
@@ -466,6 +478,8 @@ func rewriteGraphError(source v0.DeveloperError_Source, context string, checkErr
 				Message: checkError.Error(),
 				Source:  source,
 				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
+				Line:    line,
+				Column:  column,
 				Context: context,
 			},
 		}, nil
@@ -479,6 +493,8 @@ func convertSourceError(source v0.DeveloperError_Source, err *validationfile.Err
 		Message: err.Error(),
 		Kind:    v0.DeveloperError_PARSE_ERROR,
 		Source:  source,
+		Line:    err.LineNumber,
+		Column:  err.ColumnPosition,
 		Context: err.Source,
 	}
 }
