@@ -1,4 +1,4 @@
-package services
+package v0
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/grpcutil"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -27,7 +28,7 @@ func TestNamespace(t *testing.T) {
 	_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
 	})
-	requireGRPCStatus(codes.NotFound, err, require)
+	grpcutil.RequireStatus(t, codes.NotFound, err)
 
 	_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 		Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS},
@@ -47,7 +48,7 @@ func TestNamespace(t *testing.T) {
 	_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: "fake",
 	})
-	requireGRPCStatus(codes.NotFound, err, require)
+	grpcutil.RequireStatus(t, codes.NotFound, err)
 }
 
 func TestNamespaceChanged(t *testing.T) {
@@ -183,7 +184,7 @@ func TestNamespaceChanged(t *testing.T) {
 			_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 				Namespace: testfixtures.DocumentNS.Name,
 			})
-			requireGRPCStatus(codes.NotFound, err, require)
+			grpcutil.RequireStatus(t, codes.NotFound, err)
 
 			_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 				Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace},
@@ -205,7 +206,7 @@ func TestNamespaceChanged(t *testing.T) {
 
 			if tc.expectedError != "" {
 				require.Error(err)
-				requireGRPCStatus(codes.InvalidArgument, err, require)
+				grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
 				require.Contains(err.Error(), tc.expectedError)
 			} else {
