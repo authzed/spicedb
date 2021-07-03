@@ -172,6 +172,10 @@ func (tbs *tokenBasedServer) Expand(ctx context.Context, req *v0.ExpandRequest) 
 	return tbs.aclServer(ctx).Expand(ctx, req)
 }
 
+func (tbs *tokenBasedServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.LookupResponse, error) {
+	return tbs.aclServer(ctx).Lookup(ctx, req)
+}
+
 func (tbs *tokenBasedServer) createModel() model {
 	ds, err := memdb.NewMemdbDatastore(0, REVISION_FUZZING_DURATION, GC_WINDOW, 0)
 	if err != nil {
