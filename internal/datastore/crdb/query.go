@@ -21,16 +21,14 @@ const (
 	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
 )
 
-var (
-	queryTuples = psql.Select(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-	).From(tableTuple)
-)
+var queryTuples = psql.Select(
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+).From(tableTuple)
 
 func (cds *crdbDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
 	return crdbTupleQuery{

@@ -10,8 +10,10 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var ONR = tuple.ObjectAndRelation
-var Ellipsis = "..."
+var (
+	ONR      = tuple.ObjectAndRelation
+	Ellipsis = "..."
+)
 
 var (
 	_this *v0.ObjectAndRelation

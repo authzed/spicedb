@@ -14,22 +14,18 @@ import (
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
-var (
-	relationNameKey = attribute.Key("authzed.com/spicedb/relationName")
-)
+var relationNameKey = attribute.Key("authzed.com/spicedb/relationName")
 
 const errUnableToQueryTuples = "unable to query tuples: %w"
 
-var (
-	queryTuples = psql.Select(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-	).From(tableTuple)
-)
+var queryTuples = psql.Select(
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+).From(tableTuple)
 
 func (pgd *pgDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
 	return pgTupleQuery{

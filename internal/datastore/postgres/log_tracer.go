@@ -8,8 +8,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-type tracingLogger struct {
-}
+type tracingLogger struct{}
 
 func (tl tracingLogger) Log(ctx context.Context, level pgx.LogLevel, msg string, data map[string]interface{}) {
 	span := trace.SpanFromContext(ctx)

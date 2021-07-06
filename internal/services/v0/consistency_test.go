@@ -83,7 +83,7 @@ func TestConsistency(t *testing.T) {
 					for _, nsDef := range fullyResolved.NamespaceDefinitions {
 						result, err := srv.Read(context.Background(), &v0.ReadRequest{
 							Tuplesets: []*v0.RelationTupleFilter{
-								&v0.RelationTupleFilter{Namespace: nsDef.Name},
+								{Namespace: nsDef.Name},
 							},
 							AtRevision: zookie.NewFromRevision(revision),
 						})

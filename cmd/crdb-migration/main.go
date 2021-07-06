@@ -39,7 +39,7 @@ const (
 )
 
 func main() {
-	var rootCmd = &cobra.Command{
+	rootCmd := &cobra.Command{
 		Use:   "crdb-migration",
 		Short: "Migrate tuple data to crdb.",
 		PreRunE: cobrautil.CommandStack(

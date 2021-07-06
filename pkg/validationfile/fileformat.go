@@ -36,7 +36,7 @@ func ParseAssertionsBlock(contents []byte) (Assertions, error) {
 	}
 
 	mapping := node.Content[0]
-	var key = ""
+	key := ""
 	var parsed Assertions
 	for _, child := range mapping.Content {
 		if child.Kind == yamlv3.ScalarNode {

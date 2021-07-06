@@ -45,7 +45,7 @@ func (pt *parserTest) tree() string {
 }
 
 func (pt *parserTest) writeTree(value string) {
-	err := ioutil.WriteFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename), []byte(value), 0644)
+	err := ioutil.WriteFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename), []byte(value), 0o644)
 	if err != nil {
 		panic(err)
 	}
@@ -91,18 +91,18 @@ func (tn *testNode) DecorateWithInt(property string, value int) AstNode {
 }
 
 func TestParser(t *testing.T) {
-	var parserTests = []parserTest{
-		parserTest{"empty file test", "empty"},
-		parserTest{"basic definition test", "basic"},
-		parserTest{"doc comments test", "doccomments"},
-		parserTest{"arrow test", "arrow"},
-		parserTest{"multiple definition test", "multidef"},
-		parserTest{"broken test", "broken"},
-		parserTest{"relation missing type test", "relation_missing_type"},
-		parserTest{"permission missing expression test", "permission_missing_expression"},
-		parserTest{"relation invalid type test", "relation_invalid_type"},
-		parserTest{"permission invalid expression test", "permission_invalid_expression"},
-		parserTest{"cross tenant test", "crosstenant"},
+	parserTests := []parserTest{
+		{"empty file test", "empty"},
+		{"basic definition test", "basic"},
+		{"doc comments test", "doccomments"},
+		{"arrow test", "arrow"},
+		{"multiple definition test", "multidef"},
+		{"broken test", "broken"},
+		{"relation missing type test", "relation_missing_type"},
+		{"permission missing expression test", "permission_missing_expression"},
+		{"relation invalid type test", "relation_invalid_type"},
+		{"permission invalid expression test", "permission_invalid_expression"},
+		{"cross tenant test", "crosstenant"},
 	}
 
 	for _, test := range parserTests {

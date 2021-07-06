@@ -23,8 +23,7 @@ func NewNullTracer() DebugTracer {
 	return nullTracer{}
 }
 
-type nullTracer struct {
-}
+type nullTracer struct{}
 
 func (nt nullTracer) Child(name string) DebugTracer {
 	return nt

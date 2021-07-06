@@ -12,10 +12,8 @@ const (
 	ReasonReadOnly = "SERVICE_READ_ONLY"
 )
 
-var (
-	// ErrServiceReadOnly is an extended GRPC error returned when a service is in read-only mode.
-	ErrServiceReadOnly = mustMakeStatusReadonly()
-)
+// ErrServiceReadOnly is an extended GRPC error returned when a service is in read-only mode.
+var ErrServiceReadOnly = mustMakeStatusReadonly()
 
 func mustMakeStatusReadonly() error {
 	status, err := status.New(codes.Unavailable, "service read-only").WithDetails(&errdetails.ErrorInfo{

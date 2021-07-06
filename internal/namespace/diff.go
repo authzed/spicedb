@@ -75,7 +75,7 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 			existing: existing,
 			updated:  updated,
 			deltas: []Delta{
-				Delta{
+				{
 					Type: NamespaceRemoved,
 				},
 			},
@@ -87,7 +87,7 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 			existing: existing,
 			updated:  updated,
 			deltas: []Delta{
-				Delta{
+				{
 					Type: NamespaceAdded,
 				},
 			},

@@ -29,7 +29,7 @@ func CreateSourcePositionMapper(contents []byte) SourcePositionMapper {
 	rangeTree := redblacktree.NewWith(inclusiveComparator)
 	lineMap := map[int]inclusiveRange{}
 
-	var currentStart = int(0)
+	currentStart := int(0)
 	for index, line := range lines {
 		lineEnd := currentStart + int(len(line))
 		rangeTree.Put(inclusiveRange{currentStart, lineEnd}, lineAndStart{int(index), currentStart})

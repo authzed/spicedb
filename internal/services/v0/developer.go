@@ -447,7 +447,7 @@ func rewriteGraphError(source v0.DeveloperError_Source, line uint32, column uint
 
 	if errors.As(checkError, &nsNotFoundError) {
 		return []*v0.DeveloperError{
-			&v0.DeveloperError{
+			{
 				Message: checkError.Error(),
 				Source:  source,
 				Kind:    v0.DeveloperError_UNKNOWN_OBJECT_TYPE,
@@ -460,7 +460,7 @@ func rewriteGraphError(source v0.DeveloperError_Source, line uint32, column uint
 
 	if errors.As(checkError, &relNotFoundError) {
 		return []*v0.DeveloperError{
-			&v0.DeveloperError{
+			{
 				Message: checkError.Error(),
 				Source:  source,
 				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
@@ -474,7 +474,7 @@ func rewriteGraphError(source v0.DeveloperError_Source, line uint32, column uint
 	var ire invalidRelationError
 	if errors.As(checkError, &ire) {
 		return []*v0.DeveloperError{
-			&v0.DeveloperError{
+			{
 				Message: checkError.Error(),
 				Source:  source,
 				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
@@ -503,7 +503,7 @@ var yamlLineRegex = regexp.MustCompile(`line ([0-9]+): (.+)`)
 
 func convertYamlError(source v0.DeveloperError_Source, err error) *v0.DeveloperError {
 	var lineNumber uint64 = 0
-	var msg = err.Error()
+	msg := err.Error()
 
 	pieces := yamlLineRegex.FindStringSubmatch(err.Error())
 	if len(pieces) == 3 {

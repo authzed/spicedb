@@ -145,11 +145,11 @@ func TestEditCheck(t *testing.T) {
 			},
 			nil,
 			[]*v0.EditCheckResult{
-				&v0.EditCheckResult{
+				{
 					Relationship: tuple.Scan("somenamespace:someobj#somerel@user:foo#..."),
 					IsMember:     true,
 				},
-				&v0.EditCheckResult{
+				{
 					Relationship: tuple.Scan("somenamespace:someobj#somerel@user:anotheruser#..."),
 					IsMember:     false,
 				},

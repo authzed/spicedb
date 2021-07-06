@@ -43,7 +43,7 @@ import (
 )
 
 func main() {
-	var rootCmd = &cobra.Command{
+	rootCmd := &cobra.Command{
 		Use:               "spicedb",
 		Short:             "A tuple store for ACLs.",
 		PersistentPreRunE: persistentPreRunE,
@@ -77,7 +77,7 @@ func main() {
 	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
 	cmdutil.RegisterTracingPersistentFlags(rootCmd)
 
-	var migrateCmd = &cobra.Command{
+	migrateCmd := &cobra.Command{
 		Use:               "migrate [revision]",
 		Short:             "execute schema migrations against database",
 		PersistentPreRunE: persistentPreRunE,
@@ -89,7 +89,7 @@ func main() {
 	migrateCmd.Flags().String("datastore-url", "", "connection url (e.g. postgres://postgres:password@localhost:5432/spicedb) of storage layer for those engines that support it (postgres, crdb)")
 	rootCmd.AddCommand(migrateCmd)
 
-	var headCmd = &cobra.Command{
+	headCmd := &cobra.Command{
 		Use:   "head",
 		Short: "compute the head database migration revision",
 		Run:   headRevisionRun,
@@ -98,7 +98,7 @@ func main() {
 	headCmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
 	rootCmd.AddCommand(headCmd)
 
-	var developerServiceCmd = &cobra.Command{
+	developerServiceCmd := &cobra.Command{
 		Use:   "developer-service",
 		Short: "runs the developer service",
 		Run:   developerServiceRun,

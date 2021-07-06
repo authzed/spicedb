@@ -267,7 +267,6 @@ func (as *aclServer) commonCheck(
 		Revision:   zookie.NewFromRevision(atRevision),
 		Membership: membership,
 	}, nil
-
 }
 
 func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.ExpandResponse, error) {

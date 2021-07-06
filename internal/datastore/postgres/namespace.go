@@ -21,9 +21,7 @@ const (
 	errUnableToDeleteConfig = "unable to delete namespace config: %w"
 )
 
-var (
-	namespaceNameKey = attribute.Key("authzed.com/spicedb/namespaceName")
-)
+var namespaceNameKey = attribute.Key("authzed.com/spicedb/namespaceName")
 
 var (
 	writeNamespace = psql.Insert(tableNamespace).Columns(

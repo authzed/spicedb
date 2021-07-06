@@ -110,7 +110,6 @@ func (tn *dslNode) GetString(predicateName string) (string, error) {
 
 func (tn *dslNode) GetChildren() []*dslNode {
 	return tn.List(dslshape.NodePredicateChild)
-
 }
 
 func (tn *dslNode) FindAll(nodeType dslshape.NodeType) []*dslNode {

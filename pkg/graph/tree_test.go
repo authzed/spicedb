@@ -9,9 +9,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var (
-	ONR = tuple.ObjectAndRelation
-)
+var ONR = tuple.ObjectAndRelation
 
 func TestSimplify(t *testing.T) {
 	testCases := []struct {

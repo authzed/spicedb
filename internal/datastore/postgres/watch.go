@@ -18,18 +18,16 @@ const (
 	watchSleep = 100 * time.Millisecond
 )
 
-var (
-	queryChanged = psql.Select(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCreatedTxn,
-		colDeletedTxn,
-	).From(tableTuple)
-)
+var queryChanged = psql.Select(
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+	colCreatedTxn,
+	colDeletedTxn,
+).From(tableTuple)
 
 func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, pgd.watchBufferLength)
@@ -77,7 +75,6 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 				}
 			}
 		}
-
 	}()
 
 	return updates, errors

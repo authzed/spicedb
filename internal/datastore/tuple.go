@@ -7,9 +7,7 @@ import (
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
-var (
-	errClosedIterator = errors.New("unable to iterate: iterator closed")
-)
+var errClosedIterator = errors.New("unable to iterate: iterator closed")
 
 // NewSliceTupleIterator creates a datastore.TupleIterator instance from a materialized slice of tuples.
 func NewSliceTupleIterator(tuples []*v0.RelationTuple) TupleIterator {

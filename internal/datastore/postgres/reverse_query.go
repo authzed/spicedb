@@ -40,7 +40,6 @@ func (pgd *pgDatastore) newBaseQuery(subjectNamespace, subjectRelation string, r
 			},
 		},
 	}
-
 }
 
 type pgReverseTupleQuery struct {

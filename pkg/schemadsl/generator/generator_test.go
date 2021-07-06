@@ -10,7 +10,6 @@ import (
 )
 
 func TestGenerator(t *testing.T) {
-
 	type generatorTest struct {
 		name     string
 		input    *v0.NamespaceDefinition

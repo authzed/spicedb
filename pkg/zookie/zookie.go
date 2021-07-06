@@ -19,11 +19,9 @@ const (
 	errDecodeError = "error decoding zookie: %w"
 )
 
-var (
-	// ErrNilZookie is returned as the base error when nil is provided as the
-	// zookie argument to Decode
-	ErrNilZookie = errors.New("zookie pointer was nil")
-)
+// ErrNilZookie is returned as the base error when nil is provided as the
+// zookie argument to Decode
+var ErrNilZookie = errors.New("zookie pointer was nil")
 
 // NewFromRevision generates an encoded zookie from an integral revision.
 func NewFromRevision(revision decimal.Decimal) *v0.Zookie {

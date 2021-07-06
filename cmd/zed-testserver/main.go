@@ -30,19 +30,21 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-const GC_WINDOW = 1 * time.Hour
-const NS_CACHE_EXPIRATION = 0 * time.Minute // No caching
-const MAX_DEPTH = 50
-const REVISION_FUZZING_DURATION = 10 * time.Millisecond
+const (
+	GC_WINDOW                 = 1 * time.Hour
+	NS_CACHE_EXPIRATION       = 0 * time.Minute // No caching
+	MAX_DEPTH                 = 50
+	REVISION_FUZZING_DURATION = 10 * time.Millisecond
+)
 
 func main() {
-	var rootCmd = &cobra.Command{
+	rootCmd := &cobra.Command{
 		Use:               "zed-testserver",
 		Short:             "Authzed local testing server",
 		PersistentPreRunE: persistentPreRunE,
 	}
 
-	var runCmd = &cobra.Command{
+	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the Authzed local testing server",
 		Run:   runTestServer,

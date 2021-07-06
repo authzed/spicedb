@@ -6,8 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type fakeDriver struct {
-}
+type fakeDriver struct{}
 
 func (*fakeDriver) Version() (string, error) {
 	return "", nil

@@ -15,7 +15,7 @@ import (
 
 // Based on https://github.com/prometheus/client_golang/blob/master/prometheus/collectors/dbstats_collector_test.go
 func TestPgxpoolStatsCollector(t *testing.T) {
-	var pgContainer = &dockertest.RunOptions{
+	pgContainer := &dockertest.RunOptions{
 		Repository: "postgres",
 		Tag:        "9.6",
 		Env:        []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},

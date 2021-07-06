@@ -191,7 +191,6 @@ func readClusterTTLNanos(conn *pgxpool.Pool) (int64, error) {
 	if err := conn.
 		QueryRow(context.Background(), queryShowZoneConfig).
 		Scan(&target, &configSQL); err != nil {
-
 		return 0, err
 	}
 

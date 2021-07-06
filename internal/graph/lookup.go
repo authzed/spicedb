@@ -24,8 +24,10 @@ type concurrentLookup struct {
 
 // Calculate the maximum int value to allow us to effectively set no limit on certain recursive
 // lookup calls.
-const maxUint = ^uint(0)
-const noLimit = int(maxUint >> 1)
+const (
+	maxUint = ^uint(0)
+	noLimit = int(maxUint >> 1)
+)
 
 func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) ReduceableLookupFunc {
 	log.Trace().Object("lookup", req).Send()

@@ -92,7 +92,6 @@ func (sg *sourceGenerator) emitRewrite(rewrite *v0.UsersetRewrite) {
 	case *v0.UsersetRewrite_Exclusion:
 		sg.emitRewriteOps(rw.Exclusion, "-")
 	}
-
 }
 
 func (sg *sourceGenerator) emitRewriteOps(setOp *v0.SetOperation, op string) {

@@ -130,7 +130,7 @@ func (p *sourceParser) finishNode() {
 
 // consumeToken advances the lexer forward, returning the next token.
 func (p *sourceParser) consumeToken() commentedLexeme {
-	var comments = make([]string, 0)
+	comments := make([]string, 0)
 
 	for {
 		token := p.lex.NextToken()

@@ -95,7 +95,7 @@ func (eri ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
 	}
 }
 
-//NewNamespaceNotFoundErr constructs a new namespace not found error.
+// NewNamespaceNotFoundErr constructs a new namespace not found error.
 func NewNamespaceNotFoundErr(nsName string) error {
 	return ErrNamespaceNotFound{
 		error:         fmt.Errorf("namespace `%s` not found", nsName),
