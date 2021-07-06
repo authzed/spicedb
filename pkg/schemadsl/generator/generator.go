@@ -1,7 +1,11 @@
 package generator
 
 import (
+	"bufio"
+	"strings"
+
 	"github.com/authzed/spicedb/pkg/graph"
+	"github.com/authzed/spicedb/pkg/namespace"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
@@ -13,6 +17,8 @@ func GenerateSource(namespace *v0.NamespaceDefinition) (string, bool) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
+		hasBlankline:     true,
+		hasNewScope:      true,
 	}
 
 	generator.emitNamespace(namespace)
@@ -20,6 +26,7 @@ func GenerateSource(namespace *v0.NamespaceDefinition) (string, bool) {
 }
 
 func (sg *sourceGenerator) emitNamespace(namespace *v0.NamespaceDefinition) {
+	sg.emitComments(namespace.Metadata)
 	sg.append("definition ")
 	sg.append(namespace.Name)
 
@@ -31,6 +38,7 @@ func (sg *sourceGenerator) emitNamespace(namespace *v0.NamespaceDefinition) {
 	sg.append(" {")
 	sg.appendLine()
 	sg.indent()
+	sg.markNewScope()
 
 	for _, relation := range namespace.Relation {
 		sg.emitRelation(relation)
@@ -44,6 +52,7 @@ func (sg *sourceGenerator) emitRelation(relation *v0.Relation) {
 	hasThis := graph.HasThis(relation.UsersetRewrite)
 	isPermission := relation.UsersetRewrite != nil && !hasThis
 
+	sg.emitComments(relation.Metadata)
 	if isPermission {
 		sg.append("permission ")
 	} else {
@@ -104,9 +113,33 @@ func (sg *sourceGenerator) emitRewriteOps(setOp *v0.SetOperation, op string) {
 	}
 }
 
+func (sg *sourceGenerator) isAllUnion(rewrite *v0.UsersetRewrite) bool {
+	switch rw := rewrite.RewriteOperation.(type) {
+	case *v0.UsersetRewrite_Union:
+		for _, setOpChild := range rw.Union.Child {
+			switch child := setOpChild.ChildType.(type) {
+			case *v0.SetOperation_Child_UsersetRewrite:
+				if !sg.isAllUnion(child.UsersetRewrite) {
+					return false
+				}
+			default:
+				continue
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
 func (sg *sourceGenerator) emitSetOpChild(setOpChild *v0.SetOperation_Child) {
 	switch child := setOpChild.ChildType.(type) {
 	case *v0.SetOperation_Child_UsersetRewrite:
+		if sg.isAllUnion(child.UsersetRewrite) {
+			sg.emitRewrite(child.UsersetRewrite)
+			break
+		}
+
 		sg.append("(")
 		sg.emitRewrite(child.UsersetRewrite)
 		sg.append(")")
@@ -121,5 +154,49 @@ func (sg *sourceGenerator) emitSetOpChild(setOpChild *v0.SetOperation_Child) {
 		sg.append(child.TupleToUserset.Tupleset.Relation)
 		sg.append("->")
 		sg.append(child.TupleToUserset.ComputedUserset.Relation)
+	}
+}
+
+func (sg *sourceGenerator) emitComments(metadata *v0.Metadata) {
+	if len(namespace.GetComments(metadata)) > 0 {
+		sg.ensureBlankLineOrNewScope()
+	}
+
+	for _, comment := range namespace.GetComments(metadata) {
+		sg.appendComment(comment)
+	}
+}
+
+func (sg *sourceGenerator) appendComment(comment string) {
+	switch {
+	case strings.HasPrefix(comment, "/*"):
+		stripped := strings.TrimSpace(comment)
+
+		if strings.HasPrefix(stripped, "/**") {
+			stripped = strings.TrimPrefix(stripped, "/**")
+			sg.append("/**")
+		} else {
+			stripped = strings.TrimPrefix(stripped, "/*")
+			sg.append("/*")
+		}
+
+		sg.appendLine()
+
+		stripped = strings.TrimSuffix(stripped, "*/")
+		stripped = strings.TrimSpace(stripped)
+
+		scanner := bufio.NewScanner(strings.NewReader(stripped))
+		for scanner.Scan() {
+			sg.append(" * ")
+			sg.append(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(scanner.Text()), "*")))
+			sg.appendLine()
+		}
+		sg.append(" */")
+		sg.appendLine()
+
+	case strings.HasPrefix(comment, "//"):
+		sg.append("// ")
+		sg.append(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(comment), "//")))
+		sg.appendLine()
 	}
 }

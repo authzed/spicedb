@@ -103,6 +103,7 @@ func TestParser(t *testing.T) {
 		{"relation invalid type test", "relation_invalid_type"},
 		{"permission invalid expression test", "permission_invalid_expression"},
 		{"cross tenant test", "crosstenant"},
+		{"indented comments test", "indentedcomments"},
 	}
 
 	for _, test := range parserTests {

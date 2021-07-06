@@ -37,6 +37,24 @@ func GetComments(metadata *v0.Metadata) []string {
 	return comments
 }
 
+// AddComment adds a comment to the given metadata message.
+func AddComment(metadata *v0.Metadata, comment string) (*v0.Metadata, error) {
+	if metadata == nil {
+		metadata = &v0.Metadata{}
+	}
+
+	var dc iv1.DocComment
+	dc.Comment = comment
+
+	encoded, err := ptypes.MarshalAny(&dc)
+	if err != nil {
+		return metadata, err
+	}
+
+	metadata.MetadataMessage = append(metadata.MetadataMessage, encoded)
+	return metadata, nil
+}
+
 // GetRelationKind returns the kind of the relation.
 func GetRelationKind(relation *v0.Relation) iv1.RelationMetadata_RelationKind {
 	metadata := relation.Metadata

@@ -1,7 +1,9 @@
 package compiler
 
 import (
+	"bufio"
 	"fmt"
+	"strings"
 
 	"github.com/jzelinskie/stringz"
 
@@ -73,19 +75,55 @@ func translateDefinition(tctx translationContext, defNode *dslNode) (*v0.Namespa
 	}
 
 	if len(relationsAndPermissions) == 0 {
-		return namespace.Namespace(nspath), nil
+		ns := namespace.Namespace(nspath)
+		ns.Metadata = addComments(ns.Metadata, defNode)
+		return ns, nil
 	}
 
-	return namespace.Namespace(nspath, relationsAndPermissions...), nil
+	ns := namespace.Namespace(nspath, relationsAndPermissions...)
+	ns.Metadata = addComments(ns.Metadata, defNode)
+	return ns, nil
+}
+
+func addComments(mdmsg *v0.Metadata, dslNode *dslNode) *v0.Metadata {
+	for _, child := range dslNode.GetChildren() {
+		if child.GetType() == dslshape.NodeTypeComment {
+			value, err := child.GetString(dslshape.NodeCommentPredicateValue)
+			if err == nil {
+				mdmsg, _ = namespace.AddComment(mdmsg, normalizeComment(value))
+			}
+		}
+	}
+	return mdmsg
+}
+
+func normalizeComment(value string) string {
+	var lines []string
+	scanner := bufio.NewScanner(strings.NewReader(value))
+	for scanner.Scan() {
+		trimmed := strings.TrimSpace(scanner.Text())
+		lines = append(lines, trimmed)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func translateRelationOrPermission(tctx translationContext, relOrPermNode *dslNode) (*v0.Relation, error) {
 	switch relOrPermNode.GetType() {
 	case dslshape.NodeTypeRelation:
-		return translateRelation(tctx, relOrPermNode)
+		rel, err := translateRelation(tctx, relOrPermNode)
+		if err != nil {
+			return nil, err
+		}
+		rel.Metadata = addComments(rel.Metadata, relOrPermNode)
+		return rel, err
 
 	case dslshape.NodeTypePermission:
-		return translatePermission(tctx, relOrPermNode)
+		rel, err := translatePermission(tctx, relOrPermNode)
+		if err != nil {
+			return nil, err
+		}
+		rel.Metadata = addComments(rel.Metadata, relOrPermNode)
+		return rel, err
 
 	default:
 		return nil, relOrPermNode.Errorf("unknown definition top-level node type %s", relOrPermNode.GetType())

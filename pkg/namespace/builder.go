@@ -12,6 +12,13 @@ func Namespace(name string, relations ...*v0.Relation) *v0.NamespaceDefinition {
 	}
 }
 
+// NamespaceWithComment creates a namespace definition with one or more defined relations.
+func NamespaceWithComment(name string, comment string, relations ...*v0.Relation) *v0.NamespaceDefinition {
+	nd := Namespace(name, relations...)
+	nd.Metadata, _ = AddComment(nd.Metadata, comment)
+	return nd
+}
+
 // Relation creates a relation definition with an optional rewrite definition.
 func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ...*v0.RelationReference) *v0.Relation {
 	var typeInfo *v0.TypeInformation
@@ -26,6 +33,13 @@ func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ..
 		UsersetRewrite:  rewrite,
 		TypeInformation: typeInfo,
 	}
+}
+
+// RelationWithComment creates a relation definition with an optional rewrite definition.
+func RelationWithComment(name string, comment string, rewrite *v0.UsersetRewrite, allowedDirectRelations ...*v0.RelationReference) *v0.Relation {
+	rel := Relation(name, rewrite, allowedDirectRelations...)
+	rel.Metadata, _ = AddComment(rel.Metadata, comment)
+	return rel
 }
 
 // RelationReference creates a relation reference.

@@ -7,6 +7,8 @@ import (
 
 	"github.com/authzed/spicedb/pkg/namespace"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 func TestGenerator(t *testing.T) {
@@ -97,14 +99,16 @@ func TestGenerator(t *testing.T) {
 
 		{
 			"full example",
-			namespace.Namespace("foo/document",
+			namespace.NamespaceWithComment("foo/document", `/**
+* Some comment goes here
+*/`,
 				namespace.Relation("owner", nil,
 					&v0.RelationReference{
 						Namespace: "foo/user",
 						Relation:  "...",
 					},
 				),
-				namespace.Relation("reader", nil,
+				namespace.RelationWithComment("reader", "//foobar", nil,
 					&v0.RelationReference{
 						Namespace: "foo/user",
 						Relation:  "...",
@@ -119,8 +123,13 @@ func TestGenerator(t *testing.T) {
 					namespace.ComputedUserset("owner"),
 				)),
 			),
-			`definition foo/document {
+			`/**
+ * Some comment goes here
+ */
+definition foo/document {
 	relation owner: foo/user
+
+	// foobar
 	relation reader: foo/user | foo/group#member
 	permission read = reader + owner
 }`,
@@ -134,6 +143,124 @@ func TestGenerator(t *testing.T) {
 			source, ok := GenerateSource(test.input)
 			require.Equal(test.expected, source)
 			require.Equal(test.okay, ok)
+		})
+	}
+}
+
+func TestFormatting(t *testing.T) {
+	type formattingTest struct {
+		name     string
+		input    string
+		expected string
+	}
+
+	tests := []formattingTest{
+		{
+			"empty",
+			"definition foo/test {}",
+			"definition foo/test {}",
+		},
+		{
+			"with comment",
+			`/** some def */definition foo/test {}`,
+			`/**
+ * some def
+ */
+definition foo/test {}`,
+		},
+		{
+			"with rel comment",
+			`/** some def */definition foo/test {
+
+				// some rel
+				relation somerel: foo/bar;
+			}`,
+			`/**
+ * some def
+ */
+definition foo/test {
+	// some rel
+	relation somerel: foo/bar
+}`,
+		},
+		{
+			"with multiple rel comment",
+			`/** some def */definition foo/test {
+
+				// some rel
+				/* another comment */
+				relation somerel: foo/bar;
+			}`,
+			`/**
+ * some def
+ */
+definition foo/test {
+	// some rel
+	/*
+	 * another comment
+	 */
+	relation somerel: foo/bar
+}`,
+		},
+		{
+			"with multiple rels with comment",
+			`/** some def */definition foo/test {
+
+				// some rel
+				relation somerel: foo/bar;
+				// another perm
+				permission someperm = somerel
+			}`,
+			`/**
+ * some def
+ */
+definition foo/test {
+	// some rel
+	relation somerel: foo/bar
+
+	// another perm
+	permission someperm = somerel
+}`,
+		},
+		{
+			"full example",
+			`
+/** the document */
+definition foo/document {
+	relation reader: foo/user
+	relation  writer: foo/user
+
+	// writers are also readers
+	permission read = reader + writer + another
+	permission write = writer
+	permission minus = a - b - c
+}
+`,
+			`/**
+ * the document
+ */
+definition foo/document {
+	relation reader: foo/user
+	relation writer: foo/user
+
+	// writers are also readers
+	permission read = reader + writer + another
+	permission write = writer
+	permission minus = (a - b) - c
+}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require := require.New(t)
+			defs, err := compiler.Compile([]compiler.InputSchema{
+				{input.InputSource(test.name), test.input},
+			}, nil)
+			require.NoError(err)
+
+			source, _ := GenerateSource(defs[0])
+			require.Equal(test.expected, source)
 		})
 	}
 }

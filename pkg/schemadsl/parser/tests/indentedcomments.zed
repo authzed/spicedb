@@ -1,0 +1,14 @@
+/**
+			 * user is a user
+			 */
+			definition user {}
+
+			/**
+			 * single is a thing
+			 */
+			definition single {
+				/**
+				 * some permission
+				 */
+				permission first = bar + baz
+			}
