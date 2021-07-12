@@ -367,12 +367,12 @@ func TestInvalidWriteArguments(t *testing.T) {
 		{
 			"good precondition, short object ID",
 			[]string{"document:newdoc#parent@folder:afolder#..."},
-			[]string{"document:a#parent@folder:afolder#..."},
+			[]string{"document:#parent@folder:afolder#..."},
 			codes.InvalidArgument,
 		},
 		{
 			"bad precondition, good write",
-			[]string{"document:newdoc#parent@folder:a#..."},
+			[]string{"document:newdoc#parent@folder:#..."},
 			[]string{"document:newdoc#parent@folder:afolder#..."},
 			codes.InvalidArgument,
 		},
@@ -460,6 +460,7 @@ func TestCheck(t *testing.T) {
 				{ONR("user", "product_manager", "..."), true},
 				{ONR("user", "chief_financial_officer", "..."), true},
 				{ONR("user", "villain", "..."), false},
+				{ONR("user", "2", "..."), false},
 			},
 		},
 		{
