@@ -98,7 +98,7 @@ func TestSchemaReadUpgradeValid(t *testing.T) {
 
 func TestSchemaReadUpgradeInvalid(t *testing.T) {
 	_, err := upgrade(t, []*v0.NamespaceDefinition{testfixtures.UserNS, testfixtures.DocumentNS, testfixtures.FolderNS})
-	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.NoError(t, err)
 }
 
 func upgrade(t *testing.T, nsdefs []*v0.NamespaceDefinition) (*v1alpha1.ReadSchemaResponse, error) {

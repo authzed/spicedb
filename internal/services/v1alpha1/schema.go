@@ -43,11 +43,7 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 			return nil, rewriteError(err)
 		}
 
-		objectDef, ok := generator.GenerateSource(found)
-		if !ok {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to upgrade legacy Namespace Config `%s` into Object Definition", found.Name)
-		}
-
+		objectDef, _ := generator.GenerateSource(found)
 		objectDefs = append(objectDefs, objectDef)
 	}
 
