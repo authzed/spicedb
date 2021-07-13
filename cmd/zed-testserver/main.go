@@ -21,6 +21,7 @@ import (
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/readonly"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
@@ -51,6 +52,7 @@ func main() {
 	}
 
 	runCmd.Flags().String("grpc-addr", ":50051", "address to listen on for serving gRPC services")
+	runCmd.Flags().String("readonly-grpc-addr", ":50052", "address to listen on for serving read-only gRPC services")
 	runCmd.Flags().StringSlice("load-configs", []string{}, "configuration yaml files to load")
 
 	rootCmd.AddCommand(runCmd)
@@ -60,18 +62,27 @@ func main() {
 	rootCmd.Execute()
 }
 
-func runTestServer(cmd *cobra.Command, args []string) {
-	grpcServer := grpc.NewServer()
+type srv struct {
+	server     *grpc.Server
+	isReadOnly bool
+}
 
+func runTestServer(cmd *cobra.Command, args []string) {
 	configFilePaths := cobrautil.MustGetStringSlice(cmd, "load-configs")
-	server := &tokenBasedServer{
+	tokenServer := &tokenBasedServer{
 		configFilePaths: configFilePaths,
+		modelByToken:    &sync.Map{},
 	}
 
-	v0.RegisterACLServiceServer(grpcServer, server)
-	v0.RegisterNamespaceServiceServer(grpcServer, server)
-	v1alpha1.RegisterSchemaServiceServer(grpcServer, server)
-	reflection.Register(grpcServer)
+	grpcServer := grpc.NewServer()
+	readonlyService := grpc.NewServer()
+
+	for _, srvInfo := range []srv{{grpcServer, false}, {readonlyService, true}} {
+		v0.RegisterACLServiceServer(srvInfo.server, tokenServer.WithReadOnly(srvInfo.isReadOnly))
+		v0.RegisterNamespaceServiceServer(srvInfo.server, tokenServer.WithReadOnly(srvInfo.isReadOnly))
+		v1alpha1.RegisterSchemaServiceServer(srvInfo.server, tokenServer.WithReadOnly(srvInfo.isReadOnly))
+		reflection.Register(srvInfo.server)
+	}
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -84,11 +95,23 @@ func runTestServer(cmd *cobra.Command, args []string) {
 		grpcServer.Serve(l)
 	}()
 
+	go func() {
+		addr := cobrautil.MustGetString(cmd, "readonly-grpc-addr")
+		l, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Fatal().Str("addr", addr).Msg("failed to listen on readonly addr for gRPC server")
+		}
+
+		log.Info().Str("addr", addr).Msg("readonly gRPC server started listening")
+		readonlyService.Serve(l)
+	}()
+
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 	select {
 	case <-signalctx.Done():
 		log.Info().Msg("received interrupt")
 		grpcServer.GracefulStop()
+		readonlyService.GracefulStop()
 		return
 	}
 }
@@ -105,20 +128,25 @@ type tokenBasedServer struct {
 	v1alpha1.UnimplementedSchemaServiceServer
 
 	configFilePaths []string
-	modelByToken    sync.Map
+	modelByToken    *sync.Map
+	isReadOnly      bool
 }
 
 func (tbs *tokenBasedServer) modelForContext(ctx context.Context) model {
 	tokenStr, _ := grpcauth.AuthFromMD(ctx, "bearer")
-	cached, hasModel := tbs.modelByToken.Load(tokenStr)
-	if hasModel {
-		return cached.(model)
+	_, hasModel := tbs.modelByToken.Load(tokenStr)
+	if !hasModel {
+		log.Info().Str("token", tokenStr).Msg("initializing new model for token")
+		tbs.modelByToken.Store(tokenStr, tbs.createModel())
 	}
 
-	log.Info().Str("token", tokenStr).Msg("initializing new model for token")
-	model := tbs.createModel()
-	tbs.modelByToken.Store(tokenStr, model)
-	return model
+	loaded, _ := tbs.modelByToken.Load(tokenStr)
+	loadedModel := loaded.(model)
+	if tbs.isReadOnly {
+		return model{readonly.NewReadonlyDatastore(loadedModel.datastore), loadedModel.namespaceManager, loadedModel.dispatcher}
+	}
+
+	return loadedModel
 }
 
 func (tbs *tokenBasedServer) schemaServer(ctx context.Context) v1alpha1.SchemaServiceServer {
@@ -199,6 +227,18 @@ func (tbs *tokenBasedServer) createModel() model {
 	}
 
 	return model{ds, nsm, dispatch}
+}
+
+func (tbs *tokenBasedServer) WithReadOnly(isReadOnly bool) *tokenBasedServer {
+	if !isReadOnly {
+		return tbs
+	}
+
+	return &tokenBasedServer{
+		configFilePaths: tbs.configFilePaths,
+		modelByToken:    tbs.modelByToken,
+		isReadOnly:      true,
+	}
 }
 
 func persistentPreRunE(cmd *cobra.Command, args []string) error {
