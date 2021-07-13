@@ -10,6 +10,7 @@ type sourceGenerator struct {
 	hasNewline         bool            // Whether there is a newline at the end of the buffer.
 	hasBlankline       bool            // Whether there is a blank line at the end of the buffer.
 	hasIssue           bool            // Whether there is a translation issue.
+	hasNewScope        bool            // Whether there is a new scope at the end of the buffer.
 	existingLineLength int             // Length of the existing line.
 }
 
@@ -17,6 +18,14 @@ type sourceGenerator struct {
 // a new line is added.
 func (sf *sourceGenerator) ensureBlankLine() {
 	if !sf.hasBlankline {
+		sf.appendLine()
+	}
+}
+
+// ensureBlankLineOrNewScope ensures that there is a blank line or new scope at the tail of the buffer. If not,
+// a new line is added.
+func (sf *sourceGenerator) ensureBlankLineOrNewScope() {
+	if !sf.hasBlankline && !sf.hasNewScope {
 		sf.appendLine()
 	}
 }
@@ -65,6 +74,7 @@ func (sf *sourceGenerator) append(value string) {
 		}
 
 		sf.hasBlankline = false
+		sf.hasNewScope = false
 
 		if sf.hasNewline {
 			sf.buf.WriteString(strings.Repeat("\t", sf.indentationLevel))
@@ -80,4 +90,8 @@ func (sf *sourceGenerator) append(value string) {
 // appendLine adds a newline.
 func (sf *sourceGenerator) appendLine() {
 	sf.append("\n")
+}
+
+func (sf *sourceGenerator) markNewScope() {
+	sf.hasNewScope = true
 }

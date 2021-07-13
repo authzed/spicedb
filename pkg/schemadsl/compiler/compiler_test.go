@@ -415,10 +415,9 @@ func TestCompile(t *testing.T) {
 		{
 			"doc comments",
 			&someTenant,
-			`
-			/**
-			 * user is a user
-			 */
+			`/**
+			  * user is a user
+			  */
 			definition user {}
 
 			/**
@@ -432,9 +431,15 @@ func TestCompile(t *testing.T) {
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
-				namespace.Namespace("sometenant/user"),
-				namespace.Namespace("sometenant/single",
-					namespace.Relation("first",
+				namespace.NamespaceWithComment("sometenant/user", `/**
+* user is a user
+*/`),
+				namespace.NamespaceWithComment("sometenant/single", `/**
+* single is a thing
+*/`,
+					namespace.RelationWithComment("first", `/**
+* some permission
+*/`,
 						namespace.Union(
 							namespace.ComputedUserset("bar"),
 							namespace.ComputedUserset("baz"),
