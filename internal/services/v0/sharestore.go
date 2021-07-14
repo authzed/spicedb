@@ -186,9 +186,10 @@ func (s3s *s3ShareStore) StoreShared(shared SharedDataV2) (string, error) {
 	ctx := context.Background()
 
 	_, err = s3s.s3Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(s3s.bucket),
-		Key:    aws.String(key),
-		Body:   bytes.NewReader(data),
+		Bucket:      aws.String(s3s.bucket),
+		Key:         aws.String(key),
+		Body:        bytes.NewReader(data),
+		ContentType: aws.String("application/json"),
 	})
 
 	return reference, err
