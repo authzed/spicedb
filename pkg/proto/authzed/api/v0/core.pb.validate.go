@@ -164,7 +164,7 @@ func (m *ObjectAndRelation) Validate() error {
 	if !_ObjectAndRelation_ObjectId_Pattern.MatchString(m.GetObjectId()) {
 		return ObjectAndRelationValidationError{
 			field:  "ObjectId",
-			reason: "value does not match regex pattern \"^[a-zA-Z0-9][a-zA-Z0-9/_-]{0,63}$\"",
+			reason: "value does not match regex pattern \"^[a-zA-Z0-9_][a-zA-Z0-9/_-]{0,63}$\"",
 		}
 	}
 
@@ -243,7 +243,7 @@ var _ interface {
 
 var _ObjectAndRelation_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$")
 
-var _ObjectAndRelation_ObjectId_Pattern = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9/_-]{0,63}$")
+var _ObjectAndRelation_ObjectId_Pattern = regexp.MustCompile("^[a-zA-Z0-9_][a-zA-Z0-9/_-]{0,63}$")
 
 var _ObjectAndRelation_Relation_Pattern = regexp.MustCompile("^(\\.\\.\\.|[a-z][a-z0-9_]{2,62}[a-z0-9])$")
 
