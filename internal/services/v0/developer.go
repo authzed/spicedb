@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/internal/graph"
@@ -73,12 +74,14 @@ func (ds *devServer) Share(ctx context.Context, req *v0.ShareRequest) (*v0.Share
 func (ds *devServer) LookupShared(ctx context.Context, req *v0.LookupShareRequest) (*v0.LookupShareResponse, error) {
 	shared, status, err := ds.shareStore.LookupSharedByReference(req.ShareReference)
 	if err != nil {
+		log.Debug().Str("id", req.ShareReference).Err(err).Msg("Lookup Shared Error")
 		return &v0.LookupShareResponse{
 			Status: v0.LookupShareResponse_FAILED_TO_LOOKUP,
 		}, nil
 	}
 
 	if status == LookupNotFound {
+		log.Debug().Str("id", req.ShareReference).Msg("Lookup Shared Not Found")
 		return &v0.LookupShareResponse{
 			Status: v0.LookupShareResponse_UNKNOWN_REFERENCE,
 		}, nil
