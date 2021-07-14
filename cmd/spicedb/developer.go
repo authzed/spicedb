@@ -13,6 +13,7 @@ import (
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
+	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -81,6 +82,8 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 			log.Fatal().Msg("missing --s3-endpoint for s3 share store")
 		}
 
+		region := stringz.DefaultEmpty(cobrautil.MustGetString(cmd, "s3-region"), "auto")
+
 		config := &aws.Config{
 			Credentials: credentials.NewStaticCredentials(
 				accessKey,
@@ -88,6 +91,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 				"",
 			),
 			Endpoint: aws.String(endpoint),
+			Region:   aws.String(region),
 		}
 
 		s3store, err := v0svc.NewS3ShareStore(bucketName, shareStoreSalt, config)
@@ -96,7 +100,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 		}
 		shareStore = s3store
 
-		log.Info().Str("endpoint", endpoint).Str("bucket-name", bucketName).Str("access-key", accessKey).Msg("using S3 sharestore")
+		log.Info().Str("endpoint", endpoint).Str("region", region).Str("bucket-name", bucketName).Str("access-key", accessKey).Msg("using S3 sharestore")
 	} else {
 		log.Fatal().Str("share-store", shareStoreKind).Msg("unknown share store type")
 	}
