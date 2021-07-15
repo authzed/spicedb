@@ -191,6 +191,7 @@ func prepare(ctx context.Context, source *pgx.Conn) ([]*v0.NamespaceDefinition, 
 	}
 
 	var mutations []*v0.RelationTupleUpdate
+	seen := make(map[string]struct{})
 	for rows.Next() {
 		nextTuple := &v0.RelationTuple{
 			ObjectAndRelation: &v0.ObjectAndRelation{},
@@ -213,10 +214,14 @@ func prepare(ctx context.Context, source *pgx.Conn) ([]*v0.NamespaceDefinition, 
 			return nil, nil, fmt.Errorf("unable to scan into tuple: %w", err)
 		}
 
-		mutations = append(mutations, &v0.RelationTupleUpdate{
-			Operation: v0.RelationTupleUpdate_TOUCH,
-			Tuple:     nextTuple,
-		})
+		tupleStr := tuple.String(nextTuple)
+		if _, ok := seen[tupleStr]; !ok {
+			seen[tupleStr] = struct{}{}
+			mutations = append(mutations, &v0.RelationTupleUpdate{
+				Operation: v0.RelationTupleUpdate_TOUCH,
+				Tuple:     nextTuple,
+			})
+		}
 
 		log.Trace().Str("tuple", tuple.String(nextTuple)).Msg("read tuple")
 	}

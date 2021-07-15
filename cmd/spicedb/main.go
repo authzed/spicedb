@@ -8,6 +8,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -73,6 +74,7 @@ func main() {
 	rootCmd.Flags().Duration("crdb-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the cockroachdb connection pool")
 	rootCmd.Flags().Duration("crdb-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the cockroachdb connection pool")
 	rootCmd.Flags().Bool("read-only", false, "set the service to read-only mode")
+	rootCmd.Flags().Duration("shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
 
 	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
 	cmdutil.RegisterTracingPersistentFlags(rootCmd)
@@ -248,18 +250,30 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 	}()
 
-	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
-	for {
-		select {
-		case <-signalctx.Done():
-			log.Info().Msg("received interrupt")
-			grpcServer.GracefulStop()
+	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	gracePeriod := cobrautil.MustGetDuration(cmd, "shutdown-grace-period")
 
-			if err := metricsrv.Close(); err != nil {
-				log.Fatal().Err(err).Msg("failed while shutting down metrics server")
-			}
-			return
+	<-signalctx.Done()
+	log.Info().Msg("received interrupt")
+
+	if gracePeriod > 0 {
+		interruptGrace, _ := signal.NotifyContext(context.Background(), os.Interrupt)
+		graceTimer := time.NewTimer(gracePeriod)
+
+		log.Info().Stringer("timeout", gracePeriod).Msg("starting shutdown grace period")
+
+		select {
+		case <-graceTimer.C:
+		case <-interruptGrace.Done():
+			log.Warn().Msg("interrupted shutdown grace period")
 		}
+	}
+
+	log.Info().Msg("shutting down")
+	grpcServer.GracefulStop()
+
+	if err := metricsrv.Close(); err != nil {
+		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
 	}
 }
 
