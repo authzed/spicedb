@@ -135,10 +135,10 @@ func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision,
 	defer span.End()
 
 	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
-	defer tx.Rollback(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
+	defer tx.Rollback(ctx)
 
 	return readCRDBNow(ctx, tx)
 }
