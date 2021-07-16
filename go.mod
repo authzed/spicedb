@@ -7,7 +7,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.0
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
-	github.com/aws/aws-sdk-go v1.38.69
+	github.com/aws/aws-sdk-go v1.40.2
 	github.com/cockroachdb/cockroach v20.1.15+incompatible
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
@@ -17,15 +17,15 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v0.6.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
-	github.com/google/go-cmp v0.5.5
+	github.com/google/go-cmp v0.5.6
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2 v2.0.0-rc.2
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-memdb v1.3.2
-	github.com/jackc/pgconn v1.8.1
-	github.com/jackc/pgx/v4 v4.11.0
+	github.com/jackc/pgconn v1.9.0
+	github.com/jackc/pgx/v4 v4.12.0
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
@@ -48,8 +48,7 @@ require (
 	go.opentelemetry.io/otel/exporters/trace/jaeger v0.19.0
 	go.opentelemetry.io/otel/sdk v0.19.0
 	go.opentelemetry.io/otel/trace v0.19.0
-	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b
-	golang.org/x/net v0.0.0-20210525063256-abc453219eb5 // indirect
+	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 	google.golang.org/genproto v0.0.0-20210630183607-d20f26d13c79
 	google.golang.org/grpc v1.39.0
