@@ -47,36 +47,13 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 		return nil, false, err
 	}
 
-	empty := ""
-	namespaces, err := compiler.Compile([]compiler.InputSchema{
-		{
-			Source:       input.InputSource("schema"),
-			SchemaString: requestContext.Schema,
-		},
-	}, &empty)
-
-	var contextError compiler.ErrorWithContext
-	if errors.As(err, &contextError) {
-		line, col, err := contextError.SourceRange.Start().LineAndColumn()
-		if err != nil {
-			return nil, false, err
-		}
-
-		return &DevContext{
-			RequestErrors: []*v0.DeveloperError{
-				{
-					Message: contextError.Error(),
-					Kind:    v0.DeveloperError_SCHEMA_ISSUE,
-					Source:  v0.DeveloperError_SCHEMA,
-					Line:    uint32(line) + 1, // 0-indexed in parser.
-					Column:  uint32(col) + 1,  // 0-indexed in parser.
-				},
-			},
-		}, false, nil
+	namespaces, devError, err := compile(requestContext.Schema)
+	if err != nil {
+		return nil, false, err
 	}
 
-	if err != nil {
-		return &DevContext{Namespaces: namespaces}, false, err
+	if devError != nil {
+		return &DevContext{RequestErrors: []*v0.DeveloperError{devError}}, false, nil
 	}
 
 	requestErrors, err := loadNamespaces(ctx, namespaces, nsm, ds)
@@ -100,6 +77,38 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 		Dispatcher:    dispatcher,
 		RequestErrors: requestErrors,
 	}, len(requestErrors) == 0, nil
+}
+
+func compile(schema string) ([]*v0.NamespaceDefinition, *v0.DeveloperError, error) {
+	empty := ""
+	namespaces, err := compiler.Compile([]compiler.InputSchema{
+		{
+			Source:       input.InputSource("schema"),
+			SchemaString: schema,
+		},
+	}, &empty)
+
+	var contextError compiler.ErrorWithContext
+	if errors.As(err, &contextError) {
+		line, col, err := contextError.SourceRange.Start().LineAndColumn()
+		if err != nil {
+			return []*v0.NamespaceDefinition{}, nil, err
+		}
+
+		return []*v0.NamespaceDefinition{}, &v0.DeveloperError{
+			Message: contextError.Error(),
+			Kind:    v0.DeveloperError_SCHEMA_ISSUE,
+			Source:  v0.DeveloperError_SCHEMA,
+			Line:    uint32(line) + 1, // 0-indexed in parser.
+			Column:  uint32(col) + 1,  // 0-indexed in parser.
+		}, nil
+	}
+
+	if err != nil {
+		return []*v0.NamespaceDefinition{}, nil, err
+	}
+
+	return namespaces, nil, nil
 }
 
 func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.Manager, ds datastore.Datastore) (decimal.Decimal, []*v0.DeveloperError, error) {

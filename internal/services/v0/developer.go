@@ -39,6 +39,30 @@ func NewDeveloperServer(store ShareStore) v0.DeveloperServiceServer {
 	}
 }
 
+func (ds *devServer) FormatSchema(ctx context.Context, req *v0.FormatSchemaRequest) (*v0.FormatSchemaResponse, error) {
+	namespaces, devError, err := compile(req.Schema)
+	if err != nil {
+		return nil, err
+	}
+
+	if devError != nil {
+		return &v0.FormatSchemaResponse{
+			Error: devError,
+		}, nil
+	}
+
+	formatted := ""
+	for _, nsDef := range namespaces {
+		source, _ := generator.GenerateSource(nsDef)
+		formatted += source
+		formatted += "\n\n"
+	}
+
+	return &v0.FormatSchemaResponse{
+		FormattedSchema: strings.TrimSpace(formatted),
+	}, nil
+}
+
 func (ds *devServer) UpgradeSchema(ctx context.Context, req *v0.UpgradeSchemaRequest) (*v0.UpgradeSchemaResponse, error) {
 	upgraded, err := upgradeSchema(req.NamespaceConfigs)
 	if err != nil {
