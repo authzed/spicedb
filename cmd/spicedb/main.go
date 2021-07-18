@@ -111,6 +111,7 @@ func main() {
 	developerServiceCmd.Flags().String("grpc-key-path", "", "local path to the TLS key used to serve gRPC services")
 	developerServiceCmd.Flags().Bool("grpc-no-tls", false, "serve unencrypted gRPC services")
 	developerServiceCmd.Flags().Duration("grpc-max-conn-age", 60*time.Second, "how long a connection should be able to live")
+	developerServiceCmd.Flags().String("metrics-addr", ":9090", "address to listen on for serving metrics and profiles")
 	developerServiceCmd.Flags().String("share-store", "inmemory", "kind of share store to use")
 	developerServiceCmd.Flags().String("share-store-salt", "", "salt for share store hashing")
 	developerServiceCmd.Flags().String("s3-access-key", "", "s3 access key for s3 share store")

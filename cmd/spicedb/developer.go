@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 
@@ -124,12 +125,24 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 		grpcServer.Serve(l)
 	}()
 
+	metricsAddr := cobrautil.MustGetStringExpanded(cmd, "metrics-addr")
+	metricsrv := NewMetricsServer(metricsAddr)
+	go func() {
+		if err := metricsrv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatal().Err(err).Msg("failed while serving metrics")
+		}
+	}()
+	log.Info().Str("addr", metricsAddr).Msg("metrics server started listening")
+
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 	for {
 		select {
 		case <-signalctx.Done():
 			log.Info().Msg("received interrupt")
 			grpcServer.GracefulStop()
+			if err := metricsrv.Close(); err != nil {
+				log.Fatal().Err(err).Msg("failed while shutting down metrics server")
+			}
 			return
 		}
 	}
