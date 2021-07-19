@@ -35,10 +35,17 @@ func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ..
 		TypeInformation: typeInfo,
 	}
 
-	if rewrite != nil && len(allowedDirectRelations) == 0 {
+	switch {
+	case rewrite != nil && len(allowedDirectRelations) == 0:
 		SetRelationKind(rel, iv1.RelationMetadata_PERMISSION)
-	} else if rewrite == nil && len(allowedDirectRelations) > 0 {
+
+	case rewrite == nil && len(allowedDirectRelations) > 0:
 		SetRelationKind(rel, iv1.RelationMetadata_RELATION)
+
+	default:
+		// By default we do not set a relation kind on the relation. Relations without any
+		// information, or relations with both rewrites and types are legacy relations from
+		// before the DSL schema and, as such, do not have a defined "kind".
 	}
 
 	return rel
