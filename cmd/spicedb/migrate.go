@@ -12,6 +12,21 @@ import (
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
+func registerMigrateCmd(rootCmd *cobra.Command) {
+	migrateCmd := &cobra.Command{
+		Use:               "migrate [revision]",
+		Short:             "execute schema migrations against database",
+		PersistentPreRunE: persistentPreRunE,
+		Run:               migrateRun,
+		Args:              cobra.ExactArgs(1),
+	}
+
+	migrateCmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
+	migrateCmd.Flags().String("datastore-url", "", "connection url (e.g. postgres://postgres:password@localhost:5432/spicedb) of storage layer for those engines that support it (postgres, crdb)")
+
+	rootCmd.AddCommand(migrateCmd)
+}
+
 func migrateRun(cmd *cobra.Command, args []string) {
 	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
 	dbURL := cobrautil.MustGetString(cmd, "datastore-url")
@@ -48,6 +63,19 @@ func migrateRun(cmd *cobra.Command, args []string) {
 	} else {
 		log.Fatal().Str("datastore-engine", datastoreEngine).Msg("cannot migrate datastore engine type")
 	}
+}
+
+func registerHeadCmd(rootCmd *cobra.Command) {
+	headCmd := &cobra.Command{
+		Use:   "head",
+		Short: "compute the head database migration revision",
+		Run:   headRevisionRun,
+		Args:  cobra.ExactArgs(0),
+	}
+
+	headCmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
+
+	rootCmd.AddCommand(headCmd)
 }
 
 func headRevisionRun(cmd *cobra.Command, args []string) {

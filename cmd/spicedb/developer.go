@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -27,6 +30,33 @@ import (
 	"github.com/authzed/spicedb/pkg/grpcutil"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
+
+func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
+	developerServiceCmd := &cobra.Command{
+		Use:   "developer-service",
+		Short: "runs the developer service",
+		Run:   developerServiceRun,
+		Args:  cobra.ExactArgs(0),
+	}
+
+	developerServiceCmd.Flags().String("grpc-addr", ":50053", "address to listen on for serving gRPC services")
+	developerServiceCmd.Flags().String("grpc-cert-path", "", "local path to the TLS certificate used to serve gRPC services")
+	developerServiceCmd.Flags().String("grpc-key-path", "", "local path to the TLS key used to serve gRPC services")
+	developerServiceCmd.Flags().Bool("grpc-no-tls", false, "serve unencrypted gRPC services")
+	developerServiceCmd.Flags().Duration("grpc-max-conn-age", 60*time.Second, "how long a connection should be able to live")
+
+	developerServiceCmd.Flags().String("metrics-addr", ":9090", "address to listen on for serving metrics and profiles")
+
+	developerServiceCmd.Flags().String("share-store", "inmemory", "kind of share store to use")
+	developerServiceCmd.Flags().String("share-store-salt", "", "salt for share store hashing")
+	developerServiceCmd.Flags().String("s3-access-key", "", "s3 access key for s3 share store")
+	developerServiceCmd.Flags().String("s3-secret-key", "", "s3 secret key for s3 share store")
+	developerServiceCmd.Flags().String("s3-bucket", "", "s3 bucket name for s3 share store")
+	developerServiceCmd.Flags().String("s3-endpoint", "", "s3 endpoint for s3 share store")
+	developerServiceCmd.Flags().String("s3-region", "auto", "s3 region for s3 share store")
+
+	rootCmd.AddCommand(developerServiceCmd)
+}
 
 func developerServiceRun(cmd *cobra.Command, args []string) {
 	var sharedOptions []grpc.ServerOption
@@ -55,64 +85,12 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	shareStoreKind := cobrautil.MustGetString(cmd, "share-store")
-	shareStoreSalt := cobrautil.MustGetString(cmd, "share-store-salt")
-
-	var shareStore v0svc.ShareStore
-	if shareStoreKind == "inmemory" {
-		log.Info().Msg("using in-memory sharestore")
-		shareStore = v0svc.NewInMemoryShareStore(shareStoreSalt)
-	} else if shareStoreKind == "s3" {
-		bucketName := cobrautil.MustGetString(cmd, "s3-bucket")
-		if len(bucketName) == 0 {
-			log.Fatal().Msg("missing --s3-bucket for s3 share store")
-		}
-
-		accessKey := cobrautil.MustGetString(cmd, "s3-access-key")
-		if len(accessKey) == 0 {
-			log.Fatal().Msg("missing --s3-access-key for s3 share store")
-		}
-
-		secretKey := cobrautil.MustGetString(cmd, "s3-secret-key")
-		if len(secretKey) == 0 {
-			log.Fatal().Msg("missing --s3-secret-key for s3 share store")
-		}
-
-		endpoint := cobrautil.MustGetString(cmd, "s3-endpoint")
-		if len(endpoint) == 0 {
-			log.Fatal().Msg("missing --s3-endpoint for s3 share store")
-		}
-
-		region := stringz.DefaultEmpty(cobrautil.MustGetString(cmd, "s3-region"), "auto")
-
-		config := &aws.Config{
-			Credentials: credentials.NewStaticCredentials(
-				accessKey,
-				secretKey,
-				"",
-			),
-			Endpoint: aws.String(endpoint),
-			Region:   aws.String(region),
-		}
-
-		s3store, err := v0svc.NewS3ShareStore(bucketName, shareStoreSalt, config)
-		if err != nil {
-			log.Fatal().Err(err).Msg("failed to create S3 share store")
-		}
-		shareStore = s3store
-
-		log.Info().Str("endpoint", endpoint).Str("region", region).Str("bucket-name", bucketName).Str("access-key", accessKey).Msg("using S3 sharestore")
-	} else {
-		log.Fatal().Str("share-store", shareStoreKind).Msg("unknown share store type")
+	shareStore, err := shareStoreFromCmd(cmd)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to configure share store")
 	}
 
-	healthSrv := grpcutil.NewAuthlessHealthServer()
-
-	v0.RegisterDeveloperServiceServer(grpcServer, v0svc.NewDeveloperServer(shareStore))
-	healthSrv.SetServingStatus("DeveloperService", healthpb.HealthCheckResponse_SERVING)
-
-	healthpb.RegisterHealthServer(grpcServer, healthSrv)
-	reflection.Register(grpcServer)
+	registerDeveloperGrpcServices(grpcServer, shareStore)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -146,4 +124,63 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 			return
 		}
 	}
+}
+
+func shareStoreFromCmd(cmd *cobra.Command) (v0svc.ShareStore, error) {
+	shareStoreSalt := cobrautil.MustGetString(cmd, "share-store-salt")
+	shareStoreKind := cobrautil.MustGetString(cmd, "share-store")
+	event := log.Info()
+
+	var shareStore v0svc.ShareStore
+	switch shareStoreKind {
+	case "inmemory":
+		shareStore = v0svc.NewInMemoryShareStore(shareStoreSalt)
+
+	case "s3":
+		bucketName := cobrautil.MustGetString(cmd, "s3-bucket")
+		accessKey := cobrautil.MustGetString(cmd, "s3-access-key")
+		secretKey := cobrautil.MustGetString(cmd, "s3-secret-key")
+		endpoint := cobrautil.MustGetString(cmd, "s3-endpoint")
+		region := stringz.DefaultEmpty(cobrautil.MustGetString(cmd, "s3-region"), "auto")
+
+		optsNames := []string{"s3-bucket", "s3-access-key", "s3-secret-key", "s3-endpoint"}
+		opts := []string{bucketName, accessKey, secretKey, endpoint}
+		if i := stringz.SliceIndex(opts, ""); i >= 0 {
+			return nil, fmt.Errorf("missing required field: %s", optsNames[i])
+		}
+
+		config := &aws.Config{
+			Credentials: credentials.NewStaticCredentials(
+				accessKey,
+				secretKey,
+				"",
+			),
+			Endpoint: aws.String(endpoint),
+			Region:   aws.String(region),
+		}
+
+		var err error
+		shareStore, err = v0svc.NewS3ShareStore(bucketName, shareStoreSalt, config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create S3 share store: %w", err)
+		}
+
+		event = event.Str("endpoint", endpoint).Str("region", region).Str("bucket-name", bucketName).Str("access-key", accessKey)
+
+	default:
+		return nil, errors.New("unknown share store")
+	}
+
+	event.Str("kind", shareStoreKind).Msg("configured share store")
+	return shareStore, nil
+}
+
+func registerDeveloperGrpcServices(srv *grpc.Server, shareStore v0svc.ShareStore) {
+	healthSrv := grpcutil.NewAuthlessHealthServer()
+
+	v0.RegisterDeveloperServiceServer(srv, v0svc.NewDeveloperServer(shareStore))
+	healthSrv.SetServingStatus("DeveloperService", healthpb.HealthCheckResponse_SERVING)
+
+	healthpb.RegisterHealthServer(srv, healthSrv)
+	reflection.Register(srv)
 }
