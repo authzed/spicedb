@@ -1,6 +1,7 @@
 package namespace
 
 import (
+	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
@@ -28,11 +29,19 @@ func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ..
 		}
 	}
 
-	return &v0.Relation{
+	rel := &v0.Relation{
 		Name:            name,
 		UsersetRewrite:  rewrite,
 		TypeInformation: typeInfo,
 	}
+
+	if rewrite != nil && len(allowedDirectRelations) == 0 {
+		SetRelationKind(rel, iv1.RelationMetadata_PERMISSION)
+	} else if rewrite == nil && len(allowedDirectRelations) > 0 {
+		SetRelationKind(rel, iv1.RelationMetadata_RELATION)
+	}
+
+	return rel
 }
 
 // RelationWithComment creates a relation definition with an optional rewrite definition.

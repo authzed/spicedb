@@ -71,3 +71,23 @@ func GetRelationKind(relation *v0.Relation) iv1.RelationMetadata_RelationKind {
 
 	return iv1.RelationMetadata_UNKNOWN_KIND
 }
+
+// SetRelationKind sets the kind of relation.
+func SetRelationKind(relation *v0.Relation, kind iv1.RelationMetadata_RelationKind) error {
+	metadata := relation.Metadata
+	if metadata == nil {
+		metadata = &v0.Metadata{}
+		relation.Metadata = metadata
+	}
+
+	var rm iv1.RelationMetadata
+	rm.Kind = kind
+
+	encoded, err := ptypes.MarshalAny(&rm)
+	if err != nil {
+		return err
+	}
+
+	metadata.MetadataMessage = append(metadata.MetadataMessage, encoded)
+	return nil
+}
