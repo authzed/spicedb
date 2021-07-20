@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/graph"
+	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
@@ -121,9 +123,13 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 				}
 
 				relationName := tupleset.GetRelation()
-				_, ok := nts.relationMap[relationName]
+				found, ok := nts.relationMap[relationName]
 				if !ok {
-					return fmt.Errorf("under permission `%s`: relation/permission `%s` was not found", relation.Name, relationName)
+					return fmt.Errorf("under permission `%s`: relation `%s` was not found", relation.Name, relationName)
+				}
+
+				if nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION {
+					return fmt.Errorf("under permission `%s`: permissions cannot be used on the left hand side of an arrow (found `%s`)", relation.Name, relationName)
 				}
 			}
 			return nil

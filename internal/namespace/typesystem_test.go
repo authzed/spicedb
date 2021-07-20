@@ -57,7 +57,24 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*v0.NamespaceDefinition{},
-			"under permission `viewer`: relation/permission `parents` was not found",
+			"under permission `viewer`: relation `parents` was not found",
+		},
+		{
+			"use of permission in tuple_to_userset",
+			ns.Namespace(
+				"document",
+				ns.Relation("owner", nil),
+				ns.Relation("editor", ns.Union(
+					ns.ComputedUserset("owner"),
+				)),
+				ns.Relation("parent", nil),
+				ns.Relation("lock", nil),
+				ns.Relation("viewer", ns.Union(
+					ns.TupleToUserset("editor", "viewer"),
+				)),
+			),
+			[]*v0.NamespaceDefinition{},
+			"under permission `viewer`: permissions cannot be used on the left hand side of an arrow (found `editor`)",
 		},
 		{
 			"rewrite without this and types",
