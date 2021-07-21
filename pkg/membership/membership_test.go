@@ -59,17 +59,62 @@ func TestMembershipSet(t *testing.T) {
 	ms := NewMembershipSet()
 
 	// Add some expansion trees.
-	fso, ok := ms.AddExpansion(ONR("folder", "company", "owner"), companyOwner)
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "owner"), companyOwner)
 	require.True(ok)
+	require.NoError(err)
 	verifySubjects(require, fso, "user:owner#...")
 
-	fse, ok := ms.AddExpansion(ONR("folder", "company", "editor"), companyEditor)
+	fse, ok, err := ms.AddExpansion(ONR("folder", "company", "editor"), companyEditor)
 	require.True(ok)
+	require.NoError(err)
 	verifySubjects(require, fse, "user:owner#...", "user:writer#...")
 
-	fsv, ok := ms.AddExpansion(ONR("folder", "company", "viewer"), companyViewerRecursive)
+	fsv, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), companyViewerRecursive)
 	require.True(ok)
+	require.NoError(err)
 	verifySubjects(require, fsv, "folder:auditors#viewer", "user:auditor#...", "user:legal#...", "user:owner#...", "user:writer#...")
+}
+
+func TestMembershipSetIntersection(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Intersection(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "legal", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "legal", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(require, fso, "user:legal#...")
+}
+
+func TestMembershipSetExclusion(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Exclusion(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "legal", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "legal", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(require, fso, "user:owner#...")
 }
 
 func verifySubjects(require *require.Assertions, fs FoundSubjects, expected ...string) {

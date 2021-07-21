@@ -1,6 +1,8 @@
 package membership
 
 import (
+	"fmt"
+
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -73,24 +75,27 @@ func NewMembershipSet() *MembershipSet {
 // AddExpansion adds the expansion of an ONR to the membership set. Returns false if the ONR was already added.
 //
 // NOTE: The expansion tree *should* be the fully recursive expansion.
-func (ms *MembershipSet) AddExpansion(onr *v0.ObjectAndRelation, expansion *v0.RelationTupleTreeNode) (FoundSubjects, bool) {
+func (ms *MembershipSet) AddExpansion(onr *v0.ObjectAndRelation, expansion *v0.RelationTupleTreeNode) (FoundSubjects, bool, error) {
 	onrString := tuple.StringONR(onr)
 	existing, ok := ms.objectsAndRelations[onrString]
 	if ok {
-		return existing, false
+		return existing, false, nil
 	}
 
 	foundSubjectsMap := map[string]FoundSubject{}
-	ms.populateFoundSubjects(foundSubjectsMap, onr, expansion)
+	err := populateFoundSubjects(foundSubjectsMap, onr, expansion)
+	if err != nil {
+		return FoundSubjects{}, false, err
+	}
 
 	fs := FoundSubjects{
 		subjects: foundSubjectsMap,
 	}
 	ms.objectsAndRelations[onrString] = fs
-	return fs, true
+	return fs, true, nil
 }
 
-func (ms *MembershipSet) populateFoundSubjects(foundSubjectsMap map[string]FoundSubject, rootONR *v0.ObjectAndRelation, treeNode *v0.RelationTupleTreeNode) {
+func populateFoundSubjects(foundSubjectsMap map[string]FoundSubject, rootONR *v0.ObjectAndRelation, treeNode *v0.RelationTupleTreeNode) error {
 	relationship := rootONR
 	if treeNode.Expanded != nil {
 		relationship = treeNode.Expanded
@@ -100,15 +105,50 @@ func (ms *MembershipSet) populateFoundSubjects(foundSubjectsMap map[string]Found
 	case *v0.RelationTupleTreeNode_IntermediateNode:
 		switch typed.IntermediateNode.Operation {
 		case v0.SetOperationUserset_UNION:
-			fallthrough
+			for _, child := range typed.IntermediateNode.ChildNodes {
+				err := populateFoundSubjects(foundSubjectsMap, rootONR, child)
+				if err != nil {
+					return err
+				}
+			}
 
 		case v0.SetOperationUserset_INTERSECTION:
-			fallthrough
+			if len(typed.IntermediateNode.ChildNodes) == 0 {
+				return fmt.Errorf("Found intersection with no children")
+			}
+
+			fsm := map[string]FoundSubject{}
+			populateFoundSubjects(fsm, rootONR, typed.IntermediateNode.ChildNodes[0])
+
+			subjectset := newSubjectSet()
+			subjectset.union(fsm)
+
+			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
+				fsm := map[string]FoundSubject{}
+				populateFoundSubjects(fsm, rootONR, child)
+				subjectset.intersect(fsm)
+			}
+
+			subjectset.populate(foundSubjectsMap)
 
 		case v0.SetOperationUserset_EXCLUSION:
-			for _, child := range typed.IntermediateNode.ChildNodes {
-				ms.populateFoundSubjects(foundSubjectsMap, rootONR, child)
+			if len(typed.IntermediateNode.ChildNodes) == 0 {
+				return fmt.Errorf("Found exclusion with no children")
 			}
+
+			fsm := map[string]FoundSubject{}
+			populateFoundSubjects(fsm, rootONR, typed.IntermediateNode.ChildNodes[0])
+
+			subjectset := newSubjectSet()
+			subjectset.union(fsm)
+
+			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
+				fsm := map[string]FoundSubject{}
+				populateFoundSubjects(fsm, rootONR, child)
+				subjectset.exclude(fsm)
+			}
+
+			subjectset.populate(foundSubjectsMap)
 
 		default:
 			panic("unknown expand operation")
@@ -129,5 +169,59 @@ func (ms *MembershipSet) populateFoundSubjects(foundSubjectsMap map[string]Found
 		}
 	default:
 		panic("unknown TreeNode type")
+	}
+
+	return nil
+}
+
+type subjectSet struct {
+	subjectsMap map[string]FoundSubject
+}
+
+func newSubjectSet() *subjectSet {
+	return &subjectSet{
+		subjectsMap: map[string]FoundSubject{},
+	}
+}
+
+func (ss *subjectSet) populate(outgoingSubjectsMap map[string]FoundSubject) {
+	for key, fs := range ss.subjectsMap {
+		existing, ok := outgoingSubjectsMap[key]
+		if ok {
+			existing.relationships.UpdateFrom(fs.relationships)
+		} else {
+			outgoingSubjectsMap[key] = fs
+		}
+	}
+}
+
+func (ss *subjectSet) union(subjectsMap map[string]FoundSubject) {
+	for key, fs := range subjectsMap {
+		existing, ok := ss.subjectsMap[key]
+		if ok {
+			existing.relationships.UpdateFrom(fs.relationships)
+		} else {
+			ss.subjectsMap[key] = fs
+		}
+	}
+}
+
+func (ss *subjectSet) intersect(subjectsMap map[string]FoundSubject) {
+	for key, fs := range ss.subjectsMap {
+		other, ok := subjectsMap[key]
+		if ok {
+			fs.relationships.UpdateFrom(other.relationships)
+		} else {
+			delete(ss.subjectsMap, key)
+		}
+	}
+}
+
+func (ss *subjectSet) exclude(subjectsMap map[string]FoundSubject) {
+	for key := range ss.subjectsMap {
+		_, ok := subjectsMap[key]
+		if ok {
+			delete(ss.subjectsMap, key)
+		}
 	}
 }

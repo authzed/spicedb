@@ -363,7 +363,16 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 		}
 
 		// Add the ONR and its expansion to the membership set.
-		foundSubjects, _ := membershipSet.AddExpansion(onr, er.Tree)
+		foundSubjects, _, aerr := membershipSet.AddExpansion(onr, er.Tree)
+		if aerr != nil {
+			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), aerr)
+			if validationErrs != nil {
+				failures = append(failures, validationErrs...)
+				continue
+			}
+
+			return nil, nil, wireErr
+		}
 
 		// Compare the terminal subjects found to those specified.
 		errs := validateSubjects(onr, foundSubjects, validationStrings)
