@@ -66,10 +66,12 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 			if ok {
 				filtered := filter.filterUpdates(update.Changes)
 				if len(filtered) > 0 {
-					stream.Send(&v0.WatchResponse{
+					if err := stream.Send(&v0.WatchResponse{
 						Updates:     update.Changes,
 						EndRevision: zookie.NewFromRevision(update.Revision),
-					})
+					}); err != nil {
+						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
+					}
 				}
 			}
 		case err := <-errchan:
