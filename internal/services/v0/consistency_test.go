@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/jwangsadinata/go-multimap/slicemultimap"
 	"github.com/shopspring/decimal"
@@ -123,9 +125,43 @@ func TestConsistency(t *testing.T) {
 						}
 					}
 
-					vctx := validationContext{
+					// Collect the set of accessible objects for each namespace and subject.
+					accessibilitySet := newAccessibilitySet()
+					for _, nsDef := range fullyResolved.NamespaceDefinitions {
+						for _, relation := range nsDef.Relation {
+							for _, subject := range subjects.AsSlice() {
+								allObjectIds, ok := objectsPerNamespace.Get(nsDef.Name)
+								if !ok {
+									continue
+								}
+
+								for _, objectID := range allObjectIds {
+									objectIDStr := objectID.(string)
+									onr := &v0.ObjectAndRelation{
+										Namespace: nsDef.Name,
+										Relation:  relation.Name,
+										ObjectId:  objectIDStr,
+									}
+									checkResp, err := srv.Check(context.Background(), &v0.CheckRequest{
+										TestUserset: onr,
+										User: &v0.User{
+											UserOneof: &v0.User_Userset{
+												Userset: subject,
+											},
+										},
+										AtRevision: zookie.NewFromRevision(revision),
+									})
+									require.NoError(t, err)
+									accessibilitySet.Set(onr, subject, checkResp.IsMember)
+								}
+							}
+						}
+					}
+
+					vctx := &validationContext{
 						fullyResolved:       fullyResolved,
 						objectsPerNamespace: objectsPerNamespace,
+						accessibilitySet:    accessibilitySet,
 						dispatch:            dispatch,
 						subjects:            subjects,
 						srv:                 srv,
@@ -138,6 +174,12 @@ func TestConsistency(t *testing.T) {
 					// For each relation in each namespace, for each user, collect the objects accessible
 					// to that user and then verify the lookup returns the same set of objects.
 					validateLookup(t, vctx)
+
+					// Run the developer APIs over the full set of context and ensure they also return the expected information.
+					store := NewInMemoryShareStore("flavored")
+					dev := NewDeveloperServer(store)
+
+					validateDeveloper(t, dev, vctx)
 				})
 			}
 		})
@@ -149,6 +191,7 @@ type validationContext struct {
 
 	objectsPerNamespace *setmultimap.MultiMap
 	subjects            *tuple.ONRSet
+	accessibilitySet    *accessibilitySet
 
 	dispatch graph.Dispatcher
 
@@ -156,7 +199,147 @@ type validationContext struct {
 	revision decimal.Decimal
 }
 
-func validateLookup(t *testing.T, vctx validationContext) {
+func validateDeveloper(t *testing.T, dev v0.DeveloperServiceServer, vctx *validationContext) {
+	reqContext := &v0.RequestContext{
+		LegacyNsConfigs: vctx.fullyResolved.NamespaceDefinitions,
+		Relationships:   vctx.fullyResolved.Tuples,
+	}
+
+	// Validate edit checks (check watches).
+	validateEditChecks(t, dev, reqContext, vctx)
+
+	// Validate assertions and expected relations.
+	validateValidation(t, dev, reqContext, vctx)
+}
+
+func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext *v0.RequestContext, vctx *validationContext) {
+	// Build the Expected Relations (inputs only).
+	expectedMap := map[string]interface{}{}
+	for _, result := range vctx.accessibilitySet.results {
+		if result.isMember {
+			expectedMap[tuple.StringONR(result.object)] = []string{}
+		}
+	}
+
+	expectedRelations, err := yaml.Marshal(expectedMap)
+	require.NoError(t, err, "Could not marshal expected relations map")
+
+	// Run validation with the expected map, to generate the full expected relations YAML string.
+	resp, err := dev.Validate(context.Background(), &v0.ValidateRequest{
+		Context:              reqContext,
+		ValidationYaml:       string(expectedRelations),
+		UpdateValidationYaml: true,
+	})
+	require.NoError(t, err, "Got unexpected error from validation")
+	require.Equal(t, 0, len(resp.RequestErrors), "Got unexpected request error from validation: %s", resp.RequestErrors)
+
+	// Parse the full validation YAML, and ensure every referenced subject is, in fact, allowed.
+	updatedValidationYaml := resp.UpdatedValidationYaml
+	validationMap, err := validationfile.ParseValidationBlock([]byte(updatedValidationYaml))
+	require.NoError(t, err)
+
+	for onrStr, validationStrings := range validationMap {
+		onr, err := onrStr.ONR()
+		require.Nil(t, err)
+
+		for _, validationStr := range validationStrings {
+			subjectONR, err := validationStr.Subject()
+			require.Nil(t, err)
+			require.True(t,
+				vctx.accessibilitySet.IsMember(onr, subjectONR),
+				"Generated expected relations returned inaccessible member %s for %s",
+				tuple.StringONR(subjectONR),
+				tuple.StringONR(onr))
+		}
+	}
+
+	// Build the assertions YAML.
+	var trueAssertions []string
+	var falseAssertions []string
+
+	for _, result := range vctx.accessibilitySet.results {
+		if result.isMember {
+			trueAssertions = append(trueAssertions, fmt.Sprintf("%s@%s", tuple.StringONR(result.object), tuple.StringONR(result.subject)))
+		} else {
+			falseAssertions = append(falseAssertions, fmt.Sprintf("%s@%s", tuple.StringONR(result.object), tuple.StringONR(result.subject)))
+		}
+	}
+
+	assertionsMap := map[string]interface{}{
+		"assertTrue":  trueAssertions,
+		"assertFalse": falseAssertions,
+	}
+	assertions, err := yaml.Marshal(assertionsMap)
+	require.NoError(t, err, "Could not marshal assertions map")
+
+	// Run validation with the assertions and the updated YAML.
+	resp, err = dev.Validate(context.Background(), &v0.ValidateRequest{
+		Context:        reqContext,
+		AssertionsYaml: string(assertions),
+		ValidationYaml: updatedValidationYaml,
+	})
+	require.NoError(t, err, "Got unexpected error from validation")
+	require.Equal(t, 0, len(resp.RequestErrors), "Got unexpected request error from validation: %s", resp.RequestErrors)
+	require.Equal(t, 0, len(resp.ValidationErrors), "Got unexpected validation error from validation: %s", resp.ValidationErrors)
+}
+
+func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext *v0.RequestContext, vctx *validationContext) {
+	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
+		for _, relation := range nsDef.Relation {
+			for _, subject := range vctx.subjects.AsSlice() {
+				objectRelation := &v0.RelationReference{
+					Namespace: nsDef.Name,
+					Relation:  relation.Name,
+				}
+
+				// Run EditCheck to validate checks for each object under the namespace.
+				t.Run(fmt.Sprintf("editcheck_%s_%s_to_%s_%s_%s", objectRelation.Namespace, objectRelation.Relation, subject.Namespace, subject.ObjectId, subject.Relation), func(t *testing.T) {
+					vrequire := require.New(t)
+
+					allObjectIds, ok := vctx.objectsPerNamespace.Get(nsDef.Name)
+					if !ok {
+						return
+					}
+
+					// Add a check relationship for each object ID.
+					var checkRelationships []*v0.RelationTuple
+					for _, objectID := range allObjectIds {
+						objectIDStr := objectID.(string)
+						checkRelationships = append(checkRelationships, &v0.RelationTuple{
+							ObjectAndRelation: &v0.ObjectAndRelation{
+								Namespace: nsDef.Name,
+								Relation:  relation.Name,
+								ObjectId:  objectIDStr,
+							},
+							User: &v0.User{
+								UserOneof: &v0.User_Userset{
+									Userset: subject,
+								},
+							},
+						})
+					}
+
+					// Ensure that all Checks assert true via the developer API.
+					req := &v0.EditCheckRequest{
+						Context:            reqContext,
+						CheckRelationships: checkRelationships,
+					}
+
+					resp, err := dev.EditCheck(context.Background(), req)
+					vrequire.NoError(err, "Got unexpected error from edit check")
+					vrequire.Equal(len(checkRelationships), len(resp.CheckResults))
+					vrequire.Equal(0, len(resp.RequestErrors), "Got unexpected request error from edit check")
+					for _, result := range resp.CheckResults {
+						expectedMember := vctx.accessibilitySet.IsMember(result.Relationship.ObjectAndRelation, subject)
+						vrequire.Equal(expectedMember, result.IsMember, "Found unexpected membership difference for %s", tuple.String(result.Relationship))
+					}
+				})
+			}
+		}
+	}
+}
+
+func validateLookup(t *testing.T, vctx *validationContext) {
 	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
 		for _, relation := range nsDef.Relation {
 			for _, subject := range vctx.subjects.AsSlice() {
@@ -167,48 +350,21 @@ func validateLookup(t *testing.T, vctx validationContext) {
 
 				t.Run(fmt.Sprintf("lookup_%s_%s_to_%s_%s_%s", objectRelation.Namespace, objectRelation.Relation, subject.Namespace, subject.ObjectId, subject.Relation), func(t *testing.T) {
 					vrequire := require.New(t)
-
-					accessibleObjects := []string{}
-					allObjectIds, ok := vctx.objectsPerNamespace.Get(nsDef.Name)
-					if !ok {
-						return
-					}
-
-					// Collect all accessible objects.
-					for _, objectID := range allObjectIds {
-						objectIDStr := objectID.(string)
-						checkResp, err := vctx.srv.Check(context.Background(), &v0.CheckRequest{
-							TestUserset: &v0.ObjectAndRelation{
-								Namespace: nsDef.Name,
-								Relation:  relation.Name,
-								ObjectId:  objectIDStr,
-							},
-							User: &v0.User{
-								UserOneof: &v0.User_Userset{
-									Userset: subject,
-								},
-							},
-							AtRevision: zookie.NewFromRevision(vctx.revision),
-						})
-						vrequire.NoError(err)
-						if checkResp.IsMember {
-							accessibleObjects = append(accessibleObjects, objectIDStr)
-						}
-					}
+					accessibleObjectIds := vctx.accessibilitySet.AccessibleObjectIDs(objectRelation.Namespace, objectRelation.Relation, subject)
 
 					// Perform a lookup call and ensure it returns the at least the same set of object IDs.
 					result, err := vctx.srv.Lookup(context.Background(), &v0.LookupRequest{
 						User:           subject,
 						ObjectRelation: objectRelation,
-						Limit:          uint32(len(accessibleObjects) + 100),
+						Limit:          uint32(len(accessibleObjectIds) + 100),
 						AtRevision:     zookie.NewFromRevision(vctx.revision),
 					})
 					vrequire.NoError(err)
 
-					sort.Strings(accessibleObjects)
+					sort.Strings(accessibleObjectIds)
 					sort.Strings(result.ResolvedObjectIds)
 
-					for _, accessibleObjectID := range accessibleObjects {
+					for _, accessibleObjectID := range accessibleObjectIds {
 						vrequire.True(
 							contains(result.ResolvedObjectIds, accessibleObjectID),
 							"Object `%s` missing in lookup results for %s#%s@%s: Expected: %v. Found: %v",
@@ -216,7 +372,7 @@ func validateLookup(t *testing.T, vctx validationContext) {
 							nsDef.Name,
 							relation.Name,
 							tuple.StringONR(subject),
-							accessibleObjects,
+							accessibleObjectIds,
 							result.ResolvedObjectIds,
 						)
 					}
@@ -252,7 +408,7 @@ func validateLookup(t *testing.T, vctx validationContext) {
 	}
 }
 
-func validateExpansion(t *testing.T, vctx validationContext) {
+func validateExpansion(t *testing.T, vctx *validationContext) {
 	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
 		allObjectIds, ok := vctx.objectsPerNamespace.Get(nsDef.Name)
 		if !ok {
@@ -264,32 +420,7 @@ func validateExpansion(t *testing.T, vctx validationContext) {
 				objectIDStr := objectID.(string)
 				t.Run(fmt.Sprintf("expand_%s_%s_%s", nsDef.Name, objectIDStr, relation.Name), func(t *testing.T) {
 					vrequire := require.New(t)
-
-					// Collect all accessible terminal subjects.
-					accessibleTerminalSubjects := tuple.NewONRSet()
-					for _, subject := range vctx.subjects.AsSlice() {
-						if subject.Relation != "..." {
-							continue
-						}
-
-						checkResp, err := vctx.srv.Check(context.Background(), &v0.CheckRequest{
-							TestUserset: &v0.ObjectAndRelation{
-								Namespace: nsDef.Name,
-								Relation:  relation.Name,
-								ObjectId:  objectIDStr,
-							},
-							User: &v0.User{
-								UserOneof: &v0.User_Userset{
-									Userset: subject,
-								},
-							},
-							AtRevision: zookie.NewFromRevision(vctx.revision),
-						})
-						vrequire.NoError(err)
-						if checkResp.IsMember {
-							accessibleTerminalSubjects.Add(subject)
-						}
-					}
+					accessibleTerminalSubjects := vctx.accessibilitySet.AccessibleTerminalSubjects(nsDef.Name, relation.Name, objectIDStr)
 
 					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
 					resp := vctx.dispatch.Expand(context.Background(), graph.ExpandRequest{
@@ -355,4 +486,68 @@ func contains(s []string, e string) bool {
 		}
 	}
 	return false
+}
+
+type checkResult struct {
+	object   *v0.ObjectAndRelation
+	subject  *v0.ObjectAndRelation
+	isMember bool
+}
+
+// TODO(jschorr): optimize the accessibility set if the consistency tests ever become slow enough
+// that it matters.
+type accessibilitySet struct {
+	results []checkResult
+}
+
+func newAccessibilitySet() *accessibilitySet {
+	return &accessibilitySet{
+		results: []checkResult{},
+	}
+}
+
+func (rs *accessibilitySet) Set(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, isMember bool) {
+	rs.results = append(rs.results, checkResult{object: object, subject: subject, isMember: isMember})
+}
+
+func (rs *accessibilitySet) IsMember(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation) bool {
+	objectStr := tuple.StringONR(object)
+	subjectStr := tuple.StringONR(subject)
+
+	for _, result := range rs.results {
+		if tuple.StringONR(result.object) == objectStr && tuple.StringONR(result.subject) == subjectStr {
+			return result.isMember
+		}
+	}
+
+	panic("Missing matching result")
+}
+
+func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationName string, subject *v0.ObjectAndRelation) []string {
+	var accessibleObjectIDs []string
+	subjectStr := tuple.StringONR(subject)
+	for _, result := range rs.results {
+		if !result.isMember {
+			continue
+		}
+
+		if result.object.Namespace == namespaceName && result.object.Relation == relationName && tuple.StringONR(result.subject) == subjectStr {
+			accessibleObjectIDs = append(accessibleObjectIDs, result.object.ObjectId)
+		}
+	}
+	return accessibleObjectIDs
+}
+
+func (rs *accessibilitySet) AccessibleTerminalSubjects(namespaceName string, relationName string, objectIDStr string) *tuple.ONRSet {
+	accessibleSubjects := tuple.NewONRSet()
+	for _, result := range rs.results {
+		if !result.isMember {
+			continue
+		}
+
+		if result.object.Namespace == namespaceName && result.object.Relation == relationName && result.object.ObjectId == objectIDStr && result.subject.Relation == "..." {
+			accessibleSubjects.Add(result.subject)
+		}
+	}
+	return accessibleSubjects
 }

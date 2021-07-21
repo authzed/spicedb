@@ -65,6 +65,17 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 		return &DevContext{RequestErrors: requestErrors}, false, nil
 	}
 
+	if len(requestContext.LegacyNsConfigs) > 0 {
+		requestErrors, err := loadNamespaces(ctx, requestContext.LegacyNsConfigs, nsm, ds)
+		if err != nil {
+			return &DevContext{}, false, err
+		}
+
+		if len(requestErrors) > 0 {
+			return &DevContext{RequestErrors: requestErrors}, false, nil
+		}
+	}
+
 	revision, requestErrors, err := loadTuples(ctx, requestContext.Relationships, nsm, ds)
 	if err != nil {
 		return &DevContext{Namespaces: namespaces}, false, err
