@@ -1,0 +1,33 @@
+NodeTypeFile
+  end-rune = 50
+  input-source = parens test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = foo
+      end-rune = 50
+      input-source = parens test
+      start-rune = 0
+      child-node =>
+        NodeTypePermission
+          end-rune = 48
+          input-source = parens test
+          relation-name = bar
+          start-rune = 21
+          compute-expression =>
+            NodeTypeIntersectExpression
+              end-rune = 47
+              input-source = parens test
+              start-rune = 39
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 41
+                  identifier-value = maz
+                  input-source = parens test
+                  start-rune = 39
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 47
+                  identifier-value = beh
+                  input-source = parens test
+                  start-rune = 45
