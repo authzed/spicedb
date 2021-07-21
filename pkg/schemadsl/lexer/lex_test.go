@@ -102,6 +102,16 @@ var lexerTests = []lexerTest{
 		{TokenTypeSemicolon, 0, ";"},
 		tEOF,
 	}},
+
+	{"expression with parens", "(foo->bar)\n", []Lexeme{
+		{TokenTypeLeftParen, 0, "("},
+		{TokenTypeIdentifier, 0, "foo"},
+		{TokenTypeRightArrow, 0, "->"},
+		{TokenTypeIdentifier, 0, "bar"},
+		{TokenTypeRightParen, 0, ")"},
+		{TokenTypeSyntheticSemicolon, 0, "\n"},
+		tEOF,
+	}},
 }
 
 func TestLexer(t *testing.T) {

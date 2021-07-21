@@ -65,6 +65,7 @@ var syntheticPredecessors = map[TokenType]bool{
 	TokenTypeKeyword:    true,
 
 	TokenTypeRightBrace: true,
+	TokenTypeRightParen: true,
 }
 
 // lexerEntrypoint scans until EOFRUNE
