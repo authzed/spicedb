@@ -1,4 +1,4 @@
-#!/usr/bin/env -S buf generate ../protos/authzed-api --template
+#!/usr/bin/env -S scripts/buf-generate.sh
 version: "v1beta1"
 plugins:
   - name: "go"
