@@ -153,6 +153,15 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 		})
 		if cr.Err != nil {
 			requestErrors, wireErr := rewriteGraphError(v0.DeveloperError_CHECK_WATCH, 0, 0, tuple.String(checkTpl), cr.Err)
+			if len(requestErrors) == 1 {
+				results = append(results, &v0.EditCheckResult{
+					Relationship: checkTpl,
+					IsMember:     false,
+					Error:        requestErrors[0],
+				})
+				continue
+			}
+
 			return &v0.EditCheckResponse{
 				RequestErrors: requestErrors,
 			}, wireErr

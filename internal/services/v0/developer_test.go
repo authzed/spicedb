@@ -120,13 +120,17 @@ func TestEditCheck(t *testing.T) {
 			[]*v0.RelationTuple{
 				tuple.Scan("somenamespace:someobj#anotherrel@user:foo#..."),
 			},
-			&v0.DeveloperError{
-				Message: "relation/permission `anotherrel` not found under definition `somenamespace`",
-				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
-				Source:  v0.DeveloperError_CHECK_WATCH,
-				Context: "somenamespace:someobj#anotherrel@user:foo#...",
+			nil,
+			[]*v0.EditCheckResult{
+				{
+					Error: &v0.DeveloperError{
+						Message: "relation/permission `anotherrel` not found under definition `somenamespace`",
+						Kind:    v0.DeveloperError_UNKNOWN_RELATION,
+						Source:  v0.DeveloperError_CHECK_WATCH,
+						Context: "somenamespace:someobj#anotherrel@user:foo#...",
+					},
+				},
 			},
-			[]*v0.EditCheckResult{},
 		},
 		{
 			"valid checks",
