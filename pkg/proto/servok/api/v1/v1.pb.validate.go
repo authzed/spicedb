@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"google.golang.org/protobuf/types/known/anypb"
+	"github.com/golang/protobuf/ptypes"
 )
 
 // ensure the imports are used
@@ -30,7 +30,7 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = anypb.Any{}
+	_ = ptypes.DynamicAny{}
 )
 
 // Validate checks the field values on WatchRequest with the rules defined in
@@ -39,6 +39,20 @@ var (
 func (m *WatchRequest) Validate() error {
 	if m == nil {
 		return nil
+	}
+
+	if len(m.GetDnsName()) > 253 {
+		return WatchRequestValidationError{
+			field:  "DnsName",
+			reason: "value length must be at most 253 bytes",
+		}
+	}
+
+	if !_WatchRequest_DnsName_Pattern.MatchString(m.GetDnsName()) {
+		return WatchRequestValidationError{
+			field:  "DnsName",
+			reason: "value does not match regex pattern \"^[a-z0-9]([a-z0-9-\\\\.]{0,251}[a-z0-9])?$\"",
+		}
 	}
 
 	return nil
@@ -97,6 +111,8 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = WatchRequestValidationError{}
+
+var _WatchRequest_DnsName_Pattern = regexp.MustCompile("^[a-z0-9]([a-z0-9-\\.]{0,251}[a-z0-9])?$")
 
 // Validate checks the field values on WatchResponse with the rules defined in
 // the proto definition for this message. If any rules are violated, an error

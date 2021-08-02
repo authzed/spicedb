@@ -22,6 +22,8 @@ import (
 
 var binarySeparator = []byte{':'}
 
+const errInitializingSmartClient = "unable to initialize smart client: %w"
+
 type SmartClient struct {
 	backendsPerKey int
 
@@ -36,7 +38,14 @@ func (f HasherFunc) Sum64(data []byte) uint64 {
 	return f(data)
 }
 
-func NewSmartClient(servokEndpoint, servokCAPath, spicedbCAPath, spicedbToken string) (*SmartClient, error) {
+func NewSmartClient(
+	servokEndpoint string,
+	servokCAPath string,
+	endpointDNSName string,
+	endpointCAPath string,
+	endpointToken string,
+) (*SmartClient, error) {
+
 	cfg := consistent.Config{
 		PartitionCount:    7919,
 		ReplicationFactor: 20,
@@ -46,8 +55,7 @@ func NewSmartClient(servokEndpoint, servokCAPath, spicedbCAPath, spicedbToken st
 
 	pool, err := x509util.CustomCertPool(servokCAPath)
 	if err != nil {
-		// TODO decorate this error
-		return nil, err
+		return nil, fmt.Errorf(errInitializingSmartClient, err)
 	}
 	creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
 
@@ -57,8 +65,7 @@ func NewSmartClient(servokEndpoint, servokCAPath, spicedbCAPath, spicedbToken st
 		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 	)
 	if err != nil {
-		// TODO decorate this error
-		return nil, err
+		return nil, fmt.Errorf(errInitializingSmartClient, err)
 	}
 
 	servokClient := servok.NewEndpointServiceClient(servokConn)
@@ -72,26 +79,25 @@ func NewSmartClient(servokEndpoint, servokCAPath, spicedbCAPath, spicedbToken st
 		cancel,
 	}
 
-	stream, err := servokClient.Watch(servokClientCtx, &servok.WatchRequest{})
+	stream, err := servokClient.Watch(servokClientCtx, &servok.WatchRequest{
+		DnsName: endpointDNSName,
+	})
 	if err != nil {
 		cancel()
 
-		// TODO decorate this error
-		return nil, err
+		return nil, fmt.Errorf(errInitializingSmartClient, err)
 	}
 
-	spicedbPool, err := x509util.CustomCertPool(spicedbCAPath)
+	endpointPool, err := x509util.CustomCertPool(endpointCAPath)
 	if err != nil {
 		cancel()
 
-		// TODO decorate this error
-		return nil, err
+		return nil, fmt.Errorf(errInitializingSmartClient, err)
 	}
-	// TODO bring in this server name from config
-	spicedbCreds := credentials.NewTLS(&tls.Config{RootCAs: spicedbPool, ServerName: "spicedb"})
+	spicedbCreds := credentials.NewTLS(&tls.Config{RootCAs: endpointPool, ServerName: endpointDNSName})
 
 	endpointClientDialOptions := []grpc.DialOption{
-		client_v0.Token(spicedbToken),
+		client_v0.Token(endpointToken),
 		grpc.WithTransportCredentials(spicedbCreds),
 		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 	}
@@ -127,10 +133,15 @@ func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.En
 		log.Fatal().Err(ctx.Err()).Msg("cannot update members, client already stopped")
 	}
 
+	membersToRemove := map[string]struct{}{}
+	for _, existingMember := range sc.ring.GetMembers() {
+		membersToRemove[existingMember.String()] = struct{}{}
+	}
+
 	for _, endpoint := range endpoints {
 		clientEndpoint := fmt.Sprintf("%s:%d", endpoint.Hostname, endpoint.Port)
 
-		log.Info().Str("endpoint", clientEndpoint).Msg("constructing client for endpoint")
+		log.Debug().Str("endpoint", clientEndpoint).Msg("constructing client for endpoint")
 
 		v0clientForMember, err := client_v0.NewClient(clientEndpoint, endpointDialOptions...)
 		if err != nil {
@@ -147,7 +158,16 @@ func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.En
 			client_v0:       v0clientForMember,
 			client_v1alpha1: v1alpha1clientForMember,
 		}
+
+		log.Debug().Stringer("memberName", memberToAdd).Msg("adding hashring member")
 		sc.ring.Add(memberToAdd)
+
+		delete(membersToRemove, memberToAdd.String())
+	}
+
+	for memberName := range membersToRemove {
+		log.Debug().Str("memberName", memberName).Msg("removing hashring member")
+		sc.ring.Remove(memberName)
 	}
 
 	log.Info().Int("numEndpoints", len(endpoints)).Msg("updated smart client endpoint list")
