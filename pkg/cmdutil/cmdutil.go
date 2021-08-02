@@ -10,11 +10,11 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/trace/jaeger"
+	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/semconv"
+	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
 // RegisterLoggingPersistentFlags registers the PersistentFlags required to
@@ -83,16 +83,16 @@ func TracingPreRun(cmd *cobra.Command, args []string) {
 }
 
 func initJaegerTracer(endpoint, serviceName string) {
-	exp, err := jaeger.NewRawExporter(jaeger.WithCollectorEndpoint(endpoint))
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize jaeger exporter")
 	}
 
 	// Configure the global tracer as a batched, always sampling Jaeger exporter.
-	otel.SetTracerProvider(sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exp)),
-		sdktrace.WithResource(resource.NewWithAttributes(semconv.ServiceNameKey.String(serviceName))),
+	otel.SetTracerProvider(trace.NewTracerProvider(
+		trace.WithSampler(trace.AlwaysSample()),
+		trace.WithSpanProcessor(trace.NewBatchSpanProcessor(exp)),
+		trace.WithResource(resource.NewSchemaless(semconv.ServiceNameKey.String(serviceName))),
 	))
 
 	// Configure the global tracer to use the W3C method for propagating contexts

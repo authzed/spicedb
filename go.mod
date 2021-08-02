@@ -8,6 +8,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/aws/aws-sdk-go v1.40.2
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cockroachdb/cockroach v20.1.15+incompatible
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
@@ -24,8 +25,8 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-memdb v1.3.2
-	github.com/jackc/pgconn v1.9.0
-	github.com/jackc/pgx/v4 v4.12.0
+	github.com/jackc/pgconn v1.10.0
+	github.com/jackc/pgx/v4 v4.13.0
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
@@ -40,15 +41,14 @@ require (
 	github.com/rs/zerolog v1.23.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/shopspring/decimal v1.2.0
-	github.com/spf13/cobra v1.1.3
-	github.com/spf13/viper v1.8.1 // indirect
+	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.19.0
-	go.opentelemetry.io/otel v0.19.0
-	go.opentelemetry.io/otel/exporters/trace/jaeger v0.19.0
-	go.opentelemetry.io/otel/sdk v0.19.0
-	go.opentelemetry.io/otel/trace v0.19.0
-	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.22.0
+	go.opentelemetry.io/otel v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/jaeger v1.0.0-RC2
+	go.opentelemetry.io/otel/sdk v1.0.0-RC2
+	go.opentelemetry.io/otel/trace v1.0.0-RC2
+	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 	google.golang.org/genproto v0.0.0-20210630183607-d20f26d13c79
 	google.golang.org/grpc v1.39.0
