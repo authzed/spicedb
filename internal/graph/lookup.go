@@ -126,30 +126,38 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 }
 
 func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest, tracer DebugTracer, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
-	// Check for the target ONR directly.
 	objects := tuple.NewONRSet()
-	it, err := cl.ds.ReverseQueryTuplesFromSubject(req.TargetONR, req.AtRevision).
-		WithObjectRelation(req.StartRelation.Namespace, req.StartRelation.Relation).
-		Execute(ctx)
+	thisTracer := tracer.Child("_this")
+
+	// Check for the target ONR directly, if it is allowed on the start relation.
+	isDirectAllowed, err := typeSystem.IsAllowedDirectRelation(req.StartRelation.Relation, req.TargetONR.Namespace, req.TargetONR.Relation)
 	if err != nil {
 		return ResolveError(err)
 	}
-	defer it.Close()
 
-	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-		objects.Add(tpl.ObjectAndRelation)
-	}
+	if isDirectAllowed == namespace.DirectRelationValid {
+		it, err := cl.ds.ReverseQueryTuplesFromSubject(req.TargetONR, req.AtRevision).
+			WithObjectRelation(req.StartRelation.Namespace, req.StartRelation.Relation).
+			Execute(ctx)
+		if err != nil {
+			return ResolveError(err)
+		}
+		defer it.Close()
 
-	if it.Err() != nil {
-		return ResolveError(it.Err())
-	}
+		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+			objects.Add(tpl.ObjectAndRelation)
+		}
 
-	thisTracer := tracer.Child("_this")
-	thisTracer.Add("Local", EmittableObjectSet(*objects))
+		if it.Err() != nil {
+			return ResolveError(it.Err())
+		}
 
-	// If we've hit the limit of results already, then nothing more to do.
-	if objects.Length() >= req.Limit {
-		return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
+		thisTracer.Add("Local", EmittableObjectSet(*objects))
+
+		// If we've hit the limit of results already, then nothing more to do.
+		if objects.Length() >= req.Limit {
+			return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
+		}
 	}
 
 	// Dispatch to any allowed direct relation types that don't match the target ONR, collect
