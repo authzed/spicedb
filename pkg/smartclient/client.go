@@ -141,8 +141,6 @@ func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.En
 	for _, endpoint := range endpoints {
 		clientEndpoint := fmt.Sprintf("%s:%d", endpoint.Hostname, endpoint.Port)
 
-		log.Debug().Str("endpoint", clientEndpoint).Msg("constructing client for endpoint")
-
 		v0clientForMember, err := client_v0.NewClient(clientEndpoint, endpointDialOptions...)
 		if err != nil {
 			log.Fatal().Str("endpoint", clientEndpoint).Err(err).Msg("error constructing client for endpoint")
@@ -159,10 +157,16 @@ func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.En
 			client_v1alpha1: v1alpha1clientForMember,
 		}
 
-		log.Debug().Stringer("memberName", memberToAdd).Msg("adding hashring member")
-		sc.ring.Add(memberToAdd)
+		memberName := memberToAdd.String()
 
-		delete(membersToRemove, memberToAdd.String())
+		if _, ok := membersToRemove[memberName]; ok {
+			// This is both an existing and new member, do not remove it
+			delete(membersToRemove, memberName)
+		} else {
+			// This is a net-new member, add it to the hashring
+			log.Debug().Str("memberName", memberName).Msg("adding hashring member")
+			sc.ring.Add(memberToAdd)
+		}
 	}
 
 	for memberName := range membersToRemove {
@@ -212,5 +216,5 @@ type backend struct {
 // Implements consistent.Member
 // This value is what will be hashed for placement on the consistent hash ring.
 func (b *backend) String() string {
-	return fmt.Sprintf("0 %d %d %s", b.endpoint.Weight, b.endpoint.Port, b.endpoint.Hostname)
+	return fmt.Sprintf("%d %s", b.endpoint.Port, b.endpoint.Hostname)
 }
