@@ -42,9 +42,10 @@ func (cds *crdbDatastore) QueryTuples(namespace string, revision datastore.Revis
 }
 
 type commonTupleQuery struct {
-	conn     *pgxpool.Pool
-	query    sq.SelectBuilder
-	revision datastore.Revision
+	conn      *pgxpool.Pool
+	query     sq.SelectBuilder
+	revision  datastore.Revision
+	isReverse bool
 }
 
 type crdbTupleQuery struct {
@@ -77,10 +78,41 @@ func (ctq crdbTupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.T
 	return ctq
 }
 
+func (ctq crdbTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
+	if len(usersets) == 0 {
+		panic("Cannot send empty usersets into query")
+	}
+
+	var clause sq.Sqlizer = sq.Eq{
+		colUsersetNamespace: usersets[0].Namespace,
+		colUsersetObjectID:  usersets[0].ObjectId,
+		colUsersetRelation:  usersets[0].Relation,
+	}
+
+	for _, userset := range usersets[1:] {
+		clause = sq.Or{
+			clause,
+			sq.Eq{
+				colUsersetNamespace: userset.Namespace,
+				colUsersetObjectID:  userset.ObjectId,
+				colUsersetRelation:  userset.Relation,
+			},
+		}
+	}
+
+	ctq.query = ctq.query.Where(clause)
+	return ctq
+}
+
 func (ctq commonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	ctx, span := tracer.Start(ctx, "ExecuteTupleQuery")
+	name := "ExecuteTupleQuery"
+	if ctq.isReverse {
+		name = "ExecuteReverseTupleQuery"
+	}
+
+	ctx, span := tracer.Start(ctx, name)
 	defer span.End()
 
 	sql, args, err := ctq.query.ToSql()

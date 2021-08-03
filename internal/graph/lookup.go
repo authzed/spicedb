@@ -235,15 +235,11 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 			// For each inferred object found, check for the target ONR.
 			resultsTracer := directTracer.Child("Results To Check")
 			objects := tuple.NewONRSet()
-
-			// TODO(jschorr): Use a parallel dataloader here
-		outerLoop:
-			for _, resolvedObj := range result.ResolvedObjects {
-				resultTracer := resultsTracer.Child(tuple.StringONR(resolvedObj))
-
+			if len(result.ResolvedObjects) > 0 {
 				it, err := cl.ds.QueryTuples(req.StartRelation.Namespace, req.AtRevision).
 					WithRelation(req.StartRelation.Relation).
-					WithUserset(resolvedObj).
+					WithUsersets(result.ResolvedObjects).
+					Limit(uint64(req.Limit)).
 					Execute(ctx)
 				if err != nil {
 					resultChan <- LookupResult{Err: err}
@@ -257,14 +253,15 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 						return
 					}
 
-					resultTracer.Child(tuple.StringONR(tpl.ObjectAndRelation))
+					resultsTracer.Child(tuple.StringONR(tpl.ObjectAndRelation))
 
 					objects.Add(tpl.ObjectAndRelation)
 					if objects.Length() >= req.Limit {
-						break outerLoop
+						break
 					}
 				}
 			}
+
 			resultChan <- LookupResult{ResolvedObjects: objects.AsSlice()}
 		})
 	}
@@ -391,13 +388,12 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 				return
 			}
 
-			// For each computed userset object, perform a tupleset lookup.
-			objects := tuple.NewONRSet()
+			// For each computed userset object, collect the usersets and then perform a tupleset lookup.
 			computedUsersetResultsTracer := computedUsersetTracer.Childf("Results")
 
-		outerLoop:
+			usersets := []*v0.ObjectAndRelation{}
 			for _, resolvedObj := range result.ResolvedObjects {
-				tuplesetResultsTracer := computedUsersetResultsTracer.Childf("tupleset from %s", tuple.StringONR(resolvedObj))
+				computedUsersetResultsTracer.Childf("tupleset from %s", tuple.StringONR(resolvedObj))
 
 				// Determine the relation(s) to use or the tupleset. This is determined based on the allowed direct relations and
 				// we always check for both the actual relation resolved, as well as `...`
@@ -423,47 +419,51 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 					}
 				}
 
-				// TODO(jschorr): use a parallel data loader here
 				for _, allowedRelation := range allowedRelations {
 					userset := &v0.ObjectAndRelation{
 						Namespace: resolvedObj.Namespace,
 						ObjectId:  resolvedObj.ObjectId,
 						Relation:  allowedRelation,
 					}
+					usersets = append(usersets, userset)
+				}
+			}
 
-					tuplesetSpecificResultsTracer := tuplesetResultsTracer.Childf(tuple.StringONR(userset))
-					it, err := cl.ds.QueryTuples(req.StartRelation.Namespace, req.AtRevision).
-						WithRelation(ttu.Tupleset.Relation).
-						WithUserset(userset).
-						Execute(ctx)
-					if err != nil {
-						resultChan <- LookupResult{Err: err}
+			// Perform the tupleset lookup.
+			objects := tuple.NewONRSet()
+			if len(usersets) > 0 {
+				it, err := cl.ds.QueryTuples(req.StartRelation.Namespace, req.AtRevision).
+					WithRelation(ttu.Tupleset.Relation).
+					WithUsersets(usersets).
+					Limit(uint64(req.Limit)).
+					Execute(ctx)
+				if err != nil {
+					resultChan <- LookupResult{Err: err}
+					return
+				}
+				defer it.Close()
+
+				for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+					if it.Err() != nil {
+						resultChan <- LookupResult{Err: it.Err()}
 						return
 					}
-					defer it.Close()
 
-					for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-						if it.Err() != nil {
-							resultChan <- LookupResult{Err: it.Err()}
-							return
-						}
+					computedUsersetResultsTracer.Child(tuple.String(tpl))
 
-						tuplesetSpecificResultsTracer.Child(tuple.String(tpl))
+					if tpl.ObjectAndRelation.Namespace != req.StartRelation.Namespace {
+						resultChan <- LookupResult{Err: fmt.Errorf("got unexpected namespace")}
+						return
+					}
 
-						if tpl.ObjectAndRelation.Namespace != req.StartRelation.Namespace {
-							resultChan <- LookupResult{Err: fmt.Errorf("got unexpected namespace")}
-							return
-						}
+					objects.Add(&v0.ObjectAndRelation{
+						Namespace: req.StartRelation.Namespace,
+						ObjectId:  tpl.ObjectAndRelation.ObjectId,
+						Relation:  req.StartRelation.Relation,
+					})
 
-						objects.Add(&v0.ObjectAndRelation{
-							Namespace: req.StartRelation.Namespace,
-							ObjectId:  tpl.ObjectAndRelation.ObjectId,
-							Relation:  req.StartRelation.Relation,
-						})
-
-						if objects.Length() >= req.Limit {
-							break outerLoop
-						}
+					if objects.Length() >= req.Limit {
+						break
 					}
 				}
 			}

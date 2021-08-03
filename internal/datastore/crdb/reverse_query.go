@@ -16,7 +16,8 @@ func (cds *crdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRel
 				colUsersetRelation:  subject.Relation,
 				colUsersetObjectID:  subject.ObjectId,
 			}),
-			revision: revision,
+			revision:  revision,
+			isReverse: true,
 		},
 	}
 }
@@ -29,7 +30,8 @@ func (cds *crdbDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace
 				colUsersetNamespace: subjectNamespace,
 				colUsersetRelation:  subjectRelation,
 			}),
-			revision: revision,
+			revision:  revision,
+			isReverse: true,
 		},
 	}
 }

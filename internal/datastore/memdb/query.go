@@ -20,6 +20,7 @@ type memdbTupleQuery struct {
 	objectIDFilter *string
 	relationFilter *string
 	usersetFilter  *v0.ObjectAndRelation
+	usersetsFilter []*v0.ObjectAndRelation
 	limit          *uint64
 
 	simulatedLatency time.Duration
@@ -45,6 +46,11 @@ func (mtq memdbTupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.
 	return mtq
 }
 
+func (mtq memdbTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
+	mtq.usersetsFilter = usersets
+	return mtq
+}
+
 func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	txn := mtq.db.Txn(false)
 
@@ -66,6 +72,12 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 			mtq.usersetFilter.Namespace,
 			mtq.usersetFilter.ObjectId,
 			mtq.usersetFilter.Relation,
+		)
+	} else if mtq.usersetsFilter != nil && len(mtq.usersetsFilter) > 0 {
+		bestIterator, err = txn.Get(
+			tableTuple,
+			indexNamespace,
+			mtq.namespace,
 		)
 	} else if mtq.relationFilter != nil {
 		bestIterator, err = txn.Get(
@@ -101,6 +113,20 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 			mtq.usersetFilter.Relation != tuple.usersetRelation) {
 			return true
 		}
+
+		if len(mtq.usersetsFilter) > 0 {
+			found := false
+			for _, filter := range mtq.usersetsFilter {
+				if filter.Namespace == tuple.usersetNamespace &&
+					filter.ObjectId == tuple.usersetObjectID &&
+					filter.Relation == tuple.usersetRelation {
+					found = true
+					break
+				}
+			}
+			return !found
+		}
+
 		if uint64(mtq.revision.IntPart()) < tuple.createdTxn || uint64(mtq.revision.IntPart()) >= tuple.deletedTxn {
 			return true
 		}

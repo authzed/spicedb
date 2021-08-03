@@ -79,6 +79,32 @@ func (ptq pgTupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.Tup
 	return ptq
 }
 
+func (ptq pgTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
+	if len(usersets) == 0 {
+		panic("Cannot send empty usersets into query")
+	}
+
+	var clause sq.Sqlizer = sq.Eq{
+		colUsersetNamespace: usersets[0].Namespace,
+		colUsersetObjectID:  usersets[0].ObjectId,
+		colUsersetRelation:  usersets[0].Relation,
+	}
+
+	for _, userset := range usersets[1:] {
+		clause = sq.Or{
+			clause,
+			sq.Eq{
+				colUsersetNamespace: userset.Namespace,
+				colUsersetObjectID:  userset.ObjectId,
+				colUsersetRelation:  userset.Relation,
+			},
+		}
+	}
+
+	ptq.query = ptq.query.Where(clause)
+	return ptq
+}
+
 func (ctq commonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	ctx, span := tracer.Start(ctx, "ExecuteTupleQuery")
 	defer span.End()
