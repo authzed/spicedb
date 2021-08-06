@@ -47,6 +47,9 @@ func (mtq memdbTupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.
 }
 
 func (mtq memdbTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
+	if usersets == nil || len(usersets) == 0 {
+		panic("Given nil or empty usersets")
+	}
 	mtq.usersetsFilter = usersets
 	return mtq
 }

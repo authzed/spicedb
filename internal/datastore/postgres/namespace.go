@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
@@ -20,8 +21,6 @@ const (
 	errUnableToReadConfig   = "unable to read namespace config: %w"
 	errUnableToDeleteConfig = "unable to delete namespace config: %w"
 )
-
-var namespaceNameKey = attribute.Key("authzed.com/spicedb/namespaceName")
 
 var (
 	writeNamespace = psql.Insert(tableNamespace).Columns(
@@ -45,7 +44,7 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Namesp
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
 	defer span.End()
 
-	span.SetAttributes(namespaceNameKey.String(newConfig.Name))
+	span.SetAttributes(common.NamespaceNameKey.String(newConfig.Name))
 
 	serialized, err := proto.Marshal(newConfig)
 	if err != nil {
