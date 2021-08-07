@@ -9,7 +9,6 @@ require (
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/authzed/authzed-go v0.0.2
 	github.com/aws/aws-sdk-go v1.40.16
-	github.com/buraksezer/consistent v0.9.0
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/cockroachdb/cockroach v20.1.15+incompatible

@@ -9,10 +9,8 @@ import (
 )
 
 func (sc *SmartClient) Check(ctx context.Context, req *v0.CheckRequest, opts ...grpc.CallOption) (*v0.CheckResponse, error) {
-	requestKey := marshalCheckRequest(req)
-	backend, err := sc.getConsistentBackend(requestKey)
+	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
-		// TODO rewrite this error?
 		return nil, err
 	}
 
@@ -20,10 +18,8 @@ func (sc *SmartClient) Check(ctx context.Context, req *v0.CheckRequest, opts ...
 }
 
 func (sc *SmartClient) ContentChangeCheck(ctx context.Context, req *v0.ContentChangeCheckRequest, opts ...grpc.CallOption) (*v0.CheckResponse, error) {
-	requestKey := marshalContentChangeCheckRequest(req)
-	backend, err := sc.getConsistentBackend(requestKey)
+	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
-		// TODO rewrite this error?
 		return nil, err
 	}
 
@@ -31,10 +27,8 @@ func (sc *SmartClient) ContentChangeCheck(ctx context.Context, req *v0.ContentCh
 }
 
 func (sc *SmartClient) Read(ctx context.Context, req *v0.ReadRequest, opts ...grpc.CallOption) (*v0.ReadResponse, error) {
-	requestKey := marshalReadRequest(req)
-	backend, err := sc.getConsistentBackend(requestKey)
+	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
-		// TODO rewrite this error?
 		return nil, err
 	}
 
@@ -42,15 +36,16 @@ func (sc *SmartClient) Read(ctx context.Context, req *v0.ReadRequest, opts ...gr
 }
 
 func (sc *SmartClient) Write(ctx context.Context, req *v0.WriteRequest, opts ...grpc.CallOption) (*v0.WriteResponse, error) {
-	backend := sc.getRandomBackend()
+	backend, err := sc.getRandomBackend()
+	if err != nil {
+		return nil, err
+	}
 	return backend.client_v0.Write(ctx, req, opts...)
 }
 
 func (sc *SmartClient) Expand(ctx context.Context, req *v0.ExpandRequest, opts ...grpc.CallOption) (*v0.ExpandResponse, error) {
-	requestKey := marshalExpandRequest(req)
-	backend, err := sc.getConsistentBackend(requestKey)
+	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
-		// TODO rewrite this error?
 		return nil, err
 	}
 
@@ -58,10 +53,8 @@ func (sc *SmartClient) Expand(ctx context.Context, req *v0.ExpandRequest, opts .
 }
 
 func (sc *SmartClient) Lookup(ctx context.Context, req *v0.LookupRequest, opts ...grpc.CallOption) (*v0.LookupResponse, error) {
-	requestKey := marshalLookupRequest(req)
-	backend, err := sc.getConsistentBackend(requestKey)
+	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
-		// TODO rewrite this error?
 		return nil, err
 	}
 
@@ -69,10 +62,8 @@ func (sc *SmartClient) Lookup(ctx context.Context, req *v0.LookupRequest, opts .
 }
 
 func (sc *SmartClient) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest, opts ...grpc.CallOption) (*v0.ReadConfigResponse, error) {
-	requestKey := marshalReadConfigRequest(req)
-	backend, err := sc.getConsistentBackend(requestKey)
+	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
-		// TODO rewrite this error?
 		return nil, err
 	}
 
@@ -80,15 +71,16 @@ func (sc *SmartClient) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest
 }
 
 func (sc *SmartClient) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest, opts ...grpc.CallOption) (*v0.WriteConfigResponse, error) {
-	backend := sc.getRandomBackend()
+	backend, err := sc.getRandomBackend()
+	if err != nil {
+		return nil, err
+	}
 	return backend.client_v0.WriteConfig(ctx, req, opts...)
 }
 
 func (sc *SmartClient) ReadSchema(ctx context.Context, req *v1alpha1.ReadSchemaRequest, opts ...grpc.CallOption) (*v1alpha1.ReadSchemaResponse, error) {
-	requestKey := marshalReadSchemaRequest(req)
-	backend, err := sc.getConsistentBackend(requestKey)
+	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
-		// TODO rewrite this error?
 		return nil, err
 	}
 
@@ -96,6 +88,9 @@ func (sc *SmartClient) ReadSchema(ctx context.Context, req *v1alpha1.ReadSchemaR
 }
 
 func (sc *SmartClient) WriteSchema(ctx context.Context, req *v1alpha1.WriteSchemaRequest, opts ...grpc.CallOption) (*v1alpha1.WriteSchemaResponse, error) {
-	backend := sc.getRandomBackend()
+	backend, err := sc.getRandomBackend()
+	if err != nil {
+		return nil, err
+	}
 	return backend.client_v1alpha1.WriteSchema(ctx, req, opts...)
 }

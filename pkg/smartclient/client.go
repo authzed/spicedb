@@ -3,41 +3,44 @@ package smartclient
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
 
 	client_v0 "github.com/authzed/authzed-go/v0"
 	client_v1alpha1 "github.com/authzed/authzed-go/v1alpha1"
-	"github.com/buraksezer/consistent"
 	"github.com/cespare/xxhash"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/pkg/consistent"
 	servok "github.com/authzed/spicedb/pkg/proto/servok/api/v1"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
 
-var binarySeparator = []byte{':'}
+const (
+	errInitializingSmartClient = "unable to initialize smart client: %w"
+	errComputingBackend        = "unable to marshal request: %w"
+)
 
-const errInitializingSmartClient = "unable to initialize smart client: %w"
+var errNoBackends = errors.New("no backends available for request")
 
+// SmartClient is a client which utilizes a dynamic source of backends and a consistent
+// hashring implementation for consistently calling the same backend for the same request.
 type SmartClient struct {
-	backendsPerKey int
+	backendsPerKey uint8
 
-	ringMu      sync.Mutex
-	ring        *consistent.Consistent
-	cancelWatch context.CancelFunc
+	ringMu       sync.Mutex
+	ring         *consistent.Hashring
+	cancelWatch  context.CancelFunc
+	protoMarshal proto.MarshalOptions
 }
 
-type HasherFunc func([]byte) uint64
-
-func (f HasherFunc) Sum64(data []byte) uint64 {
-	return f(data)
-}
-
+// NewSmartClient creates an instance of the smart client with the specified configuration.
 func NewSmartClient(
 	servokEndpoint string,
 	servokCAPath string,
@@ -45,14 +48,6 @@ func NewSmartClient(
 	endpointCAPath string,
 	endpointToken string,
 ) (*SmartClient, error) {
-
-	cfg := consistent.Config{
-		PartitionCount:    7919,
-		ReplicationFactor: 20,
-		Load:              1.25,
-		Hasher:            HasherFunc(xxhash.Sum64),
-	}
-
 	pool, err := x509util.CustomCertPool(servokCAPath)
 	if err != nil {
 		return nil, fmt.Errorf(errInitializingSmartClient, err)
@@ -75,8 +70,9 @@ func NewSmartClient(
 	sc := &SmartClient{
 		1,
 		sync.Mutex{},
-		consistent.New(nil, cfg),
+		consistent.NewHashring(xxhash.Sum64, 20),
 		cancel,
+		proto.MarshalOptions{Deterministic: true},
 	}
 
 	stream, err := servokClient.Watch(servokClientCtx, &servok.WatchRequest{
@@ -133,9 +129,9 @@ func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.En
 		log.Fatal().Err(ctx.Err()).Msg("cannot update members, client already stopped")
 	}
 
-	membersToRemove := map[string]struct{}{}
-	for _, existingMember := range sc.ring.GetMembers() {
-		membersToRemove[existingMember.String()] = struct{}{}
+	membersToRemove := map[string]consistent.Member{}
+	for _, existingMember := range sc.ring.Members() {
+		membersToRemove[existingMember.Key()] = existingMember
 	}
 
 	for _, endpoint := range endpoints {
@@ -157,21 +153,21 @@ func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.En
 			client_v1alpha1: v1alpha1clientForMember,
 		}
 
-		memberName := memberToAdd.String()
+		memberKey := memberToAdd.Key()
 
-		if _, ok := membersToRemove[memberName]; ok {
+		if _, ok := membersToRemove[memberKey]; ok {
 			// This is both an existing and new member, do not remove it
-			delete(membersToRemove, memberName)
+			delete(membersToRemove, memberKey)
 		} else {
 			// This is a net-new member, add it to the hashring
-			log.Debug().Str("memberName", memberName).Msg("adding hashring member")
+			log.Debug().Str("memberKey", memberKey).Msg("adding hashring member")
 			sc.ring.Add(memberToAdd)
 		}
 	}
 
-	for memberName := range membersToRemove {
+	for memberName, member := range membersToRemove {
 		log.Debug().Str("memberName", memberName).Msg("removing hashring member")
-		sc.ring.Remove(memberName)
+		sc.ring.Remove(member)
 	}
 
 	log.Info().Int("numEndpoints", len(endpoints)).Msg("updated smart client endpoint list")
@@ -184,27 +180,35 @@ func (sc *SmartClient) Stop() {
 
 	sc.cancelWatch()
 
-	for _, member := range sc.ring.GetMembers() {
-		sc.ring.Remove(member.String())
+	for _, member := range sc.ring.Members() {
+		sc.ring.Remove(member)
 	}
 }
 
-func (sc *SmartClient) getConsistentBackend(requestKey []byte) (*backend, error) {
-	members, err := sc.ring.GetClosestN(requestKey, sc.backendsPerKey)
+func (sc *SmartClient) getConsistentBackend(request proto.Message) (*backend, error) {
+	requestKey, err := sc.protoMarshal.Marshal(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(errComputingBackend, err)
 	}
 
-	chosen := members[rand.Intn(sc.backendsPerKey)].(*backend)
+	members, err := sc.ring.FindN(requestKey, sc.backendsPerKey)
+	if err != nil {
+		return nil, fmt.Errorf(errComputingBackend, err)
+	}
 
-	log.Debug().Stringer("chosen", chosen).Msg("chose consistent backend for call")
+	chosen := members[rand.Intn(int(sc.backendsPerKey))].(*backend)
+
+	log.Debug().Str("chosen", chosen.Key()).Msg("chose consistent backend for call")
 
 	return chosen, nil
 }
 
-func (sc *SmartClient) getRandomBackend() *backend {
-	allMembers := sc.ring.GetMembers()
-	return allMembers[rand.Intn(len(allMembers))].(*backend)
+func (sc *SmartClient) getRandomBackend() (*backend, error) {
+	allMembers := sc.ring.Members()
+	if len(allMembers) < 1 {
+		return nil, errNoBackends
+	}
+	return allMembers[rand.Intn(len(allMembers))].(*backend), nil
 }
 
 type backend struct {
@@ -215,6 +219,6 @@ type backend struct {
 
 // Implements consistent.Member
 // This value is what will be hashed for placement on the consistent hash ring.
-func (b *backend) String() string {
+func (b *backend) Key() string {
 	return fmt.Sprintf("%d %s", b.endpoint.Port, b.endpoint.Hostname)
 }
