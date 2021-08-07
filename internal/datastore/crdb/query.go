@@ -37,14 +37,15 @@ var schema = common.SchemaInformation{
 
 func (cds *crdbDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
 	return common.TupleQuery{
-		Conn:               cds.conn,
-		Schema:             schema,
-		PrepareTransaction: cds.prepareTransaction,
-		Query:              queryTuples.Where(sq.Eq{colNamespace: namespace}),
-		Revision:           revision,
-		Tracer:             tracer,
-		TracerAttributes:   []attribute.KeyValue{common.NamespaceNameKey.String(namespace)},
-		DebugName:          "QueryTuples",
+		Conn:                      cds.conn,
+		Schema:                    schema,
+		PrepareTransaction:        cds.prepareTransaction,
+		Query:                     queryTuples.Where(sq.Eq{colNamespace: namespace}),
+		Revision:                  revision,
+		Tracer:                    tracer,
+		TracerAttributes:          []attribute.KeyValue{common.NamespaceNameKey.String(namespace)},
+		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
+		DebugName:                 "QueryTuples",
 	}
 }
 
@@ -56,14 +57,15 @@ func (cds *crdbDatastore) prepareTransaction(ctx context.Context, tx pgx.Tx, rev
 
 func (cds *crdbDatastore) reverseQueryBase(revision datastore.Revision) common.TupleQuery {
 	return common.TupleQuery{
-		Conn:               cds.conn,
-		Schema:             schema,
-		PrepareTransaction: cds.prepareTransaction,
-		Query:              queryTuples,
-		Revision:           revision,
-		Tracer:             tracer,
-		TracerAttributes:   []attribute.KeyValue{},
-		DebugName:          "ReverseQueryTuples",
+		Conn:                      cds.conn,
+		Schema:                    schema,
+		PrepareTransaction:        cds.prepareTransaction,
+		Query:                     queryTuples,
+		Revision:                  revision,
+		Tracer:                    tracer,
+		TracerAttributes:          []attribute.KeyValue{},
+		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
+		DebugName:                 "ReverseQueryTuples",
 	}
 }
 

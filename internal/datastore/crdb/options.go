@@ -3,13 +3,16 @@ package crdb
 import (
 	"fmt"
 	"time"
+
+	"github.com/alecthomas/units"
 )
 
 type crdbOptions struct {
-	connMaxIdleTime *time.Duration
-	connMaxLifetime *time.Duration
-	minOpenConns    *int
-	maxOpenConns    *int
+	connMaxIdleTime           *time.Duration
+	connMaxLifetime           *time.Duration
+	minOpenConns              *int
+	maxOpenConns              *int
+	splitAtEstimatedQuerySize *units.Base2Bytes
 
 	watchBufferLength    uint16
 	revisionQuantization time.Duration
@@ -46,6 +49,14 @@ func generateConfig(options []CRDBOption) (crdbOptions, error) {
 	}
 
 	return computed, nil
+}
+
+// SplitAtEstimatedQuerySize is the query size at which it is split into two (or more) queries.
+// Default: common.DefaultSplitAtEstimatedQuerySize
+func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) CRDBOption {
+	return func(po *crdbOptions) {
+		po.splitAtEstimatedQuerySize = &splitAtEstimatedQuerySize
+	}
 }
 
 // ConnMaxIdleTime is the duration after which an idle connection will be automatically closed by

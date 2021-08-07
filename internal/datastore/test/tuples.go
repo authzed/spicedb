@@ -246,3 +246,56 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 		require.Equal(datastore.RevisionInFuture, revisionErr.Reason())
 	})
 }
+
+func TestUsersets(t *testing.T, tester DatastoreTester) {
+	testCases := []int{1, 2, 4, 32, 1024}
+
+	t.Run("multiple usersets tuple query", func(t *testing.T) {
+		for _, numTuples := range testCases {
+			t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
+				require := require.New(t)
+
+				ds, err := tester.New(0, veryLargeGCWindow, 1)
+				require.NoError(err)
+
+				setupDatastore(ds, require)
+
+				tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
+
+				var testTuples []*v0.RelationTuple
+
+				ctx := context.Background()
+
+				// Add test tuples on the same resource but with different users.
+				var lastRevision datastore.Revision
+
+				usersets := []*v0.ObjectAndRelation{}
+				for i := 0; i < numTuples; i++ {
+					resourceName := "theresource"
+					userName := fmt.Sprintf("user%d", i)
+
+					newTuple := makeTestTuple(resourceName, userName)
+					testTuples = append(testTuples, newTuple)
+					usersets = append(usersets, newTuple.User.GetUserset())
+
+					writtenAt, err := ds.WriteTuples(
+						ctx,
+						nil,
+						[]*v0.RelationTupleUpdate{tuple.Create(newTuple)},
+					)
+					require.NoError(err)
+					require.True(writtenAt.GreaterThan(lastRevision))
+
+					tRequire.TupleExists(ctx, newTuple, writtenAt)
+
+					lastRevision = writtenAt
+				}
+
+				// Query for the tuples as a single query.
+				iter, err := ds.QueryTuples(testResourceNamespace, lastRevision).WithUsersets(usersets).Execute(ctx)
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, testTuples...)
+			})
+		}
+	})
+}

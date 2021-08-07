@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/alecthomas/units"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
@@ -17,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const (
@@ -77,7 +79,6 @@ func NewPostgresDatastore(
 	url string,
 	options ...PostgresOption,
 ) (datastore.Datastore, error) {
-
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -118,19 +119,26 @@ func NewPostgresDatastore(
 		}
 	}
 
+	splitAtEstimatedQuerySize := common.DefaultSplitAtEstimatedQuerySize
+	if config.splitAtEstimatedQuerySize != nil {
+		splitAtEstimatedQuerySize = *config.splitAtEstimatedQuerySize
+	}
+
 	return &pgDatastore{
-		dbpool:                   dbpool,
-		watchBufferLength:        config.watchBufferLength,
-		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
-		gcWindowInverted:         -1 * config.gcWindow,
+		dbpool:                    dbpool,
+		watchBufferLength:         config.watchBufferLength,
+		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
+		gcWindowInverted:          -1 * config.gcWindow,
+		splitAtEstimatedQuerySize: splitAtEstimatedQuerySize,
 	}, nil
 }
 
 type pgDatastore struct {
-	dbpool                   *pgxpool.Pool
-	watchBufferLength        uint16
-	revisionFuzzingTimedelta time.Duration
-	gcWindowInverted         time.Duration
+	dbpool                    *pgxpool.Pool
+	watchBufferLength         uint16
+	revisionFuzzingTimedelta  time.Duration
+	gcWindowInverted          time.Duration
+	splitAtEstimatedQuerySize units.Base2Bytes
 }
 
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {

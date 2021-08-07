@@ -43,10 +43,11 @@ func (pgd *pgDatastore) QueryTuples(namespace string, revision datastore.Revisio
 				sq.Eq{colDeletedTxn: liveDeletedTxnID},
 				sq.Gt{colDeletedTxn: revision},
 			}),
-		Revision:         revision,
-		Tracer:           tracer,
-		TracerAttributes: []attribute.KeyValue{common.NamespaceNameKey.String(namespace)},
-		DebugName:        "QueryTuples",
+		Revision:                  revision,
+		Tracer:                    tracer,
+		TracerAttributes:          []attribute.KeyValue{common.NamespaceNameKey.String(namespace)},
+		DebugName:                 "QueryTuples",
+		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
 	}
 }
 
@@ -61,10 +62,11 @@ func (pgd *pgDatastore) reverseQueryBase(revision datastore.Revision) common.Tup
 				sq.Eq{colDeletedTxn: liveDeletedTxnID},
 				sq.Gt{colDeletedTxn: revision},
 			}),
-		Revision:         revision,
-		Tracer:           tracer,
-		TracerAttributes: []attribute.KeyValue{},
-		DebugName:        "ReverseQueryTuples",
+		Revision:                  revision,
+		Tracer:                    tracer,
+		TracerAttributes:          []attribute.KeyValue{},
+		DebugName:                 "ReverseQueryTuples",
+		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
 	}
 }
 

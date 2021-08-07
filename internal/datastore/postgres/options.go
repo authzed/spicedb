@@ -3,14 +3,17 @@ package postgres
 import (
 	"fmt"
 	"time"
+
+	"github.com/alecthomas/units"
 )
 
 type postgresOptions struct {
-	connMaxIdleTime   *time.Duration
-	connMaxLifetime   *time.Duration
-	healthCheckPeriod *time.Duration
-	maxOpenConns      *int
-	minOpenConns      *int
+	connMaxIdleTime           *time.Duration
+	connMaxLifetime           *time.Duration
+	healthCheckPeriod         *time.Duration
+	maxOpenConns              *int
+	minOpenConns              *int
+	splitAtEstimatedQuerySize *units.Base2Bytes
 
 	watchBufferLength        uint16
 	revisionFuzzingTimedelta time.Duration
@@ -49,6 +52,12 @@ func generateConfig(options []PostgresOption) (postgresOptions, error) {
 	}
 
 	return computed, nil
+}
+
+func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) PostgresOption {
+	return func(po *postgresOptions) {
+		po.splitAtEstimatedQuerySize = &splitAtEstimatedQuerySize
+	}
 }
 
 func ConnMaxIdleTime(idle time.Duration) PostgresOption {
