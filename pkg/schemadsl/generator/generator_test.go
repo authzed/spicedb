@@ -123,9 +123,7 @@ func TestGenerator(t *testing.T) {
 					namespace.ComputedUserset("owner"),
 				)),
 			),
-			`/**
- * Some comment goes here
- */
+			`/** Some comment goes here */
 definition foo/document {
 	relation owner: foo/user
 
@@ -163,9 +161,7 @@ func TestFormatting(t *testing.T) {
 		{
 			"with comment",
 			`/** some def */definition foo/test {}`,
-			`/**
- * some def
- */
+			`/** some def */
 definition foo/test {}`,
 		},
 		{
@@ -175,9 +171,7 @@ definition foo/test {}`,
 				// some rel
 				relation somerel: foo/bar;
 			}`,
-			`/**
- * some def
- */
+			`/** some def */
 definition foo/test {
 	// some rel
 	relation somerel: foo/bar
@@ -191,14 +185,10 @@ definition foo/test {
 				/* another comment */
 				relation somerel: foo/bar;
 			}`,
-			`/**
- * some def
- */
+			`/** some def */
 definition foo/test {
 	// some rel
-	/*
-	 * another comment
-	 */
+	/* another comment */
 	relation somerel: foo/bar
 }`,
 		},
@@ -211,9 +201,7 @@ definition foo/test {
 				// another perm
 				permission someperm = somerel
 			}`,
-			`/**
- * some def
- */
+			`/** some def */
 definition foo/test {
 	// some rel
 	relation somerel: foo/bar
@@ -222,12 +210,31 @@ definition foo/test {
 	permission someperm = somerel
 }`,
 		},
+
+		{
+			"becomes single line comment",
+			`definition foo/test {
+				/**
+				 * hi there
+				 */
+				relation somerel: foo/bar;
+			}`,
+			`definition foo/test {
+	/** hi there */
+	relation somerel: foo/bar
+}`,
+		},
+
 		{
 			"full example",
 			`
 /** the document */
 definition foo/document {
+	/** some super long comment goes here and therefore should be made into a multiline comment */
 	relation reader: foo/user
+
+	/** multiline
+comment */
 	relation  writer: foo/user
 
 	// writers are also readers
@@ -236,11 +243,17 @@ definition foo/document {
 	permission minus = a - b - c
 }
 `,
-			`/**
- * the document
- */
+			`/** the document */
 definition foo/document {
+	/**
+	 * some super long comment goes here and therefore should be made into a multiline comment
+	 */
 	relation reader: foo/user
+
+	/**
+	 * multiline
+	 * comment
+	 */
 	relation writer: foo/user
 
 	// writers are also readers

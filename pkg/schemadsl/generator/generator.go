@@ -12,6 +12,9 @@ import (
 // Ellipsis is the relation name for terminal subjects.
 const Ellipsis = "..."
 
+// MaxSingleLineCommentLength sets the maximum length for a comment to made single line.
+const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
+
 // GenerateSource generates a DSL view of the given namespace definition.
 func GenerateSource(namespace *v0.NamespaceDefinition) (string, bool) {
 	generator := &sourceGenerator{
@@ -180,19 +183,27 @@ func (sg *sourceGenerator) appendComment(comment string) {
 			sg.append("/*")
 		}
 
-		sg.appendLine()
-
 		stripped = strings.TrimSuffix(stripped, "*/")
 		stripped = strings.TrimSpace(stripped)
 
-		scanner := bufio.NewScanner(strings.NewReader(stripped))
-		for scanner.Scan() {
-			sg.append(" * ")
-			sg.append(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(scanner.Text()), "*")))
+		requireMultiline := len(stripped) > MaxSingleLineCommentLength || strings.ContainsRune(stripped, '\n')
+
+		if requireMultiline {
+			sg.appendLine()
+			scanner := bufio.NewScanner(strings.NewReader(stripped))
+			for scanner.Scan() {
+				sg.append(" * ")
+				sg.append(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(scanner.Text()), "*")))
+				sg.appendLine()
+			}
+			sg.append(" */")
+			sg.appendLine()
+		} else {
+			sg.append(" ")
+			sg.append(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(stripped), "*")))
+			sg.append(" */")
 			sg.appendLine()
 		}
-		sg.append(" */")
-		sg.appendLine()
 
 	case strings.HasPrefix(comment, "//"):
 		sg.append("// ")
