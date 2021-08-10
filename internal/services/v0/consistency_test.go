@@ -412,7 +412,7 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
 		allObjectIds, ok := vctx.objectsPerNamespace.Get(nsDef.Name)
 		if !ok {
-			return
+			continue
 		}
 
 		for _, relation := range nsDef.Relation {
@@ -422,8 +422,21 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 					vrequire := require.New(t)
 					accessibleTerminalSubjects := vctx.accessibilitySet.AccessibleTerminalSubjects(nsDef.Name, relation.Name, objectIDStr)
 
-					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
+					// Run a non-recursive expansion to verify no errors are raised.
 					resp := vctx.dispatch.Expand(context.Background(), graph.ExpandRequest{
+						Start: &v0.ObjectAndRelation{
+							Namespace: nsDef.Name,
+							Relation:  relation.Name,
+							ObjectId:  objectIDStr,
+						},
+						AtRevision:     vctx.revision,
+						DepthRemaining: 100,
+					})
+
+					vrequire.NoError(resp.Err)
+
+					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
+					resp = vctx.dispatch.Expand(context.Background(), graph.ExpandRequest{
 						Start: &v0.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,

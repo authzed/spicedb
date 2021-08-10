@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/rs/zerolog/log"
@@ -11,6 +12,8 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -35,6 +38,27 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 			return nil, decimal.Zero, fmt.Errorf("Error when parsing config file %s: %w", filePath, err)
 		}
 
+		// Parse the schema, if any.
+		if parsed.Schema != "" {
+			defs, err := compiler.Compile([]compiler.InputSchema{
+				{input.InputSource(filePath), parsed.Schema},
+			}, nil)
+			if err != nil {
+				return nil, decimal.Zero, fmt.Errorf("Error when parsing schema in config file %s: %w", filePath, err)
+			}
+
+			log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
+			for index, nsDef := range defs {
+				nsDefs = append(nsDefs, nsDef)
+				log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
+				_, lnerr := ds.WriteNamespace(context.Background(), nsDef)
+				if lnerr != nil {
+					return nil, decimal.Zero, fmt.Errorf("Error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
+				}
+			}
+		}
+
+		// Load the namespace configs.
 		log.Info().Str("filePath", filePath).Int("namespaceCount", len(parsed.NamespaceConfigs)).Msg("Loading namespaces")
 		for index, namespaceConfig := range parsed.NamespaceConfigs {
 			nsDef := v0.NamespaceDefinition{}
@@ -51,26 +75,36 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 			}
 		}
 
-		log.Info().Str("filePath", filePath).Int("tupleCount", len(parsed.ValidationTuples)+len(parsed.RelationTuples)).Msg("Loading test data")
-
+		// Load the validation tuples/relationships.
 		var updates []*v0.RelationTupleUpdate
 		seenTuples := map[string]bool{}
 
-		for index, relationTuple := range parsed.RelationTuples {
-			tpl := tuple.Scan(relationTuple)
-			if tpl == nil {
-				return nil, decimal.Zero, fmt.Errorf("Error parsing relation tuple #%v: %s", index, relationTuple)
-			}
+		relationships := parsed.Relationships
+		if relationships != "" {
+			lines := strings.Split(relationships, "\n")
+			for index, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if len(trimmed) == 0 {
+					continue
+				}
 
-			_, ok := seenTuples[tuple.String(tpl)]
-			if ok {
-				continue
-			}
-			seenTuples[tuple.String(tpl)] = true
+				tpl := tuple.Scan(trimmed)
+				if tpl == nil {
+					return nil, decimal.Zero, fmt.Errorf("Error parsing relationship #%v: %s", index, trimmed)
+				}
 
-			tuples = append(tuples, tpl)
-			updates = append(updates, tuple.Create(tpl))
+				_, ok := seenTuples[tuple.String(tpl)]
+				if ok {
+					continue
+				}
+				seenTuples[tuple.String(tpl)] = true
+
+				tuples = append(tuples, tpl)
+				updates = append(updates, tuple.Create(tpl))
+			}
 		}
+
+		log.Info().Str("filePath", filePath).Int("tupleCount", len(updates)+len(parsed.ValidationTuples)).Msg("Loading test data")
 		for index, validationTuple := range parsed.ValidationTuples {
 			tpl := tuple.Scan(validationTuple)
 			if tpl == nil {

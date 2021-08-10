@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/namespace"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
@@ -17,13 +18,14 @@ const (
 	excludeStart
 )
 
-func newConcurrentExpander(d Dispatcher, ds datastore.GraphDatastore) expander {
-	return &concurrentExpander{d: d, ds: ds}
+func newConcurrentExpander(d Dispatcher, ds datastore.GraphDatastore, nsm namespace.Manager) expander {
+	return &concurrentExpander{d: d, ds: ds, nsm: nsm}
 }
 
 type concurrentExpander struct {
-	d  Dispatcher
-	ds datastore.GraphDatastore
+	d   Dispatcher
+	ds  datastore.GraphDatastore
+	nsm namespace.Manager
 }
 
 func (ce *concurrentExpander) expand(ctx context.Context, req ExpandRequest, relation *v0.Relation) ReduceableExpandFunc {
@@ -144,7 +146,7 @@ func (ce *concurrentExpander) expandSetOperation(ctx context.Context, req Expand
 		case *v0.SetOperation_Child_XThis:
 			requests = append(requests, ce.expandDirect(ctx, req, excludeStart))
 		case *v0.SetOperation_Child_ComputedUserset:
-			requests = append(requests, ce.expandComputedUserset(req, child.ComputedUserset, nil))
+			requests = append(requests, ce.expandComputedUserset(ctx, req, child.ComputedUserset, nil))
 		case *v0.SetOperation_Child_UsersetRewrite:
 			requests = append(requests, ce.expandUsersetRewrite(ctx, req, child.UsersetRewrite))
 		case *v0.SetOperation_Child_TupleToUserset:
@@ -164,7 +166,7 @@ func (ce *concurrentExpander) dispatch(req ExpandRequest) ReduceableExpandFunc {
 	}
 }
 
-func (ce *concurrentExpander) expandComputedUserset(req ExpandRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableExpandFunc {
+func (ce *concurrentExpander) expandComputedUserset(ctx context.Context, req ExpandRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableExpandFunc {
 	log.Trace().Str("relation", cu.Relation).Msg("computed userset")
 	var start *v0.ObjectAndRelation
 	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
@@ -180,6 +182,16 @@ func (ce *concurrentExpander) expandComputedUserset(req ExpandRequest, cu *v0.Co
 		} else {
 			start = req.Start
 		}
+	}
+
+	// Check if the target relation exists. If not, return nothing.
+	err := ce.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true)
+	if err != nil {
+		if errors.As(err, &namespace.ErrRelationNotFound{}) {
+			return EmptyExpansion(req.Start)
+		}
+
+		return ExpandError(err)
 	}
 
 	return ce.dispatch(ExpandRequest{
@@ -208,7 +220,7 @@ func (ce *concurrentExpander) expandTupleToUserset(ctx context.Context, req Expa
 
 		var requestsToDispatch []ReduceableExpandFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-			requestsToDispatch = append(requestsToDispatch, ce.expandComputedUserset(req, ttu.ComputedUserset, tpl))
+			requestsToDispatch = append(requestsToDispatch, ce.expandComputedUserset(ctx, req, ttu.ComputedUserset, tpl))
 		}
 		if it.Err() != nil {
 			resultChan <- ExpandResult{nil, NewExpansionFailureErr(it.Err())}
@@ -269,6 +281,25 @@ func expandSetOperation(
 	}
 
 	return setResult(op, start, children)
+}
+
+// EmptyExpansion returns an empty expansion.
+func EmptyExpansion(start *v0.ObjectAndRelation) ReduceableExpandFunc {
+	return func(ctx context.Context, resultChan chan<- ExpandResult) {
+		resultChan <- ExpandResult{&v0.RelationTupleTreeNode{
+			NodeType: &v0.RelationTupleTreeNode_LeafNode{
+				LeafNode: &v0.DirectUserset{},
+			},
+			Expanded: start,
+		}, nil}
+	}
+}
+
+// ExpandError returns the error.
+func ExpandError(err error) ReduceableExpandFunc {
+	return func(ctx context.Context, resultChan chan<- ExpandResult) {
+		resultChan <- ExpandResult{nil, err}
+	}
 }
 
 // ExpandAll returns a tree with all of the children and an intersection node type.

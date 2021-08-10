@@ -2,20 +2,23 @@ package graph
 
 import (
 	"context"
+	"errors"
 
 	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/namespace"
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
-func newConcurrentChecker(d Dispatcher, ds datastore.GraphDatastore) checker {
-	return &concurrentChecker{d: d, ds: ds}
+func newConcurrentChecker(d Dispatcher, ds datastore.GraphDatastore, nsm namespace.Manager) checker {
+	return &concurrentChecker{d: d, ds: ds, nsm: nsm}
 }
 
 type concurrentChecker struct {
-	d  Dispatcher
-	ds datastore.GraphDatastore
+	d   Dispatcher
+	ds  datastore.GraphDatastore
+	nsm namespace.Manager
 }
 
 func onrEqual(lhs, rhs *v0.ObjectAndRelation) bool {
@@ -102,7 +105,7 @@ func (cc *concurrentChecker) checkSetOperation(ctx context.Context, req CheckReq
 		case *v0.SetOperation_Child_XThis:
 			requests = append(requests, cc.checkDirect(ctx, req))
 		case *v0.SetOperation_Child_ComputedUserset:
-			requests = append(requests, cc.checkComputedUserset(req, child.ComputedUserset, nil))
+			requests = append(requests, cc.checkComputedUserset(ctx, req, child.ComputedUserset, nil))
 		case *v0.SetOperation_Child_UsersetRewrite:
 			requests = append(requests, cc.checkUsersetRewrite(ctx, req, child.UsersetRewrite))
 		case *v0.SetOperation_Child_TupleToUserset:
@@ -115,7 +118,7 @@ func (cc *concurrentChecker) checkSetOperation(ctx context.Context, req CheckReq
 	}
 }
 
-func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkComputedUserset(ctx context.Context, req CheckRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableCheckFunc {
 	var start *v0.ObjectAndRelation
 	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if tpl == nil {
@@ -142,6 +145,16 @@ func (cc *concurrentChecker) checkComputedUserset(req CheckRequest, cu *v0.Compu
 		return AlwaysMember()
 	}
 
+	// Check if the target relation exists. If not, return nothing.
+	err := cc.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true)
+	if err != nil {
+		if errors.As(err, &namespace.ErrRelationNotFound{}) {
+			return NotMember()
+		}
+
+		return CheckError(err)
+	}
+
 	return cc.dispatch(CheckRequest{
 		Start:          targetOnr,
 		Goal:           req.Goal,
@@ -165,7 +178,7 @@ func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req CheckR
 
 		var requestsToDispatch []ReduceableCheckFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-			requestsToDispatch = append(requestsToDispatch, cc.checkComputedUserset(req, ttu.ComputedUserset, tpl))
+			requestsToDispatch = append(requestsToDispatch, cc.checkComputedUserset(ctx, req, ttu.ComputedUserset, tpl))
 		}
 		if it.Err() != nil {
 			resultChan <- CheckResult{false, NewCheckFailureErr(it.Err())}
@@ -204,10 +217,24 @@ func All(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	return CheckResult{IsMember: true, Err: nil}
 }
 
+// CheckError returns the error.
+func CheckError(err error) ReduceableCheckFunc {
+	return func(ctx context.Context, resultChan chan<- CheckResult) {
+		resultChan <- CheckResult{false, err}
+	}
+}
+
 // AlwaysMember returns that the check always passes.
 func AlwaysMember() ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		resultChan <- CheckResult{true, nil}
+	}
+}
+
+// NotMember returns that the check always returns false.
+func NotMember() ReduceableCheckFunc {
+	return func(ctx context.Context, resultChan chan<- CheckResult) {
+		resultChan <- CheckResult{false, nil}
 	}
 }
 
