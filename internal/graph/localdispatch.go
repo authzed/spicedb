@@ -83,7 +83,7 @@ func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckRes
 		return CheckResult{Err: err}
 	}
 
-	chk := newConcurrentChecker(ld, ld.ds)
+	chk := newConcurrentChecker(ld, ld.ds, ld.nsm)
 
 	asyncCheck := chk.check(ctx, req, relation)
 	return Any(ctx, []ReduceableCheckFunc{asyncCheck})
