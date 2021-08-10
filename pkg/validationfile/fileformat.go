@@ -79,18 +79,20 @@ func ParseValidationFile(contents []byte) (ValidationFile, error) {
 // ValidationFile represents the contents of a YAML validation file, as
 // exported by the playground.
 type ValidationFile struct {
-	// NamespaceConfigs are the namespace configuration protos, in text format.
+	// Schema is the defined schema, in DSL format. Optional if at least one NamespaceConfig is specified.
+	Schema string `yaml:"schema"`
+
+	// Relationships are the validation relationships, as a single string of newline separated tuple
+	// string syntax. Optional if ValidationTuples is specified.
+	Relationships string `yaml:"relationships"`
+
+	// NamespaceConfigs are the namespace configuration protos, in text format. Optional if Schema
+	// is specified.
 	NamespaceConfigs []string `yaml:"namespace_configs"`
 
-	// RelationTuples are the preloaded relation tuples, in tuple string syntax.
-	RelationTuples []string `yaml:"relation_tuples"`
-
-	// ValidationTuples are the validation tuples, in tuple string syntax.
+	// ValidationTuples are the validation tuples, in tuple string syntax. Optional if Relationships
+	// are specified.
 	ValidationTuples []string `yaml:"validation_tuples"`
-
-	// Validation holds the validation data, as a map from Object Relation to list of strings containing
-	// the valid Subjects and their Relations.
-	Validation *ValidationMap `yaml:"validation"`
 }
 
 // ValidationMap is a map from an Object Relation (as a Relationship) to the validation strings containing
