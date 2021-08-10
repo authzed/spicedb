@@ -365,7 +365,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), er.Err)
 			if validationErrs != nil {
 				failures = append(failures, validationErrs...)
-				continue
+				return nil, failures, nil
 			}
 
 			return nil, nil, wireErr

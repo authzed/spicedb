@@ -104,7 +104,7 @@ func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) Expand
 		return ExpandResult{Tree: nil, Err: err}
 	}
 
-	expand := newConcurrentExpander(ld, ld.ds)
+	expand := newConcurrentExpander(ld, ld.ds, ld.nsm)
 
 	asyncExpand := expand.expand(ctx, req, relation)
 	return ExpandOne(ctx, asyncExpand)
