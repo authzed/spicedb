@@ -25,6 +25,8 @@ import (
 const (
 	errInitializingSmartClient = "unable to initialize smart client: %w"
 	errComputingBackend        = "unable to marshal request: %w"
+
+	hashringReplicationFactor = 20
 )
 
 var errNoBackends = errors.New("no backends available for request")
@@ -70,7 +72,7 @@ func NewSmartClient(
 	sc := &SmartClient{
 		1,
 		sync.Mutex{},
-		consistent.NewHashring(xxhash.Sum64, 20),
+		consistent.NewHashring(xxhash.Sum64, hashringReplicationFactor),
 		cancel,
 		proto.MarshalOptions{Deterministic: true},
 	}

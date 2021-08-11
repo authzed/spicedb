@@ -23,8 +23,8 @@ type Member interface {
 	Key() string
 }
 
-// Hashing provides a ring consistent hash implementation using a configurable number of virtual
-// nodes. It is internally synchronized.
+// Hashring provides a ring consistent hash implementation using a configurable number of virtual
+// nodes. It is internally synchronized and thread-safe.
 type Hashring struct {
 	hasher            HasherFunc
 	replicationFactor uint8
@@ -34,9 +34,13 @@ type Hashring struct {
 	virtualNodes virtualNodeList
 }
 
-// NewHashring creates a new HashRing with the specified hasher function and replicationFactor.
+// NewHashring creates a new Hashring with the specified hasher function and replicationFactor.
 //
-// replicationFactor must be > 0 and should be a number like 20 for higher quality key distribution
+// replicationFactor must be > 0 and should be a number like 20 for higher quality key distribution.
+// At a replicationFactor of 100, the standard distribution of key->member mapping will be about 10%
+// of the mean. At a replicationFactor of 1000 it will be about 3.2%. The replicationFactor should
+// be chosen carefully because a higher replicationFactor will require more memory and worse member
+// selection performance.
 func NewHashring(hasher HasherFunc, replicationFactor uint8) *Hashring {
 	if replicationFactor < 1 {
 		panic("replicationFactor must be at least 1")
@@ -74,6 +78,9 @@ func (h *Hashring) Add(member Member) error {
 		nil,
 	}
 
+	// virtualNodeBuffer is a 9-byte array, where 8 bytes are the hash value of the
+	// member key, and the final byte is an offset of the virtual node itself. This
+	// value is then hashed to get the final hash value of the virtual node.
 	virtualNodeBuffer := make([]byte, 9)
 	binary.LittleEndian.PutUint64(virtualNodeBuffer, nodeHash)
 

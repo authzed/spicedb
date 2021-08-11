@@ -128,10 +128,6 @@ const numTestKeys = 1_000_000
 func TestBackendBalance(t *testing.T) {
 	hasherFunc := xxhash.Sum64
 
-	// hasherFunc = func(b []byte) uint64 {
-	// 	return crc64.Checksum(b, crc64.MakeTable(crc64.ECMA))
-	// }
-
 	testCases := []int{1, 2, 3, 5, 10, 100}
 
 	for _, numMembers := range testCases {
