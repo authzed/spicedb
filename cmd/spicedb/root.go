@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/units"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
@@ -59,6 +61,7 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().String("preshared-key", "", "preshared key to require on authenticated requests")
 	rootCmd.Flags().String("datastore-engine", "memory", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
 	rootCmd.Flags().String("datastore-url", "", "connection url (e.g. postgres://postgres:password@localhost:5432/spicedb) of storage layer for those engines that support it (postgres, crdb)")
+	rootCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "the estimated number of bytes at which a query is split, for those engines that support it (postgres, crdb)")
 
 	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	rootCmd.Flags().Duration("gc-window", 24*time.Hour, "amount of time before a revision is garbage collected")
@@ -122,8 +125,13 @@ func rootRun(cmd *cobra.Command, args []string) {
 	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "revision-fuzzing-duration")
 	gcWindow := cobrautil.MustGetDuration(cmd, "gc-window")
 
-	var ds datastore.Datastore
 	var err error
+	splitQuerySize, err := units.ParseBase2Bytes(cobrautil.MustGetString(cmd, "datastore-query-split-size"))
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to parse datastore-query-split-size")
+	}
+
+	var ds datastore.Datastore
 	if datastoreEngine == "memory" {
 		log.Info().Msg("using in-memory datastore")
 		ds, err = memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, 0)
@@ -140,6 +148,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 			crdb.MinOpenConns(cobrautil.MustGetInt(cmd, "crdb-min-conn-open")),
 			crdb.RevisionQuantization(revisionFuzzingTimedelta),
 			crdb.GCWindow(gcWindow),
+			crdb.SplitAtEstimatedQuerySize(splitQuerySize),
 		)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to init datastore")
@@ -157,6 +166,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 			postgres.GCWindow(gcWindow),
 			postgres.EnablePrometheusStats(),
 			postgres.EnableTracing(),
+			postgres.SplitAtEstimatedQuerySize(splitQuerySize),
 		)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to init datastore")

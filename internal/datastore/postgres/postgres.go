@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const (
@@ -119,17 +118,12 @@ func NewPostgresDatastore(
 		}
 	}
 
-	splitAtEstimatedQuerySize := common.DefaultSplitAtEstimatedQuerySize
-	if config.splitAtEstimatedQuerySize != nil {
-		splitAtEstimatedQuerySize = *config.splitAtEstimatedQuerySize
-	}
-
 	return &pgDatastore{
 		dbpool:                    dbpool,
 		watchBufferLength:         config.watchBufferLength,
 		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
 		gcWindowInverted:          -1 * config.gcWindow,
-		splitAtEstimatedQuerySize: splitAtEstimatedQuerySize,
+		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
 	}, nil
 }
 

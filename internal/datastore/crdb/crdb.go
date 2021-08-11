@@ -17,7 +17,6 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 var (
@@ -99,17 +98,12 @@ func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, e
 		)
 	}
 
-	splitAtEstimatedQuerySize := common.DefaultSplitAtEstimatedQuerySize
-	if config.splitAtEstimatedQuerySize != nil {
-		splitAtEstimatedQuerySize = *config.splitAtEstimatedQuerySize
-	}
-
 	return &crdbDatastore{
 		conn:                      conn,
 		watchBufferLength:         config.watchBufferLength,
 		quantizationNanos:         config.revisionQuantization.Nanoseconds(),
 		gcWindowNanos:             gcWindowNanos,
-		splitAtEstimatedQuerySize: splitAtEstimatedQuerySize,
+		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
 	}, nil
 }
 

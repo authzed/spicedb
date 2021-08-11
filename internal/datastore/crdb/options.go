@@ -5,18 +5,20 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
+
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 type crdbOptions struct {
-	connMaxIdleTime           *time.Duration
-	connMaxLifetime           *time.Duration
-	minOpenConns              *int
-	maxOpenConns              *int
-	splitAtEstimatedQuerySize *units.Base2Bytes
+	connMaxIdleTime *time.Duration
+	connMaxLifetime *time.Duration
+	minOpenConns    *int
+	maxOpenConns    *int
 
-	watchBufferLength    uint16
-	revisionQuantization time.Duration
-	gcWindow             time.Duration
+	watchBufferLength         uint16
+	revisionQuantization      time.Duration
+	gcWindow                  time.Duration
+	splitAtEstimatedQuerySize units.Base2Bytes
 }
 
 const (
@@ -30,9 +32,10 @@ type CRDBOption func(*crdbOptions)
 
 func generateConfig(options []CRDBOption) (crdbOptions, error) {
 	computed := crdbOptions{
-		gcWindow:             24 * time.Hour,
-		watchBufferLength:    defaultWatchBufferLength,
-		revisionQuantization: defaultRevisionQuantization,
+		gcWindow:                  24 * time.Hour,
+		watchBufferLength:         defaultWatchBufferLength,
+		revisionQuantization:      defaultRevisionQuantization,
+		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
 	}
 
 	for _, option := range options {
@@ -55,7 +58,7 @@ func generateConfig(options []CRDBOption) (crdbOptions, error) {
 // Default: common.DefaultSplitAtEstimatedQuerySize
 func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) CRDBOption {
 	return func(po *crdbOptions) {
-		po.splitAtEstimatedQuerySize = &splitAtEstimatedQuerySize
+		po.splitAtEstimatedQuerySize = splitAtEstimatedQuerySize
 	}
 }
 
