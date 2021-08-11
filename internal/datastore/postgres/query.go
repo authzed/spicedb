@@ -36,7 +36,7 @@ func (pgd *pgDatastore) QueryTuples(namespace string, revision datastore.Revisio
 		Conn:               pgd.dbpool,
 		Schema:             schema,
 		PrepareTransaction: nil,
-		Query: queryTuples.
+		InitialQuery: queryTuples.
 			Where(sq.Eq{colNamespace: namespace}).
 			Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 			Where(sq.Or{
@@ -56,7 +56,7 @@ func (pgd *pgDatastore) reverseQueryBase(revision datastore.Revision) common.Tup
 		Conn:               pgd.dbpool,
 		Schema:             schema,
 		PrepareTransaction: nil,
-		Query: queryTuples.
+		InitialQuery: queryTuples.
 			Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 			Where(sq.Or{
 				sq.Eq{colDeletedTxn: liveDeletedTxnID},

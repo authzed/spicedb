@@ -66,8 +66,8 @@ type TupleQuery struct {
 	Schema             SchemaInformation
 	PrepareTransaction TransactionPreparer
 
-	Query    sq.SelectBuilder
-	Revision datastore.Revision
+	InitialQuery sq.SelectBuilder
+	Revision     datastore.Revision
 
 	Tracer           trace.Tracer
 	TracerAttributes []attribute.KeyValue
@@ -75,45 +75,40 @@ type TupleQuery struct {
 	DebugName                 string
 	SplitAtEstimatedQuerySize units.Base2Bytes
 
-	estimatedDataSize int
+	limit    *uint64
+	objectID *string
+	relation *string
+	usersets *[]*v0.ObjectAndRelation
 }
 
 func (ctq TupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
+	if ctq.limit != nil {
+		panic("Called Limit twice")
+	}
+
 	ctq.TracerAttributes = append(ctq.TracerAttributes, limitKey.Int64(int64(limit)))
-	ctq.Query = ctq.Query.Limit(limit)
+	ctq.limit = &limit
 	return ctq
 }
 
 func (ctq TupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
+	if ctq.objectID != nil {
+		panic("Called WithObjectID twice")
+	}
+
 	ctq.TracerAttributes = append(ctq.TracerAttributes, objIDKey.String(objectID))
-	ctq.Query = ctq.Query.Where(sq.Eq{ctq.Schema.ColObjectID: objectID})
-	ctq.estimatedDataSize += len(objectID)
+	ctq.objectID = &objectID
 	return ctq
 }
 
 func (ctq TupleQuery) WithRelation(relation string) datastore.TupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, objRelationNameKey.String(relation))
-	ctq.Query = ctq.Query.Where(sq.Eq{ctq.Schema.ColRelation: relation})
-	ctq.estimatedDataSize += len(relation)
-	return ctq
-}
-
-func (ctq TupleQuery) clone() TupleQuery {
-	return TupleQuery{
-		Conn:               ctq.Conn,
-		Schema:             ctq.Schema,
-		PrepareTransaction: ctq.PrepareTransaction,
-
-		Query:    ctq.Query,
-		Revision: ctq.Revision,
-
-		Tracer:           ctq.Tracer,
-		TracerAttributes: ctq.TracerAttributes,
-
-		DebugName: ctq.DebugName,
-
-		estimatedDataSize: ctq.estimatedDataSize,
+	if ctq.relation != nil {
+		panic("Called WithRelation twice")
 	}
+
+	ctq.TracerAttributes = append(ctq.TracerAttributes, objRelationNameKey.String(relation))
+	ctq.relation = &relation
+	return ctq
 }
 
 func (ctq TupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
@@ -121,89 +116,125 @@ func (ctq TupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.T
 		panic("Cannot send nil or empty usersets into query")
 	}
 
-	// Determine where the query should be split based on the estimated size.
-	splitIndexes := []int{}
-
-	currentEstimatedDataSize := ctq.estimatedDataSize
-	currentUsersetCount := 0
-
-	for index, userset := range usersets {
-		estimatedUsersetSize := len(userset.Namespace) + len(userset.ObjectId) + len(userset.Relation)
-		if currentUsersetCount > 0 && estimatedUsersetSize+currentEstimatedDataSize >= int(ctq.SplitAtEstimatedQuerySize) {
-			currentEstimatedDataSize = ctq.estimatedDataSize
-			splitIndexes = append(splitIndexes, index)
-		}
-
-		currentUsersetCount++
-		currentEstimatedDataSize += estimatedUsersetSize
+	if ctq.usersets != nil {
+		panic("Called WithUsersets twice")
 	}
 
-	if len(splitIndexes) == 0 {
-		// Normal single query.
-		orClause := sq.Or{}
-		for _, userset := range usersets {
-			orClause = append(orClause, sq.Eq{
-				ctq.Schema.ColUsersetNamespace: userset.Namespace,
-				ctq.Schema.ColUsersetObjectID:  userset.ObjectId,
-				ctq.Schema.ColUsersetRelation:  userset.Relation,
-			})
-		}
-
-		ctq.Query = ctq.Query.Where(orClause)
-		return ctq
-	}
-
-	// Otherwise, branch from the current query and apply a subset of the usersets to each.
-	subQueries := []datastore.TupleQuery{}
-	startIndex := 0
-	for _, splitIndex := range splitIndexes {
-		subQueries = append(subQueries, ctq.buildSubQuery(usersets[startIndex:splitIndex]))
-		startIndex = splitIndex
-	}
-
-	subQueries = append(subQueries, ctq.buildSubQuery(usersets[startIndex:]))
-
-	return newCombinedQuery(subQueries)
-}
-
-func (ctq TupleQuery) buildSubQuery(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	subQuery := ctq.clone()
-
-	orClause := sq.Or{}
-	if len(usersets) == 0 {
-		panic("Got empty sub usersets")
-	}
-
-	for _, userset := range usersets {
-		orClause = append(orClause, sq.Eq{
-			ctq.Schema.ColUsersetNamespace: userset.Namespace,
-			ctq.Schema.ColUsersetObjectID:  userset.ObjectId,
-			ctq.Schema.ColUsersetRelation:  userset.Relation,
-		})
-	}
-
-	subQuery.Query = subQuery.Query.Where(orClause)
-	return subQuery
+	ctq.usersets = &usersets
+	return ctq
 }
 
 func (ctq TupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.TupleQuery {
 	ctq.TracerAttributes = append(ctq.TracerAttributes, subNamespaceKey.String(userset.Namespace))
 	ctq.TracerAttributes = append(ctq.TracerAttributes, subObjectIDKey.String(userset.ObjectId))
 	ctq.TracerAttributes = append(ctq.TracerAttributes, subRelationKey.String(userset.Relation))
-
 	return ctq.WithUsersets([]*v0.ObjectAndRelation{userset})
 }
 
 func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
+	// Build the query/queries to execute.
+	query := ctq.InitialQuery
+	baseEstimatedDataSize := 0
+
+	// Add the base query filters.
+	if ctq.objectID != nil {
+		query = query.Where(sq.Eq{ctq.Schema.ColObjectID: *ctq.objectID})
+		baseEstimatedDataSize += len(*ctq.objectID)
+	}
+
+	if ctq.relation != nil {
+		query = query.Where(sq.Eq{ctq.Schema.ColRelation: *ctq.relation})
+		baseEstimatedDataSize += len(*ctq.relation)
+	}
+
+	// Determine split points for the query based on the usersets, if any.
+	queries := []sq.SelectBuilder{}
+	if ctq.usersets != nil {
+		splitIndexes := []int{}
+		usersets := *ctq.usersets
+
+		currentEstimatedDataSize := baseEstimatedDataSize
+		currentUsersetCount := 0
+
+		for index, userset := range usersets {
+			estimatedUsersetSize := len(userset.Namespace) + len(userset.ObjectId) + len(userset.Relation)
+			if currentUsersetCount > 0 && estimatedUsersetSize+currentEstimatedDataSize >= int(ctq.SplitAtEstimatedQuerySize) {
+				currentEstimatedDataSize = baseEstimatedDataSize
+				splitIndexes = append(splitIndexes, index)
+			}
+
+			currentUsersetCount++
+			currentEstimatedDataSize += estimatedUsersetSize
+		}
+
+		addQueryWithUsersets := func(usersets []*v0.ObjectAndRelation) {
+			orClause := sq.Or{}
+			if len(usersets) == 0 {
+				panic("Got empty sub usersets")
+			}
+
+			for _, userset := range usersets {
+				orClause = append(orClause, sq.Eq{
+					ctq.Schema.ColUsersetNamespace: userset.Namespace,
+					ctq.Schema.ColUsersetObjectID:  userset.ObjectId,
+					ctq.Schema.ColUsersetRelation:  userset.Relation,
+				})
+			}
+
+			queries = append(queries, query.Where(orClause))
+		}
+
+		startIndex := 0
+		for _, splitIndex := range splitIndexes {
+			addQueryWithUsersets(usersets[startIndex:splitIndex])
+			startIndex = splitIndex
+		}
+
+		addQueryWithUsersets(usersets[startIndex:])
+	} else {
+		queries = append(queries, query)
+	}
+
+	// Execute each query.
+	// TODO: make parallel.
+	name := fmt.Sprintf("Execute%s", ctq.DebugName)
+	ctx, span := ctq.Tracer.Start(ctx, name)
+	defer span.End()
+
+	var tuples []*v0.RelationTuple
+	for index, query := range queries {
+		var newLimit uint64
+		if ctq.limit != nil {
+			newLimit = *ctq.limit - uint64(len(tuples))
+			if newLimit <= 0 {
+				break
+			}
+
+			query = query.Limit(newLimit)
+		}
+
+		foundTuples, err := ctq.executeQuery(ctx, query, index, newLimit)
+		if err != nil {
+			return nil, err
+		}
+		tuples = append(tuples, foundTuples...)
+	}
+
+	iter := datastore.NewSliceTupleIterator(tuples)
+	runtime.SetFinalizer(iter, datastore.BuildFinalizerFunction())
+	return iter, nil
+}
+
+func (ctq TupleQuery) executeQuery(ctx context.Context, query sq.SelectBuilder, index int, limit uint64) ([]*v0.RelationTuple, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	name := fmt.Sprintf("Execute%s", ctq.DebugName)
+	name := fmt.Sprintf("Query-%d", index)
 	ctx, span := ctq.Tracer.Start(ctx, name)
 	defer span.End()
 
 	span.SetAttributes(ctq.TracerAttributes...)
 
-	sql, args, err := ctq.Query.ToSql()
+	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
@@ -237,6 +268,10 @@ func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, err
 
 	var tuples []*v0.RelationTuple
 	for rows.Next() {
+		if limit > 0 && len(tuples) >= int(limit) {
+			return tuples, nil
+		}
+
 		nextTuple := &v0.RelationTuple{
 			ObjectAndRelation: &v0.ObjectAndRelation{},
 			User: &v0.User{
@@ -265,12 +300,7 @@ func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, err
 	}
 
 	span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
-
-	iter := datastore.NewSliceTupleIterator(tuples)
-
-	runtime.SetFinalizer(iter, datastore.BuildFinalizerFunction(sql, args))
-
-	return iter, nil
+	return tuples, nil
 }
 
 // ReverseQueryTuplesFromSubjectRelation constructs a ReverseTupleQuery from this tuple query.
@@ -278,7 +308,7 @@ func (ctq TupleQuery) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, su
 	ctq.TracerAttributes = append(ctq.TracerAttributes, subNamespaceKey.String(subjectNamespace))
 	ctq.TracerAttributes = append(ctq.TracerAttributes, subRelationKey.String(subjectRelation))
 
-	ctq.Query = ctq.Query.Where(sq.Eq{
+	ctq.InitialQuery = ctq.InitialQuery.Where(sq.Eq{
 		ctq.Schema.ColUsersetNamespace: subjectNamespace,
 		ctq.Schema.ColUsersetRelation:  subjectRelation,
 	})
@@ -291,13 +321,12 @@ func (ctq TupleQuery) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelatio
 	ctq.TracerAttributes = append(ctq.TracerAttributes, subObjectIDKey.String(subject.ObjectId))
 	ctq.TracerAttributes = append(ctq.TracerAttributes, subRelationKey.String(subject.Relation))
 
-	ctq.Query = ctq.Query.Where(sq.Eq{
+	ctq.InitialQuery = ctq.InitialQuery.Where(sq.Eq{
 		ctq.Schema.ColUsersetNamespace: subject.Namespace,
 		ctq.Schema.ColUsersetObjectID:  subject.ObjectId,
 		ctq.Schema.ColUsersetRelation:  subject.Relation,
 	})
 
-	ctq.estimatedDataSize += len(subject.Namespace) + len(subject.ObjectId) + len(subject.Relation)
 	return ReverseTupleQuery{ctq}
 }
 
@@ -310,156 +339,11 @@ func (ctq ReverseTupleQuery) WithObjectRelation(namespaceName string, relationNa
 	ctq.TracerAttributes = append(ctq.TracerAttributes, objNamespaceNameKey.String(namespaceName))
 	ctq.TracerAttributes = append(ctq.TracerAttributes, objRelationNameKey.String(relationName))
 
-	ctq.Query = ctq.Query.
+	ctq.InitialQuery = ctq.InitialQuery.
 		Where(sq.Eq{
 			ctq.Schema.ColNamespace: namespaceName,
 			ctq.Schema.ColRelation:  relationName,
 		})
 
-	ctq.estimatedDataSize += len(namespaceName) + len(relationName)
 	return ctq
-}
-
-type combinedTupleQuery struct {
-	subQueries []datastore.TupleQuery
-	limit      uint64
-}
-
-func newCombinedQuery(subQueries []datastore.TupleQuery) datastore.TupleQuery {
-	return combinedTupleQuery{subQueries, 0}
-}
-
-func (ctq combinedTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
-	for index, subQuery := range ctq.subQueries {
-		ctq.subQueries[index] = subQuery.WithObjectID(objectID)
-	}
-	return ctq
-}
-
-func (ctq combinedTupleQuery) WithRelation(relation string) datastore.TupleQuery {
-	for index, subQuery := range ctq.subQueries {
-		ctq.subQueries[index] = subQuery.WithRelation(relation)
-	}
-	return ctq
-}
-
-func (ctq combinedTupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.TupleQuery {
-	for index, subQuery := range ctq.subQueries {
-		ctq.subQueries[index] = subQuery.WithUserset(userset)
-	}
-	return ctq
-}
-
-func (ctq combinedTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	for index, subQuery := range ctq.subQueries {
-		ctq.subQueries[index] = subQuery.WithUsersets(usersets)
-	}
-	return ctq
-}
-
-func (ctq combinedTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	ctq.limit = limit
-	for _, subQuery := range ctq.subQueries {
-		subQuery.Limit(limit)
-	}
-	return ctq
-}
-
-func (ctq combinedTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	// TODO(jschorr): make this a parallel execute
-	return &combinedTupleIterator{
-		ctx:                  ctx,
-		ctq:                  ctq,
-		currentIterator:      nil,
-		currentIteratorIndex: 0,
-		returnedResultCount:  0,
-		closed:               false,
-		err:                  nil,
-	}, nil
-}
-
-type combinedTupleIterator struct {
-	ctx                  context.Context
-	ctq                  combinedTupleQuery
-	currentIterator      datastore.TupleIterator
-	currentIteratorIndex int
-	returnedResultCount  uint64
-	closed               bool
-	err                  error
-}
-
-func (cti *combinedTupleIterator) Next() *v0.RelationTuple {
-	if cti.closed {
-		return nil
-	}
-
-	if cti.ctq.limit > 0 && cti.returnedResultCount >= cti.ctq.limit {
-		cti.Close()
-		return nil
-	}
-
-	for {
-		it := cti.currentIterator
-		if it == nil {
-			if !cti.advanceIterator() {
-				return nil
-			}
-			continue
-		}
-
-		result := it.Next()
-		if result == nil {
-			it.Close()
-			cti.currentIteratorIndex++
-			cti.currentIterator = nil
-			continue
-		}
-		cti.returnedResultCount++
-		return result
-	}
-}
-
-func (cti *combinedTupleIterator) Err() error {
-	if cti.err != nil {
-		return cti.err
-	}
-
-	if cti.closed {
-		return nil
-	}
-
-	it := cti.currentIterator
-	if it == nil {
-		return nil
-	}
-
-	return it.Err()
-}
-
-func (cti *combinedTupleIterator) Close() {
-	if cti.closed {
-		return
-	}
-
-	cti.closed = true
-	it := cti.currentIterator
-	if it != nil {
-		cti.currentIterator = nil
-		it.Close()
-	}
-}
-
-func (cti *combinedTupleIterator) advanceIterator() bool {
-	if cti.currentIteratorIndex >= len(cti.ctq.subQueries) {
-		return false
-	}
-
-	it, err := cti.ctq.subQueries[cti.currentIteratorIndex].Execute(cti.ctx)
-	if err != nil {
-		cti.err = err
-		return false
-	}
-
-	cti.currentIterator = it
-	return true
 }
