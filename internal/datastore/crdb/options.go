@@ -3,6 +3,10 @@ package crdb
 import (
 	"fmt"
 	"time"
+
+	"github.com/alecthomas/units"
+
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 type crdbOptions struct {
@@ -11,9 +15,10 @@ type crdbOptions struct {
 	minOpenConns    *int
 	maxOpenConns    *int
 
-	watchBufferLength    uint16
-	revisionQuantization time.Duration
-	gcWindow             time.Duration
+	watchBufferLength         uint16
+	revisionQuantization      time.Duration
+	gcWindow                  time.Duration
+	splitAtEstimatedQuerySize units.Base2Bytes
 }
 
 const (
@@ -27,9 +32,10 @@ type CRDBOption func(*crdbOptions)
 
 func generateConfig(options []CRDBOption) (crdbOptions, error) {
 	computed := crdbOptions{
-		gcWindow:             24 * time.Hour,
-		watchBufferLength:    defaultWatchBufferLength,
-		revisionQuantization: defaultRevisionQuantization,
+		gcWindow:                  24 * time.Hour,
+		watchBufferLength:         defaultWatchBufferLength,
+		revisionQuantization:      defaultRevisionQuantization,
+		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
 	}
 
 	for _, option := range options {
@@ -46,6 +52,14 @@ func generateConfig(options []CRDBOption) (crdbOptions, error) {
 	}
 
 	return computed, nil
+}
+
+// SplitAtEstimatedQuerySize is the query size at which it is split into two (or more) queries.
+// Default: common.DefaultSplitAtEstimatedQuerySize
+func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) CRDBOption {
+	return func(po *crdbOptions) {
+		po.splitAtEstimatedQuerySize = splitAtEstimatedQuerySize
+	}
 }
 
 // ConnMaxIdleTime is the duration after which an idle connection will be automatically closed by

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/alecthomas/units"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
@@ -77,7 +78,6 @@ func NewPostgresDatastore(
 	url string,
 	options ...PostgresOption,
 ) (datastore.Datastore, error) {
-
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -119,18 +119,20 @@ func NewPostgresDatastore(
 	}
 
 	return &pgDatastore{
-		dbpool:                   dbpool,
-		watchBufferLength:        config.watchBufferLength,
-		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
-		gcWindowInverted:         -1 * config.gcWindow,
+		dbpool:                    dbpool,
+		watchBufferLength:         config.watchBufferLength,
+		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
+		gcWindowInverted:          -1 * config.gcWindow,
+		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
 	}, nil
 }
 
 type pgDatastore struct {
-	dbpool                   *pgxpool.Pool
-	watchBufferLength        uint16
-	revisionFuzzingTimedelta time.Duration
-	gcWindowInverted         time.Duration
+	dbpool                    *pgxpool.Pool
+	watchBufferLength         uint16
+	revisionFuzzingTimedelta  time.Duration
+	gcWindowInverted          time.Duration
+	splitAtEstimatedQuerySize units.Base2Bytes
 }
 
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {

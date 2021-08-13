@@ -97,6 +97,9 @@ type TupleQuery interface {
 
 	// WithUserset adds a userset filter to the query.
 	WithUserset(userset *v0.ObjectAndRelation) TupleQuery
+
+	// WithUsersets adds multiple userset filters to the query.
+	WithUsersets(usersets []*v0.ObjectAndRelation) TupleQuery
 }
 
 // TupleIterator is an iterator over matched tuples.

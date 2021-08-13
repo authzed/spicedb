@@ -62,7 +62,7 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 	// Perform the structural lookup.
 	result := LookupAny(ctx, req.Limit, []ReduceableLookupFunc{request})
 	if result.Err != nil {
-		return ResolveError(err)
+		return ResolveError(result.Err)
 	}
 
 	objSet.Update(result.ResolvedObjects)
@@ -126,30 +126,48 @@ func (cl *concurrentLookup) lookup(ctx context.Context, req LookupRequest) Reduc
 }
 
 func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest, tracer DebugTracer, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
-	// Check for the target ONR directly.
-	objects := tuple.NewONRSet()
-	it, err := cl.ds.ReverseQueryTuplesFromSubject(req.TargetONR, req.AtRevision).
-		WithObjectRelation(req.StartRelation.Namespace, req.StartRelation.Relation).
-		Execute(ctx)
+	requests := []ReduceableLookupFunc{}
+	thisTracer := tracer.Child("_this")
+
+	// Dispatch a check for the target ONR directly, if it is allowed on the start relation.
+	isDirectAllowed, err := typeSystem.IsAllowedDirectRelation(req.StartRelation.Relation, req.TargetONR.Namespace, req.TargetONR.Relation)
 	if err != nil {
 		return ResolveError(err)
 	}
-	defer it.Close()
 
-	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-		objects.Add(tpl.ObjectAndRelation)
-	}
+	if isDirectAllowed == namespace.DirectRelationValid {
+		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
+			objects := tuple.NewONRSet()
+			it, err := cl.ds.ReverseQueryTuplesFromSubject(req.TargetONR, req.AtRevision).
+				WithObjectRelation(req.StartRelation.Namespace, req.StartRelation.Relation).
+				Execute(ctx)
+			if err != nil {
+				resultChan <- LookupResult{Err: err}
+				return
+			}
+			defer it.Close()
 
-	if it.Err() != nil {
-		return ResolveError(it.Err())
-	}
+			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+				if it.Err() != nil {
+					resultChan <- LookupResult{Err: it.Err()}
+					return
+				}
 
-	thisTracer := tracer.Child("_this")
-	thisTracer.Add("Local", EmittableObjectSet(*objects))
+				objects.Add(tpl.ObjectAndRelation)
+				if objects.Length() >= req.Limit {
+					break
+				}
+			}
 
-	// If we've hit the limit of results already, then nothing more to do.
-	if objects.Length() >= req.Limit {
-		return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
+			if it.Err() != nil {
+				resultChan <- LookupResult{Err: err}
+				return
+			}
+
+			thisTracer.Add("Local", EmittableObjectSet(*objects))
+			resultChan <- LookupResult{ResolvedObjects: objects.AsSlice()}
+			return
+		})
 	}
 
 	// Dispatch to any allowed direct relation types that don't match the target ONR, collect
@@ -158,8 +176,6 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 	if err != nil {
 		return ResolveError(err)
 	}
-
-	requests := []ReduceableLookupFunc{}
 
 	directTracer := thisTracer.Child("Inferred")
 	requestsTracer := directTracer.Child("Requests")
@@ -191,60 +207,72 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req LookupRequest,
 			continue
 		}
 
-		requests = append(requests, cl.dispatch(LookupRequest{
-			TargetONR: req.TargetONR,
-			StartRelation: &v0.RelationReference{
-				Namespace: allowedDirectType.Namespace,
-				Relation:  allowedDirectType.Relation,
-			},
-			Limit:          noLimit, // Since this is an inferred lookup, we can't limit.
-			AtRevision:     req.AtRevision,
-			DepthRemaining: req.DepthRemaining - 1,
-			DirectStack:    directStack,
-			TTUStack:       req.TTUStack,
-			DebugTracer:    requestsTracer.Childf("Incoming %s#%s", allowedDirectType.Namespace, allowedDirectType.Relation),
-		}))
+		// Bind to the current allowed direct type
+		allowedDirectType := allowedDirectType
+
+		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
+			// Dispatch on the inferred relation.
+			inferredRequest := cl.dispatch(LookupRequest{
+				TargetONR: req.TargetONR,
+				StartRelation: &v0.RelationReference{
+					Namespace: allowedDirectType.Namespace,
+					Relation:  allowedDirectType.Relation,
+				},
+				Limit:          noLimit, // Since this is an inferred lookup, we can't limit.
+				AtRevision:     req.AtRevision,
+				DepthRemaining: req.DepthRemaining - 1,
+				DirectStack:    directStack,
+				TTUStack:       req.TTUStack,
+				DebugTracer:    requestsTracer.Childf("Incoming %s#%s", allowedDirectType.Namespace, allowedDirectType.Relation),
+			})
+
+			result := LookupAny(ctx, noLimit, []ReduceableLookupFunc{inferredRequest})
+			if result.Err != nil {
+				resultChan <- result
+				return
+			}
+
+			// For each inferred object found, check for the target ONR.
+			resultsTracer := directTracer.Child("Results To Check")
+			objects := tuple.NewONRSet()
+			if len(result.ResolvedObjects) > 0 {
+				it, err := cl.ds.QueryTuples(req.StartRelation.Namespace, req.AtRevision).
+					WithRelation(req.StartRelation.Relation).
+					WithUsersets(result.ResolvedObjects).
+					Limit(uint64(req.Limit)).
+					Execute(ctx)
+				if err != nil {
+					resultChan <- LookupResult{Err: err}
+					return
+				}
+				defer it.Close()
+
+				for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+					if it.Err() != nil {
+						resultChan <- LookupResult{Err: it.Err()}
+						return
+					}
+
+					resultsTracer.Child(tuple.StringONR(tpl.ObjectAndRelation))
+
+					objects.Add(tpl.ObjectAndRelation)
+					if objects.Length() >= req.Limit {
+						break
+					}
+				}
+			}
+
+			resultChan <- LookupResult{ResolvedObjects: objects.AsSlice()}
+		})
 	}
 
 	if len(requests) == 0 {
-		return ResolvedObjects(objects.AsSlice())
+		return ResolvedObjects([]*v0.ObjectAndRelation{})
 	}
 
-	// TODO(jschorr): Turn this into a parallel Lookup+Map?
-	result := LookupAny(ctx, req.Limit, requests)
-	if result.Err != nil {
-		return ResolveError(result.Err)
+	return func(ctx context.Context, resultChan chan<- LookupResult) {
+		resultChan <- LookupAny(ctx, req.Limit, requests)
 	}
-
-	// For each inferred object found, check for the target ONR.
-	resultsTracer := directTracer.Child("Results To Check")
-	for _, resolvedObj := range result.ResolvedObjects {
-		resultTracer := resultsTracer.Child(tuple.StringONR(resolvedObj))
-
-		it, err := cl.ds.QueryTuples(req.StartRelation.Namespace, req.AtRevision).
-			WithRelation(req.StartRelation.Relation).
-			WithUserset(resolvedObj).
-			Execute(ctx)
-		if err != nil {
-			return ResolveError(err)
-		}
-		defer it.Close()
-
-		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-			resultTracer.Child(tuple.StringONR(tpl.ObjectAndRelation))
-
-			objects.Add(tpl.ObjectAndRelation)
-			if objects.Length() >= req.Limit {
-				return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
-			}
-		}
-
-		if it.Err() != nil {
-			return ResolveError(it.Err())
-		}
-	}
-
-	return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
 }
 
 func (cl *concurrentLookup) processRewrite(ctx context.Context, req LookupRequest, tracer DebugTracer, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, usr *v0.UsersetRewrite) ReduceableLookupFunc {
@@ -313,7 +341,7 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 
 	ttuTracer := tracer.Childf("ttu %s#%s <- %s", req.StartRelation.Namespace, ttu.Tupleset, ttu.ComputedUserset.Relation)
 
-	// Collect all the accessible namespaces for the computed userset.
+	// Dispatch to all the accessible namespaces for the computed userset.
 	requests := []ReduceableLookupFunc{}
 	namespaces := map[string]bool{}
 
@@ -324,108 +352,134 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req Looku
 			continue
 		}
 
-		_, typeSystem, _, err := cl.nsm.ReadNamespaceAndTypes(ctx, directRelation.Namespace)
+		_, directRelTypeSystem, _, err := cl.nsm.ReadNamespaceAndTypes(ctx, directRelation.Namespace)
 		if err != nil {
 			return ResolveError(err)
 		}
 
-		if !typeSystem.HasRelation(ttu.ComputedUserset.Relation) {
+		if !directRelTypeSystem.HasRelation(ttu.ComputedUserset.Relation) {
 			continue
 		}
 
 		namespaces[directRelation.Namespace] = true
-		requests = append(requests, cl.dispatch(LookupRequest{
-			TargetONR: req.TargetONR,
-			StartRelation: &v0.RelationReference{
-				Namespace: directRelation.Namespace,
-				Relation:  ttu.ComputedUserset.Relation,
-			},
-			Limit:          noLimit, // Since this is a step in the lookup.
-			AtRevision:     req.AtRevision,
-			DepthRemaining: req.DepthRemaining - 1,
-			DirectStack:    req.DirectStack,
-			TTUStack:       req.TTUStack.With(onr),
-			DebugTracer:    computedUsersetTracer.Childf("%s#%s", directRelation.Namespace, ttu.ComputedUserset.Relation),
-		}))
-	}
 
-	// TODO(jschorr): Turn this into a parallel Lookup+Map?
-	result := LookupAny(ctx, req.Limit, requests)
-	if result.Err != nil {
-		return ResolveError(result.Err)
-	}
+		// Bind the current direct relation.
+		directRelation := directRelation
 
-	objects := tuple.NewONRSet()
-	computedUsersetResultsTracer := computedUsersetTracer.Childf("Results")
-	for _, resolvedObj := range result.ResolvedObjects {
-		tuplesetResultsTracer := computedUsersetResultsTracer.Childf("tupleset from %s", tuple.StringONR(resolvedObj))
+		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
+			// Dispatch a request to perform the computed userset lookup.
+			computedUsersetRequest := cl.dispatch(LookupRequest{
+				TargetONR: req.TargetONR,
+				StartRelation: &v0.RelationReference{
+					Namespace: directRelation.Namespace,
+					Relation:  ttu.ComputedUserset.Relation,
+				},
+				Limit:          noLimit, // Since this is a step in the lookup.
+				AtRevision:     req.AtRevision,
+				DepthRemaining: req.DepthRemaining - 1,
+				DirectStack:    req.DirectStack,
+				TTUStack:       req.TTUStack.With(onr),
+				DebugTracer:    computedUsersetTracer.Childf("%s#%s", directRelation.Namespace, ttu.ComputedUserset.Relation),
+			})
 
-		// Determine the relation(s) to use or the tupleset. This is determined based on the allowed direct relations and
-		// we always check for both the actual relation resolved, as well as `...`
-		allowedRelations := []string{}
-		allowedDirect, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.Namespace, resolvedObj.Relation)
-		if err != nil {
-			return ResolveError(err)
-		}
-
-		if allowedDirect == namespace.DirectRelationValid {
-			allowedRelations = append(allowedRelations, resolvedObj.Relation)
-		}
-
-		if resolvedObj.Relation != Ellipsis {
-			allowedEllipsis, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.Namespace, Ellipsis)
-			if err != nil {
-				return ResolveError(err)
+			result := LookupAny(ctx, noLimit, []ReduceableLookupFunc{computedUsersetRequest})
+			if result.Err != nil || len(result.ResolvedObjects) == 0 {
+				resultChan <- result
+				return
 			}
 
-			if allowedEllipsis == namespace.DirectRelationValid {
-				allowedRelations = append(allowedRelations, Ellipsis)
-			}
-		}
+			// For each computed userset object, collect the usersets and then perform a tupleset lookup.
+			computedUsersetResultsTracer := computedUsersetTracer.Childf("Results")
 
-		for _, allowedRelation := range allowedRelations {
-			userset := &v0.ObjectAndRelation{
-				Namespace: resolvedObj.Namespace,
-				ObjectId:  resolvedObj.ObjectId,
-				Relation:  allowedRelation,
-			}
+			usersets := []*v0.ObjectAndRelation{}
+			for _, resolvedObj := range result.ResolvedObjects {
+				computedUsersetResultsTracer.Childf("tupleset from %s", tuple.StringONR(resolvedObj))
 
-			tuplesetSpecificResultsTracer := tuplesetResultsTracer.Childf(tuple.StringONR(userset))
-			it, err := cl.ds.QueryTuples(req.StartRelation.Namespace, req.AtRevision).
-				WithRelation(ttu.Tupleset.Relation).
-				WithUserset(userset).
-				Execute(ctx)
-			if err != nil {
-				return ResolveError(err)
-			}
-			defer it.Close()
-
-			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-				tuplesetSpecificResultsTracer.Child(tuple.String(tpl))
-
-				if tpl.ObjectAndRelation.Namespace != req.StartRelation.Namespace {
-					return ResolveError(fmt.Errorf("got unexpected namespace"))
+				// Determine the relation(s) to use or the tupleset. This is determined based on the allowed direct relations and
+				// we always check for both the actual relation resolved, as well as `...`
+				allowedRelations := []string{}
+				allowedDirect, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.Namespace, resolvedObj.Relation)
+				if err != nil {
+					resultChan <- LookupResult{Err: err}
+					return
 				}
 
-				objects.Add(&v0.ObjectAndRelation{
-					Namespace: req.StartRelation.Namespace,
-					ObjectId:  tpl.ObjectAndRelation.ObjectId,
-					Relation:  req.StartRelation.Relation,
-				})
+				if allowedDirect == namespace.DirectRelationValid {
+					allowedRelations = append(allowedRelations, resolvedObj.Relation)
+				}
 
-				if objects.Length() >= req.Limit {
-					return ResolvedObjects(limitedSlice(objects.AsSlice(), req.Limit))
+				if resolvedObj.Relation != Ellipsis {
+					allowedEllipsis, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.Namespace, Ellipsis)
+					if err != nil {
+						resultChan <- LookupResult{Err: err}
+					}
+
+					if allowedEllipsis == namespace.DirectRelationValid {
+						allowedRelations = append(allowedRelations, Ellipsis)
+					}
+				}
+
+				for _, allowedRelation := range allowedRelations {
+					userset := &v0.ObjectAndRelation{
+						Namespace: resolvedObj.Namespace,
+						ObjectId:  resolvedObj.ObjectId,
+						Relation:  allowedRelation,
+					}
+					usersets = append(usersets, userset)
 				}
 			}
 
-			if it.Err() != nil {
-				return ResolveError(it.Err())
+			// Perform the tupleset lookup.
+			objects := tuple.NewONRSet()
+			if len(usersets) > 0 {
+				it, err := cl.ds.QueryTuples(req.StartRelation.Namespace, req.AtRevision).
+					WithRelation(ttu.Tupleset.Relation).
+					WithUsersets(usersets).
+					Limit(uint64(req.Limit)).
+					Execute(ctx)
+				if err != nil {
+					resultChan <- LookupResult{Err: err}
+					return
+				}
+				defer it.Close()
+
+				for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+					if it.Err() != nil {
+						resultChan <- LookupResult{Err: it.Err()}
+						return
+					}
+
+					computedUsersetResultsTracer.Child(tuple.String(tpl))
+
+					if tpl.ObjectAndRelation.Namespace != req.StartRelation.Namespace {
+						resultChan <- LookupResult{Err: fmt.Errorf("got unexpected namespace")}
+						return
+					}
+
+					objects.Add(&v0.ObjectAndRelation{
+						Namespace: req.StartRelation.Namespace,
+						ObjectId:  tpl.ObjectAndRelation.ObjectId,
+						Relation:  req.StartRelation.Relation,
+					})
+
+					if objects.Length() >= req.Limit {
+						break
+					}
+				}
 			}
-		}
+
+			ttuTracer.Add("ttu Results", EmittableObjectSet(*objects))
+			resultChan <- LookupResult{ResolvedObjects: objects.AsSlice()}
+		})
 	}
 
-	ttuTracer.Add("ttu Results", EmittableObjectSet(*objects))
-	return ResolvedObjects(objects.AsSlice())
+	if len(requests) == 0 {
+		return ResolvedObjects([]*v0.ObjectAndRelation{})
+	}
+
+	return func(ctx context.Context, resultChan chan<- LookupResult) {
+		resultChan <- LookupAny(ctx, req.Limit, requests)
+	}
 }
 
 func (cl *concurrentLookup) lookupComputed(ctx context.Context, req LookupRequest, tracer DebugTracer, cu *v0.ComputedUserset) ReduceableLookupFunc {
@@ -620,6 +674,10 @@ func Resolved(resolved *v0.ObjectAndRelation) ReduceableLookupFunc {
 }
 
 func ResolveError(err error) ReduceableLookupFunc {
+	if err == nil {
+		panic("Given nil error to ResolveError")
+	}
+
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
 		resultChan <- LookupResult{Err: err}
 	}

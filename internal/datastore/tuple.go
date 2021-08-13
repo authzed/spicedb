@@ -2,7 +2,6 @@ package datastore
 
 import (
 	"errors"
-	"fmt"
 
 	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
@@ -53,14 +52,10 @@ func (sti *sliceTupleIterator) Close() {
 
 // BuildFinalizerFunction creates a function which can be used as a finalizer to make sure that
 // tuples are getting closed before they are garbage collected.
-func BuildFinalizerFunction(sql string, args []interface{}) func(iter *sliceTupleIterator) {
+func BuildFinalizerFunction() func(iter *sliceTupleIterator) {
 	return func(iter *sliceTupleIterator) {
 		if !iter.closed {
-			panic(fmt.Sprintf(
-				"Tuple iterator garbage collected before Close() was called\n sql: %s\n args: %#v\n",
-				sql,
-				args,
-			))
+			panic("Tuple iterator garbage collected before Close() was called")
 		}
 	}
 }

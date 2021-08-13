@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/alecthomas/units"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -98,18 +99,20 @@ func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, e
 	}
 
 	return &crdbDatastore{
-		conn:              conn,
-		watchBufferLength: config.watchBufferLength,
-		quantizationNanos: config.revisionQuantization.Nanoseconds(),
-		gcWindowNanos:     gcWindowNanos,
+		conn:                      conn,
+		watchBufferLength:         config.watchBufferLength,
+		quantizationNanos:         config.revisionQuantization.Nanoseconds(),
+		gcWindowNanos:             gcWindowNanos,
+		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
 	}, nil
 }
 
 type crdbDatastore struct {
-	conn              *pgxpool.Pool
-	watchBufferLength uint16
-	quantizationNanos int64
-	gcWindowNanos     int64
+	conn                      *pgxpool.Pool
+	watchBufferLength         uint16
+	quantizationNanos         int64
+	gcWindowNanos             int64
+	splitAtEstimatedQuerySize units.Base2Bytes
 }
 
 func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {

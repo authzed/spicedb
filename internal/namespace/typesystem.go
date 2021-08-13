@@ -65,7 +65,7 @@ func (nts *NamespaceTypeSystem) HasRelation(relationName string) bool {
 func (nts *NamespaceTypeSystem) IsAllowedDirectRelation(sourceRelationName string, targetNamespaceName string, targetRelationName string) (AllowedDirectRelation, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
-		return UnknownIfRelationAllowed, fmt.Errorf("unknown relation/permission %s", sourceRelationName)
+		return UnknownIfRelationAllowed, fmt.Errorf("unknown relation/permission `%s` under permissions system `%s`", sourceRelationName, nts.nsDef.Name)
 	}
 
 	typeInfo := found.GetTypeInformation()
@@ -87,7 +87,7 @@ func (nts *NamespaceTypeSystem) IsAllowedDirectRelation(sourceRelationName strin
 func (nts *NamespaceTypeSystem) AllowedDirectRelations(sourceRelationName string) ([]*v0.RelationReference, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
-		return []*v0.RelationReference{}, fmt.Errorf("unknown relation/permission %s", sourceRelationName)
+		return []*v0.RelationReference{}, fmt.Errorf("unknown relation/permission `%s` under permissions system `%s`", sourceRelationName, nts.nsDef.Name)
 	}
 
 	typeInfo := found.GetTypeInformation()

@@ -9,11 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alecthomas/units"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/ory/dockertest"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -22,10 +24,11 @@ import (
 )
 
 type sqlTest struct {
-	dbpool  *pgxpool.Pool
-	port    string
-	creds   string
-	cleanup func()
+	dbpool                    *pgxpool.Pool
+	port                      string
+	creds                     string
+	splitAtEstimatedQuerySize units.Base2Bytes
+	cleanup                   func()
 }
 
 var postgresContainer = &dockertest.RunOptions{
@@ -69,11 +72,21 @@ func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBuf
 		RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
 		GCWindow(gcWindow),
 		WatchBufferLength(watchBufferLength),
+		SplitAtEstimatedQuerySize(st.splitAtEstimatedQuerySize),
 	)
 }
 
 func TestPostgresDatastore(t *testing.T) {
 	tester := newTester(postgresContainer, "postgres:secret", 5432)
+	defer tester.cleanup()
+
+	test.TestAll(t, tester)
+}
+
+func TestPostgresDatastoreWithSplit(t *testing.T) {
+	// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
+	tester := newTester(postgresContainer, "postgres:secret", 5432)
+	tester.splitAtEstimatedQuerySize = 1 // bytes
 	defer tester.cleanup()
 
 	test.TestAll(t, tester)
@@ -138,5 +151,5 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		}
 	}
 
-	return &sqlTest{dbpool: dbpool, port: port, cleanup: cleanup, creds: creds}
+	return &sqlTest{dbpool: dbpool, port: port, cleanup: cleanup, creds: creds, splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize}
 }

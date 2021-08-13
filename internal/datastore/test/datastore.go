@@ -31,6 +31,7 @@ func TestAll(t *testing.T, tester DatastoreTester) {
 	t.Run("TestNamespaceDelete", func(t *testing.T) { TestNamespaceDelete(t, tester) })
 	t.Run("TestWatch", func(t *testing.T) { TestWatch(t, tester) })
 	t.Run("TestWatchCancel", func(t *testing.T) { TestWatchCancel(t, tester) })
+	t.Run("TestUsersets", func(t *testing.T) { TestUsersets(t, tester) })
 }
 
 var testResourceNS = namespace.Namespace(

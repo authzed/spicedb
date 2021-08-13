@@ -3,6 +3,10 @@ package postgres
 import (
 	"fmt"
 	"time"
+
+	"github.com/alecthomas/units"
+
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 type postgresOptions struct {
@@ -12,9 +16,10 @@ type postgresOptions struct {
 	maxOpenConns      *int
 	minOpenConns      *int
 
-	watchBufferLength        uint16
-	revisionFuzzingTimedelta time.Duration
-	gcWindow                 time.Duration
+	watchBufferLength         uint16
+	revisionFuzzingTimedelta  time.Duration
+	gcWindow                  time.Duration
+	splitAtEstimatedQuerySize units.Base2Bytes
 
 	enablePrometheusStats bool
 
@@ -31,8 +36,9 @@ type PostgresOption func(*postgresOptions)
 
 func generateConfig(options []PostgresOption) (postgresOptions, error) {
 	computed := postgresOptions{
-		gcWindow:          24 * time.Hour,
-		watchBufferLength: defaultWatchBufferLength,
+		gcWindow:                  24 * time.Hour,
+		watchBufferLength:         defaultWatchBufferLength,
+		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
 	}
 
 	for _, option := range options {
@@ -49,6 +55,12 @@ func generateConfig(options []PostgresOption) (postgresOptions, error) {
 	}
 
 	return computed, nil
+}
+
+func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) PostgresOption {
+	return func(po *postgresOptions) {
+		po.splitAtEstimatedQuerySize = splitAtEstimatedQuerySize
+	}
 }
 
 func ConnMaxIdleTime(idle time.Duration) PostgresOption {
