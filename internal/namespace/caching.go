@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/dgraph-io/ristretto"
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (

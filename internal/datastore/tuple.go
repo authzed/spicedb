@@ -3,7 +3,7 @@ package datastore
 import (
 	"errors"
 
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 )
 
 var errClosedIterator = errors.New("unable to iterate: iterator closed")

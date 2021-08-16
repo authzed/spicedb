@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"regexp"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	yaml "gopkg.in/yaml.v2"
 	yamlv3 "gopkg.in/yaml.v3"
 
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

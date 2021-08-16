@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -18,7 +21,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/readonly"
@@ -26,8 +28,6 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
-	v1alpha1 "github.com/authzed/spicedb/pkg/proto/authzed/api/v1alpha1"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 

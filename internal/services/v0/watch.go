@@ -3,14 +3,14 @@ package v0
 import (
 	"errors"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/zookie"
-	"github.com/shopspring/decimal"
 )
 
 type watchServer struct {

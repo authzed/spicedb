@@ -3,7 +3,8 @@ package membership
 import (
 	"fmt"
 
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

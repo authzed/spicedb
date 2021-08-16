@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/hashicorp/go-memdb"
+
 	"github.com/authzed/spicedb/internal/datastore"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (

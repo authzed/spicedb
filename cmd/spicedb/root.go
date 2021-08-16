@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
@@ -36,8 +38,6 @@ import (
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/grpcutil"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
-	"github.com/authzed/spicedb/pkg/proto/authzed/api/v1alpha1"
 )
 
 func newRootCmd() *cobra.Command {

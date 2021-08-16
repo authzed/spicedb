@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
@@ -11,8 +13,6 @@ import (
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/grpcutil"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
-	v1alpha1 "github.com/authzed/spicedb/pkg/proto/authzed/api/v1alpha1"
 )
 
 func TestSchemaReadNoPrefix(t *testing.T) {

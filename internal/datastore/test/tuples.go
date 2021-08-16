@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

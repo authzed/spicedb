@@ -1,12 +1,12 @@
 package namespace
 
 import (
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/protobuf/proto"
 
 	// TODO: stop exposing private v0 types in package's API
 	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 // StripMetadata removes all metadata from the given namespace.

@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/jackc/pgx/v4"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 const (

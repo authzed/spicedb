@@ -3,11 +3,11 @@ package graph
 import (
 	"context"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

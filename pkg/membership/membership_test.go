@@ -3,10 +3,10 @@ package membership
 import (
 	"testing"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/graph"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

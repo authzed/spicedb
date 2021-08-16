@@ -3,7 +3,8 @@ package compiler
 import (
 	"fmt"
 
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/parser"

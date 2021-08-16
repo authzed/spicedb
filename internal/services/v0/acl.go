@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
@@ -17,7 +18,6 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )

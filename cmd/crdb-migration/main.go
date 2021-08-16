@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/jackc/pgx/v4"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/zerolog/log"
@@ -15,7 +16,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/pkg/cmdutil"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

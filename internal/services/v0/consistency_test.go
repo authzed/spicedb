@@ -12,18 +12,17 @@ import (
 	"testing"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
-
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/jwangsadinata/go-multimap/slicemultimap"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	graphpkg "github.com/authzed/spicedb/pkg/graph"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/zookie"

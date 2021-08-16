@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 // veryLargeGCWindow is a very large time duration, which when passed to a constructor should

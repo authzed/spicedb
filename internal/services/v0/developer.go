@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/google/go-cmp/cmp"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/encoding/prototext"
@@ -17,7 +18,6 @@ import (
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/grpcutil"
 	"github.com/authzed/spicedb/pkg/membership"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"

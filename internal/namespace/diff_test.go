@@ -3,10 +3,10 @@ package namespace
 import (
 	"testing"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
 
 	ns "github.com/authzed/spicedb/pkg/namespace"
-	v0 "github.com/authzed/spicedb/pkg/proto/authzed/api/v0"
 )
 
 func TestNamespaceDiff(t *testing.T) {
