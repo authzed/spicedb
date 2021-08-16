@@ -36,12 +36,12 @@ const (
 	lookupDefaultLimit = 25
 	lookupMaximumLimit = 100
 
-	depthRemainingHeader = "authzed-depth-remaining"
+	DepthRemainingHeader = "authzed-depth-remaining"
 )
 
 var (
 	errInvalidZookie         = errors.New("invalid revision requested")
-	errInvalidDepthRemaining = fmt.Errorf("invalid %s header", depthRemainingHeader)
+	errInvalidDepthRemaining = fmt.Errorf("invalid %s header", DepthRemainingHeader)
 )
 
 // NewACLServer creates an instance of the ACL server.
@@ -378,7 +378,7 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 
 func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if matching := md.Get(depthRemainingHeader); len(matching) > 0 {
+		if matching := md.Get(DepthRemainingHeader); len(matching) > 0 {
 			if len(matching) > 1 {
 				return 0, errInvalidDepthRemaining
 			}

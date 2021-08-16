@@ -38,6 +38,7 @@ import (
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/grpcutil"
+	"github.com/authzed/spicedb/pkg/smartclient"
 )
 
 func newRootCmd() *cobra.Command {
@@ -78,6 +79,10 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().Duration("crdb-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the cockroachdb connection pool")
 	rootCmd.Flags().Duration("crdb-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the cockroachdb connection pool")
 	rootCmd.Flags().Duration("shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
+
+	rootCmd.Flags().String("redispatch-dns-name", "", "dns service name to resolve for remote redispatch, empty string disables redispatch")
+	rootCmd.Flags().String("peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
+	rootCmd.Flags().String("peer-resolver-cert-path", "", "local path to the TLS certificate for the peer endpoint resolver")
 
 	return rootCmd
 }
@@ -189,6 +194,49 @@ func rootRun(cmd *cobra.Command, args []string) {
 	dispatch, err := graph.NewLocalDispatcher(nsm, ds)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize dispatcher")
+	}
+
+	redispatchTarget := cobrautil.MustGetString(cmd, "redispatch-dns-name")
+	if redispatchTarget != "" {
+		log.Info().Str("target", redispatchTarget).Msg("initializing remote redispatcher")
+
+		resolverAddr := cobrautil.MustGetString(cmd, "peer-resolver-addr")
+		resolverCertPath := cobrautil.MustGetString(cmd, "peer-resolver-cert-path")
+		var resolverConfig *smartclient.EndpointResolverConfig
+		if resolverCertPath != "" {
+			log.Debug().Str("addr", resolverAddr).Str("cacert", resolverCertPath).Msg("using TLS protected peer resolver")
+			resolverConfig = smartclient.NewEndpointResolver(resolverAddr, resolverCertPath)
+		} else {
+			log.Debug().Str("addr", resolverAddr).Msg("using insecure peer resolver")
+			resolverConfig = smartclient.NewEndpointResolverNoTLS(resolverAddr)
+		}
+
+		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path")
+		peerPSK := cobrautil.MustGetString(cmd, "preshared-key")
+		selfEndpoint := cobrautil.MustGetString(cmd, "grpc-addr")
+
+		var endpointConfig *smartclient.EndpointConfig
+		var fallbackConfig *smartclient.FallbackEndpointConfig
+		if !cobrautil.MustGetBool(cmd, "grpc-no-tls") {
+			log.Debug().Str("endpoint", redispatchTarget).Str("cacert", resolverCertPath).Msg("using TLS protected peers")
+			endpointConfig = smartclient.NewEndpointConfig(redispatchTarget, peerPSK, peerCertPath)
+			fallbackConfig = smartclient.NewFallbackEndpoint(selfEndpoint, peerPSK, peerCertPath)
+		} else {
+			log.Debug().Str("endpoint", redispatchTarget).Msg("using insecure peers")
+			endpointConfig = smartclient.NewEndpointConfigNoTLS(redispatchTarget, peerPSK)
+			fallbackConfig = smartclient.NewFallbackEndpointNoTLS(selfEndpoint, peerPSK)
+		}
+
+		client, err := smartclient.NewSmartClient(resolverConfig, endpointConfig, fallbackConfig)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to initialize smart client")
+		}
+
+		redispatcher := graph.NewClusterDispatcher(client, v0svc.DepthRemainingHeader)
+		dispatch, err = graph.NewLocalDispatcherWithRedispatch(nsm, ds, redispatcher)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to initialize redispatcher")
+		}
 	}
 
 	cachingDispatch, err := graph.NewCachingDispatcher(dispatch, nil, graph.RegisterPromMetrics)

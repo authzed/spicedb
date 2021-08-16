@@ -20,13 +20,29 @@ var errMaxDepth = errors.New("max depth has been reached")
 
 // NewLocalDispatcher creates a dispatcher that checks everything in the same
 // process on the same machine.
-func NewLocalDispatcher(nsm namespace.Manager, ds datastore.GraphDatastore) (Dispatcher, error) {
-	return &localDispatcher{nsm: nsm, ds: ds}, nil
+func NewLocalDispatcher(
+	nsm namespace.Manager,
+	ds datastore.GraphDatastore,
+) (Dispatcher, error) {
+	localOnly := &localDispatcher{nsm: nsm, ds: ds}
+	localOnly.redispatcher = localOnly
+	return localOnly, nil
+}
+
+// NewLocalDispatcherWithRedispatch creates a dispatcher that uses a different
+// dispather for further request dispatching.
+func NewLocalDispatcherWithRedispatch(
+	nsm namespace.Manager,
+	ds datastore.GraphDatastore,
+	redispatcher Dispatcher,
+) (Dispatcher, error) {
+	return &localDispatcher{nsm: nsm, ds: ds, redispatcher: redispatcher}, nil
 }
 
 type localDispatcher struct {
-	nsm namespace.Manager
-	ds  datastore.GraphDatastore
+	nsm          namespace.Manager
+	ds           datastore.GraphDatastore
+	redispatcher Dispatcher
 }
 
 func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string) (*v0.Relation, error) {
@@ -83,7 +99,7 @@ func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckRes
 		return CheckResult{Err: err}
 	}
 
-	chk := newConcurrentChecker(ld, ld.ds, ld.nsm)
+	chk := newConcurrentChecker(ld.redispatcher, ld.ds, ld.nsm)
 
 	asyncCheck := chk.check(ctx, req, relation)
 	return Any(ctx, []ReduceableCheckFunc{asyncCheck})
@@ -104,7 +120,7 @@ func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) Expand
 		return ExpandResult{Tree: nil, Err: err}
 	}
 
-	expand := newConcurrentExpander(ld, ld.ds, ld.nsm)
+	expand := newConcurrentExpander(ld.redispatcher, ld.ds, ld.nsm)
 
 	asyncExpand := expand.expand(ctx, req, relation)
 	return ExpandOne(ctx, asyncExpand)
@@ -128,7 +144,7 @@ func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) Lookup
 		}
 	}
 
-	lookup := newConcurrentLookup(ld, ld.ds, ld.nsm)
+	lookup := newConcurrentLookup(ld.redispatcher, ld.ds, ld.nsm)
 	tracer := req.DebugTracer.Childf("Dispatched: %s#%s -> %s", req.StartRelation.Namespace, req.StartRelation.Relation, tuple.StringONR(req.TargetONR))
 	req.DebugTracer = tracer
 
