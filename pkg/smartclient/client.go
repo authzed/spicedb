@@ -2,29 +2,29 @@ package smartclient
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
+	"time"
 
 	client_v0 "github.com/authzed/authzed-go/v0"
 	client_v1alpha1 "github.com/authzed/authzed-go/v1alpha1"
 	"github.com/cespare/xxhash"
+	"github.com/jpillora/backoff"
 	"github.com/rs/zerolog/log"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/pkg/consistent"
 	servok "github.com/authzed/spicedb/pkg/proto/servok/api/v1"
-	"github.com/authzed/spicedb/pkg/x509util"
 )
 
 const (
 	errInitializingSmartClient = "unable to initialize smart client: %w"
-	errComputingBackend        = "unable to marshal request: %w"
+	errComputingBackend        = "unable to compute backend for request: %w"
+	errParsingFallbackEndpoint = "unable to parse fallback endpoint: %w"
+	errEstablishingWatch       = "unable to establish watch stream: %w"
 
 	hashringReplicationFactor = 20
 )
@@ -36,6 +36,8 @@ var errNoBackends = errors.New("no backends available for request")
 type SmartClient struct {
 	backendsPerKey uint8
 
+	fallbackBackend *backend
+
 	ringMu       sync.Mutex
 	ring         *consistent.Hashring
 	cancelWatch  context.CancelFunc
@@ -44,79 +46,94 @@ type SmartClient struct {
 
 // NewSmartClient creates an instance of the smart client with the specified configuration.
 func NewSmartClient(
-	servokEndpoint string,
-	servokCAPath string,
-	endpointDNSName string,
-	endpointCAPath string,
-	endpointToken string,
+	resolverConfig *EndpointResolverConfig,
+	endpointConfig *EndpointConfig,
+	fallback *FallbackEndpointConfig,
 ) (*SmartClient, error) {
-	pool, err := x509util.CustomCertPool(servokCAPath)
-	if err != nil {
-		return nil, fmt.Errorf(errInitializingSmartClient, err)
+	if resolverConfig.err != nil {
+		return nil, fmt.Errorf(errInitializingSmartClient, resolverConfig.err)
 	}
-	creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
-
-	servokConn, err := grpc.Dial(
-		servokEndpoint,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-	)
-	if err != nil {
-		return nil, fmt.Errorf(errInitializingSmartClient, err)
+	if endpointConfig.err != nil {
+		return nil, fmt.Errorf(errInitializingSmartClient, endpointConfig.err)
 	}
-
-	servokClient := servok.NewEndpointServiceClient(servokConn)
+	if fallback.err != nil {
+		return nil, fmt.Errorf(errInitializingSmartClient, fallback.err)
+	}
 
 	servokClientCtx, cancel := context.WithCancel(context.Background())
 
 	sc := &SmartClient{
 		1,
+		fallback.backend,
 		sync.Mutex{},
 		consistent.NewHashring(xxhash.Sum64, hashringReplicationFactor),
 		cancel,
 		proto.MarshalOptions{Deterministic: true},
 	}
 
-	stream, err := servokClient.Watch(servokClientCtx, &servok.WatchRequest{
-		DnsName: endpointDNSName,
-	})
-	if err != nil {
-		cancel()
-
-		return nil, fmt.Errorf(errInitializingSmartClient, err)
-	}
-
-	endpointPool, err := x509util.CustomCertPool(endpointCAPath)
-	if err != nil {
-		cancel()
-
-		return nil, fmt.Errorf(errInitializingSmartClient, err)
-	}
-	spicedbCreds := credentials.NewTLS(&tls.Config{RootCAs: endpointPool, ServerName: endpointDNSName})
-
-	endpointClientDialOptions := []grpc.DialOption{
-		client_v0.Token(endpointToken),
-		grpc.WithTransportCredentials(spicedbCreds),
-		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-	}
-
-	go sc.watchAndUpdateMembership(servokClientCtx, stream, endpointClientDialOptions...)
+	go sc.watchAndUpdateMembership(servokClientCtx, resolverConfig, endpointConfig)
 
 	return sc, nil
 }
 
+func establishServokWatch(ctx context.Context,
+	resolverConfig *EndpointResolverConfig,
+	upstreamEndpointDNSName string,
+) (servok.EndpointService_WatchClient, error) {
+
+	servokConn, err := grpc.Dial(resolverConfig.endpoint, resolverConfig.dialOptions...)
+	if err != nil {
+		return nil, fmt.Errorf(errEstablishingWatch, err)
+	}
+
+	servokClient := servok.NewEndpointServiceClient(servokConn)
+
+	log.Debug().Str("dnsName", upstreamEndpointDNSName).Msg("")
+
+	stream, err := servokClient.Watch(ctx, &servok.WatchRequest{
+		DnsName: upstreamEndpointDNSName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf(errEstablishingWatch, err)
+	}
+
+	return stream, nil
+}
+
 func (sc *SmartClient) watchAndUpdateMembership(
 	ctx context.Context,
-	stream servok.EndpointService_WatchClient,
-	endpointDialOptions ...grpc.DialOption,
+	resolverConfig *EndpointResolverConfig,
+	endpointConfig *EndpointConfig,
 ) {
+	b := &backoff.Backoff{
+		Jitter: true,
+	}
+
 	for ctx.Err() == nil {
-		endpointResponse, err := stream.Recv()
+		stream, err := establishServokWatch(ctx, resolverConfig, endpointConfig.dnsName)
 		if err != nil {
-			log.Fatal().Err(err).Msg("error reading from endpoint server")
+			wait := b.Duration()
+			log.Warn().Stringer("retryAfter", wait).Err(err).Msg("unable to establish endpoint resolver connection")
+			time.Sleep(wait)
+
+			// We need to re-establish the stream
+			continue
 		}
 
-		sc.updateMembers(ctx, endpointResponse.Endpoints, endpointDialOptions)
+		for ctx.Err() == nil {
+			endpointResponse, err := stream.Recv()
+			if err != nil {
+				wait := b.Duration()
+				log.Error().Stringer("retryAfter", wait).Err(err).Msg("error reading from endpoint server")
+				time.Sleep(wait)
+
+				// We need to re-establish the stream
+				break
+			} else {
+				b.Reset()
+				sc.updateMembers(ctx, endpointResponse.Endpoints, endpointConfig.dialOptions)
+			}
+		}
 	}
 }
 
@@ -150,7 +167,7 @@ func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.En
 		}
 
 		memberToAdd := &backend{
-			endpoint:        endpoint,
+			key:             fmt.Sprintf("%d %s", endpoint.Port, endpoint.Hostname),
 			client_v0:       v0clientForMember,
 			client_v1alpha1: v1alpha1clientForMember,
 		}
@@ -195,6 +212,11 @@ func (sc *SmartClient) getConsistentBackend(request proto.Message) (*backend, er
 
 	members, err := sc.ring.FindN(requestKey, sc.backendsPerKey)
 	if err != nil {
+		if err == consistent.ErrNotEnoughMembers && sc.fallbackBackend != nil {
+			log.Warn().Str("backend", sc.fallbackBackend.Key()).Msg("using fallback backend")
+			return sc.fallbackBackend, nil
+		}
+
 		return nil, fmt.Errorf(errComputingBackend, err)
 	}
 
@@ -208,13 +230,18 @@ func (sc *SmartClient) getConsistentBackend(request proto.Message) (*backend, er
 func (sc *SmartClient) getRandomBackend() (*backend, error) {
 	allMembers := sc.ring.Members()
 	if len(allMembers) < 1 {
+		if sc.fallbackBackend != nil {
+			log.Warn().Str("backend", sc.fallbackBackend.Key()).Msg("using fallback backend")
+			return sc.fallbackBackend, nil
+		}
 		return nil, errNoBackends
+
 	}
 	return allMembers[rand.Intn(len(allMembers))].(*backend), nil
 }
 
 type backend struct {
-	endpoint        *servok.Endpoint
+	key             string
 	client_v0       *client_v0.Client
 	client_v1alpha1 *client_v1alpha1.Client
 }
@@ -222,5 +249,5 @@ type backend struct {
 // Implements consistent.Member
 // This value is what will be hashed for placement on the consistent hash ring.
 func (b *backend) Key() string {
-	return fmt.Sprintf("%d %s", b.endpoint.Port, b.endpoint.Hostname)
+	return b.key
 }

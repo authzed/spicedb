@@ -9,6 +9,7 @@ require (
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/authzed/authzed-go v0.1.0
+	github.com/authzed/grpcutil v0.0.0-20210804144231-370c692019eb
 	github.com/aws/aws-sdk-go v1.40.16
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
@@ -32,6 +33,7 @@ require (
 	github.com/jackc/pgx/v4 v4.13.0
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
+	github.com/jpillora/backoff v1.0.0
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.0-20210619202150-2fc07a6abd5e
 	github.com/jzelinskie/stringz v0.0.1
