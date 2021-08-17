@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/shopspring/decimal"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -26,17 +27,19 @@ type clusterClient interface {
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
-func NewClusterDispatcher(client clusterClient, depthRemainingHeader string) Dispatcher {
-	return &clusterDispatcher{client, depthRemainingHeader}
+func NewClusterDispatcher(client clusterClient, depthRemainingHeader, forcedRevisionHeader string) Dispatcher {
+	return &clusterDispatcher{client, depthRemainingHeader, forcedRevisionHeader}
 }
 
 type clusterDispatcher struct {
 	clusterClient        clusterClient
 	depthRemainingHeader string
+	forcedRevisionHeader string
 }
 
 func (cr *clusterDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
 	ctx = cr.addDepthRemaining(ctx, req.DepthRemaining)
+	ctx = cr.addForcedRevision(ctx, req.AtRevision)
 
 	resp, err := cr.clusterClient.Check(ctx, &v0.CheckRequest{
 		TestUserset: req.Start,
@@ -56,6 +59,7 @@ func (cr *clusterDispatcher) Check(ctx context.Context, req CheckRequest) CheckR
 
 func (cr *clusterDispatcher) Expand(ctx context.Context, req ExpandRequest) ExpandResult {
 	ctx = cr.addDepthRemaining(ctx, req.DepthRemaining)
+	ctx = cr.addForcedRevision(ctx, req.AtRevision)
 
 	resp, err := cr.clusterClient.Expand(ctx, &v0.ExpandRequest{
 		Userset:    req.Start,
@@ -74,6 +78,7 @@ func (cr *clusterDispatcher) Expand(ctx context.Context, req ExpandRequest) Expa
 
 func (cr *clusterDispatcher) Lookup(ctx context.Context, req LookupRequest) LookupResult {
 	ctx = cr.addDepthRemaining(ctx, req.DepthRemaining)
+	ctx = cr.addForcedRevision(ctx, req.AtRevision)
 
 	resp, err := cr.clusterClient.Lookup(ctx, &v0.LookupRequest{
 		ObjectRelation: req.StartRelation,
@@ -104,6 +109,11 @@ func (cr *clusterDispatcher) Lookup(ctx context.Context, req LookupRequest) Look
 func (cr *clusterDispatcher) addDepthRemaining(ctx context.Context, depthRemaining uint16) context.Context {
 	depthRemainingStr := strconv.Itoa(int(depthRemaining))
 	return metadata.AppendToOutgoingContext(ctx, cr.depthRemainingHeader, depthRemainingStr)
+}
+
+func (cr *clusterDispatcher) addForcedRevision(ctx context.Context, revision decimal.Decimal) context.Context {
+	revisionStr := revision.String()
+	return metadata.AppendToOutgoingContext(ctx, cr.forcedRevisionHeader, revisionStr)
 }
 
 // Always verify that we implement the interface

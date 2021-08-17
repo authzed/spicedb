@@ -37,11 +37,13 @@ const (
 	lookupMaximumLimit = 100
 
 	DepthRemainingHeader = "authzed-depth-remaining"
+	ForcedRevisionHeader = "authzed-forced-revision"
 )
 
 var (
 	errInvalidZookie         = errors.New("invalid revision requested")
 	errInvalidDepthRemaining = fmt.Errorf("invalid %s header", DepthRemainingHeader)
+	errInvalidForcedRevision = fmt.Errorf("invalid %s header", ForcedRevisionHeader)
 )
 
 // NewACLServer creates an instance of the ACL server.
@@ -401,6 +403,24 @@ func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) 
 }
 
 func (as *aclServer) pickBestRevision(ctx context.Context, requested *v0.Zookie) (decimal.Decimal, error) {
+	// Check if our caller has already picked a revision for us
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if forcedRevisions := md.Get(ForcedRevisionHeader); len(forcedRevisions) > 0 {
+			if len(forcedRevisions) > 1 {
+				return decimal.Zero, errInvalidForcedRevision
+			}
+
+			// We have a revision header, parse it
+			parsedRevision, err := decimal.NewFromString(forcedRevisions[0])
+			if err != nil {
+				return decimal.Zero, errInvalidForcedRevision
+			}
+
+			return parsedRevision, nil
+		}
+	}
+
+	// Calculate a revision as we see fit
 	databaseRev, err := as.ds.Revision(ctx)
 	if err != nil {
 		return decimal.Zero, err

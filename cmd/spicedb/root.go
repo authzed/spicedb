@@ -234,7 +234,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 			log.Fatal().Err(err).Msg("failed to initialize smart client")
 		}
 
-		redispatcher := graph.NewClusterDispatcher(client, v0svc.DepthRemainingHeader)
+		redispatcher := graph.NewClusterDispatcher(
+			client,
+			v0svc.DepthRemainingHeader,
+			v0svc.ForcedRevisionHeader,
+		)
 		dispatch, err = graph.NewLocalDispatcherWithRedispatch(nsm, ds, redispatcher)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to initialize redispatcher")
