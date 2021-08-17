@@ -78,7 +78,7 @@ func NewSmartClient(
 
 func establishServokWatch(ctx context.Context,
 	resolverConfig *EndpointResolverConfig,
-	upstreamEndpointDNSName string,
+	endpointConfig *EndpointConfig,
 ) (servok.EndpointService_WatchClient, error) {
 
 	servokConn, err := grpc.Dial(resolverConfig.endpoint, resolverConfig.dialOptions...)
@@ -88,10 +88,14 @@ func establishServokWatch(ctx context.Context,
 
 	servokClient := servok.NewEndpointServiceClient(servokConn)
 
-	log.Debug().Str("dnsName", upstreamEndpointDNSName).Msg("")
-
 	stream, err := servokClient.Watch(ctx, &servok.WatchRequest{
-		DnsName: upstreamEndpointDNSName,
+		RequestTypeOneof: &servok.WatchRequest_Srv{
+			Srv: &servok.WatchRequest_SRVRequest{
+				Service:  endpointConfig.serviceName,
+				Protocol: "tcp",
+				DnsName:  endpointConfig.dnsName,
+			},
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf(errEstablishingWatch, err)
@@ -110,7 +114,7 @@ func (sc *SmartClient) watchAndUpdateMembership(
 	}
 
 	for ctx.Err() == nil {
-		stream, err := establishServokWatch(ctx, resolverConfig, endpointConfig.dnsName)
+		stream, err := establishServokWatch(ctx, resolverConfig, endpointConfig)
 		if err != nil {
 			wait := b.Duration()
 			log.Warn().Stringer("retryAfter", wait).Err(err).Msg("unable to establish endpoint resolver connection")

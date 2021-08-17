@@ -42,12 +42,13 @@ func NewEndpointResolverNoTLS(resolverEndpoint string) *EndpointResolverConfig {
 }
 
 type EndpointConfig struct {
+	serviceName string
 	dnsName     string
 	dialOptions []grpc.DialOption
 	err         error
 }
 
-func NewEndpointConfig(dnsName, token, caCertPath string) *EndpointConfig {
+func NewEndpointConfig(serviceName, dnsName, token, caCertPath string) *EndpointConfig {
 	pool, err := x509util.CustomCertPool(caCertPath)
 	if err != nil {
 		return &EndpointConfig{err: err}
@@ -55,6 +56,7 @@ func NewEndpointConfig(dnsName, token, caCertPath string) *EndpointConfig {
 	creds := credentials.NewTLS(&tls.Config{RootCAs: pool, ServerName: dnsName})
 
 	return &EndpointConfig{
+		serviceName,
 		dnsName,
 		[]grpc.DialOption{
 			grpc.WithTransportCredentials(creds),
@@ -65,8 +67,9 @@ func NewEndpointConfig(dnsName, token, caCertPath string) *EndpointConfig {
 	}
 }
 
-func NewEndpointConfigNoTLS(dnsName, token string) *EndpointConfig {
+func NewEndpointConfigNoTLS(serviceName, dnsName, token string) *EndpointConfig {
 	return &EndpointConfig{
+		serviceName,
 		dnsName,
 		[]grpc.DialOption{
 			grpc.WithInsecure(),

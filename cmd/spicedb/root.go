@@ -80,7 +80,8 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().Duration("crdb-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the cockroachdb connection pool")
 	rootCmd.Flags().Duration("shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
 
-	rootCmd.Flags().String("redispatch-dns-name", "", "dns service name to resolve for remote redispatch, empty string disables redispatch")
+	rootCmd.Flags().String("redispatch-dns-name", "", "dns SRV record name to resolve for remote redispatch, empty string disables redispatch")
+	rootCmd.Flags().String("redispatch-service-name", "grpc", "dns SRV record service name to resolve for remote redispatch")
 	rootCmd.Flags().String("peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
 	rootCmd.Flags().String("peer-resolver-cert-path", "", "local path to the TLS certificate for the peer endpoint resolver")
 
@@ -197,6 +198,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 	}
 
 	redispatchTarget := cobrautil.MustGetString(cmd, "redispatch-dns-name")
+	redispatchServiceName := cobrautil.MustGetString(cmd, "redispatch-service-name")
 	if redispatchTarget != "" {
 		log.Info().Str("target", redispatchTarget).Msg("initializing remote redispatcher")
 
@@ -219,11 +221,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 		var fallbackConfig *smartclient.FallbackEndpointConfig
 		if !cobrautil.MustGetBool(cmd, "grpc-no-tls") {
 			log.Debug().Str("endpoint", redispatchTarget).Str("cacert", resolverCertPath).Msg("using TLS protected peers")
-			endpointConfig = smartclient.NewEndpointConfig(redispatchTarget, peerPSK, peerCertPath)
+			endpointConfig = smartclient.NewEndpointConfig(redispatchServiceName, redispatchTarget, peerPSK, peerCertPath)
 			fallbackConfig = smartclient.NewFallbackEndpoint(selfEndpoint, peerPSK, peerCertPath)
 		} else {
 			log.Debug().Str("endpoint", redispatchTarget).Msg("using insecure peers")
-			endpointConfig = smartclient.NewEndpointConfigNoTLS(redispatchTarget, peerPSK)
+			endpointConfig = smartclient.NewEndpointConfigNoTLS(redispatchServiceName, redispatchTarget, peerPSK)
 			fallbackConfig = smartclient.NewFallbackEndpointNoTLS(selfEndpoint, peerPSK)
 		}
 

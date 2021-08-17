@@ -41,18 +41,33 @@ func (m *WatchRequest) Validate() error {
 		return nil
 	}
 
-	if len(m.GetDnsName()) > 253 {
-		return WatchRequestValidationError{
-			field:  "DnsName",
-			reason: "value length must be at most 253 bytes",
-		}
-	}
+	switch m.RequestTypeOneof.(type) {
 
-	if !_WatchRequest_DnsName_Pattern.MatchString(m.GetDnsName()) {
-		return WatchRequestValidationError{
-			field:  "DnsName",
-			reason: "value does not match regex pattern \"^[a-z0-9]([a-z0-9-\\\\.]{0,251}[a-z0-9])?$\"",
+	case *WatchRequest_Srv:
+
+		if m.GetSrv() == nil {
+			return WatchRequestValidationError{
+				field:  "Srv",
+				reason: "value is required",
+			}
 		}
+
+		if v, ok := interface{}(m.GetSrv()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WatchRequestValidationError{
+					field:  "Srv",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		return WatchRequestValidationError{
+			field:  "RequestTypeOneof",
+			reason: "value is required",
+		}
+
 	}
 
 	return nil
@@ -111,8 +126,6 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = WatchRequestValidationError{}
-
-var _WatchRequest_DnsName_Pattern = regexp.MustCompile("^[a-z0-9]([a-z0-9-\\.]{0,251}[a-z0-9])?$")
 
 // Validate checks the field values on WatchResponse with the rules defined in
 // the proto definition for this message. If any rules are violated, an error
@@ -263,3 +276,111 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = EndpointValidationError{}
+
+// Validate checks the field values on WatchRequest_SRVRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *WatchRequest_SRVRequest) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	if len(m.GetService()) > 253 {
+		return WatchRequest_SRVRequestValidationError{
+			field:  "Service",
+			reason: "value length must be at most 253 bytes",
+		}
+	}
+
+	if !_WatchRequest_SRVRequest_Service_Pattern.MatchString(m.GetService()) {
+		return WatchRequest_SRVRequestValidationError{
+			field:  "Service",
+			reason: "value does not match regex pattern \"^[a-z0-9]([a-z0-9-\\\\.]{0,251}[a-z0-9])?$\"",
+		}
+	}
+
+	if !_WatchRequest_SRVRequest_Protocol_Pattern.MatchString(m.GetProtocol()) {
+		return WatchRequest_SRVRequestValidationError{
+			field:  "Protocol",
+			reason: "value does not match regex pattern \"^((tcp)|(udp))$\"",
+		}
+	}
+
+	if len(m.GetDnsName()) > 253 {
+		return WatchRequest_SRVRequestValidationError{
+			field:  "DnsName",
+			reason: "value length must be at most 253 bytes",
+		}
+	}
+
+	if !_WatchRequest_SRVRequest_DnsName_Pattern.MatchString(m.GetDnsName()) {
+		return WatchRequest_SRVRequestValidationError{
+			field:  "DnsName",
+			reason: "value does not match regex pattern \"^[a-z0-9]([a-z0-9-\\\\.]{0,251}[a-z0-9])?$\"",
+		}
+	}
+
+	return nil
+}
+
+// WatchRequest_SRVRequestValidationError is the validation error returned by
+// WatchRequest_SRVRequest.Validate if the designated constraints aren't met.
+type WatchRequest_SRVRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e WatchRequest_SRVRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e WatchRequest_SRVRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e WatchRequest_SRVRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e WatchRequest_SRVRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e WatchRequest_SRVRequestValidationError) ErrorName() string {
+	return "WatchRequest_SRVRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e WatchRequest_SRVRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sWatchRequest_SRVRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = WatchRequest_SRVRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = WatchRequest_SRVRequestValidationError{}
+
+var _WatchRequest_SRVRequest_Service_Pattern = regexp.MustCompile("^[a-z0-9]([a-z0-9-\\.]{0,251}[a-z0-9])?$")
+
+var _WatchRequest_SRVRequest_Protocol_Pattern = regexp.MustCompile("^((tcp)|(udp))$")
+
+var _WatchRequest_SRVRequest_DnsName_Pattern = regexp.MustCompile("^[a-z0-9]([a-z0-9-\\.]{0,251}[a-z0-9])?$")
