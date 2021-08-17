@@ -111,6 +111,7 @@ func (sc *SmartClient) watchAndUpdateMembership(
 ) {
 	b := &backoff.Backoff{
 		Jitter: true,
+		Max:    1 * time.Minute,
 	}
 
 	for ctx.Err() == nil {
