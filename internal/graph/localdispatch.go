@@ -30,7 +30,7 @@ func NewLocalDispatcher(
 }
 
 // NewLocalDispatcherWithRedispatch creates a dispatcher that uses a different
-// dispather for further request dispatching.
+// dispatcher for further request dispatching.
 func NewLocalDispatcherWithRedispatch(
 	nsm namespace.Manager,
 	ds datastore.GraphDatastore,

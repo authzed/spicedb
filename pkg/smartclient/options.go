@@ -13,12 +13,15 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+// EndpointResolverConfig contains configuration for establishing a connection to
+// a dynamic endpoint resolver service.
 type EndpointResolverConfig struct {
 	endpoint    string
 	dialOptions []grpc.DialOption
 	err         error
 }
 
+// NewEndpointResolver configures a TLS protected endpoint resolver connection.
 func NewEndpointResolver(resolverEndpoint, caCertPath string) *EndpointResolverConfig {
 	return &EndpointResolverConfig{
 		resolverEndpoint,
@@ -30,6 +33,7 @@ func NewEndpointResolver(resolverEndpoint, caCertPath string) *EndpointResolverC
 	}
 }
 
+// NewEndpointResolverNoTLS configures a plaintext endpoint resolver connection.
 func NewEndpointResolverNoTLS(resolverEndpoint string) *EndpointResolverConfig {
 	return &EndpointResolverConfig{
 		resolverEndpoint,
@@ -41,6 +45,8 @@ func NewEndpointResolverNoTLS(resolverEndpoint string) *EndpointResolverConfig {
 	}
 }
 
+// EndpointConfig contains configuration for establishing connections with a
+// specific backend service.
 type EndpointConfig struct {
 	serviceName string
 	dnsName     string
@@ -48,6 +54,7 @@ type EndpointConfig struct {
 	err         error
 }
 
+// NewEndpointConfig configures TLS protected backend connections.
 func NewEndpointConfig(serviceName, dnsName, token, caCertPath string) *EndpointConfig {
 	pool, err := x509util.CustomCertPool(caCertPath)
 	if err != nil {
@@ -67,6 +74,7 @@ func NewEndpointConfig(serviceName, dnsName, token, caCertPath string) *Endpoint
 	}
 }
 
+// NewEndpointConfigNoTLS configures plaintext backend connections.
 func NewEndpointConfigNoTLS(serviceName, dnsName, token string) *EndpointConfig {
 	return &EndpointConfig{
 		serviceName,
@@ -80,11 +88,14 @@ func NewEndpointConfigNoTLS(serviceName, dnsName, token string) *EndpointConfig 
 	}
 }
 
+// FallbackEndpointConfig contains configuration for a static fallback endpoint
+// to be used when no resolved endpoints are available.
 type FallbackEndpointConfig struct {
 	backend *backend
 	err     error
 }
 
+// NewFallbackEndpoint configures a TLS protected fallback endpoint connection.
 func NewFallbackEndpoint(endpoint, token, caCertPath string) *FallbackEndpointConfig {
 	endpointClientDialOptions := []grpc.DialOption{
 		grpcutil.WithCustomCerts(caCertPath, false),
@@ -95,6 +106,7 @@ func NewFallbackEndpoint(endpoint, token, caCertPath string) *FallbackEndpointCo
 	return commonFallbackEndpoint(endpoint, endpointClientDialOptions)
 }
 
+// NewFallbackEndpointNoTLS configures a plaintext fallback endpoint connection.
 func NewFallbackEndpointNoTLS(endpoint, token string) *FallbackEndpointConfig {
 	endpointClientDialOptions := []grpc.DialOption{
 		grpc.WithInsecure(),
@@ -128,6 +140,7 @@ func commonFallbackEndpoint(endpoint string, endpointClientDialOptions []grpc.Di
 	}
 }
 
+// NoFallbackEndpoint disables the fallback backend option.
 func NoFallbackEndpoint() *FallbackEndpointConfig {
 	return &FallbackEndpointConfig{}
 }

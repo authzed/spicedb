@@ -133,10 +133,10 @@ func (sc *SmartClient) watchAndUpdateMembership(
 
 				// We need to re-establish the stream
 				break
-			} else {
-				b.Reset()
-				sc.updateMembers(ctx, endpointResponse.Endpoints, endpointConfig.dialOptions)
 			}
+
+			b.Reset()
+			sc.updateMembers(ctx, endpointResponse.Endpoints, endpointConfig.dialOptions)
 		}
 	}
 }
@@ -217,7 +217,10 @@ func (sc *SmartClient) getConsistentBackend(request proto.Message) (*backend, er
 	members, err := sc.ring.FindN(requestKey, sc.backendsPerKey)
 	if err != nil {
 		if err == consistent.ErrNotEnoughMembers && sc.fallbackBackend != nil {
-			log.Warn().Str("backend", sc.fallbackBackend.Key()).Msg("using fallback backend")
+			log.Warn().
+				Str("backend", sc.fallbackBackend.Key()).
+				Str("type", "consistent").
+				Msg("using fallback backend")
 			return sc.fallbackBackend, nil
 		}
 
@@ -235,7 +238,10 @@ func (sc *SmartClient) getRandomBackend() (*backend, error) {
 	allMembers := sc.ring.Members()
 	if len(allMembers) < 1 {
 		if sc.fallbackBackend != nil {
-			log.Warn().Str("backend", sc.fallbackBackend.Key()).Msg("using fallback backend")
+			log.Warn().
+				Str("backend", sc.fallbackBackend.Key()).
+				Str("type", "random").
+				Msg("using fallback backend")
 			return sc.fallbackBackend, nil
 		}
 		return nil, errNoBackends
