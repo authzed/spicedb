@@ -19,16 +19,29 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
+// PrefixRequiredOption is an option to the schema server indicating whether
+// prefixes are required on schema object definitions.
+type PrefixRequiredOption int
+
+const (
+	// PrefixNotRequired indicates that prefixes are not required.
+	PrefixNotRequired PrefixRequiredOption = iota
+
+	// PrefixRequired indicates that prefixes are required.
+	PrefixRequired
+)
+
 type schemaServiceServer struct {
 	v1alpha1.UnimplementedSchemaServiceServer
 
-	ds datastore.Datastore
+	prefixRequired PrefixRequiredOption
+	ds             datastore.Datastore
 }
 
 // NewSchemaServer returns an new instance of a server that implements
 // authzed.api.v1alpha1.SchemaService.
-func NewSchemaServer(ds datastore.Datastore) v1alpha1.SchemaServiceServer {
-	return &schemaServiceServer{ds: ds}
+func NewSchemaServer(ds datastore.Datastore, prefixRequired PrefixRequiredOption) v1alpha1.SchemaServiceServer {
+	return &schemaServiceServer{ds: ds, prefixRequired: prefixRequired}
 }
 
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
@@ -68,7 +81,13 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		SchemaString: in.GetSchema(),
 	}
 
-	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, nil)
+	var prefix *string
+	if ss.prefixRequired == PrefixNotRequired {
+		empty := ""
+		prefix = &empty
+	}
+
+	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, prefix)
 	if err != nil {
 		return nil, rewriteError(err)
 	}

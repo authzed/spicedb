@@ -64,6 +64,8 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().String("datastore-url", "", "connection url (e.g. postgres://postgres:password@localhost:5432/spicedb) of storage layer for those engines that support it (postgres, crdb)")
 	rootCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "the estimated number of bytes at which a query is split, for those engines that support it (postgres, crdb)")
 
+	rootCmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
+
 	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	rootCmd.Flags().Duration("gc-window", 24*time.Hour, "amount of time before a revision is garbage collected")
 	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
@@ -250,7 +252,12 @@ func rootRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to initialize dispatcher cache")
 	}
 
-	registerGrpcServices(grpcServer, ds, nsm, cachingDispatch, cobrautil.MustGetUint16(cmd, "max-depth"))
+	prefixRequiredOption := v1alpha1svc.PrefixRequired
+	if !cobrautil.MustGetBool(cmd, "schema-prefixes-required") {
+		prefixRequiredOption = v1alpha1svc.PrefixNotRequired
+	}
+
+	registerGrpcServices(grpcServer, ds, nsm, cachingDispatch, cobrautil.MustGetUint16(cmd, "max-depth"), prefixRequiredOption)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -303,6 +310,7 @@ func registerGrpcServices(
 	nsm namespace.Manager,
 	dispatch graph.Dispatcher,
 	maxDepth uint16,
+	prefixRequired v1alpha1svc.PrefixRequiredOption,
 ) {
 	healthSrv := grpcutil.NewAuthlessHealthServer()
 
@@ -315,7 +323,7 @@ func registerGrpcServices(
 	v0.RegisterWatchServiceServer(srv, v0svc.NewWatchServer(ds, nsm))
 	healthSrv.SetServingStatus("WatchService", healthpb.HealthCheckResponse_SERVING)
 
-	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(ds))
+	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(ds, prefixRequired))
 	healthSrv.SetServingStatus("SchemaService", healthpb.HealthCheckResponse_SERVING)
 
 	healthpb.RegisterHealthServer(srv, healthSrv)
