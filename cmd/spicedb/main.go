@@ -7,25 +7,17 @@ import (
 
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/authzed/spicedb/pkg/cmdutil"
 )
 
-func main() {
-	rootCmd := newRootCmd()
-
-	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
-	cmdutil.RegisterTracingPersistentFlags(rootCmd)
-
-	registerMigrateCmd(rootCmd)
-	registerHeadCmd(rootCmd)
-	registerDeveloperServiceCmd(rootCmd)
-
-	rootCmd.Execute()
-}
+var persistentPreRunE = cobrautil.CommandStack(
+	cobrautil.SyncViperPreRunE("spicedb"),
+	cmdutil.LoggingPreRunE,
+	cmdutil.TracingPreRunE,
+)
 
 func NewTlsGrpcServer(certPath, keyPath string, opts ...grpc.ServerOption) (*grpc.Server, error) {
 	if certPath == "" || keyPath == "" {
@@ -56,13 +48,15 @@ func NewMetricsServer(addr string) *http.Server {
 	}
 }
 
-func persistentPreRunE(cmd *cobra.Command, args []string) error {
-	if err := cobrautil.SyncViperPreRunE("spicedb")(cmd, args); err != nil {
-		return err
-	}
+func main() {
+	rootCmd := newRootCmd()
 
-	cmdutil.LoggingPreRun(cmd, args)
-	cmdutil.TracingPreRun(cmd, args)
+	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
+	cmdutil.RegisterTracingPersistentFlags(rootCmd)
 
-	return nil
+	registerMigrateCmd(rootCmd)
+	registerHeadCmd(rootCmd)
+	registerDeveloperServiceCmd(rootCmd)
+
+	rootCmd.Execute()
 }
