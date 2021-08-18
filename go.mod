@@ -35,7 +35,7 @@ require (
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jpillora/backoff v1.0.0
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
-	github.com/jzelinskie/cobrautil v0.0.0-20210619202150-2fc07a6abd5e
+	github.com/jzelinskie/cobrautil v0.0.4
 	github.com/jzelinskie/stringz v0.0.1
 	github.com/lib/pq v1.10.2
 	github.com/ngrok/sqlmw v0.0.0-20200129213757-d5c93a81bec6
@@ -47,6 +47,7 @@ require (
 	github.com/scylladb/go-set v1.0.2
 	github.com/shopspring/decimal v1.2.0
 	github.com/spf13/cobra v1.2.1
+	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.22.0
 	go.opentelemetry.io/otel v1.0.0-RC2

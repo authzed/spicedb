@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/authzed/spicedb/internal/auth"
@@ -44,96 +43,71 @@ import (
 func newRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:               "spicedb",
-		Short:             "A tuple store for ACLs.",
+		Short:             "A modern permissions database",
+		Long:              "A database that stores, computes, and validates application permissions",
 		PersistentPreRunE: persistentPreRunE,
 		Run:               rootRun,
 	}
 
-	rootCmd.Flags().String("grpc-addr", ":50051", "address to listen on for serving gRPC services")
-	rootCmd.Flags().String("grpc-cert-path", "", "local path to the TLS certificate used to serve gRPC services")
-	rootCmd.Flags().String("grpc-key-path", "", "local path to the TLS key used to serve gRPC services")
-	rootCmd.Flags().Bool("grpc-no-tls", false, "serve unencrypted gRPC services")
-	rootCmd.Flags().Duration("grpc-max-conn-age", 30*time.Second, "how long a connection should be able to live")
+	cobrautil.RegisterZeroLogFlags(rootCmd.PersistentFlags())
+	cobrautil.RegisterOpenTelemetryFlags(rootCmd.PersistentFlags(), rootCmd.Use)
+	cobrautil.RegisterGrpcServerFlags(rootCmd.Flags())
+	cobrautil.RegisterMetricsServerFlags(rootCmd.Flags())
 
-	rootCmd.Flags().String("metrics-addr", ":9090", "address to listen on for serving metrics and profiles")
+	rootCmd.Flags().String("grpc-preshared-key", "", "preshared key to require for authenticated requests")
+	rootCmd.Flags().Duration("grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
 
-	rootCmd.Flags().Bool("read-only", false, "set the service to read-only mode")
-	rootCmd.Flags().Uint16("max-depth", 50, "maximum recursion depth for nested calls")
-	rootCmd.Flags().String("preshared-key", "", "preshared key to require on authenticated requests")
-	rootCmd.Flags().String("datastore-engine", "memory", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
-	rootCmd.Flags().String("datastore-url", "", "connection url (e.g. postgres://postgres:password@localhost:5432/spicedb) of storage layer for those engines that support it (postgres, crdb)")
-	rootCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "the estimated number of bytes at which a query is split, for those engines that support it (postgres, crdb)")
+	rootCmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+	rootCmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
+	rootCmd.Flags().Bool("datastore-readonly", false, "set the service to read-only mode")
+	rootCmd.Flags().Int("datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
+	rootCmd.Flags().Int("datastore-conn-min-open", 10, "number of minimum concurrent connections open in a remote datastore's connection pool")
+	rootCmd.Flags().Duration("datastore-conn-max-lifetime", 30*time.Minute, "maximum amount of time a connection can live in a remote datastore's connection pool")
+	rootCmd.Flags().Duration("datastore-conn-max-idletime", 30*time.Minute, "maximum amount of time a connection can idle in a remote datastore's connection pool")
+	rootCmd.Flags().Duration("datastore-conn-healthcheck-interval", 30*time.Second, "time between a remote datastore's connection pool health checks")
+	rootCmd.Flags().Duration("datastore-gc-window", 24*time.Hour, "amount of time before revisions are garbage collected")
+	rootCmd.Flags().Duration("datastore-revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
+	rootCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
+
+	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 
 	rootCmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
-	rootCmd.Flags().Duration("revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
-	rootCmd.Flags().Duration("gc-window", 24*time.Hour, "amount of time before a revision is garbage collected")
-	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
-
-	rootCmd.Flags().Int("pg-max-conn-open", 20, "number of concurrent connections open in a the postgres connection pool")
-	rootCmd.Flags().Int("pg-min-conn-open", 10, "number of minimum concurrent connections open in a the postgres connection pool")
-	rootCmd.Flags().Duration("pg-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the postgres connection pool")
-	rootCmd.Flags().Duration("pg-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the postgres connection pool")
-	rootCmd.Flags().Duration("pg-health-check-period", 30*time.Second, "duration between checks of the health of idle connections")
-
-	rootCmd.Flags().Int("crdb-max-conn-open", 20, "number of concurrent connections open in the cockroachdb connection pool")
-	rootCmd.Flags().Int("crdb-min-conn-open", 20, "number of idle connections to keep open in the cockroachdb connection pool")
-	rootCmd.Flags().Duration("crdb-max-conn-lifetime", 30*time.Minute, "maximum amount of time a connection can live in the cockroachdb connection pool")
-	rootCmd.Flags().Duration("crdb-max-conn-idletime", 30*time.Minute, "maximum amount of time a connection can idle in the cockroachdb connection pool")
-	rootCmd.Flags().Duration("shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
-
-	rootCmd.Flags().String("redispatch-dns-name", "", "dns SRV record name to resolve for remote redispatch, empty string disables redispatch")
-	rootCmd.Flags().String("redispatch-service-name", "grpc", "dns SRV record service name to resolve for remote redispatch")
-	rootCmd.Flags().String("peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
-	rootCmd.Flags().String("peer-resolver-cert-path", "", "local path to the TLS certificate for the peer endpoint resolver")
+	rootCmd.Flags().Uint16("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
+	rootCmd.Flags().String("dispatch-redispatch-dns-name", "", "dns SRV record name to resolve for remote redispatch, empty string disables redispatch")
+	rootCmd.Flags().String("dispatch-redispatch-service-name", "grpc", "dns SRV record service name to resolve for remote redispatch")
+	rootCmd.Flags().String("dispatch-peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
+	rootCmd.Flags().String("dispatch-peer-resolver-cert-path", "", "local path to the TLS certificate for the peer endpoint resolver")
 
 	return rootCmd
 }
 
 func rootRun(cmd *cobra.Command, args []string) {
-	token := cobrautil.MustGetString(cmd, "preshared-key")
+	token := cobrautil.MustGetString(cmd, "grpc-preshared-key")
 	if len(token) < 1 {
-		log.Fatal().Msg("must provide a preshared-key")
+		log.Fatal().Msg("must provide flag: --grpc-preshared-key")
 	}
-
-	var sharedOptions []grpc.ServerOption
-	sharedOptions = append(sharedOptions, grpcmw.WithUnaryServerChain(
-		otelgrpc.UnaryServerInterceptor(),
-		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
-		grpcprom.UnaryServerInterceptor,
-		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
-	))
-
-	sharedOptions = append(sharedOptions, grpc.KeepaliveParams(keepalive.ServerParameters{
-		MaxConnectionAge: cobrautil.MustGetDuration(cmd, "grpc-max-conn-age"),
-	}))
 
 	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
 		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
 	))
 
-	var grpcServer *grpc.Server
-	if cobrautil.MustGetBool(cmd, "grpc-no-tls") {
-		grpcServer = grpc.NewServer(sharedOptions...)
-	} else {
-		var err error
-		grpcServer, err = NewTlsGrpcServer(
-			cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
-			cobrautil.MustGetStringExpanded(cmd, "grpc-key-path"),
-			sharedOptions...,
-		)
-		if err != nil {
-			log.Fatal().Err(err).Msg("failed to create TLS gRPC server")
-		}
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, grpcmw.WithUnaryServerChain(
+		otelgrpc.UnaryServerInterceptor(),
+		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
+		grpcprom.UnaryServerInterceptor,
+		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
+	))
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create gRPC server")
 	}
 
 	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
-	datastoreUrl := cobrautil.MustGetString(cmd, "datastore-url")
+	datastoreUri := cobrautil.MustGetString(cmd, "datastore-conn-uri")
 
-	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "revision-fuzzing-duration")
-	gcWindow := cobrautil.MustGetDuration(cmd, "gc-window")
+	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "datastore-revision-fuzzing-duration")
+	gcWindow := cobrautil.MustGetDuration(cmd, "datastore-gc-window")
 
-	var err error
 	splitQuerySize, err := units.ParseBase2Bytes(cobrautil.MustGetString(cmd, "datastore-query-split-size"))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to parse datastore-query-split-size")
@@ -149,11 +123,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 	} else if datastoreEngine == "cockroachdb" {
 		log.Info().Msg("using cockroachdb datastore")
 		ds, err = crdb.NewCRDBDatastore(
-			datastoreUrl,
-			crdb.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "crdb-max-conn-idletime")),
-			crdb.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "crdb-max-conn-lifetime")),
-			crdb.MaxOpenConns(cobrautil.MustGetInt(cmd, "crdb-max-conn-open")),
-			crdb.MinOpenConns(cobrautil.MustGetInt(cmd, "crdb-min-conn-open")),
+			datastoreUri,
+			crdb.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-idletime")),
+			crdb.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-lifetime")),
+			crdb.MaxOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-max-open")),
+			crdb.MinOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-min-open")),
 			crdb.RevisionQuantization(revisionFuzzingTimedelta),
 			crdb.GCWindow(gcWindow),
 			crdb.SplitAtEstimatedQuerySize(splitQuerySize),
@@ -164,12 +138,12 @@ func rootRun(cmd *cobra.Command, args []string) {
 	} else if datastoreEngine == "postgres" {
 		log.Info().Msg("using postgres datastore")
 		ds, err = postgres.NewPostgresDatastore(
-			datastoreUrl,
-			postgres.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "pg-max-conn-idletime")),
-			postgres.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "pg-max-conn-lifetime")),
-			postgres.HealthCheckPeriod(cobrautil.MustGetDuration(cmd, "pg-health-check-period")),
-			postgres.MaxOpenConns(cobrautil.MustGetInt(cmd, "pg-max-conn-open")),
-			postgres.MinOpenConns(cobrautil.MustGetInt(cmd, "pg-min-conn-open")),
+			datastoreUri,
+			postgres.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-idletime")),
+			postgres.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-lifetime")),
+			postgres.HealthCheckPeriod(cobrautil.MustGetDuration(cmd, "datastore-conn-healthcheck-interval")),
+			postgres.MaxOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-max-open")),
+			postgres.MinOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-min-open")),
 			postgres.RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
 			postgres.GCWindow(gcWindow),
 			postgres.EnablePrometheusStats(),
@@ -183,7 +157,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Str("datastore-engine", datastoreEngine).Msg("unknown datastore engine type")
 	}
 
-	if cobrautil.MustGetBool(cmd, "read-only") {
+	if cobrautil.MustGetBool(cmd, "datastore-readonly") {
 		log.Warn().Msg("setting the service to read-only")
 		ds = readonly.NewReadonlyDatastore(ds)
 	}
@@ -199,13 +173,13 @@ func rootRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to initialize dispatcher")
 	}
 
-	redispatchTarget := cobrautil.MustGetString(cmd, "redispatch-dns-name")
-	redispatchServiceName := cobrautil.MustGetString(cmd, "redispatch-service-name")
+	redispatchTarget := cobrautil.MustGetString(cmd, "dispatch-redispatch-dns-name")
+	redispatchServiceName := cobrautil.MustGetString(cmd, "dispatch-redispatch-service-name")
 	if redispatchTarget != "" {
 		log.Info().Str("target", redispatchTarget).Msg("initializing remote redispatcher")
 
-		resolverAddr := cobrautil.MustGetString(cmd, "peer-resolver-addr")
-		resolverCertPath := cobrautil.MustGetString(cmd, "peer-resolver-cert-path")
+		resolverAddr := cobrautil.MustGetString(cmd, "dispatch-peer-resolver-addr")
+		resolverCertPath := cobrautil.MustGetString(cmd, "dispatch-peer-resolver-cert-path")
 		var resolverConfig *smartclient.EndpointResolverConfig
 		if resolverCertPath != "" {
 			log.Debug().Str("addr", resolverAddr).Str("cacert", resolverCertPath).Msg("using TLS protected peer resolver")
@@ -216,7 +190,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 
 		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path")
-		peerPSK := cobrautil.MustGetString(cmd, "preshared-key")
+		peerPSK := cobrautil.MustGetString(cmd, "grpc-preshared-key")
 		selfEndpoint := cobrautil.MustGetString(cmd, "grpc-addr")
 
 		var endpointConfig *smartclient.EndpointConfig
@@ -257,7 +231,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 		prefixRequiredOption = v1alpha1svc.PrefixNotRequired
 	}
 
-	registerGrpcServices(grpcServer, ds, nsm, cachingDispatch, cobrautil.MustGetUint16(cmd, "max-depth"), prefixRequiredOption)
+	registerGrpcServices(grpcServer, ds, nsm, cachingDispatch, cobrautil.MustGetUint16(cmd, "dispatch-max-depth"), prefixRequiredOption)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -270,7 +244,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 		grpcServer.Serve(l)
 	}()
 
-	metricsrv := NewMetricsServer(cobrautil.MustGetString(cmd, "metrics-addr"))
+	metricsrv := cobrautil.MetricsServerFromFlags(cmd)
 	go func() {
 		if err := metricsrv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
@@ -278,7 +252,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 	}()
 
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	gracePeriod := cobrautil.MustGetDuration(cmd, "shutdown-grace-period")
+	gracePeriod := cobrautil.MustGetDuration(cmd, "grpc-shutdown-grace-period")
 
 	<-signalctx.Done()
 	log.Info().Msg("received interrupt")
