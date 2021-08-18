@@ -15,7 +15,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
-	"github.com/authzed/spicedb/pkg/cmdutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -53,8 +52,7 @@ func main() {
 	rootCmd.Flags().String("crdb-url", "", "connection url (e.g. postgres://postgres:password@localhost:26257/spicedb) for destination crdb")
 	rootCmd.Flags().Bool("dry-run", true, "whether to run the migration as a dry run")
 
-	cmdutil.RegisterLoggingPersistentFlags(rootCmd)
-	cmdutil.RegisterTracingPersistentFlags(rootCmd)
+	cobrautil.RegisterZeroLogFlags(rootCmd.PersistentFlags())
 
 	rootCmd.Execute()
 }
