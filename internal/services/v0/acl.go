@@ -391,7 +391,8 @@ func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) 
 				return 0, errInvalidDepthRemaining
 			}
 
-			if decoded < 1 || decoded > maxUInt16 {
+			// Prevent against wildly inaccurate remaining depths
+			if decoded < 1 || decoded > int(as.defaultDepth) {
 				return 0, errInvalidDepthRemaining
 			}
 
