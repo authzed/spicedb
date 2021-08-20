@@ -54,9 +54,11 @@ func newRootCmd() *cobra.Command {
 	cobrautil.RegisterGrpcServerFlags(rootCmd.Flags())
 	cobrautil.RegisterMetricsServerFlags(rootCmd.Flags())
 
+	// Flags for the gRPC server beyond those provided from cobrautil
 	rootCmd.Flags().String("grpc-preshared-key", "", "preshared key to require for authenticated requests")
 	rootCmd.Flags().Duration("grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
 
+	// Flags for the datastore
 	rootCmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
 	rootCmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	rootCmd.Flags().Bool("datastore-readonly", false, "set the service to read-only mode")
@@ -69,10 +71,13 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().Duration("datastore-revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	rootCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
 
+	// Flags for the namespace manager
 	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 
+	// Flags for parsing and validating schemas.
 	rootCmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
+	// Flags for configuring dispatch behavior
 	rootCmd.Flags().Uint16("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
 	rootCmd.Flags().String("dispatch-redispatch-dns-name", "", "dns SRV record name to resolve for remote redispatch, empty string disables redispatch")
 	rootCmd.Flags().String("dispatch-redispatch-service-name", "grpc", "dns SRV record service name to resolve for remote redispatch")
