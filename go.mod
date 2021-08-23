@@ -10,7 +10,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/authzed/authzed-go v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20210804144231-370c692019eb
-	github.com/aws/aws-sdk-go v1.40.16
+	github.com/aws/aws-sdk-go v1.40.27
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/cockroachdb/cockroach v20.1.15+incompatible
@@ -47,12 +47,9 @@ require (
 	github.com/scylladb/go-set v1.0.2
 	github.com/shopspring/decimal v1.2.0
 	github.com/spf13/cobra v1.2.1
-	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.22.0
 	go.opentelemetry.io/otel v1.0.0-RC2
-	go.opentelemetry.io/otel/exporters/jaeger v1.0.0-RC2
-	go.opentelemetry.io/otel/sdk v1.0.0-RC2
 	go.opentelemetry.io/otel/trace v1.0.0-RC2
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
