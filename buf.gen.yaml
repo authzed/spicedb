@@ -1,4 +1,4 @@
-#!/usr/bin/env -S scripts/buf-generate.sh
+#!/usr/bin/env -S buf generate buf.build/authzed/servok:4027ca77d1b04ea2888b00348c3fd3d9 --template
 version: "v1beta1"
 plugins:
   - name: "go"
