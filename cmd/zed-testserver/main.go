@@ -151,7 +151,7 @@ func (tbs *tokenBasedServer) modelForContext(ctx context.Context) model {
 
 func (tbs *tokenBasedServer) schemaServer(ctx context.Context) v1alpha1.SchemaServiceServer {
 	model := tbs.modelForContext(ctx)
-	return v1alpha1svc.NewSchemaServer(model.datastore)
+	return v1alpha1svc.NewSchemaServer(model.datastore, v1alpha1svc.PrefixNotRequired)
 }
 
 func (tbs *tokenBasedServer) WriteSchema(ctx context.Context, req *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {

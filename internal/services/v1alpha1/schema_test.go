@@ -19,7 +19,7 @@ func TestSchemaReadNoPrefix(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := NewSchemaServer(ds)
+	srv := NewSchemaServer(ds, PrefixRequired)
 	_, err = srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
 		ObjectDefinitionsNames: []string{"user"},
 	})
@@ -30,18 +30,29 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := NewSchemaServer(ds)
+	srv := NewSchemaServer(ds, PrefixRequired)
 	_, err = srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
 		Schema: `define user {}`,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 }
 
+func TestSchemaWriteNoPrefixNotRequired(t *testing.T) {
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	require.NoError(t, err)
+
+	srv := NewSchemaServer(ds, PrefixNotRequired)
+	_, err = srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		Schema: `definition user {}`,
+	})
+	require.NoError(t, err)
+}
+
 func TestSchemaReadInvalidName(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := NewSchemaServer(ds)
+	srv := NewSchemaServer(ds, PrefixRequired)
 	_, err = srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
 		ObjectDefinitionsNames: []string{"誤り"},
 	})
@@ -52,9 +63,9 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := NewSchemaServer(ds)
+	srv := NewSchemaServer(ds, PrefixRequired)
 	_, err = srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
-		Schema: `define example/user {}`,
+		Schema: `invalid example/user {}`,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
@@ -68,7 +79,7 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := NewSchemaServer(ds)
+	srv := NewSchemaServer(ds, PrefixRequired)
 	requestedObjectDefNames := []string{"example/user"}
 
 	_, err = srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
@@ -105,7 +116,7 @@ func upgrade(t *testing.T, nsdefs []*v0.NamespaceDefinition) (*v1alpha1.ReadSche
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	schemaSrv := NewSchemaServer(ds)
+	schemaSrv := NewSchemaServer(ds, PrefixRequired)
 	namespaceSrv := v0svc.NewNamespaceServer(ds)
 
 	_, err = namespaceSrv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
