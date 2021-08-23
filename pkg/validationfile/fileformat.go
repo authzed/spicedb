@@ -11,6 +11,53 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// ValidationFile represents the contents of a YAML validation file, as
+// exported by the playground.
+//
+// NOTE: This struct does not contain the `assertions` or `validation` blocks produced
+// by the playground, as they are currently unused in Go-side code.
+//
+// Parsing for those blocks' *contents* can be found in this module, since they are parsed
+// by the developer API.
+type ValidationFile struct {
+	// Schema is the defined schema, in DSL format. Optional if at least one NamespaceConfig is specified.
+	Schema string `yaml:"schema"`
+
+	// Relationships are the validation relationships, as a single string of newline separated tuple
+	// string syntax. Optional if ValidationTuples is specified.
+	Relationships string `yaml:"relationships"`
+
+	// NamespaceConfigs are the namespace configuration protos, in text format. Optional if Schema
+	// is specified.
+	NamespaceConfigs []string `yaml:"namespace_configs"`
+
+	// ValidationTuples are the validation tuples, in tuple string syntax. Optional if Relationships
+	// are specified.
+	ValidationTuples []string `yaml:"validation_tuples"`
+}
+
+// ErrorWithSource is an error that includes the source text and position information.
+type ErrorWithSource struct {
+	error
+
+	// Source is the source text for the error.
+	Source string
+
+	// LineNumber is the (1-indexed) line number of the error, or 0 if unknown.
+	LineNumber uint32
+
+	// ColumnPosition is the (1-indexed) column position of the error, or 0 if unknown.
+	ColumnPosition uint32
+}
+
+// ParseValidationFile attempts to parse the given contents as a YAML
+// validation file.
+func ParseValidationFile(contents []byte) (ValidationFile, error) {
+	file := ValidationFile{}
+	err := yaml.Unmarshal(contents, &file)
+	return file, err
+}
+
 // ParseValidationBlock attempts to parse the given contents as a YAML
 // validation block.
 func ParseValidationBlock(contents []byte) (ValidationMap, error) {
@@ -68,37 +115,11 @@ func ParseAssertionsBlock(contents []byte) (Assertions, error) {
 	return parsed, nil
 }
 
-// ParseValidationFile attempts to parse the given contents as a YAML
-// validation file.
-func ParseValidationFile(contents []byte) (ValidationFile, error) {
-	file := ValidationFile{}
-	err := yaml.Unmarshal(contents, &file)
-	return file, err
-}
-
-// ValidationFile represents the contents of a YAML validation file, as
-// exported by the playground.
-type ValidationFile struct {
-	// Schema is the defined schema, in DSL format. Optional if at least one NamespaceConfig is specified.
-	Schema string `yaml:"schema"`
-
-	// Relationships are the validation relationships, as a single string of newline separated tuple
-	// string syntax. Optional if ValidationTuples is specified.
-	Relationships string `yaml:"relationships"`
-
-	// NamespaceConfigs are the namespace configuration protos, in text format. Optional if Schema
-	// is specified.
-	NamespaceConfigs []string `yaml:"namespace_configs"`
-
-	// ValidationTuples are the validation tuples, in tuple string syntax. Optional if Relationships
-	// are specified.
-	ValidationTuples []string `yaml:"validation_tuples"`
-}
-
 // ValidationMap is a map from an Object Relation (as a Relationship) to the validation strings containing
 // the Subjects for that Object Relation.
 type ValidationMap map[ObjectRelationString][]ValidationString
 
+// AsYAML returns the ValidationMap in its YAML form.
 func (vm ValidationMap) AsYAML() (string, error) {
 	data, err := yaml.Marshal(vm)
 	return string(data), err
@@ -107,6 +128,8 @@ func (vm ValidationMap) AsYAML() (string, error) {
 // ObjectRelationString represents an ONR defined as a string in the key for the ValidationMap.
 type ObjectRelationString string
 
+// ONR returns the ObjectAndRelation parsed from this string, if valid, or an error on failure
+// to parse.
 func (ors ObjectRelationString) ONR() (*v0.ObjectAndRelation, *ErrorWithSource) {
 	parsed := tuple.ScanONR(string(ors))
 	if parsed == nil {
@@ -191,20 +214,15 @@ type Assertions struct {
 	AssertFalse []Assertion `yaml:"assertFalse"`
 }
 
-// ErrorWithSource is an error that includes the source text and position information.
-type ErrorWithSource struct {
-	error
-
-	// Source is the source text for the error.
-	Source         string
-	LineNumber     uint32
-	ColumnPosition uint32
-}
-
 // ParsedAssertion contains information about a parsed assertion relationship.
 type ParsedAssertion struct {
-	Relationship   *v0.RelationTuple
-	LineNumber     uint32
+	// Relationship is the parsed relationship on which the assertion is being run.
+	Relationship *v0.RelationTuple
+
+	// LineNumber is the (1-indexed) line number of the assertion in the parent YAML.
+	LineNumber uint32
+
+	// ColumnPosition is the (1-indexed) column position of the assertion in the parent YAML.
 	ColumnPosition uint32
 }
 

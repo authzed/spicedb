@@ -17,11 +17,19 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// FullyParsedValidationFile contains the fully parsed information from a validation file.
 type FullyParsedValidationFile struct {
+	// NamespaceDefinitions are the namespaces defined in the validation file, in either
+	// direct or compiled from schema form.
 	NamespaceDefinitions []*v0.NamespaceDefinition
-	Tuples               []*v0.RelationTuple
+
+	// Tuples are the relation tuples defined in the validation file, either directly
+	// or in the relationships block.
+	Tuples []*v0.RelationTuple
 }
 
+// PopulateFromFiles populates the given datastore with the namespaces and tuples found in
+// the validation file(s) specified.
 func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsedValidationFile, decimal.Decimal, error) {
 	var revision decimal.Decimal
 	nsDefs := []*v0.NamespaceDefinition{}
