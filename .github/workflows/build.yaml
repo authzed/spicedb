@@ -1,0 +1,79 @@
+name: "Build & Test"
+on:
+  push:
+    branches:
+    - "!dependabot/*"
+    - "*"
+  pull_request:
+    branches:
+    - "*"
+jobs:
+  lint:
+    name: "Lint"
+    runs-on: "ubuntu-latest"
+    steps:
+    - uses: "actions/checkout@v2"
+    - uses: "actions/setup-go@v2"
+      with:
+        go-version: "^1.16"
+    - name: "Go Mod Tidy"
+      run: |
+        GO_MOD_OUPUT="$(go mod tidy -v 2>&1)"
+        if [[ $GO_MOD_OUPUT == *"unused"* ]]; then
+          echo "${GO_MOD_OUPUT}"
+          exit 1
+        fi
+    - name: "Formatting (gofumpt)"
+      run: |
+        go install mvdan.cc/gofumpt/gofumports@latest
+        GOFUMPT_OUTPUT="$(find . -iname '*.go' -type f | grep -v pb.go | xargs gofumports -d)"
+        if [ -n "$GOFUMPT_OUTPUT" ]; then
+          echo "All the following files are not correctly formatted"
+          echo "${GOFUMPT_OUTPUT}"
+          exit 1
+        fi
+    - name: "Linting (revive)"
+      run: |
+        go install github.com/mgechev/revive@latest
+        revive ./...
+  test:
+    name: "Test"
+    runs-on: "ubuntu-latest"
+    steps:
+    - uses: "actions/checkout@v2"
+    - uses: "actions/setup-go@v2"
+      with:
+        go-version: "^1.16"
+    - name: "Build"
+      run: | 
+        go build ./cmd/crdb-migration
+        go build ./cmd/spicedb
+        go build ./cmd/zed-testserver
+    - name: "Test"
+      run: "go test ./..."
+
+  protobuf:
+    name: "Generate Protobufs"
+    runs-on: "ubuntu-latest"
+    steps:
+    - uses: "actions/checkout@v2"
+    - uses: "actions/setup-go@v2"
+      with:
+        go-version: ^1.16
+    - name: "Install Go Protobuf plugins"
+      run: |
+        go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+        go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
+        go install github.com/envoyproxy/protoc-gen-validate@v0.6.1
+    - uses: "bufbuild/buf-setup-action@v0.1.0"
+      with:
+        version: "0.48.2"
+    - name: "Generate & Diff Servok Protos"
+      run: |
+        ./buf.gen.yaml
+        bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'
+    - name: "Generate & Diff Internal Protos"
+      working-directory: ./internal/proto
+      run: |
+        ./buf.gen.yaml
+        bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'
