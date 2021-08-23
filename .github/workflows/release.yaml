@@ -18,9 +18,10 @@ jobs:
         registry: "quay.io"
         username: ${{ secrets.QUAYIO_USER }}
         password: ${{ secrets.QUAYIO_PASSWORD }}
+    - uses: "battila7/get-version-action@v2"
     - uses: "docker/build-push-action@v2"
       with:
         push: true
         tags: |
           quay.io/authzed/spicedb:latest
-          quay.io/authzed/spicedb:${GITHUB_REF#refs/tags/}
+          quay.io/authzed/spicedb:${{ steps.get_version.outputs.version }}
