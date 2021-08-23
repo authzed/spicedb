@@ -35,9 +35,11 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/readonly"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	"github.com/authzed/spicedb/internal/services/dispatch/v1"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	"github.com/authzed/spicedb/pkg/smartclient"
+	smartclient "github.com/authzed/spicedb/pkg/smartclient/v2"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -80,6 +82,9 @@ func newRootCmd() *cobra.Command {
 	// Flags for parsing and validating schemas.
 	rootCmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
+	// Flags for internal dispatch API
+	rootCmd.Flags().String("internal-grpc-addr", ":50052", "address to listen for internal requests")
+
 	// Flags for configuring dispatch behavior
 	rootCmd.Flags().Uint16("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
 	rootCmd.Flags().String("dispatch-redispatch-dns-name", "", "dns SRV record name to resolve for remote redispatch, empty string disables redispatch")
@@ -100,14 +105,21 @@ func rootRun(cmd *cobra.Command, args []string) {
 		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
 	))
 
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, grpcmw.WithUnaryServerChain(
+	middleware := grpcmw.WithUnaryServerChain(
 		otelgrpc.UnaryServerInterceptor(),
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.UnaryServerInterceptor,
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
-	))
+	)
+
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create gRPC server")
+	}
+
+	internalGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create internal gRPC server")
 	}
 
 	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
@@ -236,15 +248,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 			log.Fatal().Err(err).Msg("failed to initialize smart client")
 		}
 
-		redispatcher := graph.NewClusterDispatcher(
+		dispatch = graph.NewClusterDispatcher(
 			client,
 			v0svc.DepthRemainingHeader,
 			v0svc.ForcedRevisionHeader,
 		)
-		dispatch, err = graph.NewLocalDispatcherWithRedispatch(nsm, ds, redispatcher)
-		if err != nil {
-			log.Fatal().Err(err).Msg("failed to initialize redispatcher")
-		}
 	}
 
 	cachingDispatch, err := graph.NewCachingDispatcher(dispatch, nil, graph.RegisterPromMetrics)
@@ -258,6 +266,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 	}
 
 	registerGrpcServices(grpcServer, ds, nsm, cachingDispatch, cobrautil.MustGetUint16(cmd, "dispatch-max-depth"), prefixRequiredOption)
+	registerInternalGrpcServices(internalGrpcServer, ds, nsm, cachingDispatch)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -268,6 +277,17 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 		log.Info().Str("addr", addr).Msg("gRPC server started listening")
 		grpcServer.Serve(l)
+	}()
+
+	go func() {
+		addr := cobrautil.MustGetString(cmd, "internal-grpc-addr")
+		l, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for internal gRPC server")
+		}
+
+		log.Info().Str("addr", addr).Msg("internal gRPC server started listening")
+		internalGrpcServer.Serve(l)
 	}()
 
 	metricsrv := cobrautil.MetricsServerFromFlags(cmd)
@@ -309,22 +329,60 @@ func registerGrpcServices(
 	ds datastore.Datastore,
 	nsm namespace.Manager,
 	dispatch graph.Dispatcher,
-	maxDepth uint16,
+	maxDepth uint32,
 	prefixRequired v1alpha1svc.PrefixRequiredOption,
 ) {
 	healthSrv := grpcutil.NewAuthlessHealthServer()
 
 	v0.RegisterACLServiceServer(srv, v0svc.NewACLServer(ds, nsm, dispatch, maxDepth))
-	healthSrv.SetServingStatus("ACLService", healthpb.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus(
+		v0.ACLService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
 
 	v0.RegisterNamespaceServiceServer(srv, v0svc.NewNamespaceServer(ds))
-	healthSrv.SetServingStatus("NamespaceService", healthpb.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus(
+		v0.NamespaceService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
 
 	v0.RegisterWatchServiceServer(srv, v0svc.NewWatchServer(ds, nsm))
-	healthSrv.SetServingStatus("WatchService", healthpb.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus(
+		v0.WatchService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
 
 	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(ds, prefixRequired))
-	healthSrv.SetServingStatus("SchemaService", healthpb.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus(
+		v1alpha1.SchemaService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
+
+	healthpb.RegisterHealthServer(srv, healthSrv)
+	reflection.Register(srv)
+}
+
+func registerInternalGrpcServices(
+	srv *grpc.Server,
+	ds datastore.Datastore,
+	nsm namespace.Manager,
+	d graph.Dispatcher,
+) {
+	healthSrv := grpcutil.NewAuthlessHealthServer()
+
+	checker := graph.NewConcurrentChecker(d, ds, nsm)
+	expander := graph.NewConcurrentExpander(d, ds, nsm)
+	lookupHandler := graph.NewConcurrentLookup(d, ds, nsm)
+
+	v1.RegisterDispatchServiceServer(srv, dispatch.NewDispatchServer(
+		checker,
+		expander,
+		lookupHandler,
+	))
+	healthSrv.SetServingStatus(
+		v1.DispatchService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
 
 	healthpb.RegisterHealthServer(srv, healthSrv)
 	reflection.Register(srv)

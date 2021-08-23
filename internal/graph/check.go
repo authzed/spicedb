@@ -6,12 +6,14 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
 
-func newConcurrentChecker(d Dispatcher, ds datastore.GraphDatastore, nsm namespace.Manager) checker {
+func NewConcurrentChecker(d Dispatcher, ds datastore.GraphDatastore, nsm namespace.Manager) Checker {
 	return &concurrentChecker{d: d, ds: ds, nsm: nsm}
 }
 
@@ -26,9 +28,9 @@ func onrEqual(lhs, rhs *v0.ObjectAndRelation) bool {
 	return lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation && lhs.Namespace == rhs.Namespace
 }
 
-func (cc *concurrentChecker) check(ctx context.Context, req CheckRequest, relation *v0.Relation) ReduceableCheckFunc {
+func (cc *concurrentChecker) Check(ctx context.Context, req *v1.DispatchCheckRequest, relation *v0.Relation) ReduceableCheckFunc {
 	// If we have found the goal's ONR, then we know that the ONR is a member.
-	if onrEqual(req.Goal, req.Start) {
+	if onrEqual(req.Subject, req.ObjectAndRelation) {
 		return AlwaysMember()
 	}
 
@@ -39,23 +41,29 @@ func (cc *concurrentChecker) check(ctx context.Context, req CheckRequest, relati
 	return cc.checkUsersetRewrite(ctx, req, relation.UsersetRewrite)
 }
 
-func (cc *concurrentChecker) dispatch(req CheckRequest) ReduceableCheckFunc {
+func (cc *concurrentChecker) dispatch(req *v1.DispatchCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Trace().Object("dispatch", req).Send()
-		result := cc.d.Check(ctx, req)
+		result := cc.d.DispatchCheck(ctx, req)
 		resultChan <- result
 	}
 }
 
-func (cc *concurrentChecker) checkDirect(ctx context.Context, req CheckRequest) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
+		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
+		if err != nil {
+			resultChan <- checkResultError(NewCheckFailureErr(err), 0)
+			return
+		}
+
 		log.Trace().Object("direct", req).Send()
-		it, err := cc.ds.QueryTuples(req.Start.Namespace, req.AtRevision).
-			WithObjectID(req.Start.ObjectId).
-			WithRelation(req.Start.Relation).
+		it, err := cc.ds.QueryTuples(req.ObjectAndRelation.Namespace, requestRevision).
+			WithObjectID(req.ObjectAndRelation.ObjectId).
+			WithRelation(req.ObjectAndRelation.Relation).
 			Execute(ctx)
 		if err != nil {
-			resultChan <- CheckResult{false, NewCheckFailureErr(err)}
+			resultChan <- checkResultError(NewCheckFailureErr(err), 1)
 			return
 		}
 		defer it.Close()
@@ -63,29 +71,29 @@ func (cc *concurrentChecker) checkDirect(ctx context.Context, req CheckRequest) 
 		var requestsToDispatch []ReduceableCheckFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 			tplUserset := tpl.User.GetUserset()
-			if onrEqual(tplUserset, req.Goal) {
-				resultChan <- CheckResult{true, nil}
+			if onrEqual(tplUserset, req.Subject) {
+				resultChan <- checkResult(v1.DispatchCheckResponse_MEMBER, 1)
 				return
 			}
 			if tplUserset.Relation != Ellipsis {
 				// We need to recursively call check here, potentially changing namespaces
-				requestsToDispatch = append(requestsToDispatch, cc.dispatch(CheckRequest{
-					Start:          tplUserset,
-					Goal:           req.Goal,
-					AtRevision:     req.AtRevision,
-					DepthRemaining: req.DepthRemaining - 1,
+				requestsToDispatch = append(requestsToDispatch, cc.dispatch(&v1.DispatchCheckRequest{
+					ObjectAndRelation: tplUserset,
+					Subject:           req.Subject,
+
+					Metadata: decrementDepth(req.Metadata),
 				}))
 			}
 		}
 		if it.Err() != nil {
-			resultChan <- CheckResult{false, NewCheckFailureErr(it.Err())}
+			resultChan <- checkResultError(NewCheckFailureErr(it.Err()), 1)
 			return
 		}
 		resultChan <- Any(ctx, requestsToDispatch)
 	}
 }
 
-func (cc *concurrentChecker) checkUsersetRewrite(ctx context.Context, req CheckRequest, usr *v0.UsersetRewrite) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkUsersetRewrite(ctx context.Context, req *v1.DispatchCheckRequest, usr *v0.UsersetRewrite) ReduceableCheckFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *v0.UsersetRewrite_Union:
 		return cc.checkSetOperation(ctx, req, rw.Union, Any)
@@ -98,7 +106,7 @@ func (cc *concurrentChecker) checkUsersetRewrite(ctx context.Context, req CheckR
 	}
 }
 
-func (cc *concurrentChecker) checkSetOperation(ctx context.Context, req CheckRequest, so *v0.SetOperation, reducer Reducer) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkSetOperation(ctx context.Context, req *v1.DispatchCheckRequest, so *v0.SetOperation, reducer Reducer) ReduceableCheckFunc {
 	var requests []ReduceableCheckFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
@@ -118,7 +126,7 @@ func (cc *concurrentChecker) checkSetOperation(ctx context.Context, req CheckReq
 	}
 }
 
-func (cc *concurrentChecker) checkComputedUserset(ctx context.Context, req CheckRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkComputedUserset(ctx context.Context, req *v1.DispatchCheckRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableCheckFunc {
 	var start *v0.ObjectAndRelation
 	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if tpl == nil {
@@ -130,7 +138,7 @@ func (cc *concurrentChecker) checkComputedUserset(ctx context.Context, req Check
 		if tpl != nil {
 			start = tpl.ObjectAndRelation
 		} else {
-			start = req.Start
+			start = req.ObjectAndRelation
 		}
 	}
 
@@ -141,7 +149,7 @@ func (cc *concurrentChecker) checkComputedUserset(ctx context.Context, req Check
 	}
 
 	// If we will be dispatching to the goal's ONR, then we know that the ONR is a member.
-	if onrEqual(req.Goal, targetOnr) {
+	if onrEqual(req.Subject, targetOnr) {
 		return AlwaysMember()
 	}
 
@@ -155,23 +163,28 @@ func (cc *concurrentChecker) checkComputedUserset(ctx context.Context, req Check
 		return CheckError(err)
 	}
 
-	return cc.dispatch(CheckRequest{
-		Start:          targetOnr,
-		Goal:           req.Goal,
-		AtRevision:     req.AtRevision,
-		DepthRemaining: req.DepthRemaining - 1,
+	return cc.dispatch(&v1.DispatchCheckRequest{
+		ObjectAndRelation: targetOnr,
+		Subject:           req.Subject,
+		Metadata:          decrementDepth(req.Metadata),
 	})
 }
 
-func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req CheckRequest, ttu *v0.TupleToUserset) ReduceableCheckFunc {
+func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.DispatchCheckRequest, ttu *v0.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
+		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
+		if err != nil {
+			resultChan <- checkResultError(NewCheckFailureErr(err), 0)
+			return
+		}
+
 		log.Trace().Object("ttu", req).Send()
-		it, err := cc.ds.QueryTuples(req.Start.Namespace, req.AtRevision).
-			WithObjectID(req.Start.ObjectId).
+		it, err := cc.ds.QueryTuples(req.ObjectAndRelation.Namespace, requestRevision).
+			WithObjectID(req.ObjectAndRelation.ObjectId).
 			WithRelation(ttu.Tupleset.Relation).
 			Execute(ctx)
 		if err != nil {
-			resultChan <- CheckResult{false, NewCheckFailureErr(err)}
+			resultChan <- checkResultError(err, 1)
 			return
 		}
 		defer it.Close()
@@ -181,7 +194,7 @@ func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req CheckR
 			requestsToDispatch = append(requestsToDispatch, cc.checkComputedUserset(ctx, req, ttu.ComputedUserset, tpl))
 		}
 		if it.Err() != nil {
-			resultChan <- CheckResult{false, NewCheckFailureErr(it.Err())}
+			resultChan <- checkResultError(NewCheckFailureErr(it.Err()), 1)
 			return
 		}
 
@@ -192,8 +205,10 @@ func (cc *concurrentChecker) checkTupleToUserset(ctx context.Context, req CheckR
 // All returns whether all of the lazy checks pass, and is used for intersection.
 func All(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	if len(requests) == 0 {
-		return CheckResult{IsMember: false, Err: nil}
+		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, 0)
 	}
+
+	var totalRequestCount uint32
 
 	resultChan := make(chan CheckResult, len(requests))
 	childCtx, cancelFn := context.WithCancel(ctx)
@@ -206,42 +221,47 @@ func All(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	for i := 0; i < len(requests); i++ {
 		select {
 		case result := <-resultChan:
-			if result.Err != nil || !result.IsMember {
-				return result
+			totalRequestCount += result.Resp.Metadata.DispatchCount
+			if result.Err != nil {
+				return checkResultError(result.Err, totalRequestCount)
+			}
+
+			if result.Resp.Membership != v1.DispatchCheckResponse_MEMBER {
+				return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, totalRequestCount)
 			}
 		case <-ctx.Done():
-			return CheckResult{IsMember: false, Err: NewRequestCanceledErr()}
+			return checkResultError(NewRequestCanceledErr(), totalRequestCount)
 		}
 	}
 
-	return CheckResult{IsMember: true, Err: nil}
+	return checkResult(v1.DispatchCheckResponse_MEMBER, totalRequestCount)
 }
 
 // CheckError returns the error.
 func CheckError(err error) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		resultChan <- CheckResult{false, err}
+		resultChan <- checkResultError(err, 0)
 	}
 }
 
 // AlwaysMember returns that the check always passes.
 func AlwaysMember() ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		resultChan <- CheckResult{true, nil}
+		resultChan <- checkResult(v1.DispatchCheckResponse_MEMBER, 0)
 	}
 }
 
 // NotMember returns that the check always returns false.
 func NotMember() ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		resultChan <- CheckResult{false, nil}
+		resultChan <- checkResult(v1.DispatchCheckResponse_NOT_MEMBER, 0)
 	}
 }
 
 // Any returns whether any one of the lazy checks pass, and is used for union.
 func Any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	if len(requests) == 0 {
-		return CheckResult{IsMember: false, Err: nil}
+		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, 0)
 	}
 
 	resultChan := make(chan CheckResult, len(requests))
@@ -252,24 +272,25 @@ func Any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 		go req(childCtx, resultChan)
 	}
 
-	var downstreamError error
+	var totalRequestCount uint32
 	for i := 0; i < len(requests); i++ {
 		select {
 		case result := <-resultChan:
-			log.Trace().Object("any result", result).Send()
-			if result.Err == nil && result.IsMember {
-				return result
+			log.Trace().Object("any result", result.Resp).Send()
+			totalRequestCount += result.Resp.Metadata.DispatchCount
+			if result.Err == nil && result.Resp.Membership == v1.DispatchCheckResponse_MEMBER {
+				return checkResult(v1.DispatchCheckResponse_MEMBER, totalRequestCount)
 			}
 			if result.Err != nil {
-				downstreamError = result.Err
+				return checkResultError(result.Err, totalRequestCount)
 			}
 		case <-ctx.Done():
 			log.Trace().Msg("any canceled")
-			return CheckResult{IsMember: false, Err: NewRequestCanceledErr()}
+			return checkResultError(NewRequestCanceledErr(), totalRequestCount)
 		}
 	}
 
-	return CheckResult{IsMember: false, Err: downstreamError}
+	return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, totalRequestCount)
 }
 
 // Difference returns whether the first lazy check passes and none of the supsequent checks pass.
@@ -285,20 +306,55 @@ func Difference(ctx context.Context, requests []ReduceableCheckFunc) CheckResult
 		go req(childCtx, othersChan)
 	}
 
+	var totalRequestCount uint32
 	for i := 0; i < len(requests); i++ {
 		select {
 		case base := <-baseChan:
-			if base.Err != nil || !base.IsMember {
-				return base
+			totalRequestCount += base.Resp.Metadata.DispatchCount
+			if base.Err != nil {
+				return checkResultError(base.Err, totalRequestCount)
+			}
+
+			if base.Resp.Membership != v1.DispatchCheckResponse_MEMBER {
+				return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, totalRequestCount)
 			}
 		case sub := <-othersChan:
-			if sub.Err != nil || sub.IsMember {
-				return CheckResult{IsMember: false, Err: sub.Err}
+			totalRequestCount += sub.Resp.Metadata.DispatchCount
+			if sub.Err != nil {
+				return checkResultError(sub.Err, totalRequestCount)
+			}
+
+			if sub.Resp.Membership == v1.DispatchCheckResponse_MEMBER {
+				return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, totalRequestCount)
 			}
 		case <-ctx.Done():
-			return CheckResult{IsMember: false, Err: NewRequestCanceledErr()}
+			return checkResultError(NewRequestCanceledErr(), totalRequestCount)
 		}
 	}
 
-	return CheckResult{IsMember: true, Err: nil}
+	return checkResult(v1.DispatchCheckResponse_MEMBER, totalRequestCount)
+}
+
+func checkResult(membership v1.DispatchCheckResponse_Membership, numRequests uint32) CheckResult {
+	return CheckResult{
+		&v1.DispatchCheckResponse{
+			Metadata: &v1.ResponseMeta{
+				DispatchCount: numRequests,
+			},
+			Membership: membership,
+		},
+		nil,
+	}
+}
+
+func checkResultError(err error, numRequests uint32) CheckResult {
+	return CheckResult{
+		&v1.DispatchCheckResponse{
+			Metadata: &v1.ResponseMeta{
+				DispatchCount: numRequests,
+			},
+			Membership: v1.DispatchCheckResponse_UNKNOWN,
+		},
+		err,
+	}
 }

@@ -3,14 +3,10 @@ package graph
 import (
 	"context"
 	"fmt"
-	"strconv"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/shopspring/decimal"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 
-	"github.com/authzed/spicedb/pkg/zookie"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
 
 const (
@@ -20,9 +16,9 @@ const (
 )
 
 type clusterClient interface {
-	Check(ctx context.Context, req *v0.CheckRequest, opts ...grpc.CallOption) (*v0.CheckResponse, error)
-	Expand(ctx context.Context, req *v0.ExpandRequest, opts ...grpc.CallOption) (*v0.ExpandResponse, error)
-	Lookup(ctx context.Context, req *v0.LookupRequest, opts ...grpc.CallOption) (*v0.LookupResponse, error)
+	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
+	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
+	DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest, opts ...grpc.CallOption) (*v1.DispatchLookupResponse, error)
 }
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
@@ -37,83 +33,58 @@ type clusterDispatcher struct {
 	forcedRevisionHeader string
 }
 
-func (cr *clusterDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
-	ctx = cr.addDepthRemaining(ctx, req.DepthRemaining)
-	ctx = cr.addForcedRevision(ctx, req.AtRevision)
+func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) CheckResult {
+	err := checkDepth(req)
+	if err != nil {
+		return checkResultError(err, 0)
+	}
 
-	resp, err := cr.clusterClient.Check(ctx, &v0.CheckRequest{
-		TestUserset: req.Start,
-		User:        &v0.User{UserOneof: &v0.User_Userset{Userset: req.Goal}},
-		AtRevision:  zookie.NewFromRevision(req.AtRevision),
-	})
+	resp, err := cr.clusterClient.DispatchCheck(ctx, req)
 	if err != nil {
 		return CheckResult{
-			Err: fmt.Errorf(errCheckRedispatch, err),
+			Resp: resp,
+			Err:  fmt.Errorf(errCheckRedispatch, err),
 		}
 	}
 
 	return CheckResult{
-		IsMember: resp.IsMember,
+		Resp: resp,
 	}
 }
 
-func (cr *clusterDispatcher) Expand(ctx context.Context, req ExpandRequest) ExpandResult {
-	ctx = cr.addDepthRemaining(ctx, req.DepthRemaining)
-	ctx = cr.addForcedRevision(ctx, req.AtRevision)
+func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) ExpandResult {
+	err := checkDepth(req)
+	if err != nil {
+		return expandResultError(err, 0)
+	}
 
-	resp, err := cr.clusterClient.Expand(ctx, &v0.ExpandRequest{
-		Userset:    req.Start,
-		AtRevision: zookie.NewFromRevision(req.AtRevision),
-	})
+	resp, err := cr.clusterClient.DispatchExpand(ctx, req)
 	if err != nil {
 		return ExpandResult{
-			Err: fmt.Errorf(errExpandRedispatch, err),
+			Resp: resp,
+			Err:  fmt.Errorf(errExpandRedispatch, err),
 		}
 	}
 
 	return ExpandResult{
-		Tree: resp.TreeNode,
+		Resp: resp,
 	}
 }
 
-func (cr *clusterDispatcher) Lookup(ctx context.Context, req LookupRequest) LookupResult {
-	ctx = cr.addDepthRemaining(ctx, req.DepthRemaining)
-	ctx = cr.addForcedRevision(ctx, req.AtRevision)
-
-	resp, err := cr.clusterClient.Lookup(ctx, &v0.LookupRequest{
-		ObjectRelation: req.StartRelation,
-		User:           req.TargetONR,
-		Limit:          uint32(req.Limit),
-		AtRevision:     zookie.NewFromRevision(req.AtRevision),
-	})
+func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) LookupResult {
+	err := checkDepth(req)
 	if err != nil {
-		return LookupResult{
-			Err: fmt.Errorf(errLookupRedispatch, err),
-		}
+		return lookupResultError(err, 0)
 	}
 
-	resolvedONRs := make([]*v0.ObjectAndRelation, 0, len(resp.ResolvedObjectIds))
-	for _, objectID := range resp.ResolvedObjectIds {
-		resolvedONRs = append(resolvedONRs, &v0.ObjectAndRelation{
-			Namespace: req.StartRelation.Namespace,
-			ObjectId:  objectID,
-			Relation:  req.StartRelation.Relation,
-		})
+	resp, err := cr.clusterClient.DispatchLookup(ctx, req)
+	if err != nil {
+		return lookupResultError(fmt.Errorf(errLookupRedispatch, err), resp.Metadata.DispatchCount)
 	}
 
 	return LookupResult{
-		ResolvedObjects: resolvedONRs,
+		Resp: resp,
 	}
-}
-
-func (cr *clusterDispatcher) addDepthRemaining(ctx context.Context, depthRemaining uint16) context.Context {
-	depthRemainingStr := strconv.Itoa(int(depthRemaining))
-	return metadata.AppendToOutgoingContext(ctx, cr.depthRemainingHeader, depthRemainingStr)
-}
-
-func (cr *clusterDispatcher) addForcedRevision(ctx context.Context, revision decimal.Decimal) context.Context {
-	revisionStr := revision.String()
-	return metadata.AppendToOutgoingContext(ctx, cr.forcedRevisionHeader, revisionStr)
 }
 
 // Always verify that we implement the interface

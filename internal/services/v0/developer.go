@@ -15,7 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/encoding/prototext"
 
-	"github.com/authzed/spicedb/internal/graph"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/membership"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -145,11 +145,13 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 	// Run the checks and store their output.
 	var results []*v0.EditCheckResult
 	for _, checkTpl := range req.CheckRelationships {
-		cr := devContext.Dispatcher.Check(ctx, graph.CheckRequest{
-			Start:          checkTpl.ObjectAndRelation,
-			Goal:           checkTpl.User.GetUserset(),
-			AtRevision:     devContext.Revision,
-			DepthRemaining: maxDepth,
+		cr := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+			ObjectAndRelation: checkTpl.ObjectAndRelation,
+			Subject:           checkTpl.User.GetUserset(),
+			Metadata: &v1.ResolverMeta{
+				AtRevision:     devContext.Revision.String(),
+				DepthRemaining: maxDepth,
+			},
 		})
 		if cr.Err != nil {
 			requestErrors, wireErr := rewriteGraphError(v0.DeveloperError_CHECK_WATCH, 0, 0, tuple.String(checkTpl), cr.Err)
@@ -169,7 +171,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 
 		results = append(results, &v0.EditCheckResult{
 			Relationship: checkTpl,
-			IsMember:     cr.IsMember,
+			IsMember:     cr.Resp.Membership == v1.DispatchCheckResponse_MEMBER,
 		})
 	}
 
@@ -265,11 +267,13 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 func runAssertions(ctx context.Context, devContext *DevContext, assertions []validationfile.ParsedAssertion, expected bool, fmtString string) ([]*v0.DeveloperError, error) {
 	var failures []*v0.DeveloperError
 	for _, assertion := range assertions {
-		cr := devContext.Dispatcher.Check(ctx, graph.CheckRequest{
-			Start:          assertion.Relationship.ObjectAndRelation,
-			Goal:           assertion.Relationship.User.GetUserset(),
-			AtRevision:     devContext.Revision,
-			DepthRemaining: maxDepth,
+		cr := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+			ObjectAndRelation: assertion.Relationship.ObjectAndRelation,
+			Subject:           assertion.Relationship.User.GetUserset(),
+			Metadata: &v1.ResolverMeta{
+				AtRevision:     devContext.Revision.String(),
+				DepthRemaining: maxDepth,
+			},
 		})
 		if cr.Err != nil {
 			validationErrs, wireErr := rewriteGraphError(
@@ -283,7 +287,7 @@ func runAssertions(ctx context.Context, devContext *DevContext, assertions []val
 			if wireErr != nil {
 				return nil, wireErr
 			}
-		} else if cr.IsMember != expected {
+		} else if (cr.Resp.Membership == v1.DispatchCheckResponse_MEMBER) != expected {
 			failures = append(failures, &v0.DeveloperError{
 				Message: fmt.Sprintf(fmtString, tuple.String(assertion.Relationship)),
 				Source:  v0.DeveloperError_ASSERTION,
@@ -355,11 +359,13 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 		}
 
 		// Run a full recursive expansion over the ONR.
-		er := devContext.Dispatcher.Expand(ctx, graph.ExpandRequest{
-			Start:          onr,
-			AtRevision:     devContext.Revision,
-			DepthRemaining: maxDepth,
-			ExpansionMode:  graph.RecursiveExpansion,
+		er := devContext.Dispatcher.DispatchExpand(ctx, &v1.DispatchExpandRequest{
+			ObjectAndRelation: onr,
+			Metadata: &v1.ResolverMeta{
+				AtRevision:     devContext.Revision.String(),
+				DepthRemaining: maxDepth,
+			},
+			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 		})
 		if er.Err != nil {
 			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), er.Err)
@@ -372,7 +378,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 		}
 
 		// Add the ONR and its expansion to the membership set.
-		foundSubjects, _, aerr := membershipSet.AddExpansion(onr, er.Tree)
+		foundSubjects, _, aerr := membershipSet.AddExpansion(onr, er.Resp.TreeNode)
 		if aerr != nil {
 			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), aerr)
 			if validationErrs != nil {

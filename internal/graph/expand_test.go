@@ -18,6 +18,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -112,44 +113,46 @@ var (
 func TestExpand(t *testing.T) {
 	testCases := []struct {
 		start         *v0.ObjectAndRelation
-		expansionMode ExpansionMode
+		expansionMode v1.DispatchExpandRequest_ExpansionMode
 		expected      *v0.RelationTupleTreeNode
 	}{
-		{start: ONR("folder", "company", "owner"), expansionMode: ShallowExpansion, expected: companyOwner},
-		{start: ONR("folder", "company", "editor"), expansionMode: ShallowExpansion, expected: companyEditor},
-		{start: ONR("folder", "company", "viewer"), expansionMode: ShallowExpansion, expected: companyViewer},
-		{start: ONR("document", "masterplan", "owner"), expansionMode: ShallowExpansion, expected: docOwner},
-		{start: ONR("document", "masterplan", "editor"), expansionMode: ShallowExpansion, expected: docEditor},
-		{start: ONR("document", "masterplan", "viewer"), expansionMode: ShallowExpansion, expected: docViewer},
+		{start: ONR("folder", "company", "owner"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyOwner},
+		{start: ONR("folder", "company", "editor"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyEditor},
+		{start: ONR("folder", "company", "viewer"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyViewer},
+		{start: ONR("document", "masterplan", "owner"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docOwner},
+		{start: ONR("document", "masterplan", "editor"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docEditor},
+		{start: ONR("document", "masterplan", "viewer"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docViewer},
 
-		{start: ONR("folder", "auditors", "owner"), expansionMode: RecursiveExpansion, expected: auditorsOwner},
-		{start: ONR("folder", "auditors", "editor"), expansionMode: RecursiveExpansion, expected: auditorsEditor},
-		{start: ONR("folder", "auditors", "viewer"), expansionMode: RecursiveExpansion, expected: auditorsViewerRecursive},
+		{start: ONR("folder", "auditors", "owner"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsOwner},
+		{start: ONR("folder", "auditors", "editor"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsEditor},
+		{start: ONR("folder", "auditors", "viewer"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsViewerRecursive},
 
-		{start: ONR("folder", "company", "owner"), expansionMode: RecursiveExpansion, expected: companyOwner},
-		{start: ONR("folder", "company", "editor"), expansionMode: RecursiveExpansion, expected: companyEditor},
-		{start: ONR("folder", "company", "viewer"), expansionMode: RecursiveExpansion, expected: companyViewerRecursive},
+		{start: ONR("folder", "company", "owner"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyOwner},
+		{start: ONR("folder", "company", "editor"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyEditor},
+		{start: ONR("folder", "company", "viewer"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyViewerRecursive},
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("%s-%v", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s-%s", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
 			require := require.New(t)
 
 			dispatch, revision := newLocalDispatcher(require)
 
-			expandResult := dispatch.Expand(context.Background(), ExpandRequest{
-				Start:          tc.start,
-				AtRevision:     revision,
-				DepthRemaining: 50,
-				ExpansionMode:  tc.expansionMode,
+			expandResult := dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+				ObjectAndRelation: tc.start,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+				ExpansionMode: tc.expansionMode,
 			})
 
 			require.NoError(expandResult.Err)
-			require.NotNil(expandResult.Tree)
+			require.NotNil(expandResult.Resp.TreeNode)
 
-			if diff := cmp.Diff(tc.expected, expandResult.Tree, protocmp.Transform()); diff != "" {
+			if diff := cmp.Diff(tc.expected, expandResult.Resp.TreeNode, protocmp.Transform()); diff != "" {
 				fset := token.NewFileSet()
-				err := printer.Fprint(os.Stdout, fset, serializeToFile(expandResult.Tree))
+				err := printer.Fprint(os.Stdout, fset, serializeToFile(expandResult.Resp.TreeNode))
 				require.NoError(err)
 				t.Errorf("unexpected difference:\n%v", diff)
 			}
@@ -264,11 +267,13 @@ func TestMaxDepthExpand(t *testing.T) {
 	dispatch, err := NewLocalDispatcher(nsm, ds)
 	require.NoError(err)
 
-	checkResult := dispatch.Expand(ctx, ExpandRequest{
-		Start:          ONR("folder", "oops", "viewer"),
-		AtRevision:     revision,
-		DepthRemaining: 50,
-		ExpansionMode:  ShallowExpansion,
+	checkResult := dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
+		ObjectAndRelation: ONR("folder", "oops", "viewer"),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+		ExpansionMode: v1.DispatchExpandRequest_SHALLOW,
 	})
 
 	require.Error(checkResult.Err)

@@ -6,11 +6,14 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -22,27 +25,23 @@ var errMaxDepth = errors.New("max depth has been reached")
 // process on the same machine.
 func NewLocalDispatcher(
 	nsm namespace.Manager,
-	ds datastore.GraphDatastore,
+	ds datastore.Datastore,
 ) (Dispatcher, error) {
-	localOnly := &localDispatcher{nsm: nsm, ds: ds}
-	localOnly.redispatcher = localOnly
-	return localOnly, nil
-}
+	d := &localDispatcher{nsm: nsm}
 
-// NewLocalDispatcherWithRedispatch creates a dispatcher that uses a different
-// dispatcher for further request dispatching.
-func NewLocalDispatcherWithRedispatch(
-	nsm namespace.Manager,
-	ds datastore.GraphDatastore,
-	redispatcher Dispatcher,
-) (Dispatcher, error) {
-	return &localDispatcher{nsm: nsm, ds: ds, redispatcher: redispatcher}, nil
+	d.checker = NewConcurrentChecker(d, ds, nsm)
+	d.expander = NewConcurrentExpander(d, ds, nsm)
+	d.lookupHandler = NewConcurrentLookup(d, ds, nsm)
+
+	return d, nil
 }
 
 type localDispatcher struct {
-	nsm          namespace.Manager
-	ds           datastore.GraphDatastore
-	redispatcher Dispatcher
+	checker       Checker
+	expander      Expander
+	lookupHandler LookupHandler
+
+	nsm namespace.Manager
 }
 
 func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string) (*v0.Relation, error) {
@@ -83,74 +82,66 @@ func (rr stringableRelRef) String() string {
 	return fmt.Sprintf("%s::%s", rr.Namespace, rr.Relation)
 }
 
-func (ld *localDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
+func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) CheckResult {
 	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
-		attribute.Stringer("start", stringableOnr{req.Start}),
-		attribute.Stringer("goal", stringableOnr{req.Goal}),
+		attribute.Stringer("start", stringableOnr{req.ObjectAndRelation}),
+		attribute.Stringer("subject", stringableOnr{req.Subject}),
 	))
 	defer span.End()
 
-	if req.DepthRemaining < 1 {
-		return CheckResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
-	}
-
-	relation, err := ld.loadRelation(ctx, req.Start.Namespace, req.Start.Relation)
+	err := checkDepth(req)
 	if err != nil {
-		return CheckResult{Err: err}
+		return checkResultError(err, 0)
 	}
 
-	chk := newConcurrentChecker(ld.redispatcher, ld.ds, ld.nsm)
+	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation)
+	if err != nil {
+		return checkResultError(err, 0)
+	}
 
-	asyncCheck := chk.check(ctx, req, relation)
+	asyncCheck := ld.checker.Check(ctx, req, relation)
 	return Any(ctx, []ReduceableCheckFunc{asyncCheck})
 }
 
-func (ld *localDispatcher) Expand(ctx context.Context, req ExpandRequest) ExpandResult {
+func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) ExpandResult {
 	ctx, span := tracer.Start(ctx, "DispatchExpand", trace.WithAttributes(
-		attribute.Stringer("start", stringableOnr{req.Start}),
+		attribute.Stringer("start", stringableOnr{req.ObjectAndRelation}),
 	))
 	defer span.End()
 
-	if req.DepthRemaining < 1 {
-		return ExpandResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
-	}
-
-	relation, err := ld.loadRelation(ctx, req.Start.Namespace, req.Start.Relation)
+	err := checkDepth(req)
 	if err != nil {
-		return ExpandResult{Tree: nil, Err: err}
+		return expandResultError(err, 0)
 	}
 
-	expand := newConcurrentExpander(ld.redispatcher, ld.ds, ld.nsm)
+	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation)
+	if err != nil {
+		return expandResultError(err, 0)
+	}
 
-	asyncExpand := expand.expand(ctx, req, relation)
+	asyncExpand := ld.expander.Expand(ctx, req, relation)
 	return ExpandOne(ctx, asyncExpand)
 }
 
-func (ld *localDispatcher) Lookup(ctx context.Context, req LookupRequest) LookupResult {
+func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) LookupResult {
 	ctx, span := tracer.Start(ctx, "DispatchLookup", trace.WithAttributes(
-		attribute.Stringer("start", stringableRelRef{req.StartRelation}),
-		attribute.Stringer("target", stringableOnr{req.TargetONR}),
+		attribute.Stringer("start", stringableRelRef{req.ObjectRelation}),
+		attribute.Stringer("subject", stringableOnr{req.Subject}),
 		attribute.Int64("limit", int64(req.Limit)),
 	))
 	defer span.End()
 
-	if req.DepthRemaining < 1 {
-		return LookupResult{Err: fmt.Errorf(errDispatch, errMaxDepth)}
+	err := checkDepth(req)
+	if err != nil {
+		return lookupResultError(err, 0)
 	}
 
 	if req.Limit <= 0 {
-		return LookupResult{
-			ResolvedObjects: []*v0.ObjectAndRelation{},
-		}
+		return lookupResult([]*v0.ObjectAndRelation{}, 0)
 	}
 
-	lookup := newConcurrentLookup(ld.redispatcher, ld.ds, ld.nsm)
-	tracer := req.DebugTracer.Childf("Dispatched: %s#%s -> %s", req.StartRelation.Namespace, req.StartRelation.Relation, tuple.StringONR(req.TargetONR))
-	req.DebugTracer = tracer
-
-	asyncLookup := lookup.lookup(ctx, req)
+	asyncLookup := ld.lookupHandler.Lookup(ctx, req)
 	result := LookupAny(ctx, req.Limit, []ReduceableLookupFunc{asyncLookup})
-	tracer.Add("Response", EmittableObjectSlice(result.ResolvedObjects))
 	return result
 }
 
@@ -167,4 +158,24 @@ func rewriteError(original error) error {
 	default:
 		return fmt.Errorf(errDispatch, original)
 	}
+}
+
+type hasMetadata interface {
+	zerolog.LogObjectMarshaler
+
+	GetMetadata() *v1.ResolverMeta
+}
+
+func checkDepth(req hasMetadata) error {
+	metadata := req.GetMetadata()
+	if metadata == nil {
+		log.Warn().Object("req", req).Msg("request missing metadata")
+		return fmt.Errorf("request missing metadata")
+	}
+
+	if metadata.DepthRemaining == 0 {
+		return fmt.Errorf(errDispatch, errMaxDepth)
+	}
+
+	return nil
 }

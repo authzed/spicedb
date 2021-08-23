@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/rs/zerolog/log"
@@ -16,9 +15,9 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
@@ -28,13 +27,13 @@ type aclServer struct {
 	ds           datastore.Datastore
 	nsm          namespace.Manager
 	dispatch     graph.Dispatcher
-	defaultDepth uint16
+	defaultDepth uint32
 }
 
 const (
 	maxUInt16          = int(^uint16(0))
-	lookupDefaultLimit = 25
-	lookupMaximumLimit = 100
+	lookupDefaultLimit = uint32(25)
+	lookupMaximumLimit = uint32(100)
 
 	DepthRemainingHeader = "authzed-depth-remaining"
 	ForcedRevisionHeader = "authzed-forced-revision"
@@ -47,7 +46,7 @@ var (
 )
 
 // NewACLServer creates an instance of the ACL server.
-func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch graph.Dispatcher, defaultDepth uint16) v0.ACLServiceServer {
+func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch graph.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
 	s := &aclServer{ds: ds, nsm: nsm, dispatch: dispatch, defaultDepth: defaultDepth}
 	return s
 }
@@ -244,28 +243,30 @@ func (as *aclServer) commonCheck(
 		return nil, rewriteACLError(err)
 	}
 
-	depth, err := as.calculateRequestDepth(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, err.Error())
-	}
-
-	cr := as.dispatch.Check(ctx, graph.CheckRequest{
-		Start:          start,
-		Goal:           goal,
-		AtRevision:     atRevision,
-		DepthRemaining: depth,
+	cr := as.dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     atRevision.String(),
+			DepthRemaining: as.defaultDepth,
+		},
+		ObjectAndRelation: start,
+		Subject:           goal,
 	})
 	if cr.Err != nil {
 		return nil, rewriteACLError(cr.Err)
 	}
 
-	membership := v0.CheckResponse_NOT_MEMBER
-	if cr.IsMember {
+	var membership v0.CheckResponse_Membership
+	switch cr.Resp.Membership {
+	case v1.DispatchCheckResponse_MEMBER:
 		membership = v0.CheckResponse_MEMBER
+	case v1.DispatchCheckResponse_NOT_MEMBER:
+		membership = v0.CheckResponse_NOT_MEMBER
+	default:
+		membership = v0.CheckResponse_UNKNOWN
 	}
 
 	return &v0.CheckResponse{
-		IsMember:   cr.IsMember,
+		IsMember:   membership == v0.CheckResponse_MEMBER,
 		Revision:   zookie.NewFromRevision(atRevision),
 		Membership: membership,
 	}, nil
@@ -287,23 +288,20 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 		return nil, rewriteACLError(err)
 	}
 
-	depth, err := as.calculateRequestDepth(ctx)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-
-	resp := as.dispatch.Expand(ctx, graph.ExpandRequest{
-		Start:          req.Userset,
-		AtRevision:     atRevision,
-		DepthRemaining: depth,
-		ExpansionMode:  graph.ShallowExpansion,
+	resp := as.dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     atRevision.String(),
+			DepthRemaining: as.defaultDepth,
+		},
+		ObjectAndRelation: req.Userset,
+		ExpansionMode:     v1.DispatchExpandRequest_SHALLOW,
 	})
 	if resp.Err != nil {
 		return nil, rewriteACLError(resp.Err)
 	}
 
 	return &v0.ExpandResponse{
-		TreeNode: resp.Tree,
+		TreeNode: resp.Resp.TreeNode,
 		Revision: zookie.NewFromRevision(atRevision),
 	}, nil
 }
@@ -336,35 +334,30 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 		return nil, rewriteACLError(err)
 	}
 
-	depth, err := as.calculateRequestDepth(ctx)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-
-	limit := int(req.Limit)
+	limit := req.Limit
 	if limit == 0 {
 		limit = lookupDefaultLimit
+	} else if limit > lookupMaximumLimit {
+		limit = lookupMaximumLimit
 	}
-	limit = min(limit, lookupMaximumLimit)
 
-	tracer := graph.NewNullTracer()
-	resp := as.dispatch.Lookup(ctx, graph.LookupRequest{
-		TargetONR:      req.User,
-		StartRelation:  req.ObjectRelation,
+	resp := as.dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     atRevision.String(),
+			DepthRemaining: as.defaultDepth,
+		},
+		ObjectRelation: req.ObjectRelation,
+		Subject:        req.User,
 		Limit:          limit,
-		AtRevision:     atRevision,
-		DepthRemaining: depth,
-		DirectStack:    tuple.NewONRSet(),
-		TTUStack:       tuple.NewONRSet(),
-		DebugTracer:    tracer.Childf("%s#%s -> %s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.User)),
+		DirectStack:    nil,
+		TtuStack:       nil,
 	})
-
 	if resp.Err != nil {
 		return nil, rewriteACLError(resp.Err)
 	}
 
 	resolvedObjectIDs := []string{}
-	for _, found := range resp.ResolvedObjects {
+	for _, found := range resp.Resp.ResolvedOnrs {
 		if found.Namespace != req.ObjectRelation.Namespace {
 			return nil, rewriteACLError(fmt.Errorf("got invalid resolved object %v (expected %v)", found, req.ObjectRelation))
 		}
@@ -376,31 +369,6 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 		Revision:          zookie.NewFromRevision(atRevision),
 		ResolvedObjectIds: resolvedObjectIDs,
 	}, nil
-}
-
-func (as *aclServer) calculateRequestDepth(ctx context.Context) (uint16, error) {
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if matching := md.Get(DepthRemainingHeader); len(matching) > 0 {
-			if len(matching) > 1 {
-				return 0, errInvalidDepthRemaining
-			}
-
-			// We have one and only one depth remaining header, let's check the format
-			decoded, err := strconv.Atoi(matching[0])
-			if err != nil {
-				return 0, errInvalidDepthRemaining
-			}
-
-			// Prevent against wildly inaccurate remaining depths
-			if decoded < 1 || decoded > int(as.defaultDepth) {
-				return 0, errInvalidDepthRemaining
-			}
-
-			return uint16(decoded), nil
-		}
-	}
-
-	return as.defaultDepth, nil
 }
 
 func (as *aclServer) pickBestRevision(ctx context.Context, requested *v0.Zookie) (decimal.Decimal, error) {

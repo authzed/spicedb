@@ -8,6 +8,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 	"github.com/prometheus/client_golang/prometheus"
 
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -20,7 +21,7 @@ type cachingDispatcher struct {
 
 type checkResultEntry struct {
 	result                     CheckResult
-	computedWithDepthRemaining uint16
+	computedWithDepthRemaining uint32
 }
 
 var checkResultEntryCost = int64(unsafe.Sizeof(checkResultEntry{}))
@@ -110,35 +111,36 @@ func registerMetricsFunc(name string, metricsFunc func() uint64) error {
 	}))
 }
 
-func (cd *cachingDispatcher) Check(ctx context.Context, req CheckRequest) CheckResult {
+func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) CheckResult {
 	counterDispatchCheckRequest.Inc()
 	requestKey := requestToKey(req)
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(checkResultEntry)
-		if req.DepthRemaining >= cachedResult.computedWithDepthRemaining {
+		if req.Metadata.DepthRemaining >= cachedResult.computedWithDepthRemaining {
 			counterDispatchCheckRequestFromCache.Inc()
 			return cachedResult.result
 		}
 	}
 
-	computed := cd.d.Check(ctx, req)
+	computed := cd.d.DispatchCheck(ctx, req)
 	if computed.Err == nil {
-		toCache := checkResultEntry{computed, req.DepthRemaining}
+		toCache := checkResultEntry{computed, req.Metadata.DepthRemaining}
+		toCache.result.Resp.Metadata.DispatchCount = 0
 		cd.c.Set(requestKey, toCache, checkResultEntryCost)
 	}
 
 	return computed
 }
 
-func (cd *cachingDispatcher) Expand(ctx context.Context, req ExpandRequest) ExpandResult {
-	return cd.d.Expand(ctx, req)
+func (cd *cachingDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) ExpandResult {
+	return cd.d.DispatchExpand(ctx, req)
 }
 
-func (cd *cachingDispatcher) Lookup(ctx context.Context, req LookupRequest) LookupResult {
-	return cd.d.Lookup(ctx, req)
+func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) LookupResult {
+	return cd.d.DispatchLookup(ctx, req)
 }
 
-func requestToKey(req CheckRequest) string {
-	return fmt.Sprintf("%s@%s@%d", tuple.StringONR(req.Start), tuple.StringONR(req.Goal), req.AtRevision.IntPart())
+func requestToKey(req *v1.DispatchCheckRequest) string {
+	return fmt.Sprintf("%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }

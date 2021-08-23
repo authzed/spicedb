@@ -16,6 +16,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -124,15 +125,17 @@ func TestSimple(t *testing.T) {
 
 					dispatch, revision := newLocalDispatcher(require)
 
-					checkResult := dispatch.Check(context.Background(), CheckRequest{
-						Start:          ONR(tc.namespace, tc.objectID, expected.relation),
-						Goal:           userset.userset,
-						AtRevision:     revision,
-						DepthRemaining: 50,
+					checkResult := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+						ObjectAndRelation: ONR(tc.namespace, tc.objectID, expected.relation),
+						Subject:           userset.userset,
+						Metadata: &v1.ResolverMeta{
+							AtRevision:     revision.String(),
+							DepthRemaining: 50,
+						},
 					})
 
 					require.NoError(checkResult.Err)
-					require.Equal(expected.isMember, checkResult.IsMember)
+					require.Equal(expected.isMember, checkResult.Resp.Membership == v1.DispatchCheckResponse_MEMBER)
 				})
 			}
 		}
@@ -166,15 +169,17 @@ func TestMaxDepth(t *testing.T) {
 	dispatch, err := NewLocalDispatcher(nsm, ds)
 	require.NoError(err)
 
-	checkResult := dispatch.Check(context.Background(), CheckRequest{
-		Start:          ONR("folder", "oops", "owner"),
-		Goal:           ONR("user", "fake", Ellipsis),
-		AtRevision:     revision,
-		DepthRemaining: 50,
+	checkResult := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+		ObjectAndRelation: ONR("folder", "oops", "owner"),
+		Subject:           ONR("user", "fake", Ellipsis),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
 	})
 
 	require.Error(checkResult.Err)
-	require.False(checkResult.IsMember)
+	require.Equal(v1.DispatchCheckResponse_UNKNOWN, checkResult.Resp.Membership)
 }
 
 func newLocalDispatcher(require *require.Assertions) (Dispatcher, decimal.Decimal) {
