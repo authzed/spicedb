@@ -1,4 +1,4 @@
-FROM golang:1.16-alpine3.13 AS build
+FROM golang:1.17.0-alpine3.13 AS build
 
 ARG GRPC_HEALTH_PROBE_VERSION=0.3.6
 RUN apk add curl
