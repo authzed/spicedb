@@ -12,6 +12,7 @@ import (
 	"github.com/alecthomas/units"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
+	"github.com/authzed/grpcutil"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
@@ -36,7 +37,6 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	"github.com/authzed/spicedb/pkg/grpcutil"
 	"github.com/authzed/spicedb/pkg/smartclient"
 )
 

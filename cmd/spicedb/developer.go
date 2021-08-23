@@ -10,6 +10,7 @@ import (
 	"os/signal"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/authzed/grpcutil"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -26,7 +27,6 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
-	"github.com/authzed/spicedb/pkg/grpcutil"
 )
 
 func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
