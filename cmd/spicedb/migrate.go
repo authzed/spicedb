@@ -15,21 +15,21 @@ import (
 func registerMigrateCmd(rootCmd *cobra.Command) {
 	migrateCmd := &cobra.Command{
 		Use:               "migrate [revision]",
-		Short:             "execute schema migrations against database",
+		Short:             "execute datastore schema migrations",
 		PersistentPreRunE: persistentPreRunE,
 		Run:               migrateRun,
 		Args:              cobra.ExactArgs(1),
 	}
 
-	migrateCmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
-	migrateCmd.Flags().String("datastore-url", "", "connection url (e.g. postgres://postgres:password@localhost:5432/spicedb) of storage layer for those engines that support it (postgres, crdb)")
+	migrateCmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+	migrateCmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 
 	rootCmd.AddCommand(migrateCmd)
 }
 
 func migrateRun(cmd *cobra.Command, args []string) {
 	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
-	dbURL := cobrautil.MustGetString(cmd, "datastore-url")
+	dbURL := cobrautil.MustGetString(cmd, "datastore-conn-uri")
 
 	if datastoreEngine == "cockroachdb" {
 		log.Info().Msg("migrating cockroachdb datastore")

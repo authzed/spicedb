@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/aws/aws-sdk-go/aws"
@@ -24,7 +23,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
@@ -35,17 +33,13 @@ func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 	developerServiceCmd := &cobra.Command{
 		Use:   "developer-service",
 		Short: "runs the developer service",
+		Long:  "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
 		Run:   developerServiceRun,
 		Args:  cobra.ExactArgs(0),
 	}
 
-	developerServiceCmd.Flags().String("grpc-addr", ":50053", "address to listen on for serving gRPC services")
-	developerServiceCmd.Flags().String("grpc-cert-path", "", "local path to the TLS certificate used to serve gRPC services")
-	developerServiceCmd.Flags().String("grpc-key-path", "", "local path to the TLS key used to serve gRPC services")
-	developerServiceCmd.Flags().Bool("grpc-no-tls", false, "serve unencrypted gRPC services")
-	developerServiceCmd.Flags().Duration("grpc-max-conn-age", 60*time.Second, "how long a connection should be able to live")
-
-	developerServiceCmd.Flags().String("metrics-addr", ":9090", "address to listen on for serving metrics and profiles")
+	cobrautil.RegisterGrpcServerFlags(developerServiceCmd.Flags())
+	cobrautil.RegisterMetricsServerFlags(developerServiceCmd.Flags())
 
 	developerServiceCmd.Flags().String("share-store", "inmemory", "kind of share store to use")
 	developerServiceCmd.Flags().String("share-store-salt", "", "salt for share store hashing")
@@ -59,30 +53,13 @@ func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 }
 
 func developerServiceRun(cmd *cobra.Command, args []string) {
-	var sharedOptions []grpc.ServerOption
-	sharedOptions = append(sharedOptions, grpcmw.WithUnaryServerChain(
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, grpcmw.WithUnaryServerChain(
 		otelgrpc.UnaryServerInterceptor(),
 		grpcprom.UnaryServerInterceptor,
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 	))
-
-	sharedOptions = append(sharedOptions, grpc.KeepaliveParams(keepalive.ServerParameters{
-		MaxConnectionAge: cobrautil.MustGetDuration(cmd, "grpc-max-conn-age"),
-	}))
-
-	var grpcServer *grpc.Server
-	if cobrautil.MustGetBool(cmd, "grpc-no-tls") {
-		grpcServer = grpc.NewServer(sharedOptions...)
-	} else {
-		var err error
-		grpcServer, err = NewTlsGrpcServer(
-			cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
-			cobrautil.MustGetStringExpanded(cmd, "grpc-key-path"),
-			sharedOptions...,
-		)
-		if err != nil {
-			log.Fatal().Err(err).Msg("failed to create TLS gRPC server")
-		}
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create gRPC server")
 	}
 
 	shareStore, err := shareStoreFromCmd(cmd)
@@ -103,14 +80,13 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 		grpcServer.Serve(l)
 	}()
 
-	metricsAddr := cobrautil.MustGetStringExpanded(cmd, "metrics-addr")
-	metricsrv := NewMetricsServer(metricsAddr)
+	metricsrv := cobrautil.MetricsServerFromFlags(cmd)
 	go func() {
+		log.Info().Str("addr", metricsrv.Addr).Msg("metrics server started listening")
 		if err := metricsrv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
-	log.Info().Str("addr", metricsAddr).Msg("metrics server started listening")
 
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 	for {
