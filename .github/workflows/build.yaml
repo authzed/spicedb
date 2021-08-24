@@ -23,12 +23,7 @@ jobs:
         go install golang.org/x/tools/cmd/stringer@latest
     - uses: "actions/checkout@v2"
     - name: "Go Mod Tidy"
-      run: |
-        GO_MOD_OUPUT="$(go mod tidy -v 2>&1)"
-        if [[ $GO_MOD_OUPUT == *"unused"* ]]; then
-          echo "${GO_MOD_OUPUT}"
-          exit 1
-        fi
+      run: "go mod tidy && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
     - name: "Formatting (gofumpt)"
       run: |
         GOFUMPT_OUTPUT="$(find . -iname '*.go' -type f | grep -v pb.go | xargs gofumports -d)"
