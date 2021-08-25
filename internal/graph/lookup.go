@@ -223,7 +223,6 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 				Metadata:    decrementDepth(req.Metadata),
 				DirectStack: directStack,
 				TtuStack:    req.TtuStack,
-				// DebugTracer: requestsTracer.Childf("Incoming %s#%s", allowedDirectType.Namespace, allowedDirectType.Relation),
 			})
 
 			result := lookupAny(ctx, noLimit, []ReduceableLookupFunc{inferredRequest})
@@ -376,7 +375,6 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 				Metadata:    decrementDepth(req.Metadata),
 				DirectStack: req.DirectStack,
 				TtuStack:    append(req.TtuStack, onr),
-				// DebugTracer: computedUsersetTracer.Childf("%s#%s", directRelation.Namespace, ttu.ComputedUserset.Relation),
 			})
 
 			result := lookupAny(ctx, noLimit, []ReduceableLookupFunc{computedUsersetRequest})
@@ -489,7 +487,6 @@ func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req *v1.Dispatch
 			ObjectId:  "",
 		}),
 		TtuStack: req.TtuStack,
-		// DebugTracer: tracer.Childf("computed_userset %s", cu.Relation),
 	}))
 
 	if result.Err != nil {
