@@ -9,17 +9,21 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func NewConcurrentLookup(d Dispatcher, ds datastore.GraphDatastore, nsm namespace.Manager) LookupHandler {
-	return &concurrentLookup{d: d, ds: ds, nsm: nsm}
+// NewConcurrentLookup creates and instance of ConcurrentLookup.
+func NewConcurrentLookup(d dispatch.Lookup, ds datastore.GraphDatastore, nsm namespace.Manager) *ConcurrentLookup {
+	return &ConcurrentLookup{d: d, ds: ds, nsm: nsm}
 }
 
-type concurrentLookup struct {
-	d   Dispatcher
+// ConcurrentLookup exposes a method to perform Lookup requests, and delegates subproblems to the
+// provided dispatch.Lookup instance.
+type ConcurrentLookup struct {
+	d   dispatch.Lookup
 	ds  datastore.GraphDatastore
 	nsm namespace.Manager
 }
@@ -30,7 +34,14 @@ const (
 	noLimit = ^uint32(0)
 )
 
-func (cl *concurrentLookup) Lookup(ctx context.Context, req *v1.DispatchLookupRequest) ReduceableLookupFunc {
+// Lookup performs a lookup request with the provided request and context.
+func (cl *ConcurrentLookup) Lookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+	funcToResolve := cl.lookupInternal(ctx, req)
+	resolved := lookupOne(ctx, funcToResolve)
+	return resolved.Resp, resolved.Err
+}
+
+func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.DispatchLookupRequest) ReduceableLookupFunc {
 	log.Trace().Object("lookup", req).Send()
 
 	objSet := tuple.NewONRSet()
@@ -43,19 +54,19 @@ func (cl *concurrentLookup) Lookup(ctx context.Context, req *v1.DispatchLookupRe
 
 	nsdef, typeSystem, _, err := cl.nsm.ReadNamespaceAndTypes(ctx, req.ObjectRelation.Namespace)
 	if err != nil {
-		return ResolveError(err, 0)
+		return returnResult(lookupResultError(err, 0))
 	}
 
 	relation, ok := findRelation(nsdef, req.ObjectRelation.Relation)
 	if !ok {
-		return ResolveError(
+		return returnResult(lookupResultError(
 			fmt.Errorf(
 				"relation `%s` not found under namespace `%s`",
 				req.ObjectRelation.Relation,
 				req.ObjectRelation.Namespace,
 			),
 			0,
-		)
+		))
 	}
 
 	rewrite := relation.UsersetRewrite
@@ -67,9 +78,9 @@ func (cl *concurrentLookup) Lookup(ctx context.Context, req *v1.DispatchLookupRe
 	}
 
 	// Perform the structural lookup.
-	result := LookupAny(ctx, req.Limit, []ReduceableLookupFunc{request})
+	result := lookupAny(ctx, req.Limit, []ReduceableLookupFunc{request})
 	if result.Err != nil {
-		return ResolveError(result.Err, result.Resp.Metadata.DispatchCount)
+		return returnResult(lookupResultError(result.Err, result.Resp.Metadata.DispatchCount))
 	}
 
 	objSet.Update(result.Resp.ResolvedOnrs)
@@ -103,10 +114,10 @@ func (cl *concurrentLookup) Lookup(ctx context.Context, req *v1.DispatchLookupRe
 			break
 		}
 
-		result := LookupAny(ctx, req.Limit, requests)
+		result := lookupAny(ctx, req.Limit, requests)
 		totalRequestCount += result.Resp.Metadata.DispatchCount
 		if result.Err != nil {
-			return ResolveError(err, totalRequestCount)
+			return returnResult(lookupResultError(err, totalRequestCount))
 		}
 
 		toCheck = tuple.NewONRSet()
@@ -119,21 +130,21 @@ func (cl *concurrentLookup) Lookup(ctx context.Context, req *v1.DispatchLookupRe
 		}
 	}
 
-	return ResolvedObjects(limitedSlice(objSet.AsSlice(), req.Limit), totalRequestCount)
+	return returnResult(lookupResult(limitedSlice(objSet.AsSlice(), req.Limit), totalRequestCount))
 }
 
-func (cl *concurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLookupRequest, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
+func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLookupRequest, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
 	requests := []ReduceableLookupFunc{}
 
 	// Dispatch a check for the target ONR directly, if it is allowed on the start relation.
 	isDirectAllowed, err := typeSystem.IsAllowedDirectRelation(req.ObjectRelation.Relation, req.Subject.Namespace, req.Subject.Relation)
 	if err != nil {
-		return ResolveError(err, 0)
+		return returnResult(lookupResultError(err, 0))
 	}
 
 	requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 	if err != nil {
-		return ResolveError(err, 0)
+		return returnResult(lookupResultError(err, 0))
 	}
 
 	if isDirectAllowed == namespace.DirectRelationValid {
@@ -168,7 +179,7 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 	// the found object IDs, and then search for those.
 	allowedDirect, err := typeSystem.AllowedDirectRelations(req.ObjectRelation.Relation)
 	if err != nil {
-		return ResolveError(err, 0)
+		return returnResult(lookupResultError(err, 0))
 	}
 
 	directStack := append(req.DirectStack, &v0.ObjectAndRelation{
@@ -215,7 +226,7 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 				// DebugTracer: requestsTracer.Childf("Incoming %s#%s", allowedDirectType.Namespace, allowedDirectType.Relation),
 			})
 
-			result := LookupAny(ctx, noLimit, []ReduceableLookupFunc{inferredRequest})
+			result := lookupAny(ctx, noLimit, []ReduceableLookupFunc{inferredRequest})
 			if result.Err != nil {
 				resultChan <- result
 				return
@@ -254,28 +265,28 @@ func (cl *concurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 
 	// TODO consider removing this short-circuit
 	if len(requests) == 0 {
-		return ResolvedObjects([]*v0.ObjectAndRelation{}, 0)
+		return returnResult(lookupResult([]*v0.ObjectAndRelation{}, 0))
 	}
 
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		resultChan <- LookupAny(ctx, req.Limit, requests)
+		resultChan <- lookupAny(ctx, req.Limit, requests)
 	}
 }
 
-func (cl *concurrentLookup) processRewrite(ctx context.Context, req *v1.DispatchLookupRequest, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, usr *v0.UsersetRewrite) ReduceableLookupFunc {
+func (cl *ConcurrentLookup) processRewrite(ctx context.Context, req *v1.DispatchLookupRequest, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, usr *v0.UsersetRewrite) ReduceableLookupFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *v0.UsersetRewrite_Union:
-		return cl.processSetOperation(ctx, req, nsdef, typeSystem, rw.Union, LookupAny)
+		return cl.processSetOperation(ctx, req, nsdef, typeSystem, rw.Union, lookupAny)
 	case *v0.UsersetRewrite_Intersection:
-		return cl.processSetOperation(ctx, req, nsdef, typeSystem, rw.Intersection, LookupAll)
+		return cl.processSetOperation(ctx, req, nsdef, typeSystem, rw.Intersection, lookupAll)
 	case *v0.UsersetRewrite_Exclusion:
-		return cl.processSetOperation(ctx, req, nsdef, typeSystem, rw.Exclusion, LookupExclude)
+		return cl.processSetOperation(ctx, req, nsdef, typeSystem, rw.Exclusion, lookupExclude)
 	default:
-		return ResolveError(fmt.Errorf("unknown userset rewrite kind under `%s#%s`", req.ObjectRelation.Namespace, req.ObjectRelation.Relation), 0)
+		return returnResult(lookupResultError(fmt.Errorf("unknown userset rewrite kind under `%s#%s`", req.ObjectRelation.Namespace, req.ObjectRelation.Relation), 0))
 	}
 }
 
-func (cl *concurrentLookup) processSetOperation(ctx context.Context, req *v1.DispatchLookupRequest, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, so *v0.SetOperation, reducer LookupReducer) ReduceableLookupFunc {
+func (cl *ConcurrentLookup) processSetOperation(ctx context.Context, req *v1.DispatchLookupRequest, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, so *v0.SetOperation, reducer LookupReducer) ReduceableLookupFunc {
 	var requests []ReduceableLookupFunc
 
 	for _, childOneof := range so.Child {
@@ -289,7 +300,7 @@ func (cl *concurrentLookup) processSetOperation(ctx context.Context, req *v1.Dis
 		case *v0.SetOperation_Child_TupleToUserset:
 			requests = append(requests, cl.processTupleToUserset(ctx, req, nsdef, typeSystem, child.TupleToUserset))
 		default:
-			return ResolveError(fmt.Errorf("unknown set operation child"), 0)
+			return returnResult(lookupResultError(fmt.Errorf("unknown set operation child"), 0))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
@@ -308,7 +319,7 @@ func findRelation(nsdef *v0.NamespaceDefinition, relationName string) (*v0.Relat
 	return nil, false
 }
 
-func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req *v1.DispatchLookupRequest, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, ttu *v0.TupleToUserset) ReduceableLookupFunc {
+func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.DispatchLookupRequest, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, ttu *v0.TupleToUserset) ReduceableLookupFunc {
 	// Ensure that we don't process TTUs recursively, as that can cause an infinite loop.
 	onr := &v0.ObjectAndRelation{
 		Namespace: req.ObjectRelation.Namespace,
@@ -316,17 +327,17 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 		ObjectId:  "",
 	}
 	if checkStackContains(req.TtuStack, onr) {
-		return ResolvedObjects([]*v0.ObjectAndRelation{}, 0)
+		return returnResult(lookupResult([]*v0.ObjectAndRelation{}, 0))
 	}
 
 	tuplesetDirectRelations, err := typeSystem.AllowedDirectRelations(ttu.Tupleset.Relation)
 	if err != nil {
-		return ResolveError(err, 0)
+		return returnResult(lookupResultError(err, 0))
 	}
 
 	requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 	if err != nil {
-		return ResolveError(err, 0)
+		return returnResult(lookupResultError(err, 0))
 	}
 
 	// Dispatch to all the accessible namespaces for the computed userset.
@@ -341,7 +352,7 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 
 		_, directRelTypeSystem, _, err := cl.nsm.ReadNamespaceAndTypes(ctx, directRelation.Namespace)
 		if err != nil {
-			return ResolveError(err, 0)
+			return returnResult(lookupResultError(err, 0))
 		}
 
 		if !directRelTypeSystem.HasRelation(ttu.ComputedUserset.Relation) {
@@ -368,7 +379,7 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 				// DebugTracer: computedUsersetTracer.Childf("%s#%s", directRelation.Namespace, ttu.ComputedUserset.Relation),
 			})
 
-			result := LookupAny(ctx, noLimit, []ReduceableLookupFunc{computedUsersetRequest})
+			result := lookupAny(ctx, noLimit, []ReduceableLookupFunc{computedUsersetRequest})
 			if result.Err != nil || len(result.Resp.ResolvedOnrs) == 0 {
 				resultChan <- result
 				return
@@ -455,16 +466,16 @@ func (cl *concurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 
 	// TODO consider removing this short-circuit
 	if len(requests) == 0 {
-		return ResolvedObjects([]*v0.ObjectAndRelation{}, 0)
+		return returnResult(lookupResult([]*v0.ObjectAndRelation{}, 0))
 	}
 
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		resultChan <- LookupAny(ctx, req.Limit, requests)
+		resultChan <- lookupAny(ctx, req.Limit, requests)
 	}
 }
 
-func (cl *concurrentLookup) lookupComputed(ctx context.Context, req *v1.DispatchLookupRequest, cu *v0.ComputedUserset) ReduceableLookupFunc {
-	result := LookupOne(ctx, cl.dispatch(&v1.DispatchLookupRequest{
+func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req *v1.DispatchLookupRequest, cu *v0.ComputedUserset) ReduceableLookupFunc {
+	result := lookupOne(ctx, cl.dispatch(&v1.DispatchLookupRequest{
 		Subject: req.Subject,
 		ObjectRelation: &v0.RelationReference{
 			Namespace: req.ObjectRelation.Namespace,
@@ -482,21 +493,21 @@ func (cl *concurrentLookup) lookupComputed(ctx context.Context, req *v1.Dispatch
 	}))
 
 	if result.Err != nil {
-		return ResolveError(result.Err, result.Resp.Metadata.DispatchCount)
+		return returnResult(lookupResultError(result.Err, result.Resp.Metadata.DispatchCount))
 	}
 
 	// Rewrite the found ONRs to be this relation.
 	rewrittenResolved := make([]*v0.ObjectAndRelation, 0, len(result.Resp.ResolvedOnrs))
 	for _, resolved := range result.Resp.ResolvedOnrs {
 		if resolved.Namespace != req.ObjectRelation.Namespace {
-			return ResolveError(
+			return returnResult(lookupResultError(
 				fmt.Errorf(
 					"invalid namespace: %s vs %s",
 					tuple.StringONR(resolved),
 					req.ObjectRelation.Namespace,
 				),
 				result.Resp.Metadata.DispatchCount,
-			)
+			))
 		}
 
 		rewrittenResolved = append(rewrittenResolved,
@@ -507,18 +518,18 @@ func (cl *concurrentLookup) lookupComputed(ctx context.Context, req *v1.Dispatch
 			})
 	}
 
-	return ResolvedObjects(rewrittenResolved, result.Resp.Metadata.DispatchCount)
+	return returnResult(lookupResult(rewrittenResolved, result.Resp.Metadata.DispatchCount))
 }
 
-func (cl *concurrentLookup) dispatch(req *v1.DispatchLookupRequest) ReduceableLookupFunc {
+func (cl *ConcurrentLookup) dispatch(req *v1.DispatchLookupRequest) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
 		log.Trace().Object("dispatch lookup", req).Send()
-		result := cl.d.DispatchLookup(ctx, req)
-		resultChan <- result
+		result, err := cl.d.DispatchLookup(ctx, req)
+		resultChan <- LookupResult{result, err}
 	}
 }
 
-func LookupOne(ctx context.Context, request ReduceableLookupFunc) LookupResult {
+func lookupOne(ctx context.Context, request ReduceableLookupFunc) LookupResult {
 	childCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
@@ -533,7 +544,7 @@ func LookupOne(ctx context.Context, request ReduceableLookupFunc) LookupResult {
 	}
 }
 
-func LookupAny(ctx context.Context, limit uint32, requests []ReduceableLookupFunc) LookupResult {
+func lookupAny(ctx context.Context, limit uint32, requests []ReduceableLookupFunc) LookupResult {
 	childCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
@@ -567,7 +578,7 @@ func LookupAny(ctx context.Context, limit uint32, requests []ReduceableLookupFun
 	return lookupResult(limitedSlice(objects.AsSlice(), limit), totalRequestCount)
 }
 
-func LookupAll(ctx context.Context, limit uint32, requests []ReduceableLookupFunc) LookupResult {
+func lookupAll(ctx context.Context, limit uint32, requests []ReduceableLookupFunc) LookupResult {
 	if len(requests) == 0 {
 		return lookupResult([]*v0.ObjectAndRelation{}, 0)
 	}
@@ -610,7 +621,7 @@ func LookupAll(ctx context.Context, limit uint32, requests []ReduceableLookupFun
 	return lookupResult(objSet.AsSlice(), totalRequestCount)
 }
 
-func LookupExclude(ctx context.Context, limit uint32, requests []ReduceableLookupFunc) LookupResult {
+func lookupExclude(ctx context.Context, limit uint32, requests []ReduceableLookupFunc) LookupResult {
 	childCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
@@ -649,26 +660,9 @@ func LookupExclude(ctx context.Context, limit uint32, requests []ReduceableLooku
 	return lookupResult(limitedSlice(objSet.Subtract(excSet).AsSlice(), limit), totalRequestCount)
 }
 
-// TODO combine all three of these into one: "just return this result when asked for it" function
-func ResolvedObjects(resolved []*v0.ObjectAndRelation, numRequests uint32) ReduceableLookupFunc {
+func returnResult(result LookupResult) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		resultChan <- lookupResult(resolved, numRequests)
-	}
-}
-
-func Resolved(resolved *v0.ObjectAndRelation, numRequests uint32) ReduceableLookupFunc {
-	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		resultChan <- lookupResult([]*v0.ObjectAndRelation{resolved}, numRequests)
-	}
-}
-
-func ResolveError(err error, numRequests uint32) ReduceableLookupFunc {
-	if err == nil {
-		panic("Given nil error to ResolveError")
-	}
-
-	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		resultChan <- lookupResultError(err, numRequests)
+		resultChan <- result
 	}
 }
 

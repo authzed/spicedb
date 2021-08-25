@@ -1,4 +1,4 @@
-package graph
+package caching
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -15,42 +16,27 @@ import (
 const errCachingInitialization = "error initializing caching dispatcher: %w"
 
 type cachingDispatcher struct {
-	d Dispatcher
+	d dispatch.Dispatcher
 	c *ristretto.Cache
+
+	totalCounter     prometheus.Counter
+	fromCacheCounter prometheus.Counter
 }
 
 type checkResultEntry struct {
-	result                     CheckResult
+	result                     *v1.DispatchCheckResponse
 	computedWithDepthRemaining uint32
 }
 
 var checkResultEntryCost = int64(unsafe.Sizeof(checkResultEntry{}))
 
-type registerPromMetricsIntention bool
-
-var (
-	RegisterPromMetrics registerPromMetricsIntention = true
-	DisablePromMetrics  registerPromMetricsIntention = false
-)
-
-var (
-	counterDispatchCheckRequest = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "spicedb",
-		Subsystem: "dispatch",
-		Name:      "check_total",
-	})
-	counterDispatchCheckRequestFromCache = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "spicedb",
-		Subsystem: "dispatch",
-		Name:      "check_from_cache_total",
-	})
-)
-
+// NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
+// and caches the responses when possible and desirable.
 func NewCachingDispatcher(
-	delegate Dispatcher,
+	delegate dispatch.Dispatcher,
 	cacheConfig *ristretto.Config,
-	registerPromMetrics registerPromMetricsIntention,
-) (Dispatcher, error) {
+	prometheusSubsystem string,
+) (dispatch.Dispatcher, error) {
 	if cacheConfig == nil {
 		cacheConfig = &ristretto.Config{
 			NumCounters: 1e4,     // number of keys to track frequency of (10k).
@@ -65,79 +51,93 @@ func NewCachingDispatcher(
 		return nil, fmt.Errorf(errCachingInitialization, err)
 	}
 
-	if registerPromMetrics {
-		err := prometheus.Register(counterDispatchCheckRequest)
+	totalCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: prometheusSubsystem,
+		Name:      "check_total",
+	})
+	fromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: prometheusSubsystem,
+		Name:      "check_from_cache_total",
+	})
+
+	if prometheusSubsystem != "" {
+		err = prometheus.Register(totalCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
 
-		err = prometheus.Register(counterDispatchCheckRequestFromCache)
+		err = prometheus.Register(fromCacheCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
 
 		// Export some ristretto metrics
-		err = registerMetricsFunc("cache_hits_total", cache.Metrics.Hits)
+		err = registerMetricsFunc("cache_hits_total", prometheusSubsystem, cache.Metrics.Hits)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
 
-		err = registerMetricsFunc("cache_misses_total", cache.Metrics.Misses)
+		err = registerMetricsFunc("cache_misses_total", prometheusSubsystem, cache.Metrics.Misses)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
 
-		err = registerMetricsFunc("cost_added_bytes", cache.Metrics.CostAdded)
+		err = registerMetricsFunc("cost_added_bytes", prometheusSubsystem, cache.Metrics.CostAdded)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
 
-		err = registerMetricsFunc("cost_evicted_bytes", cache.Metrics.CostEvicted)
+		err = registerMetricsFunc("cost_evicted_bytes", prometheusSubsystem, cache.Metrics.CostEvicted)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
 	}
 
-	return &cachingDispatcher{d: delegate, c: cache}, nil
+	return &cachingDispatcher{delegate, cache, totalCounter, fromCacheCounter}, nil
 }
 
-func registerMetricsFunc(name string, metricsFunc func() uint64) error {
+func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint64) error {
 	return prometheus.Register(prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Namespace: "spicedb",
-		Subsystem: "dispatch",
+		Subsystem: subsystem,
 		Name:      name,
 	}, func() float64 {
 		return float64(metricsFunc())
 	}))
 }
 
-func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) CheckResult {
-	counterDispatchCheckRequest.Inc()
+// DispatchCheck implements dispatch.Check interface
+func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+	cd.totalCounter.Inc()
 	requestKey := requestToKey(req)
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(checkResultEntry)
 		if req.Metadata.DepthRemaining >= cachedResult.computedWithDepthRemaining {
-			counterDispatchCheckRequestFromCache.Inc()
-			return cachedResult.result
+			cd.fromCacheCounter.Inc()
+			return cachedResult.result, nil
 		}
 	}
 
-	computed := cd.d.DispatchCheck(ctx, req)
-	if computed.Err == nil {
+	computed, err := cd.d.DispatchCheck(ctx, req)
+	if err == nil {
 		toCache := checkResultEntry{computed, req.Metadata.DepthRemaining}
-		toCache.result.Resp.Metadata.DispatchCount = 0
+		toCache.result.Metadata.DispatchCount = 0
 		cd.c.Set(requestKey, toCache, checkResultEntryCost)
 	}
 
-	return computed
+	return computed, err
 }
 
-func (cd *cachingDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) ExpandResult {
+// DispatchExpand implements dispatch.Expand interface
+func (cd *cachingDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	return cd.d.DispatchExpand(ctx, req)
 }
 
-func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) LookupResult {
+// DispatchLookup implements dispatch.Lookup interface
+func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	return cd.d.DispatchLookup(ctx, req)
 }
 

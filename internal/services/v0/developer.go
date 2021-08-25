@@ -145,7 +145,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 	// Run the checks and store their output.
 	var results []*v0.EditCheckResult
 	for _, checkTpl := range req.CheckRelationships {
-		cr := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+		cr, err := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ObjectAndRelation: checkTpl.ObjectAndRelation,
 			Subject:           checkTpl.User.GetUserset(),
 			Metadata: &v1.ResolverMeta{
@@ -153,8 +153,8 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 				DepthRemaining: maxDepth,
 			},
 		})
-		if cr.Err != nil {
-			requestErrors, wireErr := rewriteGraphError(v0.DeveloperError_CHECK_WATCH, 0, 0, tuple.String(checkTpl), cr.Err)
+		if err != nil {
+			requestErrors, wireErr := rewriteGraphError(v0.DeveloperError_CHECK_WATCH, 0, 0, tuple.String(checkTpl), err)
 			if len(requestErrors) == 1 {
 				results = append(results, &v0.EditCheckResult{
 					Relationship: checkTpl,
@@ -171,7 +171,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 
 		results = append(results, &v0.EditCheckResult{
 			Relationship: checkTpl,
-			IsMember:     cr.Resp.Membership == v1.DispatchCheckResponse_MEMBER,
+			IsMember:     cr.Membership == v1.DispatchCheckResponse_MEMBER,
 		})
 	}
 
@@ -267,7 +267,7 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 func runAssertions(ctx context.Context, devContext *DevContext, assertions []validationfile.ParsedAssertion, expected bool, fmtString string) ([]*v0.DeveloperError, error) {
 	var failures []*v0.DeveloperError
 	for _, assertion := range assertions {
-		cr := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+		cr, err := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ObjectAndRelation: assertion.Relationship.ObjectAndRelation,
 			Subject:           assertion.Relationship.User.GetUserset(),
 			Metadata: &v1.ResolverMeta{
@@ -275,19 +275,19 @@ func runAssertions(ctx context.Context, devContext *DevContext, assertions []val
 				DepthRemaining: maxDepth,
 			},
 		})
-		if cr.Err != nil {
+		if err != nil {
 			validationErrs, wireErr := rewriteGraphError(
 				v0.DeveloperError_ASSERTION,
 				assertion.LineNumber,
 				assertion.ColumnPosition,
 				tuple.String(assertion.Relationship),
-				cr.Err,
+				err,
 			)
 			failures = append(failures, validationErrs...)
 			if wireErr != nil {
 				return nil, wireErr
 			}
-		} else if (cr.Resp.Membership == v1.DispatchCheckResponse_MEMBER) != expected {
+		} else if (cr.Membership == v1.DispatchCheckResponse_MEMBER) != expected {
 			failures = append(failures, &v0.DeveloperError{
 				Message: fmt.Sprintf(fmtString, tuple.String(assertion.Relationship)),
 				Source:  v0.DeveloperError_ASSERTION,
@@ -359,7 +359,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 		}
 
 		// Run a full recursive expansion over the ONR.
-		er := devContext.Dispatcher.DispatchExpand(ctx, &v1.DispatchExpandRequest{
+		er, dispatch_err := devContext.Dispatcher.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 			ObjectAndRelation: onr,
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     devContext.Revision.String(),
@@ -367,8 +367,8 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 			},
 			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 		})
-		if er.Err != nil {
-			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), er.Err)
+		if dispatch_err != nil {
+			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), dispatch_err)
 			if validationErrs != nil {
 				failures = append(failures, validationErrs...)
 				return nil, failures, nil
@@ -378,7 +378,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 		}
 
 		// Add the ONR and its expansion to the membership set.
-		foundSubjects, _, aerr := membershipSet.AddExpansion(onr, er.Resp.TreeNode)
+		foundSubjects, _, aerr := membershipSet.AddExpansion(onr, er.TreeNode)
 		if aerr != nil {
 			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), aerr)
 			if validationErrs != nil {

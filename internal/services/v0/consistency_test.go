@@ -20,7 +20,8 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	graphpkg "github.com/authzed/spicedb/pkg/graph"
@@ -62,8 +63,7 @@ func TestConsistency(t *testing.T) {
 					ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
 					lrequire.NoError(err)
 
-					dispatch, err := graph.NewLocalDispatcher(ns, ds)
-					lrequire.NoError(err)
+					dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
 
 					srv := NewACLServer(ds, ns, dispatch, 50)
 
@@ -193,7 +193,7 @@ type validationContext struct {
 	subjects            *tuple.ONRSet
 	accessibilitySet    *accessibilitySet
 
-	dispatch graph.Dispatcher
+	dispatch dispatch.Dispatcher
 
 	srv      v0.ACLServiceServer
 	revision decimal.Decimal
@@ -423,7 +423,7 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 					accessibleTerminalSubjects := vctx.accessibilitySet.AccessibleTerminalSubjects(nsDef.Name, relation.Name, objectIDStr)
 
 					// Run a non-recursive expansion to verify no errors are raised.
-					resp := vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+					resp, err := vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
 						ObjectAndRelation: &v0.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
@@ -436,10 +436,10 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 						ExpansionMode: v1.DispatchExpandRequest_SHALLOW,
 					})
 
-					vrequire.NoError(resp.Err)
+					vrequire.NoError(err)
 
 					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
-					resp = vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+					resp, err = vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
 						ObjectAndRelation: &v0.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
@@ -452,9 +452,9 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 						ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 					})
 
-					vrequire.NoError(resp.Err)
+					vrequire.NoError(err)
 
-					subjectsFound := graphpkg.Simplify(resp.Resp.TreeNode)
+					subjectsFound := graphpkg.Simplify(resp.TreeNode)
 					subjectsFoundSet := tuple.NewONRSet()
 
 					for _, subjectUser := range subjectsFound {

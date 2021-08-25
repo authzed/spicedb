@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	expand "github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -28,7 +29,7 @@ var (
 	_this *v0.ObjectAndRelation
 
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
-		tuple.User(ONR("user", "owner", Ellipsis)),
+		tuple.User(ONR("user", "owner", expand.Ellipsis)),
 	)
 	companyEditor = graph.Union(ONR("folder", "company", "editor"),
 		graph.Leaf(_this),
@@ -138,7 +139,7 @@ func TestExpand(t *testing.T) {
 
 			dispatch, revision := newLocalDispatcher(require)
 
-			expandResult := dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+			expandResult, err := dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
 				ObjectAndRelation: tc.start,
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
@@ -147,12 +148,12 @@ func TestExpand(t *testing.T) {
 				ExpansionMode: tc.expansionMode,
 			})
 
-			require.NoError(expandResult.Err)
-			require.NotNil(expandResult.Resp.TreeNode)
+			require.NoError(err)
+			require.NotNil(expandResult.TreeNode)
 
-			if diff := cmp.Diff(tc.expected, expandResult.Resp.TreeNode, protocmp.Transform()); diff != "" {
+			if diff := cmp.Diff(tc.expected, expandResult.TreeNode, protocmp.Transform()); diff != "" {
 				fset := token.NewFileSet()
-				err := printer.Fprint(os.Stdout, fset, serializeToFile(expandResult.Resp.TreeNode))
+				err := printer.Fprint(os.Stdout, fset, serializeToFile(expandResult.TreeNode))
 				require.NoError(err)
 				t.Errorf("unexpected difference:\n%v", diff)
 			}
@@ -251,7 +252,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	mutations := []*v0.RelationTupleUpdate{
 		tuple.Create(&v0.RelationTuple{
 			ObjectAndRelation: ONR("folder", "oops", "parent"),
-			User:              tuple.User(ONR("folder", "oops", Ellipsis)),
+			User:              tuple.User(ONR("folder", "oops", expand.Ellipsis)),
 		}),
 	}
 
@@ -264,10 +265,9 @@ func TestMaxDepthExpand(t *testing.T) {
 	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
 	require.NoError(err)
 
-	dispatch, err := NewLocalDispatcher(nsm, ds)
-	require.NoError(err)
+	dispatch := NewLocalOnlyDispatcher(nsm, ds)
 
-	checkResult := dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
+	_, err = dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 		ObjectAndRelation: ONR("folder", "oops", "viewer"),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
@@ -276,5 +276,5 @@ func TestMaxDepthExpand(t *testing.T) {
 		ExpansionMode: v1.DispatchExpandRequest_SHALLOW,
 	})
 
-	require.Error(checkResult.Err)
+	require.Error(err)
 }

@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	g "github.com/authzed/spicedb/pkg/graph"
@@ -796,8 +796,7 @@ func newACLServicer(
 	ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
 	require.NoError(err)
 
-	dispatch, err := graph.NewLocalDispatcher(ns, ds)
-	require.NoError(err)
+	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
 
 	return NewACLServer(ds, ns, dispatch, 50), revision
 }

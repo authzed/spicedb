@@ -6,12 +6,13 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -21,25 +22,41 @@ const errDispatch = "error dispatching request: %w"
 
 var errMaxDepth = errors.New("max depth has been reached")
 
-// NewLocalDispatcher creates a dispatcher that checks everything in the same
-// process on the same machine.
-func NewLocalDispatcher(
+var tracer = otel.Tracer("spicedb/internal/dispatch/local")
+
+// NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
+func NewLocalOnlyDispatcher(
 	nsm namespace.Manager,
 	ds datastore.Datastore,
-) (Dispatcher, error) {
+) dispatch.Dispatcher {
 	d := &localDispatcher{nsm: nsm}
 
-	d.checker = NewConcurrentChecker(d, ds, nsm)
-	d.expander = NewConcurrentExpander(d, ds, nsm)
-	d.lookupHandler = NewConcurrentLookup(d, ds, nsm)
+	d.checker = graph.NewConcurrentChecker(d, ds, nsm)
+	d.expander = graph.NewConcurrentExpander(d, ds, nsm)
+	d.lookupHandler = graph.NewConcurrentLookup(d, ds, nsm)
 
-	return d, nil
+	return d
+}
+
+// NewDispatcher creates a dispatcher that consults with the graph and redispatches subproblems to
+// the provided redispatcher.
+func NewDispatcher(
+	redispatcher dispatch.Dispatcher,
+	nsm namespace.Manager,
+	ds datastore.Datastore,
+) dispatch.Dispatcher {
+
+	checker := graph.NewConcurrentChecker(redispatcher, ds, nsm)
+	expander := graph.NewConcurrentExpander(redispatcher, ds, nsm)
+	lookupHandler := graph.NewConcurrentLookup(redispatcher, ds, nsm)
+
+	return &localDispatcher{checker, expander, lookupHandler, nsm}
 }
 
 type localDispatcher struct {
-	checker       Checker
-	expander      Expander
-	lookupHandler LookupHandler
+	checker       *graph.ConcurrentChecker
+	expander      *graph.ConcurrentExpander
+	lookupHandler *graph.ConcurrentLookup
 
 	nsm namespace.Manager
 }
@@ -82,48 +99,49 @@ func (rr stringableRelRef) String() string {
 	return fmt.Sprintf("%s::%s", rr.Namespace, rr.Relation)
 }
 
-func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) CheckResult {
+// DispatchCheck implements dispatch.Check interface
+func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
 		attribute.Stringer("start", stringableOnr{req.ObjectAndRelation}),
 		attribute.Stringer("subject", stringableOnr{req.Subject}),
 	))
 	defer span.End()
 
-	err := checkDepth(req)
+	err := dispatch.CheckDepth(req)
 	if err != nil {
-		return checkResultError(err, 0)
+		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
 	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation)
 	if err != nil {
-		return checkResultError(err, 0)
+		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	asyncCheck := ld.checker.Check(ctx, req, relation)
-	return Any(ctx, []ReduceableCheckFunc{asyncCheck})
+	return ld.checker.Check(ctx, req, relation)
 }
 
-func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) ExpandResult {
+// DispatchExpand implements dispatch.Expand interface
+func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	ctx, span := tracer.Start(ctx, "DispatchExpand", trace.WithAttributes(
 		attribute.Stringer("start", stringableOnr{req.ObjectAndRelation}),
 	))
 	defer span.End()
 
-	err := checkDepth(req)
+	err := dispatch.CheckDepth(req)
 	if err != nil {
-		return expandResultError(err, 0)
+		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
 	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation)
 	if err != nil {
-		return expandResultError(err, 0)
+		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	asyncExpand := ld.expander.Expand(ctx, req, relation)
-	return ExpandOne(ctx, asyncExpand)
+	return ld.expander.Expand(ctx, req, relation)
 }
 
-func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) LookupResult {
+// DispatchLookup implements dispatch.Lookup interface
+func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	ctx, span := tracer.Start(ctx, "DispatchLookup", trace.WithAttributes(
 		attribute.Stringer("start", stringableRelRef{req.ObjectRelation}),
 		attribute.Stringer("subject", stringableOnr{req.Subject}),
@@ -131,18 +149,16 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	))
 	defer span.End()
 
-	err := checkDepth(req)
+	err := dispatch.CheckDepth(req)
 	if err != nil {
-		return lookupResultError(err, 0)
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
 
 	if req.Limit <= 0 {
-		return lookupResult([]*v0.ObjectAndRelation{}, 0)
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*v0.ObjectAndRelation{}}, nil
 	}
 
-	asyncLookup := ld.lookupHandler.Lookup(ctx, req)
-	result := LookupAny(ctx, req.Limit, []ReduceableLookupFunc{asyncLookup})
-	return result
+	return ld.lookupHandler.Lookup(ctx, req)
 }
 
 func rewriteError(original error) error {
@@ -160,22 +176,6 @@ func rewriteError(original error) error {
 	}
 }
 
-type hasMetadata interface {
-	zerolog.LogObjectMarshaler
-
-	GetMetadata() *v1.ResolverMeta
-}
-
-func checkDepth(req hasMetadata) error {
-	metadata := req.GetMetadata()
-	if metadata == nil {
-		log.Warn().Object("req", req).Msg("request missing metadata")
-		return fmt.Errorf("request missing metadata")
-	}
-
-	if metadata.DepthRemaining == 0 {
-		return fmt.Errorf(errDispatch, errMaxDepth)
-	}
-
-	return nil
+var emptyMetadata *v1.ResponseMeta = &v1.ResponseMeta{
+	DispatchCount: 0,
 }

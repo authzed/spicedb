@@ -9,6 +9,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
@@ -20,26 +21,35 @@ const (
 	excludeStart
 )
 
-func NewConcurrentExpander(d Dispatcher, ds datastore.GraphDatastore, nsm namespace.Manager) Expander {
-	return &concurrentExpander{d: d, ds: ds, nsm: nsm}
+// NewConcurrentExpander creates an instance of ConcurrentExpander
+func NewConcurrentExpander(d dispatch.Expand, ds datastore.GraphDatastore, nsm namespace.Manager) *ConcurrentExpander {
+	return &ConcurrentExpander{d: d, ds: ds, nsm: nsm}
 }
 
-type concurrentExpander struct {
-	d   Dispatcher
+// ConcurrentExpander exposes a method to perform Expand requests, and delegates subproblems to the
+// provided dispatch.Expand instance.
+type ConcurrentExpander struct {
+	d   dispatch.Expand
 	ds  datastore.GraphDatastore
 	nsm namespace.Manager
 }
 
-func (ce *concurrentExpander) Expand(ctx context.Context, req *v1.DispatchExpandRequest, relation *v0.Relation) ReduceableExpandFunc {
+// Expand performs an expand request with the provided request and context.
+func (ce *ConcurrentExpander) Expand(ctx context.Context, req *v1.DispatchExpandRequest, relation *v0.Relation) (*v1.DispatchExpandResponse, error) {
 	log.Trace().Object("expand", req).Send()
+
+	var directFunc ReduceableExpandFunc
 	if relation.UsersetRewrite == nil {
-		return ce.expandDirect(ctx, req, includeStart)
+		directFunc = ce.expandDirect(ctx, req, includeStart)
+	} else {
+		directFunc = ce.expandUsersetRewrite(ctx, req, relation.UsersetRewrite)
 	}
 
-	return ce.expandUsersetRewrite(ctx, req, relation.UsersetRewrite)
+	resolved := expandOne(ctx, directFunc)
+	return resolved.Resp, resolved.Err
 }
 
-func (ce *concurrentExpander) expandDirect(
+func (ce *ConcurrentExpander) expandDirect(
 	ctx context.Context,
 	req *v1.DispatchExpandRequest,
 	startBehavior startInclusion,
@@ -111,7 +121,7 @@ func (ce *concurrentExpander) expandDirect(
 			}))
 		}
 
-		result := ExpandAny(ctx, req.ObjectAndRelation, requestsToDispatch)
+		result := expandAny(ctx, req.ObjectAndRelation, requestsToDispatch)
 		if result.Err != nil {
 			resultChan <- result
 			return
@@ -130,23 +140,23 @@ func (ce *concurrentExpander) expandDirect(
 	}
 }
 
-func (ce *concurrentExpander) expandUsersetRewrite(ctx context.Context, req *v1.DispatchExpandRequest, usr *v0.UsersetRewrite) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandUsersetRewrite(ctx context.Context, req *v1.DispatchExpandRequest, usr *v0.UsersetRewrite) ReduceableExpandFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *v0.UsersetRewrite_Union:
 		log.Trace().Msg("union")
-		return ce.expandSetOperation(ctx, req, rw.Union, ExpandAny)
+		return ce.expandSetOperation(ctx, req, rw.Union, expandAny)
 	case *v0.UsersetRewrite_Intersection:
 		log.Trace().Msg("intersection")
-		return ce.expandSetOperation(ctx, req, rw.Intersection, ExpandAll)
+		return ce.expandSetOperation(ctx, req, rw.Intersection, expandAll)
 	case *v0.UsersetRewrite_Exclusion:
 		log.Trace().Msg("exclusion")
-		return ce.expandSetOperation(ctx, req, rw.Exclusion, ExpandDifference)
+		return ce.expandSetOperation(ctx, req, rw.Exclusion, expandDifference)
 	default:
 		return alwaysFailExpand
 	}
 }
 
-func (ce *concurrentExpander) expandSetOperation(ctx context.Context, req *v1.DispatchExpandRequest, so *v0.SetOperation, reducer ExpandReducer) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req *v1.DispatchExpandRequest, so *v0.SetOperation, reducer ExpandReducer) ReduceableExpandFunc {
 	var requests []ReduceableExpandFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
@@ -165,15 +175,15 @@ func (ce *concurrentExpander) expandSetOperation(ctx context.Context, req *v1.Di
 	}
 }
 
-func (ce *concurrentExpander) dispatch(req *v1.DispatchExpandRequest) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) dispatch(req *v1.DispatchExpandRequest) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		log.Trace().Object("dispatch expand", req).Send()
-		result := ce.d.DispatchExpand(ctx, req)
-		resultChan <- result
+		result, err := ce.d.DispatchExpand(ctx, req)
+		resultChan <- ExpandResult{result, err}
 	}
 }
 
-func (ce *concurrentExpander) expandComputedUserset(ctx context.Context, req *v1.DispatchExpandRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req *v1.DispatchExpandRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableExpandFunc {
 	log.Trace().Str("relation", cu.Relation).Msg("computed userset")
 	var start *v0.ObjectAndRelation
 	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
@@ -195,10 +205,10 @@ func (ce *concurrentExpander) expandComputedUserset(ctx context.Context, req *v1
 	err := ce.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true)
 	if err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
-			return EmptyExpansion(req.ObjectAndRelation)
+			return emptyExpansion(req.ObjectAndRelation)
 		}
 
-		return ExpandError(err)
+		return expandError(err)
 	}
 
 	return ce.dispatch(&v1.DispatchExpandRequest{
@@ -212,7 +222,7 @@ func (ce *concurrentExpander) expandComputedUserset(ctx context.Context, req *v1
 	})
 }
 
-func (ce *concurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.DispatchExpandRequest, ttu *v0.TupleToUserset) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.DispatchExpandRequest, ttu *v0.TupleToUserset) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 		if err != nil {
@@ -239,7 +249,7 @@ func (ce *concurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.
 			return
 		}
 
-		resultChan <- ExpandAny(ctx, req.ObjectAndRelation, requestsToDispatch)
+		resultChan <- expandAny(ctx, req.ObjectAndRelation, requestsToDispatch)
 	}
 }
 
@@ -302,8 +312,8 @@ func expandSetOperation(
 	return setResult(op, start, children, totalRequestCount)
 }
 
-// EmptyExpansion returns an empty expansion.
-func EmptyExpansion(start *v0.ObjectAndRelation) ReduceableExpandFunc {
+// emptyExpansion returns an empty expansion.
+func emptyExpansion(start *v0.ObjectAndRelation) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		resultChan <- expandResult(&v0.RelationTupleTreeNode{
 			NodeType: &v0.RelationTupleTreeNode_LeafNode{
@@ -314,30 +324,30 @@ func EmptyExpansion(start *v0.ObjectAndRelation) ReduceableExpandFunc {
 	}
 }
 
-// ExpandError returns the error.
-func ExpandError(err error) ReduceableExpandFunc {
+// expandError returns the error.
+func expandError(err error) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		resultChan <- expandResultError(err, 0)
 	}
 }
 
-// ExpandAll returns a tree with all of the children and an intersection node type.
-func ExpandAll(ctx context.Context, start *v0.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
+// expandAll returns a tree with all of the children and an intersection node type.
+func expandAll(ctx context.Context, start *v0.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
 	return expandSetOperation(ctx, start, requests, v0.SetOperationUserset_INTERSECTION)
 }
 
-// ExpandAny returns a tree with all of the children and a union node type.
-func ExpandAny(ctx context.Context, start *v0.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
+// expandAny returns a tree with all of the children and a union node type.
+func expandAny(ctx context.Context, start *v0.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
 	return expandSetOperation(ctx, start, requests, v0.SetOperationUserset_UNION)
 }
 
-// ExpandDifference returns a tree with all of the children and an exclusion node type.
-func ExpandDifference(ctx context.Context, start *v0.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
+// expandDifference returns a tree with all of the children and an exclusion node type.
+func expandDifference(ctx context.Context, start *v0.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
 	return expandSetOperation(ctx, start, requests, v0.SetOperationUserset_EXCLUSION)
 }
 
-// ExpandOne waits for exactly one response
-func ExpandOne(ctx context.Context, request ReduceableExpandFunc) ExpandResult {
+// expandOne waits for exactly one response
+func expandOne(ctx context.Context, request ReduceableExpandFunc) ExpandResult {
 	resultChan := make(chan ExpandResult, 1)
 	go request(ctx, resultChan)
 

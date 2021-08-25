@@ -4,15 +4,12 @@ import (
 	"context"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"go.opentelemetry.io/otel"
 
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
 
 // Ellipsis relation is used to signify a semantic-free relationship.
 const Ellipsis = "..."
-
-var tracer = otel.Tracer("spicedb/internal/graph")
 
 // CheckResult is the data that is returned by a single check or sub-check.
 type CheckResult struct {
@@ -32,18 +29,6 @@ type LookupResult struct {
 	Err  error
 }
 
-// Dispatcher interface describes a method for passing subchecks off to additional machines.
-type Dispatcher interface {
-	// DispatchCheck submits a single check request and returns its result.
-	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) CheckResult
-
-	// DispatchExpand submits a single expand request and returns its result.
-	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) ExpandResult
-
-	// DispatchLookup submits a single lookup request and returns its result.
-	DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) LookupResult
-}
-
 // ReduceableCheckFunc is a function that can be bound to a execution context.
 type ReduceableCheckFunc func(ctx context.Context, resultChan chan<- CheckResult)
 
@@ -53,10 +38,6 @@ type Reducer func(ctx context.Context, requests []ReduceableCheckFunc) CheckResu
 // AlwaysFail is a ReduceableCheckFunc which will always fail when reduced.
 func AlwaysFail(ctx context.Context, resultChan chan<- CheckResult) {
 	resultChan <- checkResultError(NewAlwaysFailErr(), 0)
-}
-
-type Checker interface {
-	Check(ctx context.Context, req *v1.DispatchCheckRequest, relation *v0.Relation) ReduceableCheckFunc
 }
 
 // ReduceableExpandFunc is a function that can be bound to a execution context.
@@ -74,19 +55,11 @@ type ExpandReducer func(
 	requests []ReduceableExpandFunc,
 ) ExpandResult
 
-type Expander interface {
-	Expand(ctx context.Context, req *v1.DispatchExpandRequest, relation *v0.Relation) ReduceableExpandFunc
-}
-
 // ReduceableLookupFunc is a function that can be bound to a execution context.
 type ReduceableLookupFunc func(ctx context.Context, resultChan chan<- LookupResult)
 
 // LookupReducer is a type for the functions which combine lookup results.
 type LookupReducer func(ctx context.Context, limit uint32, requests []ReduceableLookupFunc) LookupResult
-
-type LookupHandler interface {
-	Lookup(ctx context.Context, req *v1.DispatchLookupRequest) ReduceableLookupFunc
-}
 
 func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 	return &v1.ResolverMeta{

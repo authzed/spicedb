@@ -9,10 +9,10 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
@@ -26,7 +26,7 @@ type aclServer struct {
 
 	ds           datastore.Datastore
 	nsm          namespace.Manager
-	dispatch     graph.Dispatcher
+	dispatch     dispatch.Dispatcher
 	defaultDepth uint32
 }
 
@@ -34,19 +34,12 @@ const (
 	maxUInt16          = int(^uint16(0))
 	lookupDefaultLimit = uint32(25)
 	lookupMaximumLimit = uint32(100)
-
-	DepthRemainingHeader = "authzed-depth-remaining"
-	ForcedRevisionHeader = "authzed-forced-revision"
 )
 
-var (
-	errInvalidZookie         = errors.New("invalid revision requested")
-	errInvalidDepthRemaining = fmt.Errorf("invalid %s header", DepthRemainingHeader)
-	errInvalidForcedRevision = fmt.Errorf("invalid %s header", ForcedRevisionHeader)
-)
+var errInvalidZookie = errors.New("invalid revision requested")
 
 // NewACLServer creates an instance of the ACL server.
-func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch graph.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
+func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
 	s := &aclServer{ds: ds, nsm: nsm, dispatch: dispatch, defaultDepth: defaultDepth}
 	return s
 }
@@ -243,7 +236,7 @@ func (as *aclServer) commonCheck(
 		return nil, rewriteACLError(err)
 	}
 
-	cr := as.dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+	cr, err := as.dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
@@ -251,12 +244,12 @@ func (as *aclServer) commonCheck(
 		ObjectAndRelation: start,
 		Subject:           goal,
 	})
-	if cr.Err != nil {
-		return nil, rewriteACLError(cr.Err)
+	if err != nil {
+		return nil, rewriteACLError(err)
 	}
 
 	var membership v0.CheckResponse_Membership
-	switch cr.Resp.Membership {
+	switch cr.Membership {
 	case v1.DispatchCheckResponse_MEMBER:
 		membership = v0.CheckResponse_MEMBER
 	case v1.DispatchCheckResponse_NOT_MEMBER:
@@ -288,7 +281,7 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 		return nil, rewriteACLError(err)
 	}
 
-	resp := as.dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
+	resp, err := as.dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
@@ -296,12 +289,12 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 		ObjectAndRelation: req.Userset,
 		ExpansionMode:     v1.DispatchExpandRequest_SHALLOW,
 	})
-	if resp.Err != nil {
-		return nil, rewriteACLError(resp.Err)
+	if err != nil {
+		return nil, rewriteACLError(err)
 	}
 
 	return &v0.ExpandResponse{
-		TreeNode: resp.Resp.TreeNode,
+		TreeNode: resp.TreeNode,
 		Revision: zookie.NewFromRevision(atRevision),
 	}, nil
 }
@@ -341,7 +334,7 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 		limit = lookupMaximumLimit
 	}
 
-	resp := as.dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
+	resp, err := as.dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
@@ -352,12 +345,12 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 		DirectStack:    nil,
 		TtuStack:       nil,
 	})
-	if resp.Err != nil {
-		return nil, rewriteACLError(resp.Err)
+	if err != nil {
+		return nil, rewriteACLError(err)
 	}
 
 	resolvedObjectIDs := []string{}
-	for _, found := range resp.Resp.ResolvedOnrs {
+	for _, found := range resp.ResolvedOnrs {
 		if found.Namespace != req.ObjectRelation.Namespace {
 			return nil, rewriteACLError(fmt.Errorf("got invalid resolved object %v (expected %v)", found, req.ObjectRelation))
 		}
@@ -372,23 +365,6 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 }
 
 func (as *aclServer) pickBestRevision(ctx context.Context, requested *v0.Zookie) (decimal.Decimal, error) {
-	// Check if our caller has already picked a revision for us
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if forcedRevisions := md.Get(ForcedRevisionHeader); len(forcedRevisions) > 0 {
-			if len(forcedRevisions) > 1 {
-				return decimal.Zero, errInvalidForcedRevision
-			}
-
-			// We have a revision header, parse it
-			parsedRevision, err := decimal.NewFromString(forcedRevisions[0])
-			if err != nil {
-				return decimal.Zero, errInvalidForcedRevision
-			}
-
-			return parsedRevision, nil
-		}
-	}
-
 	// Calculate a revision as we see fit
 	databaseRev, err := as.ds.Revision(ctx)
 	if err != nil {

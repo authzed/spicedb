@@ -97,7 +97,7 @@ func TestSimpleLookup(t *testing.T) {
 
 			dispatch, revision := newLocalDispatcher(require)
 
-			lookupResult := dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+			lookupResult, err := dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
 				ObjectRelation: tc.start,
 				Subject:        tc.target,
 				Metadata: &v1.ResolverMeta{
@@ -109,8 +109,8 @@ func TestSimpleLookup(t *testing.T) {
 				TtuStack:    nil,
 			})
 
-			require.NoError(lookupResult.Err)
-			require.ElementsMatch(tc.resolvedObjects, lookupResult.Resp.ResolvedOnrs)
+			require.NoError(err)
+			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
 		})
 	}
 }
@@ -126,10 +126,9 @@ func TestMaxDepthLookup(t *testing.T) {
 	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
 	require.NoError(err)
 
-	dispatch, err := NewLocalDispatcher(nsm, ds)
-	require.NoError(err)
+	dispatch := NewLocalOnlyDispatcher(nsm, ds)
 
-	lookupResult := dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+	_, err = dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
 		ObjectRelation: RR("document", "viewer"),
 		Subject:        ONR("user", "legal", "..."),
 		Metadata: &v1.ResolverMeta{
@@ -141,7 +140,7 @@ func TestMaxDepthLookup(t *testing.T) {
 		TtuStack:    nil,
 	})
 
-	require.Error(lookupResult.Err)
+	require.Error(err)
 }
 
 type OrderedResolved []*v0.ObjectAndRelation
