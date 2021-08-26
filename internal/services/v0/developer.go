@@ -10,13 +10,13 @@ import (
 	"strings"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/authzed/grpcutil"
 	"github.com/google/go-cmp/cmp"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/grpcutil"
 	"github.com/authzed/spicedb/pkg/membership"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
