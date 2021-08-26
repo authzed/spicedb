@@ -166,6 +166,21 @@ func TestReverseQueryTuplesFromSubjectRelationPassthrough(t *testing.T) {
 	delegate.AssertExpectations(t)
 }
 
+func TestIsEmptyPassthrough(t *testing.T) {
+	require := require.New(t)
+
+	delegate := &delegateMock{}
+	ds := NewReadonlyDatastore(delegate)
+	ctx := context.Background()
+
+	delegate.On("IsEmpty").Return(true, nil).Times(1)
+
+	res, err := ds.IsEmpty(ctx)
+	require.Equal(true, res)
+	require.NoError(err)
+	delegate.AssertExpectations(t)
+}
+
 type delegateMock struct {
 	mock.Mock
 }
@@ -221,4 +236,9 @@ func (dm *delegateMock) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, 
 func (dm *delegateMock) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	args := dm.Called(revision)
 	return args.Error(0)
+}
+
+func (dm *delegateMock) IsEmpty(ctx context.Context) (bool, error) {
+	args := dm.Called()
+	return args.Get(0).(bool), args.Error(1)
 }

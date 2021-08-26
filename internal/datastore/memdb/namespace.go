@@ -142,6 +142,29 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	return revisionFromVersion(found.version), nil
 }
 
+func (mds *memdbDatastore) IsEmpty(ctx context.Context) (bool, error) {
+	txn := mds.db.Txn(false)
+	defer txn.Abort()
+
+	it, err := txn.Get(tableNamespaceConfig, indexID)
+	if err != nil {
+		return false, err
+	}
+	if it.Next() != nil {
+		return false, nil
+	}
+
+	it, err = txn.Get(tableTuple, indexID)
+	if err != nil {
+		return false, err
+	}
+	if it.Next() != nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func nextChangelogID(txn *memdb.Txn) (uint64, error) {
 	lastChangeRaw, err := txn.Last(tableNamespaceChangelog, indexID)
 	if err != nil {
