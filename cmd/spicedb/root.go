@@ -86,7 +86,7 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
 	// Flags for internal dispatch API
-	rootCmd.Flags().String("internal-grpc-addr", ":50052", "address to listen for internal requests")
+	rootCmd.Flags().String("internal-grpc-addr", ":50053", "address to listen for internal requests")
 
 	// Flags for configuring dispatch behavior
 	rootCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
