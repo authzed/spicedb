@@ -13,14 +13,18 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const errCachingInitialization = "error initializing caching dispatcher: %w"
+const (
+	errCachingInitialization = "error initializing caching dispatcher: %w"
+
+	prometheusNamespace = "spicedb"
+)
 
 type cachingDispatcher struct {
 	d dispatch.Dispatcher
 	c *ristretto.Cache
 
-	totalCounter     prometheus.Counter
-	fromCacheCounter prometheus.Counter
+	checkTotalCounter     prometheus.Counter
+	checkFromCacheCounter prometheus.Counter
 }
 
 type checkResultEntry struct {
@@ -51,24 +55,24 @@ func NewCachingDispatcher(
 		return nil, fmt.Errorf(errCachingInitialization, err)
 	}
 
-	totalCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "spicedb",
+	checkTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "check_total",
 	})
-	fromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "spicedb",
+	checkFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "check_from_cache_total",
 	})
 
 	if prometheusSubsystem != "" {
-		err = prometheus.Register(totalCounter)
+		err = prometheus.Register(checkTotalCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
 
-		err = prometheus.Register(fromCacheCounter)
+		err = prometheus.Register(checkFromCacheCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
@@ -95,12 +99,12 @@ func NewCachingDispatcher(
 		}
 	}
 
-	return &cachingDispatcher{delegate, cache, totalCounter, fromCacheCounter}, nil
+	return &cachingDispatcher{delegate, cache, checkTotalCounter, checkFromCacheCounter}, nil
 }
 
 func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint64) error {
 	return prometheus.Register(prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Namespace: "spicedb",
+		Namespace: prometheusNamespace,
 		Subsystem: subsystem,
 		Name:      name,
 	}, func() float64 {
@@ -110,13 +114,13 @@ func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint6
 
 // DispatchCheck implements dispatch.Check interface
 func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
-	cd.totalCounter.Inc()
+	cd.checkTotalCounter.Inc()
 	requestKey := requestToKey(req)
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(checkResultEntry)
 		if req.Metadata.DepthRemaining >= cachedResult.computedWithDepthRemaining {
-			cd.fromCacheCounter.Inc()
+			cd.checkFromCacheCounter.Inc()
 			return cachedResult.result, nil
 		}
 	}
@@ -131,12 +135,12 @@ func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 	return computed, err
 }
 
-// DispatchExpand implements dispatch.Expand interface
+// DispatchExpand implements dispatch.Expand interface and does not do any caching yet.
 func (cd *cachingDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	return cd.d.DispatchExpand(ctx, req)
 }
 
-// DispatchLookup implements dispatch.Lookup interface
+// DispatchLookup implements dispatch.Lookup interface and does not do any caching yet.
 func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	return cd.d.DispatchLookup(ctx, req)
 }
