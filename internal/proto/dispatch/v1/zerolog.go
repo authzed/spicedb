@@ -31,6 +31,7 @@ func (cr *DispatchCheckResponse) MarshalZerologObject(e *zerolog.Event) {
 func (er *DispatchExpandRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", er.Metadata)
 	e.Str("expand", tuple.StringONR(er.ObjectAndRelation))
+	e.Stringer("mode", er.ExpansionMode)
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
