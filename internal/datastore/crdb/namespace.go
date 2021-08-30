@@ -172,3 +172,43 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string, forUpdate upda
 
 	return loaded, timestamp, nil
 }
+
+func (cds *crdbDatastore) IsEmpty(ctx context.Context) (bool, error) {
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
+	tx, err := cds.conn.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback(ctx)
+
+	nsQuery := psql.Select("1").
+		Prefix("NOT EXISTS (").
+		From(tableNamespace).
+		Limit(1).
+		Suffix(")")
+	tupleQuery := psql.Select("1").
+		Prefix("NOT EXISTS (").
+		From(tableTuple).
+		Limit(1).
+		Suffix(")")
+
+	sql, args, err := psql.Select("1").
+		Where(
+			sq.And{
+				nsQuery,
+				tupleQuery,
+			}).
+		ToSql()
+	if err != nil {
+		return false, err
+	}
+
+	var isEmpty int
+	err = tx.QueryRow(ctx, sql, args...).Scan(&isEmpty)
+	if err != nil {
+		return false, nil
+	}
+
+	return isEmpty == 1, nil
+}

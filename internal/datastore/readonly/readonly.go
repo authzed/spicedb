@@ -63,3 +63,7 @@ func (rd roDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, su
 func (rd roDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	return rd.delegate.CheckRevision(ctx, revision)
 }
+
+func (rd roDatastore) IsEmpty(ctx context.Context) (bool, error) {
+	return rd.delegate.IsEmpty(ctx)
+}

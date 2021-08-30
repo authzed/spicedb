@@ -38,6 +38,7 @@ import (
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/smartclient"
+	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
 func newRootCmd() *cobra.Command {
@@ -70,6 +71,8 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().Duration("datastore-gc-window", 24*time.Hour, "amount of time before revisions are garbage collected")
 	rootCmd.Flags().Duration("datastore-revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	rootCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
+	rootCmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
+	rootCmd.Flags().Bool("datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
 
 	// Flags for the namespace manager
 	rootCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
@@ -160,6 +163,24 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 	} else {
 		log.Fatal().Str("datastore-engine", datastoreEngine).Msg("unknown datastore engine type")
+	}
+
+	bootstrapFilePaths := cobrautil.MustGetStringSlice(cmd, "datastore-bootstrap-files")
+	if len(bootstrapFilePaths) > 0 {
+		bootstrapOverwrite := cobrautil.MustGetBool(cmd, "datastore-bootstrap-overwrite")
+		isEmpty, err := ds.IsEmpty(context.Background())
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to determine datastore state before applying bootstrap data")
+		}
+		if bootstrapOverwrite || isEmpty {
+			log.Info().Msg("initializing datastore from bootstrap files")
+			_, _, err = validationfile.PopulateFromFiles(ds, bootstrapFilePaths)
+			if err != nil {
+				log.Fatal().Err(err).Msg("failed to load bootstrap files")
+			}
+		} else {
+			log.Fatal().Err(err).Msg("cannot apply bootstrap data: schema or tuples already exist in the datastore. Delete existing data or set the flag --datastore-bootstrap-overwrite=true")
+		}
 	}
 
 	if cobrautil.MustGetBool(cmd, "datastore-readonly") {

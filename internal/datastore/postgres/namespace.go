@@ -208,3 +208,44 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx) (*v0.Namesp
 
 	return loaded, version, nil
 }
+
+func (pgd *pgDatastore) IsEmpty(ctx context.Context) (bool, error) {
+	ctx, span := tracer.Start(ctx, "IsEmpty")
+
+	defer span.End()
+	tx, err := pgd.dbpool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback(ctx)
+
+	nsQuery := psql.Select("1").
+		Prefix("NOT EXISTS (").
+		From(tableNamespace).
+		Limit(1).
+		Suffix(")")
+	tupleQuery := psql.Select("1").
+		Prefix("NOT EXISTS (").
+		From(tableTuple).
+		Limit(1).
+		Suffix(")")
+
+	sql, args, err := psql.Select("1").
+		Where(
+			sq.And{
+				nsQuery,
+				tupleQuery,
+			}).
+		ToSql()
+	if err != nil {
+		return false, err
+	}
+
+	var isEmpty int
+	err = tx.QueryRow(ctx, sql, args...).Scan(&isEmpty)
+	if err != nil {
+		return false, nil
+	}
+
+	return isEmpty == 1, nil
+}
