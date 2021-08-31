@@ -1,4 +1,4 @@
-package graph
+package caching
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -82,27 +83,36 @@ func TestMaxDepthCaching(t *testing.T) {
 
 			for _, step := range tc.script {
 				if step.expectPassthrough {
-					delegate.On("Check", CheckRequest{
-						Start:          tuple.ScanONR(step.start),
-						Goal:           tuple.ScanONR(step.goal),
-						AtRevision:     step.atRevision,
-						DepthRemaining: step.depthRemaining,
-					}).Return(CheckResult{true, nil}).Times(1)
+					delegate.On("DispatchCheck", &v1.DispatchCheckRequest{
+						ObjectAndRelation: tuple.ScanONR(step.start),
+						Subject:           tuple.ScanONR(step.goal),
+						Metadata: &v1.ResolverMeta{
+							AtRevision:     step.atRevision.String(),
+							DepthRemaining: uint32(step.depthRemaining),
+						},
+					}).Return(&v1.DispatchCheckResponse{
+						Membership: v1.DispatchCheckResponse_MEMBER,
+						Metadata: &v1.ResponseMeta{
+							DispatchCount: 1,
+						},
+					}, nil).Times(1)
 				}
 			}
 
-			dispatch, err := NewCachingDispatcher(delegate, nil, DisablePromMetrics)
+			dispatch, err := NewCachingDispatcher(delegate, nil, "")
 			require.NoError(err)
 
 			for _, step := range tc.script {
-				resp := dispatch.Check(context.Background(), CheckRequest{
-					Start:          tuple.ScanONR(step.start),
-					Goal:           tuple.ScanONR(step.goal),
-					AtRevision:     step.atRevision,
-					DepthRemaining: step.depthRemaining,
+				resp, err := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+					ObjectAndRelation: tuple.ScanONR(step.start),
+					Subject:           tuple.ScanONR(step.goal),
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     step.atRevision.String(),
+						DepthRemaining: uint32(step.depthRemaining),
+					},
 				})
-				require.NoError(resp.Err)
-				require.True(resp.IsMember)
+				require.NoError(err)
+				require.Equal(v1.DispatchCheckResponse_MEMBER, resp.Membership)
 
 				// We have to sleep a while to let the cache converge:
 				// https://github.com/dgraph-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
@@ -118,15 +128,15 @@ type delegateDispatchMock struct {
 	mock.Mock
 }
 
-func (ddm delegateDispatchMock) Check(ctx context.Context, req CheckRequest) CheckResult {
+func (ddm delegateDispatchMock) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	args := ddm.Called(req)
-	return args.Get(0).(CheckResult)
+	return args.Get(0).(*v1.DispatchCheckResponse), args.Error(1)
 }
 
-func (ddm delegateDispatchMock) Expand(ctx context.Context, req ExpandRequest) ExpandResult {
-	return ExpandResult{}
+func (ddm delegateDispatchMock) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+	return &v1.DispatchExpandResponse{}, nil
 }
 
-func (ddm delegateDispatchMock) Lookup(ctx context.Context, req LookupRequest) LookupResult {
-	return LookupResult{}
+func (ddm delegateDispatchMock) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+	return &v1.DispatchLookupResponse{}, nil
 }

@@ -24,7 +24,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/readonly"
-	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
@@ -119,7 +120,7 @@ func runTestServer(cmd *cobra.Command, args []string) {
 type model struct {
 	datastore        datastore.Datastore
 	namespaceManager namespace.Manager
-	dispatcher       graph.Dispatcher
+	dispatcher       dispatch.Dispatcher
 }
 
 type tokenBasedServer struct {
@@ -221,10 +222,7 @@ func (tbs *tokenBasedServer) createModel() model {
 		log.Fatal().Err(err).Msg("failed to initialize namespace manager")
 	}
 
-	dispatch, err := graph.NewLocalDispatcher(nsm, ds)
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize check dispatcher")
-	}
+	dispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
 
 	return model{ds, nsm, dispatch}
 }

@@ -97,8 +97,6 @@ github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnht
 github.com/cncf/xds/go v0.0.0-20210312221358-fbca930ec8ed/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cockroachdb/apd v1.1.0 h1:3LFP3629v+1aKXU5Q37mxmRxX/pIu1nijXydLShEq5I=
 github.com/cockroachdb/apd v1.1.0/go.mod h1:8Sl8LxpKi29FqWXR16WEFZRNSz3SoPzUzeMeY4+DwBQ=
-github.com/cockroachdb/cockroach v20.1.15+incompatible h1:OoxA4V1GSFxrExvfZ/zuPlC38oMfxptJmsU8iSF/eJo=
-github.com/cockroachdb/cockroach v20.1.15+incompatible/go.mod h1:xeT/CQ0qZHangbYbWShlCGAx31aV4AjGswDUjhKS6HQ=
 github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 h1:k6Dn7shF+i1q4utvCyW4+o9REsCMAeRyORM5IhXMCnw=
 github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5/go.mod h1:ICJu0PwR54nI0yPEnJ6jcS+J7CZAUXrLh8lPo2knzsM=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=

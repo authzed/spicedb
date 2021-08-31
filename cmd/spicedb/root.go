@@ -33,11 +33,16 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/readonly"
-	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/caching"
+	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	dispatch_v1 "github.com/authzed/spicedb/internal/services/dispatch/v1"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	"github.com/authzed/spicedb/pkg/smartclient"
+	"github.com/authzed/spicedb/pkg/smartclient/consistentbackend"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -80,8 +85,11 @@ func newRootCmd() *cobra.Command {
 	// Flags for parsing and validating schemas.
 	rootCmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
+	// Flags for internal dispatch API
+	rootCmd.Flags().String("internal-grpc-addr", ":50053", "address to listen for internal requests")
+
 	// Flags for configuring dispatch behavior
-	rootCmd.Flags().Uint16("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
+	rootCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
 	rootCmd.Flags().String("dispatch-redispatch-dns-name", "", "dns SRV record name to resolve for remote redispatch, empty string disables redispatch")
 	rootCmd.Flags().String("dispatch-redispatch-service-name", "grpc", "dns SRV record service name to resolve for remote redispatch")
 	rootCmd.Flags().String("dispatch-peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
@@ -100,14 +108,21 @@ func rootRun(cmd *cobra.Command, args []string) {
 		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
 	))
 
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, grpcmw.WithUnaryServerChain(
+	middleware := grpcmw.WithUnaryServerChain(
 		otelgrpc.UnaryServerInterceptor(),
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.UnaryServerInterceptor,
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
-	))
+	)
+
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create gRPC server")
+	}
+
+	internalGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create internal gRPC server")
 	}
 
 	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
@@ -194,10 +209,8 @@ func rootRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to initialize namespace manager")
 	}
 
-	dispatch, err := graph.NewLocalDispatcher(nsm, ds)
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize dispatcher")
-	}
+	redispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
+	redispatchClientCtx, redispatchClientCancel := context.WithCancel(context.Background())
 
 	redispatchTarget := cobrautil.MustGetString(cmd, "dispatch-redispatch-dns-name")
 	redispatchServiceName := cobrautil.MustGetString(cmd, "dispatch-redispatch-service-name")
@@ -206,50 +219,47 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 		resolverAddr := cobrautil.MustGetString(cmd, "dispatch-peer-resolver-addr")
 		resolverCertPath := cobrautil.MustGetString(cmd, "dispatch-peer-resolver-cert-path")
-		var resolverConfig *smartclient.EndpointResolverConfig
+		var resolverConfig *consistentbackend.EndpointResolverConfig
 		if resolverCertPath != "" {
 			log.Debug().Str("addr", resolverAddr).Str("cacert", resolverCertPath).Msg("using TLS protected peer resolver")
-			resolverConfig = smartclient.NewEndpointResolver(resolverAddr, resolverCertPath)
+			resolverConfig = consistentbackend.NewEndpointResolver(resolverAddr, resolverCertPath)
 		} else {
 			log.Debug().Str("addr", resolverAddr).Msg("using insecure peer resolver")
-			resolverConfig = smartclient.NewEndpointResolverNoTLS(resolverAddr)
+			resolverConfig = consistentbackend.NewEndpointResolverNoTLS(resolverAddr)
 		}
 
 		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path")
 		peerPSK := cobrautil.MustGetString(cmd, "grpc-preshared-key")
-		selfEndpoint := cobrautil.MustGetString(cmd, "grpc-addr")
+		selfEndpoint := cobrautil.MustGetString(cmd, "internal-grpc-addr")
 
-		var endpointConfig *smartclient.EndpointConfig
-		var fallbackConfig *smartclient.FallbackEndpointConfig
+		var endpointConfig *consistentbackend.EndpointConfig
+		var fallbackConfig *consistentbackend.FallbackEndpointConfig
 		if !cobrautil.MustGetBool(cmd, "grpc-no-tls") {
 			log.Debug().Str("endpoint", redispatchTarget).Str("cacert", resolverCertPath).Msg("using TLS protected peers")
-			endpointConfig = smartclient.NewEndpointConfig(redispatchServiceName, redispatchTarget, peerPSK, peerCertPath)
-			fallbackConfig = smartclient.NewFallbackEndpoint(selfEndpoint, peerPSK, peerCertPath)
+			endpointConfig = consistentbackend.NewEndpointConfig(redispatchServiceName, redispatchTarget, peerPSK, peerCertPath)
+			fallbackConfig = consistentbackend.NewFallbackEndpoint(selfEndpoint, peerPSK, peerCertPath)
 		} else {
 			log.Debug().Str("endpoint", redispatchTarget).Msg("using insecure peers")
-			endpointConfig = smartclient.NewEndpointConfigNoTLS(redispatchServiceName, redispatchTarget, peerPSK)
-			fallbackConfig = smartclient.NewFallbackEndpointNoTLS(selfEndpoint, peerPSK)
+			endpointConfig = consistentbackend.NewEndpointConfigNoTLS(redispatchServiceName, redispatchTarget, peerPSK)
+			fallbackConfig = consistentbackend.NewFallbackEndpointNoTLS(selfEndpoint, peerPSK)
 		}
 
-		client, err := smartclient.NewSmartClient(resolverConfig, endpointConfig, fallbackConfig)
+		client, err := consistentbackend.NewConsistentBackendClient(resolverConfig, endpointConfig, fallbackConfig)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to initialize smart client")
 		}
 
-		redispatcher := graph.NewClusterDispatcher(
-			client,
-			v0svc.DepthRemainingHeader,
-			v0svc.ForcedRevisionHeader,
-		)
-		dispatch, err = graph.NewLocalDispatcherWithRedispatch(nsm, ds, redispatcher)
-		if err != nil {
-			log.Fatal().Err(err).Msg("failed to initialize redispatcher")
-		}
+		go func() {
+			client.Start(redispatchClientCtx)
+			log.Info().Msg("started internal redispatch client")
+		}()
+
+		redispatch = remote.NewClusterDispatcher(client)
 	}
 
-	cachingDispatch, err := graph.NewCachingDispatcher(dispatch, nil, graph.RegisterPromMetrics)
+	cachingRedispatch, err := caching.NewCachingDispatcher(redispatch, nil, "dispatch_client")
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize dispatcher cache")
+		log.Fatal().Err(err).Msg("failed to initialize redispatcher cache")
 	}
 
 	prefixRequiredOption := v1alpha1svc.PrefixRequired
@@ -257,7 +267,16 @@ func rootRun(cmd *cobra.Command, args []string) {
 		prefixRequiredOption = v1alpha1svc.PrefixNotRequired
 	}
 
-	registerGrpcServices(grpcServer, ds, nsm, cachingDispatch, cobrautil.MustGetUint16(cmd, "dispatch-max-depth"), prefixRequiredOption)
+	maxDepth := cobrautil.MustGetUint32(cmd, "dispatch-max-depth")
+	registerGrpcServices(grpcServer, ds, nsm, cachingRedispatch, maxDepth, prefixRequiredOption)
+
+	internalDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
+	cachingInternalDispatch, err := caching.NewCachingDispatcher(internalDispatch, nil, "dispatch")
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize internal dispatcher cache")
+	}
+
+	registerInternalGrpcServices(internalGrpcServer, ds, nsm, cachingInternalDispatch)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -267,7 +286,24 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 
 		log.Info().Str("addr", addr).Msg("gRPC server started listening")
-		grpcServer.Serve(l)
+		err = grpcServer.Serve(l)
+		if err != nil {
+			log.Fatal().Msg("failed to start gRPC server")
+		}
+	}()
+
+	go func() {
+		addr := cobrautil.MustGetString(cmd, "internal-grpc-addr")
+		l, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for internal gRPC server")
+		}
+
+		log.Info().Str("addr", addr).Msg("internal gRPC server started listening")
+		err = internalGrpcServer.Serve(l)
+		if err != nil {
+			log.Fatal().Msg("failed to start internal gRPC server")
+		}
 	}()
 
 	metricsrv := cobrautil.MetricsServerFromFlags(cmd)
@@ -298,6 +334,8 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	log.Info().Msg("shutting down")
 	grpcServer.GracefulStop()
+	internalGrpcServer.GracefulStop()
+	redispatchClientCancel()
 
 	if err := metricsrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
@@ -308,23 +346,53 @@ func registerGrpcServices(
 	srv *grpc.Server,
 	ds datastore.Datastore,
 	nsm namespace.Manager,
-	dispatch graph.Dispatcher,
-	maxDepth uint16,
+	dispatch dispatch.Dispatcher,
+	maxDepth uint32,
 	prefixRequired v1alpha1svc.PrefixRequiredOption,
 ) {
 	healthSrv := grpcutil.NewAuthlessHealthServer()
 
 	v0.RegisterACLServiceServer(srv, v0svc.NewACLServer(ds, nsm, dispatch, maxDepth))
-	healthSrv.SetServingStatus("ACLService", healthpb.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus(
+		v0.ACLService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
 
 	v0.RegisterNamespaceServiceServer(srv, v0svc.NewNamespaceServer(ds))
-	healthSrv.SetServingStatus("NamespaceService", healthpb.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus(
+		v0.NamespaceService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
 
 	v0.RegisterWatchServiceServer(srv, v0svc.NewWatchServer(ds, nsm))
-	healthSrv.SetServingStatus("WatchService", healthpb.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus(
+		v0.WatchService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
 
 	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(ds, prefixRequired))
-	healthSrv.SetServingStatus("SchemaService", healthpb.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus(
+		v1alpha1.SchemaService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
+
+	healthpb.RegisterHealthServer(srv, healthSrv)
+	reflection.Register(srv)
+}
+
+func registerInternalGrpcServices(
+	srv *grpc.Server,
+	ds datastore.Datastore,
+	nsm namespace.Manager,
+	d dispatch.Dispatcher,
+) {
+	healthSrv := grpcutil.NewAuthlessHealthServer()
+
+	v1.RegisterDispatchServiceServer(srv, dispatch_v1.NewDispatchServer(d))
+	healthSrv.SetServingStatus(
+		v1.DispatchService_ServiceDesc.ServiceName,
+		healthpb.HealthCheckResponse_SERVING,
+	)
 
 	healthpb.RegisterHealthServer(srv, healthSrv)
 	reflection.Register(srv)

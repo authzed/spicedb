@@ -10,15 +10,17 @@ type ONRSet struct {
 }
 
 // NewONRSet creates a new set.
-func NewONRSet() *ONRSet {
-	return &ONRSet{
+func NewONRSet(onrs ...*v0.ObjectAndRelation) *ONRSet {
+	created := &ONRSet{
 		onrs: map[string]*v0.ObjectAndRelation{},
 	}
+	created.Update(onrs)
+	return created
 }
 
 // Length returns the size of the set.
-func (ons *ONRSet) Length() int {
-	return len(ons.onrs)
+func (ons *ONRSet) Length() uint32 {
+	return uint32(len(ons.onrs))
 }
 
 // IsEmpty returns whether the set is empty.

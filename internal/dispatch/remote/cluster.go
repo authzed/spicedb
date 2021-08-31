@@ -1,0 +1,60 @@
+package remote
+
+import (
+	"context"
+
+	"google.golang.org/grpc"
+
+	"github.com/authzed/spicedb/internal/dispatch"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+)
+
+type clusterClient interface {
+	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
+	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
+	DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest, opts ...grpc.CallOption) (*v1.DispatchLookupResponse, error)
+}
+
+// NewClusterDispatcher creates a dispatcher implementation that uses the provided client
+// to dispatch requests to peer nodes in the cluster.
+func NewClusterDispatcher(client clusterClient) dispatch.Dispatcher {
+	return &clusterDispatcher{client}
+}
+
+type clusterDispatcher struct {
+	clusterClient clusterClient
+}
+
+func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+	err := dispatch.CheckDepth(req)
+	if err != nil {
+		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+	}
+
+	return cr.clusterClient.DispatchCheck(ctx, req)
+}
+
+func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+	err := dispatch.CheckDepth(req)
+	if err != nil {
+		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
+	}
+
+	return cr.clusterClient.DispatchExpand(ctx, req)
+}
+
+func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+	err := dispatch.CheckDepth(req)
+	if err != nil {
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
+	}
+
+	return cr.clusterClient.DispatchLookup(ctx, req)
+}
+
+// Always verify that we implement the interface
+var _ dispatch.Dispatcher = &clusterDispatcher{}
+
+var emptyMetadata *v1.ResponseMeta = &v1.ResponseMeta{
+	DispatchCount: 0,
+}

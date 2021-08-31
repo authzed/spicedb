@@ -11,7 +11,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -23,7 +24,7 @@ type DevContext struct {
 	Datastore     datastore.Datastore
 	Revision      decimal.Decimal
 	Namespaces    []*v0.NamespaceDefinition
-	Dispatcher    graph.Dispatcher
+	Dispatcher    dispatch.Dispatcher
 	RequestErrors []*v0.DeveloperError
 }
 
@@ -42,10 +43,7 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 		return nil, false, err
 	}
 
-	dispatcher, err := graph.NewLocalDispatcher(nsm, ds)
-	if err != nil {
-		return nil, false, err
-	}
+	dispatcher := graph.NewLocalOnlyDispatcher(nsm, ds)
 
 	namespaces, devError, err := compile(requestContext.Schema)
 	if err != nil {

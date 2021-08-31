@@ -13,7 +13,6 @@ require (
 	github.com/aws/aws-sdk-go v1.40.27
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
-	github.com/cockroachdb/cockroach v20.1.15+incompatible
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/docker/go-connections v0.4.0 // indirect

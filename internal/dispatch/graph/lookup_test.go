@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -97,21 +97,20 @@ func TestSimpleLookup(t *testing.T) {
 
 			dispatch, revision := newLocalDispatcher(require)
 
-			lookupResult := dispatch.Lookup(context.Background(), LookupRequest{
-				StartRelation:  tc.start,
-				TargetONR:      tc.target,
-				AtRevision:     revision,
-				DepthRemaining: 50,
-				Limit:          10,
-				DirectStack:    tuple.NewONRSet(),
-				TTUStack:       tuple.NewONRSet(),
-				DebugTracer:    NewNullTracer(),
+			lookupResult, err := dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+				ObjectRelation: tc.start,
+				Subject:        tc.target,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+				Limit:       10,
+				DirectStack: nil,
+				TtuStack:    nil,
 			})
 
-			sort.Sort(OrderedResolved(tc.resolvedObjects))
-			sort.Sort(OrderedResolved(lookupResult.ResolvedObjects))
-
-			require.Equal(tc.resolvedObjects, lookupResult.ResolvedObjects)
+			require.NoError(err)
+			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
 		})
 	}
 }
@@ -127,21 +126,21 @@ func TestMaxDepthLookup(t *testing.T) {
 	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
 	require.NoError(err)
 
-	dispatch, err := NewLocalDispatcher(nsm, ds)
-	require.NoError(err)
+	dispatch := NewLocalOnlyDispatcher(nsm, ds)
 
-	lookupResult := dispatch.Lookup(context.Background(), LookupRequest{
-		StartRelation:  RR("document", "viewer"),
-		TargetONR:      ONR("user", "legal", "..."),
-		AtRevision:     revision,
-		DepthRemaining: 0,
-		Limit:          10,
-		DirectStack:    tuple.NewONRSet(),
-		TTUStack:       tuple.NewONRSet(),
-		DebugTracer:    NewNullTracer(),
+	_, err = dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+		ObjectRelation: RR("document", "viewer"),
+		Subject:        ONR("user", "legal", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 0,
+		},
+		Limit:       10,
+		DirectStack: nil,
+		TtuStack:    nil,
 	})
 
-	require.Error(lookupResult.Err)
+	require.Error(err)
 }
 
 type OrderedResolved []*v0.ObjectAndRelation

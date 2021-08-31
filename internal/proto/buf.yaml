@@ -1,5 +1,0 @@
-version: "v1beta1"
-name: buf.build/authzed/spicedb
-build:
-  roots:
-  - "."
