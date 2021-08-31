@@ -109,11 +109,6 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 			}))
 		}
 
-		// TODO consider removing this short-circuit
-		if len(requests) == 0 {
-			break
-		}
-
 		result := lookupAny(ctx, req.Limit, requests)
 		totalRequestCount += result.Resp.Metadata.DispatchCount
 		if result.Err != nil {
@@ -260,11 +255,6 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 
 			resultChan <- lookupResult(objects.AsSlice(), 1)
 		})
-	}
-
-	// TODO consider removing this short-circuit
-	if len(requests) == 0 {
-		return returnResult(lookupResult([]*v0.ObjectAndRelation{}, 0))
 	}
 
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
@@ -460,11 +450,6 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 
 			resultChan <- lookupResult(objects.AsSlice(), 1)
 		})
-	}
-
-	// TODO consider removing this short-circuit
-	if len(requests) == 0 {
-		return returnResult(lookupResult([]*v0.ObjectAndRelation{}, 0))
 	}
 
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
