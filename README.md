@@ -8,13 +8,13 @@
 [![Discord Server](https://img.shields.io/discord/844600078504951838?color=7289da&logo=discord "Discord Server")](https://discord.gg/jTysUaxXzM)
 [![Twitter](https://img.shields.io/twitter/follow/authzed?color=%23179CF0&logo=twitter&style=flat-square "@authzed on Twitter")](https://twitter.com/authzed)
 
-SpiceDB is a database that stores, computes, and validates application permissions.
+SpiceDB is a [Zanzibar]-inspired database that stores, computes, and validates application permissions.
 
 Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
 Features that distinguish SpiceDB from other systems include:
-- Dedicated APIs for checking individual permissions, listing all access, and [ACL filtering]
-- An architecture faithful to the [Google Zanzibar] paper, including resistence to the [New Enemy Problem]
+- [Dedicated APIs] for checking individual permissions, listing all access, and [ACL filtering]
+- An architecture faithful to the [Google Zanzibar] paper, including resistance to the [New Enemy Problem]
 - An intuitive and expressive [schema language] complete with a [playground] dev environment
 - A powerful graph engine that supports distributed, parallel evaluation
 - Pluggable storage that supports [in-memory], [PostgreSQL], and [CockroachDB]
@@ -23,12 +23,14 @@ Features that distinguish SpiceDB from other systems include:
 See [CONTRIBUTING.md] for instructions on how to contribute and perform common tasks like building the project and running tests.
 
 [client library]: https://docs.authzed.com/reference/api#client-libraries
+[Dedicated APIs]: https://buf.build/authzed/api
 [ACL filtering]: https://docs.authzed.com/concepts/authz#what-is-acl-filtering
+[Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [Google Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
 [schema language]: https://docs.authzed.com/guides/schema
 [playground]: https://play.authzed.com
-[in-memory]: github.com/hashicorp/go-memdb
+[in-memory]: https://github.com/hashicorp/go-memdb
 [PostgreSQL]: https://www.postgresql.org
 [CockroachDB]: https://github.com/cockroachdb/cockroach
 [Prometheus metrics]: https://prometheus.io
@@ -106,7 +108,7 @@ In order to build and install SpiceDB, the [latest stable version of Go] must be
 Running the following command will install the latest stable release: 
 
 ```sh
-go install github.com/authzed/spicedb@latest
+go install github.com/authzed/spicedb/cmd/spicedb@latest
 ```
 
 [latest stable version of Go]: https://golang.org/dl
