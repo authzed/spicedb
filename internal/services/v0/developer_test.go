@@ -623,3 +623,37 @@ func TestFormatSchema(t *testing.T) {
 	require.NoError(err)
 	require.Equal("definition foo {}\n\ndefinition bar {}", lresp.FormattedSchema)
 }
+
+func TestValidateONR(t *testing.T) {
+	require := require.New(t)
+
+	store := NewInMemoryShareStore("flavored")
+	srv := NewDeveloperServer(store)
+
+	resp, err := srv.Validate(context.Background(), &v0.ValidateRequest{
+		Context: &v0.RequestContext{
+			Schema: `
+			definition user {}
+			definition document {
+				relation writer: user
+				relation viewer: user
+				permission view = viewer + writer
+			}
+			`,
+			Relationships: []*v0.RelationTuple{
+				tuple.Scan("document:somedoc#writerIsNotValid@user:jimmy#..."),
+			},
+		},
+		ValidationYaml:       "",
+		AssertionsYaml:       "",
+		UpdateValidationYaml: false,
+	})
+	require.NoError(err)
+	require.Equal(1, len(resp.RequestErrors))
+	require.Equal(&v0.DeveloperError{
+		Message: "invalid RelationTuple.ObjectAndRelation: embedded message failed validation | caused by: invalid ObjectAndRelation.Relation: value does not match regex pattern \"^(\\\\.\\\\.\\\\.|[a-z][a-z0-9_]{2,62}[a-z0-9])$\"",
+		Kind:    v0.DeveloperError_PARSE_ERROR,
+		Source:  v0.DeveloperError_RELATIONSHIP,
+		Context: `document:somedoc#writerIsNotValid@user:jimmy#...`,
+	}, resp.RequestErrors[0])
+}

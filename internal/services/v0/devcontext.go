@@ -81,6 +81,13 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 		return &DevContext{Namespaces: namespaces}, false, err
 	}
 
+	if len(requestErrors) == 0 {
+		err = requestContext.Validate()
+		if err != nil {
+			return nil, false, err
+		}
+	}
+
 	return &DevContext{
 		Datastore:     ds,
 		Namespaces:    namespaces,
@@ -126,6 +133,17 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 	var errors []*v0.DeveloperError
 	var updates []*v0.RelationTupleUpdate
 	for _, tpl := range tuples {
+		verr := tpl.Validate()
+		if verr != nil {
+			errors = append(errors, &v0.DeveloperError{
+				Message: verr.Error(),
+				Source:  v0.DeveloperError_RELATIONSHIP,
+				Kind:    v0.DeveloperError_PARSE_ERROR,
+				Context: tuple.String(tpl),
+			})
+			continue
+		}
+
 		err := validateTupleWrite(ctx, tpl, nsm)
 		if err != nil {
 			verrs, wireErr := rewriteGraphError(v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl), err)
