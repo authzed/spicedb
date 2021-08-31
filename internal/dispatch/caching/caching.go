@@ -126,12 +126,16 @@ func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 	}
 
 	computed, err := cd.d.DispatchCheck(ctx, req)
+
+	// We only want to cache the result if there was no error
 	if err == nil {
 		toCache := checkResultEntry{computed, req.Metadata.DepthRemaining}
 		toCache.result.Metadata.DispatchCount = 0
 		cd.c.Set(requestKey, toCache, checkResultEntryCost)
 	}
 
+	// Return both the computed and err in ALL cases: computed contains resolved metadata even
+	// if there was an error.
 	return computed, err
 }
 
