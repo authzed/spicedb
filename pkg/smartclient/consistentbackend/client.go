@@ -35,10 +35,11 @@ type ConsistentBackendClient struct {
 	backendsPerKey uint8
 
 	fallbackBackend *backend
+	resolverConfig  *EndpointResolverConfig
+	endpointConfig  *EndpointConfig
 
-	ringMu      sync.Mutex
-	ring        *consistent.Hashring
-	cancelWatch context.CancelFunc
+	ringMu sync.Mutex
+	ring   *consistent.Hashring
 }
 
 // NewConsistentBackendClient creates an instance of the smart client with the specified configuration.
@@ -57,17 +58,14 @@ func NewConsistentBackendClient(
 		return nil, fmt.Errorf(errInitializingSmartClient, fallback.err)
 	}
 
-	servokClientCtx, cancel := context.WithCancel(context.Background())
-
 	sc := &ConsistentBackendClient{
 		1,
 		fallback.backend,
+		resolverConfig,
+		endpointConfig,
 		sync.Mutex{},
 		consistent.NewHashring(xxhash.Sum64, hashringReplicationFactor),
-		cancel,
 	}
-
-	go sc.watchAndUpdateMembership(servokClientCtx, resolverConfig, endpointConfig)
 
 	return sc, nil
 }
@@ -100,18 +98,16 @@ func establishServokWatch(ctx context.Context,
 	return stream, nil
 }
 
-func (sc *ConsistentBackendClient) watchAndUpdateMembership(
-	ctx context.Context,
-	resolverConfig *EndpointResolverConfig,
-	endpointConfig *EndpointConfig,
-) {
+// Start starts the process which will dynamically update backend membership continually. Stop this
+// service by canceling the context.
+func (cbc *ConsistentBackendClient) Start(ctx context.Context) {
 	b := &backoff.Backoff{
 		Jitter: true,
 		Max:    1 * time.Minute,
 	}
 
 	for ctx.Err() == nil {
-		stream, err := establishServokWatch(ctx, resolverConfig, endpointConfig)
+		stream, err := establishServokWatch(ctx, cbc.resolverConfig, cbc.endpointConfig)
 		if err != nil {
 			wait := b.Duration()
 			log.Warn().Stringer("retryAfter", wait).Err(err).Msg("unable to establish endpoint resolver connection")
@@ -126,31 +122,38 @@ func (sc *ConsistentBackendClient) watchAndUpdateMembership(
 			if err != nil {
 				wait := b.Duration()
 				log.Error().Stringer("retryAfter", wait).Err(err).Msg("error reading from endpoint server")
-				time.Sleep(wait)
+
+				waitTimer := time.NewTimer(wait)
+
+				// We don't want to wait the whole time if our context gets closed
+				select {
+				case <-ctx.Done():
+				case <-waitTimer.C:
+				}
 
 				// We need to re-establish the stream
 				break
 			}
 
 			b.Reset()
-			sc.updateMembers(ctx, endpointResponse.Endpoints, endpointConfig.dialOptions)
+			cbc.updateMembers(ctx, endpointResponse.Endpoints, cbc.endpointConfig.dialOptions)
 		}
 	}
 }
 
-func (sc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints []*servok.Endpoint, endpointDialOptions []grpc.DialOption) {
+func (cbc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints []*servok.Endpoint, endpointDialOptions []grpc.DialOption) {
 	log.Info().Int("numEndpoints", len(endpoints)).Msg("received servok endpoint update")
 
 	// This is only its own method to get the defer unlock here
-	sc.ringMu.Lock()
-	defer sc.ringMu.Unlock()
+	cbc.ringMu.Lock()
+	defer cbc.ringMu.Unlock()
 
 	if ctx.Err() != nil {
 		log.Fatal().Err(ctx.Err()).Msg("cannot update members, client already stopped")
 	}
 
 	membersToRemove := map[string]consistent.Member{}
-	for _, existingMember := range sc.ring.Members() {
+	for _, existingMember := range cbc.ring.Members() {
 		membersToRemove[existingMember.Key()] = existingMember
 	}
 
@@ -177,50 +180,38 @@ func (sc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints 
 		} else {
 			// This is a net-new member, add it to the hashring
 			log.Debug().Str("memberKey", memberKey).Msg("adding hashring member")
-			sc.ring.Add(memberToAdd)
+			cbc.ring.Add(memberToAdd)
 		}
 	}
 
 	for memberName, member := range membersToRemove {
 		log.Debug().Str("memberName", memberName).Msg("removing hashring member")
-		sc.ring.Remove(member)
+		cbc.ring.Remove(member)
 	}
 
 	log.Info().Int("numEndpoints", len(endpoints)).Msg("updated smart client endpoint list")
 }
 
-// Stop will cancel the client watch and clean up the pool
-func (sc *ConsistentBackendClient) Stop() {
-	sc.ringMu.Lock()
-	defer sc.ringMu.Unlock()
-
-	sc.cancelWatch()
-
-	for _, member := range sc.ring.Members() {
-		sc.ring.Remove(member)
-	}
-}
-
-func (sc *ConsistentBackendClient) getConsistentBackend(request proto.Message) (*backend, error) {
+func (cbc *ConsistentBackendClient) getConsistentBackend(request proto.Message) (*backend, error) {
 	requestKey, err := protoMarshal.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf(errComputingBackend, err)
 	}
 
-	members, err := sc.ring.FindN(requestKey, sc.backendsPerKey)
+	members, err := cbc.ring.FindN(requestKey, cbc.backendsPerKey)
 	if err != nil {
-		if err == consistent.ErrNotEnoughMembers && sc.fallbackBackend != nil {
+		if err == consistent.ErrNotEnoughMembers && cbc.fallbackBackend != nil {
 			log.Warn().
-				Str("backend", sc.fallbackBackend.Key()).
+				Str("backend", cbc.fallbackBackend.Key()).
 				Str("type", "consistent").
 				Msg("using fallback backend")
-			return sc.fallbackBackend, nil
+			return cbc.fallbackBackend, nil
 		}
 
 		return nil, fmt.Errorf(errComputingBackend, err)
 	}
 
-	chosen := members[rand.Intn(int(sc.backendsPerKey))].(*backend)
+	chosen := members[rand.Intn(int(cbc.backendsPerKey))].(*backend)
 
 	log.Debug().Str("chosen", chosen.Key()).Msg("chose consistent backend for call")
 

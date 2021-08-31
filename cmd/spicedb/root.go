@@ -210,6 +210,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 	}
 
 	redispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
+	redispatchClientCtx, redispatchClientCancel := context.WithCancel(context.Background())
 
 	redispatchTarget := cobrautil.MustGetString(cmd, "dispatch-redispatch-dns-name")
 	redispatchServiceName := cobrautil.MustGetString(cmd, "dispatch-redispatch-service-name")
@@ -247,6 +248,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to initialize smart client")
 		}
+
+		go func() {
+			client.Start(redispatchClientCtx)
+			log.Info().Msg("started internal redispatch client")
+		}()
 
 		redispatch = remote.NewClusterDispatcher(client)
 	}
@@ -322,6 +328,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	log.Info().Msg("shutting down")
 	grpcServer.GracefulStop()
+	redispatchClientCancel()
 
 	if err := metricsrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
