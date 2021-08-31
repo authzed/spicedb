@@ -1,8 +1,7 @@
-package smartclient
+package consistentbackend
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -28,27 +27,26 @@ const (
 	hashringReplicationFactor = 20
 )
 
-var errNoBackends = errors.New("no backends available for request")
+var protoMarshal = proto.MarshalOptions{Deterministic: true}
 
-// SmartClient is a client which utilizes a dynamic source of backends and a consistent
+// ConsistentBackendClient is a client which utilizes a dynamic source of backends and a consistent
 // hashring implementation for consistently calling the same backend for the same request.
-type SmartClient struct {
+type ConsistentBackendClient struct {
 	backendsPerKey uint8
 
 	fallbackBackend *backend
 
-	ringMu       sync.Mutex
-	ring         *consistent.Hashring
-	cancelWatch  context.CancelFunc
-	protoMarshal proto.MarshalOptions
+	ringMu      sync.Mutex
+	ring        *consistent.Hashring
+	cancelWatch context.CancelFunc
 }
 
-// NewSmartClient creates an instance of the smart client with the specified configuration.
-func NewSmartClient(
+// NewConsistentBackendClient creates an instance of the smart client with the specified configuration.
+func NewConsistentBackendClient(
 	resolverConfig *EndpointResolverConfig,
 	endpointConfig *EndpointConfig,
 	fallback *FallbackEndpointConfig,
-) (*SmartClient, error) {
+) (*ConsistentBackendClient, error) {
 	if resolverConfig.err != nil {
 		return nil, fmt.Errorf(errInitializingSmartClient, resolverConfig.err)
 	}
@@ -61,13 +59,12 @@ func NewSmartClient(
 
 	servokClientCtx, cancel := context.WithCancel(context.Background())
 
-	sc := &SmartClient{
+	sc := &ConsistentBackendClient{
 		1,
 		fallback.backend,
 		sync.Mutex{},
 		consistent.NewHashring(xxhash.Sum64, hashringReplicationFactor),
 		cancel,
-		proto.MarshalOptions{Deterministic: true},
 	}
 
 	go sc.watchAndUpdateMembership(servokClientCtx, resolverConfig, endpointConfig)
@@ -103,7 +100,7 @@ func establishServokWatch(ctx context.Context,
 	return stream, nil
 }
 
-func (sc *SmartClient) watchAndUpdateMembership(
+func (sc *ConsistentBackendClient) watchAndUpdateMembership(
 	ctx context.Context,
 	resolverConfig *EndpointResolverConfig,
 	endpointConfig *EndpointConfig,
@@ -141,7 +138,7 @@ func (sc *SmartClient) watchAndUpdateMembership(
 	}
 }
 
-func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.Endpoint, endpointDialOptions []grpc.DialOption) {
+func (sc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints []*servok.Endpoint, endpointDialOptions []grpc.DialOption) {
 	log.Info().Int("numEndpoints", len(endpoints)).Msg("received servok endpoint update")
 
 	// This is only its own method to get the defer unlock here
@@ -193,7 +190,7 @@ func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.En
 }
 
 // Stop will cancel the client watch and clean up the pool
-func (sc *SmartClient) Stop() {
+func (sc *ConsistentBackendClient) Stop() {
 	sc.ringMu.Lock()
 	defer sc.ringMu.Unlock()
 
@@ -204,8 +201,8 @@ func (sc *SmartClient) Stop() {
 	}
 }
 
-func (sc *SmartClient) getConsistentBackend(request proto.Message) (*backend, error) {
-	requestKey, err := sc.protoMarshal.Marshal(request)
+func (sc *ConsistentBackendClient) getConsistentBackend(request proto.Message) (*backend, error) {
+	requestKey, err := protoMarshal.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf(errComputingBackend, err)
 	}

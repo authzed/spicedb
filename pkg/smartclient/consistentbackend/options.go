@@ -1,4 +1,4 @@
-package smartclient
+package consistentbackend
 
 import (
 	"context"

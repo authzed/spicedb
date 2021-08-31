@@ -42,7 +42,7 @@ import (
 	dispatch_v1 "github.com/authzed/spicedb/internal/services/dispatch/v1"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	smartclient "github.com/authzed/spicedb/pkg/smartclient/v2"
+	"github.com/authzed/spicedb/pkg/smartclient/consistentbackend"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -218,32 +218,32 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 		resolverAddr := cobrautil.MustGetString(cmd, "dispatch-peer-resolver-addr")
 		resolverCertPath := cobrautil.MustGetString(cmd, "dispatch-peer-resolver-cert-path")
-		var resolverConfig *smartclient.EndpointResolverConfig
+		var resolverConfig *consistentbackend.EndpointResolverConfig
 		if resolverCertPath != "" {
 			log.Debug().Str("addr", resolverAddr).Str("cacert", resolverCertPath).Msg("using TLS protected peer resolver")
-			resolverConfig = smartclient.NewEndpointResolver(resolverAddr, resolverCertPath)
+			resolverConfig = consistentbackend.NewEndpointResolver(resolverAddr, resolverCertPath)
 		} else {
 			log.Debug().Str("addr", resolverAddr).Msg("using insecure peer resolver")
-			resolverConfig = smartclient.NewEndpointResolverNoTLS(resolverAddr)
+			resolverConfig = consistentbackend.NewEndpointResolverNoTLS(resolverAddr)
 		}
 
 		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path")
 		peerPSK := cobrautil.MustGetString(cmd, "grpc-preshared-key")
 		selfEndpoint := cobrautil.MustGetString(cmd, "internal-grpc-addr")
 
-		var endpointConfig *smartclient.EndpointConfig
-		var fallbackConfig *smartclient.FallbackEndpointConfig
+		var endpointConfig *consistentbackend.EndpointConfig
+		var fallbackConfig *consistentbackend.FallbackEndpointConfig
 		if !cobrautil.MustGetBool(cmd, "grpc-no-tls") {
 			log.Debug().Str("endpoint", redispatchTarget).Str("cacert", resolverCertPath).Msg("using TLS protected peers")
-			endpointConfig = smartclient.NewEndpointConfig(redispatchServiceName, redispatchTarget, peerPSK, peerCertPath)
-			fallbackConfig = smartclient.NewFallbackEndpoint(selfEndpoint, peerPSK, peerCertPath)
+			endpointConfig = consistentbackend.NewEndpointConfig(redispatchServiceName, redispatchTarget, peerPSK, peerCertPath)
+			fallbackConfig = consistentbackend.NewFallbackEndpoint(selfEndpoint, peerPSK, peerCertPath)
 		} else {
 			log.Debug().Str("endpoint", redispatchTarget).Msg("using insecure peers")
-			endpointConfig = smartclient.NewEndpointConfigNoTLS(redispatchServiceName, redispatchTarget, peerPSK)
-			fallbackConfig = smartclient.NewFallbackEndpointNoTLS(selfEndpoint, peerPSK)
+			endpointConfig = consistentbackend.NewEndpointConfigNoTLS(redispatchServiceName, redispatchTarget, peerPSK)
+			fallbackConfig = consistentbackend.NewFallbackEndpointNoTLS(selfEndpoint, peerPSK)
 		}
 
-		client, err := smartclient.NewSmartClient(resolverConfig, endpointConfig, fallbackConfig)
+		client, err := consistentbackend.NewConsistentBackendClient(resolverConfig, endpointConfig, fallbackConfig)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to initialize smart client")
 		}
@@ -261,7 +261,8 @@ func rootRun(cmd *cobra.Command, args []string) {
 		prefixRequiredOption = v1alpha1svc.PrefixNotRequired
 	}
 
-	registerGrpcServices(grpcServer, ds, nsm, cachingRedispatch, cobrautil.MustGetUint32(cmd, "dispatch-max-depth"), prefixRequiredOption)
+	maxDepth := cobrautil.MustGetUint32(cmd, "dispatch-max-depth")
+	registerGrpcServices(grpcServer, ds, nsm, cachingRedispatch, maxDepth, prefixRequiredOption)
 
 	internalDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
 	cachingInternalDispatch, err := caching.NewCachingDispatcher(internalDispatch, nil, "dispatch")

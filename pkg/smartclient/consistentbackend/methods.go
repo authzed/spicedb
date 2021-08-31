@@ -1,4 +1,4 @@
-package smartclient
+package consistentbackend
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
 
-func (sc *SmartClient) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error) {
+func (sc *ConsistentBackendClient) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error) {
 	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
 		return nil, err
@@ -17,7 +17,7 @@ func (sc *SmartClient) DispatchCheck(ctx context.Context, req *v1.DispatchCheckR
 	return backend.client.DispatchCheck(ctx, req, opts...)
 }
 
-func (sc *SmartClient) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error) {
+func (sc *ConsistentBackendClient) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error) {
 	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func (sc *SmartClient) DispatchExpand(ctx context.Context, req *v1.DispatchExpan
 	return backend.client.DispatchExpand(ctx, req, opts...)
 }
 
-func (sc *SmartClient) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest, opts ...grpc.CallOption) (*v1.DispatchLookupResponse, error) {
+func (sc *ConsistentBackendClient) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest, opts ...grpc.CallOption) (*v1.DispatchLookupResponse, error) {
 	backend, err := sc.getConsistentBackend(req)
 	if err != nil {
 		return nil, err
