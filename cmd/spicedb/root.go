@@ -286,7 +286,10 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 
 		log.Info().Str("addr", addr).Msg("gRPC server started listening")
-		grpcServer.Serve(l)
+		err = grpcServer.Serve(l)
+		if err != nil {
+			log.Fatal().Msg("failed to start gRPC server")
+		}
 	}()
 
 	go func() {
@@ -297,7 +300,10 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 
 		log.Info().Str("addr", addr).Msg("internal gRPC server started listening")
-		internalGrpcServer.Serve(l)
+		err = internalGrpcServer.Serve(l)
+		if err != nil {
+			log.Fatal().Msg("failed to start internal gRPC server")
+		}
 	}()
 
 	metricsrv := cobrautil.MetricsServerFromFlags(cmd)
@@ -328,6 +334,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	log.Info().Msg("shutting down")
 	grpcServer.GracefulStop()
+	internalGrpcServer.GracefulStop()
 	redispatchClientCancel()
 
 	if err := metricsrv.Close(); err != nil {
