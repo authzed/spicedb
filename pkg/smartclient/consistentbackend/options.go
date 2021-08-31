@@ -1,15 +1,15 @@
 package consistentbackend
 
 import (
-	"context"
 	"crypto/tls"
 
 	"github.com/authzed/grpcutil"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/x509util"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/x509util"
 )
 
 // EndpointResolverConfig contains configuration for establishing a connection to
@@ -80,7 +80,7 @@ func NewEndpointConfigNoTLS(serviceName, dnsName, token string) *EndpointConfig 
 		dnsName,
 		[]grpc.DialOption{
 			grpc.WithInsecure(),
-			grpc.WithPerRPCCredentials(InsecureCreds{"authorization": "Bearer " + token}),
+			grpcutil.WithInsecureBearerToken(token),
 			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 		},
 		nil,
@@ -109,7 +109,7 @@ func NewFallbackEndpoint(endpoint, token, caCertPath string) *FallbackEndpointCo
 func NewFallbackEndpointNoTLS(endpoint, token string) *FallbackEndpointConfig {
 	endpointClientDialOptions := []grpc.DialOption{
 		grpc.WithInsecure(),
-		grpc.WithPerRPCCredentials(InsecureCreds{"authorization": "Bearer " + token}),
+		grpcutil.WithInsecureBearerToken(token),
 		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 	}
 
@@ -138,11 +138,4 @@ func commonFallbackEndpoint(endpoint string, endpointClientDialOptions []grpc.Di
 // NoFallbackEndpoint disables the fallback backend option.
 func NoFallbackEndpoint() *FallbackEndpointConfig {
 	return &FallbackEndpointConfig{}
-}
-
-type InsecureCreds map[string]string
-
-func (c InsecureCreds) RequireTransportSecurity() bool { return false }
-func (c InsecureCreds) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
-	return c, nil
 }
