@@ -92,8 +92,8 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*v0
 		return nil, decimal.Zero, err
 	}
 
-	// Remove metadata.
-	loaded = namespace.StripMetadata(loaded)
+	// Remove user-defined metadata.
+	loaded = namespace.FilterUserDefinedMetadata(loaded)
 
 	// Save it to the cache
 	newEntry := cacheEntry{

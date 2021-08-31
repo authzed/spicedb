@@ -4,18 +4,34 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/protobuf/proto"
+	anypb "google.golang.org/protobuf/types/known/anypb"
 
 	// TODO: stop exposing private v0 types in package's API
 	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
 )
 
-// StripMetadata removes all metadata from the given namespace.
-func StripMetadata(nsconfig *v0.NamespaceDefinition) *v0.NamespaceDefinition {
+// userDefinedMetadataTypeUrls are the type URLs of any user-defined metadata found
+// in the namespace proto. If placed here, FilterUserDefinedMetadata will remove the
+// metadata when called on the namespace.
+var userDefinedMetadataTypeUrls = map[string]struct{}{
+	"type.googleapis.com/impl.v1.DocComment": {},
+}
+
+// FilterUserDefinedMetadata removes user-defined metadata (e.g. comments) from the given namespace.
+func FilterUserDefinedMetadata(nsconfig *v0.NamespaceDefinition) *v0.NamespaceDefinition {
 	nsconfig = proto.Clone(nsconfig).(*v0.NamespaceDefinition)
 
 	nsconfig.Metadata = nil
 	for _, relation := range nsconfig.Relation {
-		relation.Metadata = nil
+		if relation.Metadata != nil {
+			var filteredMessages []*anypb.Any
+			for _, msg := range relation.Metadata.MetadataMessage {
+				if _, ok := userDefinedMetadataTypeUrls[msg.TypeUrl]; !ok {
+					filteredMessages = append(filteredMessages, msg)
+				}
+			}
+			relation.Metadata.MetadataMessage = filteredMessages
+		}
 	}
 	return nsconfig
 }

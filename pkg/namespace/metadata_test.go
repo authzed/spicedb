@@ -55,13 +55,13 @@ func TestMetadata(t *testing.T) {
 
 	require.Equal([]string{}, GetComments(ns.Relation[1].Metadata))
 
-	stripped := StripMetadata(ns)
-	require.Equal([]string{}, GetComments(stripped.Metadata))
-	require.Equal([]string{}, GetComments(stripped.Relation[0].Metadata))
+	filtered := FilterUserDefinedMetadata(ns)
+	require.Equal([]string{}, GetComments(filtered.Metadata))
+	require.Equal([]string{}, GetComments(filtered.Relation[0].Metadata))
 
 	require.Equal([]string{"Hi there"}, GetComments(ns.Metadata))
 	require.Equal([]string{"Hi there"}, GetComments(ns.Relation[0].Metadata))
 
-	require.Equal(iv1.RelationMetadata_UNKNOWN_KIND, GetRelationKind(stripped.Relation[0]))
+	require.Equal(iv1.RelationMetadata_PERMISSION, GetRelationKind(filtered.Relation[0]))
 	require.Equal(iv1.RelationMetadata_PERMISSION, GetRelationKind(ns.Relation[0]))
 }

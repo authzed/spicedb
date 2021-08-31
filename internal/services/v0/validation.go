@@ -39,6 +39,14 @@ func validateTupleWrite(ctx context.Context, tpl *v0.RelationTuple, nsm namespac
 		return err
 	}
 
+	if ts.IsPermission(tpl.ObjectAndRelation.Relation) {
+		return invalidRelationError{
+			error:   fmt.Errorf("cannot write a relationship to permission %s", tpl.ObjectAndRelation),
+			subject: tpl.User,
+			onr:     tpl.ObjectAndRelation,
+		}
+	}
+
 	isAllowed, err := ts.IsAllowedDirectRelation(
 		tpl.ObjectAndRelation.Relation,
 		tpl.User.GetUserset().Namespace,
