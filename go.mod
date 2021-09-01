@@ -42,7 +42,7 @@ require (
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/prometheus/client_golang v1.11.0
-	github.com/rs/zerolog v1.23.0
+	github.com/rs/zerolog v1.24.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/shopspring/decimal v1.2.0
 	github.com/spf13/cobra v1.2.1
