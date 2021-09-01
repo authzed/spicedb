@@ -40,9 +40,9 @@ func TestCompile(t *testing.T) {
 			"nested parse error",
 			&someTenant,
 			`definition foo {
-				relation something: a | b + c	
+				relation something: rela | relb + relc	
 			}`,
-			"parse error in `nested parse error`, line 2, column 31: Expected end of statement or definition, found: TokenTypePlus",
+			"parse error in `nested parse error`, line 2, column 37: Expected end of statement or definition, found: TokenTypePlus",
 			[]*v0.NamespaceDefinition{},
 		},
 		{
@@ -58,13 +58,13 @@ func TestCompile(t *testing.T) {
 			"simple def",
 			&someTenant,
 			`definition simple {
-				relation foo: bar;
+				relation foos: bars;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo", nil,
-						namespace.RelationReference("sometenant/bar", "..."),
+					namespace.Relation("foos", nil,
+						namespace.RelationReference("sometenant/bars", "..."),
 					),
 				),
 			},
@@ -73,13 +73,13 @@ func TestCompile(t *testing.T) {
 			"explicit relation",
 			&someTenant,
 			`definition simple {
-				relation foo: bar#meh;
+				relation foos: bars#mehs;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo", nil,
-						namespace.RelationReference("sometenant/bar", "meh"),
+					namespace.Relation("foos", nil,
+						namespace.RelationReference("sometenant/bars", "mehs"),
 					),
 				),
 			},
@@ -88,13 +88,13 @@ func TestCompile(t *testing.T) {
 			"cross tenant relation",
 			&someTenant,
 			`definition simple {
-				relation foo: anothertenant/bar#meh;
+				relation foos: anothertenant/bars#mehs;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo", nil,
-						namespace.RelationReference("anothertenant/bar", "meh"),
+					namespace.Relation("foos", nil,
+						namespace.RelationReference("anothertenant/bars", "mehs"),
 					),
 				),
 			},
@@ -103,16 +103,16 @@ func TestCompile(t *testing.T) {
 			"multiple relations",
 			&someTenant,
 			`definition simple {
-				relation foo: bar#meh;
-				relation hi: there | world;
+				relation foos: bars#mehs;
+				relation hello: there | world;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo", nil,
-						namespace.RelationReference("sometenant/bar", "meh"),
+					namespace.Relation("foos", nil,
+						namespace.RelationReference("sometenant/bars", "mehs"),
 					),
-					namespace.Relation("hi", nil,
+					namespace.Relation("hello", nil,
 						namespace.RelationReference("sometenant/there", "..."),
 						namespace.RelationReference("sometenant/world", "..."),
 					),
@@ -123,14 +123,14 @@ func TestCompile(t *testing.T) {
 			"simple permission",
 			&someTenant,
 			`definition simple {
-				permission foo = bar;
+				permission foos = bars;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo",
+					namespace.Relation("foos",
 						namespace.Union(
-							namespace.ComputedUserset("bar"),
+							namespace.ComputedUserset("bars"),
 						),
 					),
 				),
@@ -140,15 +140,15 @@ func TestCompile(t *testing.T) {
 			"union permission",
 			&someTenant,
 			`definition simple {
-				permission foo = bar + baz;
+				permission foos = bars + bazs;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo",
+					namespace.Relation("foos",
 						namespace.Union(
-							namespace.ComputedUserset("bar"),
-							namespace.ComputedUserset("baz"),
+							namespace.ComputedUserset("bars"),
+							namespace.ComputedUserset("bazs"),
 						),
 					),
 				),
@@ -158,15 +158,15 @@ func TestCompile(t *testing.T) {
 			"intersection permission",
 			&someTenant,
 			`definition simple {
-				permission foo = bar & baz;
+				permission foos = bars & bazs;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo",
+					namespace.Relation("foos",
 						namespace.Intersection(
-							namespace.ComputedUserset("bar"),
-							namespace.ComputedUserset("baz"),
+							namespace.ComputedUserset("bars"),
+							namespace.ComputedUserset("bazs"),
 						),
 					),
 				),
@@ -176,15 +176,15 @@ func TestCompile(t *testing.T) {
 			"exclusion permission",
 			&someTenant,
 			`definition simple {
-				permission foo = bar - baz;
+				permission foos = bars - bazs;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo",
+					namespace.Relation("foos",
 						namespace.Exclusion(
-							namespace.ComputedUserset("bar"),
-							namespace.ComputedUserset("baz"),
+							namespace.ComputedUserset("bars"),
+							namespace.ComputedUserset("bazs"),
 						),
 					),
 				),
@@ -194,20 +194,20 @@ func TestCompile(t *testing.T) {
 			"multi-union permission",
 			&someTenant,
 			`definition simple {
-				permission foo = bar + baz + meh;
+				permission foos = bars + bazs + mehs;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo",
+					namespace.Relation("foos",
 						namespace.Union(
 							namespace.Rewrite(
 								namespace.Union(
-									namespace.ComputedUserset("bar"),
-									namespace.ComputedUserset("baz"),
+									namespace.ComputedUserset("bars"),
+									namespace.ComputedUserset("bazs"),
 								),
 							),
-							namespace.ComputedUserset("meh"),
+							namespace.ComputedUserset("mehs"),
 						),
 					),
 				),
@@ -217,20 +217,20 @@ func TestCompile(t *testing.T) {
 			"complex permission",
 			&someTenant,
 			`definition complex {
-				permission foo = bar + baz - meh;
+				permission foos = bars + bazs - mehs;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/complex",
-					namespace.Relation("foo",
+					namespace.Relation("foos",
 						namespace.Exclusion(
 							namespace.Rewrite(
 								namespace.Union(
-									namespace.ComputedUserset("bar"),
-									namespace.ComputedUserset("baz"),
+									namespace.ComputedUserset("bars"),
+									namespace.ComputedUserset("bazs"),
 								),
 							),
-							namespace.ComputedUserset("meh"),
+							namespace.ComputedUserset("mehs"),
 						),
 					),
 				),
@@ -240,18 +240,18 @@ func TestCompile(t *testing.T) {
 			"complex parens permission",
 			&someTenant,
 			`definition complex {
-				permission foo = bar + (baz - meh);
+				permission foos = bars + (bazs - mehs);
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/complex",
-					namespace.Relation("foo",
+					namespace.Relation("foos",
 						namespace.Union(
-							namespace.ComputedUserset("bar"),
+							namespace.ComputedUserset("bars"),
 							namespace.Rewrite(
 								namespace.Exclusion(
-									namespace.ComputedUserset("baz"),
-									namespace.ComputedUserset("meh"),
+									namespace.ComputedUserset("bazs"),
+									namespace.ComputedUserset("mehs"),
 								),
 							),
 						),
@@ -263,14 +263,14 @@ func TestCompile(t *testing.T) {
 			"arrow permission",
 			&someTenant,
 			`definition arrowed {
-				permission foo = bar->baz
+				permission foos = bars->bazs
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/arrowed",
-					namespace.Relation("foo",
+					namespace.Relation("foos",
 						namespace.Union(
-							namespace.TupleToUserset("bar", "baz"),
+							namespace.TupleToUserset("bars", "bazs"),
 						),
 					),
 				),
@@ -281,10 +281,10 @@ func TestCompile(t *testing.T) {
 			"multiarrow permission",
 			&someTenant,
 			`definition arrowed {
-				relation a: something;
-				permission foo = a->b->c
+				relation somerel: something;
+				permission foos = somerel->brel->crel
 			}`,
-			"Nested arrows not yet supported",
+			"parse error in `multiarrow permission`, line 3, column 23: Nested arrows not yet supported",
 			[]*v0.NamespaceDefinition{},
 		},
 
@@ -293,8 +293,8 @@ func TestCompile(t *testing.T) {
 			{
 				"multiarrow permission",
 				`definition arrowed {
-					relation a: something;
-					permission foo = a->b->c
+					relation somerel: something;
+					permission foo = somerel->brel->crel
 				}`,
 				"",
 				[]*v0.NamespaceDefinition{
@@ -313,20 +313,20 @@ func TestCompile(t *testing.T) {
 			"expression permission",
 			&someTenant,
 			`definition expressioned {
-				permission foo = ((a->b) + c) - d
+				permission foos = ((arel->brel) + crel) - drel
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/expressioned",
-					namespace.Relation("foo",
+					namespace.Relation("foos",
 						namespace.Exclusion(
 							namespace.Rewrite(
 								namespace.Union(
-									namespace.TupleToUserset("a", "b"),
-									namespace.ComputedUserset("c"),
+									namespace.TupleToUserset("arel", "brel"),
+									namespace.ComputedUserset("crel"),
 								),
 							),
-							namespace.ComputedUserset("d"),
+							namespace.ComputedUserset("drel"),
 						),
 					),
 				),
@@ -336,35 +336,35 @@ func TestCompile(t *testing.T) {
 			"multiple permission",
 			&someTenant,
 			`definition multiple {
-				permission first = bar + baz
-				permission second = bar - baz
-				permission third = bar & baz
-				permission fourth = bar->baz
+				permission first = bars + bazs
+				permission second = bars - bazs
+				permission third = bars & bazs
+				permission fourth = bars->bazs
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/multiple",
 					namespace.Relation("first",
 						namespace.Union(
-							namespace.ComputedUserset("bar"),
-							namespace.ComputedUserset("baz"),
+							namespace.ComputedUserset("bars"),
+							namespace.ComputedUserset("bazs"),
 						),
 					),
 					namespace.Relation("second",
 						namespace.Exclusion(
-							namespace.ComputedUserset("bar"),
-							namespace.ComputedUserset("baz"),
+							namespace.ComputedUserset("bars"),
+							namespace.ComputedUserset("bazs"),
 						),
 					),
 					namespace.Relation("third",
 						namespace.Intersection(
-							namespace.ComputedUserset("bar"),
-							namespace.ComputedUserset("baz"),
+							namespace.ComputedUserset("bars"),
+							namespace.ComputedUserset("bazs"),
 						),
 					),
 					namespace.Relation("fourth",
 						namespace.Union(
-							namespace.TupleToUserset("bar", "baz"),
+							namespace.TupleToUserset("bars", "bazs"),
 						),
 					),
 				),
@@ -373,41 +373,57 @@ func TestCompile(t *testing.T) {
 		{
 			"no implicit tenant with unspecified tenant",
 			nil,
-			`definition foo {}`,
-			"found reference `foo` without prefix",
+			`definition foos {}`,
+			"parse error in `no implicit tenant with unspecified tenant`, line 1, column 1: found reference `foos` without prefix",
 			[]*v0.NamespaceDefinition{},
 		},
 		{
 			"no implicit tenant with specified tenant",
 			nil,
-			`definition someTenant/foo {}`,
+			`definition some_tenant/foos {}`,
 			"",
 			[]*v0.NamespaceDefinition{
-				namespace.Namespace("someTenant/foo"),
+				namespace.Namespace("some_tenant/foos"),
 			},
 		},
 		{
 			"no implicit tenant with unspecified tenant on type ref",
 			nil,
-			`definition someTenant/foo {
-				relation somerel: bar
+			`definition some_tenant/foo {
+				relation somerel: bars
 			}`,
-			"found reference `bar` without prefix",
+			"parse error in `no implicit tenant with unspecified tenant on type ref`, line 2, column 23: found reference `bars` without prefix",
+			[]*v0.NamespaceDefinition{},
+		},
+		{
+			"invalid definition name",
+			nil,
+			`definition someTenant/foo {}`,
+			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/foo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
+			[]*v0.NamespaceDefinition{},
+		},
+		{
+			"invalid relation name",
+			nil,
+			`definition some_tenant/foos {
+				relation bar: some_tenant/foos
+			}`,
+			"parse error in `invalid relation name`, line 2, column 5: error in relation bar: invalid Relation.Name: value does not match regex pattern \"^[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
 			[]*v0.NamespaceDefinition{},
 		},
 		{
 			"no implicit tenant with specified tenant on type ref",
 			nil,
-			`definition someTenant/foo {
-				relation somerel: someTenant/bar
+			`definition some_tenant/foos {
+				relation somerel: some_tenant/bars
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
-				namespace.Namespace("someTenant/foo",
+				namespace.Namespace("some_tenant/foos",
 					namespace.Relation(
 						"somerel",
 						nil,
-						namespace.RelationReference("someTenant/bar", "..."),
+						namespace.RelationReference("some_tenant/bars", "..."),
 					),
 				),
 			},
@@ -427,7 +443,7 @@ func TestCompile(t *testing.T) {
 				/**
 				 * some permission
 				 */
-				permission first = bar + baz
+				permission first = bars + bazs
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
@@ -441,8 +457,8 @@ func TestCompile(t *testing.T) {
 * some permission
 */`,
 						namespace.Union(
-							namespace.ComputedUserset("bar"),
-							namespace.ComputedUserset("baz"),
+							namespace.ComputedUserset("bars"),
+							namespace.ComputedUserset("bazs"),
 						),
 					),
 				),

@@ -22,76 +22,76 @@ func TestGenerator(t *testing.T) {
 	tests := []generatorTest{
 		{
 			"empty",
-			namespace.Namespace("foo/test"),
-			"definition foo/test {}",
+			namespace.Namespace("foos/test"),
+			"definition foos/test {}",
 			true,
 		},
 		{
 			"simple relation",
-			namespace.Namespace("foo/test",
+			namespace.Namespace("foos/test",
 				namespace.Relation("somerel", nil, &v0.RelationReference{
-					Namespace: "foo/bar",
+					Namespace: "foos/bars",
 					Relation:  "hiya",
 				}),
 			),
-			`definition foo/test {
-	relation somerel: foo/bar#hiya
+			`definition foos/test {
+	relation somerel: foos/bars#hiya
 }`,
 			true,
 		},
 		{
 			"simple permission",
-			namespace.Namespace("foo/test",
+			namespace.Namespace("foos/test",
 				namespace.Relation("someperm", namespace.Union(
 					namespace.ComputedUserset("anotherrel"),
 				)),
 			),
-			`definition foo/test {
+			`definition foos/test {
 	permission someperm = anotherrel
 }`,
 			true,
 		},
 		{
 			"complex permission",
-			namespace.Namespace("foo/test",
+			namespace.Namespace("foos/test",
 				namespace.Relation("someperm", namespace.Union(
 					namespace.Rewrite(
 						namespace.Exclusion(
-							namespace.ComputedUserset("a"),
-							namespace.ComputedUserset("b"),
-							namespace.TupleToUserset("y", "z"),
+							namespace.ComputedUserset("rela"),
+							namespace.ComputedUserset("relb"),
+							namespace.TupleToUserset("rely", "relz"),
 						),
 					),
-					namespace.ComputedUserset("c"),
+					namespace.ComputedUserset("relc"),
 				)),
 			),
-			`definition foo/test {
-	permission someperm = (a - b - y->z) + c
+			`definition foos/test {
+	permission someperm = (rela - relb - rely->relz) + relc
 }`,
 			true,
 		},
 		{
 			"legacy relation",
-			namespace.Namespace("foo/test",
+			namespace.Namespace("foos/test",
 				namespace.Relation("somerel", namespace.Union(
 					namespace.This(),
 					namespace.ComputedUserset("anotherrel"),
 				), &v0.RelationReference{
-					Namespace: "foo/bar",
+					Namespace: "foos/bars",
 					Relation:  "hiya",
 				}),
 			),
-			`definition foo/test {
-	relation somerel: foo/bar#hiya = /* _this unsupported here. Please rewrite into a relation and permission */ + anotherrel
+			`definition foos/test {
+	relation somerel: foos/bars#hiya = /* _this unsupported here. Please rewrite into a relation and permission */ + anotherrel
 }`,
 			false,
 		},
 		{
 			"missing type information",
-			namespace.Namespace("foo/test",
+			namespace.Namespace("foos/test",
 				namespace.Relation("somerel", nil),
 			),
-			`definition foo/test {
+			`definition foos/test {
 	relation somerel: /* missing allowed types */
 }`,
 			false,
@@ -99,22 +99,22 @@ func TestGenerator(t *testing.T) {
 
 		{
 			"full example",
-			namespace.NamespaceWithComment("foo/document", `/**
+			namespace.NamespaceWithComment("foos/document", `/**
 * Some comment goes here
 */`,
 				namespace.Relation("owner", nil,
 					&v0.RelationReference{
-						Namespace: "foo/user",
+						Namespace: "foos/user",
 						Relation:  "...",
 					},
 				),
 				namespace.RelationWithComment("reader", "//foobar", nil,
 					&v0.RelationReference{
-						Namespace: "foo/user",
+						Namespace: "foos/user",
 						Relation:  "...",
 					},
 					&v0.RelationReference{
-						Namespace: "foo/group",
+						Namespace: "foos/group",
 						Relation:  "member",
 					},
 				),
@@ -124,11 +124,11 @@ func TestGenerator(t *testing.T) {
 				)),
 			),
 			`/** Some comment goes here */
-definition foo/document {
-	relation owner: foo/user
+definition foos/document {
+	relation owner: foos/user
 
 	// foobar
-	relation reader: foo/user | foo/group#member
+	relation reader: foos/user | foos/group#member
 	permission read = reader + owner
 }`,
 			true,
@@ -155,56 +155,56 @@ func TestFormatting(t *testing.T) {
 	tests := []formattingTest{
 		{
 			"empty",
-			"definition foo/test {}",
-			"definition foo/test {}",
+			"definition foos/test {}",
+			"definition foos/test {}",
 		},
 		{
 			"with comment",
-			`/** some def */definition foo/test {}`,
+			`/** some def */definition foos/test {}`,
 			`/** some def */
-definition foo/test {}`,
+definition foos/test {}`,
 		},
 		{
 			"with rel comment",
-			`/** some def */definition foo/test {
+			`/** some def */definition foos/test {
 
 				// some rel
-				relation somerel: foo/bar;
+				relation somerel: foos/bars;
 			}`,
 			`/** some def */
-definition foo/test {
+definition foos/test {
 	// some rel
-	relation somerel: foo/bar
+	relation somerel: foos/bars
 }`,
 		},
 		{
 			"with multiple rel comment",
-			`/** some def */definition foo/test {
+			`/** some def */definition foos/test {
 
 				// some rel
 				/* another comment */
-				relation somerel: foo/bar;
+				relation somerel: foos/bars;
 			}`,
 			`/** some def */
-definition foo/test {
+definition foos/test {
 	// some rel
 	/* another comment */
-	relation somerel: foo/bar
+	relation somerel: foos/bars
 }`,
 		},
 		{
 			"with multiple rels with comment",
-			`/** some def */definition foo/test {
+			`/** some def */definition foos/test {
 
 				// some rel
-				relation somerel: foo/bar;
+				relation somerel: foos/bars;
 				// another perm
 				permission someperm = somerel
 			}`,
 			`/** some def */
-definition foo/test {
+definition foos/test {
 	// some rel
-	relation somerel: foo/bar
+	relation somerel: foos/bars
 
 	// another perm
 	permission someperm = somerel
@@ -213,15 +213,15 @@ definition foo/test {
 
 		{
 			"becomes single line comment",
-			`definition foo/test {
+			`definition foos/test {
 				/**
 				 * hi there
 				 */
-				relation somerel: foo/bar;
+				relation somerel: foos/bars;
 			}`,
-			`definition foo/test {
+			`definition foos/test {
 	/** hi there */
-	relation somerel: foo/bar
+	relation somerel: foos/bars
 }`,
 		},
 
@@ -229,37 +229,37 @@ definition foo/test {
 			"full example",
 			`
 /** the document */
-definition foo/document {
+definition foos/document {
 	/** some super long comment goes here and therefore should be made into a multiline comment */
-	relation reader: foo/user
+	relation reader: foos/user
 
 	/** multiline
 comment */
-	relation  writer: foo/user
+	relation  writer: foos/user
 
 	// writers are also readers
 	permission read = reader + writer + another
 	permission write = writer
-	permission minus = a - b - c
+	permission minus = rela - relb - relc
 }
 `,
 			`/** the document */
-definition foo/document {
+definition foos/document {
 	/**
 	 * some super long comment goes here and therefore should be made into a multiline comment
 	 */
-	relation reader: foo/user
+	relation reader: foos/user
 
 	/**
 	 * multiline
 	 * comment
 	 */
-	relation writer: foo/user
+	relation writer: foos/user
 
 	// writers are also readers
 	permission read = reader + writer + another
 	permission write = writer
-	permission minus = (a - b) - c
+	permission minus = (rela - relb) - relc
 }`,
 		},
 	}
