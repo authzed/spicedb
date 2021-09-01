@@ -56,7 +56,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		//
 		// NOTE: We use the datastore here to read the namespace, rather than the namespace manager,
 		// to ensure there is no caching being used.
-		existing, revision, err := nss.ds.ReadNamespace(ctx, config.Name)
+		existing, _, err := nss.ds.ReadNamespace(ctx, config.Name)
 		if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return nil, rewriteNamespaceError(err)
 		}
@@ -66,11 +66,16 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			return nil, rewriteNamespaceError(err)
 		}
 
+		syncRevision, err := nss.ds.SyncRevision(ctx)
+		if err != nil {
+			return nil, rewriteNamespaceError(err)
+		}
+
 		for _, delta := range diff.Deltas() {
 			switch delta.Type {
 			case namespace.RemovedRelation:
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.QueryTuples(config.Name, revision).WithRelation(delta.RelationName),
+					nss.ds.QueryTuples(config.Name, syncRevision).WithRelation(delta.RelationName),
 					ctx,
 					"cannot delete relation `%s` in definition `%s`, as a relationship exists under it", delta.RelationName, config.Name)
 				if err != nil {
@@ -79,7 +84,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 
 				// Also check for right sides of tuples.
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.ReverseQueryTuplesFromSubjectRelation(config.Name, delta.RelationName, revision),
+					nss.ds.ReverseQueryTuplesFromSubjectRelation(config.Name, delta.RelationName, syncRevision),
 					ctx,
 					"cannot delete relation `%s` in definition `%s`, as a relationship references it", delta.RelationName, config.Name)
 				if err != nil {
@@ -88,7 +93,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 
 			case namespace.RelationDirectTypeRemoved:
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, revision).
+					nss.ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, syncRevision).
 						WithObjectRelation(config.Name, delta.RelationName),
 					ctx,
 					"cannot remove allowed relation/permission `%s#%s` from relation `%s` in definition `%s`, as a relationship exists with it",

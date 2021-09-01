@@ -130,7 +130,7 @@ func sanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 	//
 	// NOTE: We use the datastore here to read the namespace, rather than the namespace manager,
 	// to ensure there is no caching being used.
-	existing, revision, err := ds.ReadNamespace(ctx, nsdef.Name)
+	existing, _, err := ds.ReadNamespace(ctx, nsdef.Name)
 	if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 		return err
 	}
@@ -140,11 +140,16 @@ func sanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 		return err
 	}
 
+	syncRevision, err := ds.SyncRevision(ctx)
+	if err != nil {
+		return err
+	}
+
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
 		case namespace.RemovedRelation:
 			err = errorIfTupleIteratorReturnsTuples(
-				ds.QueryTuples(nsdef.Name, revision).WithRelation(delta.RelationName),
+				ds.QueryTuples(nsdef.Name, syncRevision).WithRelation(delta.RelationName),
 				ctx,
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship exists under it", delta.RelationName, nsdef.Name)
 			if err != nil {
@@ -153,7 +158,7 @@ func sanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 
 			// Also check for right sides of tuples.
 			err = errorIfTupleIteratorReturnsTuples(
-				ds.ReverseQueryTuplesFromSubjectRelation(nsdef.Name, delta.RelationName, revision),
+				ds.ReverseQueryTuplesFromSubjectRelation(nsdef.Name, delta.RelationName, syncRevision),
 				ctx,
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship references it", delta.RelationName, nsdef.Name)
 			if err != nil {
@@ -162,7 +167,7 @@ func sanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 
 		case namespace.RelationDirectTypeRemoved:
 			err = errorIfTupleIteratorReturnsTuples(
-				ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, revision).
+				ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, syncRevision).
 					WithObjectRelation(nsdef.Name, delta.RelationName),
 				ctx,
 				"cannot remove allowed direct Relation `%s#%s` from Relation `%s` in Object Definition `%s`, as a Relationship exists with it",
