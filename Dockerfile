@@ -15,7 +15,7 @@ COPY . .
 RUN go build ./cmd/spicedb/
 RUN go build ./cmd/zed-testserver/
 
-FROM alpine:3.14.1
+FROM alpine:3.14.2
 
 COPY --from=build /go/bin/grpc_health_probe /usr/local/bin/
 COPY --from=build /go/src/app/spicedb /usr/local/bin/spicedb
