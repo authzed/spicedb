@@ -2,8 +2,7 @@ name: "Build & Test"
 on:
   push:
     branches:
-    - "!dependabot/*"
-    - "*"
+    - "main"
   pull_request:
     branches:
     - "*"
@@ -73,3 +72,18 @@ jobs:
     - name: "Generate & Diff Internal Protos"
       working-directory: "./internal/proto"
       run: "./buf.gen.yaml && git diff && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
+
+  image-build:
+    name: "Verify Image"
+    runs-on: ubuntu-latest
+    steps: 
+    - name: Check out the repo
+      uses: actions/checkout@v2
+    - uses: "docker/setup-qemu-action@v1"
+    - uses: "docker/setup-buildx-action@v1"
+      with:
+        driver-opts: "image=moby/buildkit:master"
+    - name: Build the container image
+      uses: docker/build-push-action@v1
+      with: 
+        push: false
