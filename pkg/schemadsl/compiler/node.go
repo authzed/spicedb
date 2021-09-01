@@ -155,5 +155,8 @@ func (tn *dslNode) Lookup(predicateName string) (*dslNode, error) {
 }
 
 func (tn *dslNode) Errorf(message string, args ...interface{}) error {
-	return fmt.Errorf(message, args...)
+	return errorWithNode{
+		error: fmt.Errorf(message, args...),
+		node:  tn,
+	}
 }

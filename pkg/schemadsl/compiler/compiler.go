@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"errors"
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -26,6 +27,11 @@ type ErrorWithContext struct {
 	Source      input.InputSource
 }
 
+type errorWithNode struct {
+	error
+	node *dslNode
+}
+
 // Compile compilers the input schema(s) into a set of namespace definition protos.
 func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*v0.NamespaceDefinition, error) {
 	mapper := newPositionMapper(schemas)
@@ -34,9 +40,9 @@ func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*v0.NamespaceDe
 	definitions := []*v0.NamespaceDefinition{}
 	for _, schema := range schemas {
 		root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
-		errors := root.FindAll(dslshape.NodeTypeError)
-		if len(errors) > 0 {
-			err := errorNodeToError(errors[0], mapper)
+		errs := root.FindAll(dslshape.NodeTypeError)
+		if len(errs) > 0 {
+			err := errorNodeToError(errs[0], mapper)
 			return []*v0.NamespaceDefinition{}, err
 		}
 
@@ -44,6 +50,11 @@ func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*v0.NamespaceDe
 			objectTypePrefix: objectTypePrefix,
 		}, root)
 		if err != nil {
+			var errorWithNode errorWithNode
+			if errors.As(err, &errorWithNode) {
+				err = toContextError(errorWithNode.error.Error(), errorWithNode.node, mapper)
+			}
+
 			return []*v0.NamespaceDefinition{}, err
 		}
 
@@ -63,6 +74,10 @@ func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {
 		return fmt.Errorf("could not get error message for error node: %w", err)
 	}
 
+	return toContextError(errMessage, node, mapper)
+}
+
+func toContextError(errMessage string, node *dslNode, mapper input.PositionMapper) error {
 	sourceRange, err := node.Range(mapper)
 	if err != nil {
 		return fmt.Errorf("could not get range for error node: %w", err)

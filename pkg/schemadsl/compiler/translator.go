@@ -77,11 +77,23 @@ func translateDefinition(tctx translationContext, defNode *dslNode) (*v0.Namespa
 	if len(relationsAndPermissions) == 0 {
 		ns := namespace.Namespace(nspath)
 		ns.Metadata = addComments(ns.Metadata, defNode)
+
+		err = ns.Validate()
+		if err != nil {
+			return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+		}
+
 		return ns, nil
 	}
 
 	ns := namespace.Namespace(nspath, relationsAndPermissions...)
 	ns.Metadata = addComments(ns.Metadata, defNode)
+
+	err = ns.Validate()
+	if err != nil {
+		return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+	}
+
 	return ns, nil
 }
 
@@ -146,7 +158,13 @@ func translateRelation(tctx translationContext, relationNode *dslNode) (*v0.Rela
 		allowedDirectTypes = append(allowedDirectTypes, relReferences...)
 	}
 
-	return namespace.Relation(relationName, nil, allowedDirectTypes...), nil
+	relation := namespace.Relation(relationName, nil, allowedDirectTypes...)
+	err = relation.Validate()
+	if err != nil {
+		return nil, relationNode.Errorf("error in relation %s: %w", relationName, err)
+	}
+
+	return relation, nil
 }
 
 func translatePermission(tctx translationContext, permissionNode *dslNode) (*v0.Relation, error) {
@@ -165,7 +183,13 @@ func translatePermission(tctx translationContext, permissionNode *dslNode) (*v0.
 		return nil, err
 	}
 
-	return namespace.Relation(permissionName, rewrite), nil
+	permission := namespace.Relation(permissionName, rewrite)
+	err = permission.Validate()
+	if err != nil {
+		return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)
+	}
+
+	return permission, nil
 }
 
 func translateBinary(tctx translationContext, expressionNode *dslNode) (*v0.SetOperation_Child, *v0.SetOperation_Child, error) {
@@ -325,8 +349,15 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		}
 	}
 
-	return &v0.RelationReference{
+	ref := &v0.RelationReference{
 		Namespace: nspath,
 		Relation:  relationName,
-	}, nil
+	}
+
+	err = ref.Validate()
+	if err != nil {
+		return nil, typeRefNode.Errorf("invalid type relation: %w", err)
+	}
+
+	return ref, nil
 }

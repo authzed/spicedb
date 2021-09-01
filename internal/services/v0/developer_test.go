@@ -99,8 +99,22 @@ func TestEditCheck(t *testing.T) {
 			[]*v0.EditCheckResult{},
 		},
 		{
-			"valid namespace",
+			"invalid namespace name",
 			`definition foo {}`,
+			[]*v0.RelationTuple{},
+			[]*v0.RelationTuple{},
+			&v0.DeveloperError{
+				Message: "parse error in `schema`, line 1, column 1: error in object definition foo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
+				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
+				Source:  v0.DeveloperError_SCHEMA,
+				Line:    1,
+				Column:  1,
+			},
+			[]*v0.EditCheckResult{},
+		},
+		{
+			"valid namespace",
+			`definition foos {}`,
 			[]*v0.RelationTuple{},
 			[]*v0.RelationTuple{},
 			nil,
@@ -617,11 +631,11 @@ func TestFormatSchema(t *testing.T) {
 	srv := NewDeveloperServer(store)
 
 	lresp, err := srv.FormatSchema(context.Background(), &v0.FormatSchemaRequest{
-		Schema: "definition foo {} definition bar{}",
+		Schema: "definition foos {} definition bars{}",
 	})
 
 	require.NoError(err)
-	require.Equal("definition foo {}\n\ndefinition bar {}", lresp.FormattedSchema)
+	require.Equal("definition foos {}\n\ndefinition bars {}", lresp.FormattedSchema)
 }
 
 func TestValidateONR(t *testing.T) {
