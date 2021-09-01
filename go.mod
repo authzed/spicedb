@@ -10,7 +10,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/authzed/authzed-go v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20210804144231-370c692019eb
-	github.com/aws/aws-sdk-go v1.40.27
+	github.com/aws/aws-sdk-go v1.40.34
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
