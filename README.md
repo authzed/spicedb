@@ -39,17 +39,23 @@ See [CONTRIBUTING.md] for instructions on how to contribute and perform common t
 
 ## Why SpiceDB?
 
-### Verifiable Correctness
+### Verifiably Correct
 
 The data used to calculate permissions have the most critical correctness requirements in the entirety a software system.
 Despite that, developers continue to build their own ad-hoc solutions coupled to the internal code of each new project.
 By developing a SpiceDB schema, you can iterate far more quickly and exhaustively test designs before altering any application code.
 This becomes especially important as you introduce backwards-compatible changes to the schema and want to ensure that the system remains secure.
 
-### Optimal Flexibility
+### Fast
 
-The SpiceDB schema langauge is built on top of the concept of a graph of relationships between objects.
+SpiceDB is designed for high-throughput and low-latency. It will never be the weak link in your infrastructure.
+
+### Flexible
+
+The SpiceDB schema langauge declares a graph of relationships between objects.
 This ReBAC design is capable of efficiently supporting all popular access control models (such as [RBAC] and [ABAC]) and custom models that contain hybrid behavior.
+
+### Decoupled From Application _and_ Data
 
 Modern solutions to developing permission systems all have a similar goal: to decouple _policy_ from the application.
 Using a dedicated database like SpiceDB not only accomplishes this, but takes this idea a step further by also decoupling the data that policies operate on.
