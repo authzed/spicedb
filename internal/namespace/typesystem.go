@@ -61,6 +61,17 @@ func (nts *NamespaceTypeSystem) HasRelation(relationName string) bool {
 	return ok
 }
 
+// IsPermission returns true if the namespace has the given relation defined and it is
+// a permission.
+func (nts *NamespaceTypeSystem) IsPermission(relationName string) bool {
+	found, ok := nts.relationMap[relationName]
+	if !ok {
+		return false
+	}
+
+	return nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION
+}
+
 // IsAllowedDirectRelation returns whether the subject relation is allowed to appear on the right
 // hand side of a tuple placed in the source relation with the given name.
 func (nts *NamespaceTypeSystem) IsAllowedDirectRelation(sourceRelationName string, targetNamespaceName string, targetRelationName string) (AllowedDirectRelation, error) {
