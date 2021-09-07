@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -39,9 +39,7 @@ func TestAttemptWriteRelationshipToPermission(t *testing.T) {
 	ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
 	require.NoError(t, err)
 
-	dispatch, err := graph.NewLocalDispatcher(ns, ds)
-	require.NoError(t, err)
-
+	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
 	aclSrv := v0svc.NewACLServer(ds, ns, dispatch, 50)
 
 	_, err = aclSrv.Write(context.Background(), &v0.WriteRequest{
