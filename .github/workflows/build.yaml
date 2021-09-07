@@ -64,13 +64,10 @@ jobs:
         go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
         go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
         go install github.com/envoyproxy/protoc-gen-validate@v0.6.1
-    - uses: "bufbuild/buf-setup-action@v0.1.0"
+    - uses: "bufbuild/buf-setup-action@v0.3.1"
       with:
         version: "0.48.2"
-    - name: "Generate & Diff Servok Protos"
-      run: "./buf.gen.yaml && git diff && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
-    - name: "Generate & Diff Internal Protos"
-      working-directory: "./internal/proto"
+    - name: "Generate & Diff Protos"
       run: "./buf.gen.yaml && git diff && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
 
   image-build:
