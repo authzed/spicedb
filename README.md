@@ -48,7 +48,8 @@ This becomes especially important as you introduce backwards-compatible changes 
 
 ### Fast
 
-SpiceDB is designed for high-throughput and low-latency. It will never be the weak link in your infrastructure.
+SpiceDB is designed for high-throughput and low-latency. 
+It will never be the weak link in your infrastructure.
 
 ### Flexible
 
