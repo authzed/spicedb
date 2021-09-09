@@ -32,7 +32,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
-	"github.com/authzed/spicedb/internal/datastore/readonly"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -200,7 +200,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	if cobrautil.MustGetBool(cmd, "datastore-readonly") {
 		log.Warn().Msg("setting the service to read-only")
-		ds = readonly.NewReadonlyDatastore(ds)
+		ds = proxy.NewReadonlyDatastore(ds)
 	}
 
 	nsCacheExpiration := cobrautil.MustGetDuration(cmd, "ns-cache-expiration")

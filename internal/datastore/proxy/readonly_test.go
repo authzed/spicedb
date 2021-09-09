@@ -1,4 +1,4 @@
-package readonly
+package proxy
 
 import (
 	"context"

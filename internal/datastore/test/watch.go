@@ -174,7 +174,7 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 				return
 			}
 		case <-changeWait.C:
-			require.Fail("deadline exceeded waiting to cancellation")
+			require.Fail("deadline exceeded waiting for cancellation")
 		}
 	}
 }

@@ -23,7 +23,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/datastore/readonly"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -144,7 +144,7 @@ func (tbs *tokenBasedServer) modelForContext(ctx context.Context) model {
 	loaded, _ := tbs.modelByToken.Load(tokenStr)
 	loadedModel := loaded.(model)
 	if tbs.isReadOnly {
-		return model{readonly.NewReadonlyDatastore(loadedModel.datastore), loadedModel.namespaceManager, loadedModel.dispatcher}
+		return model{proxy.NewReadonlyDatastore(loadedModel.datastore), loadedModel.namespaceManager, loadedModel.dispatcher}
 	}
 
 	return loadedModel
