@@ -69,6 +69,20 @@ jobs:
         version: "0.48.2"
     - name: "Generate & Diff Protos"
       run: "./buf.gen.yaml && git diff && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
+    - uses: "bufbuild/buf-breaking-action@v0.4.0"
+      if: "github.event_name == 'pull_request'"
+      env:
+        BUF_INPUT_HTTPS_USERNAME: "${{ github.actor }}"
+        BUF_INPUT_HTTPS_PASSWORD: "${{ github.token }}"
+      with:
+        input: "proto"
+        against: "https://github.com/authzed/spicedb.git#branch=main,subdir=proto"
+        buf_token: "${{ secrets.BUF_REGISTRY_TOKEN }}"
+    - uses: "bufbuild/buf-push-action@v0.3.0"
+      if: "github.event_name == 'push'"
+      with:
+        input: "proto"
+        buf_token: "${{ secrets.BUF_TOKEN }}"
 
   image-build:
     name: "Verify Image"

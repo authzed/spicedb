@@ -1,0 +1,57 @@
+syntax = "proto3";
+package authzed.api.v1alpha1;
+
+option go_package = "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1";
+option java_package = "com.authzed.api.v1alpha1";
+
+import "validate/validate.proto";
+
+// SchemaService implements operations on a Permissions System's Schema.
+service SchemaService {
+  // Read returns the current Object Definitions for a Permissions System.
+  //
+  // Errors include:
+  // - INVALID_ARGUMENT: a provided value has failed to semantically validate
+  // - NOT_FOUND: one of the Object Definitions being requested does not exist
+  rpc ReadSchema(ReadSchemaRequest)   returns (ReadSchemaResponse)  {}
+
+  // Write overwrites the current Object Definitions for a Permissions System.
+  //
+  // Any Object Definitions that exist, but are not included will be deleted.
+  rpc WriteSchema(WriteSchemaRequest) returns (WriteSchemaResponse) {}
+}
+
+// ReadSchemaRequest is the required data to read Object Definitions from
+// a Schema.
+message ReadSchemaRequest { 
+  // The list of names of the Object Definitions that are being requested.
+  //
+  // These names must be fully qualified with their namespace (e.g.
+  // myblog/post).
+  repeated string object_definitions_names = 1 [ (validate.rules).repeated .items.string = {
+    pattern: "^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$",
+    max_bytes: 128,
+  } ];
+}
+
+// ReadSchemaResponse is the resulting data after having read the Object
+// Definitions from a Schema.
+message ReadSchemaResponse {
+  // The Object Definitions that were requested.
+  repeated string object_definitions = 1;
+}
+
+// WriteSchemaRequest is the required data used to "upsert" the Schema of a
+// Permissions System.
+message WriteSchemaRequest {
+  // The Schema containing one or more Object Definitions that will be written
+  // to the Permissions System.
+  string schema = 1 [ (validate.rules).string.max_bytes = 262144 ]; // 256KiB
+}
+
+// WriteSchemaResponse is the resulting data after having written a Schema to
+// a Permissions System.
+message WriteSchemaResponse {
+  // The names of the Object Definitions that were written.
+  repeated string object_definitions_names = 1;
+}

@@ -1,0 +1,97 @@
+syntax = "proto3";
+package authzed.api.v0;
+
+option go_package = "github.com/authzed/authzed-go/proto/authzed/api/v0";
+option java_package = "com.authzed.api.v0";
+
+import "validate/validate.proto";
+
+message RelationTuple {
+  // Each tupleset specifies keys of a set of relation tuples. The set can
+  // include a single tuple key, or all tuples with a given object ID or
+  // userset in a namespace, optionally constrained by a relation name.
+  //
+  // examples:
+  // doc:readme#viewer@group:eng#member (fully specified)
+  // doc:*#*#group:eng#member (all tuples that this userset relates to)
+  // doc:12345#*#* (all tuples with a direct relationship to a document)
+  // doc:12345#writer#* (all tuples with direct write relationship with the
+  // document) doc:#writer#group:eng#member (all tuples that eng group has write
+  // relationship)
+  ObjectAndRelation object_and_relation = 1
+      [ (validate.rules).message.required = true ];
+  User user = 2 [ (validate.rules).message.required = true ];
+}
+
+message ObjectAndRelation {
+  string namespace = 1 [ (validate.rules).string = {
+    pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$",
+    max_bytes : 128,
+  } ];
+  string object_id = 2 [ (validate.rules).string = {
+    pattern : "^[a-zA-Z0-9_][a-zA-Z0-9/_-]{0,63}$",
+    max_bytes : 64,
+  } ];
+  string relation = 3 [ (validate.rules).string = {
+    pattern : "^(\\.\\.\\.|[a-z][a-z0-9_]{2,62}[a-z0-9])$",
+    max_bytes : 64,
+  } ];
+}
+
+message RelationReference {
+  string namespace = 1 [ (validate.rules).string = {
+    pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$",
+    max_bytes : 128,
+  } ];
+  string relation = 3 [ (validate.rules).string = {
+    pattern : "^(\\.\\.\\.|[a-z][a-z0-9_]{2,62}[a-z0-9])$",
+    max_bytes : 64,
+  } ];
+}
+
+message User {
+  oneof user_oneof {
+    option (validate.required) = true;
+
+    ObjectAndRelation userset = 2 [ (validate.rules).message.required = true ];
+  }
+}
+
+message Zookie {
+  string token = 1 [ (validate.rules).string = {
+    min_bytes : 1,
+  } ];
+}
+
+message RelationTupleUpdate {
+  enum Operation {
+    UNKNOWN = 0;
+    CREATE = 1;
+    TOUCH = 2;
+    DELETE = 3;
+  }
+  Operation operation = 1 [ (validate.rules).enum.defined_only = true ];
+  RelationTuple tuple = 2 [ (validate.rules).message.required = true ];
+}
+
+message RelationTupleTreeNode {
+  oneof node_type {
+    SetOperationUserset intermediate_node = 1;
+    DirectUserset leaf_node = 2;
+  }
+  ObjectAndRelation expanded = 3;
+}
+
+message SetOperationUserset {
+  enum Operation {
+    INVALID = 0;
+    UNION = 1;
+    INTERSECTION = 2;
+    EXCLUSION = 3;
+  }
+
+  Operation operation = 1;
+  repeated RelationTupleTreeNode child_nodes = 2;
+}
+
+message DirectUserset { repeated User users = 1; }
