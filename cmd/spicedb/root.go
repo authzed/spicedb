@@ -10,10 +10,6 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
-	"github.com/authzed/grpcutil"
-	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
@@ -23,8 +19,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/reflection"
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore"
@@ -33,14 +27,12 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
-	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/namespace"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
-	dispatch_v1 "github.com/authzed/spicedb/internal/services/dispatch/v1"
-	v0svc "github.com/authzed/spicedb/internal/services/v0"
+	"github.com/authzed/spicedb/internal/services"
+	internaldispatch "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/smartclient/consistentbackend"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -108,11 +100,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
 	))
 
-	middleware := grpcmw.WithUnaryServerChain(
+	middleware := grpc.ChainUnaryInterceptor(
+		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 		otelgrpc.UnaryServerInterceptor(),
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.UnaryServerInterceptor,
-		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 	)
 
 	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
@@ -268,7 +260,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 	}
 
 	maxDepth := cobrautil.MustGetUint32(cmd, "dispatch-max-depth")
-	registerGrpcServices(grpcServer, ds, nsm, cachingRedispatch, maxDepth, prefixRequiredOption)
+	services.RegisterGrpcServices(grpcServer, ds, nsm, cachingRedispatch, maxDepth, prefixRequiredOption)
 
 	internalDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
 	cachingInternalDispatch, err := caching.NewCachingDispatcher(internalDispatch, nil, "dispatch")
@@ -276,7 +268,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to initialize internal dispatcher cache")
 	}
 
-	registerInternalGrpcServices(internalGrpcServer, ds, nsm, cachingInternalDispatch)
+	internaldispatch.RegisterGrpcServices(internalGrpcServer, cachingInternalDispatch)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -340,60 +332,4 @@ func rootRun(cmd *cobra.Command, args []string) {
 	if err := metricsrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
 	}
-}
-
-func registerGrpcServices(
-	srv *grpc.Server,
-	ds datastore.Datastore,
-	nsm namespace.Manager,
-	dispatch dispatch.Dispatcher,
-	maxDepth uint32,
-	prefixRequired v1alpha1svc.PrefixRequiredOption,
-) {
-	healthSrv := grpcutil.NewAuthlessHealthServer()
-
-	v0.RegisterACLServiceServer(srv, v0svc.NewACLServer(ds, nsm, dispatch, maxDepth))
-	healthSrv.SetServingStatus(
-		v0.ACLService_ServiceDesc.ServiceName,
-		healthpb.HealthCheckResponse_SERVING,
-	)
-
-	v0.RegisterNamespaceServiceServer(srv, v0svc.NewNamespaceServer(ds))
-	healthSrv.SetServingStatus(
-		v0.NamespaceService_ServiceDesc.ServiceName,
-		healthpb.HealthCheckResponse_SERVING,
-	)
-
-	v0.RegisterWatchServiceServer(srv, v0svc.NewWatchServer(ds, nsm))
-	healthSrv.SetServingStatus(
-		v0.WatchService_ServiceDesc.ServiceName,
-		healthpb.HealthCheckResponse_SERVING,
-	)
-
-	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(ds, prefixRequired))
-	healthSrv.SetServingStatus(
-		v1alpha1.SchemaService_ServiceDesc.ServiceName,
-		healthpb.HealthCheckResponse_SERVING,
-	)
-
-	healthpb.RegisterHealthServer(srv, healthSrv)
-	reflection.Register(srv)
-}
-
-func registerInternalGrpcServices(
-	srv *grpc.Server,
-	ds datastore.Datastore,
-	nsm namespace.Manager,
-	d dispatch.Dispatcher,
-) {
-	healthSrv := grpcutil.NewAuthlessHealthServer()
-
-	v1.RegisterDispatchServiceServer(srv, dispatch_v1.NewDispatchServer(d))
-	healthSrv.SetServingStatus(
-		v1.DispatchService_ServiceDesc.ServiceName,
-		healthpb.HealthCheckResponse_SERVING,
-	)
-
-	healthpb.RegisterHealthServer(srv, healthSrv)
-	reflection.Register(srv)
 }

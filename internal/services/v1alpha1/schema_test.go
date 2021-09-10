@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -9,7 +10,9 @@ import (
 	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -56,8 +59,23 @@ func TestSchemaReadInvalidName(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := NewSchemaServer(ds, PrefixRequired)
-	_, err = srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
+	// test relies on middleware
+	lis := bufconn.Listen(1024 * 1024)
+	s := grpc.NewServer()
+	RegisterSchemaServer(s, NewSchemaServer(ds, PrefixRequired))
+
+	go s.Serve(lis)
+	defer func() {
+		s.Stop()
+		lis.Close()
+	}()
+	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(t, err)
+
+	client := v1alpha1.NewSchemaServiceClient(conn)
+	_, err = client.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
 		ObjectDefinitionsNames: []string{"誤り"},
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
@@ -67,13 +85,29 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := NewSchemaServer(ds, PrefixRequired)
-	_, err = srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+	// test relies on middleware
+	// test relies on middleware
+	lis := bufconn.Listen(1024 * 1024)
+	s := grpc.NewServer()
+	RegisterSchemaServer(s, NewSchemaServer(ds, PrefixRequired))
+
+	go s.Serve(lis)
+	defer func() {
+		s.Stop()
+		lis.Close()
+	}()
+	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(t, err)
+
+	client := v1alpha1.NewSchemaServiceClient(conn)
+	_, err = client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
 		Schema: `invalid example/user {}`,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
-	_, err = srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
+	_, err = client.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
 		ObjectDefinitionsNames: []string{"example/user"},
 	})
 	grpcutil.RequireStatus(t, codes.NotFound, err)

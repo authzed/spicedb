@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/google/go-cmp/cmp"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
@@ -31,6 +32,13 @@ type devServer struct {
 }
 
 const maxDepth = 25
+
+// RegisterDeveloperServer adds the Developer Server to a grpc service registrar
+// This is preferred over manually registering the service; it will add required middleware
+func RegisterDeveloperServer(r grpc.ServiceRegistrar, s v0.DeveloperServiceServer) *grpc.ServiceDesc {
+	r.RegisterService(grpcutil.WrapMethods(v0.DeveloperService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
+	return &v0.DeveloperService_ServiceDesc
+}
 
 // NewDeveloperServer creates an instance of the developer server.
 func NewDeveloperServer(store ShareStore) v0.DeveloperServiceServer {

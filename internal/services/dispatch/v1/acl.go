@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 
+	"github.com/authzed/grpcutil"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -16,6 +18,13 @@ type dispatchServer struct {
 	v1.UnimplementedDispatchServiceServer
 
 	localDispatch dispatch.Dispatcher
+}
+
+// RegisterDispatchServer adds the Dispatch Server to a grpc service registrar
+// This is preferred over manually registering the service; it will add required middleware
+func RegisterDispatchServer(r grpc.ServiceRegistrar, s v1.DispatchServiceServer) *grpc.ServiceDesc {
+	r.RegisterService(grpcutil.WrapMethods(v1.DispatchService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
+	return &v1.DispatchService_ServiceDesc
 }
 
 // NewDispatchServer creates a server which can be called for internal dispatch.

@@ -3,6 +3,7 @@ package v0
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"sort"
 	"testing"
@@ -14,7 +15,9 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -214,9 +217,10 @@ func TestRead(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
 
-					srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+					client, stop, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+					defer stop()
 
-					resp, err := srv.Read(context.Background(), &v0.ReadRequest{
+					resp, err := client.Read(context.Background(), &v0.ReadRequest{
 						Tuplesets:  []*v0.RelationTupleFilter{tc.filter},
 						AtRevision: zookie.NewFromRevision(revision),
 					})
@@ -239,9 +243,10 @@ func TestRead(t *testing.T) {
 func TestReadBadZookie(t *testing.T) {
 	require := require.New(t)
 
-	srv, revision := newACLServicer(require, 0, 10*time.Millisecond, 0)
+	client, stop, revision := newACLServicer(require, 0, 10*time.Millisecond, 0)
+	defer stop()
 
-	_, err := srv.Read(context.Background(), &v0.ReadRequest{
+	_, err := client.Read(context.Background(), &v0.ReadRequest{
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
@@ -249,7 +254,7 @@ func TestReadBadZookie(t *testing.T) {
 	})
 	require.NoError(err)
 
-	_, err = srv.Read(context.Background(), &v0.ReadRequest{
+	_, err = client.Read(context.Background(), &v0.ReadRequest{
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
@@ -260,7 +265,7 @@ func TestReadBadZookie(t *testing.T) {
 	// Wait until the gc window expires
 	time.Sleep(20 * time.Millisecond)
 
-	_, err = srv.Read(context.Background(), &v0.ReadRequest{
+	_, err = client.Read(context.Background(), &v0.ReadRequest{
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
@@ -268,7 +273,7 @@ func TestReadBadZookie(t *testing.T) {
 	})
 	require.NoError(err)
 
-	_, err = srv.Read(context.Background(), &v0.ReadRequest{
+	_, err = client.Read(context.Background(), &v0.ReadRequest{
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
@@ -276,7 +281,7 @@ func TestReadBadZookie(t *testing.T) {
 	})
 	grpcutil.RequireStatus(t, codes.OutOfRange, err)
 
-	_, err = srv.Read(context.Background(), &v0.ReadRequest{
+	_, err = client.Read(context.Background(), &v0.ReadRequest{
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
@@ -288,13 +293,14 @@ func TestReadBadZookie(t *testing.T) {
 func TestWrite(t *testing.T) {
 	require := require.New(t)
 
-	srv, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
+	client, stop, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
+	defer stop()
 
 	toWriteStr := "document:totallynew#parent@folder:plans#..."
 	toWrite := tuple.Scan(toWriteStr)
 	require.NotNil(toWrite)
 
-	resp, err := srv.Write(context.Background(), &v0.WriteRequest{
+	resp, err := client.Write(context.Background(), &v0.WriteRequest{
 		WriteConditions: []*v0.RelationTuple{toWrite},
 		Updates:         []*v0.RelationTupleUpdate{tuple.Create(toWrite)},
 	})
@@ -304,7 +310,7 @@ func TestWrite(t *testing.T) {
 	existing := tuple.Scan(tf.StandardTuples[0])
 	require.NotNil(existing)
 
-	resp, err = srv.Write(context.Background(), &v0.WriteRequest{
+	resp, err = client.Write(context.Background(), &v0.WriteRequest{
 		WriteConditions: []*v0.RelationTuple{existing},
 		Updates:         []*v0.RelationTupleUpdate{tuple.Create(toWrite)},
 	})
@@ -321,7 +327,7 @@ func TestWrite(t *testing.T) {
 			},
 		},
 	}
-	readBack, err := srv.Read(context.Background(), &v0.ReadRequest{
+	readBack, err := client.Read(context.Background(), &v0.ReadRequest{
 		AtRevision: resp.Revision,
 		Tuplesets:  findWritten,
 	})
@@ -330,12 +336,12 @@ func TestWrite(t *testing.T) {
 
 	verifyTuples([]string{toWriteStr}, readBack.Tuplesets[0].Tuples, require)
 
-	deleted, err := srv.Write(context.Background(), &v0.WriteRequest{
+	deleted, err := client.Write(context.Background(), &v0.WriteRequest{
 		Updates: []*v0.RelationTupleUpdate{tuple.Delete(toWrite)},
 	})
 	require.NoError(err)
 
-	verifyMissing, err := srv.Read(context.Background(), &v0.ReadRequest{
+	verifyMissing, err := client.Read(context.Background(), &v0.ReadRequest{
 		AtRevision: deleted.Revision,
 		Tuplesets:  findWritten,
 	})
@@ -411,7 +417,8 @@ func TestInvalidWriteArguments(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			srv, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
+			client, stop, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
+			defer stop()
 
 			var preconditions []*v0.RelationTuple
 			for _, p := range tc.preconditions {
@@ -423,7 +430,7 @@ func TestInvalidWriteArguments(t *testing.T) {
 				mutations = append(mutations, tuple.Touch(tuple.Scan(tpl)))
 			}
 
-			_, err := srv.Write(context.Background(), &v0.WriteRequest{
+			_, err := client.Write(context.Background(), &v0.WriteRequest{
 				WriteConditions: preconditions,
 				Updates:         mutations,
 			})
@@ -505,9 +512,9 @@ func TestCheck(t *testing.T) {
 						)
 						t.Run(name, func(t *testing.T) {
 							require := require.New(t)
-							srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
-
-							resp, err := srv.Check(context.Background(), &v0.CheckRequest{
+							client, stop, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+							defer stop()
+							resp, err := client.Check(context.Background(), &v0.CheckRequest{
 								TestUserset: tc.start,
 								User: &v0.User{
 									UserOneof: &v0.User_Userset{
@@ -517,7 +524,7 @@ func TestCheck(t *testing.T) {
 								AtRevision: zookie.NewFromRevision(revision),
 							})
 
-							ccResp, ccErr := srv.ContentChangeCheck(context.Background(), &v0.ContentChangeCheckRequest{
+							ccResp, ccErr := client.ContentChangeCheck(context.Background(), &v0.ContentChangeCheckRequest{
 								TestUserset: tc.start,
 								User: &v0.User{
 									UserOneof: &v0.User_Userset{
@@ -556,11 +563,12 @@ func TestCheck(t *testing.T) {
 
 func BenchmarkACL(b *testing.B) {
 	require := require.New(b)
-	srv, revision := newACLServicer(require, 0, memdb.DisableGC, 3*time.Millisecond)
+	client, stop, revision := newACLServicer(require, 0, memdb.DisableGC, 3*time.Millisecond)
+	defer stop()
 
 	b.Run("check", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			resp, err := srv.Check(context.Background(), &v0.CheckRequest{
+			resp, err := client.Check(context.Background(), &v0.CheckRequest{
 				TestUserset: ONR("document", "masterplan", "viewer"),
 				User: &v0.User{
 					UserOneof: &v0.User_Userset{
@@ -593,9 +601,10 @@ func TestExpand(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 					require := require.New(t)
-					srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+					client, stop, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+					defer stop()
 
-					expanded, err := srv.Expand(context.Background(), &v0.ExpandRequest{
+					expanded, err := client.Expand(context.Background(), &v0.ExpandRequest{
 						Userset:    tc.start,
 						AtRevision: zookie.NewFromRevision(revision),
 					})
@@ -666,20 +675,20 @@ func TestLookup(t *testing.T) {
 		{
 			RR("document", "viewer"),
 			ONR("user", "villain", "..."),
-			[]string{},
+			nil,
 			codes.OK,
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "unknowngal", "..."),
-			[]string{},
+			nil,
 			codes.OK,
 		},
 
 		{
 			RR("document", "viewer_and_editor"),
 			ONR("user", "eng_lead", "..."),
-			[]string{},
+			nil,
 			codes.OK,
 		},
 		{
@@ -691,7 +700,7 @@ func TestLookup(t *testing.T) {
 		{
 			RR("document", "viewer_and_editor"),
 			ONR("user", "missingrolegal", "..."),
-			[]string{},
+			nil,
 			codes.OK,
 		},
 		{
@@ -703,7 +712,7 @@ func TestLookup(t *testing.T) {
 		{
 			RR("document", "viewer_and_editor_derived"),
 			ONR("user", "missingrolegal", "..."),
-			[]string{},
+			nil,
 			codes.OK,
 		},
 		{
@@ -737,9 +746,10 @@ func TestLookup(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s::%s from %s", tc.relation.Namespace, tc.relation.Relation, tuple.StringONR(tc.user)), func(t *testing.T) {
 					require := require.New(t)
-					srv, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+					client, stop, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+					defer stop()
 
-					result, err := srv.Lookup(context.Background(), &v0.LookupRequest{
+					result, err := client.Lookup(context.Background(), &v0.LookupRequest{
 						User:           tc.user,
 						ObjectRelation: tc.relation,
 						Limit:          100,
@@ -757,7 +767,7 @@ func TestLookup(t *testing.T) {
 
 						// Sanity check: Issue a check on every ID returned.
 						for _, objId := range result.ResolvedObjectIds {
-							checkResp, err := srv.Check(context.Background(), &v0.CheckRequest{
+							checkResp, err := client.Check(context.Background(), &v0.CheckRequest{
 								TestUserset: &v0.ObjectAndRelation{
 									Namespace: tc.relation.Namespace,
 									Relation:  tc.relation.Relation,
@@ -782,12 +792,13 @@ func TestLookup(t *testing.T) {
 	}
 }
 
+// starts a server on a random port, returns a client for the server and a fn to stop the server when done
 func newACLServicer(
 	require *require.Assertions,
 	revisionFuzzingTimedelta time.Duration,
 	gcWindow time.Duration,
 	simulatedLatency time.Duration,
-) (v0.ACLServiceServer, decimal.Decimal) {
+) (v0.ACLServiceClient, func(), decimal.Decimal) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
 	require.NoError(err)
 
@@ -797,8 +808,20 @@ func newACLServicer(
 	require.NoError(err)
 
 	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
+	lis := bufconn.Listen(1024 * 1024)
+	s := grpc.NewServer()
+	RegisterACLServer(s, NewACLServer(ds, ns, dispatch, 50))
+	go s.Serve(lis)
 
-	return NewACLServer(ds, ns, dispatch, 50), revision
+	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}), grpc.WithInsecure())
+	require.NoError(err)
+
+	return v0.NewACLServiceClient(conn), func() {
+		s.Stop()
+		lis.Close()
+	}, revision
 }
 
 func verifyTuples(expected []string, found []*v0.RelationTuple, require *require.Assertions) {
