@@ -192,7 +192,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 			WithRelation(ttu.Tupleset.Relation).
 			Execute(ctx)
 		if err != nil {
-			resultChan <- checkResultError(err, 1)
+			resultChan <- checkResultError(NewCheckFailureErr(err), 1)
 			return
 		}
 		defer it.Close()
