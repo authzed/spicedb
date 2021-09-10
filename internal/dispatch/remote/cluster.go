@@ -31,7 +31,12 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	return cr.clusterClient.DispatchCheck(ctx, req)
+	resp, err := cr.clusterClient.DispatchCheck(ctx, req)
+	if err != nil {
+		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
+	}
+
+	return resp, nil
 }
 
 func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
@@ -40,7 +45,12 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	return cr.clusterClient.DispatchExpand(ctx, req)
+	resp, err := cr.clusterClient.DispatchExpand(ctx, req)
+	if err != nil {
+		return &v1.DispatchExpandResponse{Metadata: requestFailureMetadata}, err
+	}
+
+	return resp, nil
 }
 
 func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
@@ -49,7 +59,12 @@ func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
 
-	return cr.clusterClient.DispatchLookup(ctx, req)
+	resp, err := cr.clusterClient.DispatchLookup(ctx, req)
+	if err != nil {
+		return &v1.DispatchLookupResponse{Metadata: requestFailureMetadata}, err
+	}
+
+	return resp, nil
 }
 
 // Always verify that we implement the interface
@@ -57,4 +72,8 @@ var _ dispatch.Dispatcher = &clusterDispatcher{}
 
 var emptyMetadata *v1.ResponseMeta = &v1.ResponseMeta{
 	DispatchCount: 0,
+}
+
+var requestFailureMetadata *v1.ResponseMeta = &v1.ResponseMeta{
+	DispatchCount: 1,
 }

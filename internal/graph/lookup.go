@@ -112,7 +112,7 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 		result := lookupAny(ctx, req.Limit, requests)
 		totalRequestCount += result.Resp.Metadata.DispatchCount
 		if result.Err != nil {
-			return returnResult(lookupResultError(err, totalRequestCount))
+			return returnResult(lookupResultError(result.Err, totalRequestCount))
 		}
 
 		toCheck = tuple.NewONRSet()
