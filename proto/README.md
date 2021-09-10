@@ -1,6 +1,6 @@
-# SpiceDB API Protocol Buffers
+# SpiceDB Protocol Buffers
 
-This directory contains the definitions of [Protocol Buffers] used by the SpiceDB API.
+This directory contains the definitions of [Protocol Buffers] used by SpiceDB.
 
 [Buf] is used to lint and distribute these definitions and generate source code from them.
 
@@ -16,13 +16,15 @@ This directory contains the definitions of [Protocol Buffers] used by the SpiceD
 
 ## Getting Started
 
+All of the following commands can be done at the root of the project thanks to the `buf.work.yaml` file.
+
 Edit the various `.proto` definition files and run the following to validate them:
 
 ```sh
 buf build && buf lint
 ```
 
-Once valid and ready to be used in source code, you can generate code by running the following from the root of the project:
+Once valid and ready to be used in source code, you can generate code by executing `buf.gen.yaml`:
 
 ```sh
 ./buf.gen.yaml

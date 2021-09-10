@@ -1,0 +1,1 @@
+*.pb*.go -diff linguist-generated=true

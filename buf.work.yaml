@@ -1,4 +1,4 @@
 version: "v1"
 directories:
-- "proto"
-- "internal/proto"
+- "proto/authzed-api"
+- "proto/internal"

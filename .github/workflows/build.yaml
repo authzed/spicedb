@@ -25,7 +25,7 @@ jobs:
       run: "go mod tidy && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
     - name: "Formatting (gofumpt)"
       run: |
-        GOFUMPT_OUTPUT="$(find . -iname '*.go' -type f | grep -v pb.go | xargs gofumports -d)"
+        GOFUMPT_OUTPUT="$(find . -iname '*.go' -type f | grep -v pb.validate.go | grep -v pb.go | xargs gofumports -d)"
         if [ -n "$GOFUMPT_OUTPUT" ]; then
           echo "All the following files are not correctly formatted"
           echo "${GOFUMPT_OUTPUT}"
