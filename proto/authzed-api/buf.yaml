@@ -1,0 +1,8 @@
+version: "v1"
+name: "buf.build/authzed/api"
+deps:
+- "buf.build/beta/googleapis"
+- "buf.build/beta/protoc-gen-validate"
+lint:
+  ignore:
+  - "authzed/api/v0" # legacy from before we used buf

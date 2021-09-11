@@ -1,4 +1,4 @@
-#!/usr/bin/env -S ./hack/buf-generate.sh
+#!/usr/bin/env -S ./proto/buf-generate.sh
 version: "v1beta1"
 plugins:
   - name: "go"

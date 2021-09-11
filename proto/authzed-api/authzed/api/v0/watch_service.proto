@@ -1,0 +1,37 @@
+syntax = "proto3";
+package authzed.api.v0;
+
+option go_package = "github.com/authzed/authzed-go/proto/authzed/api/v0";
+option java_package = "com.authzed.api.v0";
+
+import "validate/validate.proto";
+
+import "authzed/api/v0/core.proto";
+
+service WatchService {
+  rpc Watch(WatchRequest) returns (stream WatchResponse) {}
+}
+
+message WatchRequest {
+  // A watch request specifies one or more namespaces and a zookie
+  // representing the time to start watching.
+  repeated string namespaces = 1 [
+    (validate.rules).repeated .min_items = 1,
+    (validate.rules).repeated .items.string = {
+      pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9]/"
+                ")?[a-z][a-z0-9_]{2,62}[a-z0-9]$",
+      max_bytes : 128,
+    }
+  ];
+  Zookie start_revision = 2;
+}
+
+message WatchResponse {
+  // A watch response contains all tuple modification events in ascending
+  // timestamp order, from the requested start timestamp to a timestamp
+  // encoded in a heartbeat zookie included in the watch response. The client
+  // can use the heartbeat zookie to resume watching where the previous watch
+  // response left off.
+  repeated RelationTupleUpdate updates = 1;
+  Zookie end_revision = 2;
+}

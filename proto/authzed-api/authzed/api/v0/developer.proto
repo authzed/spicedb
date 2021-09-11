@@ -1,0 +1,136 @@
+syntax = "proto3";
+package authzed.api.v0;
+
+option go_package = "github.com/authzed/authzed-go/proto/authzed/api/v0";
+option java_package = "com.authzed.api.v0";
+
+import "authzed/api/v0/core.proto";
+import "authzed/api/v0/namespace.proto";
+
+service DeveloperService {
+  rpc EditCheck(EditCheckRequest) returns (EditCheckResponse) {}
+  rpc Validate(ValidateRequest) returns (ValidateResponse) {}
+  rpc Share(ShareRequest) returns (ShareResponse) {}
+  rpc LookupShared(LookupShareRequest) returns (LookupShareResponse) {}
+  rpc UpgradeSchema(UpgradeSchemaRequest) returns (UpgradeSchemaResponse) {}
+  rpc FormatSchema(FormatSchemaRequest) returns (FormatSchemaResponse) {}
+}
+
+message FormatSchemaRequest {
+  string schema = 1;
+}
+
+message FormatSchemaResponse {
+  DeveloperError error = 1;
+  string formatted_schema = 2;
+}
+
+message UpgradeSchemaRequest {
+  repeated string namespace_configs = 1;
+}
+
+message UpgradeSchemaResponse {
+  DeveloperError error = 1;
+  string upgraded_schema = 2;
+}
+
+message ShareRequest {
+  string schema = 1;
+  string relationships_yaml = 2;
+  string validation_yaml = 3;
+  string assertions_yaml = 4;
+}
+
+message ShareResponse {
+  string share_reference = 1;
+}
+
+message LookupShareRequest {
+  string share_reference = 1;
+}
+
+message LookupShareResponse {
+  enum LookupStatus {
+    UNKNOWN_REFERENCE = 0;
+    FAILED_TO_LOOKUP = 1;
+    VALID_REFERENCE = 2;
+    UPGRADED_REFERENCE = 3;
+  }
+
+  LookupStatus status = 1;
+  string schema = 2;
+  string relationships_yaml = 3;
+  string validation_yaml = 4;
+  string assertions_yaml = 5;
+}
+
+message RequestContext {
+  string schema = 1;
+  repeated RelationTuple relationships = 2;
+  repeated NamespaceDefinition legacy_ns_configs = 3;
+}
+
+message EditCheckRequest {
+  RequestContext context = 1;
+  repeated RelationTuple check_relationships = 2;
+}
+
+message EditCheckResult {
+  RelationTuple relationship = 1;
+  bool is_member = 2;
+  DeveloperError error = 3;
+}
+
+message EditCheckResponse {
+  repeated DeveloperError request_errors = 1;
+  repeated EditCheckResult check_results = 2;
+}
+
+message ValidateRequest {
+  RequestContext context = 1;
+  string validation_yaml = 3;
+  bool update_validation_yaml = 4;
+  string assertions_yaml = 5;
+}
+
+message ValidateResponse {
+  repeated DeveloperError request_errors = 1;
+  repeated DeveloperError validation_errors = 2;
+  string updated_validation_yaml = 3;
+}
+
+message DeveloperError {
+  enum Source {
+    UNKNOWN_SOURCE = 0;
+    SCHEMA = 1;
+    RELATIONSHIP = 2;
+    VALIDATION_YAML = 3;
+    CHECK_WATCH = 4;
+    ASSERTION = 5;
+  }
+
+  enum ErrorKind {
+    UNKNOWN_KIND = 0;
+    PARSE_ERROR = 1;
+    SCHEMA_ISSUE = 2;
+    DUPLICATE_RELATIONSHIP = 3;
+    MISSING_EXPECTED_RELATIONSHIP = 4;
+    EXTRA_RELATIONSHIP_FOUND = 5;
+    UNKNOWN_OBJECT_TYPE = 6;
+    UNKNOWN_RELATION = 7;
+    MAXIMUM_RECURSION = 8;
+    ASSERTION_FAILED = 9;
+  }
+
+  string message = 1;
+  uint32 line = 2;
+  uint32 column = 3;
+  Source source = 4;
+  ErrorKind kind = 5;
+  
+  repeated string path = 6;
+
+  // context holds the context for the error. For schema issues, this will be the
+  // name of the object type. For relationship issues, the full relationship string.
+  string context = 7;
+}
