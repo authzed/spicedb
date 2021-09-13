@@ -96,7 +96,7 @@ func newRootCmd() *cobra.Command {
 func rootRun(cmd *cobra.Command, args []string) {
 	token := cobrautil.MustGetString(cmd, "grpc-preshared-key")
 	if len(token) < 1 {
-		log.Fatal().Msg("must provide flag: --grpc-preshared-key")
+		log.Fatal().Msg("a preshared key must be provided via --grpc-preshared-key to authenticate API requests")
 	}
 
 	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
