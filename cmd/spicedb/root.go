@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/auth"
+	"github.com/authzed/spicedb/internal/dashboard"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
@@ -89,6 +91,9 @@ func newRootCmd() *cobra.Command {
 
 	// Flags for configuring API behavior
 	rootCmd.Flags().Bool("disable-v1-schema-api", false, "disables the V1 schema API")
+
+	// Flags for local dev dashboard
+	rootCmd.Flags().String("dashboard-addr", ":8080", "address to listen for the dashboard")
 
 	return rootCmd
 }
@@ -320,6 +325,23 @@ func rootRun(cmd *cobra.Command, args []string) {
 		}
 	}()
 
+	dashboardAddr := cobrautil.MustGetString(cmd, "dashboard-addr")
+	dashboard := dashboard.NewDashboard(dashboardAddr, dashboard.Args{
+		GrpcNoTLS:       cobrautil.MustGetBool(cmd, "grpc-no-tls"),
+		GrpcAddr:        cobrautil.MustGetString(cmd, "grpc-addr"),
+		DatastoreEngine: datastoreEngine,
+	}, ds)
+	if dashboardAddr != "" {
+		go func() {
+			if err := dashboard.ListenAndServe(); err != http.ErrServerClosed {
+				log.Fatal().Err(err).Msg("failed while serving dashboard")
+			}
+		}()
+
+		url := fmt.Sprintf("http://localhost%s", dashboardAddr)
+		log.Info().Str("url", url).Msg("dashboard running")
+	}
+
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	gracePeriod := cobrautil.MustGetDuration(cmd, "grpc-shutdown-grace-period")
 
@@ -346,5 +368,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 
 	if err := metricsrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
+	}
+
+	if dashboardAddr != "" {
+		if err := dashboard.Close(); err != nil {
+			log.Fatal().Err(err).Msg("failed while shutting down dashboard")
+		}
 	}
 }
