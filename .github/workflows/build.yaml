@@ -90,8 +90,8 @@ jobs:
     - uses: "bufbuild/buf-push-action@v0.3.0"
       if: "github.event_name == 'push'"
       with:
-        input: "proto"
-        buf_token: "${{ secrets.BUF_TOKEN }}"
+        input: "proto/authzed-api"
+        buf_token: "${{ secrets.BUF_REGISTRY_TOKEN }}"
 
   image-build:
     name: "Verify Image"
