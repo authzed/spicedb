@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -33,18 +34,23 @@ func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	var replacing *v0.NamespaceDefinition
+	var replacing []byte
 	var oldVersion uint64
 	if foundRaw != nil {
 		found := foundRaw.(*namespace)
-		replacing = found.config
+		replacing = found.configBytes
 		oldVersion = found.version
 	}
 
+	serialized, err := proto.Marshal(newConfig)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
+	}
+
 	newConfigEntry := &namespace{
-		name:    newConfig.Name,
-		config:  newConfig,
-		version: newVersion,
+		name:        newConfig.Name,
+		configBytes: serialized,
+		version:     newVersion,
 	}
 	changeLogEntry := &changelog{
 		id:         newVersion,
@@ -85,7 +91,12 @@ func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v
 
 	found := foundRaw.(*namespace)
 
-	return found.config, revisionFromVersion(found.version), nil
+	var loaded v0.NamespaceDefinition
+	if err := proto.Unmarshal(found.configBytes, &loaded); err != nil {
+		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
+	}
+
+	return &loaded, revisionFromVersion(found.version), nil
 }
 
 func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
@@ -112,7 +123,7 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	changeLogEntry := &changelog{
 		id:         newChangelogID,
 		name:       nsName,
-		replaces:   found.config,
+		replaces:   found.configBytes,
 		oldVersion: found.version,
 	}
 

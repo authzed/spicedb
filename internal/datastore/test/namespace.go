@@ -33,11 +33,11 @@ func TestNamespaceWrite(t *testing.T, tester DatastoreTester) {
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
 	require.NoError(err)
 
-	isEmpty, err := ds.IsEmpty(context.Background())
+	ctx := context.Background()
+	isEmpty, err := ds.IsEmpty(ctx)
 	require.NoError(err)
 	require.True(isEmpty)
 
-	ctx := context.Background()
 	_, err = ds.WriteNamespace(ctx, testUserNS)
 	require.NoError(err)
 
