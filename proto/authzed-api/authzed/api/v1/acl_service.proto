@@ -1,0 +1,200 @@
+syntax = "proto3";
+package authzed.api.v1;
+
+option go_package = "github.com/authzed/authzed-go/proto/authzed/api/v1";
+option java_package = "com.authzed.api.v1";
+
+import "validate/validate.proto";
+
+import "authzed/api/v1/core.proto";
+
+service PermissionsService {
+  rpc ReadRelationships(ReadRelationshipsRequest)
+      returns (stream ReadRelationshipsResponse) {}
+
+  rpc WriteRelationships(WriteRelationshipsRequest)
+      returns (WriteRelationshipsResponse) {}
+
+  rpc DeleteRelationships(DeleteRelationshipsRequest)
+      returns (DeleteRelationshipsResponse) {}
+
+  rpc CheckPermission(CheckPermissionRequest)
+      returns (CheckPermissionResponse) {}
+
+  rpc ExpandPermissionTree(ExpandPermissionTreeRequest)
+      returns (ExpandPermissionTreeResponse) {}
+
+  rpc LookupResources(LookupResourcesRequest)
+      returns (stream LookupResourcesResponse) {}
+}
+
+// Consistency will define how a request is handled by the backend.
+// By defining a consistency requirement, and a token at which those
+// requirements should be applied, where applicable.
+message Consistency {
+  oneof requirement {
+    bool minimize_latency = 1 [ (validate.rules).bool.const = true ];
+    ZedToken at_least_as_fresh = 2;
+    ZedToken at_exact_snapshot = 3;
+    bool fully_consistent = 4 [ (validate.rules).bool.const = true ];
+  }
+}
+
+// RelationshipFilter is a collection of filters which when applied to a
+// relationship will return relationships that have exactly matching fields.
+//
+// resource_filter is required. All other fields are optional and if left
+// unspecified will not filter relationships.
+message RelationshipFilter {
+  ObjectFilter resource_filter = 1 [ (validate.rules).message.required = true ];
+
+  ObjectFilter optional_subject_filter = 2;
+}
+
+// ObjectFilter specifies a filter on either a resource or a subject.
+//
+// object_type is required and all other fields are optional, and will not
+// impose any additional requirements if left unspecified.
+message ObjectFilter {
+  string object_type = 1 [ (validate.rules).string = {
+    pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$",
+    max_bytes : 128,
+  } ];
+
+  string optional_object_id = 2 [ (validate.rules).string = {
+    pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9])?$",
+    max_bytes : 64,
+  } ];
+
+  string optional_relation = 3 [ (validate.rules).string = {
+    pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9])?$",
+    max_bytes : 64,
+  } ];
+}
+
+// ReadRelationshipsRequest specifies one or more groups of filters which when
+// applied to the datastore will load matching relationships.
+message ReadRelationshipsRequest {
+  Consistency consistency = 1;
+  RelationshipFilter relationship_filter = 2
+      [ (validate.rules).message.required = true ];
+}
+
+// ReadRelationshipsResponse contains one Relationship that matches the
+// requested relationship filter.
+message ReadRelationshipsResponse {
+  ZedToken read_at = 1;
+  Relationship relationship = 2;
+}
+
+// WriteRelationshipsRequest contains a list of Relationship mutations that
+// should be applied to the service. If the optional write_conditions parameter
+// is included, all of the specified Relationships must also exist before the
+// write is performed.
+message WriteRelationshipsRequest {
+  // Clients may modify a single relation tuple to add or remove an ACL. They
+  // may also modify all tuples related to an object via a read-modify-write
+  // process with optimistic concurrency control [21] that uses a read RPC
+  // followed by a write RPC:
+  //
+  // 1. Read all relation tuples of an object, including a per-object “lock”
+  //    tuple.
+  // 2. Generate the tuples to write or delete. Send the writes, along with a
+  //    touch on the lock tuple, to Zanzibar, with the condition that the
+  //    writes will be committed only if the lock tuple has not been modified
+  //    since the read.
+  // 3. If the write condition is not met, go back to step 1.
+  //    The lock tuple is just a regular relation tuple used by clients to
+  //    detect write races.
+  //
+  // The lock tuple is just a regular relation tuple used by clients to
+  // detect write races.
+  repeated RelationshipUpdate updates = 1
+      [ (validate.rules).repeated .items.message.required = true ];
+  repeated Relationship optional_preconditions = 2
+      [ (validate.rules).repeated .items.message.required =
+            true ]; // To be bounded by configuration
+}
+
+message WriteRelationshipsResponse { ZedToken written_at = 1; }
+
+// DeleteRelationshipsRequest specifies which Relationships should be deleted,
+// requesting the delete of *ALL* relationships that match the specified
+// filters.
+message DeleteRelationshipsRequest {
+  RelationshipFilter relationship_filter = 1
+      [ (validate.rules).message.required = true ];
+
+  repeated Relationship optional_preconditions = 2
+      [ (validate.rules).repeated .items.message.required =
+            true ]; // To be bounded by configuration
+}
+
+message DeleteRelationshipsResponse { ZedToken deleted_at = 1; }
+
+message CheckPermissionRequest {
+  // A check request specifies a userset, represented by ⟨object#relation⟩,
+  // a putative user, often represented by an authentication token, and a
+  // ZedToken corresponding to the desired object version.
+  Consistency consistency = 1;
+  ObjectReference resource = 2 [ (validate.rules).message.required = true ];
+  string permission = 3 [ (validate.rules).string = {
+    pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9])?$",
+    max_bytes : 64,
+  } ];
+  SubjectReference subject = 4 [ (validate.rules).message.required = true ];
+}
+
+message CheckPermissionResponse {
+  enum Permissionship {
+    PERMISSIONSHIP_UNSPECIFIED = 0;
+    PERMISSIONSHIP_NO_PERMISSION = 1;
+    PERMISSIONSHIP_HAS_PERMISSION = 2;
+  }
+
+  ZedToken checked_at = 1;
+  Permissionship permissionship = 2;
+}
+
+message ExpandPermissionTreeRequest {
+  // The Expand API returns the effective userset given an resource#relation⟩
+  // pair and an optional ZedToken. Unlike the Read API, Expand follows indirect
+  // references expressed through userset rewrite rules.
+  Consistency consistency = 1;
+  ObjectReference resource = 2 [ (validate.rules).message.required = true ];
+  string permission = 3 [ (validate.rules).string = {
+    pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9])?$",
+    max_bytes : 64,
+  } ];
+}
+
+message ExpandPermissionTreeResponse {
+  // The result is represented by a userset tree whose leaf nodes are user IDs
+  // or usersets pointing to other resource#relation⟩ pairs, and intermediate
+  // nodes represent union, intersection, or exclusion operators.
+  ZedToken expanded_at = 1;
+  PermissionRelationshipTree tree_root = 2;
+}
+
+message LookupResourcesRequest {
+  Consistency consistency = 1;
+
+  string resource_object_type = 2 [ (validate.rules).string = {
+    pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$",
+    max_bytes : 128,
+  } ];
+
+  string permission = 3 [ (validate.rules).string = {
+    pattern : "^[a-z][a-z0-9_]{2,62}[a-z0-9]$",
+    max_bytes : 64,
+  } ];
+
+  SubjectReference subject = 4 [ (validate.rules).message.required = true ];
+}
+
+// LookupResourcesResponse contains a single matching resource object ID for the
+// requested object type, permission, and subject.
+message LookupResourcesResponse {
+  ZedToken looked_up_at = 1;
+  string resource_object_id = 2;
+}

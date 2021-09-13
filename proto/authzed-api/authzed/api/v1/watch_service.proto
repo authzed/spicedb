@@ -1,0 +1,37 @@
+syntax = "proto3";
+package authzed.api.v1;
+
+option go_package = "github.com/authzed/authzed-go/proto/authzed/api/v1";
+option java_package = "com.authzed.api.v1";
+
+import "validate/validate.proto";
+
+import "authzed/api/v1/core.proto";
+
+service WatchService {
+  rpc Watch(WatchRequest) returns (stream WatchResponse) {}
+}
+
+// WatchRequest specifies the object definitions for which we want to start
+// watching mutations, and an optional start snapshot for when to start
+// watching.
+message WatchRequest {
+  repeated string object_types = 1 [
+    (validate.rules).repeated .min_items = 1,
+    (validate.rules).repeated .items.string = {
+      pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9]/"
+                ")?[a-z][a-z0-9_]{2,62}[a-z0-9]$",
+      max_bytes : 128,
+    }
+  ];
+  ZedToken optional_start_cursor = 2;
+}
+
+// WatchResponse contains all tuple modification events in ascending
+// timestamp order, from the requested start snapshot to a snapshot
+// encoded in the watch response. The client can use the snapshot to resume
+// watching where the previous watch response left off.
+message WatchResponse {
+  repeated RelationshipUpdate updates = 1;
+  ZedToken changes_through = 2;
+}
