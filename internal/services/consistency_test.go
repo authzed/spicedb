@@ -1,4 +1,4 @@
-package v0
+package services
 
 import (
 	"context"
@@ -24,11 +24,13 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	graphpkg "github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
-	"github.com/authzed/spicedb/pkg/zookie"
 )
+
+var testTimedeltas = []time.Duration{0, 1 * time.Second}
 
 func TestConsistency(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
@@ -65,8 +67,6 @@ func TestConsistency(t *testing.T) {
 
 					dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
 
-					srv := NewACLServer(ds, ns, dispatch, 50)
-
 					// Validate the type system for each namespace.
 					for _, nsDef := range fullyResolved.NamespaceDefinitions {
 						_, ts, _, err := ns.ReadNamespaceAndTypes(context.Background(), nsDef.Name)
@@ -82,108 +82,112 @@ func TestConsistency(t *testing.T) {
 						tuplesPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl)
 					}
 
-					// Read all tuples defined in the namespaces.
-					for _, nsDef := range fullyResolved.NamespaceDefinitions {
-						result, err := srv.Read(context.Background(), &v0.ReadRequest{
-							Tuplesets: []*v0.RelationTupleFilter{
-								{Namespace: nsDef.Name},
-							},
-							AtRevision: zookie.NewFromRevision(revision),
+					// Run the consistency tests for each service.
+					testers := []serviceTester{
+						v0ServiceTester{v0svc.NewACLServer(ds, ns, dispatch, 50)},
+					}
+
+					for _, tester := range testers {
+						t.Run(tester.Name(), func(t *testing.T) {
+							runConsistencyTests(t, tester, dispatch, fullyResolved, tuplesPerNamespace, revision)
 						})
-						lrequire.NoError(err)
-
-						expected, _ := tuplesPerNamespace.Get(nsDef.Name)
-						lrequire.Equal(len(expected), len(result.Tuplesets[0].Tuples))
 					}
-
-					// Call a write on each tuple to make sure it type checks.
-					for _, nsDef := range fullyResolved.NamespaceDefinitions {
-						tuples, ok := tuplesPerNamespace.Get(nsDef.Name)
-						if !ok {
-							continue
-						}
-
-						for _, itpl := range tuples {
-							tpl := itpl.(*v0.RelationTuple)
-							_, err = srv.Write(context.Background(), &v0.WriteRequest{
-								WriteConditions: []*v0.RelationTuple{tpl},
-								Updates:         []*v0.RelationTupleUpdate{tuple.Touch(tpl)},
-							})
-							lrequire.NoError(err)
-						}
-					}
-
-					// Collect the set of objects and subjects.
-					objectsPerNamespace := setmultimap.New()
-					subjects := tuple.NewONRSet()
-					for _, tpl := range fullyResolved.Tuples {
-						objectsPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl.ObjectAndRelation.ObjectId)
-
-						switch m := tpl.User.UserOneof.(type) {
-						case *v0.User_Userset:
-							subjects.Add(m.Userset)
-						}
-					}
-
-					// Collect the set of accessible objects for each namespace and subject.
-					accessibilitySet := newAccessibilitySet()
-					for _, nsDef := range fullyResolved.NamespaceDefinitions {
-						for _, relation := range nsDef.Relation {
-							for _, subject := range subjects.AsSlice() {
-								allObjectIds, ok := objectsPerNamespace.Get(nsDef.Name)
-								if !ok {
-									continue
-								}
-
-								for _, objectID := range allObjectIds {
-									objectIDStr := objectID.(string)
-									onr := &v0.ObjectAndRelation{
-										Namespace: nsDef.Name,
-										Relation:  relation.Name,
-										ObjectId:  objectIDStr,
-									}
-									checkResp, err := srv.Check(context.Background(), &v0.CheckRequest{
-										TestUserset: onr,
-										User: &v0.User{
-											UserOneof: &v0.User_Userset{
-												Userset: subject,
-											},
-										},
-										AtRevision: zookie.NewFromRevision(revision),
-									})
-									require.NoError(t, err)
-									accessibilitySet.Set(onr, subject, checkResp.IsMember)
-								}
-							}
-						}
-					}
-
-					vctx := &validationContext{
-						fullyResolved:       fullyResolved,
-						objectsPerNamespace: objectsPerNamespace,
-						accessibilitySet:    accessibilitySet,
-						dispatch:            dispatch,
-						subjects:            subjects,
-						srv:                 srv,
-						revision:            revision,
-					}
-
-					// Run a fully recursive expand on each relation and ensure all terminal subjects are reached.
-					validateExpansion(t, vctx)
-
-					// For each relation in each namespace, for each user, collect the objects accessible
-					// to that user and then verify the lookup returns the same set of objects.
-					validateLookup(t, vctx)
-
-					// Run the developer APIs over the full set of context and ensure they also return the expected information.
-					store := NewInMemoryShareStore("flavored")
-					dev := NewDeveloperServer(store)
-
-					validateDeveloper(t, dev, vctx)
 				})
 			}
 		})
 	}
+}
+
+func runConsistencyTests(t *testing.T,
+	tester serviceTester,
+	dispatch dispatch.Dispatcher,
+	fullyResolved *validationfile.FullyParsedValidationFile,
+	tuplesPerNamespace *slicemultimap.MultiMap,
+	revision decimal.Decimal) {
+	lrequire := require.New(t)
+
+	// Read all tuples defined in the namespaces.
+	for _, nsDef := range fullyResolved.NamespaceDefinitions {
+		tuples, err := tester.Read(context.Background(), nsDef.Name, revision)
+		lrequire.NoError(err)
+
+		expected, _ := tuplesPerNamespace.Get(nsDef.Name)
+		lrequire.Equal(len(expected), len(tuples))
+	}
+
+	// Call a write on each tuple to make sure it type checks.
+	for _, nsDef := range fullyResolved.NamespaceDefinitions {
+		tuples, ok := tuplesPerNamespace.Get(nsDef.Name)
+		if !ok {
+			continue
+		}
+
+		for _, itpl := range tuples {
+			tpl := itpl.(*v0.RelationTuple)
+			err := tester.Write(context.Background(), tpl)
+			lrequire.NoError(err)
+		}
+	}
+
+	// Collect the set of objects and subjects.
+	objectsPerNamespace := setmultimap.New()
+	subjects := tuple.NewONRSet()
+	for _, tpl := range fullyResolved.Tuples {
+		objectsPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl.ObjectAndRelation.ObjectId)
+
+		switch m := tpl.User.UserOneof.(type) {
+		case *v0.User_Userset:
+			subjects.Add(m.Userset)
+		}
+	}
+
+	// Collect the set of accessible objects for each namespace and subject.
+	accessibilitySet := newAccessibilitySet()
+	for _, nsDef := range fullyResolved.NamespaceDefinitions {
+		for _, relation := range nsDef.Relation {
+			for _, subject := range subjects.AsSlice() {
+				allObjectIds, ok := objectsPerNamespace.Get(nsDef.Name)
+				if !ok {
+					continue
+				}
+
+				for _, objectID := range allObjectIds {
+					objectIDStr := objectID.(string)
+					onr := &v0.ObjectAndRelation{
+						Namespace: nsDef.Name,
+						Relation:  relation.Name,
+						ObjectId:  objectIDStr,
+					}
+					isMember, err := tester.Check(context.Background(), onr, subject, revision)
+					require.NoError(t, err)
+					accessibilitySet.Set(onr, subject, isMember)
+				}
+			}
+		}
+	}
+
+	vctx := &validationContext{
+		fullyResolved:       fullyResolved,
+		objectsPerNamespace: objectsPerNamespace,
+		accessibilitySet:    accessibilitySet,
+		dispatch:            dispatch,
+		subjects:            subjects,
+		tester:              tester,
+		revision:            revision,
+	}
+
+	// Run a fully recursive expand on each relation and ensure all terminal subjects are reached.
+	validateExpansion(t, vctx)
+
+	// For each relation in each namespace, for each user, collect the objects accessible
+	// to that user and then verify the lookup returns the same set of objects.
+	validateLookup(t, vctx)
+
+	// Run the developer APIs over the full set of context and ensure they also return the expected information.
+	store := v0svc.NewInMemoryShareStore("flavored")
+	dev := v0svc.NewDeveloperServer(store)
+
+	validateDeveloper(t, dev, vctx)
 }
 
 type validationContext struct {
@@ -195,7 +199,7 @@ type validationContext struct {
 
 	dispatch dispatch.Dispatcher
 
-	srv      v0.ACLServiceServer
+	tester   serviceTester
 	revision decimal.Decimal
 }
 
@@ -353,48 +357,39 @@ func validateLookup(t *testing.T, vctx *validationContext) {
 					accessibleObjectIds := vctx.accessibilitySet.AccessibleObjectIDs(objectRelation.Namespace, objectRelation.Relation, subject)
 
 					// Perform a lookup call and ensure it returns the at least the same set of object IDs.
-					result, err := vctx.srv.Lookup(context.Background(), &v0.LookupRequest{
-						User:           subject,
-						ObjectRelation: objectRelation,
-						Limit:          uint32(len(accessibleObjectIds) + 100),
-						AtRevision:     zookie.NewFromRevision(vctx.revision),
-					})
+					resolvedObjectIds, err := vctx.tester.Lookup(context.Background(), objectRelation, subject, vctx.revision)
 					vrequire.NoError(err)
 
 					sort.Strings(accessibleObjectIds)
-					sort.Strings(result.ResolvedObjectIds)
+					sort.Strings(resolvedObjectIds)
 
 					for _, accessibleObjectID := range accessibleObjectIds {
 						vrequire.True(
-							contains(result.ResolvedObjectIds, accessibleObjectID),
+							contains(resolvedObjectIds, accessibleObjectID),
 							"Object `%s` missing in lookup results for %s#%s@%s: Expected: %v. Found: %v",
 							accessibleObjectID,
 							nsDef.Name,
 							relation.Name,
 							tuple.StringONR(subject),
 							accessibleObjectIds,
-							result.ResolvedObjectIds,
+							resolvedObjectIds,
 						)
 					}
 
 					// Ensure that every returned object Checks.
-					for _, resolvedObjectID := range result.ResolvedObjectIds {
-						checkResp, err := vctx.srv.Check(context.Background(), &v0.CheckRequest{
-							TestUserset: &v0.ObjectAndRelation{
+					for _, resolvedObjectID := range resolvedObjectIds {
+						isMember, err := vctx.tester.Check(context.Background(),
+							&v0.ObjectAndRelation{
 								Namespace: nsDef.Name,
 								Relation:  relation.Name,
 								ObjectId:  resolvedObjectID,
 							},
-							User: &v0.User{
-								UserOneof: &v0.User_Userset{
-									Userset: subject,
-								},
-							},
-							AtRevision: zookie.NewFromRevision(vctx.revision),
-						})
+							subject,
+							vctx.revision,
+						)
 						vrequire.NoError(err)
 						vrequire.True(
-							checkResp.IsMember,
+							isMember,
 							"Found Check failure for relation %s:%s#%s and subject %s",
 							nsDef.Name,
 							resolvedObjectID,
@@ -468,22 +463,18 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 					for _, subjectUser := range subjectsFound {
 						subject := subjectUser.GetUserset()
 
-						checkResp, err := vctx.srv.Check(context.Background(), &v0.CheckRequest{
-							TestUserset: &v0.ObjectAndRelation{
+						isMember, err := vctx.tester.Check(context.Background(),
+							&v0.ObjectAndRelation{
 								Namespace: nsDef.Name,
 								Relation:  relation.Name,
 								ObjectId:  objectIDStr,
 							},
-							User: &v0.User{
-								UserOneof: &v0.User_Userset{
-									Userset: subject,
-								},
-							},
-							AtRevision: zookie.NewFromRevision(vctx.revision),
-						})
+							subject,
+							vctx.revision,
+						)
 						vrequire.NoError(err)
 						vrequire.True(
-							checkResp.IsMember,
+							isMember,
 							"Found Check under Expand failure for relation %s:%s#%s and subject %s",
 							nsDef.Name,
 							objectIDStr,
