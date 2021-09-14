@@ -128,6 +128,87 @@ var _ interface {
 	ErrorName() string
 } = DecodedZookieValidationError{}
 
+// Validate checks the field values on DecodedZedToken with the rules defined
+// in the proto definition for this message. If any rules are violated, an
+// error is returned.
+func (m *DecodedZedToken) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	switch m.VersionOneof.(type) {
+
+	case *DecodedZedToken_V1:
+
+		if v, ok := interface{}(m.GetV1()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return DecodedZedTokenValidationError{
+					field:  "V1",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	return nil
+}
+
+// DecodedZedTokenValidationError is the validation error returned by
+// DecodedZedToken.Validate if the designated constraints aren't met.
+type DecodedZedTokenValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DecodedZedTokenValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DecodedZedTokenValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DecodedZedTokenValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DecodedZedTokenValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DecodedZedTokenValidationError) ErrorName() string { return "DecodedZedTokenValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DecodedZedTokenValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDecodedZedToken.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DecodedZedTokenValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DecodedZedTokenValidationError{}
+
 // Validate checks the field values on DocComment with the rules defined in the
 // proto definition for this message. If any rules are violated, an error is returned.
 func (m *DocComment) Validate() error {
@@ -398,3 +479,72 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DecodedZookie_V2ZookieValidationError{}
+
+// Validate checks the field values on DecodedZedToken_V1ZedToken with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *DecodedZedToken_V1ZedToken) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	// no validation rules for Revision
+
+	return nil
+}
+
+// DecodedZedToken_V1ZedTokenValidationError is the validation error returned
+// by DecodedZedToken_V1ZedToken.Validate if the designated constraints aren't met.
+type DecodedZedToken_V1ZedTokenValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DecodedZedToken_V1ZedTokenValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DecodedZedToken_V1ZedTokenValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DecodedZedToken_V1ZedTokenValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DecodedZedToken_V1ZedTokenValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DecodedZedToken_V1ZedTokenValidationError) ErrorName() string {
+	return "DecodedZedToken_V1ZedTokenValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DecodedZedToken_V1ZedTokenValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDecodedZedToken_V1ZedToken.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DecodedZedToken_V1ZedTokenValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DecodedZedToken_V1ZedTokenValidationError{}

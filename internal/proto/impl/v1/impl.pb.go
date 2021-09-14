@@ -66,7 +66,7 @@ func (x RelationMetadata_RelationKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RelationMetadata_RelationKind.Descriptor instead.
 func (RelationMetadata_RelationKind) EnumDescriptor() ([]byte, []int) {
-	return file_impl_v1_impl_proto_rawDescGZIP(), []int{2, 0}
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{3, 0}
 }
 
 type DecodedZookie struct {
@@ -157,6 +157,72 @@ func (*DecodedZookie_V1) isDecodedZookie_VersionOneof() {}
 
 func (*DecodedZookie_V2) isDecodedZookie_VersionOneof() {}
 
+type DecodedZedToken struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to VersionOneof:
+	//	*DecodedZedToken_V1
+	VersionOneof isDecodedZedToken_VersionOneof `protobuf_oneof:"version_oneof"`
+}
+
+func (x *DecodedZedToken) Reset() {
+	*x = DecodedZedToken{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_impl_v1_impl_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DecodedZedToken) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecodedZedToken) ProtoMessage() {}
+
+func (x *DecodedZedToken) ProtoReflect() protoreflect.Message {
+	mi := &file_impl_v1_impl_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecodedZedToken.ProtoReflect.Descriptor instead.
+func (*DecodedZedToken) Descriptor() ([]byte, []int) {
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{1}
+}
+
+func (m *DecodedZedToken) GetVersionOneof() isDecodedZedToken_VersionOneof {
+	if m != nil {
+		return m.VersionOneof
+	}
+	return nil
+}
+
+func (x *DecodedZedToken) GetV1() *DecodedZedToken_V1ZedToken {
+	if x, ok := x.GetVersionOneof().(*DecodedZedToken_V1); ok {
+		return x.V1
+	}
+	return nil
+}
+
+type isDecodedZedToken_VersionOneof interface {
+	isDecodedZedToken_VersionOneof()
+}
+
+type DecodedZedToken_V1 struct {
+	V1 *DecodedZedToken_V1ZedToken `protobuf:"bytes,2,opt,name=v1,proto3,oneof"`
+}
+
+func (*DecodedZedToken_V1) isDecodedZedToken_VersionOneof() {}
+
 type DocComment struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -168,7 +234,7 @@ type DocComment struct {
 func (x *DocComment) Reset() {
 	*x = DocComment{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[1]
+		mi := &file_impl_v1_impl_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -181,7 +247,7 @@ func (x *DocComment) String() string {
 func (*DocComment) ProtoMessage() {}
 
 func (x *DocComment) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[1]
+	mi := &file_impl_v1_impl_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -194,7 +260,7 @@ func (x *DocComment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocComment.ProtoReflect.Descriptor instead.
 func (*DocComment) Descriptor() ([]byte, []int) {
-	return file_impl_v1_impl_proto_rawDescGZIP(), []int{1}
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DocComment) GetComment() string {
@@ -215,7 +281,7 @@ type RelationMetadata struct {
 func (x *RelationMetadata) Reset() {
 	*x = RelationMetadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[2]
+		mi := &file_impl_v1_impl_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -228,7 +294,7 @@ func (x *RelationMetadata) String() string {
 func (*RelationMetadata) ProtoMessage() {}
 
 func (x *RelationMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[2]
+	mi := &file_impl_v1_impl_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -241,7 +307,7 @@ func (x *RelationMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelationMetadata.ProtoReflect.Descriptor instead.
 func (*RelationMetadata) Descriptor() ([]byte, []int) {
-	return file_impl_v1_impl_proto_rawDescGZIP(), []int{2}
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RelationMetadata) GetKind() RelationMetadata_RelationKind {
@@ -262,7 +328,7 @@ type DecodedZookie_V1Zookie struct {
 func (x *DecodedZookie_V1Zookie) Reset() {
 	*x = DecodedZookie_V1Zookie{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[3]
+		mi := &file_impl_v1_impl_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -275,7 +341,7 @@ func (x *DecodedZookie_V1Zookie) String() string {
 func (*DecodedZookie_V1Zookie) ProtoMessage() {}
 
 func (x *DecodedZookie_V1Zookie) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[3]
+	mi := &file_impl_v1_impl_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -309,7 +375,7 @@ type DecodedZookie_V2Zookie struct {
 func (x *DecodedZookie_V2Zookie) Reset() {
 	*x = DecodedZookie_V2Zookie{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[4]
+		mi := &file_impl_v1_impl_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -322,7 +388,7 @@ func (x *DecodedZookie_V2Zookie) String() string {
 func (*DecodedZookie_V2Zookie) ProtoMessage() {}
 
 func (x *DecodedZookie_V2Zookie) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[4]
+	mi := &file_impl_v1_impl_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -339,6 +405,53 @@ func (*DecodedZookie_V2Zookie) Descriptor() ([]byte, []int) {
 }
 
 func (x *DecodedZookie_V2Zookie) GetRevision() string {
+	if x != nil {
+		return x.Revision
+	}
+	return ""
+}
+
+type DecodedZedToken_V1ZedToken struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Revision string `protobuf:"bytes,1,opt,name=revision,proto3" json:"revision,omitempty"`
+}
+
+func (x *DecodedZedToken_V1ZedToken) Reset() {
+	*x = DecodedZedToken_V1ZedToken{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_impl_v1_impl_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DecodedZedToken_V1ZedToken) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecodedZedToken_V1ZedToken) ProtoMessage() {}
+
+func (x *DecodedZedToken_V1ZedToken) ProtoReflect() protoreflect.Message {
+	mi := &file_impl_v1_impl_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecodedZedToken_V1ZedToken.ProtoReflect.Descriptor instead.
+func (*DecodedZedToken_V1ZedToken) Descriptor() ([]byte, []int) {
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *DecodedZedToken_V1ZedToken) GetRevision() string {
 	if x != nil {
 		return x.Revision
 	}
@@ -365,22 +478,30 @@ var file_impl_v1_impl_proto_rawDesc = []byte{
 	0x6b, 0x69, 0x65, 0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x18,
 	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x42,
 	0x0f, 0x0a, 0x0d, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x6f, 0x6e, 0x65, 0x6f, 0x66,
-	0x22, 0x26, 0x0a, 0x0a, 0x44, 0x6f, 0x63, 0x43, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74, 0x12, 0x18,
-	0x0a, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74, 0x22, 0x8e, 0x01, 0x0a, 0x10, 0x52, 0x65, 0x6c,
-	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x12, 0x3a, 0x0a,
-	0x04, 0x6b, 0x69, 0x6e, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x26, 0x2e, 0x69, 0x6d,
-	0x70, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4d, 0x65,
-	0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4b,
-	0x69, 0x6e, 0x64, 0x52, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x22, 0x3e, 0x0a, 0x0c, 0x52, 0x65, 0x6c,
-	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4b, 0x69, 0x6e, 0x64, 0x12, 0x10, 0x0a, 0x0c, 0x55, 0x4e, 0x4b,
-	0x4e, 0x4f, 0x57, 0x4e, 0x5f, 0x4b, 0x49, 0x4e, 0x44, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x52,
-	0x45, 0x4c, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x50, 0x45, 0x52,
-	0x4d, 0x49, 0x53, 0x53, 0x49, 0x4f, 0x4e, 0x10, 0x02, 0x42, 0x33, 0x5a, 0x31, 0x67, 0x69, 0x74,
-	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x75, 0x74, 0x68, 0x7a, 0x65, 0x64, 0x2f,
-	0x73, 0x70, 0x69, 0x63, 0x65, 0x64, 0x62, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
-	0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x69, 0x6d, 0x70, 0x6c, 0x2f, 0x76, 0x31, 0x62, 0x06,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x22, 0x83, 0x01, 0x0a, 0x0f, 0x44, 0x65, 0x63, 0x6f, 0x64, 0x65, 0x64, 0x5a, 0x65, 0x64, 0x54,
+	0x6f, 0x6b, 0x65, 0x6e, 0x12, 0x35, 0x0a, 0x02, 0x76, 0x31, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x23, 0x2e, 0x69, 0x6d, 0x70, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x63, 0x6f, 0x64,
+	0x65, 0x64, 0x5a, 0x65, 0x64, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x2e, 0x56, 0x31, 0x5a, 0x65, 0x64,
+	0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x48, 0x00, 0x52, 0x02, 0x76, 0x31, 0x1a, 0x28, 0x0a, 0x0a, 0x56,
+	0x31, 0x5a, 0x65, 0x64, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x72, 0x65, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x42, 0x0f, 0x0a, 0x0d, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
+	0x5f, 0x6f, 0x6e, 0x65, 0x6f, 0x66, 0x22, 0x26, 0x0a, 0x0a, 0x44, 0x6f, 0x63, 0x43, 0x6f, 0x6d,
+	0x6d, 0x65, 0x6e, 0x74, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74, 0x22, 0x8e,
+	0x01, 0x0a, 0x10, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4d, 0x65, 0x74, 0x61, 0x64,
+	0x61, 0x74, 0x61, 0x12, 0x3a, 0x0a, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0e, 0x32, 0x26, 0x2e, 0x69, 0x6d, 0x70, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6c, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x52, 0x65, 0x6c,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4b, 0x69, 0x6e, 0x64, 0x52, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x22,
+	0x3e, 0x0a, 0x0c, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4b, 0x69, 0x6e, 0x64, 0x12,
+	0x10, 0x0a, 0x0c, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x5f, 0x4b, 0x49, 0x4e, 0x44, 0x10,
+	0x00, 0x12, 0x0c, 0x0a, 0x08, 0x52, 0x45, 0x4c, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x01, 0x12,
+	0x0e, 0x0a, 0x0a, 0x50, 0x45, 0x52, 0x4d, 0x49, 0x53, 0x53, 0x49, 0x4f, 0x4e, 0x10, 0x02, 0x42,
+	0x33, 0x5a, 0x31, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x75,
+	0x74, 0x68, 0x7a, 0x65, 0x64, 0x2f, 0x73, 0x70, 0x69, 0x63, 0x65, 0x64, 0x62, 0x2f, 0x69, 0x6e,
+	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x69, 0x6d, 0x70,
+	0x6c, 0x2f, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -396,24 +517,27 @@ func file_impl_v1_impl_proto_rawDescGZIP() []byte {
 }
 
 var file_impl_v1_impl_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_impl_v1_impl_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_impl_v1_impl_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_impl_v1_impl_proto_goTypes = []interface{}{
 	(RelationMetadata_RelationKind)(0), // 0: impl.v1.RelationMetadata.RelationKind
 	(*DecodedZookie)(nil),              // 1: impl.v1.DecodedZookie
-	(*DocComment)(nil),                 // 2: impl.v1.DocComment
-	(*RelationMetadata)(nil),           // 3: impl.v1.RelationMetadata
-	(*DecodedZookie_V1Zookie)(nil),     // 4: impl.v1.DecodedZookie.V1Zookie
-	(*DecodedZookie_V2Zookie)(nil),     // 5: impl.v1.DecodedZookie.V2Zookie
+	(*DecodedZedToken)(nil),            // 2: impl.v1.DecodedZedToken
+	(*DocComment)(nil),                 // 3: impl.v1.DocComment
+	(*RelationMetadata)(nil),           // 4: impl.v1.RelationMetadata
+	(*DecodedZookie_V1Zookie)(nil),     // 5: impl.v1.DecodedZookie.V1Zookie
+	(*DecodedZookie_V2Zookie)(nil),     // 6: impl.v1.DecodedZookie.V2Zookie
+	(*DecodedZedToken_V1ZedToken)(nil), // 7: impl.v1.DecodedZedToken.V1ZedToken
 }
 var file_impl_v1_impl_proto_depIdxs = []int32{
-	4, // 0: impl.v1.DecodedZookie.v1:type_name -> impl.v1.DecodedZookie.V1Zookie
-	5, // 1: impl.v1.DecodedZookie.v2:type_name -> impl.v1.DecodedZookie.V2Zookie
-	0, // 2: impl.v1.RelationMetadata.kind:type_name -> impl.v1.RelationMetadata.RelationKind
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	5, // 0: impl.v1.DecodedZookie.v1:type_name -> impl.v1.DecodedZookie.V1Zookie
+	6, // 1: impl.v1.DecodedZookie.v2:type_name -> impl.v1.DecodedZookie.V2Zookie
+	7, // 2: impl.v1.DecodedZedToken.v1:type_name -> impl.v1.DecodedZedToken.V1ZedToken
+	0, // 3: impl.v1.RelationMetadata.kind:type_name -> impl.v1.RelationMetadata.RelationKind
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_impl_v1_impl_proto_init() }
@@ -435,7 +559,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DocComment); i {
+			switch v := v.(*DecodedZedToken); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -447,7 +571,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RelationMetadata); i {
+			switch v := v.(*DocComment); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -459,7 +583,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DecodedZookie_V1Zookie); i {
+			switch v := v.(*RelationMetadata); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -471,7 +595,31 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DecodedZookie_V1Zookie); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_impl_v1_impl_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DecodedZookie_V2Zookie); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_impl_v1_impl_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DecodedZedToken_V1ZedToken); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -487,13 +635,16 @@ func file_impl_v1_impl_proto_init() {
 		(*DecodedZookie_V1)(nil),
 		(*DecodedZookie_V2)(nil),
 	}
+	file_impl_v1_impl_proto_msgTypes[1].OneofWrappers = []interface{}{
+		(*DecodedZedToken_V1)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_impl_v1_impl_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

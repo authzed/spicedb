@@ -13,6 +13,11 @@ message DecodedZookie {
   }
 }
 
+message DecodedZedToken {
+  message V1ZedToken { string revision = 1; }
+  oneof version_oneof { V1ZedToken v1 = 2; }
+}
+
 message DocComment { string comment = 1; }
 
 message RelationMetadata {
