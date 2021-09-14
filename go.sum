@@ -68,8 +68,8 @@ github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj
 github.com/authzed/authzed-go v0.1.0 h1:+BhlZz4LJ3WEKZnZ9hnILh2ug9L+p/6yah7NjuK99jk=
 github.com/authzed/authzed-go v0.1.0/go.mod h1:a1qVgqL5pcdZq6EXRciRITz/9KJFHyGhPn3Ng/X2bc0=
 github.com/authzed/grpcutil v0.0.0-20210702215403-5fe6e00b4101/go.mod h1:ZWOuCUQ/qoVIAWUctRy/lWHI37OcahRzt5ylELzumus=
-github.com/authzed/grpcutil v0.0.0-20210913124023-cad23ae5a9e8 h1:HfDkRg7B2Ss2xhSD23535S29cCFFR+N3lt+MYUbc/Aw=
-github.com/authzed/grpcutil v0.0.0-20210913124023-cad23ae5a9e8/go.mod h1:HwO/KbRU3fWXEYHE96kvXnwxzi97tkXD1hfi5UaZ71Y=
+github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f h1:7CRJHi1JOJEvaH/Dx3hMRRQeUAVxAPPHTz+UZ99NiYQ=
+github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f/go.mod h1:HwO/KbRU3fWXEYHE96kvXnwxzi97tkXD1hfi5UaZ71Y=
 github.com/aws/aws-sdk-go v1.17.4/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/aws/aws-sdk-go v1.40.35 h1:ofWh1LlWaSbOpAsl8EHlg96PZXqgCGKKi8YgrdU2Z+I=
 github.com/aws/aws-sdk-go v1.40.35/go.mod h1:585smgzpB/KqRA+K3y/NL/oYRqQvpNJYvLm+LY1U59Q=
