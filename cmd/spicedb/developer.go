@@ -13,7 +13,6 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -53,10 +52,10 @@ func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 }
 
 func developerServiceRun(cmd *cobra.Command, args []string) {
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, grpcmw.WithUnaryServerChain(
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, grpc.ChainUnaryInterceptor(
+		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 		otelgrpc.UnaryServerInterceptor(),
 		grpcprom.UnaryServerInterceptor,
-		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 	))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create gRPC server")

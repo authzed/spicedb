@@ -6,7 +6,9 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
+	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -38,6 +40,13 @@ type schemaServiceServer struct {
 	ds             datastore.Datastore
 }
 
+// RegisterSchemaServer adds the Schema Server to a grpc service registrar
+// This is preferred over manually registering the service; it will add required middleware
+func RegisterSchemaServer(r grpc.ServiceRegistrar, s v1alpha1.SchemaServiceServer) *grpc.ServiceDesc {
+	r.RegisterService(grpcutil.WrapMethods(v1alpha1.SchemaService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
+	return &v1alpha1.SchemaService_ServiceDesc
+}
+
 // NewSchemaServer returns an new instance of a server that implements
 // authzed.api.v1alpha1.SchemaService.
 func NewSchemaServer(ds datastore.Datastore, prefixRequired PrefixRequiredOption) v1alpha1.SchemaServiceServer {
@@ -45,10 +54,6 @@ func NewSchemaServer(ds datastore.Datastore, prefixRequired PrefixRequiredOption
 }
 
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
-	if err := in.Validate(); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	}
-
 	var objectDefs []string
 	for _, objectDefName := range in.GetObjectDefinitionsNames() {
 		found, _, err := ss.ds.ReadNamespace(ctx, objectDefName)
@@ -67,10 +72,6 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 
 func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {
 	log.Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
-	if err := in.Validate(); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	}
-
 	nsm, err := namespace.NewCachingNamespaceManager(ss.ds, 0, nil) // non-caching manager
 	if err != nil {
 		return nil, rewriteError(err)

@@ -4,7 +4,9 @@ import (
 	"errors"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/authzed/grpcutil"
 	"github.com/shopspring/decimal"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -20,6 +22,13 @@ type watchServer struct {
 	nsm namespace.Manager
 }
 
+// RegisterWatchServer adds the Watch Server to a grpc service registrar
+// This is preferred over manually registering the service; it will add required middleware
+func RegisterWatchServer(r grpc.ServiceRegistrar, s v0.WatchServiceServer) *grpc.ServiceDesc {
+	r.RegisterService(grpcutil.WrapMethods(v0.WatchService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
+	return &v0.WatchService_ServiceDesc
+}
+
 // NewWatchServer creates an instance of the watch server.
 func NewWatchServer(ds datastore.Datastore, nsm namespace.Manager) v0.WatchServiceServer {
 	s := &watchServer{ds: ds}
@@ -27,14 +36,9 @@ func NewWatchServer(ds datastore.Datastore, nsm namespace.Manager) v0.WatchServi
 }
 
 func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchServer) error {
-	err := req.Validate()
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	}
-
 	namespaceMap := make(map[string]struct{})
 	for _, ns := range req.Namespaces {
-		err = ws.nsm.CheckNamespaceAndRelation(stream.Context(), ns, datastore.Ellipsis, true)
+		err := ws.nsm.CheckNamespaceAndRelation(stream.Context(), ns, datastore.Ellipsis, true)
 		if err != nil {
 			return status.Errorf(codes.FailedPrecondition, "invalid namespace: %s", err)
 		}

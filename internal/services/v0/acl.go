@@ -6,8 +6,10 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -38,6 +40,13 @@ const (
 
 var errInvalidZookie = errors.New("invalid revision requested")
 
+// RegisterACLServer adds the ACL Server to a grpc service registrar
+// This is preferred over manually registering the service; it will add required middleware
+func RegisterACLServer(r grpc.ServiceRegistrar, s v0.ACLServiceServer) *grpc.ServiceDesc {
+	r.RegisterService(grpcutil.WrapMethods(v0.ACLService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
+	return &v0.ACLService_ServiceDesc
+}
+
 // NewACLServer creates an instance of the ACL server.
 func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
 	s := &aclServer{ds: ds, nsm: nsm, dispatch: dispatch, defaultDepth: defaultDepth}
@@ -45,11 +54,6 @@ func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispat
 }
 
 func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.WriteResponse, error) {
-	err := req.Validate()
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	}
-
 	for _, mutation := range req.Updates {
 		err := validateTupleWrite(ctx, mutation.Tuple, as.nsm)
 		if err != nil {
@@ -68,11 +72,6 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 }
 
 func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadResponse, error) {
-	err := req.Validate()
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	}
-
 	for _, tuplesetFilter := range req.Tuplesets {
 		checkedRelation := false
 		for _, filter := range tuplesetFilter.Filters {
@@ -146,7 +145,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 		}
 	}
 
-	err = as.ds.CheckRevision(ctx, atRevision)
+	err := as.ds.CheckRevision(ctx, atRevision)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
@@ -193,11 +192,6 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 }
 
 func (as *aclServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.CheckResponse, error) {
-	err := req.Validate()
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	}
-
 	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
 	if err != nil {
 		return nil, rewriteACLError(err)
@@ -207,11 +201,6 @@ func (as *aclServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.Check
 }
 
 func (as *aclServer) ContentChangeCheck(ctx context.Context, req *v0.ContentChangeCheckRequest) (*v0.CheckResponse, error) {
-	err := req.Validate()
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	}
-
 	atRevision, err := as.ds.SyncRevision(ctx)
 	if err != nil {
 		return nil, rewriteACLError(err)
@@ -266,12 +255,7 @@ func (as *aclServer) commonCheck(
 }
 
 func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.ExpandResponse, error) {
-	err := req.Validate()
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	}
-
-	err = as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false)
+	err := as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
@@ -307,12 +291,7 @@ func min(a, b int) int {
 }
 
 func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.LookupResponse, error) {
-	err := req.Validate()
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
-	}
-
-	err = as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true)
+	err := as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
