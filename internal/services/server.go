@@ -31,5 +31,6 @@ func RegisterGrpcServices(
 	)
 
 	healthpb.RegisterHealthServer(srv, healthSrv)
-	reflection.Register(srv)
+
+	reflection.Register(grpcutil.NewAuthlessReflectionInterceptor(srv))
 }
