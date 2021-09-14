@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 )
 
 func TestRWOperationErrors(t *testing.T) {
@@ -133,9 +134,9 @@ func TestQueryTuplesPassthrough(t *testing.T) {
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
 
-	delegate.On("QueryTuples", "test", expectedRevision).Return().Times(1)
+	delegate.On("QueryTuples", &v1.ObjectFilter{ObjectType: "test"}, expectedRevision).Return().Times(1)
 
-	query := ds.QueryTuples("test", expectedRevision)
+	query := ds.QueryTuples(&v1.ObjectFilter{ObjectType: "test"}, expectedRevision)
 	require.Nil(query)
 	delegate.AssertExpectations(t)
 }
@@ -218,8 +219,8 @@ func (dm *delegateMock) DeleteNamespace(ctx context.Context, nsName string) (dat
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
-	dm.Called(namespace, revision)
+func (dm *delegateMock) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
+	dm.Called(resourceFilter, revision)
 	return nil
 }
 

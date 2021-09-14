@@ -14,6 +14,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1_api "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -150,7 +151,10 @@ func sanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 		switch delta.Type {
 		case namespace.RemovedRelation:
 			err = errorIfTupleIteratorReturnsTuples(
-				ds.QueryTuples(nsdef.Name, syncRevision).WithRelation(delta.RelationName),
+				ds.QueryTuples(&v1_api.ObjectFilter{
+					ObjectType:       nsdef.Name,
+					OptionalRelation: delta.RelationName,
+				}, syncRevision),
 				ctx,
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship exists under it", delta.RelationName, nsdef.Name)
 			if err != nil {

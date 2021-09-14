@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 )
 
 const (
@@ -21,12 +22,14 @@ const (
 )
 
 var (
-	// NamespaceNameKey is the attribute name for namespaces in tracers.
-	NamespaceNameKey = attribute.Key("authzed.com/spicedb/sql/namespaceName")
+	// ObjNamespaceNameKey is a tracing attribute representing the resource object type
+	ObjNamespaceNameKey = attribute.Key("authzed.com/spicedb/sql/objNamespaceName")
 
-	objNamespaceNameKey = attribute.Key("authzed.com/spicedb/sql/objNamespaceName")
-	objRelationNameKey  = attribute.Key("authzed.com/spicedb/sql/objRelationName")
-	objIDKey            = attribute.Key("authzed.com/spicedb/sql/objId")
+	// ObjRelationNameKey is a tracing attribute representing the resource relation
+	ObjRelationNameKey = attribute.Key("authzed.com/spicedb/sql/objRelationName")
+
+	// ObjIDKey is a tracing attribute representing the resource object ID
+	ObjIDKey = attribute.Key("authzed.com/spicedb/sql/objId")
 
 	subNamespaceKey = attribute.Key("authzed.com/spicedb/sql/subNamespaceName")
 	subRelationKey  = attribute.Key("authzed.com/spicedb/sql/subRelationName")
@@ -66,8 +69,9 @@ type TupleQuery struct {
 	Schema             SchemaInformation
 	PrepareTransaction TransactionPreparer
 
-	InitialQuery sq.SelectBuilder
-	Revision     datastore.Revision
+	InitialQuery             sq.SelectBuilder
+	InitialQuerySizeEstimate int
+	Revision                 datastore.Revision
 
 	Tracer           trace.Tracer
 	TracerAttributes []attribute.KeyValue
@@ -75,12 +79,12 @@ type TupleQuery struct {
 	DebugName                 string
 	SplitAtEstimatedQuerySize units.Base2Bytes
 
-	limit    *uint64
-	objectID *string
-	relation *string
-	usersets *[]*v0.ObjectAndRelation
+	limit         *uint64
+	usersetFilter *v1.ObjectFilter
+	usersets      *[]*v0.ObjectAndRelation
 }
 
+// Limit implements the datastore.CommonTupleQuery interface
 func (ctq TupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	if ctq.limit != nil {
 		panic("Called Limit twice")
@@ -91,60 +95,65 @@ func (ctq TupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	return ctq
 }
 
-func (ctq TupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
-	if ctq.objectID != nil {
-		panic("Called WithObjectID twice")
-	}
-
-	ctq.TracerAttributes = append(ctq.TracerAttributes, objIDKey.String(objectID))
-	ctq.objectID = &objectID
-	return ctq
-}
-
-func (ctq TupleQuery) WithRelation(relation string) datastore.TupleQuery {
-	if ctq.relation != nil {
-		panic("Called WithRelation twice")
-	}
-
-	ctq.TracerAttributes = append(ctq.TracerAttributes, objRelationNameKey.String(relation))
-	ctq.relation = &relation
-	return ctq
-}
-
+// WithUsersets implements the datastore.TupleQuery interface
 func (ctq TupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	if usersets == nil || len(usersets) == 0 {
-		panic("Cannot send nil or empty usersets into query")
+	if len(usersets) == 0 {
+		panic("cannot send nil or empty usersets into query")
+	}
+
+	if ctq.usersetFilter != nil {
+		panic("cannot call WithUsersets after WithUsersetFilter")
 	}
 
 	if ctq.usersets != nil {
-		panic("Called WithUsersets twice")
+		panic("called WithUsersets twice")
 	}
 
 	ctq.usersets = &usersets
 	return ctq
 }
 
-func (ctq TupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.TupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subNamespaceKey.String(userset.Namespace))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subObjectIDKey.String(userset.ObjectId))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subRelationKey.String(userset.Relation))
-	return ctq.WithUsersets([]*v0.ObjectAndRelation{userset})
+// WithUsersetFilter implements the datastore.TupleQuery interface
+func (ctq TupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.TupleQuery {
+	if filter == nil {
+		panic("cannot call WithUsersetFilter with a nil filter")
+	}
+
+	if ctq.usersets != nil {
+		panic("cannot call WithUsersetFilter after WithUsersets")
+	}
+
+	if ctq.usersetFilter != nil {
+		panic("called WithUsersetFilter twice")
+	}
+
+	ctq.TracerAttributes = append(ctq.TracerAttributes, subNamespaceKey.String(filter.ObjectType))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, subObjectIDKey.String(filter.OptionalObjectId))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, subRelationKey.String(filter.OptionalRelation))
+	ctq.usersetFilter = filter
+	return ctq
 }
 
+// Execute implements the datastore.CommonTupleQuery interface
 func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	// Build the query/queries to execute.
 	query := ctq.InitialQuery
-	baseEstimatedDataSize := 0
+	baseEstimatedDataSize := ctq.InitialQuerySizeEstimate
 
-	// Add the base query filters.
-	if ctq.objectID != nil {
-		query = query.Where(sq.Eq{ctq.Schema.ColObjectID: *ctq.objectID})
-		baseEstimatedDataSize += len(*ctq.objectID)
-	}
+	// Add the userset filters to the query.
+	if ctq.usersetFilter != nil {
+		query = query.Where(sq.Eq{ctq.Schema.ColUsersetNamespace: ctq.usersetFilter.ObjectType})
+		baseEstimatedDataSize += len(ctq.usersetFilter.ObjectType)
 
-	if ctq.relation != nil {
-		query = query.Where(sq.Eq{ctq.Schema.ColRelation: *ctq.relation})
-		baseEstimatedDataSize += len(*ctq.relation)
+		if ctq.usersetFilter.OptionalObjectId != "" {
+			query = query.Where(sq.Eq{ctq.Schema.ColUsersetObjectID: ctq.usersetFilter.OptionalObjectId})
+			baseEstimatedDataSize += len(ctq.usersetFilter.OptionalObjectId)
+		}
+
+		if ctq.usersetFilter.OptionalRelation != "" {
+			query = query.Where(sq.Eq{ctq.Schema.ColUsersetRelation: ctq.usersetFilter.OptionalRelation})
+			baseEstimatedDataSize += len(ctq.usersetFilter.OptionalRelation)
+		}
 	}
 
 	// Determine split points for the query based on the usersets, if any.
@@ -335,9 +344,10 @@ type ReverseTupleQuery struct {
 	TupleQuery
 }
 
+// WithObjectRelation implements the datastore ReverseTupleQuery interface.
 func (ctq ReverseTupleQuery) WithObjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, objNamespaceNameKey.String(namespaceName))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, objRelationNameKey.String(relationName))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, ObjNamespaceNameKey.String(namespaceName))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, ObjRelationNameKey.String(relationName))
 
 	ctq.InitialQuery = ctq.InitialQuery.
 		Where(sq.Eq{

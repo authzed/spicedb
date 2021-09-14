@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -133,11 +134,16 @@ type TupleChecker struct {
 }
 
 func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) datastore.TupleIterator {
-	iter, err := tc.DS.QueryTuples(tpl.ObjectAndRelation.Namespace, rev).
-		WithObjectID(tpl.ObjectAndRelation.ObjectId).
-		WithRelation(tpl.ObjectAndRelation.Relation).
-		WithUserset(tpl.User.GetUserset()).
-		Execute(ctx)
+	userset := tpl.User.GetUserset()
+	iter, err := tc.DS.QueryTuples(&v1.ObjectFilter{
+		ObjectType:       tpl.ObjectAndRelation.Namespace,
+		OptionalObjectId: tpl.ObjectAndRelation.ObjectId,
+		OptionalRelation: tpl.ObjectAndRelation.Relation,
+	}, rev).WithUsersetFilter(&v1.ObjectFilter{
+		ObjectType:       userset.Namespace,
+		OptionalObjectId: userset.ObjectId,
+		OptionalRelation: userset.Relation,
+	}).Execute(ctx)
 
 	tc.Require.NoError(err)
 	return iter

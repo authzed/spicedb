@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/test"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
 )
 
@@ -43,7 +44,9 @@ func BenchmarkCRDBQuery(b *testing.B) {
 		require := require.New(b)
 
 		for i := 0; i < b.N; i++ {
-			iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, revision).Execute(context.Background())
+			iter, err := ds.QueryTuples(&v1.ObjectFilter{
+				ObjectType: testfixtures.DocumentNS.Name,
+			}, revision).Execute(context.Background())
 			require.NoError(err)
 
 			defer iter.Close()

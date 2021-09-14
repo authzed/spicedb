@@ -16,6 +16,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1_api "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -80,7 +81,10 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			switch delta.Type {
 			case namespace.RemovedRelation:
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.QueryTuples(config.Name, syncRevision).WithRelation(delta.RelationName),
+					nss.ds.QueryTuples(&v1_api.ObjectFilter{
+						ObjectType:       config.Name,
+						OptionalRelation: delta.RelationName,
+					}, syncRevision),
 					ctx,
 					"cannot delete relation `%s` in definition `%s`, as a relationship exists under it", delta.RelationName, config.Name)
 				if err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1_api "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
@@ -153,21 +154,31 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 	var allTuplesetResults []*v0.ReadResponse_Tupleset
 
 	for _, tuplesetFilter := range req.Tuplesets {
-		queryBuilder := as.ds.QueryTuples(tuplesetFilter.Namespace, atRevision)
+		resourceFilter := &v1_api.ObjectFilter{
+			ObjectType: tuplesetFilter.Namespace,
+		}
+		var filterUserset *v0.ObjectAndRelation
+
 		for _, filter := range tuplesetFilter.Filters {
 			switch filter {
 			case v0.RelationTupleFilter_OBJECT_ID:
-				queryBuilder = queryBuilder.WithObjectID(tuplesetFilter.ObjectId)
+				resourceFilter.OptionalObjectId = tuplesetFilter.ObjectId
 			case v0.RelationTupleFilter_RELATION:
-				queryBuilder = queryBuilder.WithRelation(tuplesetFilter.Relation)
+				resourceFilter.OptionalRelation = tuplesetFilter.Relation
 			case v0.RelationTupleFilter_USERSET:
-				queryBuilder = queryBuilder.WithUserset(tuplesetFilter.Userset)
+				filterUserset = tuplesetFilter.Userset
 			default:
 				return nil, status.Errorf(codes.InvalidArgument, "unknown tupleset filter type: %s", filter)
 			}
 		}
 
-		tupleIterator, err := queryBuilder.Execute(ctx)
+		query := as.ds.QueryTuples(resourceFilter, atRevision)
+
+		if filterUserset != nil {
+			query = query.WithUsersets([]*v0.ObjectAndRelation{filterUserset})
+		}
+
+		tupleIterator, err := query.Execute(ctx)
 		if err != nil {
 			return nil, rewriteACLError(err)
 		}
