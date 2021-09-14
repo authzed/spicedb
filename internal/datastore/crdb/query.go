@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 )
 
 const (
@@ -35,15 +36,35 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (cds *crdbDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
+func (cds *crdbDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
+	if resourceFilter == nil {
+		panic("cannot call QueryTuples with a nil filter")
+	}
+
+	initialQuery := queryTuples.Where(sq.Eq{colNamespace: resourceFilter.ObjectType})
+	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(resourceFilter.ObjectType)}
+
+	if resourceFilter.OptionalObjectId != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colObjectID: resourceFilter.OptionalObjectId})
+		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(resourceFilter.OptionalObjectId))
+	}
+
+	if resourceFilter.OptionalRelation != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colRelation: resourceFilter.OptionalRelation})
+		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(resourceFilter.OptionalRelation))
+	}
+
+	baseSize := len(resourceFilter.ObjectType) + len(resourceFilter.OptionalObjectId) + len(resourceFilter.OptionalRelation)
+
 	return common.TupleQuery{
 		Conn:                      cds.conn,
 		Schema:                    schema,
 		PrepareTransaction:        cds.prepareTransaction,
-		InitialQuery:              queryTuples.Where(sq.Eq{colNamespace: namespace}),
+		InitialQuery:              initialQuery,
+		InitialQuerySizeEstimate:  baseSize,
 		Revision:                  revision,
 		Tracer:                    tracer,
-		TracerAttributes:          []attribute.KeyValue{common.NamespaceNameKey.String(namespace)},
+		TracerAttributes:          tracerAttributes,
 		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
 		DebugName:                 "QueryTuples",
 	}

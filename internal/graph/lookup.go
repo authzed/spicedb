@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1_api "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -229,8 +230,10 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 			// For each inferred object found, check for the target ONR.
 			objects := tuple.NewONRSet()
 			if len(result.Resp.ResolvedOnrs) > 0 {
-				it, err := cl.ds.QueryTuples(req.ObjectRelation.Namespace, requestRevision).
-					WithRelation(req.ObjectRelation.Relation).
+				it, err := cl.ds.QueryTuples(&v1_api.ObjectFilter{
+					ObjectType:       req.ObjectRelation.Namespace,
+					OptionalRelation: req.ObjectRelation.Relation,
+				}, requestRevision).
 					WithUsersets(result.Resp.ResolvedOnrs).
 					Limit(uint64(req.Limit)).
 					Execute(ctx)
@@ -414,8 +417,10 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 			// Perform the tupleset lookup.
 			objects := tuple.NewONRSet()
 			if len(usersets) > 0 {
-				it, err := cl.ds.QueryTuples(req.ObjectRelation.Namespace, requestRevision).
-					WithRelation(ttu.Tupleset.Relation).
+				it, err := cl.ds.QueryTuples(&v1_api.ObjectFilter{
+					ObjectType:       req.ObjectRelation.Namespace,
+					OptionalRelation: ttu.Tupleset.Relation,
+				}, requestRevision).
 					WithUsersets(usersets).
 					Limit(uint64(req.Limit)).
 					Execute(ctx)

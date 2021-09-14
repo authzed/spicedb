@@ -4,6 +4,7 @@ import (
 	"context"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 )
 
@@ -55,7 +56,7 @@ type Datastore interface {
 // GraphDatastore is a subset of the datastore interface that is passed to graph resolvers.
 type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
-	QueryTuples(namespace string, revision Revision) TupleQuery
+	QueryTuples(resourceFilter *v1.ObjectFilter, revision Revision) TupleQuery
 
 	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from subject onward
 	// from the datastore.
@@ -91,14 +92,8 @@ type ReverseTupleQuery interface {
 type TupleQuery interface {
 	CommonTupleQuery
 
-	// WithObjectID adds an object ID filter to the query.
-	WithObjectID(objectID string) TupleQuery
-
-	// WithRelation adds a relation filter to the query.
-	WithRelation(relation string) TupleQuery
-
 	// WithUserset adds a userset filter to the query.
-	WithUserset(userset *v0.ObjectAndRelation) TupleQuery
+	WithUsersetFilter(filter *v1.ObjectFilter) TupleQuery
 
 	// WithUsersets adds multiple userset filters to the query.
 	WithUsersets(usersets []*v0.ObjectAndRelation) TupleQuery
@@ -116,10 +111,12 @@ type TupleIterator interface {
 	Close()
 }
 
-// Add a type alias to make changing the revision type a little bit easier if we need to do it in
-// the future. Implementations should code directly against decimal.Decimal when creating or parsing.
+// Revision is a type alias to make changing the revision type a little bit
+// easier if we need to do it in the future. Implementations should code
+// directly against decimal.Decimal when creating or parsing.
 type Revision = decimal.Decimal
 
-// A zero type for the revision that will make changing the revision type in the future a bit easier
-// if necessary. Implementations should use any time they want to signal an empty/error revision.
+// NoRevision is a zero type for the revision that will make changing the
+// revision type in the future a bit easier if necessary. Implementations
+// should use any time they want to signal an empty/error revision.
 var NoRevision Revision

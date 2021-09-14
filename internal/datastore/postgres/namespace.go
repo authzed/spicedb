@@ -44,7 +44,7 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Namesp
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
 	defer span.End()
 
-	span.SetAttributes(common.NamespaceNameKey.String(newConfig.Name))
+	span.SetAttributes(common.ObjNamespaceNameKey.String(newConfig.Name))
 
 	serialized, err := proto.Marshal(newConfig)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 )
 
 var relationNameKey = attribute.Key("authzed.com/spicedb/relationName")
@@ -31,21 +32,42 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (pgd *pgDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
+func (pgd *pgDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
+	if resourceFilter == nil {
+		panic("cannot call QueryTuples with a nil filter")
+	}
+
+	initialQuery := queryTuples.
+		Where(sq.Eq{colNamespace: resourceFilter.ObjectType}).
+		Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+		Where(sq.Or{
+			sq.Eq{colDeletedTxn: liveDeletedTxnID},
+			sq.Gt{colDeletedTxn: revision},
+		})
+
+	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(resourceFilter.ObjectType)}
+
+	if resourceFilter.OptionalObjectId != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colObjectID: resourceFilter.OptionalObjectId})
+		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(resourceFilter.OptionalObjectId))
+	}
+
+	if resourceFilter.OptionalRelation != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colRelation: resourceFilter.OptionalRelation})
+		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(resourceFilter.OptionalRelation))
+	}
+
+	baseSize := len(resourceFilter.ObjectType) + len(resourceFilter.OptionalObjectId) + len(resourceFilter.OptionalRelation)
+
 	return common.TupleQuery{
-		Conn:               pgd.dbpool,
-		Schema:             schema,
-		PrepareTransaction: nil,
-		InitialQuery: queryTuples.
-			Where(sq.Eq{colNamespace: namespace}).
-			Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
-			Where(sq.Or{
-				sq.Eq{colDeletedTxn: liveDeletedTxnID},
-				sq.Gt{colDeletedTxn: revision},
-			}),
+		Conn:                      pgd.dbpool,
+		Schema:                    schema,
+		PrepareTransaction:        nil,
+		InitialQuery:              initialQuery,
+		InitialQuerySizeEstimate:  baseSize,
 		Revision:                  revision,
 		Tracer:                    tracer,
-		TracerAttributes:          []attribute.KeyValue{common.NamespaceNameKey.String(namespace)},
+		TracerAttributes:          tracerAttributes,
 		DebugName:                 "QueryTuples",
 		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
 	}

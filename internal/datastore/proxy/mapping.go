@@ -6,6 +6,7 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/internal/datastore"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -151,9 +152,9 @@ func (mp mappingProxy) DeleteNamespace(ctx context.Context, nsName string) (data
 	return mp.delegate.DeleteNamespace(ctx, storedNamespaceName)
 }
 
-func (mp mappingProxy) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
-	translatedNamespace, err := mp.mapper.Encode(namespace)
-	return mappingTupleQuery{mp.delegate.QueryTuples(translatedNamespace, revision), mp.mapper, err}
+func (mp mappingProxy) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
+	newFilter, err := translateFilter(resourceFilter, mp.mapper.Encode)
+	return mappingTupleQuery{mp.delegate.QueryTuples(newFilter, revision), mp.mapper, err}
 }
 
 func (mp mappingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
@@ -236,28 +237,18 @@ func (mtq mappingTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	}
 }
 
-func (mtq mappingTupleQuery) WithObjectID(objectID string) datastore.TupleQuery {
-	mtq.delegate = mtq.delegate.WithObjectID(objectID)
-	return mtq
-}
-
-func (mtq mappingTupleQuery) WithRelation(relation string) datastore.TupleQuery {
-	mtq.delegate = mtq.delegate.WithRelation(relation)
-	return mtq
-}
-
-func (mtq mappingTupleQuery) WithUserset(userset *v0.ObjectAndRelation) datastore.TupleQuery {
+func (mtq mappingTupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.TupleQuery {
 	if mtq.err != nil {
 		return mtq
 	}
 
-	translatedUserset, err := translateONR(userset, mtq.mapper.Encode)
+	translatedFilter, err := translateFilter(filter, mtq.mapper.Encode)
 	if err != nil {
 		mtq.err = err
 		return mtq
 	}
 
-	mtq.delegate = mtq.delegate.WithUserset(translatedUserset)
+	mtq.delegate = mtq.delegate.WithUsersetFilter(translatedFilter)
 	return mtq
 }
 
@@ -355,6 +346,19 @@ func translateONR(in *v0.ObjectAndRelation, mapper func(string) (string, error))
 		Namespace: newNamespace,
 		ObjectId:  in.ObjectId,
 		Relation:  in.Relation,
+	}, nil
+}
+
+func translateFilter(in *v1.ObjectFilter, mapper func(string) (string, error)) (*v1.ObjectFilter, error) {
+	newObjectType, err := mapper(in.ObjectType)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.ObjectFilter{
+		ObjectType:       newObjectType,
+		OptionalObjectId: in.OptionalObjectId,
+		OptionalRelation: in.OptionalRelation,
 	}, nil
 }
 

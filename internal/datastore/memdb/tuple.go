@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 )
 
 const (
@@ -116,12 +117,12 @@ func (mds *memdbDatastore) WriteTuples(
 	return revisionFromVersion(newChangelogID), nil
 }
 
-func (mds *memdbDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
+func (mds *memdbDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
 	return &memdbTupleQuery{
 		db:               mds.db,
-		namespace:        namespace,
 		revision:         revision,
 		simulatedLatency: mds.simulatedLatency,
+		resourceFilter:   resourceFilter,
 	}
 }
 

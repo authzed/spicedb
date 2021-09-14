@@ -76,11 +76,11 @@ func DecodeRevision(encoded *v0.Zookie) (decimal.Decimal, error) {
 		return decimal.Zero, err
 	}
 
-	switch decoded.Version {
-	case 1:
-		return decimal.NewFromInt(int64(decoded.GetV1().Revision)), nil
-	case 2:
-		parsed, err := decimal.NewFromString(decoded.GetV2().Revision)
+	switch ver := decoded.VersionOneof.(type) {
+	case *zookie.DecodedZookie_V1:
+		return decimal.NewFromInt(int64(ver.V1.Revision)), nil
+	case *zookie.DecodedZookie_V2:
+		parsed, err := decimal.NewFromString(ver.V2.Revision)
 		if err != nil {
 			return decimal.Zero, fmt.Errorf(errDecodeError, err)
 		}

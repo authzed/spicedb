@@ -6,6 +6,7 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 )
 
 var errReadOnly = datastore.NewReadonlyErr()
@@ -48,8 +49,8 @@ func (rd roDatastore) DeleteNamespace(ctx context.Context, nsName string) (datas
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) QueryTuples(namespace string, revision datastore.Revision) datastore.TupleQuery {
-	return rd.delegate.QueryTuples(namespace, revision)
+func (rd roDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
+	return rd.delegate.QueryTuples(resourceFilter, revision)
 }
 
 func (rd roDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {

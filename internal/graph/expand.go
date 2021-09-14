@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1_api "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
 
@@ -63,10 +64,11 @@ func (ce *ConcurrentExpander) expandDirect(
 			return
 		}
 
-		it, err := ce.ds.QueryTuples(req.ObjectAndRelation.Namespace, requestRevision).
-			WithObjectID(req.ObjectAndRelation.ObjectId).
-			WithRelation(req.ObjectAndRelation.Relation).
-			Execute(ctx)
+		it, err := ce.ds.QueryTuples(&v1_api.ObjectFilter{
+			ObjectType:       req.ObjectAndRelation.Namespace,
+			OptionalObjectId: req.ObjectAndRelation.ObjectId,
+			OptionalRelation: req.ObjectAndRelation.Relation,
+		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), 1)
 			return
@@ -230,10 +232,11 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.
 			return
 		}
 
-		it, err := ce.ds.QueryTuples(req.ObjectAndRelation.Namespace, requestRevision).
-			WithObjectID(req.ObjectAndRelation.ObjectId).
-			WithRelation(ttu.Tupleset.Relation).
-			Execute(ctx)
+		it, err := ce.ds.QueryTuples(&v1_api.ObjectFilter{
+			ObjectType:       req.ObjectAndRelation.Namespace,
+			OptionalObjectId: req.ObjectAndRelation.ObjectId,
+			OptionalRelation: ttu.Tupleset.Relation,
+		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), 1)
 			return

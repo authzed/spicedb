@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1_api "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
 
@@ -66,10 +67,11 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 		}
 
 		log.Trace().Object("direct", req).Send()
-		it, err := cc.ds.QueryTuples(req.ObjectAndRelation.Namespace, requestRevision).
-			WithObjectID(req.ObjectAndRelation.ObjectId).
-			WithRelation(req.ObjectAndRelation.Relation).
-			Execute(ctx)
+		it, err := cc.ds.QueryTuples(&v1_api.ObjectFilter{
+			ObjectType:       req.ObjectAndRelation.Namespace,
+			OptionalObjectId: req.ObjectAndRelation.ObjectId,
+			OptionalRelation: req.ObjectAndRelation.Relation,
+		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), 1)
 			return
@@ -187,10 +189,11 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 		}
 
 		log.Trace().Object("ttu", req).Send()
-		it, err := cc.ds.QueryTuples(req.ObjectAndRelation.Namespace, requestRevision).
-			WithObjectID(req.ObjectAndRelation.ObjectId).
-			WithRelation(ttu.Tupleset.Relation).
-			Execute(ctx)
+		it, err := cc.ds.QueryTuples(&v1_api.ObjectFilter{
+			ObjectType:       req.ObjectAndRelation.Namespace,
+			OptionalObjectId: req.ObjectAndRelation.ObjectId,
+			OptionalRelation: ttu.Tupleset.Relation,
+		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), 1)
 			return
