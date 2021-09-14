@@ -3,6 +3,7 @@ package namespace
 import (
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/rs/zerolog"
 )
 
@@ -58,3 +59,8 @@ func NewRelationNotFoundErr(nsName string, relationName string) error {
 		relationName:  relationName,
 	}
 }
+
+var (
+	_ sharederrors.UnknownNamespaceError = ErrNamespaceNotFound{}
+	_ sharederrors.UnknownRelationError  = ErrRelationNotFound{}
+)
