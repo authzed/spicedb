@@ -30,6 +30,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	internaldispatch "github.com/authzed/spicedb/internal/services/dispatch"
@@ -94,27 +95,6 @@ func rootRun(cmd *cobra.Command, args []string) {
 	token := cobrautil.MustGetString(cmd, "grpc-preshared-key")
 	if len(token) < 1 {
 		log.Fatal().Msg("must provide flag: --grpc-preshared-key")
-	}
-
-	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
-		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
-	))
-
-	middleware := grpc.ChainUnaryInterceptor(
-		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
-		otelgrpc.UnaryServerInterceptor(),
-		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
-		grpcprom.UnaryServerInterceptor,
-	)
-
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to create gRPC server")
-	}
-
-	internalGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to create internal gRPC server")
 	}
 
 	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
@@ -199,6 +179,28 @@ func rootRun(cmd *cobra.Command, args []string) {
 	nsm, err := namespace.NewCachingNamespaceManager(ds, nsCacheExpiration, nil)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize namespace manager")
+	}
+
+	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
+		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
+	))
+
+	middleware := grpc.ChainUnaryInterceptor(
+		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
+		otelgrpc.UnaryServerInterceptor(),
+		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
+		consistency.UnaryServerInterceptor(ds),
+		grpcprom.UnaryServerInterceptor,
+	)
+
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create gRPC server")
+	}
+
+	internalGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to create internal gRPC server")
 	}
 
 	redispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
