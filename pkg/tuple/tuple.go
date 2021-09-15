@@ -10,11 +10,41 @@ import (
 )
 
 const (
-	// Format is the serialized form of the tuple
-	format = "%s:%s#%s@%s:%s#%s"
+	ellipsis = "..."
 )
 
-var parserRegex = regexp.MustCompile(`([^:]*):([^#]*)#([^@]*)@([^:]*):([^#]*)#(.*)`)
+const (
+	namespaceNameExpr = "([a-z][a-z0-9_]{2,61}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]"
+	objectIDExpr      = "[a-zA-Z0-9_][a-zA-Z0-9/_-]{0,127}"
+	relationExpr      = "[a-z][a-z0-9_]{2,62}[a-z0-9]"
+)
+
+var onrExpr = fmt.Sprintf(
+	`(?P<resourceType>(%s)):(?P<resourceID>%s)#(?P<resourceRel>%s)`,
+	namespaceNameExpr,
+	objectIDExpr,
+	relationExpr,
+)
+
+var subjectExpr = fmt.Sprintf(
+	`(?P<subjectType>(%s)):(?P<subjectID>%s)(#(?P<subjectRel>%s|\.\.\.))?`,
+	namespaceNameExpr,
+	objectIDExpr,
+	relationExpr,
+)
+
+var (
+	onrRegex     = regexp.MustCompile(fmt.Sprintf("^%s$", onrExpr))
+	subjectRegex = regexp.MustCompile(fmt.Sprintf("^%s$", subjectExpr))
+)
+
+var parserRegex = regexp.MustCompile(
+	fmt.Sprintf(
+		`^%s@%s$`,
+		onrExpr,
+		subjectExpr,
+	),
+)
 
 // String converts a tuple to a string.
 func String(tpl *v0.RelationTuple) string {
@@ -22,52 +52,37 @@ func String(tpl *v0.RelationTuple) string {
 		return ""
 	}
 
-	return fmt.Sprintf(
-		format,
-		tpl.ObjectAndRelation.Namespace,
-		tpl.ObjectAndRelation.ObjectId,
-		tpl.ObjectAndRelation.Relation,
-		tpl.User.GetUserset().GetNamespace(),
-		tpl.User.GetUserset().GetObjectId(),
-		tpl.User.GetUserset().GetRelation(),
-	)
+	return fmt.Sprintf("%s@%s", StringONR(tpl.ObjectAndRelation), StringONR(tpl.User.GetUserset()))
 }
 
 // RelString converts a relationship into a string.
 func RelString(tpl *v1.Relationship) string {
-	if tpl == nil || tpl.Resource == nil || tpl.Subject == nil || tpl.Subject.Object == nil {
-		return ""
-	}
-
-	return fmt.Sprintf(
-		format,
-		tpl.Resource.ObjectType,
-		tpl.Resource.ObjectId,
-		tpl.Relation,
-		tpl.Subject.Object.ObjectType,
-		tpl.Subject.Object.ObjectId,
-		stringz.DefaultEmpty(tpl.Subject.OptionalRelation, "..."),
-	)
+	return String(FromRelationship(tpl))
 }
 
-// Scan converts a serialized tuple into the proto version
-func Scan(tpl string) *v0.RelationTuple {
+// Parse converts a serialized tuple into the proto version
+func Parse(tpl string) *v0.RelationTuple {
 	groups := parserRegex.FindStringSubmatch(tpl)
-
-	if len(groups) != 7 {
+	if len(groups) == 0 {
 		return nil
+	}
+
+	subjectRelation := ellipsis
+	subjectRelIndex := stringz.SliceIndex(parserRegex.SubexpNames(), "subjectRel")
+	if len(groups[subjectRelIndex]) > 0 {
+		subjectRelation = groups[subjectRelIndex]
 	}
 
 	return &v0.RelationTuple{
 		ObjectAndRelation: &v0.ObjectAndRelation{
-			Namespace: groups[1],
-			ObjectId:  groups[2],
-			Relation:  groups[3],
+			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceType")],
+			ObjectId:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceID")],
+			Relation:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceRel")],
 		},
 		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
-			Namespace: groups[4],
-			ObjectId:  groups[5],
-			Relation:  groups[6],
+			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectType")],
+			ObjectId:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectID")],
+			Relation:  subjectRelation,
 		}}},
 	}
 }

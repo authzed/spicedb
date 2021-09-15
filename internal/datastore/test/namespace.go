@@ -77,11 +77,11 @@ func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	ctx := context.Background()
 
 	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
-	docTpl := tuple.Scan(testfixtures.StandardTuples[0])
+	docTpl := tuple.Parse(testfixtures.StandardTuples[0])
 	require.NotNil(docTpl)
 	tRequire.TupleExists(ctx, docTpl, revision)
 
-	folderTpl := tuple.Scan(testfixtures.StandardTuples[2])
+	folderTpl := tuple.Parse(testfixtures.StandardTuples[2])
 	require.NotNil(folderTpl)
 	tRequire.TupleExists(ctx, folderTpl, revision)
 

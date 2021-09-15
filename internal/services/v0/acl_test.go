@@ -61,15 +61,15 @@ func TestRead(t *testing.T) {
 			&v0.RelationTupleFilter{Namespace: tf.DocumentNS.Name},
 			codes.OK,
 			[]string{
-				"document:companyplan#parent@folder:company#...",
-				"document:masterplan#parent@folder:strategy#...",
-				"document:masterplan#owner@user:product_manager#...",
-				"document:masterplan#viewer@user:eng_lead#...",
-				"document:masterplan#parent@folder:plans#...",
-				"document:healthplan#parent@folder:plans#...",
-				"document:specialplan#editor@user:multiroleguy#...",
-				"document:specialplan#viewer_and_editor@user:multiroleguy#...",
-				"document:specialplan#viewer_and_editor@user:missingrolegal#...",
+				"document:companyplan#parent@folder:company",
+				"document:masterplan#parent@folder:strategy",
+				"document:masterplan#owner@user:product_manager",
+				"document:masterplan#viewer@user:eng_lead",
+				"document:masterplan#parent@folder:plans",
+				"document:healthplan#parent@folder:plans",
+				"document:specialplan#editor@user:multiroleguy",
+				"document:specialplan#viewer_and_editor@user:multiroleguy",
+				"document:specialplan#viewer_and_editor@user:missingrolegal",
 			},
 		},
 		{
@@ -83,7 +83,7 @@ func TestRead(t *testing.T) {
 			},
 			codes.OK,
 			[]string{
-				"document:healthplan#parent@folder:plans#...",
+				"document:healthplan#parent@folder:plans",
 			},
 		},
 		{
@@ -97,10 +97,10 @@ func TestRead(t *testing.T) {
 			},
 			codes.OK,
 			[]string{
-				"document:companyplan#parent@folder:company#...",
-				"document:masterplan#parent@folder:strategy#...",
-				"document:masterplan#parent@folder:plans#...",
-				"document:healthplan#parent@folder:plans#...",
+				"document:companyplan#parent@folder:company",
+				"document:masterplan#parent@folder:strategy",
+				"document:masterplan#parent@folder:plans",
+				"document:healthplan#parent@folder:plans",
 			},
 		},
 		{
@@ -114,8 +114,8 @@ func TestRead(t *testing.T) {
 			},
 			codes.OK,
 			[]string{
-				"document:masterplan#parent@folder:plans#...",
-				"document:healthplan#parent@folder:plans#...",
+				"document:masterplan#parent@folder:plans",
+				"document:healthplan#parent@folder:plans",
 			},
 		},
 		{
@@ -131,7 +131,7 @@ func TestRead(t *testing.T) {
 			},
 			codes.OK,
 			[]string{
-				"document:masterplan#parent@folder:plans#...",
+				"document:masterplan#parent@folder:plans",
 			},
 		},
 		{
@@ -299,8 +299,8 @@ func TestWrite(t *testing.T) {
 	client, stop, _, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
 	defer stop()
 
-	toWriteStr := "document:totallynew#parent@folder:plans#..."
-	toWrite := tuple.Scan(toWriteStr)
+	toWriteStr := "document:totallynew#parent@folder:plans"
+	toWrite := tuple.Parse(toWriteStr)
 	require.NotNil(toWrite)
 
 	resp, err := client.Write(context.Background(), &v0.WriteRequest{
@@ -310,7 +310,7 @@ func TestWrite(t *testing.T) {
 	require.Nil(resp)
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 
-	existing := tuple.Scan(tf.StandardTuples[0])
+	existing := tuple.Parse(tf.StandardTuples[0])
 	require.NotNil(existing)
 
 	resp, err = client.Write(context.Background(), &v0.WriteRequest{
@@ -375,32 +375,32 @@ func TestInvalidWriteArguments(t *testing.T) {
 		},
 		{
 			"good precondition, short object ID",
-			[]string{"document:newdoc#parent@folder:afolder#..."},
-			[]string{"document:#parent@folder:afolder#..."},
+			[]string{"document:newdoc#parent@folder:afolder"},
+			[]string{"document:#parent@folder:afolder"},
 			codes.InvalidArgument,
 		},
 		{
 			"bad precondition, good write",
-			[]string{"document:newdoc#parent@folder:#..."},
-			[]string{"document:newdoc#parent@folder:afolder#..."},
+			[]string{"document:newdoc#parent@folder:"},
+			[]string{"document:newdoc#parent@folder:afolder"},
 			codes.InvalidArgument,
 		},
 		{
 			"bad write namespace",
 			nil,
-			[]string{"docu:newdoc#parent@folder:afolder#..."},
+			[]string{"docu:newdoc#parent@folder:afolder"},
 			codes.FailedPrecondition,
 		},
 		{
 			"bad write relation",
 			nil,
-			[]string{"document:newdoc#pare@folder:afolder#..."},
+			[]string{"document:newdoc#pare@folder:afolder"},
 			codes.FailedPrecondition,
 		},
 		{
 			"bad write userset namespace",
 			nil,
-			[]string{"document:newdoc#parent@fold:afolder#..."},
+			[]string{"document:newdoc#parent@fold:afolder"},
 			codes.FailedPrecondition,
 		},
 		{
@@ -412,7 +412,7 @@ func TestInvalidWriteArguments(t *testing.T) {
 		{
 			"bad write wrong relation type",
 			nil,
-			[]string{"document:newdoc#parent@user:someuser#..."},
+			[]string{"document:newdoc#parent@user:someuser"},
 			codes.InvalidArgument,
 		},
 	}
@@ -425,12 +425,12 @@ func TestInvalidWriteArguments(t *testing.T) {
 
 			var preconditions []*v0.RelationTuple
 			for _, p := range tc.preconditions {
-				preconditions = append(preconditions, tuple.Scan(p))
+				preconditions = append(preconditions, tuple.Parse(p))
 			}
 
 			var mutations []*v0.RelationTupleUpdate
 			for _, tpl := range tc.tuples {
-				mutations = append(mutations, tuple.Touch(tuple.Scan(tpl)))
+				mutations = append(mutations, tuple.Touch(tuple.Parse(tpl)))
 			}
 
 			_, err := client.Write(context.Background(), &v0.WriteRequest{

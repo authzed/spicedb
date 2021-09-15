@@ -3,6 +3,7 @@ package validationfile
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	yaml "gopkg.in/yaml.v2"
@@ -131,7 +132,7 @@ type ObjectRelationString string
 // ONR returns the ObjectAndRelation parsed from this string, if valid, or an error on failure
 // to parse.
 func (ors ObjectRelationString) ONR() (*v0.ObjectAndRelation, *ErrorWithSource) {
-	parsed := tuple.ScanONR(string(ors))
+	parsed := tuple.ParseONR(string(ors))
 	if parsed == nil {
 		return nil, &ErrorWithSource{fmt.Errorf("could not parse %s", ors), string(ors), 0, 0}
 	}
@@ -165,7 +166,7 @@ func (vs ValidationString) Subject() (*v0.ObjectAndRelation, *ErrorWithSource) {
 		return nil, nil
 	}
 
-	found := tuple.ScanONR(subjectStr)
+	found := tuple.ParseSubjectONR(subjectStr)
 	if found == nil {
 		return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", subjectStr), subjectStr, 0, 0}
 	}
@@ -188,7 +189,7 @@ func (vs ValidationString) ONRS() ([]*v0.ObjectAndRelation, *ErrorWithSource) {
 
 	onrs := []*v0.ObjectAndRelation{}
 	for _, onrString := range onrStrings {
-		found := tuple.ScanONR(onrString)
+		found := tuple.ParseONR(onrString)
 		if found == nil {
 			return nil, &ErrorWithSource{fmt.Errorf("invalid object and relation: %s", onrString), onrString, 0, 0}
 		}
@@ -230,7 +231,8 @@ type ParsedAssertion struct {
 func (a Assertions) AssertTrueRelationships() ([]ParsedAssertion, *ErrorWithSource) {
 	var relationships []ParsedAssertion
 	for _, assertion := range a.AssertTrue {
-		parsed := tuple.Scan(assertion.relationshipString)
+		trimmed := strings.TrimSpace(assertion.relationshipString)
+		parsed := tuple.Parse(trimmed)
 		if parsed == nil {
 			return relationships, &ErrorWithSource{
 				fmt.Errorf("could not parse relationship `%s`", assertion.relationshipString),
@@ -252,7 +254,8 @@ func (a Assertions) AssertTrueRelationships() ([]ParsedAssertion, *ErrorWithSour
 func (a Assertions) AssertFalseRelationships() ([]ParsedAssertion, *ErrorWithSource) {
 	var relationships []ParsedAssertion
 	for _, assertion := range a.AssertFalse {
-		parsed := tuple.Scan(assertion.relationshipString)
+		trimmed := strings.TrimSpace(assertion.relationshipString)
+		parsed := tuple.Parse(trimmed)
 		if parsed == nil {
 			return relationships, &ErrorWithSource{
 				fmt.Errorf("could not parse relationship `%s`", assertion.relationshipString),

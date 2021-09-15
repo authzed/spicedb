@@ -118,7 +118,7 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 
 	var revision datastore.Revision
 	for _, tupleStr := range StandardTuples {
-		tpl := tuple.Scan(tupleStr)
+		tpl := tuple.Parse(tupleStr)
 		require.NotNil(tpl)
 
 		var err error

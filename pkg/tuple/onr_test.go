@@ -16,6 +16,14 @@ var onrTestCases = []struct {
 		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "testrel"),
 	},
 	{
+		serialized:   "tenant/testns:testobj#...",
+		objectFormat: nil,
+	},
+	{
+		serialized:   "tenant/testns:testobj",
+		objectFormat: nil,
+	},
+	{
 		serialized:   "",
 		objectFormat: nil,
 	},
@@ -23,21 +31,65 @@ var onrTestCases = []struct {
 
 func TestSerializeONR(t *testing.T) {
 	for _, tc := range onrTestCases {
+		if tc.objectFormat == nil {
+			continue
+		}
+
 		t.Run(tc.serialized, func(t *testing.T) {
 			require := require.New(t)
-
 			serialized := StringONR(tc.objectFormat)
 			require.Equal(tc.serialized, serialized)
 		})
 	}
 }
 
-func TestScanONR(t *testing.T) {
+func TestParseONR(t *testing.T) {
 	for _, tc := range onrTestCases {
 		t.Run(tc.serialized, func(t *testing.T) {
 			require := require.New(t)
 
-			parsed := ScanONR(tc.serialized)
+			parsed := ParseONR(tc.serialized)
+			require.Equal(tc.objectFormat, parsed)
+		})
+	}
+}
+
+var subjectOnrTestCases = []struct {
+	serialized   string
+	objectFormat *v0.ObjectAndRelation
+}{
+	{
+		serialized:   "tenant/testns:testobj#testrel",
+		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "testrel"),
+	},
+	{
+		serialized:   "tenant/testns:testobj#...",
+		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "..."),
+	},
+	{
+		serialized:   "tenant/testns:testobj",
+		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "..."),
+	},
+	{
+		serialized:   "tenant/testns:testobj#",
+		objectFormat: nil,
+	},
+	{
+		serialized:   "tenant/testns:testobj:",
+		objectFormat: nil,
+	},
+	{
+		serialized:   "",
+		objectFormat: nil,
+	},
+}
+
+func TestParseSubjectONR(t *testing.T) {
+	for _, tc := range subjectOnrTestCases {
+		t.Run(tc.serialized, func(t *testing.T) {
+			require := require.New(t)
+
+			parsed := ParseSubjectONR(tc.serialized)
 			require.Equal(tc.objectFormat, parsed)
 		})
 	}
