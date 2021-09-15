@@ -8,7 +8,6 @@ require (
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
-	github.com/authzed/authzed-go v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f
 	github.com/aws/aws-sdk-go v1.40.35
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect

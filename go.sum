@@ -65,9 +65,6 @@ github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hC
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
-github.com/authzed/authzed-go v0.1.0 h1:+BhlZz4LJ3WEKZnZ9hnILh2ug9L+p/6yah7NjuK99jk=
-github.com/authzed/authzed-go v0.1.0/go.mod h1:a1qVgqL5pcdZq6EXRciRITz/9KJFHyGhPn3Ng/X2bc0=
-github.com/authzed/grpcutil v0.0.0-20210702215403-5fe6e00b4101/go.mod h1:ZWOuCUQ/qoVIAWUctRy/lWHI37OcahRzt5ylELzumus=
 github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f h1:7CRJHi1JOJEvaH/Dx3hMRRQeUAVxAPPHTz+UZ99NiYQ=
 github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f/go.mod h1:HwO/KbRU3fWXEYHE96kvXnwxzi97tkXD1hfi5UaZ71Y=
 github.com/aws/aws-sdk-go v1.17.4/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
@@ -355,7 +352,6 @@ github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6 h1:OzCtZ
 github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6/go.mod h1:CEusGbCRDFcHX9EgEhPsgJX33kpp9CfSFRBAoSGOems=
 github.com/jzelinskie/cobrautil v0.0.4 h1:OIYfoDHVDvftmzmwsDjQzmnuozxd2LANcFti3aql+n4=
 github.com/jzelinskie/cobrautil v0.0.4/go.mod h1:svcV0pfy8vH8O+IpYaJgWw70PJuAtvoKXsIELG8Krzs=
-github.com/jzelinskie/stringz v0.0.0-20210414224931-d6a8ce844a70/go.mod h1:hHYbgxJuNLRw91CmpuFsYEOyQqpDVFg8pvEh23vy4P0=
 github.com/jzelinskie/stringz v0.0.1 h1:IahR+y8ct2nyj7B6i8UtFsGFj4ex1SX27iKFYsAheLk=
 github.com/jzelinskie/stringz v0.0.1/go.mod h1:hHYbgxJuNLRw91CmpuFsYEOyQqpDVFg8pvEh23vy4P0=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
@@ -708,7 +704,6 @@ golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a/go.mod h1:RxMgew5VJxzue5/jJ
 golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20201207232520-09787c993a3a/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
-golang.org/x/sync v0.0.0-20210220032951-036812b2e83c h1:5KslGYwFpkhGh+Q16bwMP3cOontH8FOep7tGV86Y7SQ=
 golang.org/x/sync v0.0.0-20210220032951-036812b2e83c/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sys v0.0.0-20180823144017-11551d06cbcc/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20180830151530-49385e6e1522/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=

@@ -1,23 +1,21 @@
-package smartclient
+package consistentbackend
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
 	"time"
 
-	client_v0 "github.com/authzed/authzed-go/v0"
-	client_v1alpha1 "github.com/authzed/authzed-go/v1alpha1"
 	"github.com/cespare/xxhash"
 	"github.com/jpillora/backoff"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	servok "github.com/authzed/spicedb/internal/proto/servok/api/v1"
 	"github.com/authzed/spicedb/pkg/consistent"
-	servok "github.com/authzed/spicedb/pkg/proto/servok/api/v1"
 )
 
 const (
@@ -29,27 +27,27 @@ const (
 	hashringReplicationFactor = 20
 )
 
-var errNoBackends = errors.New("no backends available for request")
+var protoMarshal = proto.MarshalOptions{Deterministic: true}
 
-// SmartClient is a client which utilizes a dynamic source of backends and a consistent
+// ConsistentBackendClient is a client which utilizes a dynamic source of backends and a consistent
 // hashring implementation for consistently calling the same backend for the same request.
-type SmartClient struct {
+type ConsistentBackendClient struct {
 	backendsPerKey uint8
 
 	fallbackBackend *backend
+	resolverConfig  *EndpointResolverConfig
+	endpointConfig  *EndpointConfig
 
-	ringMu       sync.Mutex
-	ring         *consistent.Hashring
-	cancelWatch  context.CancelFunc
-	protoMarshal proto.MarshalOptions
+	ringMu sync.Mutex
+	ring   *consistent.Hashring
 }
 
-// NewSmartClient creates an instance of the smart client with the specified configuration.
-func NewSmartClient(
+// NewConsistentBackendClient creates an instance of the smart client with the specified configuration.
+func NewConsistentBackendClient(
 	resolverConfig *EndpointResolverConfig,
 	endpointConfig *EndpointConfig,
 	fallback *FallbackEndpointConfig,
-) (*SmartClient, error) {
+) (*ConsistentBackendClient, error) {
 	if resolverConfig.err != nil {
 		return nil, fmt.Errorf(errInitializingSmartClient, resolverConfig.err)
 	}
@@ -60,18 +58,14 @@ func NewSmartClient(
 		return nil, fmt.Errorf(errInitializingSmartClient, fallback.err)
 	}
 
-	servokClientCtx, cancel := context.WithCancel(context.Background())
-
-	sc := &SmartClient{
+	sc := &ConsistentBackendClient{
 		1,
 		fallback.backend,
+		resolverConfig,
+		endpointConfig,
 		sync.Mutex{},
 		consistent.NewHashring(xxhash.Sum64, hashringReplicationFactor),
-		cancel,
-		proto.MarshalOptions{Deterministic: true},
 	}
-
-	go sc.watchAndUpdateMembership(servokClientCtx, resolverConfig, endpointConfig)
 
 	return sc, nil
 }
@@ -104,18 +98,16 @@ func establishServokWatch(ctx context.Context,
 	return stream, nil
 }
 
-func (sc *SmartClient) watchAndUpdateMembership(
-	ctx context.Context,
-	resolverConfig *EndpointResolverConfig,
-	endpointConfig *EndpointConfig,
-) {
+// Start starts the process which will dynamically update backend membership continually. Stop this
+// service by canceling the context.
+func (cbc *ConsistentBackendClient) Start(ctx context.Context) {
 	b := &backoff.Backoff{
 		Jitter: true,
 		Max:    1 * time.Minute,
 	}
 
 	for ctx.Err() == nil {
-		stream, err := establishServokWatch(ctx, resolverConfig, endpointConfig)
+		stream, err := establishServokWatch(ctx, cbc.resolverConfig, cbc.endpointConfig)
 		if err != nil {
 			wait := b.Duration()
 			log.Warn().Stringer("retryAfter", wait).Err(err).Msg("unable to establish endpoint resolver connection")
@@ -130,51 +122,54 @@ func (sc *SmartClient) watchAndUpdateMembership(
 			if err != nil {
 				wait := b.Duration()
 				log.Error().Stringer("retryAfter", wait).Err(err).Msg("error reading from endpoint server")
-				time.Sleep(wait)
+
+				waitTimer := time.NewTimer(wait)
+
+				// We don't want to wait the whole time if our context gets closed
+				select {
+				case <-ctx.Done():
+				case <-waitTimer.C:
+				}
 
 				// We need to re-establish the stream
 				break
 			}
 
 			b.Reset()
-			sc.updateMembers(ctx, endpointResponse.Endpoints, endpointConfig.dialOptions)
+			cbc.updateMembers(ctx, endpointResponse.Endpoints, cbc.endpointConfig.dialOptions)
 		}
 	}
 }
 
-func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.Endpoint, endpointDialOptions []grpc.DialOption) {
+func (cbc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints []*servok.Endpoint, endpointDialOptions []grpc.DialOption) {
 	log.Info().Int("numEndpoints", len(endpoints)).Msg("received servok endpoint update")
 
 	// This is only its own method to get the defer unlock here
-	sc.ringMu.Lock()
-	defer sc.ringMu.Unlock()
+	cbc.ringMu.Lock()
+	defer cbc.ringMu.Unlock()
 
 	if ctx.Err() != nil {
 		log.Fatal().Err(ctx.Err()).Msg("cannot update members, client already stopped")
 	}
 
 	membersToRemove := map[string]consistent.Member{}
-	for _, existingMember := range sc.ring.Members() {
+	for _, existingMember := range cbc.ring.Members() {
 		membersToRemove[existingMember.Key()] = existingMember
 	}
 
 	for _, endpoint := range endpoints {
 		clientEndpoint := fmt.Sprintf("%s:%d", endpoint.Hostname, endpoint.Port)
 
-		v0clientForMember, err := client_v0.NewClient(clientEndpoint, endpointDialOptions...)
+		conn, err := grpc.Dial(clientEndpoint, endpointDialOptions...)
 		if err != nil {
 			log.Fatal().Str("endpoint", clientEndpoint).Err(err).Msg("error constructing client for endpoint")
 		}
 
-		v1alpha1clientForMember, err := client_v1alpha1.NewClient(clientEndpoint, endpointDialOptions...)
-		if err != nil {
-			log.Fatal().Str("endpoint", clientEndpoint).Err(err).Msg("error constructing client for endpoint")
-		}
+		client := v1.NewDispatchServiceClient(conn)
 
 		memberToAdd := &backend{
-			key:             fmt.Sprintf("%d %s", endpoint.Port, endpoint.Hostname),
-			client_v0:       v0clientForMember,
-			client_v1alpha1: v1alpha1clientForMember,
+			key:    fmt.Sprintf("%d %s", endpoint.Port, endpoint.Hostname),
+			client: client,
 		}
 
 		memberKey := memberToAdd.Key()
@@ -185,76 +180,47 @@ func (sc *SmartClient) updateMembers(ctx context.Context, endpoints []*servok.En
 		} else {
 			// This is a net-new member, add it to the hashring
 			log.Debug().Str("memberKey", memberKey).Msg("adding hashring member")
-			sc.ring.Add(memberToAdd)
+			cbc.ring.Add(memberToAdd)
 		}
 	}
 
 	for memberName, member := range membersToRemove {
 		log.Debug().Str("memberName", memberName).Msg("removing hashring member")
-		sc.ring.Remove(member)
+		cbc.ring.Remove(member)
 	}
 
 	log.Info().Int("numEndpoints", len(endpoints)).Msg("updated smart client endpoint list")
 }
 
-// Stop will cancel the client watch and clean up the pool
-func (sc *SmartClient) Stop() {
-	sc.ringMu.Lock()
-	defer sc.ringMu.Unlock()
-
-	sc.cancelWatch()
-
-	for _, member := range sc.ring.Members() {
-		sc.ring.Remove(member)
-	}
-}
-
-func (sc *SmartClient) getConsistentBackend(request proto.Message) (*backend, error) {
-	requestKey, err := sc.protoMarshal.Marshal(request)
+func (cbc *ConsistentBackendClient) getConsistentBackend(request proto.Message) (*backend, error) {
+	requestKey, err := protoMarshal.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf(errComputingBackend, err)
 	}
 
-	members, err := sc.ring.FindN(requestKey, sc.backendsPerKey)
+	members, err := cbc.ring.FindN(requestKey, cbc.backendsPerKey)
 	if err != nil {
-		if err == consistent.ErrNotEnoughMembers && sc.fallbackBackend != nil {
+		if err == consistent.ErrNotEnoughMembers && cbc.fallbackBackend != nil {
 			log.Warn().
-				Str("backend", sc.fallbackBackend.Key()).
+				Str("backend", cbc.fallbackBackend.Key()).
 				Str("type", "consistent").
 				Msg("using fallback backend")
-			return sc.fallbackBackend, nil
+			return cbc.fallbackBackend, nil
 		}
 
 		return nil, fmt.Errorf(errComputingBackend, err)
 	}
 
-	chosen := members[rand.Intn(int(sc.backendsPerKey))].(*backend)
+	chosen := members[rand.Intn(int(cbc.backendsPerKey))].(*backend)
 
 	log.Debug().Str("chosen", chosen.Key()).Msg("chose consistent backend for call")
 
 	return chosen, nil
 }
 
-func (sc *SmartClient) getRandomBackend() (*backend, error) {
-	allMembers := sc.ring.Members()
-	if len(allMembers) < 1 {
-		if sc.fallbackBackend != nil {
-			log.Warn().
-				Str("backend", sc.fallbackBackend.Key()).
-				Str("type", "random").
-				Msg("using fallback backend")
-			return sc.fallbackBackend, nil
-		}
-		return nil, errNoBackends
-
-	}
-	return allMembers[rand.Intn(len(allMembers))].(*backend), nil
-}
-
 type backend struct {
-	key             string
-	client_v0       *client_v0.Client
-	client_v1alpha1 *client_v1alpha1.Client
+	key    string
+	client v1.DispatchServiceClient
 }
 
 // Implements consistent.Member

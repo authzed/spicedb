@@ -7,10 +7,10 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
