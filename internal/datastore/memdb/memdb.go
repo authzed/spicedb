@@ -41,14 +41,14 @@ const (
 type changelog struct {
 	id         uint64
 	name       string
-	replaces   *v0.NamespaceDefinition
+	replaces   []byte
 	oldVersion uint64
 }
 
 type namespace struct {
-	name    string
-	config  *v0.NamespaceDefinition
-	version uint64
+	name        string
+	configBytes []byte
+	version     uint64
 }
 
 type tupleChangelog struct {

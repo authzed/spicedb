@@ -175,8 +175,20 @@ func (mp mappingProxy) CheckRevision(ctx context.Context, revision datastore.Rev
 	return mp.delegate.CheckRevision(ctx, revision)
 }
 
-func (mp mappingProxy) IsEmpty(ctx context.Context) (bool, error) {
-	return mp.delegate.IsEmpty(ctx)
+func (mp mappingProxy) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
+	nsDefs, err := mp.delegate.ListNamespaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, nsDef := range nsDefs {
+		originalNamespaceName, err := mp.mapper.Reverse(nsDef.Name)
+		if err != nil {
+			return nil, err
+		}
+		nsDef.Name = originalNamespaceName
+	}
+	return nsDefs, nil
 }
 
 type mappingTupleIterator struct {

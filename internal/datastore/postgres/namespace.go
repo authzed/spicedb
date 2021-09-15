@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	errUnableToWriteConfig  = "unable to write namespace config: %w"
-	errUnableToReadConfig   = "unable to read namespace config: %w"
-	errUnableToDeleteConfig = "unable to delete namespace config: %w"
+	errUnableToWriteConfig    = "unable to write namespace config: %w"
+	errUnableToReadConfig     = "unable to read namespace config: %w"
+	errUnableToDeleteConfig   = "unable to delete namespace config: %w"
+	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
 
 var (
@@ -209,43 +210,41 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx) (*v0.Namesp
 	return loaded, version, nil
 }
 
-func (pgd *pgDatastore) IsEmpty(ctx context.Context) (bool, error) {
-	ctx, span := tracer.Start(ctx, "IsEmpty")
+func (pgd *pgDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
+	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	defer span.End()
 	tx, err := pgd.dbpool.Begin(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer tx.Rollback(ctx)
 
-	nsQuery := psql.Select("1").
-		Prefix("NOT EXISTS (").
-		From(tableNamespace).
-		Limit(1).
-		Suffix(")")
-	tupleQuery := psql.Select("1").
-		Prefix("NOT EXISTS (").
-		From(tableTuple).
-		Limit(1).
-		Suffix(")")
+	query := readNamespace
 
-	sql, args, err := psql.Select("1").
-		Where(
-			sq.And{
-				nsQuery,
-				tupleQuery,
-			}).
-		ToSql()
+	sql, args, err := query.ToSql()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	var isEmpty int
-	err = tx.QueryRow(ctx, sql, args...).Scan(&isEmpty)
-	if err != nil {
-		return false, nil
+	var nsDefs []*v0.NamespaceDefinition
+
+	rows, err := tx.Query(ctx, sql, args...)
+	defer rows.Close()
+
+	for rows.Next() {
+		var config []byte
+		var version datastore.Revision
+		if err := rows.Scan(&config, &version); err != nil {
+			return nil, fmt.Errorf(errUnableToListNamespaces, err)
+		}
+
+		var loaded v0.NamespaceDefinition
+		if err := proto.Unmarshal(config, &loaded); err != nil {
+			return nil, fmt.Errorf(errUnableToReadConfig, err)
+		}
+
+		nsDefs = append(nsDefs, &loaded)
 	}
 
-	return isEmpty == 1, nil
+	return nsDefs, nil
 }

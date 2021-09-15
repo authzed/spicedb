@@ -65,6 +65,6 @@ func (rd roDatastore) CheckRevision(ctx context.Context, revision datastore.Revi
 	return rd.delegate.CheckRevision(ctx, revision)
 }
 
-func (rd roDatastore) IsEmpty(ctx context.Context) (bool, error) {
-	return rd.delegate.IsEmpty(ctx)
+func (rd roDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
+	return rd.delegate.ListNamespaces(ctx)
 }

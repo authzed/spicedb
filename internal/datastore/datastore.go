@@ -49,8 +49,8 @@ type Datastore interface {
 	// DeleteNamespace deletes a namespace and any associated tuples.
 	DeleteNamespace(ctx context.Context, nsName string) (Revision, error)
 
-	// IsEmpty returns true if no tuples and namespaces exist.
-	IsEmpty(ctx context.Context) (bool, error)
+	// ListNamespaces lists all namespaces defined.
+	ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error)
 }
 
 // GraphDatastore is a subset of the datastore interface that is passed to graph resolvers.
