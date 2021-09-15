@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -14,6 +12,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
+	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
+	v1alpha1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1alpha1"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
 )

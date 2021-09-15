@@ -28,13 +28,13 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
+	"github.com/authzed/spicedb/internal/dispatch/client/consistentbackend"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	internaldispatch "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	"github.com/authzed/spicedb/pkg/smartclient/consistentbackend"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 

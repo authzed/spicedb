@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
@@ -14,7 +12,9 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	v1_api "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
+	v1alpha1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1alpha1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"

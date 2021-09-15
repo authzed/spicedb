@@ -1,8 +1,7 @@
 package namespace
 
 import (
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-
+	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
 )
 

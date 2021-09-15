@@ -3,7 +3,7 @@ package datastore
 import (
 	"context"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 )

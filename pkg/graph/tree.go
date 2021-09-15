@@ -3,7 +3,7 @@ package graph
 import (
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 )
 
 func Simplify(node *v0.RelationTupleTreeNode) []*v0.User {

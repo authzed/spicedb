@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -22,8 +23,14 @@ import (
 
 // RegisterPermissionsServer adds a sermissions server to a grpc service registrar
 // This is preferred over manually registering the service; it will add required middleware
-func RegisterPermissionsServer(r grpc.ServiceRegistrar, ds datastore.Datastore, nsm namespace.Manager) *grpc.ServiceDesc {
-	s := newPermissionsServer(ds, nsm)
+func RegisterPermissionsServer(
+	r grpc.ServiceRegistrar,
+	ds datastore.Datastore,
+	nsm namespace.Manager,
+	dispatch dispatch.Dispatcher,
+	defaultDepth uint32,
+) *grpc.ServiceDesc {
+	s := newPermissionsServer(ds, nsm, dispatch, defaultDepth)
 
 	wrapped := grpcutil.WrapMethods(
 		v1.PermissionsService_ServiceDesc,
@@ -41,15 +48,21 @@ func RegisterPermissionsServer(r grpc.ServiceRegistrar, ds datastore.Datastore, 
 	return &v1.PermissionsService_ServiceDesc
 }
 
-func newPermissionsServer(ds datastore.Datastore, nsm namespace.Manager) v1.PermissionsServiceServer {
-	return &permissionServer{ds: ds, nsm: nsm}
+func newPermissionsServer(ds datastore.Datastore,
+	nsm namespace.Manager,
+	dispatch dispatch.Dispatcher,
+	defaultDepth uint32,
+) v1.PermissionsServiceServer {
+	return &permissionServer{ds: ds, nsm: nsm, dispatch: dispatch, defaultDepth: defaultDepth}
 }
 
 type permissionServer struct {
 	v1.UnimplementedPermissionsServiceServer
 
-	ds  datastore.Datastore
-	nsm namespace.Manager
+	ds           datastore.Datastore
+	nsm          namespace.Manager
+	dispatch     dispatch.Dispatcher
+	defaultDepth uint32
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {

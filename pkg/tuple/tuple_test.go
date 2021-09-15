@@ -3,8 +3,9 @@ package tuple
 import (
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
+
+	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 )
 
 func makeTuple(onr *v0.ObjectAndRelation, userset *v0.ObjectAndRelation) *v0.RelationTuple {
