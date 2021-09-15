@@ -167,17 +167,17 @@ func TestReverseQueryTuplesFromSubjectRelationPassthrough(t *testing.T) {
 	delegate.AssertExpectations(t)
 }
 
-func TestIsEmptyPassthrough(t *testing.T) {
+func TestListNamespacesPassthrough(t *testing.T) {
 	require := require.New(t)
 
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	delegate.On("IsEmpty").Return(true, nil).Times(1)
+	delegate.On("ListNamespaces").Return([]*v0.NamespaceDefinition{}, nil).Times(1)
 
-	res, err := ds.IsEmpty(ctx)
-	require.Equal(true, res)
+	nsDefs, err := ds.ListNamespaces(ctx)
+	require.Equal([]*v0.NamespaceDefinition{}, nsDefs)
 	require.NoError(err)
 	delegate.AssertExpectations(t)
 }
@@ -239,7 +239,7 @@ func (dm *delegateMock) CheckRevision(ctx context.Context, revision datastore.Re
 	return args.Error(0)
 }
 
-func (dm *delegateMock) IsEmpty(ctx context.Context) (bool, error) {
+func (dm *delegateMock) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
 	args := dm.Called()
-	return args.Get(0).(bool), args.Error(1)
+	return args.Get(0).([]*v0.NamespaceDefinition), args.Error(1)
 }

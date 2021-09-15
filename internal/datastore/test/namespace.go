@@ -34,15 +34,25 @@ func TestNamespaceWrite(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ctx := context.Background()
-	isEmpty, err := ds.IsEmpty(ctx)
+
+	nsDefs, err := ds.ListNamespaces(ctx)
 	require.NoError(err)
-	require.True(isEmpty)
+	require.Equal(0, len(nsDefs))
 
 	_, err = ds.WriteNamespace(ctx, testUserNS)
 	require.NoError(err)
 
+	nsDefs, err = ds.ListNamespaces(ctx)
+	require.NoError(err)
+	require.Equal(1, len(nsDefs))
+	require.Equal(testUserNS.Name, nsDefs[0].Name)
+
 	_, err = ds.WriteNamespace(ctx, testNamespace)
 	require.NoError(err)
+
+	nsDefs, err = ds.ListNamespaces(ctx)
+	require.NoError(err)
+	require.Equal(2, len(nsDefs))
 
 	found, _, err := ds.ReadNamespace(ctx, testNamespace.Name)
 	require.NoError(err)
@@ -56,10 +66,6 @@ func TestNamespaceWrite(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	foundUpdated := cmp.Diff(updatedNamespace, checkUpdated, protocmp.Transform())
 	require.Empty(foundUpdated)
-
-	isEmpty, err = ds.IsEmpty(context.Background())
-	require.NoError(err)
-	require.False(isEmpty)
 }
 
 func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {

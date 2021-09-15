@@ -155,11 +155,11 @@ func rootRun(cmd *cobra.Command, args []string) {
 	bootstrapFilePaths := cobrautil.MustGetStringSlice(cmd, "datastore-bootstrap-files")
 	if len(bootstrapFilePaths) > 0 {
 		bootstrapOverwrite := cobrautil.MustGetBool(cmd, "datastore-bootstrap-overwrite")
-		isEmpty, err := ds.IsEmpty(context.Background())
+		nsDefs, err := ds.ListNamespaces(context.Background())
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to determine datastore state before applying bootstrap data")
 		}
-		if bootstrapOverwrite || isEmpty {
+		if bootstrapOverwrite || len(nsDefs) == 0 {
 			log.Info().Msg("initializing datastore from bootstrap files")
 			_, _, err = validationfile.PopulateFromFiles(ds, bootstrapFilePaths)
 			if err != nil {

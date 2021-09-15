@@ -153,27 +153,33 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	return revisionFromVersion(found.version), nil
 }
 
-func (mds *memdbDatastore) IsEmpty(ctx context.Context) (bool, error) {
+func (mds *memdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
+	var nsDefs []*v0.NamespaceDefinition
+
 	txn := mds.db.Txn(false)
 	defer txn.Abort()
 
 	it, err := txn.Get(tableNamespaceConfig, indexID)
 	if err != nil {
-		return false, err
-	}
-	if it.Next() != nil {
-		return false, nil
+		return nsDefs, err
 	}
 
-	it, err = txn.Get(tableTuple, indexID)
-	if err != nil {
-		return false, err
-	}
-	if it.Next() != nil {
-		return false, nil
+	for {
+		foundRaw := it.Next()
+		if foundRaw == nil {
+			break
+		}
+
+		found := foundRaw.(*namespace)
+		var loaded v0.NamespaceDefinition
+		if err := proto.Unmarshal(found.configBytes, &loaded); err != nil {
+			return nil, fmt.Errorf(errUnableToReadConfig, err)
+		}
+
+		nsDefs = append(nsDefs, &loaded)
 	}
 
-	return true, nil
+	return nsDefs, nil
 }
 
 func nextChangelogID(txn *memdb.Txn) (uint64, error) {
