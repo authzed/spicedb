@@ -67,7 +67,7 @@ type ReadSchemaResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The original schema text that was written
+	// schema_text is the textual form of the current schema in the system
 	SchemaText string `protobuf:"bytes,1,opt,name=schema_text,json=schemaText,proto3" json:"schema_text,omitempty"`
 }
 

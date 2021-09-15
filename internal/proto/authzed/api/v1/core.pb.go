@@ -125,23 +125,19 @@ func (AlgebraicSubjectSet_Operation) EnumDescriptor() ([]byte, []int) {
 	return file_authzed_api_v1_core_proto_rawDescGZIP(), []int{6, 0}
 }
 
-// Relationship specifies how a resource relates to a subject.
-//
-// examples:
-// doc:readme#viewer@group:eng#member (fully specified)
-// doc:*#*#group:eng#member (all tuples that this userset relates to)
-// doc:12345#*#* (all tuples with a direct relationship to a document)
-// doc:12345#writer#* (all tuples with direct write relationship with the
-// document) doc:#writer#group:eng#member (all tuples that eng group has write
-// relationship)
+// Relationship specifies how a resource relates to a subject. Relationships form the data
+// for the graph over which all permissions questions are answered.
 type Relationship struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Resource *ObjectReference  `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
-	Relation string            `protobuf:"bytes,2,opt,name=relation,proto3" json:"relation,omitempty"`
-	Subject  *SubjectReference `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`
+	// resource is the resource to which the subject is related, in some manner
+	Resource *ObjectReference `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
+	// relation is how the resource and subject are related.
+	Relation string `protobuf:"bytes,2,opt,name=relation,proto3" json:"relation,omitempty"`
+	// subject is the subject to which the resource is related, in some manner.
+	Subject *SubjectReference `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`
 }
 
 func (x *Relationship) Reset() {
@@ -312,7 +308,7 @@ func (x *ObjectReference) GetObjectId() string {
 }
 
 // ZedToken is used to provide causality metadata between Write and Check
-// requests.
+// requests. See the Consistency message in acl_service.proto for more information.
 type ZedToken struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

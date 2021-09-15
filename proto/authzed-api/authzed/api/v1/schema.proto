@@ -12,12 +12,10 @@ service SchemaService {
   //
   // Errors include:
   // - INVALID_ARGUMENT: a provided value has failed to semantically validate
-  // - NOT_FOUND: one of the Object Definitions being requested does not exist
+  // - NOT_FOUND: no schema has been defined
   rpc ReadSchema(ReadSchemaRequest) returns (ReadSchemaResponse) {}
 
   // Write overwrites the current Object Definitions for a Permissions System.
-  //
-  // Any Object Definitions that exist, but are not included will be deleted.
   rpc WriteSchema(WriteSchemaRequest) returns (WriteSchemaResponse) {}
 }
 
@@ -27,7 +25,7 @@ message ReadSchemaRequest {}
 // ReadSchemaResponse is the resulting data after having read the Object
 // Definitions from a Schema.
 message ReadSchemaResponse {
-  // The original schema text that was written
+  // schema_text is the textual form of the current schema in the system
   string schema_text = 1;
 }
 

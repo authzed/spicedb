@@ -6,21 +6,19 @@ option java_package = "com.authzed.api.v1";
 
 import "validate/validate.proto";
 
-// Relationship specifies how a resource relates to a subject.
-//
-// examples:
-// doc:readme#viewer@group:eng#member (fully specified)
-// doc:*#*#group:eng#member (all tuples that this userset relates to)
-// doc:12345#*#* (all tuples with a direct relationship to a document)
-// doc:12345#writer#* (all tuples with direct write relationship with the
-// document) doc:#writer#group:eng#member (all tuples that eng group has write
-// relationship)
+// Relationship specifies how a resource relates to a subject. Relationships form the data
+// for the graph over which all permissions questions are answered.
 message Relationship {
+  // resource is the resource to which the subject is related, in some manner
   ObjectReference resource = 1 [ (validate.rules).message.required = true ];
+
+  // relation is how the resource and subject are related.
   string relation = 2 [ (validate.rules).string = {
     pattern : "^([a-z][a-z0-9_]{2,62}[a-z0-9])?$",
     max_bytes : 64,
   } ];
+
+  // subject is the subject to which the resource is related, in some manner.
   SubjectReference subject = 3 [ (validate.rules).message.required = true ];
 }
 
@@ -48,7 +46,7 @@ message ObjectReference {
 }
 
 // ZedToken is used to provide causality metadata between Write and Check
-// requests.
+// requests. See the Consistency message in acl_service.proto for more information.
 message ZedToken {
   string token = 1 [ (validate.rules).string = {
     min_bytes : 1,

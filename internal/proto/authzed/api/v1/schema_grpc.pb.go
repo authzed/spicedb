@@ -22,11 +22,9 @@ type SchemaServiceClient interface {
 	//
 	// Errors include:
 	// - INVALID_ARGUMENT: a provided value has failed to semantically validate
-	// - NOT_FOUND: one of the Object Definitions being requested does not exist
+	// - NOT_FOUND: no schema has been defined
 	ReadSchema(ctx context.Context, in *ReadSchemaRequest, opts ...grpc.CallOption) (*ReadSchemaResponse, error)
 	// Write overwrites the current Object Definitions for a Permissions System.
-	//
-	// Any Object Definitions that exist, but are not included will be deleted.
 	WriteSchema(ctx context.Context, in *WriteSchemaRequest, opts ...grpc.CallOption) (*WriteSchemaResponse, error)
 }
 
@@ -64,11 +62,9 @@ type SchemaServiceServer interface {
 	//
 	// Errors include:
 	// - INVALID_ARGUMENT: a provided value has failed to semantically validate
-	// - NOT_FOUND: one of the Object Definitions being requested does not exist
+	// - NOT_FOUND: no schema has been defined
 	ReadSchema(context.Context, *ReadSchemaRequest) (*ReadSchemaResponse, error)
 	// Write overwrites the current Object Definitions for a Permissions System.
-	//
-	// Any Object Definitions that exist, but are not included will be deleted.
 	WriteSchema(context.Context, *WriteSchemaRequest) (*WriteSchemaResponse, error)
 	mustEmbedUnimplementedSchemaServiceServer()
 }

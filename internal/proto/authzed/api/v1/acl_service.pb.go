@@ -158,18 +158,28 @@ type isConsistency_Requirement interface {
 }
 
 type Consistency_MinimizeLatency struct {
+	// minimize_latency indicates that the latency for the call should be minimized by having
+	// the system select the fastest snapshot available
 	MinimizeLatency bool `protobuf:"varint,1,opt,name=minimize_latency,json=minimizeLatency,proto3,oneof"`
 }
 
 type Consistency_AtLeastAsFresh struct {
+	// at_least_as_fresh indicates that all data used in the API call must be *at least as fresh*
+	// as that found in the ZedToken; more recent data might be used if available or faster.
 	AtLeastAsFresh *ZedToken `protobuf:"bytes,2,opt,name=at_least_as_fresh,json=atLeastAsFresh,proto3,oneof"`
 }
 
 type Consistency_AtExactSnapshot struct {
+	// at_exact_snapshot indicates that all data used in the API call must be *at the given*
+	// snapshot in time; if the snapshot is no longer available, an error will be returned to
+	// the caller.
 	AtExactSnapshot *ZedToken `protobuf:"bytes,3,opt,name=at_exact_snapshot,json=atExactSnapshot,proto3,oneof"`
 }
 
 type Consistency_FullyConsistent struct {
+	// fully_consistent indicates that all data used in the API call *must* be at the most recent
+	// snapshot found. NOTE: using this method can be *quite slow*, so unless there is a need to do
+	// so, it is recommended to use `at_least_as_fresh` with a stored ZedToken.
 	FullyConsistent bool `protobuf:"varint,4,opt,name=fully_consistent,json=fullyConsistent,proto3,oneof"`
 }
 
@@ -308,8 +318,8 @@ func (x *ObjectFilter) GetOptionalRelation() string {
 	return ""
 }
 
-// ReadRelationshipsRequest specifies one or more groups of filters which when
-// applied to the datastore will load matching relationships.
+// ReadRelationshipsRequest specifies one or more groups of filters whichm when
+// applied to the relationship stored, will load matching relationships.
 type ReadRelationshipsRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -365,8 +375,9 @@ func (x *ReadRelationshipsRequest) GetRelationshipFilter() *RelationshipFilter {
 	return nil
 }
 
-// ReadRelationshipsResponse contains one Relationship that matches the
-// requested relationship filter.
+// ReadRelationshipsResponse contains a Relationship found that matches the
+// specified relationship filter(s). A instance of this response message will
+// be streamed to the client for each relationship found.
 type ReadRelationshipsResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -431,25 +442,20 @@ type WriteRelationshipsRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Clients may modify a single relation tuple to add or remove an ACL. They
-	// may also modify all tuples related to an object via a read-modify-write
-	// process with optimistic concurrency control [21] that uses a read RPC
-	// followed by a write RPC:
+	Updates []*RelationshipUpdate `protobuf:"bytes,1,rep,name=updates,proto3" json:"updates,omitempty"`
+	// optional_preconditions specifies the relationships that must exist before
+	// the updates are applied. This is typically used as part of a read-modify-write
+	// process with optimistic concurrency control that uses a read call
+	// followed by a write call:
 	//
-	// 1. Read all relation tuples of an object, including a per-object “lock”
-	//    tuple.
-	// 2. Generate the tuples to write or delete. Send the writes, along with a
-	//    touch on the lock tuple, to Zanzibar, with the condition that the
-	//    writes will be committed only if the lock tuple has not been modified
+	// 1. Read all relationships of a resource, including a per-resource “lock”
+	//    relationship.
+	// 2. Generate the relationships to write or delete. Make a WriteRelationships API call,
+	//    along with a touch on the lock relationship, with the condition that the
+	//    writes will be committed only if the lock relationship has not been modified
 	//    since the read.
 	// 3. If the write condition is not met, go back to step 1.
-	//    The lock tuple is just a regular relation tuple used by clients to
-	//    detect write races.
-	//
-	// The lock tuple is just a regular relation tuple used by clients to
-	// detect write races.
-	Updates               []*RelationshipUpdate `protobuf:"bytes,1,rep,name=updates,proto3" json:"updates,omitempty"`
-	OptionalPreconditions []*Relationship       `protobuf:"bytes,2,rep,name=optional_preconditions,json=optionalPreconditions,proto3" json:"optional_preconditions,omitempty"` // To be bounded by configuration
+	OptionalPreconditions []*Relationship `protobuf:"bytes,2,rep,name=optional_preconditions,json=optionalPreconditions,proto3" json:"optional_preconditions,omitempty"` // To be bounded by configuration
 }
 
 func (x *WriteRelationshipsRequest) Reset() {
@@ -650,18 +656,20 @@ func (x *DeleteRelationshipsResponse) GetDeletedAt() *ZedToken {
 	return nil
 }
 
+// CheckPermissionRequest issues a check on whether a subject has a permission or is a member
+// of a relation, on a specific resource.
 type CheckPermissionRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// A check request specifies a userset, represented by ⟨object#relation⟩,
-	// a putative user, often represented by an authentication token, and a
-	// ZedToken corresponding to the desired object version.
-	Consistency *Consistency      `protobuf:"bytes,1,opt,name=consistency,proto3" json:"consistency,omitempty"`
-	Resource    *ObjectReference  `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
-	Permission  string            `protobuf:"bytes,3,opt,name=permission,proto3" json:"permission,omitempty"`
-	Subject     *SubjectReference `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`
+	Consistency *Consistency `protobuf:"bytes,1,opt,name=consistency,proto3" json:"consistency,omitempty"`
+	// resource is the resource on which to check the permission or relation.
+	Resource *ObjectReference `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
+	// permission is the name of the permission (or relation) on which to execute the check.
+	Permission string `protobuf:"bytes,3,opt,name=permission,proto3" json:"permission,omitempty"`
+	// subject is the subject that will be checked for the permission or relation.
+	Subject *SubjectReference `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`
 }
 
 func (x *CheckPermissionRequest) Reset() {
@@ -729,7 +737,11 @@ type CheckPermissionResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	CheckedAt      *ZedToken                              `protobuf:"bytes,1,opt,name=checked_at,json=checkedAt,proto3" json:"checked_at,omitempty"`
+	CheckedAt *ZedToken `protobuf:"bytes,1,opt,name=checked_at,json=checkedAt,proto3" json:"checked_at,omitempty"`
+	// permissionship is the result of the check operation. For a permission, this will be
+	// PERMISSIONSHIP_HAS_PERMISSION if the subject has said permission; for a relation, this will
+	// be PERMISSIONSHIP_HAS_PERMISSION if the subject is a member of the relation via the existance
+	// of a relationship.
 	Permissionship CheckPermissionResponse_Permissionship `protobuf:"varint,2,opt,name=permissionship,proto3,enum=authzed.api.v1.CheckPermissionResponse_Permissionship" json:"permissionship,omitempty"`
 }
 
@@ -779,17 +791,22 @@ func (x *CheckPermissionResponse) GetPermissionship() CheckPermissionResponse_Pe
 	return CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED
 }
 
+// ExpandPermissionTreeRequest returns a tree representing the expansion of all relationships
+// found accessible from a permission or relation on a particular resource.
+//
+// ExpandPermissionTreeRequest is typically used to determine the full set of subjects with
+// a permission, along with the relationships that grant said access.
 type ExpandPermissionTreeRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The Expand API returns the effective userset given an resource#relation⟩
-	// pair and an optional ZedToken. Unlike the Read API, Expand follows indirect
-	// references expressed through userset rewrite rules.
-	Consistency *Consistency     `protobuf:"bytes,1,opt,name=consistency,proto3" json:"consistency,omitempty"`
-	Resource    *ObjectReference `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
-	Permission  string           `protobuf:"bytes,3,opt,name=permission,proto3" json:"permission,omitempty"`
+	Consistency *Consistency `protobuf:"bytes,1,opt,name=consistency,proto3" json:"consistency,omitempty"`
+	// resource is the resource over which to run the expansion.
+	Resource *ObjectReference `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
+	// permission is the name of the permission or relation over which to run the expansion for
+	// the resource.
+	Permission string `protobuf:"bytes,3,opt,name=permission,proto3" json:"permission,omitempty"`
 }
 
 func (x *ExpandPermissionTreeRequest) Reset() {
@@ -850,11 +867,11 @@ type ExpandPermissionTreeResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The result is represented by a userset tree whose leaf nodes are user IDs
-	// or usersets pointing to other resource#relation⟩ pairs, and intermediate
-	// nodes represent union, intersection, or exclusion operators.
-	ExpandedAt *ZedToken                   `protobuf:"bytes,1,opt,name=expanded_at,json=expandedAt,proto3" json:"expanded_at,omitempty"`
-	TreeRoot   *PermissionRelationshipTree `protobuf:"bytes,2,opt,name=tree_root,json=treeRoot,proto3" json:"tree_root,omitempty"`
+	ExpandedAt *ZedToken `protobuf:"bytes,1,opt,name=expanded_at,json=expandedAt,proto3" json:"expanded_at,omitempty"`
+	// tree_root is a tree structure whose leaf nodes are subjects, and intermediate
+	// nodes represent the various operations (union, intersection, exclusion) to reach
+	// those subjects.
+	TreeRoot *PermissionRelationshipTree `protobuf:"bytes,2,opt,name=tree_root,json=treeRoot,proto3" json:"tree_root,omitempty"`
 }
 
 func (x *ExpandPermissionTreeResponse) Reset() {
@@ -903,15 +920,20 @@ func (x *ExpandPermissionTreeResponse) GetTreeRoot() *PermissionRelationshipTree
 	return nil
 }
 
+// LookupResourcesRequest performs a reverse-lookup of all resources of a particular kind on
+// which the subject has the specified permission or the relation in which the subject exists.
 type LookupResourcesRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Consistency        *Consistency      `protobuf:"bytes,1,opt,name=consistency,proto3" json:"consistency,omitempty"`
-	ResourceObjectType string            `protobuf:"bytes,2,opt,name=resource_object_type,json=resourceObjectType,proto3" json:"resource_object_type,omitempty"`
-	Permission         string            `protobuf:"bytes,3,opt,name=permission,proto3" json:"permission,omitempty"`
-	Subject            *SubjectReference `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`
+	Consistency *Consistency `protobuf:"bytes,1,opt,name=consistency,proto3" json:"consistency,omitempty"`
+	// resource_object_type is the type of resource object for which the IDs will be returned.
+	ResourceObjectType string `protobuf:"bytes,2,opt,name=resource_object_type,json=resourceObjectType,proto3" json:"resource_object_type,omitempty"`
+	// permission is the name of the permission or relation for which the subject must Check.
+	Permission string `protobuf:"bytes,3,opt,name=permission,proto3" json:"permission,omitempty"`
+	// subject is the subject with access to the resources.
+	Subject *SubjectReference `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`
 }
 
 func (x *LookupResourcesRequest) Reset() {

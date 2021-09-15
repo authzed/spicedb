@@ -18,11 +18,22 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type PermissionsServiceClient interface {
+	// ReadRelationships reads a set of the relationships matching one or more filters.
 	ReadRelationships(ctx context.Context, in *ReadRelationshipsRequest, opts ...grpc.CallOption) (PermissionsService_ReadRelationshipsClient, error)
+	// WriteRelationships writes and/or deletes a set of specified relationships,
+	// with an optional set of precondition relationships that must exist before the operation can
+	// commit.
 	WriteRelationships(ctx context.Context, in *WriteRelationshipsRequest, opts ...grpc.CallOption) (*WriteRelationshipsResponse, error)
+	// DeleteRelationships deletes relationships matching one or more filters, in bulk.
 	DeleteRelationships(ctx context.Context, in *DeleteRelationshipsRequest, opts ...grpc.CallOption) (*DeleteRelationshipsResponse, error)
+	// CheckPermission checks whether a subject has a particular permission or is a member of a
+	// particular relation, on a given resource.
 	CheckPermission(ctx context.Context, in *CheckPermissionRequest, opts ...grpc.CallOption) (*CheckPermissionResponse, error)
+	// ExpandPermissionTree expands the relationships reachable from a particular permission or
+	// relation of a given resource.
 	ExpandPermissionTree(ctx context.Context, in *ExpandPermissionTreeRequest, opts ...grpc.CallOption) (*ExpandPermissionTreeResponse, error)
+	// LookupResources returns the IDs of all resources on which the specified subject has permission
+	// or on which the specified subject is a member of the relation.
 	LookupResources(ctx context.Context, in *LookupResourcesRequest, opts ...grpc.CallOption) (PermissionsService_LookupResourcesClient, error)
 }
 
@@ -138,11 +149,22 @@ func (x *permissionsServiceLookupResourcesClient) Recv() (*LookupResourcesRespon
 // All implementations must embed UnimplementedPermissionsServiceServer
 // for forward compatibility
 type PermissionsServiceServer interface {
+	// ReadRelationships reads a set of the relationships matching one or more filters.
 	ReadRelationships(*ReadRelationshipsRequest, PermissionsService_ReadRelationshipsServer) error
+	// WriteRelationships writes and/or deletes a set of specified relationships,
+	// with an optional set of precondition relationships that must exist before the operation can
+	// commit.
 	WriteRelationships(context.Context, *WriteRelationshipsRequest) (*WriteRelationshipsResponse, error)
+	// DeleteRelationships deletes relationships matching one or more filters, in bulk.
 	DeleteRelationships(context.Context, *DeleteRelationshipsRequest) (*DeleteRelationshipsResponse, error)
+	// CheckPermission checks whether a subject has a particular permission or is a member of a
+	// particular relation, on a given resource.
 	CheckPermission(context.Context, *CheckPermissionRequest) (*CheckPermissionResponse, error)
+	// ExpandPermissionTree expands the relationships reachable from a particular permission or
+	// relation of a given resource.
 	ExpandPermissionTree(context.Context, *ExpandPermissionTreeRequest) (*ExpandPermissionTreeResponse, error)
+	// LookupResources returns the IDs of all resources on which the specified subject has permission
+	// or on which the specified subject is a member of the relation.
 	LookupResources(*LookupResourcesRequest, PermissionsService_LookupResourcesServer) error
 	mustEmbedUnimplementedPermissionsServiceServer()
 }
