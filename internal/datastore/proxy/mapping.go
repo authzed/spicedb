@@ -62,6 +62,30 @@ func (mp mappingProxy) WriteTuples(ctx context.Context, preconditions []*v0.Rela
 	return mp.delegate.WriteTuples(ctx, translatedPreconditions, translatedMutations)
 }
 
+func (mp mappingProxy) DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+	translatedPreconditions := make([]*v1.Relationship, 0, len(preconditions))
+	for _, pc := range preconditions {
+		translatedPC, err := translateRelationship(pc, mp.mapper.Encode)
+		if err != nil {
+			return datastore.NoRevision, fmt.Errorf(errTranslation, err)
+		}
+		translatedPreconditions = append(translatedPreconditions, translatedPC)
+	}
+
+	var err error
+	translatedFilter := &v1.RelationshipFilter{}
+	translatedFilter.ResourceFilter, err = translateFilter(filter.ResourceFilter, mp.mapper.Encode)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errTranslation, err)
+	}
+	translatedFilter.OptionalSubjectFilter, err = translateFilter(filter.OptionalSubjectFilter, mp.mapper.Encode)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errTranslation, err)
+	}
+
+	return mp.delegate.DeleteRelationships(ctx, translatedPreconditions, translatedFilter)
+}
+
 func (mp mappingProxy) Revision(ctx context.Context) (datastore.Revision, error) {
 	return mp.delegate.Revision(ctx)
 }
@@ -336,7 +360,36 @@ func (mrtq mappingReverseTupleQuery) WithObjectRelation(namespace string, relati
 	return mrtq
 }
 
-func translateTuple(in *v0.RelationTuple, mapper func(string) (string, error)) (*v0.RelationTuple, error) {
+type MapperFunc func(string) (string, error)
+
+func translateRelationship(in *v1.Relationship, mapper MapperFunc) (*v1.Relationship, error) {
+	translatedObjectType, err := mapper(in.Resource.ObjectType)
+	if err != nil {
+		return nil, err
+	}
+
+	translatedSubjectType, err := mapper(in.Subject.Object.ObjectType)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: translatedObjectType,
+			ObjectId:   in.Resource.ObjectId,
+		},
+		Relation: in.Relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: translatedSubjectType,
+				ObjectId:   in.Subject.Object.ObjectId,
+			},
+			OptionalRelation: in.Subject.OptionalRelation,
+		},
+	}, nil
+}
+
+func translateTuple(in *v0.RelationTuple, mapper MapperFunc) (*v0.RelationTuple, error) {
 	translatedObject, err := translateONR(in.ObjectAndRelation, mapper)
 	if err != nil {
 		return nil, err
@@ -358,7 +411,7 @@ func translateTuple(in *v0.RelationTuple, mapper func(string) (string, error)) (
 	}, nil
 }
 
-func translateONR(in *v0.ObjectAndRelation, mapper func(string) (string, error)) (*v0.ObjectAndRelation, error) {
+func translateONR(in *v0.ObjectAndRelation, mapper MapperFunc) (*v0.ObjectAndRelation, error) {
 	newNamespace, err := mapper(in.Namespace)
 	if err != nil {
 		return nil, err
@@ -371,7 +424,11 @@ func translateONR(in *v0.ObjectAndRelation, mapper func(string) (string, error))
 	}, nil
 }
 
-func translateFilter(in *v1.ObjectFilter, mapper func(string) (string, error)) (*v1.ObjectFilter, error) {
+func translateFilter(in *v1.ObjectFilter, mapper MapperFunc) (*v1.ObjectFilter, error) {
+	if in == nil {
+		return nil, nil
+	}
+
 	newObjectType, err := mapper(in.ObjectType)
 	if err != nil {
 		return nil, err

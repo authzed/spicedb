@@ -22,18 +22,28 @@ const (
 )
 
 var (
-	// ObjNamespaceNameKey is a tracing attribute representing the resource object type
+	// ObjNamespaceNameKey is a tracing attribute representing the resource
+	// object type.
 	ObjNamespaceNameKey = attribute.Key("authzed.com/spicedb/sql/objNamespaceName")
 
-	// ObjRelationNameKey is a tracing attribute representing the resource relation
+	// ObjRelationNameKey is a tracing attribute representing the resource
+	// relation.
 	ObjRelationNameKey = attribute.Key("authzed.com/spicedb/sql/objRelationName")
 
-	// ObjIDKey is a tracing attribute representing the resource object ID
+	// ObjIDKey is a tracing attribute representing the resource object ID.
 	ObjIDKey = attribute.Key("authzed.com/spicedb/sql/objId")
 
-	subNamespaceKey = attribute.Key("authzed.com/spicedb/sql/subNamespaceName")
-	subRelationKey  = attribute.Key("authzed.com/spicedb/sql/subRelationName")
-	subObjectIDKey  = attribute.Key("authzed.com/spicedb/sql/subObjectId")
+	// SubNamespaceNameKey is a tracing attribute representing the subject object
+	// type.
+	SubNamespaceNameKey = attribute.Key("authzed.com/spicedb/sql/subNamespaceName")
+
+	// SubRelationNameKey is a tracing attribute representing the subject
+	// relation.
+	SubRelationNameKey = attribute.Key("authzed.com/spicedb/sql/subRelationName")
+
+	// SubObjectIDKey is a tracing attribute representing the the subject object
+	// ID.
+	SubObjectIDKey = attribute.Key("authzed.com/spicedb/sql/subObjectId")
 
 	limitKey = attribute.Key("authzed.com/spicedb/sql/limit")
 )
@@ -127,9 +137,9 @@ func (ctq TupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.Tuple
 		panic("called WithUsersetFilter twice")
 	}
 
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subNamespaceKey.String(filter.ObjectType))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subObjectIDKey.String(filter.OptionalObjectId))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subRelationKey.String(filter.OptionalRelation))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(filter.ObjectType))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubObjectIDKey.String(filter.OptionalObjectId))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubRelationNameKey.String(filter.OptionalRelation))
 	ctq.usersetFilter = filter
 	return ctq
 }
@@ -314,8 +324,8 @@ func (ctq TupleQuery) executeQuery(ctx context.Context, query sq.SelectBuilder, 
 
 // ReverseQueryTuplesFromSubjectRelation constructs a ReverseTupleQuery from this tuple query.
 func (ctq TupleQuery) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string) datastore.ReverseTupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subNamespaceKey.String(subjectNamespace))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subRelationKey.String(subjectRelation))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(subjectNamespace))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubRelationNameKey.String(subjectRelation))
 
 	ctq.InitialQuery = ctq.InitialQuery.Where(sq.Eq{
 		ctq.Schema.ColUsersetNamespace: subjectNamespace,
@@ -326,9 +336,9 @@ func (ctq TupleQuery) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, su
 
 // ReverseQueryTuplesFromSubject constructs a ReverseTupleQuery from this tuple query.
 func (ctq TupleQuery) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation) datastore.ReverseTupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subNamespaceKey.String(subject.Namespace))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subObjectIDKey.String(subject.ObjectId))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subRelationKey.String(subject.Relation))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(subject.Namespace))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubObjectIDKey.String(subject.ObjectId))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubRelationNameKey.String(subject.Relation))
 
 	ctq.InitialQuery = ctq.InitialQuery.Where(sq.Eq{
 		ctq.Schema.ColUsersetNamespace: subject.Namespace,
@@ -341,7 +351,7 @@ func (ctq TupleQuery) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelatio
 
 // ReverseQueryTuplesFromSubjectNamespace constructs a ReverseTupleQuery from this tuple query.
 func (ctq TupleQuery) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string) datastore.ReverseTupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, subNamespaceKey.String(subjectNamespace))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(subjectNamespace))
 
 	ctq.InitialQuery = ctq.InitialQuery.Where(sq.Eq{
 		ctq.Schema.ColUsersetNamespace: subjectNamespace,
