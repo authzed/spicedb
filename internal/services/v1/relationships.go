@@ -21,7 +21,7 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-// RegisterPermissionsServer adds a sermissions server to a grpc service registrar
+// RegisterPermissionsServer adds a permissions server to a grpc service registrar
 // This is preferred over manually registering the service; it will add required middleware
 func RegisterPermissionsServer(
 	r grpc.ServiceRegistrar,
