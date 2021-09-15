@@ -29,7 +29,7 @@ func RegisterGrpcServices(
 		v0svc.RegisterNamespaceServer(srv, v0svc.NewNamespaceServer(ds)),
 		v0svc.RegisterWatchServer(srv, v0svc.NewWatchServer(ds, nsm)),
 		v1alpha1svc.RegisterSchemaServer(srv, v1alpha1svc.NewSchemaServer(ds, prefixRequired)),
-		v1.RegisterPermissionsServer(srv, ds, nsm),
+		v1.RegisterPermissionsServer(srv, ds, nsm, dispatch, maxDepth),
 	)
 
 	healthpb.RegisterHealthServer(srv, healthSrv)
