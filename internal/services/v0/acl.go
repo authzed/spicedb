@@ -394,15 +394,14 @@ func rewriteACLError(err error) error {
 	case errors.As(err, &graph.ErrRequestCanceled{}):
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)
 
-	case errors.As(err, &graph.ErrAlwaysFail{}):
-		fallthrough
-
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
 		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return serviceerrors.ErrServiceReadOnly
 
+	case errors.As(err, &graph.ErrAlwaysFail{}):
+		fallthrough
 	default:
 		if _, ok := err.(invalidRelationError); ok {
 			return status.Errorf(codes.InvalidArgument, "%s", err.Error())

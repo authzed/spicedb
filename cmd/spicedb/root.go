@@ -30,7 +30,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
-	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	internaldispatch "github.com/authzed/spicedb/internal/services/dispatch"
@@ -189,16 +188,22 @@ func rootRun(cmd *cobra.Command, args []string) {
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 		otelgrpc.UnaryServerInterceptor(),
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
-		consistency.UnaryServerInterceptor(ds),
 		grpcprom.UnaryServerInterceptor,
 	)
 
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
+	streamMiddlware := grpc.ChainStreamInterceptor(
+		grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
+		otelgrpc.StreamServerInterceptor(),
+		grpcauth.StreamServerInterceptor(auth.RequirePresharedKey(token)),
+		grpcprom.StreamServerInterceptor,
+	)
+
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware, streamMiddlware)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create gRPC server")
 	}
 
-	internalGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware)
+	internalGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware, streamMiddlware)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create internal gRPC server")
 	}
