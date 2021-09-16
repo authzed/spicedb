@@ -44,27 +44,26 @@ func (lr *DispatchLookupRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", lr.Metadata)
 	e.Str("object", fmt.Sprintf("%s#%s", lr.ObjectRelation.Namespace, lr.ObjectRelation.Relation))
 	e.Str("subject", tuple.StringONR(lr.Subject))
-	e.Array("direct", onrArray(lr.DirectStack))
-	e.Array("ttu", onrArray(lr.TtuStack))
+	e.Array("direct", onArray(lr.DirectStack))
+	e.Array("ttu", onArray(lr.TtuStack))
 	e.Uint32("limit", lr.Limit)
 }
 
-type onrArray []*v0.ObjectAndRelation
+type onArray []*v0.RelationReference
 
-type zerologONR v0.ObjectAndRelation
+type zerologON v0.RelationReference
 
 // MarshalZerologArray implements zerolog array marshalling.
-func (onrs onrArray) MarshalZerologArray(a *zerolog.Array) {
+func (onrs onArray) MarshalZerologArray(a *zerolog.Array) {
 	for _, onr := range onrs {
-		a.Object(zerologONR(*onr))
+		a.Object(zerologON(*onr))
 	}
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (onr zerologONR) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("ns", onr.Namespace)
-	e.Str("id", onr.ObjectId)
-	e.Str("rel", onr.Relation)
+func (on zerologON) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("ns", on.Namespace)
+	e.Str("rel", on.Relation)
 }
 
 // MarshalZerologObject implements zerolog object marshalling.

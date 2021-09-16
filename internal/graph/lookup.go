@@ -178,10 +178,9 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 		return returnResult(lookupResultError(err, 0))
 	}
 
-	directStack := append(req.DirectStack, &v0.ObjectAndRelation{
+	directStack := append(req.DirectStack, &v0.RelationReference{
 		Namespace: req.ObjectRelation.Namespace,
 		Relation:  req.ObjectRelation.Relation,
-		ObjectId:  "",
 	})
 
 	for _, allowedDirectType := range allowedDirect {
@@ -195,10 +194,9 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 		}
 
 		// Prevent recursive inferred lookups, which can cause an infinite loop.
-		onr := &v0.ObjectAndRelation{
+		onr := &v0.RelationReference{
 			Namespace: allowedDirectType.Namespace,
 			Relation:  allowedDirectType.Relation,
-			ObjectId:  "",
 		}
 		if checkStackContains(directStack, onr) {
 			continue
@@ -313,12 +311,11 @@ func findRelation(nsdef *v0.NamespaceDefinition, relationName string) (*v0.Relat
 
 func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.DispatchLookupRequest, nsdef *v0.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, ttu *v0.TupleToUserset) ReduceableLookupFunc {
 	// Ensure that we don't process TTUs recursively, as that can cause an infinite loop.
-	onr := &v0.ObjectAndRelation{
+	nr := &v0.RelationReference{
 		Namespace: req.ObjectRelation.Namespace,
 		Relation:  req.ObjectRelation.Relation,
-		ObjectId:  "",
 	}
-	if checkStackContains(req.TtuStack, onr) {
+	if checkStackContains(req.TtuStack, nr) {
 		return returnResult(lookupResult([]*v0.ObjectAndRelation{}, 0))
 	}
 
@@ -367,7 +364,7 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 				Limit:       noLimit, // Since this is a step in the lookup.
 				Metadata:    decrementDepth(req.Metadata),
 				DirectStack: req.DirectStack,
-				TtuStack:    append(req.TtuStack, onr),
+				TtuStack:    append(req.TtuStack, nr),
 			})
 
 			result := lookupAny(ctx, noLimit, []ReduceableLookupFunc{computedUsersetRequest})
@@ -471,10 +468,9 @@ func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req *v1.Dispatch
 		},
 		Limit:    req.Limit,
 		Metadata: decrementDepth(req.Metadata),
-		DirectStack: append(req.DirectStack, &v0.ObjectAndRelation{
+		DirectStack: append(req.DirectStack, &v0.RelationReference{
 			Namespace: req.ObjectRelation.Namespace,
 			Relation:  req.ObjectRelation.Relation,
-			ObjectId:  "",
 		}),
 		TtuStack: req.TtuStack,
 	}))
@@ -684,9 +680,9 @@ func lookupResultError(err error, numRequests uint32) LookupResult {
 	}
 }
 
-func checkStackContains(stack []*v0.ObjectAndRelation, target *v0.ObjectAndRelation) bool {
+func checkStackContains(stack []*v0.RelationReference, target *v0.RelationReference) bool {
 	for _, v := range stack {
-		if v.Namespace == target.Namespace && v.ObjectId == target.ObjectId && v.Relation == target.Relation {
+		if v.Namespace == target.Namespace && v.Relation == target.Relation {
 			return true
 		}
 	}
