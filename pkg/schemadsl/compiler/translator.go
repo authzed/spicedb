@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/jzelinskie/stringz"
 
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 )

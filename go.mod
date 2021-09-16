@@ -8,6 +8,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
+	github.com/authzed/authzed-go v0.1.1-0.20210915130746-921aebdebf91
 	github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f
 	github.com/aws/aws-sdk-go v1.40.35
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
@@ -51,9 +52,6 @@ require (
 	go.opentelemetry.io/otel v1.0.0-RC2
 	go.opentelemetry.io/otel/trace v1.0.0-RC2
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
-	golang.org/x/net v0.0.0-20210908191846-a5e095526f91 // indirect
-	golang.org/x/sys v0.0.0-20210910150752-751e447fb3d0 // indirect
-	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20210909211513-a8c4777a87af
 	google.golang.org/grpc v1.40.0
 	google.golang.org/protobuf v1.27.1

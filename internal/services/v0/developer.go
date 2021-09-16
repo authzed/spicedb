@@ -9,13 +9,13 @@ import (
 	"strconv"
 	"strings"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"
 	"github.com/google/go-cmp/cmp"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/membership"

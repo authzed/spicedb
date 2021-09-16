@@ -4,7 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/parser"

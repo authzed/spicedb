@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/ory/dockertest"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/datastore/test"
-	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"

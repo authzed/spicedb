@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc"
@@ -12,7 +13,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )

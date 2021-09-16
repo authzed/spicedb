@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
@@ -16,8 +18,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
-	v1_api "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"

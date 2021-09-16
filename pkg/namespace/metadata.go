@@ -1,12 +1,12 @@
 package namespace
 
 import (
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/protobuf/proto"
 	anypb "google.golang.org/protobuf/types/known/anypb"
 
 	// TODO: stop exposing private v0 types in package's API
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
 )
 

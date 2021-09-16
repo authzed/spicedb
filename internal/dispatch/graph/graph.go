@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -13,7 +14,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )

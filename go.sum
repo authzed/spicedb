@@ -65,6 +65,9 @@ github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hC
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
+github.com/authzed/authzed-go v0.1.1-0.20210915130746-921aebdebf91 h1:u+RLDC3zwImP7vFDNEK+ot0qr9RG/WECnKh6qXQZrzQ=
+github.com/authzed/authzed-go v0.1.1-0.20210915130746-921aebdebf91/go.mod h1:apdJkj5IcZlUM5baEQ2I8P/69T1wPYDh/fjNp89jCv0=
+github.com/authzed/grpcutil v0.0.0-20210913124023-cad23ae5a9e8/go.mod h1:HwO/KbRU3fWXEYHE96kvXnwxzi97tkXD1hfi5UaZ71Y=
 github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f h1:7CRJHi1JOJEvaH/Dx3hMRRQeUAVxAPPHTz+UZ99NiYQ=
 github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f/go.mod h1:HwO/KbRU3fWXEYHE96kvXnwxzi97tkXD1hfi5UaZ71Y=
 github.com/aws/aws-sdk-go v1.17.4/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
@@ -352,6 +355,7 @@ github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6 h1:OzCtZ
 github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6/go.mod h1:CEusGbCRDFcHX9EgEhPsgJX33kpp9CfSFRBAoSGOems=
 github.com/jzelinskie/cobrautil v0.0.4 h1:OIYfoDHVDvftmzmwsDjQzmnuozxd2LANcFti3aql+n4=
 github.com/jzelinskie/cobrautil v0.0.4/go.mod h1:svcV0pfy8vH8O+IpYaJgWw70PJuAtvoKXsIELG8Krzs=
+github.com/jzelinskie/stringz v0.0.0-20210414224931-d6a8ce844a70/go.mod h1:hHYbgxJuNLRw91CmpuFsYEOyQqpDVFg8pvEh23vy4P0=
 github.com/jzelinskie/stringz v0.0.1 h1:IahR+y8ct2nyj7B6i8UtFsGFj4ex1SX27iKFYsAheLk=
 github.com/jzelinskie/stringz v0.0.1/go.mod h1:hHYbgxJuNLRw91CmpuFsYEOyQqpDVFg8pvEh23vy4P0=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
@@ -679,8 +683,8 @@ golang.org/x/net v0.0.0-20210226172049-e18ecbb05110/go.mod h1:m0MpNAwzfU5UDzcl9v
 golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4/go.mod h1:RBQZq4jEuRlivfhVLdyRGr576XBO4/greRjx4P4O3yc=
 golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4/go.mod h1:p54w0d4576C0XHj96bSt6lcn1PtDYWL6XObtHCRCNQM=
 golang.org/x/net v0.0.0-20210614182718-04defd469f4e/go.mod h1:9nx3DQGgdP8bBQD5qxJ1jj9UTztislL4KSBs9R2vV5Y=
-golang.org/x/net v0.0.0-20210908191846-a5e095526f91 h1:E8wdt+zBjoxD3MA65wEc3pl25BsTi7tbkpwc4ANThjc=
-golang.org/x/net v0.0.0-20210908191846-a5e095526f91/go.mod h1:9nx3DQGgdP8bBQD5qxJ1jj9UTztislL4KSBs9R2vV5Y=
+golang.org/x/net v0.0.0-20210913180222-943fd674d43e h1:+b/22bPvDYt4NPDcy4xAGCmON713ONAWFeY3Z7I3tR8=
+golang.org/x/net v0.0.0-20210913180222-943fd674d43e/go.mod h1:9nx3DQGgdP8bBQD5qxJ1jj9UTztislL4KSBs9R2vV5Y=
 golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
 golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
 golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=

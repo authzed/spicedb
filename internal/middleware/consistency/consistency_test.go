@@ -5,6 +5,7 @@ import (
 	"io"
 	"testing"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpc_testing "github.com/grpc-ecosystem/go-grpc-middleware/testing"
 	pb_testproto "github.com/grpc-ecosystem/go-grpc-middleware/testing/testproto"
 	"github.com/shopspring/decimal"
@@ -14,7 +15,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -21,7 +22,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	g "github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"
