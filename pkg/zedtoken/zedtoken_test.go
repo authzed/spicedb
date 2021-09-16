@@ -3,10 +3,9 @@ package zedtoken
 import (
 	"testing"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-
-	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 )
 
 var encodeRevisionTests = []decimal.Decimal{

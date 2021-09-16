@@ -3,11 +3,11 @@ package testfixtures
 import (
 	"context"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
-	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )

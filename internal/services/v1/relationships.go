@@ -3,6 +3,7 @@ package v1
 import (
 	"errors"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/rs/zerolog/log"
@@ -15,7 +16,6 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/namespace"
-	v1 "github.com/authzed/spicedb/internal/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/zedtoken"

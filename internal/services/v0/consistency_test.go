@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/jwangsadinata/go-multimap/slicemultimap"
 	"github.com/shopspring/decimal"
@@ -22,7 +23,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	graphpkg "github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"

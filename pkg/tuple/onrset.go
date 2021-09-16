@@ -1,7 +1,7 @@
 package tuple
 
 import (
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 )
 
 // ONRSet is a set of ObjectAndRelation's.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -11,7 +12,6 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"

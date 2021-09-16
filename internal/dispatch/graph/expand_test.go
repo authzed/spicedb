@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/google/go-cmp/cmp"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	expand "github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/graph"

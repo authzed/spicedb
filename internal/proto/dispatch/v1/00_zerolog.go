@@ -3,10 +3,9 @@ package dispatchv1
 import (
 	"fmt"
 
-	"github.com/rs/zerolog"
-
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/rs/zerolog"
 )
 
 // MarshalZerologObject implements zerolog object marshalling.

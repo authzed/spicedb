@@ -4,7 +4,8 @@ import (
 	"bufio"
 	"strings"
 
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+
 	"github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/namespace"
 )

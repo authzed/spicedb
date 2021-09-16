@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+
 	"github.com/authzed/spicedb/internal/namespace"
-	v0 "github.com/authzed/spicedb/internal/proto/authzed/api/v0"
 )
 
 type invalidRelationError struct {
