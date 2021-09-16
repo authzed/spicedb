@@ -185,7 +185,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 	}
 }
 
-func TestPreconditions(t *testing.T, tester DatastoreTester) {
+func TestWritePreconditions(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
@@ -213,6 +213,35 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 		[]*v0.RelationTuple{first},
 		[]*v0.RelationTupleUpdate{tuple.Create(second)},
 	)
+	require.NoError(err)
+}
+
+func TestDeletePreconditions(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	relTpl := makeTestTuple("first", "owner")
+	rel := makeTestRelationship("first", "owner")
+	filter := &v1.RelationshipFilter{
+		ResourceFilter: &v1.ObjectFilter{ObjectType: testResourceNamespace, OptionalObjectId: "second"},
+	}
+
+	ctx := context.Background()
+
+	_, err = ds.DeleteRelationships(ctx, []*v1.Relationship{rel}, filter)
+	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
+
+	_, err = ds.DeleteRelationships(ctx, nil, filter)
+	require.NoError(err)
+
+	_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{tuple.Create(relTpl)})
+	require.NoError(err)
+
+	_, err = ds.DeleteRelationships(ctx, []*v1.Relationship{rel}, filter)
 	require.NoError(err)
 }
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
@@ -25,7 +26,8 @@ type DatastoreTester interface {
 func TestAll(t *testing.T, tester DatastoreTester) {
 	t.Run("TestSimple", func(t *testing.T) { TestSimple(t, tester) })
 	t.Run("TestRevisionFuzzing", func(t *testing.T) { TestRevisionFuzzing(t, tester) })
-	t.Run("TestPreconditions", func(t *testing.T) { TestPreconditions(t, tester) })
+	t.Run("TestWritePreconditions", func(t *testing.T) { TestWritePreconditions(t, tester) })
+	t.Run("TestDeletePreconditions", func(t *testing.T) { TestDeletePreconditions(t, tester) })
 	t.Run("TestInvalidReads", func(t *testing.T) { TestInvalidReads(t, tester) })
 	t.Run("TestNamespaceWrite", func(t *testing.T) { TestNamespaceWrite(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { TestNamespaceDelete(t, tester) })
@@ -48,15 +50,25 @@ func makeTestTuple(resourceID, userID string) *v0.RelationTuple {
 			ObjectId:  resourceID,
 			Relation:  testReaderRelation,
 		},
-		User: &v0.User{
-			UserOneof: &v0.User_Userset{
-				Userset: &v0.ObjectAndRelation{
-					Namespace: testUserNamespace,
-					ObjectId:  userID,
-					Relation:  ellipsis,
-				},
-			},
+		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+			Namespace: testUserNamespace,
+			ObjectId:  userID,
+			Relation:  ellipsis,
+		}}},
+	}
+}
+
+func makeTestRelationship(resourceID, userID string) *v1.Relationship {
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: testResourceNamespace,
+			ObjectId:   resourceID,
 		},
+		Relation: testReaderRelation,
+		Subject: &v1.SubjectReference{Object: &v1.ObjectReference{
+			ObjectType: testUserNamespace,
+			ObjectId:   userID,
+		}},
 	}
 }
 
