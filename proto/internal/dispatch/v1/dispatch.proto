@@ -60,8 +60,8 @@ message DispatchLookupRequest {
   authzed.api.v0.ObjectAndRelation subject = 3
       [ (validate.rules).message.required = true ];
   uint32 limit = 4;
-  repeated authzed.api.v0.ObjectAndRelation direct_stack = 5;
-  repeated authzed.api.v0.ObjectAndRelation ttu_stack = 6;
+  repeated authzed.api.v0.RelationReference direct_stack = 5;
+  repeated authzed.api.v0.RelationReference ttu_stack = 6;
 }
 
 message DispatchLookupResponse {

@@ -66,7 +66,7 @@ jobs:
         go install github.com/envoyproxy/protoc-gen-validate@v0.6.1
     - uses: "bufbuild/buf-setup-action@v0.3.1"
       with:
-        version: "0.48.2"
+        version: "0.52.0"
     - name: "Generate & Diff Protos"
       run: "./buf.gen.yaml && git diff && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
     - uses: "bufbuild/buf-breaking-action@v0.4.0"
