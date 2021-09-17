@@ -209,19 +209,19 @@ func serveRun(cmd *cobra.Command, args []string) {
 		grpcprom.UnaryServerInterceptor,
 	)
 
-	streamMiddlware := grpc.ChainStreamInterceptor(
+	streamMiddleware := grpc.ChainStreamInterceptor(
 		grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 		otelgrpc.StreamServerInterceptor(),
 		grpcauth.StreamServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.StreamServerInterceptor,
 	)
 
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware, streamMiddlware)
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware, streamMiddleware)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create gRPC server")
 	}
 
-	internalGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware, streamMiddlware)
+	internalGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware, streamMiddleware)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create internal gRPC server")
 	}
