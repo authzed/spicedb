@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/fatih/color"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -16,6 +17,7 @@ func registerMigrateCmd(rootCmd *cobra.Command) {
 	migrateCmd := &cobra.Command{
 		Use:               "migrate [revision]",
 		Short:             "execute datastore schema migrations",
+		Long:              fmt.Sprintf("Executes datastore schema migrations for the datastore.\nThe special value \"%s\" can be used to migrate to the latest revision.", color.YellowString(migrate.Head)),
 		PersistentPreRunE: persistentPreRunE,
 		Run:               migrateRun,
 		Args:              cobra.ExactArgs(1),
