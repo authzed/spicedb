@@ -339,6 +339,17 @@ func (ctq TupleQuery) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelatio
 	return ReverseTupleQuery{ctq}
 }
 
+// ReverseQueryTuplesFromSubjectNamespace constructs a ReverseTupleQuery from this tuple query.
+func (ctq TupleQuery) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string) datastore.ReverseTupleQuery {
+	ctq.TracerAttributes = append(ctq.TracerAttributes, subNamespaceKey.String(subjectNamespace))
+
+	ctq.InitialQuery = ctq.InitialQuery.Where(sq.Eq{
+		ctq.Schema.ColUsersetNamespace: subjectNamespace,
+	})
+
+	return ReverseTupleQuery{ctq}
+}
+
 // ReverseTupleQuery is a common reverse tuple query implementation for SQL datastore implementations.
 type ReverseTupleQuery struct {
 	TupleQuery

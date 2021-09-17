@@ -95,7 +95,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
 
 	for _, nsdef := range nsdefs {
-		ts, err := namespace.BuildNamespaceTypeSystem(nsdef, nsm, nsdefs...)
+		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsdef, nsm, nsdefs)
 		if err != nil {
 			return nil, rewriteError(err)
 		}

@@ -27,8 +27,54 @@ const (
 	DirectRelationNotValid
 )
 
+// LookupNamespace is a function used to lookup a namespace.
+type LookupNamespace func(ctx context.Context, name string) (*v0.NamespaceDefinition, error)
+
+// BuildNamespaceTypeSystemWithFallback constructs a type system view of a namespace definition, with automatic lookup
+// via the additional defs first, and then the namespace manager as a fallback.
+func BuildNamespaceTypeSystemWithFallback(nsDef *v0.NamespaceDefinition, manager Manager, additionalDefs []*v0.NamespaceDefinition) (*NamespaceTypeSystem, error) {
+	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, namespaceName string) (*v0.NamespaceDefinition, error) {
+		// NOTE: Order is important here: We always check the new definitions before the existing
+		// ones.
+
+		// Check the additional namespace definitions for the namespace.
+		for _, additionalDef := range additionalDefs {
+			if additionalDef.Name == namespaceName {
+				return additionalDef, nil
+			}
+		}
+
+		// Otherwise, check already defined namespaces.
+		otherNamespaceDef, _, err := manager.ReadNamespace(ctx, namespaceName)
+		return otherNamespaceDef, err
+	})
+}
+
+// BuildNamespaceTypeSystemForManager constructs a type system view of a namespace definition, with automatic lookup
+// via the namespace manager.
+func BuildNamespaceTypeSystemForManager(nsDef *v0.NamespaceDefinition, manager Manager) (*NamespaceTypeSystem, error) {
+	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*v0.NamespaceDefinition, error) {
+		nsDef, _, err := manager.ReadNamespace(ctx, nsName)
+		return nsDef, err
+	})
+}
+
+// BuildNamespaceTypeSystemForDefs constructs a type system view of a namespace definition, with lookup in the
+// list of definitions given.
+func BuildNamespaceTypeSystemForDefs(nsDef *v0.NamespaceDefinition, allDefs []*v0.NamespaceDefinition) (*NamespaceTypeSystem, error) {
+	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*v0.NamespaceDefinition, error) {
+		for _, def := range allDefs {
+			if def.Name == nsName {
+				return def, nil
+			}
+		}
+
+		return nil, fmt.Errorf("unknown definition %s", nsName)
+	})
+}
+
 // BuildNamespaceTypeSystem constructs a type system view of a namespace definition.
-func BuildNamespaceTypeSystem(nsDef *v0.NamespaceDefinition, manager Manager, additionalDefinitions ...*v0.NamespaceDefinition) (*NamespaceTypeSystem, error) {
+func BuildNamespaceTypeSystem(nsDef *v0.NamespaceDefinition, lookupNamespace LookupNamespace) (*NamespaceTypeSystem, error) {
 	relationMap := map[string]*v0.Relation{}
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
@@ -40,19 +86,18 @@ func BuildNamespaceTypeSystem(nsDef *v0.NamespaceDefinition, manager Manager, ad
 	}
 
 	return &NamespaceTypeSystem{
-		manager:        manager,
-		nsDef:          nsDef,
-		relationMap:    relationMap,
-		additionalDefs: additionalDefinitions,
+		lookupNamespace: lookupNamespace,
+		nsDef:           nsDef,
+		relationMap:     relationMap,
 	}, nil
 }
 
 // NamespaceTypeSystem represents typing information found in a namespace.
 type NamespaceTypeSystem struct {
-	manager        Manager
-	nsDef          *v0.NamespaceDefinition
-	relationMap    map[string]*v0.Relation
-	additionalDefs []*v0.NamespaceDefinition
+	lookupNamespace LookupNamespace
+	nsDef           *v0.NamespaceDefinition
+	relationMap     map[string]*v0.Relation
+	additionalDefs  []*v0.NamespaceDefinition
 }
 
 // HasRelation returns true if the namespace has the given relation defined.
@@ -206,21 +251,10 @@ func (nts *NamespaceTypeSystem) typeSystemForNamespace(ctx context.Context, name
 		return nts, nil
 	}
 
-	// NOTE: Order is important here: We always check the new definitions before the existing
-	// ones.
-
-	// Check the additional namespace definitions for the namespace.
-	for _, additionalDef := range nts.additionalDefs {
-		if additionalDef.Name == namespaceName {
-			return BuildNamespaceTypeSystem(additionalDef, nts.manager)
-		}
-	}
-
-	// Otherwise, check already defined namespaces.
-	otherNamespaceDef, _, err := nts.manager.ReadNamespace(ctx, namespaceName)
+	nsDef, err := nts.lookupNamespace(ctx, namespaceName)
 	if err != nil {
 		return nil, err
 	}
 
-	return BuildNamespaceTypeSystem(otherNamespaceDef, nts.manager)
+	return BuildNamespaceTypeSystem(nsDef, nts.lookupNamespace)
 }

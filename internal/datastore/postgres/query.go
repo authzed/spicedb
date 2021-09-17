@@ -99,3 +99,7 @@ func (pgd *pgDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelat
 func (pgd *pgDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return pgd.reverseQueryBase(revision).ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation)
 }
+
+func (pgd *pgDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	return pgd.reverseQueryBase(revision).ReverseQueryTuplesFromSubjectNamespace(subjectNamespace)
+}

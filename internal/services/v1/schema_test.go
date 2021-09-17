@@ -150,3 +150,60 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	})
 	require.Nil(t, err)
 }
+
+func TestSchemaDeleteDefinition(t *testing.T) {
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	require.NoError(t, err)
+
+	srv := newSchemaServer(ds)
+
+	// Write a basic schema.
+	_, err = srv.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition example/user {}
+	
+		definition example/document {
+			relation somerelation: example/user
+			relation anotherrelation: example/user
+		}`,
+	})
+	require.NoError(t, err)
+
+	// Write a relationship for one of the relations.
+	ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
+	require.NoError(t, err)
+
+	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
+	aclSrv := v0svc.NewACLServer(ds, ns, dispatch, 50)
+
+	_, err = aclSrv.Write(context.Background(), &v0.WriteRequest{
+		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+			tuple.Scan("example/document:somedoc#somerelation@example/user:someuser#..."),
+		)},
+	})
+	require.Nil(t, err)
+
+	// Attempt to delete the `document` type, which should fail.
+	_, err = srv.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition example/user {}`,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+
+	// Delete the relationship.
+	_, err = aclSrv.Write(context.Background(), &v0.WriteRequest{
+		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
+			tuple.Scan("example/document:somedoc#somerelation@example/user:someuser#..."),
+		)},
+	})
+	require.Nil(t, err)
+
+	// Attempt to  delete the `document` type, which should succeed.
+	_, err = srv.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition example/user {}`,
+	})
+	require.Nil(t, err)
+
+	// Ensure it was deleted.
+	readback, err := srv.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	require.NoError(t, err)
+	require.Equal(t, `definition example/user {}`, readback.SchemaText)
+}

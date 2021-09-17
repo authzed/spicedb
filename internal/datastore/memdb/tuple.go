@@ -149,6 +149,16 @@ func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespac
 	}
 }
 
+func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	return &memdbReverseTupleQuery{
+		db:               mds.db,
+		revision:         revision,
+		simulatedLatency: mds.simulatedLatency,
+
+		subNamespaceName: subjectNamespace,
+	}
+}
+
 func (mds *memdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
 	// Compute the current revision
 	txn := mds.db.Txn(false)

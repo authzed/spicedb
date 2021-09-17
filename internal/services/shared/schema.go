@@ -13,6 +13,35 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 )
 
+// EnsureNoRelationshipsExist ensures that no relationships exist within the namespace with the given name.
+func EnsureNoRelationshipsExist(ctx context.Context, ds datastore.Datastore, namespaceName string) error {
+	syncRevision, err := ds.SyncRevision(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = errorIfTupleIteratorReturnsTuples(
+		ctx,
+		ds.QueryTuples(&v1_api.ObjectFilter{
+			ObjectType: namespaceName,
+		}, syncRevision),
+		"cannot delete Object Definition `%s`, as a Relationship exists under it", namespaceName)
+	if err != nil {
+		return err
+	}
+
+	// Also check for right sides of tuples.
+	err = errorIfTupleIteratorReturnsTuples(
+		ctx,
+		ds.ReverseQueryTuplesFromSubjectNamespace(namespaceName, syncRevision),
+		"cannot delete Object Definition `%s`, as a Relationship references it", namespaceName)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // SanityCheckExistingRelationships ensures that a namespace definition being written does not result
 // in relationships without associated defined schema object definitions and relations.
 func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastore, nsdef *v0.NamespaceDefinition) error {

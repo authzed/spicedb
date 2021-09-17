@@ -163,7 +163,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 func loadNamespaces(ctx context.Context, namespaces []*v0.NamespaceDefinition, nsm namespace.Manager, ds datastore.Datastore) ([]*v0.DeveloperError, error) {
 	var errors []*v0.DeveloperError
 	for _, nsDef := range namespaces {
-		ts, terr := namespace.BuildNamespaceTypeSystem(nsDef, nsm, namespaces...)
+		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(nsDef, namespaces)
 		if terr != nil {
 			return errors, terr
 		}

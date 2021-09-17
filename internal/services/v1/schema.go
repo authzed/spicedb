@@ -70,16 +70,23 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 
 func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaRequest) (*v1.WriteSchemaResponse, error) {
 	log.Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
-	nsm, err := namespace.NewCachingNamespaceManager(ss.ds, 0, nil) // non-caching manager
-	if err != nil {
-		return nil, rewriteSchemaError(err)
-	}
-
 	inputSchema := compiler.InputSchema{
 		Source:       input.InputSource("schema"),
 		SchemaString: in.GetSchema(),
 	}
 
+	// Build a map of existing definitions to determine those being removed, if any.
+	existingDefs, err := ss.ds.ListNamespaces(ctx)
+	if err != nil {
+		return nil, rewriteSchemaError(err)
+	}
+
+	existingDefMap := map[string]bool{}
+	for _, existingDef := range existingDefs {
+		existingDefMap[existingDef.Name] = true
+	}
+
+	// Compile the schema into the namespace definitions.
 	emptyDefaultPrefix := ""
 	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
 	if err != nil {
@@ -87,8 +94,10 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	}
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
 
+	// For each definition, perform a diff and ensure the changes will not result in any
+	// relationships left without associated schema.
 	for _, nsdef := range nsdefs {
-		ts, err := namespace.BuildNamespaceTypeSystem(nsdef, nsm, nsdefs...)
+		ts, err := namespace.BuildNamespaceTypeSystemForDefs(nsdef, nsdefs)
 		if err != nil {
 			return nil, rewriteSchemaError(err)
 		}
@@ -100,9 +109,25 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef); err != nil {
 			return nil, rewriteSchemaError(err)
 		}
+
+		existingDefMap[nsdef.Name] = false
 	}
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
 
+	// Ensure that deleting namespaces will not result in any relationships left without associated
+	// schema.
+	for nsdefName, removed := range existingDefMap {
+		if !removed {
+			continue
+		}
+
+		err := shared.EnsureNoRelationshipsExist(ctx, ss.ds, nsdefName)
+		if err != nil {
+			return nil, rewriteSchemaError(err)
+		}
+	}
+
+	// Write the new namespaces.
 	var names []string
 	for _, nsdef := range nsdefs {
 		if _, err := ss.ds.WriteNamespace(ctx, nsdef); err != nil {
@@ -111,7 +136,20 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 		names = append(names, nsdef.Name)
 	}
-	log.Trace().Interface("namespace definitions", nsdefs).Strs("names", names).Msg("wrote namespace definitions")
+
+	// Delete the removed namespaces.
+	var removedNames []string
+	for nsdefName, removed := range existingDefMap {
+		if !removed {
+			continue
+		}
+		if _, err := ss.ds.DeleteNamespace(ctx, nsdefName); err != nil {
+			return nil, rewriteSchemaError(err)
+		}
+		removedNames = append(removedNames, nsdefName)
+	}
+
+	log.Trace().Interface("namespace definitions", nsdefs).Strs("added/changed", names).Strs("removed", removedNames).Msg("wrote namespace definitions")
 
 	return &v1.WriteSchemaResponse{}, nil
 }

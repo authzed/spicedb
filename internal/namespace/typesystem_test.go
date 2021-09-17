@@ -183,7 +183,7 @@ func TestTypeSystem(t *testing.T) {
 				require.NoError(err)
 			}
 
-			ts, err := BuildNamespaceTypeSystem(tc.toCheck, nsm)
+			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm)
 			require.NoError(err)
 
 			terr := ts.Validate(context.Background())
