@@ -28,6 +28,7 @@ func TestAll(t *testing.T, tester DatastoreTester) {
 	t.Run("TestRevisionFuzzing", func(t *testing.T) { TestRevisionFuzzing(t, tester) })
 	t.Run("TestWritePreconditions", func(t *testing.T) { TestWritePreconditions(t, tester) })
 	t.Run("TestDeletePreconditions", func(t *testing.T) { TestDeletePreconditions(t, tester) })
+	t.Run("TestDeleteRelationships", func(t *testing.T) { TestDeleteRelationships(t, tester) })
 	t.Run("TestInvalidReads", func(t *testing.T) { TestInvalidReads(t, tester) })
 	t.Run("TestNamespaceWrite", func(t *testing.T) { TestNamespaceWrite(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { TestNamespaceDelete(t, tester) })
