@@ -54,6 +54,21 @@ func TestRWOperationErrors(t *testing.T) {
 
 var expectedRevision = decimal.NewFromInt(123)
 
+func TestIsReadyPassthrough(t *testing.T) {
+	require := require.New(t)
+
+	delegate := &delegateMock{}
+	ds := NewReadonlyDatastore(delegate)
+	ctx := context.Background()
+
+	delegate.On("IsReady").Return(true, nil).Times(1)
+
+	resp, err := ds.IsReady(ctx)
+	require.NoError(err)
+	require.True(resp)
+	delegate.AssertExpectations(t)
+}
+
 func TestRevisionPassthrough(t *testing.T) {
 	require := require.New(t)
 
@@ -260,4 +275,9 @@ func (dm *delegateMock) CheckRevision(ctx context.Context, revision datastore.Re
 func (dm *delegateMock) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
 	args := dm.Called()
 	return args.Get(0).([]*v0.NamespaceDefinition), args.Error(1)
+}
+
+func (dm *delegateMock) IsReady(ctx context.Context) (bool, error) {
+	args := dm.Called()
+	return args.Bool(0), args.Error(1)
 }

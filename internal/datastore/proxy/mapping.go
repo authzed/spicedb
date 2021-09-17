@@ -33,6 +33,10 @@ func NewMappingProxy(delegate datastore.Datastore, mapper namespace.Mapper, watc
 	return mappingProxy{delegate, mapper, watchBufferLength}
 }
 
+func (mp mappingProxy) IsReady(ctx context.Context) (bool, error) {
+	return mp.delegate.IsReady(ctx)
+}
+
 func (mp mappingProxy) WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (datastore.Revision, error) {
 	translatedPreconditions := make([]*v0.RelationTuple, 0, len(preconditions))
 	for _, pc := range preconditions {

@@ -35,13 +35,14 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			ds, err := tester.New(0, veryLargeGCWindow, 1)
 			require.NoError(err)
 
+			ctx := context.Background()
+
 			setupDatastore(ds, require)
+			require.True(ds.IsReady(ctx))
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
 			var testTuples []*v0.RelationTuple
-
-			ctx := context.Background()
 
 			var lastRevision datastore.Revision
 			for i := 0; i < numTuples; i++ {

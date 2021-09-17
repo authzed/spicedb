@@ -39,10 +39,11 @@ const rootTemplate = `
 		</script>
 	</head>
 	<body>
+		{{if .IsReady }}
 		{{if .IsEmpty}}
-			<h1>Getting Started with SpiceDB</h1>
+			<h1>Definining the permissions schema</h1>
 			<p>
-				To get started with SpiceDB, you'll first need to load in a <a href="https://docs.authzed.com/reference/schema-lang" target="_blank" rel="noopener">Schema</a>
+				To being making API requests to SpiceDB, you'll first need to load in a <a href="https://docs.authzed.com/reference/schema-lang" target="_blank" rel="noopener">Schema</a>
 				that defines the permissions system.
 			</p>
 			<p>
@@ -85,13 +86,22 @@ zed schema write sample.zed {{if .Args.GrpcNoTLS }}--insecure {{end}}
 zed relationship create user:sampleuser reader resource:sampleresource {{if .Args.GrpcNoTLS }}--insecure {{end}}
 </pre>
 
-			<h3>How to check a permission</h3>
+					<h3>How to check a permission</h3>
+		<pre>
+		# Check a permission
+		zed permission check user:sampleuser view resource:sampleresource {{if .Args.GrpcNoTLS }}--insecure {{end}}
+		</pre>
+		{{ end }}
+		{{ end }}
+	{{ else }}
+	<h1>Getting Started with SpiceDB</h1>
+	<p>
+		To get started with SpiceDB, please run the migrate command below to setup your backing data store:
+	</p>
 <pre>
-# Check a permission
-zed permission check user:sampleuser view resource:sampleresource {{if .Args.GrpcNoTLS }}--insecure {{end}}
+spicedb migrate head --datastore-engine={{ .Args.DatastoreEngine }} --datastore-conn-uri="your-connection-uri-here"
 </pre>
-{{ end }}
-{{ end }}
+	{{ end }}
 	</body>
 </html>
 `
@@ -142,40 +152,54 @@ func (db *Dashboard) rootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var objectDefs []string
-	userFound := false
-	resourceFound := false
-
-	nsDefs, err := db.datastore.ListNamespaces(r.Context())
+	isReady, err := db.datastore.IsReady(r.Context())
 	if err != nil {
-		log.Error().AnErr("datastore-error", err).Msg("Got error when trying to load namespaces")
+		log.Error().AnErr("template-error", err).Msg("Got error when checking database")
 		fmt.Fprintf(w, "Internal Error")
 		return
 	}
 
-	for _, nsDef := range nsDefs {
-		objectDef, _ := generator.GenerateSource(nsDef)
-		objectDefs = append(objectDefs, objectDef)
+	schema := ""
+	hasSampleSchema := false
 
-		if nsDef.Name == "user" {
-			userFound = true
+	if isReady {
+		var objectDefs []string
+		userFound := false
+		resourceFound := false
+
+		nsDefs, err := db.datastore.ListNamespaces(r.Context())
+		if err != nil {
+			log.Error().AnErr("datastore-error", err).Msg("Got error when trying to load namespaces")
+			fmt.Fprintf(w, "Internal Error")
+			return
 		}
-		if nsDef.Name == "resource" {
-			resourceFound = true
+
+		for _, nsDef := range nsDefs {
+			objectDef, _ := generator.GenerateSource(nsDef)
+			objectDefs = append(objectDefs, objectDef)
+
+			if nsDef.Name == "user" {
+				userFound = true
+			}
+			if nsDef.Name == "resource" {
+				resourceFound = true
+			}
 		}
+
+		schema = strings.Join(objectDefs, "\n\n")
+		hasSampleSchema = userFound && resourceFound
 	}
-
-	schema := strings.Join(objectDefs, "\n\n")
-	hasSampleSchema := userFound && resourceFound
 
 	err = tmpl.Execute(w, struct {
 		Args            Args
+		IsReady         bool
 		IsEmpty         bool
 		Schema          string
 		HasSampleSchema bool
 	}{
 		Args:            db.args,
-		IsEmpty:         len(nsDefs) == 0,
+		IsReady:         isReady,
+		IsEmpty:         isReady && schema == "",
 		Schema:          schema,
 		HasSampleSchema: hasSampleSchema,
 	})

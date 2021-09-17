@@ -1,6 +1,7 @@
 package memdb
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -286,6 +287,10 @@ func NewMemdbDatastore(
 		gcWindowInverted: -1 * gcWindow,
 		simulatedLatency: simulatedLatency,
 	}, nil
+}
+
+func (mds *memdbDatastore) IsReady(ctx context.Context) (bool, error) {
+	return true, nil
 }
 
 func revisionFromVersion(version uint64) datastore.Revision {
