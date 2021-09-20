@@ -8,14 +8,10 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	dispatch "github.com/authzed/spicedb/internal/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
-	atRevision := consistency.RevisionFromContext(ctx)
-	if atRevision == nil {
-		panic("consistency middleware did not inject revision")
-	}
+	atRevision, checkedAt := consistency.MustRevisionFromContext(ctx)
 
 	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false)
 	if err != nil {
@@ -61,7 +57,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	}
 
 	return &v1.CheckPermissionResponse{
-		CheckedAt:      zedtoken.NewFromRevision(*atRevision),
+		CheckedAt:      checkedAt,
 		Permissionship: permissionship,
 	}, nil
 }

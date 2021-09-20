@@ -37,6 +37,17 @@ func RevisionFromContext(ctx context.Context) *decimal.Decimal {
 	return nil
 }
 
+// MustRevisionFromContext reads the selected revision out of a context.Context, computes a zedtoken
+// from it, and panics if it has not been set on the context.
+func MustRevisionFromContext(ctx context.Context) (decimal.Decimal, *v1.ZedToken) {
+	rev := RevisionFromContext(ctx)
+	if rev == nil {
+		panic("consistency middleware did not inject revision")
+	}
+
+	return *rev, zedtoken.NewFromRevision(*rev)
+}
+
 // AddRevisionToContext adds a revision to the given context, based on the consistency block found
 // in the given request (if applicable).
 func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Datastore) (context.Context, error) {
