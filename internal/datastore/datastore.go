@@ -8,11 +8,9 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const (
-	// Ellipsis is a special relation that is assumed to be valid on the right
-	// hand side of a tuple.
-	Ellipsis = "..."
-)
+// Ellipsis is a special relation that is assumed to be valid on the right
+// hand side of a tuple.
+const Ellipsis = "..."
 
 // RevisionChanges represents the changes in a single transaction.
 type RevisionChanges struct {
@@ -24,14 +22,20 @@ type RevisionChanges struct {
 type Datastore interface {
 	GraphDatastore
 
-	// WriteTuples takes a list of existing tuples that must exist, and a list of tuple
-	// mutations and applies it to the datastore for the specified namespace.
+	// WriteTuples takes a list of existing tuples that must exist, and a list of
+	// tuple mutations and applies it to the datastore for the specified
+	// namespace.
 	WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (Revision, error)
+
+	// DeleteRelationships deletes all Relationships that match the provided
+	// filter if all preconditions are met.
+	DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (Revision, error)
 
 	// Revision gets the currently replicated revision for this datastore.
 	Revision(ctx context.Context) (Revision, error)
 
-	// SyncRevision gets a revision that is guaranteed to be at least as fresh as right now.
+	// SyncRevision gets a revision that is guaranteed to be at least as fresh as
+	// right now.
 	SyncRevision(ctx context.Context) (Revision, error)
 
 	// Watch notifies the caller about all changes to tuples.
@@ -43,7 +47,8 @@ type Datastore interface {
 	// returning the version of the namespace that was created.
 	WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (Revision, error)
 
-	// ReadNamespace reads a namespace definition and version and returns it if found.
+	// ReadNamespace reads a namespace definition and version and returns it if
+	// found.
 	ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, Revision, error)
 
 	// DeleteNamespace deletes a namespace and any associated tuples.
@@ -58,29 +63,31 @@ type Datastore interface {
 	IsReady(ctx context.Context) (bool, error)
 }
 
-// GraphDatastore is a subset of the datastore interface that is passed to graph resolvers.
+// GraphDatastore is a subset of the datastore interface that is passed to
+// graph resolvers.
 type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
 	QueryTuples(resourceFilter *v1.ObjectFilter, revision Revision) TupleQuery
 
-	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from subject onward
-	// from the datastore.
+	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from
+	// subject onward from the datastore.
 	ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision Revision) ReverseTupleQuery
 
-	// ReverseQueryTuplesFromSubjectRelation creates a builder for reading tuples from a subject
-	// relation onward from the datastore.
+	// ReverseQueryTuplesFromSubjectRelation creates a builder for reading tuples
+	// from a subject relation onward from the datastore.
 	ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision Revision) ReverseTupleQuery
 
-	// ReverseQueryTuplesFromSubjectNamespace creates a builder for reading tuples from a subject namespace
-	// onward from the datastore.
+	// ReverseQueryTuplesFromSubjectNamespace creates a builder for reading
+	// tuples from a subject namespace onward from the datastore.
 	ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision Revision) ReverseTupleQuery
 
-	// CheckRevision checks the specified revision to make sure it's valid and hasn't been
-	// garbage collected.
+	// CheckRevision checks the specified revision to make sure it's valid and
+	// hasn't been garbage collected.
 	CheckRevision(ctx context.Context, revision Revision) error
 }
 
-// CommonTupleQuery is the common interface shared between TupleQuery and ReverseTupleQuery.
+// CommonTupleQuery is the common interface shared between TupleQuery and
+// ReverseTupleQuery.
 type CommonTupleQuery interface {
 	// Execute runs the tuple query and returns a result iterator.
 	Execute(ctx context.Context) (TupleIterator, error)
@@ -93,7 +100,8 @@ type CommonTupleQuery interface {
 type ReverseTupleQuery interface {
 	CommonTupleQuery
 
-	// WithObjectRelation filters to tuples with the given object relation on the left hand side.
+	// WithObjectRelation filters to tuples with the given object relation on the
+	// left hand side.
 	WithObjectRelation(namespace string, relation string) ReverseTupleQuery
 }
 

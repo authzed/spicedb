@@ -64,48 +64,48 @@ func (mtq memdbTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datast
 	return mtq
 }
 
+func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.ResultIterator, error) {
+	switch {
+	case filter.ResourceFilter.OptionalObjectId != "":
+		return txn.Get(
+			tableTuple,
+			indexNamespaceAndObjectID,
+			filter.ResourceFilter.ObjectType,
+			filter.ResourceFilter.OptionalObjectId,
+		)
+	case filter.OptionalSubjectFilter != nil && filter.OptionalSubjectFilter.OptionalObjectId != "":
+		return txn.Get(
+			tableTuple,
+			indexNamespaceAndUsersetID,
+			filter.ResourceFilter.ObjectType,
+			filter.OptionalSubjectFilter.ObjectType,
+			filter.OptionalSubjectFilter.OptionalObjectId,
+		)
+	case filter.ResourceFilter.OptionalRelation != "":
+		return txn.Get(
+			tableTuple,
+			indexNamespaceAndRelation,
+			filter.ResourceFilter.ObjectType,
+			filter.ResourceFilter.OptionalRelation,
+		)
+	}
+
+	return txn.Get(
+		tableTuple,
+		indexNamespace,
+		filter.ResourceFilter.ObjectType,
+	)
+}
+
 func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
 	txn := mtq.db.Txn(false)
 
 	time.Sleep(mtq.simulatedLatency)
-	var err error
-	var bestIterator memdb.ResultIterator
-	if mtq.resourceFilter.OptionalObjectId != "" {
-		bestIterator, err = txn.Get(
-			tableTuple,
-			indexNamespaceAndObjectID,
-			mtq.resourceFilter.ObjectType,
-			mtq.resourceFilter.OptionalObjectId,
-		)
-	} else if mtq.usersetFilter != nil && mtq.usersetFilter.OptionalObjectId != "" {
-		bestIterator, err = txn.Get(
-			tableTuple,
-			indexNamespaceAndUsersetID,
-			mtq.resourceFilter.ObjectType,
-			mtq.usersetFilter.ObjectType,
-			mtq.usersetFilter.OptionalObjectId,
-		)
-	} else if mtq.usersetsFilter != nil && len(mtq.usersetsFilter) > 0 {
-		bestIterator, err = txn.Get(
-			tableTuple,
-			indexNamespace,
-			mtq.resourceFilter.ObjectType,
-		)
-	} else if mtq.resourceFilter.OptionalRelation != "" {
-		bestIterator, err = txn.Get(
-			tableTuple,
-			indexNamespaceAndRelation,
-			mtq.resourceFilter.ObjectType,
-			mtq.resourceFilter.OptionalRelation,
-		)
-	} else {
-		bestIterator, err = txn.Get(
-			tableTuple,
-			indexNamespace,
-			mtq.resourceFilter.ObjectType,
-		)
-	}
 
+	bestIterator, err := iteratorForFilter(txn, &v1.RelationshipFilter{
+		ResourceFilter:        mtq.resourceFilter,
+		OptionalSubjectFilter: mtq.usersetFilter,
+	})
 	if err != nil {
 		txn.Abort()
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
@@ -186,24 +186,7 @@ func (mti *memdbTupleIterator) Next() *v0.RelationTuple {
 	}
 	mti.count += 1
 
-	found := foundRaw.(*tupleEntry)
-
-	return &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
-			Namespace: found.namespace,
-			ObjectId:  found.objectID,
-			Relation:  found.relation,
-		},
-		User: &v0.User{
-			UserOneof: &v0.User_Userset{
-				Userset: &v0.ObjectAndRelation{
-					Namespace: found.usersetNamespace,
-					ObjectId:  found.usersetObjectID,
-					Relation:  found.usersetRelation,
-				},
-			},
-		},
-	}
+	return foundRaw.(*tupleEntry).RelationTuple()
 }
 
 func (mti *memdbTupleIterator) Err() error {

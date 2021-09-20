@@ -69,6 +69,21 @@ type tupleEntry struct {
 	deletedTxn       uint64
 }
 
+func (t tupleEntry) RelationTuple() *v0.RelationTuple {
+	return &v0.RelationTuple{
+		ObjectAndRelation: &v0.ObjectAndRelation{
+			Namespace: t.namespace,
+			ObjectId:  t.objectID,
+			Relation:  t.relation,
+		},
+		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+			Namespace: t.usersetNamespace,
+			ObjectId:  t.usersetObjectID,
+			Relation:  t.usersetRelation,
+		}}},
+	}
+}
+
 var schema = &memdb.DBSchema{
 	Tables: map[string]*memdb.TableSchema{
 		tableNamespaceChangelog: {

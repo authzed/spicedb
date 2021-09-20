@@ -1,11 +1,13 @@
 package v1
 
 import (
+	"context"
 	"errors"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
+	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -18,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 // RegisterPermissionsServer adds a permissions server to a grpc service registrar
@@ -64,28 +67,35 @@ type permissionServer struct {
 	defaultDepth uint32
 }
 
+func (ps *permissionServer) checkObjectFilterNamespaces(ctx context.Context, filter *v1.ObjectFilter) error {
+	return ps.nsm.CheckNamespaceAndRelation(
+		ctx,
+		filter.ObjectType,
+		stringz.DefaultEmpty(filter.OptionalRelation, datastore.Ellipsis),
+		filter.OptionalRelation == "",
+	)
+}
+
+func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter) error {
+	if err := ps.checkObjectFilterNamespaces(ctx, filter.ResourceFilter); err != nil {
+		return err
+	}
+
+	if filter.OptionalSubjectFilter != nil {
+		if err := ps.checkObjectFilterNamespaces(ctx, filter.OptionalSubjectFilter); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
 	ctx := resp.Context()
 
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
 
-	// Check the requested namespace (and relation if specified) from the resource filter
-	resourceFilter := req.RelationshipFilter.ResourceFilter
-
-	resourceFilterRelation := datastore.Ellipsis
-	allowEllipsis := true
-	if resourceFilter.OptionalRelation != "" {
-		resourceFilterRelation = resourceFilter.OptionalRelation
-		allowEllipsis = false
-	}
-
-	err := ps.nsm.CheckNamespaceAndRelation(
-		ctx,
-		resourceFilter.ObjectType,
-		resourceFilterRelation,
-		allowEllipsis,
-	)
-	if err != nil {
+	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter); err != nil {
 		return rewritePermissionsError(err)
 	}
 
@@ -98,7 +108,6 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	if err != nil {
 		return rewritePermissionsError(err)
 	}
-
 	defer tupleIterator.Close()
 
 	for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
@@ -137,6 +146,21 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	return nil
 }
 
+func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
+	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter); err != nil {
+		return nil, rewritePermissionsError(err)
+	}
+
+	revision, err := ps.ds.DeleteRelationships(ctx, req.OptionalPreconditions, req.RelationshipFilter)
+	if err != nil {
+		return nil, rewritePermissionsError(err)
+	}
+
+	return &v1.DeleteRelationshipsResponse{
+		DeletedAt: zedtoken.NewFromRevision(revision),
+	}, nil
+}
+
 func rewritePermissionsError(err error) error {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
@@ -153,7 +177,7 @@ func rewritePermissionsError(err error) error {
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)
 
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
-		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
+		return status.Errorf(codes.OutOfRange, "invalid zedtoken: %s", err)
 
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return serviceerrors.ErrServiceReadOnly

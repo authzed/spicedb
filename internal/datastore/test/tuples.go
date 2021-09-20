@@ -181,11 +181,27 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			}, deletedAt).Execute(ctx)
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(alreadyDeletedIter, testTuples[1:]...)
+
+			// Write it back
+			returnedAt, err := ds.WriteTuples(
+				ctx,
+				nil,
+				[]*v0.RelationTupleUpdate{tuple.Create(testTuples[0])},
+			)
+			require.NoError(err)
+			tRequire.TupleExists(ctx, testTuples[0], returnedAt)
+
+			// Delete with DeleteRelationship
+			deletedAt, err = ds.DeleteRelationships(ctx, nil, &v1.RelationshipFilter{
+				ResourceFilter: &v1.ObjectFilter{ObjectType: testResourceNamespace},
+			})
+			require.NoError(err)
+			tRequire.NoTupleExists(ctx, testTuples[0], deletedAt)
 		})
 	}
 }
 
-func TestPreconditions(t *testing.T, tester DatastoreTester) {
+func TestWritePreconditions(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
@@ -214,6 +230,126 @@ func TestPreconditions(t *testing.T, tester DatastoreTester) {
 		[]*v0.RelationTupleUpdate{tuple.Create(second)},
 	)
 	require.NoError(err)
+}
+
+func TestDeletePreconditions(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	relTpl := makeTestTuple("first", "owner")
+	rel := makeTestRelationship("first", "owner")
+	filter := &v1.RelationshipFilter{
+		ResourceFilter: &v1.ObjectFilter{ObjectType: testResourceNamespace, OptionalObjectId: "second"},
+	}
+
+	ctx := context.Background()
+
+	_, err = ds.DeleteRelationships(ctx, []*v1.Relationship{rel}, filter)
+	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
+
+	_, err = ds.DeleteRelationships(ctx, nil, filter)
+	require.NoError(err)
+
+	_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{tuple.Create(relTpl)})
+	require.NoError(err)
+
+	_, err = ds.DeleteRelationships(ctx, []*v1.Relationship{rel}, filter)
+	require.NoError(err)
+}
+
+func TestDeleteRelationships(t *testing.T, tester DatastoreTester) {
+	var testTuples []*v0.RelationTuple
+	for i := 0; i < 10; i++ {
+		newTuple := makeTestTuple(fmt.Sprintf("resource%d", i), fmt.Sprintf("user%d", i%2))
+		testTuples = append(testTuples, newTuple)
+	}
+	testTuples[len(testTuples)-1].ObjectAndRelation.Relation = "writer"
+
+	table := []struct {
+		name                      string
+		inputTuples               []*v0.RelationTuple
+		filter                    *v1.RelationshipFilter
+		expectedExistingTuples    []*v0.RelationTuple
+		expectedNonExistingTuples []*v0.RelationTuple
+	}{
+		{
+			"resourceID",
+			testTuples,
+			&v1.RelationshipFilter{ResourceFilter: &v1.ObjectFilter{
+				ObjectType:       testResourceNamespace,
+				OptionalObjectId: "resource0",
+			}},
+			testTuples[1:],
+			testTuples[:1],
+		},
+		{
+			"relation",
+			testTuples,
+			&v1.RelationshipFilter{ResourceFilter: &v1.ObjectFilter{
+				ObjectType:       testResourceNamespace,
+				OptionalRelation: "writer",
+			}},
+			testTuples[:len(testTuples)-1],
+			[]*v0.RelationTuple{testTuples[len(testTuples)-1]},
+		},
+		{
+			"subjectID",
+			testTuples,
+			&v1.RelationshipFilter{
+				ResourceFilter:        &v1.ObjectFilter{ObjectType: testResourceNamespace},
+				OptionalSubjectFilter: &v1.ObjectFilter{ObjectType: testUserNamespace, OptionalObjectId: "user0"},
+			},
+			[]*v0.RelationTuple{testTuples[1], testTuples[3], testTuples[5], testTuples[7], testTuples[9]},
+			[]*v0.RelationTuple{testTuples[0], testTuples[2], testTuples[4], testTuples[6], testTuples[8]},
+		},
+		{
+			"subjectRelation",
+			testTuples,
+			&v1.RelationshipFilter{
+				ResourceFilter:        &v1.ObjectFilter{ObjectType: testResourceNamespace},
+				OptionalSubjectFilter: &v1.ObjectFilter{ObjectType: testUserNamespace, OptionalRelation: "..."},
+			},
+			nil,
+			testTuples,
+		},
+	}
+
+	for _, tt := range table {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			ctx := context.Background()
+
+			ds, err := tester.New(0, veryLargeGCWindow, 1)
+			require.NoError(err)
+
+			setupDatastore(ds, require)
+
+			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
+
+			var updates []*v0.RelationTupleUpdate
+			for _, tpl := range tt.inputTuples {
+				updates = append(updates, tuple.Create(tpl))
+			}
+
+			_, err = ds.WriteTuples(ctx, nil, updates)
+			require.NoError(err)
+
+			deletedAt, err := ds.DeleteRelationships(ctx, nil, tt.filter)
+			require.NoError(err)
+
+			for _, tpl := range tt.expectedExistingTuples {
+				tRequire.TupleExists(ctx, tpl, deletedAt)
+			}
+
+			for _, tpl := range tt.expectedNonExistingTuples {
+				tRequire.NoTupleExists(ctx, tpl, deletedAt)
+			}
+		})
+	}
 }
 
 func TestInvalidReads(t *testing.T, tester DatastoreTester) {

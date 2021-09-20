@@ -4,9 +4,10 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/rs/zerolog"
-
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/jzelinskie/stringz"
+	"github.com/rs/zerolog"
 )
 
 // ErrNamespaceNotFound occurs when a namespace was not found.
@@ -30,31 +31,20 @@ type ErrPreconditionFailed struct {
 	precondition *v0.RelationTuple
 }
 
-// FailedPrecondition is the tuple that was not found but was required as a precondition of a write.
-func (epf ErrPreconditionFailed) FailedPrecondition() *v0.RelationTuple {
-	return epf.precondition
-}
-
 func (epf ErrPreconditionFailed) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("error", epf.Error()).Str("precondition", tuple.String(epf.precondition))
 }
 
 // ErrWatchDisconnected occurs when a watch has fallen too far behind and was forcibly disconnected
 // as a result.
-type ErrWatchDisconnected struct {
-	error
-}
+type ErrWatchDisconnected struct{ error }
 
 // ErrWatchCanceled occurs when a watch was canceled by the caller
-type ErrWatchCanceled struct {
-	error
-}
+type ErrWatchCanceled struct{ error }
 
 // ErrReadOnly is returned when the operation cannot be completed because the datastore is in
 // read-only mode.
-type ErrReadOnly struct {
-	error
-}
+type ErrReadOnly struct{ error }
 
 // InvalidRevisionReason is the reason the revision could not be used.
 type InvalidRevisionReason int
@@ -106,8 +96,28 @@ func NewNamespaceNotFoundErr(nsName string) error {
 // NewPreconditionFailedErr constructs a new precondition failed error.
 func NewPreconditionFailedErr(precondition *v0.RelationTuple) error {
 	return ErrPreconditionFailed{
-		error:        fmt.Errorf("unable to satisfy write precondition `%s`", tuple.String(precondition)),
+		error:        fmt.Errorf("unable to satisfy write precondition `%s`", precondition),
 		precondition: precondition,
+	}
+}
+
+// NewPreconditionFailedErrFromRel constructs a new precondition failed error from a
+// Relationship.
+func NewPreconditionFailedErrFromRel(precondition *v1.Relationship) error {
+	return ErrPreconditionFailed{
+		error: fmt.Errorf("unable to satisfy write precondition `%s`", precondition),
+		precondition: &v0.RelationTuple{
+			ObjectAndRelation: &v0.ObjectAndRelation{
+				Namespace: precondition.Resource.ObjectType,
+				ObjectId:  precondition.Resource.ObjectId,
+				Relation:  precondition.Relation,
+			},
+			User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+				Namespace: precondition.Subject.Object.ObjectType,
+				ObjectId:  precondition.Subject.Object.ObjectId,
+				Relation:  stringz.DefaultEmpty(precondition.Subject.OptionalRelation, Ellipsis),
+			}}},
+		},
 	}
 }
 

@@ -218,6 +218,10 @@ func (dm *delegateMock) WriteTuples(ctx context.Context, preconditions []*v0.Rel
 	panic("shouldn't ever call write method on delegate")
 }
 
+func (dm *delegateMock) DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+	panic("shouldn't ever call delete relationships method on delegate")
+}
+
 func (dm *delegateMock) Revision(ctx context.Context) (datastore.Revision, error) {
 	args := dm.Called()
 	return args.Get(0).(datastore.Revision), args.Error(1)

@@ -9,15 +9,17 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
+	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
 
 const (
-	errUnableToWriteTuples = "unable to write tuples: %w"
-	errUnableToQueryTuples = "unable to query tuples: %w"
-	errRevision            = "unable to find revision: %w"
-	errCheckRevision       = "unable to check revision: %w"
+	errUnableToWriteTuples  = "unable to write tuples: %w"
+	errUnableToDeleteTuples = "unable to delete tuples: %w"
+	errUnableToQueryTuples  = "unable to query tuples: %w"
+	errRevision             = "unable to find revision: %w"
+	errCheckRevision        = "unable to check revision: %w"
 )
 
 const deletedTransactionID = ^uint64(0)
@@ -43,11 +45,22 @@ func (mds *memdbDatastore) WriteTuples(
 		}
 	}
 
+	newChangelogID, err := mds.write(ctx, txn, mutations)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+	}
+
+	txn.Commit()
+
+	return revisionFromVersion(newChangelogID), nil
+}
+
+func (mds *memdbDatastore) write(ctx context.Context, txn *memdb.Txn, mutations []*v0.RelationTupleUpdate) (uint64, error) {
 	// Create the changelog entry
 	time.Sleep(mds.simulatedLatency)
 	newChangelogID, err := nextTupleChangelogID(txn)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+		return 0, err
 	}
 
 	newChangelogEntry := &tupleChangelog{
@@ -57,7 +70,7 @@ func (mds *memdbDatastore) WriteTuples(
 	}
 
 	if err := txn.Insert(tableChangelog, newChangelogEntry); err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+		return 0, err
 	}
 
 	// Apply the mutations
@@ -75,7 +88,7 @@ func (mds *memdbDatastore) WriteTuples(
 
 		existing, err := findTuple(txn, mutation.Tuple)
 		if err != nil {
-			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+			return 0, err
 		}
 
 		var deletedExisting tupleEntry
@@ -87,29 +100,97 @@ func (mds *memdbDatastore) WriteTuples(
 		switch mutation.Operation {
 		case v0.RelationTupleUpdate_CREATE:
 			if err := txn.Insert(tableTuple, newVersion); err != nil {
-				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+				return 0, err
 			}
 		case v0.RelationTupleUpdate_DELETE:
 			if existing != nil {
 				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
-					return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+					return 0, err
 				}
 			}
 		case v0.RelationTupleUpdate_TOUCH:
 			if existing != nil {
 				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
-					return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+					return 0, err
 				}
 			}
 			if err := txn.Insert(tableTuple, newVersion); err != nil {
-				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+				return 0, err
 			}
 		default:
-			return datastore.NoRevision, fmt.Errorf(
-				errUnableToWriteTuples,
-				fmt.Errorf("unknown tuple mutation operation type: %s", mutation.Operation),
-			)
+			return 0, fmt.Errorf("unknown tuple mutation operation type: %s", mutation.Operation)
 		}
+	}
+
+	return newChangelogID, nil
+}
+
+func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+	txn := mds.db.Txn(true)
+	defer txn.Abort()
+
+	// Check the preconditions
+	for _, relationship := range preconditions {
+		found, err := findTuple(txn, relToTuple(relationship))
+		if err != nil {
+			return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
+		}
+
+		if found == nil {
+			return datastore.NoRevision, datastore.NewPreconditionFailedErrFromRel(relationship)
+		}
+	}
+
+	// Create an iterator to find the relevant tuples
+	bestIterator, err := iteratorForFilter(txn, filter)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
+	}
+	filteredIterator := memdb.NewFilterIterator(bestIterator, func(tupleRaw interface{}) bool {
+		tuple := tupleRaw.(*tupleEntry)
+
+		// If it's already dead, filter it.
+		if tuple.deletedTxn != deletedTransactionID {
+			return true
+		}
+
+		// If it doesn't match one of the resource filters, ignore it.
+		resourceFilter := filter.ResourceFilter
+		switch {
+		case resourceFilter.OptionalObjectId != "" && resourceFilter.OptionalObjectId != tuple.objectID:
+			return true
+		case resourceFilter.OptionalRelation != "" && resourceFilter.OptionalRelation != tuple.relation:
+			return true
+		}
+
+		// If it doesn't match one of the subject filters, ignore it.
+		subjectFilter := filter.OptionalSubjectFilter
+		if subjectFilter != nil {
+			switch {
+			case subjectFilter.ObjectType != tuple.usersetNamespace:
+				return true
+			case subjectFilter.OptionalObjectId != "" && subjectFilter.OptionalObjectId != tuple.usersetObjectID:
+				return true
+			case subjectFilter.OptionalRelation != "" && subjectFilter.OptionalRelation != tuple.usersetRelation:
+				return true
+			}
+		}
+
+		return false
+	})
+
+	// Collect the tuples into a slice of mutations for the changelog
+	var mutations []*v0.RelationTupleUpdate
+	for row := filteredIterator.Next(); row != nil; row = filteredIterator.Next() {
+		mutations = append(mutations, &v0.RelationTupleUpdate{
+			Operation: v0.RelationTupleUpdate_DELETE,
+			Tuple:     row.(*tupleEntry).RelationTuple(),
+		})
+	}
+
+	newChangelogID, err := mds.write(ctx, txn, mutations)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
 	}
 
 	txn.Commit()
@@ -234,6 +315,24 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
+	return nil
+}
+
+func relToTuple(r *v1.Relationship) *v0.RelationTuple {
+	if r != nil {
+		return &v0.RelationTuple{
+			ObjectAndRelation: &v0.ObjectAndRelation{
+				Namespace: r.Resource.ObjectType,
+				ObjectId:  r.Resource.ObjectId,
+				Relation:  r.Relation,
+			},
+			User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+				Namespace: r.Subject.Object.ObjectType,
+				ObjectId:  r.Subject.Object.ObjectId,
+				Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
+			}}},
+		}
+	}
 	return nil
 }
 

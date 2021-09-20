@@ -25,6 +25,10 @@ func (rd roDatastore) IsReady(ctx context.Context) (bool, error) {
 	return rd.delegate.IsReady(ctx)
 }
 
+func (rd roDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+	return datastore.NoRevision, errReadOnly
+}
+
 func (rd roDatastore) WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (datastore.Revision, error) {
 	return datastore.NoRevision, errReadOnly
 }
