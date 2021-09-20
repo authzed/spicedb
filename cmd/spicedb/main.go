@@ -16,6 +16,7 @@ func main() {
 	registerMigrateCmd(rootCmd)
 	registerHeadCmd(rootCmd)
 	registerDeveloperServiceCmd(rootCmd)
+	registerTestserverCmd(rootCmd)
 
 	rootCmd.Execute()
 }

@@ -22,7 +22,13 @@ func newRootCmd() *cobra.Command {
 		spicedb serve --grpc-preshared-key "realkeyhere" --grpc-cert-path path/to/tls/cert
 	        		  --grpc-key-path path/to/tls/key --datastore-engine postgres
 	        		  --datastore-conn-uri "postgres-connection-string-here"
-`, color.YellowString("No TLS and in-memory"), color.GreenString("TLS and a real datastore")),
+	%s:
+		spicedb serve-testing"
+`,
+			color.YellowString("No TLS and in-memory"),
+			color.GreenString("TLS and a real datastore"),
+			color.CyanString("In-memory integration test server"),
+		),
 	}
 
 	cobrautil.RegisterZeroLogFlags(rootCmd.PersistentFlags())
