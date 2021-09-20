@@ -8,7 +8,9 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
+	"github.com/jzelinskie/stringz"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -67,6 +69,36 @@ type tupleEntry struct {
 	usersetRelation  string
 	createdTxn       uint64
 	deletedTxn       uint64
+}
+
+func tupleEntryFromRelationship(r *v1.Relationship, created, deleted uint64) *tupleEntry {
+	return &tupleEntry{
+		namespace:        r.Resource.ObjectType,
+		objectID:         r.Resource.ObjectId,
+		relation:         r.Relation,
+		usersetNamespace: r.Subject.Object.ObjectType,
+		usersetObjectID:  r.Subject.Object.ObjectId,
+		usersetRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, "..."),
+		createdTxn:       created,
+		deletedTxn:       deleted,
+	}
+}
+
+func (t tupleEntry) Relationship() *v1.Relationship {
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: t.namespace,
+			ObjectId:   t.objectID,
+		},
+		Relation: t.relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: t.usersetNamespace,
+				ObjectId:   t.usersetObjectID,
+			},
+			OptionalRelation: stringz.Default(t.usersetRelation, "", datastore.Ellipsis),
+		},
+	}
 }
 
 func (t tupleEntry) RelationTuple() *v0.RelationTuple {

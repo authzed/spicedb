@@ -121,7 +121,10 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 		require.NotNil(tpl)
 
 		var err error
-		revision, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{tuple.Create(tpl)})
+		revision, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+			Relationship: tuple.ToRelationship(tpl),
+		}})
 		require.NoError(err)
 	}
 

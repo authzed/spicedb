@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
@@ -65,7 +66,20 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 		}
 	}
 
-	revision, err := as.ds.WriteTuples(ctx, req.WriteConditions, req.Updates)
+	preconditions := make([]*v1_api.Precondition, 0, len(req.WriteConditions))
+	for _, cond := range req.WriteConditions {
+		preconditions = append(preconditions, &v1_api.Precondition{
+			Operation: v1_api.Precondition_OPERATION_MUST_MATCH,
+			Filter:    tuple.ToFilter(cond),
+		})
+	}
+
+	mutations := make([]*v1_api.RelationshipUpdate, 0, len(req.Updates))
+	for _, mut := range req.Updates {
+		mutations = append(mutations, tuple.UpdateToRelationshipUpdate(mut))
+	}
+
+	revision, err := as.ds.WriteTuples(ctx, preconditions, mutations)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}

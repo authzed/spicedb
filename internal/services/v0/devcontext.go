@@ -7,6 +7,7 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -129,7 +130,7 @@ func compile(schema string) ([]*v0.NamespaceDefinition, *v0.DeveloperError, erro
 
 func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.Manager, ds datastore.Datastore) (decimal.Decimal, []*v0.DeveloperError, error) {
 	var errors []*v0.DeveloperError
-	var updates []*v0.RelationTupleUpdate
+	var updates []*v1.RelationshipUpdate
 	for _, tpl := range tuples {
 		verr := tpl.Validate()
 		if verr != nil {
@@ -153,10 +154,13 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 			return decimal.NewFromInt(0), errors, wireErr
 		}
 
-		updates = append(updates, tuple.Touch(tpl))
+		updates = append(updates, &v1.RelationshipUpdate{
+			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+			Relationship: tuple.ToRelationship(tpl),
+		})
 	}
 
-	revision, err := ds.WriteTuples(ctx, []*v0.RelationTuple{}, updates)
+	revision, err := ds.WriteTuples(ctx, nil, updates)
 	return revision, errors, err
 }
 

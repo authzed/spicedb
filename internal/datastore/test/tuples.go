@@ -55,7 +55,10 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 				writtenAt, err := ds.WriteTuples(
 					ctx,
 					nil,
-					[]*v0.RelationTupleUpdate{tuple.Create(newTuple)},
+					[]*v1.RelationshipUpdate{{
+						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+						Relationship: tuple.ToRelationship(newTuple),
+					}},
 				)
 				require.NoError(err)
 				require.True(writtenAt.GreaterThan(lastRevision))
@@ -76,7 +79,7 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 					}, lastRevision),
 					ds.QueryTuples(&v1.ObjectFilter{
 						ObjectType: tupleToFind.ObjectAndRelation.Namespace,
-					}, lastRevision).WithUsersetFilter(onrToFilter(tupleToFind.User.GetUserset())),
+					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
 					ds.QueryTuples(&v1.ObjectFilter{
 						ObjectType:       tupleToFind.ObjectAndRelation.Namespace,
 						OptionalObjectId: tupleToFind.ObjectAndRelation.ObjectId,
@@ -85,15 +88,15 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 					ds.QueryTuples(&v1.ObjectFilter{
 						ObjectType:       tupleToFind.ObjectAndRelation.Namespace,
 						OptionalObjectId: tupleToFind.ObjectAndRelation.ObjectId,
-					}, lastRevision).WithUsersetFilter(onrToFilter(tupleToFind.User.GetUserset())),
+					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
 					ds.QueryTuples(&v1.ObjectFilter{
 						ObjectType:       tupleToFind.ObjectAndRelation.Namespace,
 						OptionalRelation: tupleToFind.ObjectAndRelation.Relation,
-					}, lastRevision).WithUsersetFilter(onrToFilter(tupleToFind.User.GetUserset())),
+					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
 					ds.QueryTuples(&v1.ObjectFilter{
 						ObjectType:       tupleToFind.ObjectAndRelation.Namespace,
 						OptionalRelation: tupleToFind.ObjectAndRelation.Relation,
-					}, lastRevision).WithUsersetFilter(onrToFilter(tupleToFind.User.GetUserset())).Limit(1),
+					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}).Limit(1),
 
 					rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation),
 					rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation).Limit(1),
@@ -143,11 +146,11 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 				}, lastRevision),
 				ds.QueryTuples(&v1.ObjectFilter{
 					ObjectType: testTuples[0].ObjectAndRelation.Namespace,
-				}, lastRevision).WithUsersetFilter(onrToFilter(&v0.ObjectAndRelation{
+				}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{{
 					Namespace: "test/user",
 					ObjectId:  "fakeuser",
 					Relation:  ellipsis,
-				})),
+				}}),
 			}
 			for _, badQuery := range badQueries {
 				iter, err := badQuery.Execute(ctx)
@@ -159,7 +162,10 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			deletedAt, err := ds.WriteTuples(
 				ctx,
 				nil,
-				[]*v0.RelationTupleUpdate{tuple.Delete(testTuples[0])},
+				[]*v1.RelationshipUpdate{{
+					Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
+					Relationship: tuple.ToRelationship(testTuples[0]),
+				}},
 			)
 			require.NoError(err)
 
@@ -167,7 +173,10 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			_, err = ds.WriteTuples(
 				ctx,
 				nil,
-				[]*v0.RelationTupleUpdate{tuple.Delete(testTuples[0])},
+				[]*v1.RelationshipUpdate{{
+					Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
+					Relationship: tuple.ToRelationship(testTuples[0]),
+				}},
 			)
 			require.NoError(err)
 
@@ -186,7 +195,10 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 			returnedAt, err := ds.WriteTuples(
 				ctx,
 				nil,
-				[]*v0.RelationTupleUpdate{tuple.Create(testTuples[0])},
+				[]*v1.RelationshipUpdate{{
+					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+					Relationship: tuple.ToRelationship(testTuples[0]),
+				}},
 			)
 			require.NoError(err)
 			tRequire.TupleExists(ctx, testTuples[0], returnedAt)
@@ -216,18 +228,33 @@ func TestWritePreconditions(t *testing.T, tester DatastoreTester) {
 
 	_, err = ds.WriteTuples(
 		ctx,
-		[]*v0.RelationTuple{first},
-		[]*v0.RelationTupleUpdate{tuple.Create(second)},
+		[]*v1.Precondition{{
+			Operation: v1.Precondition_OPERATION_MUST_MATCH,
+			Filter:    tuple.ToFilter(first),
+		}},
+		[]*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+			Relationship: tuple.ToRelationship(second),
+		}},
 	)
 	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
 
-	_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{tuple.Create(first)})
+	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+		Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+		Relationship: tuple.ToRelationship(first),
+	}})
 	require.NoError(err)
 
 	_, err = ds.WriteTuples(
 		ctx,
-		[]*v0.RelationTuple{first},
-		[]*v0.RelationTupleUpdate{tuple.Create(second)},
+		[]*v1.Precondition{{
+			Operation: v1.Precondition_OPERATION_MUST_MATCH,
+			Filter:    tuple.ToFilter(first),
+		}},
+		[]*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+			Relationship: tuple.ToRelationship(second),
+		}},
 	)
 	require.NoError(err)
 }
@@ -241,23 +268,39 @@ func TestDeletePreconditions(t *testing.T, tester DatastoreTester) {
 	setupDatastore(ds, require)
 
 	relTpl := makeTestTuple("first", "owner")
-	rel := makeTestRelationship("first", "owner")
 	filter := &v1.RelationshipFilter{
 		ResourceFilter: &v1.ObjectFilter{ObjectType: testResourceNamespace, OptionalObjectId: "second"},
 	}
 
 	ctx := context.Background()
 
-	_, err = ds.DeleteRelationships(ctx, []*v1.Relationship{rel}, filter)
+	_, err = ds.DeleteRelationships(
+		ctx,
+		[]*v1.Precondition{{
+			Operation: v1.Precondition_OPERATION_MUST_MATCH,
+			Filter:    tuple.ToFilter(relTpl),
+		}},
+		filter,
+	)
 	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
 
 	_, err = ds.DeleteRelationships(ctx, nil, filter)
 	require.NoError(err)
 
-	_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{tuple.Create(relTpl)})
+	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+		Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+		Relationship: tuple.ToRelationship(relTpl),
+	}})
 	require.NoError(err)
 
-	_, err = ds.DeleteRelationships(ctx, []*v1.Relationship{rel}, filter)
+	_, err = ds.DeleteRelationships(
+		ctx,
+		[]*v1.Precondition{{
+			Operation: v1.Precondition_OPERATION_MUST_MATCH,
+			Filter:    tuple.ToFilter(relTpl),
+		}},
+		filter,
+	)
 	require.NoError(err)
 }
 
@@ -330,9 +373,12 @@ func TestDeleteRelationships(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
-			var updates []*v0.RelationTupleUpdate
+			var updates []*v1.RelationshipUpdate
 			for _, tpl := range tt.inputTuples {
-				updates = append(updates, tuple.Create(tpl))
+				updates = append(updates, &v1.RelationshipUpdate{
+					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+					Relationship: tuple.ToRelationship(tpl),
+				})
 			}
 
 			_, err = ds.WriteTuples(ctx, nil, updates)
@@ -375,7 +421,10 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 		firstWrite, err := ds.WriteTuples(
 			ctx,
 			nil,
-			[]*v0.RelationTupleUpdate{tuple.Create(newTuple)},
+			[]*v1.RelationshipUpdate{{
+				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+				Relationship: tuple.ToRelationship(newTuple),
+			}},
 		)
 		require.NoError(err)
 
@@ -390,7 +439,10 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 		nextWrite, err := ds.WriteTuples(
 			ctx,
 			nil,
-			[]*v0.RelationTupleUpdate{tuple.Touch(newTuple)},
+			[]*v1.RelationshipUpdate{{
+				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+				Relationship: tuple.ToRelationship(newTuple),
+			}},
 		)
 		require.NoError(err)
 
@@ -441,11 +493,10 @@ func TestUsersets(t *testing.T, tester DatastoreTester) {
 					testTuples = append(testTuples, newTuple)
 					usersets = append(usersets, newTuple.User.GetUserset())
 
-					writtenAt, err := ds.WriteTuples(
-						ctx,
-						nil,
-						[]*v0.RelationTupleUpdate{tuple.Create(newTuple)},
-					)
+					writtenAt, err := ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+						Relationship: tuple.ToRelationship(newTuple),
+					}})
 					require.NoError(err)
 					require.True(writtenAt.GreaterThan(lastRevision))
 
@@ -463,12 +514,4 @@ func TestUsersets(t *testing.T, tester DatastoreTester) {
 			})
 		}
 	})
-}
-
-func onrToFilter(userset *v0.ObjectAndRelation) *v1.ObjectFilter {
-	return &v1.ObjectFilter{
-		ObjectType:       userset.Namespace,
-		OptionalObjectId: userset.ObjectId,
-		OptionalRelation: userset.Relation,
-	}
 }

@@ -27,27 +27,22 @@ func TestRWOperationErrors(t *testing.T) {
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
-	rev, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{
-		{
-			Operation: v0.RelationTupleUpdate_CREATE,
-			Tuple: &v0.RelationTuple{
-				ObjectAndRelation: &v0.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "test",
-					Relation:  "boss",
-				},
-				User: &v0.User{
-					UserOneof: &v0.User_Userset{
-						Userset: &v0.ObjectAndRelation{
-							Namespace: "user",
-							ObjectId:  "boss",
-							Relation:  datastore.Ellipsis,
-						},
-					},
+	rev, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+		Operation: v1.RelationshipUpdate_OPERATION_CREATE,
+		Relationship: &v1.Relationship{
+			Resource: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "test",
+			},
+			Relation: "boss",
+			Subject: &v1.SubjectReference{
+				Object: &v1.ObjectReference{
+					ObjectType: "user",
+					ObjectId:   "boss",
 				},
 			},
 		},
-	})
+	}})
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 }
@@ -214,11 +209,11 @@ type delegateMock struct {
 	mock.Mock
 }
 
-func (dm *delegateMock) WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (datastore.Revision, error) {
+func (dm *delegateMock) WriteTuples(ctx context.Context, _ []*v1.Precondition, _ []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (dm *delegateMock) DeleteRelationships(ctx context.Context, _ []*v1.Precondition, _ *v1.RelationshipFilter) (datastore.Revision, error) {
 	panic("shouldn't ever call delete relationships method on delegate")
 }
 

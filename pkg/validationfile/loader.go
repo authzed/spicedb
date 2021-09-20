@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
@@ -84,7 +85,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 		}
 
 		// Load the validation tuples/relationships.
-		var updates []*v0.RelationTupleUpdate
+		var updates []*v1.RelationshipUpdate
 		seenTuples := map[string]bool{}
 
 		relationships := parsed.Relationships
@@ -108,7 +109,10 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 				seenTuples[tuple.String(tpl)] = true
 
 				tuples = append(tuples, tpl)
-				updates = append(updates, tuple.Create(tpl))
+				updates = append(updates, &v1.RelationshipUpdate{
+					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+					Relationship: tuple.ToRelationship(tpl),
+				})
 			}
 		}
 
@@ -126,10 +130,13 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 			seenTuples[tuple.String(tpl)] = true
 
 			tuples = append(tuples, tpl)
-			updates = append(updates, tuple.Create(tpl))
+			updates = append(updates, &v1.RelationshipUpdate{
+				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+				Relationship: tuple.ToRelationship(tpl),
+			})
 		}
 
-		wrevision, terr := ds.WriteTuples(context.Background(), []*v0.RelationTuple{}, updates)
+		wrevision, terr := ds.WriteTuples(context.Background(), nil, updates)
 		if terr != nil {
 			return nil, decimal.Zero, fmt.Errorf("Error when loading validation tuples from file %s: %w", filePath, terr)
 		}

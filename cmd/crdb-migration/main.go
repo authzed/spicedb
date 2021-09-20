@@ -7,6 +7,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/zerolog/log"
@@ -108,7 +109,7 @@ func rootRun(cmd *cobra.Command, args []string) {
 	}
 }
 
-func migrate(ctx context.Context, dest datastore.Datastore, namespaces []*v0.NamespaceDefinition, tuples []*v0.RelationTupleUpdate) error {
+func migrate(ctx context.Context, dest datastore.Datastore, namespaces []*v0.NamespaceDefinition, tuples []*v1.RelationshipUpdate) error {
 	for _, namespace := range namespaces {
 		log.Info().Str("name", namespace.Name).Msg("writing namespace")
 		if _, err := dest.WriteNamespace(ctx, namespace); err != nil {
@@ -127,7 +128,7 @@ func migrate(ctx context.Context, dest datastore.Datastore, namespaces []*v0.Nam
 	return nil
 }
 
-func prepare(ctx context.Context, source *pgx.Conn) ([]*v0.NamespaceDefinition, []*v0.RelationTupleUpdate, error) {
+func prepare(ctx context.Context, source *pgx.Conn) ([]*v0.NamespaceDefinition, []*v1.RelationshipUpdate, error) {
 	// Collect the namespaces
 	readNamespace := psql.
 		Select(colNamespace, colConfig).
@@ -188,40 +189,37 @@ func prepare(ctx context.Context, source *pgx.Conn) ([]*v0.NamespaceDefinition, 
 		return nil, nil, err
 	}
 
-	var mutations []*v0.RelationTupleUpdate
+	var mutations []*v1.RelationshipUpdate
 	seen := make(map[string]struct{})
 	for rows.Next() {
-		nextTuple := &v0.RelationTuple{
-			ObjectAndRelation: &v0.ObjectAndRelation{},
-			User: &v0.User{
-				UserOneof: &v0.User_Userset{
-					Userset: &v0.ObjectAndRelation{},
-				},
+		nextTuple := &v1.Relationship{
+			Resource: &v1.ObjectReference{},
+			Subject: &v1.SubjectReference{
+				Object: &v1.ObjectReference{},
 			},
 		}
-		userset := nextTuple.User.GetUserset()
 		err := rows.Scan(
-			&nextTuple.ObjectAndRelation.Namespace,
-			&nextTuple.ObjectAndRelation.ObjectId,
-			&nextTuple.ObjectAndRelation.Relation,
-			&userset.Namespace,
-			&userset.ObjectId,
-			&userset.Relation,
+			&nextTuple.Resource.ObjectType,
+			&nextTuple.Resource.ObjectId,
+			&nextTuple.Relation,
+			&nextTuple.Subject.Object.ObjectType,
+			&nextTuple.Subject.Object.ObjectId,
+			&nextTuple.Subject.OptionalRelation,
 		)
 		if err != nil {
 			return nil, nil, fmt.Errorf("unable to scan into tuple: %w", err)
 		}
 
-		tupleStr := tuple.String(nextTuple)
+		tupleStr := tuple.RelString(nextTuple)
 		if _, ok := seen[tupleStr]; !ok {
 			seen[tupleStr] = struct{}{}
-			mutations = append(mutations, &v0.RelationTupleUpdate{
-				Operation: v0.RelationTupleUpdate_TOUCH,
-				Tuple:     nextTuple,
+			mutations = append(mutations, &v1.RelationshipUpdate{
+				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+				Relationship: nextTuple,
 			})
 		}
 
-		log.Trace().Str("tuple", tuple.String(nextTuple)).Msg("read tuple")
+		log.Trace().Str("tuple", tuple.RelString(nextTuple)).Msg("read tuple")
 	}
 	if err := rows.Err(); err != nil {
 		return nil, nil, err
