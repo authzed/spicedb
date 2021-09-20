@@ -47,7 +47,6 @@ jobs:
       run: | 
         go build ./cmd/crdb-migration
         go build ./cmd/spicedb
-        go build ./cmd/zed-testserver
     - name: "Test"
       run: "go test ./..."
 

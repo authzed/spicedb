@@ -13,12 +13,10 @@ RUN go mod download
 
 COPY . .
 RUN go build ./cmd/spicedb/
-RUN go build ./cmd/zed-testserver/
 
 FROM alpine:3.14.2
 
 RUN [ ! -e /etc/nsswitch.conf ] && echo 'hosts: files dns' > /etc/nsswitch.conf
 COPY --from=build /go/bin/grpc_health_probe /usr/local/bin/
 COPY --from=build /go/src/app/spicedb /usr/local/bin/spicedb
-COPY --from=build /go/src/app/zed-testserver /usr/local/bin/zed-testserver
 CMD ["spicedb"]

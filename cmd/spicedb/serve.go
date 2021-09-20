@@ -115,7 +115,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	}
 
 	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
-	datastoreUri := cobrautil.MustGetString(cmd, "datastore-conn-uri")
+	datastoreURI := cobrautil.MustGetString(cmd, "datastore-conn-uri")
 
 	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "datastore-revision-fuzzing-duration")
 	gcWindow := cobrautil.MustGetDuration(cmd, "datastore-gc-window")
@@ -135,7 +135,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	} else if datastoreEngine == "cockroachdb" {
 		log.Info().Msg("using cockroachdb datastore")
 		ds, err = crdb.NewCRDBDatastore(
-			datastoreUri,
+			datastoreURI,
 			crdb.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-idletime")),
 			crdb.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-lifetime")),
 			crdb.MaxOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-max-open")),
@@ -150,7 +150,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	} else if datastoreEngine == "postgres" {
 		log.Info().Msg("using postgres datastore")
 		ds, err = postgres.NewPostgresDatastore(
-			datastoreUri,
+			datastoreURI,
 			postgres.ConnMaxIdleTime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-idletime")),
 			postgres.ConnMaxLifetime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-lifetime")),
 			postgres.HealthCheckPeriod(cobrautil.MustGetDuration(cmd, "datastore-conn-healthcheck-interval")),
