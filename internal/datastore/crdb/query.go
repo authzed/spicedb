@@ -97,3 +97,7 @@ func (cds *crdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRel
 func (cds *crdbDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return cds.reverseQueryBase(revision).ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation)
 }
+
+func (cds *crdbDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	return cds.reverseQueryBase(revision).ReverseQueryTuplesFromSubjectNamespace(subjectNamespace)
+}

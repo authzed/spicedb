@@ -48,7 +48,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 
 	for _, config := range req.Configs {
 		// Validate the type system for the updated namespace.
-		ts, terr := namespace.BuildNamespaceTypeSystem(config, nsm, req.Configs...)
+		ts, terr := namespace.BuildNamespaceTypeSystemWithFallback(config, nsm, req.Configs)
 		if terr != nil {
 			return nil, rewriteNamespaceError(terr)
 		}

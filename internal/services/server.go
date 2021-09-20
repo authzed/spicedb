@@ -14,6 +14,18 @@ import (
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 )
 
+// SchemaServiceOption defines the options for enabled or disabled the V1 Schema service.
+type SchemaServiceOption int
+
+const (
+	// V1SchemaServiceDisabled indicates that the V1 schema service is disabled.
+	V1SchemaServiceDisabled SchemaServiceOption = 0
+
+	// V1SchemaServiceEnabled indicates that the V1 schema service is enabled.
+	V1SchemaServiceEnabled SchemaServiceOption = 1
+)
+
+// RegisterGrpcServices registers all services to be exposed on the GRPC server.
 func RegisterGrpcServices(
 	srv *grpc.Server,
 	ds datastore.Datastore,
@@ -21,16 +33,22 @@ func RegisterGrpcServices(
 	dispatch dispatch.Dispatcher,
 	maxDepth uint32,
 	prefixRequired v1alpha1svc.PrefixRequiredOption,
+	schemaServiceOption SchemaServiceOption,
 ) {
-	healthSrv := grpcutil.NewAuthlessHealthServer()
-
-	healthSrv.SetServicesHealthy(
+	services := []*grpc.ServiceDesc{
 		v0svc.RegisterACLServer(srv, v0svc.NewACLServer(ds, nsm, dispatch, maxDepth)),
 		v0svc.RegisterNamespaceServer(srv, v0svc.NewNamespaceServer(ds)),
 		v0svc.RegisterWatchServer(srv, v0svc.NewWatchServer(ds, nsm)),
 		v1alpha1svc.RegisterSchemaServer(srv, v1alpha1svc.NewSchemaServer(ds, prefixRequired)),
 		v1.RegisterPermissionsServer(srv, ds, nsm, dispatch, maxDepth),
-	)
+	}
+
+	if schemaServiceOption == V1SchemaServiceEnabled {
+		services = append(services, v1.RegisterSchemaServer(srv, ds))
+	}
+
+	healthSrv := grpcutil.NewAuthlessHealthServer()
+	healthSrv.SetServicesHealthy(services...)
 
 	healthpb.RegisterHealthServer(srv, healthSrv)
 

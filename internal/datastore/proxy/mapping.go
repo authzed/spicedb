@@ -163,6 +163,11 @@ func (mp mappingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelati
 	return mappingReverseTupleQuery{mp.delegate.ReverseQueryTuplesFromSubject(translatedONR, revision), mp.mapper, err}
 }
 
+func (mp mappingProxy) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	translatedNamespace, err := mp.mapper.Encode(subjectNamespace)
+	return mappingReverseTupleQuery{mp.delegate.ReverseQueryTuplesFromSubjectNamespace(translatedNamespace, revision), mp.mapper, err}
+}
+
 func (mp mappingProxy) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	translatedNamespace, err := mp.mapper.Encode(subjectNamespace)
 	return mappingReverseTupleQuery{

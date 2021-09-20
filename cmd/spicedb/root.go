@@ -87,6 +87,9 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().String("dispatch-peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
 	rootCmd.Flags().String("dispatch-peer-resolver-cert-path", "", "local path to the TLS certificate for the peer endpoint resolver")
 
+	// Flags for configuring API behavior
+	rootCmd.Flags().Bool("disable-v1-schema-api", false, "disables the V1 schema API")
+
 	return rootCmd
 }
 
@@ -266,8 +269,13 @@ func rootRun(cmd *cobra.Command, args []string) {
 		prefixRequiredOption = v1alpha1svc.PrefixNotRequired
 	}
 
+	v1SchemaServiceOption := services.V1SchemaServiceEnabled
+	if cobrautil.MustGetBool(cmd, "disable-v1-schema-api") {
+		v1SchemaServiceOption = services.V1SchemaServiceDisabled
+	}
+
 	maxDepth := cobrautil.MustGetUint32(cmd, "dispatch-max-depth")
-	services.RegisterGrpcServices(grpcServer, ds, nsm, cachingRedispatch, maxDepth, prefixRequiredOption)
+	services.RegisterGrpcServices(grpcServer, ds, nsm, cachingRedispatch, maxDepth, prefixRequiredOption, v1SchemaServiceOption)
 
 	internalDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
 	cachingInternalDispatch, err := caching.NewCachingDispatcher(internalDispatch, nil, "dispatch")

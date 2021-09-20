@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog/log"
@@ -16,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -96,7 +95,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	log.Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
 
 	for _, nsdef := range nsdefs {
-		ts, err := namespace.BuildNamespaceTypeSystem(nsdef, nsm, nsdefs...)
+		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsdef, nsm, nsdefs)
 		if err != nil {
 			return nil, rewriteError(err)
 		}
@@ -105,7 +104,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			return nil, rewriteError(err)
 		}
 
-		if err := sanityCheckExistingRelationships(ctx, ss.ds, nsdef); err != nil {
+		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef); err != nil {
 			return nil, rewriteError(err)
 		}
 	}
@@ -126,85 +125,8 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	}, nil
 }
 
-// TODO(jzelinskie): figure how to deduplicate this code across v0 and v1 APIs.
-func sanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastore, nsdef *v0.NamespaceDefinition) error {
-	// Ensure that the updated namespace does not break the existing tuple data.
-	//
-	// NOTE: We use the datastore here to read the namespace, rather than the namespace manager,
-	// to ensure there is no caching being used.
-	existing, _, err := ds.ReadNamespace(ctx, nsdef.Name)
-	if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) {
-		return err
-	}
-
-	diff, err := namespace.DiffNamespaces(existing, nsdef)
-	if err != nil {
-		return err
-	}
-
-	syncRevision, err := ds.SyncRevision(ctx)
-	if err != nil {
-		return err
-	}
-
-	for _, delta := range diff.Deltas() {
-		switch delta.Type {
-		case namespace.RemovedRelation:
-			err = errorIfTupleIteratorReturnsTuples(
-				ds.QueryTuples(&v1_api.ObjectFilter{
-					ObjectType:       nsdef.Name,
-					OptionalRelation: delta.RelationName,
-				}, syncRevision),
-				ctx,
-				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship exists under it", delta.RelationName, nsdef.Name)
-			if err != nil {
-				return err
-			}
-
-			// Also check for right sides of tuples.
-			err = errorIfTupleIteratorReturnsTuples(
-				ds.ReverseQueryTuplesFromSubjectRelation(nsdef.Name, delta.RelationName, syncRevision),
-				ctx,
-				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship references it", delta.RelationName, nsdef.Name)
-			if err != nil {
-				return err
-			}
-
-		case namespace.RelationDirectTypeRemoved:
-			err = errorIfTupleIteratorReturnsTuples(
-				ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, syncRevision).
-					WithObjectRelation(nsdef.Name, delta.RelationName),
-				ctx,
-				"cannot remove allowed direct Relation `%s#%s` from Relation `%s` in Object Definition `%s`, as a Relationship exists with it",
-				delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, nsdef.Name)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx context.Context, message string, args ...interface{}) error {
-	qy, err := query.Limit(1).Execute(ctx)
-	if err != nil {
-		return err
-	}
-	defer qy.Close()
-
-	rt := qy.Next()
-	if rt != nil {
-		if qy.Err() != nil {
-			return qy.Err()
-		}
-
-		return status.Errorf(codes.InvalidArgument, message, args...)
-	}
-	return nil
-}
-
 func rewriteError(err error) error {
-	var nsNotFoundError sharederrors.UnknownNamespaceError = nil
+	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var errWithContext compiler.ErrorWithContext
 
 	switch {

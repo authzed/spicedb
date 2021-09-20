@@ -63,7 +63,7 @@ func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName stri
 	}
 
 	// TODO(jschorr): Cache the type system too
-	ts, terr := BuildNamespaceTypeSystem(nsDef, nsc)
+	ts, terr := BuildNamespaceTypeSystemForManager(nsDef, nsc)
 	return nsDef, ts, rev, terr
 }
 

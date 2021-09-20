@@ -53,6 +53,10 @@ func (rd roDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision data
 	return rd.delegate.QueryTuples(resourceFilter, revision)
 }
 
+func (rd roDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	return rd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision)
+}
+
 func (rd roDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return rd.delegate.ReverseQueryTuplesFromSubject(subject, revision)
 }

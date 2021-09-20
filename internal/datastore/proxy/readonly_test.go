@@ -167,6 +167,19 @@ func TestReverseQueryTuplesFromSubjectRelationPassthrough(t *testing.T) {
 	delegate.AssertExpectations(t)
 }
 
+func TestReverseQueryTuplesFromSubjectNamespacePassthrough(t *testing.T) {
+	require := require.New(t)
+
+	delegate := &delegateMock{}
+	ds := NewReadonlyDatastore(delegate)
+
+	delegate.On("ReverseQueryTuplesFromSubjectNamespace", "somenamespace", expectedRevision).Return().Times(1)
+
+	query := ds.ReverseQueryTuplesFromSubjectNamespace("somenamespace", expectedRevision)
+	require.Nil(query)
+	delegate.AssertExpectations(t)
+}
+
 func TestListNamespacesPassthrough(t *testing.T) {
 	require := require.New(t)
 
@@ -231,6 +244,11 @@ func (dm *delegateMock) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelat
 
 func (dm *delegateMock) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	dm.Called(subjectNamespace, subjectRelation, revision)
+	return nil
+}
+
+func (dm *delegateMock) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	dm.Called(subjectNamespace, revision)
 	return nil
 }
 

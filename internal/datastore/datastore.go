@@ -66,6 +66,10 @@ type GraphDatastore interface {
 	// relation onward from the datastore.
 	ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision Revision) ReverseTupleQuery
 
+	// ReverseQueryTuplesFromSubjectNamespace creates a builder for reading tuples from a subject namespace
+	// onward from the datastore.
+	ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision Revision) ReverseTupleQuery
+
 	// CheckRevision checks the specified revision to make sure it's valid and hasn't been
 	// garbage collected.
 	CheckRevision(ctx context.Context, revision Revision) error
