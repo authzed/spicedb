@@ -18,7 +18,6 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 // RegisterPermissionsServer adds a sermissions server to a grpc service registrar
@@ -68,10 +67,7 @@ type permissionServer struct {
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
 	ctx := resp.Context()
 
-	atRevision := consistency.RevisionFromContext(ctx)
-	if atRevision == nil {
-		panic("consistency middleware did not inject revision")
-	}
+	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
 
 	// Check the requested namespace (and relation if specified) from the resource filter
 	resourceFilter := req.RelationshipFilter.ResourceFilter
@@ -93,7 +89,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		return rewritePermissionsError(err)
 	}
 
-	queryBuilder := ps.ds.QueryTuples(req.RelationshipFilter.ResourceFilter, *atRevision)
+	queryBuilder := ps.ds.QueryTuples(req.RelationshipFilter.ResourceFilter, atRevision)
 	if req.RelationshipFilter.OptionalSubjectFilter != nil {
 		queryBuilder.WithUsersetFilter(req.RelationshipFilter.OptionalSubjectFilter)
 	}
@@ -105,7 +101,6 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	defer tupleIterator.Close()
 
-	revisionReadAt := zedtoken.NewFromRevision(*atRevision)
 	for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
 		tupleUserset := tuple.User.GetUserset()
 
