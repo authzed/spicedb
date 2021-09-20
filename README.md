@@ -65,7 +65,15 @@ This has strategy has become an industry best-practice and is being used to grea
 
 ## Getting Started
 
-### Get a taste of the schema language
+### Running SpiceDB locally
+
+```sh
+spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls
+```
+
+Visit [http://localhost:8080](http://localhost:8080) to see next steps, including loading the schema
+
+### Developing your own schema
 
 - Follow the guide for [developing a schema]
 - [Watch a video] of us modeling GitHub
@@ -77,7 +85,7 @@ This has strategy has become an industry best-practice and is being used to grea
 [design documentation]: https://docs.authzed.com/reference/schema-lang
 [Jump into the playground]: https://play.authzed.com
 
-### Learn how to integrate an application
+### Integrating with your application
 
 - Learn the latest best practice by following the [Protecting Your First App] guide
 - Explore the gRPC API documentation on the [Buf Registry]
