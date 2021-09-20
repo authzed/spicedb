@@ -101,8 +101,6 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		)
 	}
 
-	// TODO: validate maxoffset
-
 	return &crdbDatastore{
 		dburl:                     url,
 		conn:                      conn,
@@ -110,7 +108,6 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		quantizationNanos:         config.revisionQuantization.Nanoseconds(),
 		gcWindowNanos:             gcWindowNanos,
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
-		maxOffset:                 config.maxOffset,
 	}, nil
 }
 
@@ -121,7 +118,6 @@ type crdbDatastore struct {
 	quantizationNanos         int64
 	gcWindowNanos             int64
 	splitAtEstimatedQuerySize units.Base2Bytes
-	maxOffset                 time.Duration
 }
 
 func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {

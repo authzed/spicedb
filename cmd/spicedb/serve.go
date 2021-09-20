@@ -76,7 +76,6 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	serveCmd.Flags().Duration("datastore-conn-max-idletime", 30*time.Minute, "maximum amount of time a connection can idle in a remote datastore's connection pool")
 	serveCmd.Flags().Duration("datastore-conn-healthcheck-interval", 30*time.Second, "time between a remote datastore's connection pool health checks")
 	serveCmd.Flags().Duration("datastore-gc-window", 24*time.Hour, "amount of time before revisions are garbage collected")
-	serveCmd.Flags().Duration("datastore-max-offset", 500*time.Millisecond, "amount of clock skew allowed before a datastore node is ejected")
 	serveCmd.Flags().Duration("datastore-revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	serveCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
 	serveCmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
@@ -121,7 +120,6 @@ func serveRun(cmd *cobra.Command, args []string) {
 
 	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "datastore-revision-fuzzing-duration")
 	gcWindow := cobrautil.MustGetDuration(cmd, "datastore-gc-window")
-	maxOffset := cobrautil.MustGetDuration(cmd, "datastore-max-offset")
 
 	splitQuerySize, err := units.ParseBase2Bytes(cobrautil.MustGetString(cmd, "datastore-query-split-size"))
 	if err != nil {
@@ -145,7 +143,6 @@ func serveRun(cmd *cobra.Command, args []string) {
 			crdb.MinOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-min-open")),
 			crdb.RevisionQuantization(revisionFuzzingTimedelta),
 			crdb.GCWindow(gcWindow),
-			crdb.MaxOffset(maxOffset),
 			crdb.SplitAtEstimatedQuerySize(splitQuerySize),
 		)
 		if err != nil {
