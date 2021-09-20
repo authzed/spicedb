@@ -1,6 +1,8 @@
 package main
 
-import "github.com/jzelinskie/cobrautil"
+import (
+	"github.com/jzelinskie/cobrautil"
+)
 
 var persistentPreRunE = cobrautil.CommandStack(
 	cobrautil.SyncViperPreRunE("spicedb"),
@@ -10,8 +12,10 @@ var persistentPreRunE = cobrautil.CommandStack(
 
 func main() {
 	rootCmd := newRootCmd()
+	registerServeCmd(rootCmd)
 	registerMigrateCmd(rootCmd)
 	registerHeadCmd(rootCmd)
 	registerDeveloperServiceCmd(rootCmd)
+
 	rootCmd.Execute()
 }

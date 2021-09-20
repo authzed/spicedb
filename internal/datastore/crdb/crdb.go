@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 )
 
 var (
@@ -99,6 +100,7 @@ func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, e
 	}
 
 	return &crdbDatastore{
+		dburl:                     url,
 		conn:                      conn,
 		watchBufferLength:         config.watchBufferLength,
 		quantizationNanos:         config.revisionQuantization.Nanoseconds(),
@@ -108,11 +110,31 @@ func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, e
 }
 
 type crdbDatastore struct {
+	dburl                     string
 	conn                      *pgxpool.Pool
 	watchBufferLength         uint16
 	quantizationNanos         int64
 	gcWindowNanos             int64
 	splitAtEstimatedQuerySize units.Base2Bytes
+}
+
+func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
+	headMigration, err := migrations.CRDBMigrations.HeadRevision()
+	if err != nil {
+		return false, fmt.Errorf("Invalid head migration found for postgres: %w", err)
+	}
+
+	currentRevision, err := migrations.NewCRDBDriver(cds.dburl)
+	if err != nil {
+		return false, err
+	}
+
+	version, err := currentRevision.Version()
+	if err != nil {
+		return false, err
+	}
+
+	return version == headMigration, nil
 }
 
 func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {

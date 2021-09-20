@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 )
 
 const (
@@ -119,6 +120,7 @@ func NewPostgresDatastore(
 	}
 
 	return &pgDatastore{
+		dburl:                     url,
 		dbpool:                    dbpool,
 		watchBufferLength:         config.watchBufferLength,
 		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
@@ -128,11 +130,31 @@ func NewPostgresDatastore(
 }
 
 type pgDatastore struct {
+	dburl                     string
 	dbpool                    *pgxpool.Pool
 	watchBufferLength         uint16
 	revisionFuzzingTimedelta  time.Duration
 	gcWindowInverted          time.Duration
 	splitAtEstimatedQuerySize units.Base2Bytes
+}
+
+func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
+	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
+	if err != nil {
+		return false, fmt.Errorf("Invalid head migration found for postgres: %w", err)
+	}
+
+	currentRevision, err := migrations.NewAlembicPostgresDriver(pgd.dburl)
+	if err != nil {
+		return false, err
+	}
+
+	version, err := currentRevision.Version()
+	if err != nil {
+		return false, err
+	}
+
+	return version == headMigration, nil
 }
 
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {

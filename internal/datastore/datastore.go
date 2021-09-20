@@ -51,6 +51,11 @@ type Datastore interface {
 
 	// ListNamespaces lists all namespaces defined.
 	ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error)
+
+	// IsReady returns whether the datastore is ready to accept data. Datastores that require
+	// database schema creation will return false until the migrations have been run to create
+	// the necessary tables.
+	IsReady(ctx context.Context) (bool, error)
 }
 
 // GraphDatastore is a subset of the datastore interface that is passed to graph resolvers.

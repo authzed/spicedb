@@ -30,8 +30,8 @@ import (
 
 func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 	developerServiceCmd := &cobra.Command{
-		Use:   "developer-service",
-		Short: "runs the developer service",
+		Use:   "serve-devtools",
+		Short: "runs the developer tools service",
 		Long:  "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
 		Run:   developerServiceRun,
 		Args:  cobra.ExactArgs(0),
