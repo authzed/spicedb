@@ -58,14 +58,16 @@ type permissionServer struct {
 }
 
 func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter) error {
-	err := ps.nsm.CheckNamespaceAndRelation(ctx, filter.ResourceType, filter.OptionalRelation, false)
-	if err != nil {
-		return err
+	if filter.OptionalRelation != "" {
+		err := ps.nsm.CheckNamespaceAndRelation(ctx, filter.ResourceType, filter.OptionalRelation, false)
+		if err != nil {
+			return err
+		}
 	}
 
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil && subjectFilter.OptionalRelation != nil {
 		relation := stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis)
-		err = ps.nsm.CheckNamespaceAndRelation(ctx, subjectFilter.SubjectType, relation, true)
+		err := ps.nsm.CheckNamespaceAndRelation(ctx, subjectFilter.SubjectType, relation, true)
 		if err != nil {
 			return err
 		}

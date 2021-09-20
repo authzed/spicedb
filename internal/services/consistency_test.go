@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	graphpkg "github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -86,8 +87,10 @@ func TestConsistency(t *testing.T) {
 					}
 
 					// Run the consistency tests for each service.
+					v1permclient, _ := v1svc.RunForTesting(t, ds, ns, dispatch, 50)
 					testers := []serviceTester{
 						v0ServiceTester{v0svc.NewACLServer(ds, ns, dispatch, 50)},
+						v1ServiceTester{v1permclient},
 					}
 
 					for _, tester := range testers {
@@ -179,7 +182,7 @@ func runConsistencyTests(t *testing.T,
 		revision:            revision,
 	}
 
-	// Run a fully recursive expand on each relation and ensure all terminal subjects are reached.
+	// Run a fully recursive expand on each relRunFation and ensure all terminal subjects are reached.
 	validateExpansion(t, vctx)
 
 	// For each relation in each namespace, for each user, collect the objects accessible
