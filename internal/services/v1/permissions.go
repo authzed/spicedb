@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -60,6 +61,63 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		CheckedAt:      checkedAt,
 		Permissionship: permissionship,
 	}, nil
+}
+
+func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	ctx := resp.Context()
+
+	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
+
+	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Subject.Object.ObjectType,
+		normalizeSubjectRelation(req.Subject), true)
+	if err != nil {
+		return rewritePermissionsError(err)
+	}
+
+	err = ps.nsm.CheckNamespaceAndRelation(ctx, req.ResourceObjectType, req.Permission, false)
+	if err != nil {
+		return rewritePermissionsError(err)
+	}
+
+	// TODO(jschorr): Change the internal dispatched lookup to also be streamed.
+	lookupResp, err := ps.dispatch.DispatchLookup(ctx, &dispatch.DispatchLookupRequest{
+		Metadata: &dispatch.ResolverMeta{
+			AtRevision:     atRevision.String(),
+			DepthRemaining: ps.defaultDepth,
+		},
+		ObjectRelation: &v0.RelationReference{
+			Namespace: req.ResourceObjectType,
+			Relation:  req.Permission,
+		},
+		Subject: &v0.ObjectAndRelation{
+			Namespace: req.Subject.Object.ObjectType,
+			ObjectId:  req.Subject.Object.ObjectId,
+			Relation:  normalizeSubjectRelation(req.Subject),
+		},
+		Limit:       ^uint32(0), // Set no limit for now
+		DirectStack: nil,
+		TtuStack:    nil,
+	})
+	if err != nil {
+		return rewritePermissionsError(err)
+	}
+
+	for _, found := range lookupResp.ResolvedOnrs {
+		if found.Namespace != req.ResourceObjectType {
+			return rewritePermissionsError(fmt.Errorf("got invalid resolved object %v (expected %v)", found.Namespace, req.ResourceObjectType))
+		}
+
+		err := resp.Send(&v1.LookupResourcesResponse{
+			LookedUpAt:       revisionReadAt,
+			ResourceObjectId: found.ObjectId,
+		})
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 func normalizeSubjectRelation(sub *v1.SubjectReference) string {
