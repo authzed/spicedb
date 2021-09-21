@@ -74,12 +74,18 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 			mtq.subObjectId,
 			mtq.subRelationName,
 		)
-	} else {
+	} else if mtq.subRelationName != "" {
 		bestIterator, err = txn.Get(
 			tableTuple,
 			indexUsersetRelation,
 			mtq.subNamespaceName,
 			mtq.subRelationName,
+		)
+	} else {
+		bestIterator, err = txn.Get(
+			tableTuple,
+			indexUsersetNamespace,
+			mtq.subNamespaceName,
 		)
 	}
 
