@@ -1,6 +1,9 @@
 package services
 
 import (
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -10,7 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
-	v1 "github.com/authzed/spicedb/internal/services/v1"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 )
 
@@ -35,20 +38,27 @@ func RegisterGrpcServices(
 	prefixRequired v1alpha1svc.PrefixRequiredOption,
 	schemaServiceOption SchemaServiceOption,
 ) {
-	services := []*grpc.ServiceDesc{
-		v0svc.RegisterACLServer(srv, v0svc.NewACLServer(ds, nsm, dispatch, maxDepth)),
-		v0svc.RegisterNamespaceServer(srv, v0svc.NewNamespaceServer(ds)),
-		v0svc.RegisterWatchServer(srv, v0svc.NewWatchServer(ds, nsm)),
-		v1alpha1svc.RegisterSchemaServer(srv, v1alpha1svc.NewSchemaServer(ds, prefixRequired)),
-		v1.RegisterPermissionsServer(srv, ds, nsm, dispatch, maxDepth),
-	}
+	healthSrv := grpcutil.NewAuthlessHealthServer()
+
+	v0.RegisterACLServiceServer(srv, v0svc.NewACLServer(ds, nsm, dispatch, maxDepth))
+	healthSrv.SetServicesHealthy(&v0.ACLService_ServiceDesc)
+
+	v0.RegisterNamespaceServiceServer(srv, v0svc.NewNamespaceServer(ds))
+	healthSrv.SetServicesHealthy(&v0.NamespaceService_ServiceDesc)
+
+	v0.RegisterWatchServiceServer(srv, v0svc.NewWatchServer(ds, nsm))
+	healthSrv.SetServicesHealthy(&v0.WatchService_ServiceDesc)
+
+	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(ds, prefixRequired))
+	healthSrv.SetServicesHealthy(&v1alpha1.SchemaService_ServiceDesc)
+
+	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(ds, nsm, dispatch, maxDepth))
+	healthSrv.SetServicesHealthy(&v1.PermissionsService_ServiceDesc)
 
 	if schemaServiceOption == V1SchemaServiceEnabled {
-		services = append(services, v1.RegisterSchemaServer(srv, ds))
+		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(ds))
+		healthSrv.SetServicesHealthy(&v1.SchemaService_ServiceDesc)
 	}
-
-	healthSrv := grpcutil.NewAuthlessHealthServer()
-	healthSrv.SetServicesHealthy(services...)
 
 	healthpb.RegisterHealthServer(srv, healthSrv)
 

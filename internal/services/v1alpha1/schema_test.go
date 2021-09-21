@@ -61,8 +61,8 @@ func TestSchemaReadInvalidName(t *testing.T) {
 
 	// test relies on middleware
 	lis := bufconn.Listen(1024 * 1024)
-	s := grpc.NewServer()
-	RegisterSchemaServer(s, NewSchemaServer(ds, PrefixRequired))
+	s := testfixtures.NewTestServer()
+	v1alpha1.RegisterSchemaServiceServer(s, NewSchemaServer(ds, PrefixRequired))
 
 	go s.Serve(lis)
 	defer func() {
@@ -88,8 +88,8 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 	// test relies on middleware
 	// test relies on middleware
 	lis := bufconn.Listen(1024 * 1024)
-	s := grpc.NewServer()
-	RegisterSchemaServer(s, NewSchemaServer(ds, PrefixRequired))
+	s := testfixtures.NewTestServer()
+	v1alpha1.RegisterSchemaServiceServer(s, NewSchemaServer(ds, PrefixRequired))
 
 	go s.Serve(lis)
 	defer func() {

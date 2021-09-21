@@ -26,6 +26,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
@@ -84,7 +85,8 @@ func runTestServer(cmd *cobra.Command, args []string) {
 		v0.RegisterACLServiceServer(srv, &dummyBackend{})
 		v0.RegisterNamespaceServiceServer(srv, &dummyBackend{})
 		v1alpha1.RegisterSchemaServiceServer(srv, &dummyBackend{})
-		v1.RegisterPermissionsServiceServer(srv, &dummyBackend{})
+		v1.RegisterSchemaServiceServer(srv, &v1DummyBackend{})
+		v1.RegisterPermissionsServiceServer(srv, &v1DummyBackend{})
 		reflection.Register(srv)
 	}
 
@@ -123,6 +125,10 @@ type dummyBackend struct {
 	v0.UnimplementedACLServiceServer
 	v0.UnimplementedNamespaceServiceServer
 	v1alpha1.UnimplementedSchemaServiceServer
+}
+
+type v1DummyBackend struct {
+	v1.UnimplementedSchemaServiceServer
 	v1.UnimplementedPermissionsServiceServer
 }
 
@@ -187,7 +193,10 @@ func (ptbm *perTokenBackendMiddleware) createUpstream(readonly bool) (upstream, 
 
 	dispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(servicespecific.UnaryServerInterceptor),
+		grpc.StreamInterceptor(servicespecific.StreamServerInterceptor),
+	)
 
 	services.RegisterGrpcServices(grpcServer,
 		ds,
@@ -239,6 +248,8 @@ func (ptbm *perTokenBackendMiddleware) UnaryServerInterceptor() grpc.UnaryServer
 			return nil, err
 		}
 
+		log.Trace().Str("method", info.FullMethod).Msg("receieved unary request")
+
 		results := clientMethod.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(req)})
 		result := results[0].Interface()
 
@@ -283,7 +294,7 @@ func (ptbm *perTokenBackendMiddleware) StreamServerInterceptor() grpc.StreamServ
 			return fmt.Errorf("unable to recv method request into proto: %w", err)
 		}
 
-		log.Trace().Str("method", info.FullMethod).Msg("receieved request")
+		log.Trace().Str("method", info.FullMethod).Msg("receieved stream request")
 
 		results := clientMethod.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(req)})
 		result := results[0].Interface().(grpc.ClientStream)
