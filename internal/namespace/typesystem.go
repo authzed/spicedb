@@ -100,6 +100,13 @@ type NamespaceTypeSystem struct {
 	additionalDefs  []*v0.NamespaceDefinition
 }
 
+// HasTypeInformation returns true if the relation with the given name exists and has type
+// information defined.
+func (nts *NamespaceTypeSystem) HasTypeInformation(relationName string) bool {
+	rel, ok := nts.relationMap[relationName]
+	return ok && rel.GetTypeInformation() != nil
+}
+
 // HasRelation returns true if the namespace has the given relation defined.
 func (nts *NamespaceTypeSystem) HasRelation(relationName string) bool {
 	_, ok := nts.relationMap[relationName]

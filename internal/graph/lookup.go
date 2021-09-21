@@ -58,14 +58,11 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 		return returnResult(lookupResultError(err, 0))
 	}
 
+	// Ensure the relation exists.
 	relation, ok := findRelation(nsdef, req.ObjectRelation.Relation)
 	if !ok {
 		return returnResult(lookupResultError(
-			fmt.Errorf(
-				"relation `%s` not found under namespace `%s`",
-				req.ObjectRelation.Relation,
-				req.ObjectRelation.Namespace,
-			),
+			NewRelationNotFoundErr(req.ObjectRelation.Namespace, req.ObjectRelation.Relation),
 			0,
 		))
 	}
@@ -131,6 +128,14 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 
 func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLookupRequest, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
 	requests := []ReduceableLookupFunc{}
+
+	// Ensure type informatione exists on the relation.
+	if !typeSystem.HasTypeInformation(req.ObjectRelation.Relation) {
+		return returnResult(lookupResultError(
+			NewRelationMissingTypeInfoErr(req.ObjectRelation.Namespace, req.ObjectRelation.Relation),
+			0,
+		))
+	}
 
 	// Dispatch a check for the target ONR directly, if it is allowed on the start relation.
 	isDirectAllowed, err := typeSystem.IsAllowedDirectRelation(req.ObjectRelation.Relation, req.Subject.Namespace, req.Subject.Relation)

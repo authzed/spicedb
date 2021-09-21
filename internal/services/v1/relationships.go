@@ -172,8 +172,13 @@ func rewritePermissionsError(err error) error {
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return serviceerrors.ErrServiceReadOnly
 
+	case errors.As(err, &graph.ErrRelationMissingTypeInfo{}):
+		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
+
 	case errors.As(err, &graph.ErrAlwaysFail{}):
-		fallthrough
+		log.Err(err)
+		return status.Errorf(codes.Internal, "internal error: %s", err)
+
 	default:
 		log.Err(err)
 		return err
