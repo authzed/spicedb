@@ -5,10 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/authzed/grpcutil"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -23,26 +21,20 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
-// RegisterSchemaServer adds a schema server to a grpc service registrar
-// This is preferred over manually registering the service; it will add required middleware
-func RegisterSchemaServer(r grpc.ServiceRegistrar, ds datastore.Datastore) *grpc.ServiceDesc {
-	s := newSchemaServer(ds)
-
-	wrapped := grpcutil.WrapMethods(
-		v1.SchemaService_ServiceDesc,
-		grpcvalidate.UnaryServerInterceptor(),
-	)
-
-	r.RegisterService(wrapped, s)
-	return &v1.SchemaService_ServiceDesc
-}
-
-func newSchemaServer(ds datastore.Datastore) v1.SchemaServiceServer {
-	return &schemaServer{ds: ds}
+// NewSchemaServer creates a SchemaServiceServer instance.
+func NewSchemaServer(ds datastore.Datastore) v1.SchemaServiceServer {
+	return &schemaServer{
+		ds: ds,
+		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
+			Unary:  grpcvalidate.UnaryServerInterceptor(),
+			Stream: grpcvalidate.StreamServerInterceptor(),
+		},
+	}
 }
 
 type schemaServer struct {
 	v1.UnimplementedSchemaServiceServer
+	shared.WithServiceSpecificInterceptors
 
 	ds datastore.Datastore
 }

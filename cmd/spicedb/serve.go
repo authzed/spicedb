@@ -34,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/client/consistentbackend"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
+	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	internaldispatch "github.com/authzed/spicedb/internal/services/dispatch"
@@ -207,6 +208,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 		otelgrpc.UnaryServerInterceptor(),
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.UnaryServerInterceptor,
+		servicespecific.UnaryServerInterceptor,
 	)
 
 	streamMiddleware := grpc.ChainStreamInterceptor(
@@ -214,6 +216,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 		otelgrpc.StreamServerInterceptor(),
 		grpcauth.StreamServerInterceptor(auth.RequirePresharedKey(token)),
 		grpcprom.StreamServerInterceptor,
+		servicespecific.StreamServerInterceptor,
 	)
 
 	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware, streamMiddleware)

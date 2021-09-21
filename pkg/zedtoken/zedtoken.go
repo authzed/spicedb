@@ -34,7 +34,6 @@ func NewFromRevision(revision decimal.Decimal) *v1.ZedToken {
 	}
 	encoded, err := Encode(toEncode)
 	if err != nil {
-		// All uint64s should be inherently encodeable
 		panic(fmt.Errorf(errEncodeError, err))
 	}
 

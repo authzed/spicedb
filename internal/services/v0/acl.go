@@ -8,9 +8,9 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
+	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -20,12 +20,14 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type aclServer struct {
 	v0.UnimplementedACLServiceServer
+	shared.WithUnaryServiceSpecificInterceptor
 
 	ds           datastore.Datastore
 	nsm          namespace.Manager
@@ -41,16 +43,17 @@ const (
 
 var errInvalidZookie = errors.New("invalid revision requested")
 
-// RegisterACLServer adds the ACL Server to a grpc service registrar
-// This is preferred over manually registering the service; it will add required middleware
-func RegisterACLServer(r grpc.ServiceRegistrar, s v0.ACLServiceServer) *grpc.ServiceDesc {
-	r.RegisterService(grpcutil.WrapMethods(v0.ACLService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
-	return &v0.ACLService_ServiceDesc
-}
-
 // NewACLServer creates an instance of the ACL server.
 func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
-	s := &aclServer{ds: ds, nsm: nsm, dispatch: dispatch, defaultDepth: defaultDepth}
+	s := &aclServer{
+		ds:           ds,
+		nsm:          nsm,
+		dispatch:     dispatch,
+		defaultDepth: defaultDepth,
+		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
+			Unary: grpcmw.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
+		},
+	}
 	return s
 }
 

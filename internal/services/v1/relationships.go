@@ -5,11 +5,10 @@ import (
 	"errors"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/grpcutil"
+	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -19,47 +18,38 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-// RegisterPermissionsServer adds a permissions server to a grpc service registrar
-// This is preferred over manually registering the service; it will add required middleware
-func RegisterPermissionsServer(
-	r grpc.ServiceRegistrar,
-	ds datastore.Datastore,
-	nsm namespace.Manager,
-	dispatch dispatch.Dispatcher,
-	defaultDepth uint32,
-) *grpc.ServiceDesc {
-	s := newPermissionsServer(ds, nsm, dispatch, defaultDepth)
-
-	wrapped := grpcutil.WrapMethods(
-		v1.PermissionsService_ServiceDesc,
-		grpcvalidate.UnaryServerInterceptor(),
-		consistency.UnaryServerInterceptor(ds),
-	)
-
-	wrapped = grpcutil.WrapStreams(
-		*wrapped,
-		grpcvalidate.StreamServerInterceptor(),
-		consistency.StreamServerInterceptor(ds),
-	)
-
-	r.RegisterService(wrapped, s)
-	return &v1.PermissionsService_ServiceDesc
-}
-
-func newPermissionsServer(ds datastore.Datastore,
+// NewPermissionServer creates a PermissionsServiceServer instance.
+func NewPermissionsServer(ds datastore.Datastore,
 	nsm namespace.Manager,
 	dispatch dispatch.Dispatcher,
 	defaultDepth uint32,
 ) v1.PermissionsServiceServer {
-	return &permissionServer{ds: ds, nsm: nsm, dispatch: dispatch, defaultDepth: defaultDepth}
+	return &permissionServer{
+		ds:           ds,
+		nsm:          nsm,
+		dispatch:     dispatch,
+		defaultDepth: defaultDepth,
+		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
+			Unary: grpcmw.ChainUnaryServer(
+				grpcvalidate.UnaryServerInterceptor(),
+				consistency.UnaryServerInterceptor(ds),
+			),
+			Stream: grpcmw.ChainStreamServer(
+				grpcvalidate.StreamServerInterceptor(),
+				consistency.StreamServerInterceptor(ds),
+			),
+		},
+	}
 }
 
 type permissionServer struct {
 	v1.UnimplementedPermissionsServiceServer
+	shared.WithServiceSpecificInterceptors
 
 	ds           datastore.Datastore
 	nsm          namespace.Manager

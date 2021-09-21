@@ -161,7 +161,7 @@ func (s *ConsistencyTestSuite) TestValidPasses_ServerStream() {
 	require := require.New(s.T())
 	stream, err := s.Client.PingList(s.SimpleCtx(), goodPing)
 	require.NoError(err)
-	for true {
+	for {
 		_, err := stream.Recv()
 		if err == io.EOF {
 			break

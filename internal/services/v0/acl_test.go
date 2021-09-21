@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/testfixtures"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	g "github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -809,8 +810,8 @@ func newACLServicer(
 
 	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
 	lis := bufconn.Listen(1024 * 1024)
-	s := grpc.NewServer()
-	RegisterACLServer(s, NewACLServer(ds, ns, dispatch, 50))
+	s := testfixtures.NewTestServer()
+	v0.RegisterACLServiceServer(s, NewACLServer(ds, ns, dispatch, 50))
 	go s.Serve(lis)
 
 	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {

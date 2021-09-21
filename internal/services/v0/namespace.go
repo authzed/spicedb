@@ -9,34 +9,34 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
+	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type nsServer struct {
 	v0.UnimplementedNamespaceServiceServer
+	shared.WithUnaryServiceSpecificInterceptor
 
 	ds datastore.Datastore
 }
 
-// RegisterNamespaceServer adds the Namespace Server to a grpc service registrar
-// This is preferred over manually registering the service; it will add required middleware
-func RegisterNamespaceServer(r grpc.ServiceRegistrar, s v0.NamespaceServiceServer) *grpc.ServiceDesc {
-	r.RegisterService(grpcutil.WrapMethods(v0.NamespaceService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
-	return &v0.NamespaceService_ServiceDesc
-}
-
 // NewNamespaceServer creates an instance of the namespace server.
 func NewNamespaceServer(ds datastore.Datastore) v0.NamespaceServiceServer {
-	s := &nsServer{ds: ds}
+	s := &nsServer{
+		ds: ds,
+		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
+			Unary: grpcmw.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
+		},
+	}
 	return s
 }
 

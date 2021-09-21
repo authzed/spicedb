@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
+	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -25,7 +26,7 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := newSchemaServer(ds)
+	srv := NewSchemaServer(ds)
 	_, err = srv.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}`,
 	})
@@ -39,8 +40,8 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 	// test relies on middleware
 	// test relies on middleware
 	lis := bufconn.Listen(1024 * 1024)
-	s := grpc.NewServer()
-	RegisterSchemaServer(s, ds)
+	s := tf.NewTestServer()
+	v1.RegisterSchemaServiceServer(s, NewSchemaServer(ds))
 
 	go s.Serve(lis)
 	defer func() {
@@ -66,7 +67,7 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := newSchemaServer(ds)
+	srv := NewSchemaServer(ds)
 
 	_, err = srv.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
@@ -87,7 +88,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := newSchemaServer(ds)
+	srv := NewSchemaServer(ds)
 
 	// Write a basic schema.
 	_, err = srv.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
@@ -155,7 +156,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(t, err)
 
-	srv := newSchemaServer(ds)
+	srv := NewSchemaServer(ds)
 
 	// Write a basic schema.
 	_, err = srv.WriteSchema(context.Background(), &v1.WriteSchemaRequest{

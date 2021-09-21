@@ -228,8 +228,8 @@ func newPermissionsServicer(
 
 	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
 	lis := bufconn.Listen(1024 * 1024)
-	s := grpc.NewServer()
-	RegisterPermissionsServer(s, ds, ns, dispatch, 50)
+	s := tf.NewTestServer()
+	v1.RegisterPermissionsServiceServer(s, NewPermissionsServer(ds, ns, dispatch, 50))
 	go s.Serve(lis)
 
 	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {

@@ -6,8 +6,8 @@ import (
 
 	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
+	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -35,22 +35,22 @@ const (
 
 type schemaServiceServer struct {
 	v1alpha1.UnimplementedSchemaServiceServer
+	shared.WithUnaryServiceSpecificInterceptor
 
 	prefixRequired PrefixRequiredOption
 	ds             datastore.Datastore
 }
 
-// RegisterSchemaServer adds the Schema Server to a grpc service registrar
-// This is preferred over manually registering the service; it will add required middleware
-func RegisterSchemaServer(r grpc.ServiceRegistrar, s v1alpha1.SchemaServiceServer) *grpc.ServiceDesc {
-	r.RegisterService(grpcutil.WrapMethods(v1alpha1.SchemaService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
-	return &v1alpha1.SchemaService_ServiceDesc
-}
-
 // NewSchemaServer returns an new instance of a server that implements
 // authzed.api.v1alpha1.SchemaService.
 func NewSchemaServer(ds datastore.Datastore, prefixRequired PrefixRequiredOption) v1alpha1.SchemaServiceServer {
-	return &schemaServiceServer{ds: ds, prefixRequired: prefixRequired}
+	return &schemaServiceServer{
+		ds:             ds,
+		prefixRequired: prefixRequired,
+		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
+			Unary: grpcmw.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
+		},
+	}
 }
 
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {

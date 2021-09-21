@@ -4,34 +4,33 @@ import (
 	"errors"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/authzed/grpcutil"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/shopspring/decimal"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type watchServer struct {
 	v0.UnimplementedWatchServiceServer
+	shared.WithStreamServiceSpecificInterceptor
 
 	ds  datastore.Datastore
 	nsm namespace.Manager
 }
 
-// RegisterWatchServer adds the Watch Server to a grpc service registrar
-// This is preferred over manually registering the service; it will add required middleware
-func RegisterWatchServer(r grpc.ServiceRegistrar, s v0.WatchServiceServer) *grpc.ServiceDesc {
-	r.RegisterService(grpcutil.WrapMethods(v0.WatchService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
-	return &v0.WatchService_ServiceDesc
-}
-
 // NewWatchServer creates an instance of the watch server.
 func NewWatchServer(ds datastore.Datastore, nsm namespace.Manager) v0.WatchServiceServer {
-	s := &watchServer{ds: ds}
+	s := &watchServer{
+		ds: ds,
+		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
+			Stream: grpcvalidate.StreamServerInterceptor(),
+		},
+	}
 	return s
 }
 
