@@ -18,6 +18,7 @@ type crdbOptions struct {
 	watchBufferLength         uint16
 	revisionQuantization      time.Duration
 	gcWindow                  time.Duration
+	maxOffset                 time.Duration
 	splitAtEstimatedQuerySize units.Base2Bytes
 }
 
@@ -26,6 +27,7 @@ const (
 
 	defaultRevisionQuantization = 5 * time.Second
 	defaultWatchBufferLength    = 128
+	defaultMaxOffset            = 500 * time.Millisecond
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -38,6 +40,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		watchBufferLength:         defaultWatchBufferLength,
 		revisionQuantization:      defaultRevisionQuantization,
 		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
+		maxOffset:                 defaultMaxOffset,
 	}
 
 	for _, option := range options {
@@ -133,5 +136,14 @@ func RevisionQuantization(bucketSize time.Duration) Option {
 func GCWindow(window time.Duration) Option {
 	return func(po *crdbOptions) {
 		po.gcWindow = window
+	}
+}
+
+// MaxOffset is the maximum duration in the CRDB cluster that clock is allowed to drift.
+// This value should be set to the `max_offset` value of the CRDB cluster unless you
+// wish to sacrifice correctness for speed.
+func MaxOffset(maxOffset time.Duration) CRDBOption {
+	return func(po *crdbOptions) {
+		po.maxOffset = maxOffset
 	}
 }
