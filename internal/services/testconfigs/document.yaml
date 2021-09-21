@@ -46,10 +46,6 @@ namespace_configs:
   }
 
   relation {
-    name: "lock"
-  }
-
-  relation {
     name: "viewer"
 
     userset_rewrite {

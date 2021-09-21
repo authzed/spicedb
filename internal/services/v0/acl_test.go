@@ -19,11 +19,13 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	g "github.com/authzed/spicedb/pkg/graph"
+	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -217,7 +219,7 @@ func TestRead(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
 
-					client, stop, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+					client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
 					defer stop()
 
 					resp, err := client.Read(context.Background(), &v0.ReadRequest{
@@ -243,7 +245,7 @@ func TestRead(t *testing.T) {
 func TestReadBadZookie(t *testing.T) {
 	require := require.New(t)
 
-	client, stop, revision := newACLServicer(require, 0, 10*time.Millisecond, 0)
+	client, stop, revision, _ := newACLServicer(require, 0, 10*time.Millisecond, 0)
 	defer stop()
 
 	_, err := client.Read(context.Background(), &v0.ReadRequest{
@@ -293,7 +295,7 @@ func TestReadBadZookie(t *testing.T) {
 func TestWrite(t *testing.T) {
 	require := require.New(t)
 
-	client, stop, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
+	client, stop, _, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
 	defer stop()
 
 	toWriteStr := "document:totallynew#parent@folder:plans#..."
@@ -417,7 +419,7 @@ func TestInvalidWriteArguments(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			client, stop, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
+			client, stop, _, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
 			defer stop()
 
 			var preconditions []*v0.RelationTuple
@@ -512,7 +514,7 @@ func TestCheck(t *testing.T) {
 						)
 						t.Run(name, func(t *testing.T) {
 							require := require.New(t)
-							client, stop, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+							client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
 							defer stop()
 							resp, err := client.Check(context.Background(), &v0.CheckRequest{
 								TestUserset: tc.start,
@@ -563,7 +565,7 @@ func TestCheck(t *testing.T) {
 
 func BenchmarkACL(b *testing.B) {
 	require := require.New(b)
-	client, stop, revision := newACLServicer(require, 0, memdb.DisableGC, 3*time.Millisecond)
+	client, stop, revision, _ := newACLServicer(require, 0, memdb.DisableGC, 3*time.Millisecond)
 	defer stop()
 
 	b.Run("check", func(b *testing.B) {
@@ -601,7 +603,7 @@ func TestExpand(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 					require := require.New(t)
-					client, stop, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+					client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
 					defer stop()
 
 					expanded, err := client.Expand(context.Background(), &v0.ExpandRequest{
@@ -746,7 +748,7 @@ func TestLookup(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s::%s from %s", tc.relation.Namespace, tc.relation.Relation, tuple.StringONR(tc.user)), func(t *testing.T) {
 					require := require.New(t)
-					client, stop, revision := newACLServicer(require, delta, memdb.DisableGC, 0)
+					client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
 					defer stop()
 
 					result, err := client.Lookup(context.Background(), &v0.LookupRequest{
@@ -792,13 +794,41 @@ func TestLookup(t *testing.T) {
 	}
 }
 
+func TestLookupMissingTypeInformation(t *testing.T) {
+	require := require.New(t)
+	client, stop, revision, ds := newACLServicer(require, time.Duration(0), memdb.DisableGC, 0)
+	defer stop()
+
+	// Write a namespace without any type information.
+	srv := NewNamespaceServer(ds)
+	_, err := srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+		Configs: []*v0.NamespaceDefinition{
+			ns.Namespace(
+				"typelessdoc",
+				ns.Relation("viewer", nil),
+			),
+		},
+	})
+	require.NoError(err)
+
+	// Attempt to perform a lookup against it.
+	_, err = client.Lookup(context.Background(), &v0.LookupRequest{
+		User:           ONR("user", "legal", "..."),
+		ObjectRelation: RR("typelessdoc", "viewer"),
+		Limit:          100,
+		AtRevision:     zookie.NewFromRevision(revision),
+	})
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
+	require.Equal("rpc error: code = FailedPrecondition desc = failed precondition: relation/permission `viewer` under definition `typelessdoc` is missing type information", err.Error())
+}
+
 // starts a server on a random port, returns a client for the server and a fn to stop the server when done
 func newACLServicer(
 	require *require.Assertions,
 	revisionFuzzingTimedelta time.Duration,
 	gcWindow time.Duration,
 	simulatedLatency time.Duration,
-) (v0.ACLServiceClient, func(), decimal.Decimal) {
+) (v0.ACLServiceClient, func(), decimal.Decimal, datastore.Datastore) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
 	require.NoError(err)
 
@@ -821,7 +851,7 @@ func newACLServicer(
 	return v0.NewACLServiceClient(conn), func() {
 		s.Stop()
 		lis.Close()
-	}, revision
+	}, revision, ds
 }
 
 func verifyTuples(expected []string, found []*v0.RelationTuple, require *require.Assertions) {
