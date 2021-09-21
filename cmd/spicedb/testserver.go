@@ -24,7 +24,9 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -59,26 +61,20 @@ func registerTestserverCmd(rootCmd *cobra.Command) {
 func runTestServer(cmd *cobra.Command, args []string) {
 	configFilePaths := cobrautil.MustGetStringSlice(cmd, "load-configs")
 
-	readWriteMiddleware := &perTokenBackendMiddleware{
+	backendMiddleware := &perTokenBackendMiddleware{
 		&sync.Map{},
 		configFilePaths,
-		true,
-	}
-	readOnlyMiddleware := &perTokenBackendMiddleware{
-		&sync.Map{},
-		configFilePaths,
-		true,
 	}
 
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
-		readWriteMiddleware.UnaryServerInterceptor(),
+		backendMiddleware.UnaryServerInterceptor(false),
 	), grpc.ChainStreamInterceptor(
-		readWriteMiddleware.StreamServerInterceptor(),
+		backendMiddleware.StreamServerInterceptor(false),
 	))
 	readonlyServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
-		readOnlyMiddleware.UnaryServerInterceptor(),
+		backendMiddleware.UnaryServerInterceptor(true),
 	), grpc.ChainStreamInterceptor(
-		readOnlyMiddleware.StreamServerInterceptor(),
+		backendMiddleware.StreamServerInterceptor(true),
 	))
 
 	for _, srv := range []*grpc.Server{grpcServer, readonlyServer} {
@@ -135,16 +131,18 @@ type v1DummyBackend struct {
 type perTokenBackendMiddleware struct {
 	upstreamByToken *sync.Map
 	configFilePaths []string
-	isReadOnly      bool
 }
 
-type upstream map[string]interface{}
+type upstream struct {
+	readonlyClients  map[string]interface{}
+	readwriteClients map[string]interface{}
+}
 
 var bypassServiceWhitelist = map[string]struct{}{
 	"/grpc.reflection.v1alpha.ServerReflection/": {},
 }
 
-func (ptbm *perTokenBackendMiddleware) methodForContextAndName(ctx context.Context, grpcMethodName string) (reflect.Value, error) {
+func (ptbm *perTokenBackendMiddleware) methodForContextAndName(ctx context.Context, grpcMethodName string, forReadonly bool) (reflect.Value, error) {
 	// If this would have returned an error, we use the zero value of "" to
 	// create an isolated test server with no auth token required.
 	tokenStr, _ := grpcauth.AuthFromMD(ctx, "bearer")
@@ -152,18 +150,21 @@ func (ptbm *perTokenBackendMiddleware) methodForContextAndName(ctx context.Conte
 	if !hasUpstream {
 		log.Info().Str("token", tokenStr).Msg("initializing new upstream for token")
 		var err error
-		untypedUpstream, err = ptbm.createUpstream(ptbm.isReadOnly)
+		untypedUpstream, err = ptbm.createUpstream()
 		if err != nil {
 			return reflect.Value{}, fmt.Errorf("unable to initialize upstream: %w", err)
 		}
 		ptbm.upstreamByToken.Store(tokenStr, untypedUpstream)
 	}
 
-	upstream := untypedUpstream.(upstream)
+	allClients := untypedUpstream.(*upstream)
 
 	serviceName, methodName := splitMethodName(grpcMethodName)
 
-	client, ok := upstream[serviceName]
+	client, ok := allClients.readwriteClients[serviceName]
+	if forReadonly {
+		client, ok = allClients.readonlyClients[serviceName]
+	}
 	if !ok {
 		return reflect.Value{}, fmt.Errorf("unknown service name: %s", serviceName)
 	}
@@ -174,68 +175,87 @@ func (ptbm *perTokenBackendMiddleware) methodForContextAndName(ctx context.Conte
 	return clientMethod, nil
 }
 
-func (ptbm *perTokenBackendMiddleware) createUpstream(readonly bool) (upstream, error) {
-	ds, err := memdb.NewMemdbDatastore(0, revisionFuzzingDuration, gcWindow, 0)
+type datastoreInfo struct {
+	ds         datastore.Datastore
+	isReadonly bool
+}
+
+func (ptbm *perTokenBackendMiddleware) createUpstream() (*upstream, error) {
+	readwriteDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingDuration, gcWindow, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init datastore: %w", err)
 	}
 
 	// Populate the datastore for any configuration files specified.
-	_, _, err = validationfile.PopulateFromFiles(ds, ptbm.configFilePaths)
+	_, _, err = validationfile.PopulateFromFiles(readwriteDS, ptbm.configFilePaths)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config files: %w", err)
 	}
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, nsCacheExpiration, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize namespace manager: %w", err)
+	readonlyDS := proxy.NewReadonlyDatastore(readwriteDS)
+
+	allClients := &upstream{}
+	for _, dsInfo := range []datastoreInfo{{readwriteDS, false}, {readonlyDS, true}} {
+		ds := dsInfo.ds
+
+		nsm, err := namespace.NewCachingNamespaceManager(ds, nsCacheExpiration, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize namespace manager: %w", err)
+		}
+
+		dispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
+
+		grpcServer := grpc.NewServer(
+			grpc.UnaryInterceptor(servicespecific.UnaryServerInterceptor),
+			grpc.StreamInterceptor(servicespecific.StreamServerInterceptor),
+		)
+
+		services.RegisterGrpcServices(
+			grpcServer,
+			ds,
+			nsm,
+			dispatch,
+			maxDepth,
+			v1alpha1svc.PrefixNotRequired,
+			services.V1SchemaServiceEnabled,
+		)
+
+		l := bufconn.Listen(1024 * 1024)
+		go grpcServer.Serve(l)
+
+		conn, err := grpc.DialContext(
+			context.Background(),
+			"",
+			grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+				return l.Dial()
+			}),
+			grpc.WithInsecure(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error creating client for new upstream: %w", err)
+		}
+
+		clients := map[string]interface{}{
+			"authzed.api.v0.ACLService":          v0.NewACLServiceClient(conn),
+			"authzed.api.v0.NamespaceService":    v0.NewNamespaceServiceClient(conn),
+			"authzed.api.v1alpha1.SchemaService": v1alpha1.NewSchemaServiceClient(conn),
+			"authzed.api.v1.SchemaService":       v1.NewSchemaServiceClient(conn),
+			"authzed.api.v1.PermissionsService":  v1.NewPermissionsServiceClient(conn),
+		}
+
+		if dsInfo.isReadonly {
+			allClients.readonlyClients = clients
+		} else {
+			allClients.readwriteClients = clients
+		}
 	}
 
-	dispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
-
-	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(servicespecific.UnaryServerInterceptor),
-		grpc.StreamInterceptor(servicespecific.StreamServerInterceptor),
-	)
-
-	services.RegisterGrpcServices(grpcServer,
-		ds,
-		nsm,
-		dispatch,
-		maxDepth,
-		v1alpha1svc.PrefixNotRequired,
-		services.V1SchemaServiceEnabled,
-	)
-
-	l := bufconn.Listen(1024 * 1024)
-	go grpcServer.Serve(l)
-
-	conn, err := grpc.DialContext(
-		context.Background(),
-		"",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return l.Dial()
-		}),
-		grpc.WithInsecure(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error creating client for new upstream: %w", err)
-	}
-
-	v1.NewPermissionsServiceClient(conn)
-
-	return map[string]interface{}{
-		"authzed.api.v0.ACLService":          v0.NewACLServiceClient(conn),
-		"authzed.api.v0.NamespaceService":    v0.NewNamespaceServiceClient(conn),
-		"authzed.api.v1alpha1.SchemaService": v1alpha1.NewSchemaServiceClient(conn),
-		"authzed.api.v1.SchemaService":       v1.NewSchemaServiceClient(conn),
-		"authzed.api.v1.PermissionsService":  v1.NewPermissionsServiceClient(conn),
-	}, nil
+	return allClients, nil
 }
 
 // UnaryServerInterceptor returns a new unary server interceptor that performs per-request exchange of
 // the specified consistency configuration for the revision at which to perform the request.
-func (ptbm *perTokenBackendMiddleware) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
+func (ptbm *perTokenBackendMiddleware) UnaryServerInterceptor(forReadonly bool) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
@@ -243,7 +263,7 @@ func (ptbm *perTokenBackendMiddleware) UnaryServerInterceptor() grpc.UnaryServer
 			}
 		}
 
-		clientMethod, err := ptbm.methodForContextAndName(ctx, info.FullMethod)
+		clientMethod, err := ptbm.methodForContextAndName(ctx, info.FullMethod, forReadonly)
 		if err != nil {
 			return nil, err
 		}
@@ -267,7 +287,7 @@ func (ptbm *perTokenBackendMiddleware) UnaryServerInterceptor() grpc.UnaryServer
 
 // StreamServerInterceptor returns a new stream server interceptor that performs per-request exchange of
 // the specified consistency configuration for the revision at which to perform the request.
-func (ptbm *perTokenBackendMiddleware) StreamServerInterceptor() grpc.StreamServerInterceptor {
+func (ptbm *perTokenBackendMiddleware) StreamServerInterceptor(forReadonly bool) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
@@ -281,7 +301,7 @@ func (ptbm *perTokenBackendMiddleware) StreamServerInterceptor() grpc.StreamServ
 			panic(fmt.Sprintf("client streaming unsupported for method: %s", info.FullMethod))
 		}
 
-		clientMethod, err := ptbm.methodForContextAndName(ctx, info.FullMethod)
+		clientMethod, err := ptbm.methodForContextAndName(ctx, info.FullMethod, forReadonly)
 		if err != nil {
 			return err
 		}
