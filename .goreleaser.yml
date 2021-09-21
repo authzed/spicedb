@@ -1,0 +1,33 @@
+builds:
+  - main: ./cmd/spicedb
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+nfpms:
+  - vendor: authzed inc.
+    homepage: https://spicedb.io/
+    maintainer: authzed <support@authzed.com>
+    description: SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions.
+    license: Apache 2.0
+    epoch: 0
+    formats:
+      - apk
+      - deb
+      - rpm
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+release:
+  draft: true
+  prerelease: auto
+
