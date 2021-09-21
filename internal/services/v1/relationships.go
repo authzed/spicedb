@@ -136,6 +136,34 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	return nil
 }
 
+func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
+	for _, precond := range req.OptionalPreconditions {
+		if err := ps.checkFilterNamespaces(ctx, precond.Filter); err != nil {
+			return nil, rewritePermissionsError(err)
+		}
+	}
+
+	for _, update := range req.Updates {
+		if err := ps.nsm.CheckNamespaceAndRelation(
+			ctx,
+			update.Relationship.Resource.ObjectType,
+			update.Relationship.Relation,
+			false,
+		); err != nil {
+			return nil, rewritePermissionsError(err)
+		}
+	}
+
+	revision, err := ps.ds.WriteTuples(ctx, req.OptionalPreconditions, req.Updates)
+	if err != nil {
+		return nil, rewritePermissionsError(err)
+	}
+
+	return &v1.WriteRelationshipsResponse{
+		WrittenAt: zedtoken.NewFromRevision(revision),
+	}, nil
+}
+
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter); err != nil {
 		return nil, rewritePermissionsError(err)
