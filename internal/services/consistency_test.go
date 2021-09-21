@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
+	"github.com/authzed/spicedb/internal/testfixtures"
 	graphpkg "github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -56,8 +57,10 @@ func TestConsistency(t *testing.T) {
 				t.Run(path.Base(filePath), func(t *testing.T) {
 					lrequire := require.New(t)
 
-					ds, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
+					unvalidated, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
 					lrequire.NoError(err)
+
+					ds := testfixtures.NewValidatingDatastore(unvalidated)
 
 					fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
 					lrequire.NoError(err)

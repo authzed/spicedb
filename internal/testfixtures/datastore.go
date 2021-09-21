@@ -100,15 +100,16 @@ var StandardTuples = []string{
 
 func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	ctx := context.Background()
+	validating := NewValidatingDatastore(ds)
 
 	var lastRevision datastore.Revision
 	for _, namespace := range []*v0.NamespaceDefinition{UserNS, FolderNS, DocumentNS} {
 		var err error
-		lastRevision, err = ds.WriteNamespace(ctx, namespace)
+		lastRevision, err = validating.WriteNamespace(ctx, namespace)
 		require.NoError(err)
 	}
 
-	return ds, lastRevision
+	return validating, lastRevision
 }
 
 func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
@@ -138,6 +139,11 @@ type TupleChecker struct {
 
 func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) datastore.TupleIterator {
 	userset := tpl.User.GetUserset()
+	subjectRel := userset.Relation
+	if subjectRel == datastore.Ellipsis {
+		subjectRel = ""
+	}
+
 	iter, err := tc.DS.QueryTuples(&v1.ObjectFilter{
 		ObjectType:       tpl.ObjectAndRelation.Namespace,
 		OptionalObjectId: tpl.ObjectAndRelation.ObjectId,
@@ -145,7 +151,7 @@ func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *v0.RelationT
 	}, rev).WithUsersetFilter(&v1.ObjectFilter{
 		ObjectType:       userset.Namespace,
 		OptionalObjectId: userset.ObjectId,
-		OptionalRelation: userset.Relation,
+		OptionalRelation: subjectRel,
 	}).Execute(ctx)
 
 	tc.Require.NoError(err)
