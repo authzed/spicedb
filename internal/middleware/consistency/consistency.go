@@ -67,7 +67,6 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 			return nil, rewriteDatastoreError(err)
 		}
 		revision = databaseRev
-		break
 
 	case consistency.GetFullyConsistent():
 		// Fully Consistent: Use the datastore's synchronized revision.
@@ -76,7 +75,6 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 			return nil, rewriteDatastoreError(err)
 		}
 		revision = databaseRev
-		break
 
 	case consistency.GetAtLeastAsFresh() != nil:
 		// At least as fresh as: Pick one of the datastore's revision and that specified, which
@@ -86,7 +84,6 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 			return nil, rewriteDatastoreError(err)
 		}
 		revision = picked
-		break
 
 	case consistency.GetAtExactSnapshot() != nil:
 		// Exact snapshot: Use the revision as encoded in the zed token.
@@ -101,7 +98,6 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 		}
 
 		revision = requestedRev
-		break
 
 	default:
 		return nil, fmt.Errorf("missing handling of consistency case in %v", consistency)
