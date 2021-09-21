@@ -212,6 +212,70 @@ func TestLookupResources(t *testing.T) {
 	}
 }
 
+func TestExpand(t *testing.T) {
+	testCases := []struct {
+		startObjectType    string
+		startObjectID      string
+		startPermission    string
+		expandRelatedCount int
+		expectedErrorCode  codes.Code
+	}{
+		{"document", "masterplan", "owner", 1, codes.OK},
+		{"document", "masterplan", "viewer", 7, codes.OK},
+		{"document", "masterplan", "fakerelation", 0, codes.FailedPrecondition},
+		{"fake", "masterplan", "owner", 0, codes.FailedPrecondition},
+		{"document", "", "owner", 1, codes.InvalidArgument},
+	}
+
+	for _, delta := range testTimedeltas {
+		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			for _, tc := range testCases {
+				t.Run(fmt.Sprintf("%s:%s#%s", tc.startObjectType, tc.startObjectID, tc.startPermission), func(t *testing.T) {
+					require := require.New(t)
+					client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
+					defer stop()
+
+					expanded, err := client.ExpandPermissionTree(context.Background(), &v1.ExpandPermissionTreeRequest{
+						Resource: &v1.ObjectReference{
+							ObjectType: tc.startObjectType,
+							ObjectId:   tc.startObjectID,
+						},
+						Permission: tc.startPermission,
+						Consistency: &v1.Consistency{
+							Requirement: &v1.Consistency_AtLeastAsFresh{
+								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+							},
+						},
+					})
+					if tc.expectedErrorCode == codes.OK {
+						require.NoError(err)
+						require.Equal(tc.expandRelatedCount, countLeafs(expanded.TreeRoot))
+					} else {
+						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
+					}
+				})
+			}
+		})
+	}
+}
+
+func countLeafs(node *v1.PermissionRelationshipTree) int {
+	switch t := node.TreeType.(type) {
+	case *v1.PermissionRelationshipTree_Leaf:
+		return len(t.Leaf.Subjects)
+
+	case *v1.PermissionRelationshipTree_Intermediate:
+		count := 0
+		for _, child := range t.Intermediate.Children {
+			count += countLeafs(child)
+		}
+		return count
+
+	default:
+		panic("Unknown node type")
+	}
+}
+
 func newPermissionsServicer(
 	require *require.Assertions,
 	revisionFuzzingTimedelta time.Duration,

@@ -63,6 +63,113 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	}, nil
 }
 
+func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
+	atRevision, expandedAt := consistency.MustRevisionFromContext(ctx)
+
+	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false)
+	if err != nil {
+		return nil, rewritePermissionsError(err)
+	}
+
+	resp, err := ps.dispatch.DispatchExpand(ctx, &dispatch.DispatchExpandRequest{
+		Metadata: &dispatch.ResolverMeta{
+			AtRevision:     atRevision.String(),
+			DepthRemaining: ps.defaultDepth,
+		},
+		ObjectAndRelation: &v0.ObjectAndRelation{
+			Namespace: req.Resource.ObjectType,
+			ObjectId:  req.Resource.ObjectId,
+			Relation:  req.Permission,
+		},
+		ExpansionMode: dispatch.DispatchExpandRequest_SHALLOW,
+	})
+	if err != nil {
+		return nil, rewritePermissionsError(err)
+	}
+
+	// TODO(jschorr): Change to either using shared interfaces for nodes, or switch the internal
+	// dispatched expand to return V1 node types.
+	return &v1.ExpandPermissionTreeResponse{
+		TreeRoot:   translateExpansionTree(resp.TreeNode),
+		ExpandedAt: expandedAt,
+	}, nil
+}
+
+func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelationshipTree {
+	switch t := node.NodeType.(type) {
+	case *v0.RelationTupleTreeNode_IntermediateNode:
+		operation := v1.AlgebraicSubjectSet_OPERATION_UNSPECIFIED
+
+		switch t.IntermediateNode.Operation {
+		case v0.SetOperationUserset_EXCLUSION:
+			operation = v1.AlgebraicSubjectSet_OPERATION_EXCLUSION
+		case v0.SetOperationUserset_INTERSECTION:
+			operation = v1.AlgebraicSubjectSet_OPERATION_UNION
+		case v0.SetOperationUserset_UNION:
+			operation = v1.AlgebraicSubjectSet_OPERATION_UNION
+		default:
+			panic("Unknown set operation")
+		}
+
+		var children []*v1.PermissionRelationshipTree
+		for _, child := range node.GetIntermediateNode().ChildNodes {
+			children = append(children, translateExpansionTree(child))
+		}
+
+		return &v1.PermissionRelationshipTree{
+			TreeType: &v1.PermissionRelationshipTree_Intermediate{
+				Intermediate: &v1.AlgebraicSubjectSet{
+					Operation: operation,
+					Children:  children,
+				},
+			},
+			ExpandedObject: &v1.ObjectReference{
+				ObjectType: node.Expanded.Namespace,
+				ObjectId:   node.Expanded.ObjectId,
+			},
+			ExpandedRelation: node.Expanded.Relation,
+		}
+
+	case *v0.RelationTupleTreeNode_LeafNode:
+		var subjects []*v1.SubjectReference
+		for _, found := range t.LeafNode.Users {
+			subjects = append(subjects, &v1.SubjectReference{
+				Object: &v1.ObjectReference{
+					ObjectType: found.GetUserset().Namespace,
+					ObjectId:   found.GetUserset().ObjectId,
+				},
+				OptionalRelation: denormalizeSubjectRelation(found.GetUserset().Relation),
+			})
+		}
+
+		if node.Expanded == nil {
+			return &v1.PermissionRelationshipTree{
+				TreeType: &v1.PermissionRelationshipTree_Leaf{
+					Leaf: &v1.DirectSubjectSet{
+						Subjects: subjects,
+					},
+				},
+			}
+		}
+
+		return &v1.PermissionRelationshipTree{
+			TreeType: &v1.PermissionRelationshipTree_Leaf{
+				Leaf: &v1.DirectSubjectSet{
+					Subjects: subjects,
+				},
+			},
+			ExpandedObject: &v1.ObjectReference{
+				ObjectType: node.Expanded.Namespace,
+				ObjectId:   node.Expanded.ObjectId,
+			},
+			ExpandedRelation: node.Expanded.Relation,
+		}
+
+	default:
+		panic("Unknown type of expansion tree node")
+	}
+}
+
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	ctx := resp.Context()
 
@@ -125,4 +232,11 @@ func normalizeSubjectRelation(sub *v1.SubjectReference) string {
 		return graph.Ellipsis
 	}
 	return sub.OptionalRelation
+}
+
+func denormalizeSubjectRelation(relation string) string {
+	if relation == graph.Ellipsis {
+		return ""
+	}
+	return relation
 }
