@@ -66,8 +66,13 @@ func (cds *crdbDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter,
 }
 
 func (cds *crdbDatastore) prepareTransaction(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error {
-	setTxTime := fmt.Sprintf(querySetTransactionTime, revision)
-	_, err := tx.Exec(ctx, setTxTime)
+	now, err := cds.SyncRevision(ctx)
+	if err != nil {
+		return err
+	}
+	atRevision := cds.smartSleep(now, revision)
+	setTxTime := fmt.Sprintf(querySetTransactionTime, atRevision)
+	_, err = tx.Exec(ctx, setTxTime)
 	return err
 }
 
