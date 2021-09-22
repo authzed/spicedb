@@ -68,6 +68,7 @@ func Decode(encoded *v1.ZedToken) (*zedtoken.DecodedZedToken, error) {
 	return decoded, nil
 }
 
+// DecodeRevision converts and extracts the revision from a zedtoken or legacy zookie.
 func DecodeRevision(encoded *v1.ZedToken) (decimal.Decimal, error) {
 	decoded, err := Decode(encoded)
 	if err != nil {
@@ -75,6 +76,8 @@ func DecodeRevision(encoded *v1.ZedToken) (decimal.Decimal, error) {
 	}
 
 	switch ver := decoded.VersionOneof.(type) {
+	case *zedtoken.DecodedZedToken_DeprecatedV1Zookie:
+		return decimal.NewFromInt(int64(ver.DeprecatedV1Zookie.Revision)), nil
 	case *zedtoken.DecodedZedToken_V1:
 		parsed, err := decimal.NewFromString(ver.V1.Revision)
 		if err != nil {
@@ -82,6 +85,6 @@ func DecodeRevision(encoded *v1.ZedToken) (decimal.Decimal, error) {
 		}
 		return parsed, nil
 	default:
-		return decimal.Zero, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zedtoken format: %T", decoded.VersionOneof))
+		return decimal.Zero, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
 	}
 }

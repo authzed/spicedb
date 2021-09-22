@@ -93,11 +93,6 @@ var decodeTests = []struct {
 		expectedRevision: decimal.New(12345, -2),
 		expectError:      false,
 	},
-	{
-		token:            "CAIaAwoBMA==",
-		expectedRevision: decimal.Zero,
-		expectError:      false,
-	},
 }
 
 func TestDecode(t *testing.T) {

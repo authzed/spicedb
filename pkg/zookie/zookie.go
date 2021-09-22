@@ -70,6 +70,7 @@ func Decode(encoded *v0.Zookie) (*zookie.DecodedZookie, error) {
 	return decoded, nil
 }
 
+// DecodeRevision converts and extracts the revision from a zookie.
 func DecodeRevision(encoded *v0.Zookie) (decimal.Decimal, error) {
 	decoded, err := Decode(encoded)
 	if err != nil {
@@ -86,6 +87,6 @@ func DecodeRevision(encoded *v0.Zookie) (decimal.Decimal, error) {
 		}
 		return parsed, nil
 	default:
-		return decimal.Zero, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %d", decoded.Version))
+		return decimal.Zero, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
 	}
 }

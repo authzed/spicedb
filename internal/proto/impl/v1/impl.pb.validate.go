@@ -138,6 +138,18 @@ func (m *DecodedZedToken) Validate() error {
 
 	switch m.VersionOneof.(type) {
 
+	case *DecodedZedToken_DeprecatedV1Zookie:
+
+		if v, ok := interface{}(m.GetDeprecatedV1Zookie()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return DecodedZedTokenValidationError{
+					field:  "DeprecatedV1Zookie",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	case *DecodedZedToken_V1:
 
 		if v, ok := interface{}(m.GetV1()).(interface{ Validate() error }); ok {
@@ -479,6 +491,75 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DecodedZookie_V2ZookieValidationError{}
+
+// Validate checks the field values on DecodedZedToken_V1Zookie with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *DecodedZedToken_V1Zookie) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	// no validation rules for Revision
+
+	return nil
+}
+
+// DecodedZedToken_V1ZookieValidationError is the validation error returned by
+// DecodedZedToken_V1Zookie.Validate if the designated constraints aren't met.
+type DecodedZedToken_V1ZookieValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DecodedZedToken_V1ZookieValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DecodedZedToken_V1ZookieValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DecodedZedToken_V1ZookieValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DecodedZedToken_V1ZookieValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DecodedZedToken_V1ZookieValidationError) ErrorName() string {
+	return "DecodedZedToken_V1ZookieValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DecodedZedToken_V1ZookieValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDecodedZedToken_V1Zookie.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DecodedZedToken_V1ZookieValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DecodedZedToken_V1ZookieValidationError{}
 
 // Validate checks the field values on DecodedZedToken_V1ZedToken with the
 // rules defined in the proto definition for this message. If any rules are
