@@ -14,8 +14,12 @@ message DecodedZookie {
 }
 
 message DecodedZedToken {
+  message V1Zookie { uint64 revision = 1; }
   message V1ZedToken { string revision = 1; }
-  oneof version_oneof { V1ZedToken v1 = 2; }
+  oneof version_oneof {
+    V1Zookie deprecated_v1_zookie = 2;
+    V1ZedToken v1 = 3;
+  }
 }
 
 message DocComment { string comment = 1; }

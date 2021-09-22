@@ -1,9 +1,11 @@
 package zedtoken
 
 import (
+	"fmt"
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/spicedb/pkg/zookie"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
@@ -34,43 +36,89 @@ func TestZedTokenEncode(t *testing.T) {
 	}
 }
 
+func TestZookieV2Compatibility(t *testing.T) {
+	for _, rev := range encodeRevisionTests {
+		t.Run(rev.String(), func(t *testing.T) {
+			require := require.New(t)
+			encodedZookie := zookie.NewFromRevision(rev)
+			decoded, err := DecodeRevision(&v1.ZedToken{
+				Token: encodedZookie.Token,
+			})
+			require.NoError(err)
+			require.True(rev.Equal(decoded))
+		})
+	}
+}
+
 var decodeTests = []struct {
+	format           string
 	token            string
 	expectedRevision decimal.Decimal
 	expectError      bool
 }{
 	{
+		format:           "invalid",
 		token:            "abc",
 		expectedRevision: decimal.Zero,
 		expectError:      true,
 	},
 	{
-		token:            "CAESAwoBMA==",
+		format:           "V1 Zookie",
+		token:            "CAESAA==",
 		expectedRevision: decimal.Zero,
 		expectError:      false,
 	},
 	{
-		token:            "CAESAwoBMQ==",
+		format:           "V1 Zookie",
+		token:            "CAESAggB",
 		expectedRevision: decimal.NewFromInt(1),
 		expectError:      false,
 	},
 	{
-		token:            "CAESAwoBMg==",
+		format:           "V1 Zookie",
+		token:            "CAESAggC",
 		expectedRevision: decimal.NewFromInt(2),
 		expectError:      false,
 	},
 	{
-		token:            "CAESBQoDMjU2",
+		format:           "V1 Zookie",
+		token:            "CAESAwiAAg==",
 		expectedRevision: decimal.NewFromInt(256),
 		expectError:      false,
 	},
 	{
-		token:            "CAESFQoTMTYyMTUzODE4OTAyODkyODAwMA==",
+		format:           "V1 Zookie",
+		token:            "CAIaAwoBMA==",
+		expectedRevision: decimal.Zero,
+		expectError:      false,
+	},
+	{
+		format:           "V1 ZedToken",
+		token:            "CAIaAwoBMQ==",
+		expectedRevision: decimal.NewFromInt(1),
+		expectError:      false,
+	},
+	{
+		format:           "V1 ZedToken",
+		token:            "CAIaAwoBMg==",
+		expectedRevision: decimal.NewFromInt(2),
+		expectError:      false,
+	},
+	{
+		format:           "V1 ZedToken",
+		token:            "CAIaAwoBNA==",
+		expectedRevision: decimal.NewFromInt(4),
+		expectError:      false,
+	},
+	{
+		format:           "V1 ZedToken",
+		token:            "CAIaFQoTMTYyMTUzODE4OTAyODkyODAwMA==",
 		expectedRevision: decimal.NewFromInt(1621538189028928000),
 		expectError:      false,
 	},
 	{
-		token:            "CAESCAoGMTIzLjQ1",
+		format:           "V1 ZedToken",
+		token:            "CAIaCAoGMTIzLjQ1",
 		expectedRevision: decimal.New(12345, -2),
 		expectError:      false,
 	},
@@ -78,7 +126,8 @@ var decodeTests = []struct {
 
 func TestDecode(t *testing.T) {
 	for _, testCase := range decodeTests {
-		t.Run(testCase.token, func(t *testing.T) {
+		testName := fmt.Sprintf("%s(%s)=>%s", testCase.format, testCase.token, testCase.expectedRevision)
+		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)
 
 			decoded, err := DecodeRevision(&v1.ZedToken{
