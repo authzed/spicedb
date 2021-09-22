@@ -10,7 +10,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/authzed/authzed-go v0.1.1-0.20210915130746-921aebdebf91
 	github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f
-	github.com/aws/aws-sdk-go v1.40.35
+	github.com/aws/aws-sdk-go v1.40.47
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
@@ -38,13 +38,13 @@ require (
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.4
 	github.com/jzelinskie/stringz v0.0.1
-	github.com/lib/pq v1.10.2
+	github.com/lib/pq v1.10.3
 	github.com/ngrok/sqlmw v0.0.0-20200129213757-d5c93a81bec6
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/prometheus/client_golang v1.11.0
-	github.com/rs/zerolog v1.24.0
+	github.com/rs/zerolog v1.25.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/shopspring/decimal v1.2.0
 	github.com/spf13/cobra v1.2.1
