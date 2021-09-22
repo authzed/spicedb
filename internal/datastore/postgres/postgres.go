@@ -10,10 +10,12 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/alecthomas/units"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/ngrok/sqlmw"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
@@ -105,6 +107,8 @@ func NewPostgresDatastore(
 	if config.healthCheckPeriod != nil {
 		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
 	}
+
+	pgxConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
 
 	dbpool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
 	if err != nil {

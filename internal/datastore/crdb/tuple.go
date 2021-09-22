@@ -226,6 +226,20 @@ func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions
 
 	var nowRevision decimal.Decimal
 	if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
+		if err == pgx.ErrNoRows {
+			// CRDB doesn't return the cluster_logical_timestamp if no rows were deleted
+			// so we have to read it manually in the same transaction.
+			nowRevision, err = readCRDBNow(ctx, tx)
+			if err != nil {
+				return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
+			}
+		} else {
+			return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
+		}
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 

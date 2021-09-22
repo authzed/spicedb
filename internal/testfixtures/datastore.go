@@ -173,12 +173,12 @@ func (tc TupleChecker) VerifyIteratorResults(iter datastore.TupleIterator, tpls 
 		tc.Require.NoError(iter.Err())
 		foundStr := tuple.String(found)
 		_, ok := toFind[foundStr]
-		tc.Require.True(ok, "Did not find expected tuple %s in %v", foundStr, toFind)
+		tc.Require.True(ok, "found unexpected tuple %s in iterator", foundStr)
 		delete(toFind, foundStr)
 	}
 	tc.Require.NoError(iter.Err())
 
-	tc.Require.Zero(len(toFind), "Should not be any extra to find")
+	tc.Require.Zero(len(toFind), "did not find some expected tuples: %#v", toFind)
 }
 
 func (tc TupleChecker) TupleExists(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) {
