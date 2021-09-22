@@ -20,3 +20,5 @@ area/docs:
   - "internal/services/v1alpha1/**/*"
   - "proto/authzed/api/v1/**/*"
   - "proto/authzed/api/v1alpha1/**/*"
+"area/datastore":
+  - "internal/datastore/**/*"

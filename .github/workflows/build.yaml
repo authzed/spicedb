@@ -54,6 +54,8 @@ jobs:
           go build ./cmd/spicedb
       - name: "Test"
         run: "go test ./..."
+      - name: "Full Datastore Integration Tests"
+        run: "go test -tags ci ./..."
 
   protobuf:
     name: "Generate Protobufs"
