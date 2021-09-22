@@ -95,6 +95,10 @@ func Delete(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
 
 // ToRelationship converts a RelationTuple into a Relationship.
 func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
+	if err := tpl.Validate(); err != nil {
+		panic(fmt.Sprintf("invalid tuple: %#v", tpl))
+	}
+
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
 			ObjectType: tpl.ObjectAndRelation.Namespace,
@@ -113,6 +117,10 @@ func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 
 // ToFilter converts a RelationTuple into a RelationshipFilter.
 func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
+	if err := tpl.Validate(); err != nil {
+		panic(fmt.Sprintf("invalid tuple: %#v", tpl))
+	}
+
 	return &v1.RelationshipFilter{
 		ResourceFilter: &v1.ObjectFilter{
 			ObjectType:       tpl.ObjectAndRelation.Namespace,
@@ -151,6 +159,10 @@ func UpdateToRelationshipUpdate(update *v0.RelationTupleUpdate) *v1.Relationship
 // FromRelationship converts a Relationship into a RelationTuple.
 func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
 	if r != nil {
+		if err := r.Validate(); err != nil {
+			panic(fmt.Sprintf("invalid relationship: %#v", r))
+		}
+
 		return &v0.RelationTuple{
 			ObjectAndRelation: &v0.ObjectAndRelation{
 				Namespace: r.Resource.ObjectType,
