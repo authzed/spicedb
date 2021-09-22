@@ -3,89 +3,56 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"os"
+	"io"
 	"os/exec"
 	"syscall"
 )
 
-func Run(ctx context.Context, logfile string, args ...string) error {
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	if len(logfile) > 0 {
-		outfile, err := os.Create(logfile)
-		if err != nil {
-			return err
-		}
-		defer outfile.Close()
-		cmd.Stdout = outfile
-		cmd.Stderr = outfile
-	} else {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
-	if err := cmd.Start(); err != nil {
+// Run runs the command and blocks until it is finished
+func Run(ctx context.Context, out, errOut io.Writer, args ...string) error {
+	cmd, err := start(ctx, out, errOut, args...)
+	if err != nil {
 		return err
 	}
-
-	// clean up process group on context done
-	go func() {
-		defer func() {
-			// negative pid sends the signal to all child processes in the group
-			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
-				fmt.Println(err)
-			}
-		}()
-		for {
-			select {
-			case <-ctx.Done():
-			}
-		}
-	}()
-
+	cleanupOnDone(ctx.Done(), cmd.Process.Pid, errOut)
 	return cmd.Wait()
 }
 
-func GoRun(ctx context.Context, logfile string, args ...string) (int, error) {
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	if len(logfile) > 0 {
-		outfile, err := os.Create(logfile)
-		if err != nil {
-			return 0, err
-		}
-		defer outfile.Close()
-		cmd.Stdout = outfile
-		cmd.Stderr = outfile
-	} else {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
-	if err := cmd.Start(); err != nil {
+// GoRun runs the command in the background and returns a process group id
+func GoRun(ctx context.Context, out, errOut io.Writer, args ...string) (int, error) {
+	cmd, err := start(ctx, out, errOut, args...)
+	if err != nil {
 		return 0, err
 	}
-
 	go func() {
-		// clean up process group on context done
-		go func() {
-			defer func() {
-				// negative pid sends the signal to all child processes in the group
-				if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
-					fmt.Println(err)
-				}
-			}()
-			for {
-				select {
-				case <-ctx.Done():
-				}
-			}
-		}()
+		cleanupOnDone(ctx.Done(), cmd.Process.Pid, errOut)
 
 		if err := cmd.Wait(); err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(errOut, err)
 		}
 	}()
 
 	return cmd.Process.Pid, nil
+}
+
+func start(ctx context.Context, out, errOut io.Writer, args ...string) (*exec.Cmd, error) {
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Stdout = out
+	cmd.Stderr = errOut
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	return cmd, nil
+}
+
+func cleanupOnDone(done <-chan struct{}, pid int, errOut io.Writer) {
+	go func() {
+		<-done
+		// negative pid sends the signal to all child processes in the group
+		if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
+			fmt.Fprintln(errOut, err)
+		}
+	}()
 }
