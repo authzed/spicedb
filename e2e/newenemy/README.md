@@ -1,7 +1,8 @@
 # New Enemy Test
 
-This test suite confirms that mitigations that are in place to prevent a new 
-enemy attack are functioning. 
+This test suite performs testing for the New Enemy problem on CockroachDB, including 
+verification that they occur without mitigations and ensuring that when present, 
+those mitigations work to prevent the issue from occurring.
 
 ## The Test 
 

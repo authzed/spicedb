@@ -7,6 +7,7 @@ require (
 	github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f
 	github.com/authzed/spicedb v0.0.0
 	github.com/jackc/pgx/v4 v4.13.0
+	github.com/stretchr/testify v1.7.0
 	google.golang.org/grpc v1.40.0
 )
 
@@ -26,7 +27,6 @@ require (
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
-	github.com/stretchr/testify v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
 	golang.org/x/net v0.0.0-20210913180222-943fd674d43e // indirect
 	golang.org/x/sys v0.0.0-20210921065528-437939a70204 // indirect

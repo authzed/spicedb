@@ -97,11 +97,15 @@ jobs:
           key: "${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}"
           restore-keys: |
             ${{ runner.os }}-go-
-      - name: "Run e2e"
+      - name: "Build SpiceDB"
+        working-directory: "e2e/newenemy"
         run: |
-          pushd e2e/newenemy
+          go get -d github.com/authzed/spicedb/cmd/spicedb/...
+          go build github.com/authzed/spicedb/cmd/spicedb/...
+      - name: "Run e2e"
+        working-directory: "e2e/newenemy"
+        run: |
           go test -v ./...
-          popd
       - uses: "actions/upload-artifact@v2"
         if: "always()"
         with:
