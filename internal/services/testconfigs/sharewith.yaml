@@ -1,211 +1,212 @@
+---
 namespace_configs:
-- |
-  name: "sharewith/user"
+  - |
+    name: "sharewith/user"
 
-- |
-  name: "sharewith/resource"
+  - |
+    name: "sharewith/resource"
 
-  relation {
-    name: "manager"
-  
-    type_information {
-      allowed_direct_relations {
-        namespace: "sharewith/user"
-        relation: "..."
-      }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "member"
-      }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "manager"
+    relation {
+      name: "manager"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "sharewith/user"
+          relation: "..."
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "member"
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "manager"
+        }
       }
     }
-  }
 
-  relation {
-    name: "viewer"
-    userset_rewrite {
-      union {
-        child { _this {} }
-        child { computed_userset { relation: "manager" } }
+    relation {
+      name: "viewer"
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child { computed_userset { relation: "manager" } }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "sharewith/user"
+          relation: "..."
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "member"
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "manager"
+        }
       }
     }
-  
-    type_information {
-      allowed_direct_relations {
-        namespace: "sharewith/user"
-        relation: "..."
-      }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "member"
-      }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "manager"
+
+  - |
+    name: "sharewith/usergroup"
+
+    relation {
+      name: "manager"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "sharewith/user"
+          relation: "..."
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "member"
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "manager"
+        }
       }
     }
-  }
 
-- |
-  name: "sharewith/usergroup"
-
-  relation {
-    name: "manager"
-
-    type_information {
-      allowed_direct_relations {
-        namespace: "sharewith/user"
-        relation: "..."
+    relation {
+      name: "member"
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child { computed_userset { relation: "manager" } }
+        }
       }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "member"
-      }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "manager"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "sharewith/user"
+          relation: "..."
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "member"
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "manager"
+        }
       }
     }
-  }
 
-  relation {
-    name: "member"
-    userset_rewrite {
-      union {
-        child { _this {} }
-        child { computed_userset { relation: "manager" } }
+  - |
+    name: "sharewith/organization"
+
+    relation {
+      name: "group"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "..."
+        }
       }
     }
-  
-    type_information {
-      allowed_direct_relations {
-        namespace: "sharewith/user"
-        relation: "..."
-      }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "member"
-      }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "manager"
+
+    relation {
+      name: "resource"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "sharewith/resource"
+          relation: "..."
+        }
       }
     }
-  }
 
-- |
-  name: "sharewith/organization"
+    relation {
+      name: "admin"
 
-  relation {
-    name: "group"
-  
-    type_information {
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "..."
+      type_information {
+        allowed_direct_relations {
+          namespace: "sharewith/user"
+          relation: "..."
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "member"
+        }
+        allowed_direct_relations {
+          namespace: "sharewith/usergroup"
+          relation: "manager"
+        }
       }
     }
-  }
 
-  relation {
-    name: "resource"
-  
-    type_information {
-      allowed_direct_relations {
-        namespace: "sharewith/resource"
-        relation: "..."
-      }
-    }
-  }
+    relation {
+      name: "member"
 
-  relation {
-    name: "admin"
-
-    type_information {
-      allowed_direct_relations {
-        namespace: "sharewith/user"
-        relation: "..."
-      }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "member"
-      }
-      allowed_direct_relations {
-        namespace: "sharewith/usergroup"
-        relation: "manager"
-      }
-    }
-  }
-
-  relation {
-    name: "member"
-
-    userset_rewrite {
-      union {
-        child { computed_userset { relation: "admin" } }
-        child { 
-          tuple_to_userset {
-            tupleset { relation: "group" }
-            computed_userset {
-              object: TUPLE_USERSET_OBJECT
-              relation: "member"
+      userset_rewrite {
+        union {
+          child { computed_userset { relation: "admin" } }
+          child {
+            tuple_to_userset {
+              tupleset { relation: "group" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT
+                relation: "member"
+              }
             }
           }
         }
       }
     }
-  }
 
-  relation {
-    name: "user"
+    relation {
+      name: "user"
 
-    userset_rewrite {
-      union {
-        child { computed_userset { relation: "admin" } }
-        child { computed_userset { relation: "member" } }
-        child {
-          tuple_to_userset {
-            tupleset { relation: "resource" }
-            computed_userset {
-              object: TUPLE_USERSET_OBJECT
-              relation: "viewer"
+      userset_rewrite {
+        union {
+          child { computed_userset { relation: "admin" } }
+          child { computed_userset { relation: "member" } }
+          child {
+            tuple_to_userset {
+              tupleset { relation: "resource" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT
+                relation: "viewer"
+              }
             }
           }
         }
       }
     }
-  }
 
 validation_tuples:
-- sharewith/usergroup:productname#manager@sharewith/user:an_eng_manager#...
-- sharewith/usergroup:productname#member@sharewith/user:an_engineer#...
-- sharewith/usergroup:applications#manager@sharewith/user:an_eng_director#...
-- sharewith/usergroup:engineering#manager@sharewith/user:cto#...
-- sharewith/usergroup:csuite#manager@sharewith/user:ceo#...
-- sharewith/usergroup:csuite#member@sharewith/user:cto#...
+  - "sharewith/usergroup:productname#manager@sharewith/user:an_eng_manager#..."
+  - "sharewith/usergroup:productname#member@sharewith/user:an_engineer#..."
+  - "sharewith/usergroup:applications#manager@sharewith/user:an_eng_director#..."
+  - "sharewith/usergroup:engineering#manager@sharewith/user:cto#..."
+  - "sharewith/usergroup:csuite#manager@sharewith/user:ceo#..."
+  - "sharewith/usergroup:csuite#member@sharewith/user:cto#..."
 
-- sharewith/usergroup:engineering#member@sharewith/usergroup:applications#member
-- sharewith/usergroup:applications#member@sharewith/usergroup:productname#member
-- sharewith/usergroup:engineering#member@sharewith/usergroup:csuite#member
+  - "sharewith/usergroup:engineering#member@sharewith/usergroup:applications#member"
+  - "sharewith/usergroup:applications#member@sharewith/usergroup:productname#member"
+  - "sharewith/usergroup:engineering#member@sharewith/usergroup:csuite#member"
 
-- sharewith/organization:someorg#group@sharewith/usergroup:csuite#...
-- sharewith/organization:someorg#group@sharewith/usergroup:productname#...
-- sharewith/organization:someorg#group@sharewith/usergroup:applications#...
-- sharewith/organization:someorg#group@sharewith/usergroup:engineering#...
+  - "sharewith/organization:someorg#group@sharewith/usergroup:csuite#..."
+  - "sharewith/organization:someorg#group@sharewith/usergroup:productname#..."
+  - "sharewith/organization:someorg#group@sharewith/usergroup:applications#..."
+  - "sharewith/organization:someorg#group@sharewith/usergroup:engineering#..."
 
-- sharewith/organization:someorg#resource@sharewith/resource:promserver#...
-- sharewith/organization:someorg#resource@sharewith/resource:jira#...
+  - "sharewith/organization:someorg#resource@sharewith/resource:promserver#..."
+  - "sharewith/organization:someorg#resource@sharewith/resource:jira#..."
 
-- sharewith/organization:someorg#admin@sharewith/usergroup:csuite#member
-- sharewith/organization:someorg#admin@sharewith/user:it_admin#...
+  - "sharewith/organization:someorg#admin@sharewith/usergroup:csuite#member"
+  - "sharewith/organization:someorg#admin@sharewith/user:it_admin#..."
 
-- sharewith/resource:promserver#manager@sharewith/usergroup:productname#member
-- sharewith/resource:promserver#viewer@sharewith/usergroup:engineering#member
-- sharewith/resource:jira#viewer@sharewith/usergroup:engineering#member
-- sharewith/resource:jira#manager@sharewith/usergroup:engineering#manager
-- sharewith/resource:promserver#viewer@sharewith/user:an_external_user#...
+  - "sharewith/resource:promserver#manager@sharewith/usergroup:productname#member"
+  - "sharewith/resource:promserver#viewer@sharewith/usergroup:engineering#member"
+  - "sharewith/resource:jira#viewer@sharewith/usergroup:engineering#member"
+  - "sharewith/resource:jira#manager@sharewith/usergroup:engineering#manager"
+  - "sharewith/resource:promserver#viewer@sharewith/user:an_external_user#..."
 
-- sharewith/usergroup:blackhats#manager@sharewith/user:a_villain#...
+  - "sharewith/usergroup:blackhats#manager@sharewith/user:a_villain#..."

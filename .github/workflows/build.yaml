@@ -1,11 +1,12 @@
+---
 name: "Build & Test"
 on:
   push:
     branches:
-    - "main"
+      - "main"
   pull_request:
     branches:
-    - "*"
+      - "*"
 jobs:
   lint:
     name: "Lint"
@@ -43,56 +44,56 @@ jobs:
     name: "Test"
     runs-on: "ubuntu-latest"
     steps:
-    - uses: "actions/checkout@v2"
-    - uses: "actions/setup-go@v2"
-      with:
-        go-version: "^1.17"
-    - name: "Build"
-      run: | 
-        go build ./cmd/crdb-migration
-        go build ./cmd/spicedb
-    - name: "Test"
-      run: "go test ./..."
+      - uses: "actions/checkout@v2"
+      - uses: "actions/setup-go@v2"
+        with:
+          go-version: "^1.17"
+      - name: "Build"
+        run: |
+          go build ./cmd/crdb-migration
+          go build ./cmd/spicedb
+      - name: "Test"
+        run: "go test ./..."
 
   protobuf:
     name: "Generate Protobufs"
     runs-on: "ubuntu-latest"
     steps:
-    - uses: "actions/checkout@v2"
-    - uses: "actions/setup-go@v2"
-      with:
-        go-version: ^1.17
-    - name: "Install Go Protobuf plugins"
-      run: |
-        go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
-        go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
-        go install github.com/envoyproxy/protoc-gen-validate@v0.6.1
-    - uses: "bufbuild/buf-setup-action@v0.3.1"
-      with:
-        version: "0.52.0"
-    - name: "Generate & Diff Protos"
-      run: "./buf.gen.yaml && git diff && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
-    - uses: "bufbuild/buf-breaking-action@v0.4.0"
-      if: "github.event_name == 'pull_request'"
-      env:
-        BUF_INPUT_HTTPS_USERNAME: "${{ github.actor }}"
-        BUF_INPUT_HTTPS_PASSWORD: "${{ github.token }}"
-      with:
-        input: "proto/internal"
-        against: "https://github.com/authzed/spicedb.git#branch=main,subdir=proto/internal"
-        buf_token: "${{ secrets.BUF_REGISTRY_TOKEN }}"
+      - uses: "actions/checkout@v2"
+      - uses: "actions/setup-go@v2"
+        with:
+          go-version: "^1.17"
+      - name: "Install Go Protobuf plugins"
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
+          go install github.com/envoyproxy/protoc-gen-validate@v0.6.1
+      - uses: "bufbuild/buf-setup-action@v0.3.1"
+        with:
+          version: "0.52.0"
+      - name: "Generate & Diff Protos"
+        run: "./buf.gen.yaml && git diff && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
+      - uses: "bufbuild/buf-breaking-action@v0.4.0"
+        if: "github.event_name == 'pull_request'"
+        env:
+          BUF_INPUT_HTTPS_USERNAME: "${{ github.actor }}"
+          BUF_INPUT_HTTPS_PASSWORD: "${{ github.token }}"
+        with:
+          input: "proto/internal"
+          against: "https://github.com/authzed/spicedb.git#branch=main,subdir=proto/internal"
+          buf_token: "${{ secrets.BUF_REGISTRY_TOKEN }}"
 
   image-build:
     name: "Verify Image"
-    runs-on: ubuntu-latest
-    steps: 
-    - name: Check out the repo
-      uses: actions/checkout@v2
-    - uses: "docker/setup-qemu-action@v1"
-    - uses: "docker/setup-buildx-action@v1"
-      with:
-        driver-opts: "image=moby/buildkit:master"
-    - name: Build the container image
-      uses: docker/build-push-action@v1
-      with: 
-        push: false
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Check out the repo"
+        uses: "actions/checkout@v2"
+      - uses: "docker/setup-qemu-action@v1"
+      - uses: "docker/setup-buildx-action@v1"
+        with:
+          driver-opts: "image=moby/buildkit:master"
+      - name: "Build the container image"
+        uses: "docker/build-push-action@v1"
+        with:
+          push: false

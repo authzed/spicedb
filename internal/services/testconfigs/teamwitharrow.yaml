@@ -1,3 +1,4 @@
+---
 schema: >-
   definition test/user {}
 
@@ -26,7 +27,7 @@ schema: >-
       // Organization settings
       permission manage_billing = owner + billing_manager
       permission user_seat = owner + member + team_maintainer
-      
+
       // Team permissions
       permission change_team_name = team_maintainer + owner
   }
@@ -45,7 +46,7 @@ schema: >-
       // Git Actions
     	permission clone = reader + triager + push
       permission push = writer + maintainer + admin + organization->owner
-      
+
       // Web actions
       permission read = reader + triager + writer + maintainer + admin + organization->owner
       permission delete_repository = admin + organization->owner

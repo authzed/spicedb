@@ -1,21 +1,22 @@
+---
 area/dependencies:
-- "Dockerfile"
-- "go.mod"
-- "go.sum"
+  - "Dockerfile"
+  - "go.mod"
+  - "go.sum"
 area/tooling:
-- ".github/**/*"
-- "Dockerfile"
+  - ".github/**/*"
+  - "Dockerfile"
 area/docs:
-- "CODE-OF-CONDUCT.md"
-- "CONTRIBUTING.md"
-- "DCO"
-- "LICENSE"
-- "README.md"
+  - "CODE-OF-CONDUCT.md"
+  - "CONTRIBUTING.md"
+  - "DCO"
+  - "LICENSE"
+  - "README.md"
 "area/api v0":
-- "internal/services/v0/**/*"
-- "proto/authzed/api/v0/**/*"
+  - "internal/services/v0/**/*"
+  - "proto/authzed/api/v0/**/*"
 "area/api v1":
-- "internal/services/v1/**/*"
-- "internal/services/v1alpha1/**/*"
-- "proto/authzed/api/v1/**/*"
-- "proto/authzed/api/v1alpha1/**/*"
+  - "internal/services/v1/**/*"
+  - "internal/services/v1alpha1/**/*"
+  - "proto/authzed/api/v1/**/*"
+  - "proto/authzed/api/v1alpha1/**/*"
