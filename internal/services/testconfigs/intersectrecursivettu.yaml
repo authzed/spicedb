@@ -1,83 +1,84 @@
+---
 namespace_configs:
-- |
-  name: "irtt/user"
+  - |
+    name: "irtt/user"
 
-- |
-  name: "irtt/namespace"
+  - |
+    name: "irtt/namespace"
 
-  relation {
-    name: "parent"
+    relation {
+      name: "parent"
 
-    type_information {
-      allowed_direct_relations {
-        namespace: "irtt/namespace"
-        relation: "..."
+      type_information {
+        allowed_direct_relations {
+          namespace: "irtt/namespace"
+          relation: "..."
+        }
       }
     }
-  }
 
-  relation {
-    name: "owner"
+    relation {
+      name: "owner"
 
-    userset_rewrite {
-      intersection {
-        child { _this {} }
-        child {
-          tuple_to_userset {
-            tupleset { relation: "parent" }
-            computed_userset {
-              object: TUPLE_USERSET_OBJECT
-              relation: "owner"
+      userset_rewrite {
+        intersection {
+          child { _this {} }
+          child {
+            tuple_to_userset {
+              tupleset { relation: "parent" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT
+                relation: "owner"
+              }
+            }
+          }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "irtt/user"
+          relation: "..."
+        }
+      }
+    }
+
+  - |
+    name: "irtt/resource"
+
+    relation {
+      name: "parent_namespace"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "irtt/namespace"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "owner"
+
+      userset_rewrite {
+        union {
+          child {
+            tuple_to_userset {
+              tupleset { relation: "parent_namespace" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT
+                relation: "owner"
+              }
             }
           }
         }
       }
     }
-
-    type_information {
-      allowed_direct_relations {
-        namespace: "irtt/user"
-        relation: "..."
-      }
-    }
-  }
-
-- |
-  name: "irtt/resource"
-
-  relation {
-    name: "parent_namespace"
-
-    type_information {
-      allowed_direct_relations {
-        namespace: "irtt/namespace"
-        relation: "..."
-      }
-    }
-  }
-
-  relation {
-    name: "owner"
-
-    userset_rewrite {
-      union {
-        child {
-          tuple_to_userset {
-            tupleset { relation: "parent_namespace" }
-            computed_userset {
-              object: TUPLE_USERSET_OBJECT
-              relation: "owner"
-            }
-          }
-        }
-      }
-    }
-  }
 
 validation_tuples:
-- irtt/namespace:rootns#owner@irtt/user:someguy#...
-- irtt/namespace:childns1#parent@irtt/namespace:rootns#...
-- irtt/namespace:childns2#parent@irtt/namespace:rootns#...
-- irtt/namespace:childns1#owner@irtt/user:someguy#...
-- irtt/resource:resource1#parent_namespace@irtt/namespace:childns1#...
-- irtt/resource:resource2#parent_namespace@irtt/namespace:childns2#...
+  - "irtt/namespace:rootns#owner@irtt/user:someguy#..."
+  - "irtt/namespace:childns1#parent@irtt/namespace:rootns#..."
+  - "irtt/namespace:childns2#parent@irtt/namespace:rootns#..."
+  - "irtt/namespace:childns1#owner@irtt/user:someguy#..."
+  - "irtt/resource:resource1#parent_namespace@irtt/namespace:childns1#..."
+  - "irtt/resource:resource2#parent_namespace@irtt/namespace:childns2#..."

@@ -1,42 +1,43 @@
+---
 namespace_configs:
-- |
-  name: "srrr/user"
+  - |
+    name: "srrr/user"
 
-- |
-  name: "srrr/group"
+  - |
+    name: "srrr/group"
 
-  relation {
-    name: "member"
+    relation {
+      name: "member"
 
-    type_information {
-      allowed_direct_relations {
-        namespace: "srrr/user"
-        relation: "..."
-      }
-      allowed_direct_relations {
-        namespace: "srrr/group"
-        relation: "member"
-      }
-    }
-  }
-
-- |
-  name: "srrr/resource"
-
-  relation {
-    name: "viewer" 
-
-    type_information {
-      allowed_direct_relations {
-        namespace: "srrr/group"
-        relation: "member"
+      type_information {
+        allowed_direct_relations {
+          namespace: "srrr/user"
+          relation: "..."
+        }
+        allowed_direct_relations {
+          namespace: "srrr/group"
+          relation: "member"
+        }
       }
     }
-  }
+
+  - |
+    name: "srrr/resource"
+
+    relation {
+      name: "viewer"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "srrr/group"
+          relation: "member"
+        }
+      }
+    }
 
 validation_tuples:
-- srrr/group:ultragroup#member@srrr/user:someguy#...
-- srrr/group:megagroup#member@srrr/group:ultragroup#member
-- srrr/group:supergroup#member@srrr/group:megagroup#member
-- srrr/group:subgroup#member@srrr/group:supergroup#member
-- srrr/resource:someresource#viewer@srrr/group:subgroup#member
+  - "srrr/group:ultragroup#member@srrr/user:someguy#..."
+  - "srrr/group:megagroup#member@srrr/group:ultragroup#member"
+  - "srrr/group:supergroup#member@srrr/group:megagroup#member"
+  - "srrr/group:subgroup#member@srrr/group:supergroup#member"
+  - "srrr/resource:someresource#viewer@srrr/group:subgroup#member"

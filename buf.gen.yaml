@@ -1,12 +1,13 @@
 #!/usr/bin/env -S ./proto/buf-generate.sh
+---
 version: "v1"
 managed:
   enabled: true
   go_package_prefix:
-    default: github.com/authzed/spicedb/internal/proto
+    default: "github.com/authzed/spicedb/internal/proto"
     except:
-      - buf.build/beta/protoc-gen-validate
-      - buf.build/authzed/api
+      - "buf.build/beta/protoc-gen-validate"
+      - "buf.build/authzed/api"
 plugins:
   - name: "go"
     out: "."
