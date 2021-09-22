@@ -71,8 +71,8 @@ github.com/authzed/grpcutil v0.0.0-20210913124023-cad23ae5a9e8/go.mod h1:HwO/KbR
 github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f h1:7CRJHi1JOJEvaH/Dx3hMRRQeUAVxAPPHTz+UZ99NiYQ=
 github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f/go.mod h1:HwO/KbRU3fWXEYHE96kvXnwxzi97tkXD1hfi5UaZ71Y=
 github.com/aws/aws-sdk-go v1.17.4/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
-github.com/aws/aws-sdk-go v1.40.35 h1:ofWh1LlWaSbOpAsl8EHlg96PZXqgCGKKi8YgrdU2Z+I=
-github.com/aws/aws-sdk-go v1.40.35/go.mod h1:585smgzpB/KqRA+K3y/NL/oYRqQvpNJYvLm+LY1U59Q=
+github.com/aws/aws-sdk-go v1.40.47 h1:ZXayMFfPtODnSZRlMSmMYpiygac6PORNCPMjdGltcFg=
+github.com/aws/aws-sdk-go v1.40.47/go.mod h1:585smgzpB/KqRA+K3y/NL/oYRqQvpNJYvLm+LY1U59Q=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
