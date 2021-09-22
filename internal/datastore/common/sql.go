@@ -11,6 +11,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -90,7 +91,7 @@ type TupleQuery struct {
 	SplitAtEstimatedQuerySize units.Base2Bytes
 
 	limit         *uint64
-	usersetFilter *v1.ObjectFilter
+	usersetFilter *v1.SubjectFilter
 	usersets      *[]*v0.ObjectAndRelation
 }
 
@@ -124,7 +125,7 @@ func (ctq TupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.T
 }
 
 // WithUsersetFilter implements the datastore.TupleQuery interface
-func (ctq TupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.TupleQuery {
+func (ctq TupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
 	if filter == nil {
 		panic("cannot call WithUsersetFilter with a nil filter")
 	}
@@ -137,9 +138,11 @@ func (ctq TupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.Tuple
 		panic("called WithUsersetFilter twice")
 	}
 
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(filter.ObjectType))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubObjectIDKey.String(filter.OptionalObjectId))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubRelationNameKey.String(filter.OptionalRelation))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(filter.SubjectType))
+	ctq.TracerAttributes = append(ctq.TracerAttributes, SubObjectIDKey.String(filter.OptionalSubjectId))
+	if filter.OptionalRelation != nil {
+		ctq.TracerAttributes = append(ctq.TracerAttributes, SubRelationNameKey.String(filter.OptionalRelation.Relation))
+	}
 	ctq.usersetFilter = filter
 	return ctq
 }
@@ -151,18 +154,18 @@ func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, err
 	baseEstimatedDataSize := ctq.InitialQuerySizeEstimate
 
 	// Add the userset filters to the query.
-	if ctq.usersetFilter != nil {
-		query = query.Where(sq.Eq{ctq.Schema.ColUsersetNamespace: ctq.usersetFilter.ObjectType})
-		baseEstimatedDataSize += len(ctq.usersetFilter.ObjectType)
+	if filter := ctq.usersetFilter; filter != nil {
+		query = query.Where(sq.Eq{ctq.Schema.ColUsersetNamespace: filter.SubjectType})
+		baseEstimatedDataSize += len(filter.SubjectType)
 
-		if ctq.usersetFilter.OptionalObjectId != "" {
-			query = query.Where(sq.Eq{ctq.Schema.ColUsersetObjectID: ctq.usersetFilter.OptionalObjectId})
-			baseEstimatedDataSize += len(ctq.usersetFilter.OptionalObjectId)
+		if filter.OptionalSubjectId != "" {
+			query = query.Where(sq.Eq{ctq.Schema.ColUsersetObjectID: filter.OptionalSubjectId})
+			baseEstimatedDataSize += len(filter.OptionalSubjectId)
 		}
 
-		if ctq.usersetFilter.OptionalRelation != "" {
-			query = query.Where(sq.Eq{ctq.Schema.ColUsersetRelation: ctq.usersetFilter.OptionalRelation})
-			baseEstimatedDataSize += len(ctq.usersetFilter.OptionalRelation)
+		if filter.OptionalRelation != nil {
+			query = query.Where(sq.Eq{ctq.Schema.ColUsersetRelation: stringz.DefaultEmpty(filter.OptionalRelation.Relation, datastore.Ellipsis)})
+			baseEstimatedDataSize += len(filter.OptionalRelation.Relation)
 		}
 	}
 

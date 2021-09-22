@@ -175,9 +175,10 @@ func (mp mappingProxy) DeleteNamespace(ctx context.Context, nsName string) (data
 	return mp.delegate.DeleteNamespace(ctx, storedNamespaceName)
 }
 
-func (mp mappingProxy) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
-	newFilter, err := translateFilter(resourceFilter, mp.mapper.Encode)
-	return mappingTupleQuery{mp.delegate.QueryTuples(newFilter, revision), mp.mapper, err}
+func (mp mappingProxy) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
+	var err error
+	resourceType, err = mp.mapper.Encode(resourceType)
+	return mappingTupleQuery{mp.delegate.QueryTuples(resourceType, optionalResourceID, optionalRelation, revision), mp.mapper, err}
 }
 
 func (mp mappingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
@@ -277,12 +278,12 @@ func (mtq mappingTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	}
 }
 
-func (mtq mappingTupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.TupleQuery {
+func (mtq mappingTupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
 	if mtq.err != nil {
 		return mtq
 	}
 
-	translatedFilter, err := translateFilter(filter, mtq.mapper.Encode)
+	translatedFilter, err := translateSubjectFilter(filter, mtq.mapper.Encode)
 	if err != nil {
 		mtq.err = err
 		return mtq
@@ -419,18 +420,25 @@ func translateONR(in *v0.ObjectAndRelation, mapper MapperFunc) (*v0.ObjectAndRel
 }
 
 func translateRelFilter(filter *v1.RelationshipFilter, mapper MapperFunc) (*v1.RelationshipFilter, error) {
-	var err error
-	translatedFilter := &v1.RelationshipFilter{}
-	translatedFilter.ResourceFilter, err = translateFilter(filter.ResourceFilter, mapper)
-	if err != nil {
-		return nil, err
-	}
-	translatedFilter.OptionalSubjectFilter, err = translateFilter(filter.OptionalSubjectFilter, mapper)
+	resourceType, err := mapper(filter.ResourceType)
 	if err != nil {
 		return nil, err
 	}
 
-	return translatedFilter, nil
+	var subject *v1.SubjectFilter
+	if filter.OptionalSubjectFilter != nil {
+		subject, err = translateSubjectFilter(filter.OptionalSubjectFilter, mapper)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &v1.RelationshipFilter{
+		ResourceType:          resourceType,
+		OptionalResourceId:    filter.OptionalResourceId,
+		OptionalRelation:      filter.OptionalRelation,
+		OptionalSubjectFilter: subject,
+	}, nil
 }
 
 func translatePrecondition(in *v1.Precondition, mapper MapperFunc) (*v1.Precondition, error) {
@@ -445,20 +453,20 @@ func translatePrecondition(in *v1.Precondition, mapper MapperFunc) (*v1.Precondi
 	}, nil
 }
 
-func translateFilter(in *v1.ObjectFilter, mapper MapperFunc) (*v1.ObjectFilter, error) {
+func translateSubjectFilter(in *v1.SubjectFilter, mapper MapperFunc) (*v1.SubjectFilter, error) {
 	if in == nil {
 		return nil, nil
 	}
 
-	newObjectType, err := mapper(in.ObjectType)
+	newObjectType, err := mapper(in.SubjectType)
 	if err != nil {
 		return nil, err
 	}
 
-	return &v1.ObjectFilter{
-		ObjectType:       newObjectType,
-		OptionalObjectId: in.OptionalObjectId,
-		OptionalRelation: in.OptionalRelation,
+	return &v1.SubjectFilter{
+		SubjectType:       newObjectType,
+		OptionalSubjectId: in.OptionalSubjectId,
+		OptionalRelation:  in.OptionalRelation,
 	}, nil
 }
 

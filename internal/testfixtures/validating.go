@@ -92,9 +92,12 @@ func (vd validatingDatastore) DeleteNamespace(ctx context.Context, nsName string
 	return vd.delegate.DeleteNamespace(ctx, nsName)
 }
 
-func (vd validatingDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
-	err := resourceFilter.Validate()
-	return validatingTupleQuery{vd.delegate.QueryTuples(resourceFilter, revision), nil, nil, err}
+func (vd validatingDatastore) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
+	var err error
+	if resourceType == "" {
+		err = fmt.Errorf("missing required resource type")
+	}
+	return validatingTupleQuery{vd.delegate.QueryTuples(resourceType, optionalResourceID, optionalRelation, revision), nil, nil, err}
 }
 
 func (vd validatingDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
@@ -164,7 +167,7 @@ type validatingTupleQuery struct {
 	foundErr       error
 }
 
-func (vd validatingTupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.TupleQuery {
+func (vd validatingTupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
 	if vd.foundErr != nil {
 		return vd
 	}

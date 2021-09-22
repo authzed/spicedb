@@ -50,26 +50,25 @@ var (
 )
 
 func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
-	resourceFilter := filter.ResourceFilter
-	query := queryTuples.Where(sq.Eq{colNamespace: resourceFilter.ObjectType})
+	query := queryTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
 
-	if resourceFilter.OptionalObjectId != "" {
-		query = query.Where(sq.Eq{colObjectID: resourceFilter.OptionalObjectId})
+	if filter.OptionalResourceId != "" {
+		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
 	}
-	if resourceFilter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{colRelation: resourceFilter.OptionalRelation})
+	if filter.OptionalRelation != "" {
+		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
 	}
 
-	subjectFilter := filter.OptionalSubjectFilter
-	if subjectFilter != nil {
-		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.ObjectType})
-		if subjectFilter.OptionalObjectId != "" {
-			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalObjectId})
+	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
+		if subjectFilter.OptionalSubjectId != "" {
+			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
 		}
-		if subjectFilter.OptionalRelation != "" {
-			query = query.Where(sq.Eq{colUsersetRelation: subjectFilter.OptionalRelation})
+		if subjectFilter.OptionalRelation != nil {
+			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis)})
 		}
 	}
+
 	return query
 }
 
@@ -212,30 +211,28 @@ func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions
 	query := queryDeleteTuples.Suffix(queryReturningTimestamp)
 
 	// Add clauses for the ResourceFilter
-	resourceFilter := filter.ResourceFilter
-	query = query.Where(sq.Eq{colNamespace: resourceFilter.ObjectType})
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(resourceFilter.ObjectType)}
-	if resourceFilter.OptionalObjectId != "" {
-		query = query.Where(sq.Eq{colObjectID: resourceFilter.OptionalObjectId})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(resourceFilter.OptionalObjectId))
+	query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
+	if filter.OptionalResourceId != "" {
+		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(filter.OptionalResourceId))
 	}
-	if resourceFilter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{colRelation: resourceFilter.OptionalRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(resourceFilter.OptionalRelation))
+	if filter.OptionalRelation != "" {
+		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(filter.OptionalRelation))
 	}
 
 	// Add clauses for the SubjectFilter
-	subjectFilter := filter.OptionalSubjectFilter
-	if subjectFilter != nil {
-		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.ObjectType})
-		tracerAttributes = append(tracerAttributes, common.SubNamespaceNameKey.String(subjectFilter.ObjectType))
-		if subjectFilter.OptionalObjectId != "" {
-			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalObjectId})
-			tracerAttributes = append(tracerAttributes, common.SubObjectIDKey.String(subjectFilter.OptionalObjectId))
+	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
+		tracerAttributes = append(tracerAttributes, common.SubNamespaceNameKey.String(subjectFilter.SubjectType))
+		if subjectFilter.OptionalSubjectId != "" {
+			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+			tracerAttributes = append(tracerAttributes, common.SubObjectIDKey.String(subjectFilter.OptionalSubjectId))
 		}
-		if subjectFilter.OptionalRelation != "" {
-			query = query.Where(sq.Eq{colUsersetRelation: subjectFilter.OptionalRelation})
-			tracerAttributes = append(tracerAttributes, common.SubRelationNameKey.String(subjectFilter.OptionalRelation))
+		if relation := subjectFilter.OptionalRelation; relation != nil {
+			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relation.Relation, datastore.Ellipsis)})
+			tracerAttributes = append(tracerAttributes, common.SubRelationNameKey.String(relation.Relation))
 		}
 	}
 	span.SetAttributes(tracerAttributes...)

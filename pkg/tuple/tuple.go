@@ -96,7 +96,7 @@ func Delete(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
 // ToRelationship converts a RelationTuple into a Relationship.
 func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 	if err := tpl.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid tuple: %#v", tpl))
+		panic(fmt.Sprintf("invalid tuple: %s", String(tpl)))
 	}
 
 	return &v1.Relationship{
@@ -118,19 +118,19 @@ func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 // ToFilter converts a RelationTuple into a RelationshipFilter.
 func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 	if err := tpl.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid tuple: %#v", tpl))
+		panic(fmt.Sprintf("invalid tuple: %s", String(tpl)))
 	}
 
 	return &v1.RelationshipFilter{
-		ResourceFilter: &v1.ObjectFilter{
-			ObjectType:       tpl.ObjectAndRelation.Namespace,
-			OptionalObjectId: tpl.ObjectAndRelation.ObjectId,
-			OptionalRelation: tpl.ObjectAndRelation.Relation,
-		},
-		OptionalSubjectFilter: &v1.ObjectFilter{
-			ObjectType:       tpl.User.GetUserset().Namespace,
-			OptionalObjectId: tpl.User.GetUserset().ObjectId,
-			OptionalRelation: tpl.User.GetUserset().Relation,
+		ResourceType:       tpl.ObjectAndRelation.Namespace,
+		OptionalResourceId: tpl.ObjectAndRelation.ObjectId,
+		OptionalRelation:   tpl.ObjectAndRelation.Relation,
+		OptionalSubjectFilter: &v1.SubjectFilter{
+			SubjectType:       tpl.User.GetUserset().Namespace,
+			OptionalSubjectId: tpl.User.GetUserset().ObjectId,
+			OptionalRelation: &v1.SubjectFilter_RelationFilter{
+				Relation: stringz.Default(tpl.User.GetUserset().Relation, "", "..."),
+			},
 		},
 	}
 }
@@ -158,25 +158,22 @@ func UpdateToRelationshipUpdate(update *v0.RelationTupleUpdate) *v1.Relationship
 
 // FromRelationship converts a Relationship into a RelationTuple.
 func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
-	if r != nil {
-		if err := r.Validate(); err != nil {
-			panic(fmt.Sprintf("invalid relationship: %#v", r))
-		}
-
-		return &v0.RelationTuple{
-			ObjectAndRelation: &v0.ObjectAndRelation{
-				Namespace: r.Resource.ObjectType,
-				ObjectId:  r.Resource.ObjectId,
-				Relation:  r.Relation,
-			},
-			User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
-				Namespace: r.Subject.Object.ObjectType,
-				ObjectId:  r.Subject.Object.ObjectId,
-				Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, "..."),
-			}}},
-		}
+	if err := r.Validate(); err != nil {
+		panic(fmt.Sprintf("invalid relationship: %s %s", RelString(r), err))
 	}
-	return nil
+
+	return &v0.RelationTuple{
+		ObjectAndRelation: &v0.ObjectAndRelation{
+			Namespace: r.Resource.ObjectType,
+			ObjectId:  r.Resource.ObjectId,
+			Relation:  r.Relation,
+		},
+		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+			Namespace: r.Subject.Object.ObjectType,
+			ObjectId:  r.Subject.Object.ObjectId,
+			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, "..."),
+		}}},
+	}
 }
 
 // UpdateFromRelationshipUpdate converts a RelationshipUpdate into a

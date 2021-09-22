@@ -138,22 +138,10 @@ type TupleChecker struct {
 }
 
 func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) datastore.TupleIterator {
-	userset := tpl.User.GetUserset()
-	subjectRel := userset.Relation
-	if subjectRel == datastore.Ellipsis {
-		subjectRel = ""
-	}
-
-	iter, err := tc.DS.QueryTuples(&v1.ObjectFilter{
-		ObjectType:       tpl.ObjectAndRelation.Namespace,
-		OptionalObjectId: tpl.ObjectAndRelation.ObjectId,
-		OptionalRelation: tpl.ObjectAndRelation.Relation,
-	}, rev).WithUsersetFilter(&v1.ObjectFilter{
-		ObjectType:       userset.Namespace,
-		OptionalObjectId: userset.ObjectId,
-		OptionalRelation: subjectRel,
-	}).Execute(ctx)
-
+	filter := tuple.ToFilter(tpl)
+	iter, err := tc.DS.QueryTuples(filter.ResourceType, filter.OptionalResourceId, filter.OptionalRelation, rev).
+		WithUsersetFilter(filter.OptionalSubjectFilter).
+		Execute(ctx)
 	tc.Require.NoError(err)
 	return iter
 }

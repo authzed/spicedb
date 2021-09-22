@@ -7,7 +7,6 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
@@ -81,10 +80,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			switch delta.Type {
 			case namespace.RemovedRelation:
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.QueryTuples(&v1_api.ObjectFilter{
-						ObjectType:       config.Name,
-						OptionalRelation: delta.RelationName,
-					}, syncRevision),
+					nss.ds.QueryTuples(config.Name, "", delta.RelationName, syncRevision),
 					ctx,
 					"cannot delete relation `%s` in definition `%s`, as a relationship exists under it", delta.RelationName, config.Name)
 				if err != nil {

@@ -9,6 +9,7 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
+	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
@@ -17,10 +18,9 @@ type memdbTupleQuery struct {
 	db       *memdb.MemDB
 	revision datastore.Revision
 
-	resourceFilter *v1.ObjectFilter
-	usersetFilter  *v1.ObjectFilter
-	usersetsFilter []*v0.ObjectAndRelation
-	limit          *uint64
+	relationshipFilter *v1.RelationshipFilter
+	usersetsFilter     []*v0.ObjectAndRelation
+	limit              *uint64
 
 	simulatedLatency time.Duration
 }
@@ -30,12 +30,12 @@ func (mtq memdbTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	return mtq
 }
 
-func (mtq memdbTupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.TupleQuery {
+func (mtq memdbTupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
 	if filter == nil {
 		panic("cannot call WithUsersetFilter with a nil filter")
 	}
 
-	if mtq.usersetFilter != nil {
+	if mtq.relationshipFilter.OptionalSubjectFilter != nil {
 		panic("cannot call WithUsersetFilter after WithUsersets")
 	}
 
@@ -43,12 +43,12 @@ func (mtq memdbTupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.
 		panic("called WithUsersetFilter twice")
 	}
 
-	mtq.usersetFilter = filter
+	mtq.relationshipFilter.OptionalSubjectFilter = filter
 	return mtq
 }
 
 func (mtq memdbTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	if mtq.usersetFilter != nil {
+	if mtq.relationshipFilter.OptionalSubjectFilter != nil {
 		panic("cannot call WithUsersets after WithUsersetFilter")
 	}
 
@@ -66,35 +66,31 @@ func (mtq memdbTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datast
 
 func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.ResultIterator, error) {
 	switch {
-	case filter.ResourceFilter.OptionalObjectId != "":
+	case filter.OptionalResourceId != "":
 		return txn.Get(
 			tableTuple,
 			indexNamespaceAndObjectID,
-			filter.ResourceFilter.ObjectType,
-			filter.ResourceFilter.OptionalObjectId,
+			filter.ResourceType,
+			filter.OptionalResourceId,
 		)
-	case filter.OptionalSubjectFilter != nil && filter.OptionalSubjectFilter.OptionalObjectId != "":
+	case filter.OptionalSubjectFilter != nil && filter.OptionalSubjectFilter.OptionalSubjectId != "":
 		return txn.Get(
 			tableTuple,
 			indexNamespaceAndUsersetID,
-			filter.ResourceFilter.ObjectType,
-			filter.OptionalSubjectFilter.ObjectType,
-			filter.OptionalSubjectFilter.OptionalObjectId,
+			filter.ResourceType,
+			filter.OptionalSubjectFilter.SubjectType,
+			filter.OptionalSubjectFilter.OptionalSubjectId,
 		)
-	case filter.ResourceFilter.OptionalRelation != "":
+	case filter.OptionalRelation != "":
 		return txn.Get(
 			tableTuple,
 			indexNamespaceAndRelation,
-			filter.ResourceFilter.ObjectType,
-			filter.ResourceFilter.OptionalRelation,
+			filter.ResourceType,
+			filter.OptionalRelation,
 		)
 	}
 
-	return txn.Get(
-		tableTuple,
-		indexNamespace,
-		filter.ResourceFilter.ObjectType,
-	)
+	return txn.Get(tableTuple, indexNamespace, filter.ResourceType)
 }
 
 func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
@@ -102,10 +98,7 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 
 	time.Sleep(mtq.simulatedLatency)
 
-	bestIterator, err := iteratorForFilter(txn, &v1.RelationshipFilter{
-		ResourceFilter:        mtq.resourceFilter,
-		OptionalSubjectFilter: mtq.usersetFilter,
-	})
+	bestIterator, err := iteratorForFilter(txn, mtq.relationshipFilter)
 	if err != nil {
 		txn.Abort()
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
@@ -113,23 +106,22 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 
 	filteredIterator := memdb.NewFilterIterator(bestIterator, func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*tupleEntry)
+		filter := mtq.relationshipFilter
 
-		if mtq.resourceFilter.OptionalObjectId != "" && mtq.resourceFilter.OptionalObjectId != tuple.objectID {
+		switch {
+		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.objectID:
+			return true
+		case filter.OptionalRelation != "" && filter.OptionalRelation != tuple.relation:
 			return true
 		}
-		if mtq.resourceFilter.OptionalRelation != "" && mtq.resourceFilter.OptionalRelation != tuple.relation {
-			return true
-		}
-		if mtq.usersetFilter != nil {
-			if mtq.usersetFilter.ObjectType != tuple.usersetNamespace {
+
+		if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+			switch {
+			case subjectFilter.SubjectType != tuple.usersetNamespace:
 				return true
-			}
-			if mtq.usersetFilter.OptionalObjectId != "" &&
-				mtq.usersetFilter.OptionalObjectId != tuple.usersetObjectID {
+			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.usersetObjectID:
 				return true
-			}
-			if mtq.usersetFilter.OptionalRelation != "" &&
-				mtq.usersetFilter.OptionalRelation != tuple.usersetRelation {
+			case subjectFilter.OptionalRelation != nil && stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.usersetRelation:
 				return true
 			}
 		}

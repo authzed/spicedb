@@ -166,12 +166,16 @@ func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, precondition
 	return revisionFromVersion(newChangelogID), nil
 }
 
-func (mds *memdbDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
+func (mds *memdbDatastore) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
 	return &memdbTupleQuery{
 		db:               mds.db,
 		revision:         revision,
 		simulatedLatency: mds.simulatedLatency,
-		resourceFilter:   resourceFilter,
+		relationshipFilter: &v1.RelationshipFilter{
+			ResourceType:       resourceType,
+			OptionalResourceId: optionalResourceID,
+			OptionalRelation:   optionalRelation,
+		},
 	}
 }
 
@@ -295,24 +299,25 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{
 			return true
 		}
 
-		// If it doesn't match one of the resource filters, ignore it.
-		resourceFilter := filter.ResourceFilter
+		// If it doesn't match one of the resource filters, filter it.
 		switch {
-		case resourceFilter.OptionalObjectId != "" && resourceFilter.OptionalObjectId != tuple.objectID:
+		case filter.ResourceType != tuple.namespace:
 			return true
-		case resourceFilter.OptionalRelation != "" && resourceFilter.OptionalRelation != tuple.relation:
+		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.objectID:
+			return true
+		case filter.OptionalRelation != "" && filter.OptionalRelation != tuple.relation:
 			return true
 		}
 
-		// If it doesn't match one of the subject filters, ignore it.
-		subjectFilter := filter.OptionalSubjectFilter
-		if subjectFilter != nil {
+		// If it doesn't match one of the subject filters, filter it.
+		if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
 			switch {
-			case subjectFilter.ObjectType != tuple.usersetNamespace:
+			case subjectFilter.SubjectType != tuple.usersetNamespace:
 				return true
-			case subjectFilter.OptionalObjectId != "" && subjectFilter.OptionalObjectId != tuple.usersetObjectID:
+			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.usersetObjectID:
 				return true
-			case subjectFilter.OptionalRelation != "" && subjectFilter.OptionalRelation != tuple.usersetRelation:
+			case subjectFilter.OptionalRelation != nil &&
+				stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.usersetRelation:
 				return true
 			}
 		}

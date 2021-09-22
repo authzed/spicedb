@@ -57,22 +57,16 @@ type permissionServer struct {
 	defaultDepth uint32
 }
 
-func (ps *permissionServer) checkObjectFilterNamespaces(ctx context.Context, filter *v1.ObjectFilter) error {
-	return ps.nsm.CheckNamespaceAndRelation(
-		ctx,
-		filter.ObjectType,
-		stringz.DefaultEmpty(filter.OptionalRelation, datastore.Ellipsis),
-		filter.OptionalRelation == "",
-	)
-}
-
 func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter) error {
-	if err := ps.checkObjectFilterNamespaces(ctx, filter.ResourceFilter); err != nil {
+	err := ps.nsm.CheckNamespaceAndRelation(ctx, filter.ResourceType, filter.OptionalRelation, false)
+	if err != nil {
 		return err
 	}
 
-	if filter.OptionalSubjectFilter != nil {
-		if err := ps.checkObjectFilterNamespaces(ctx, filter.OptionalSubjectFilter); err != nil {
+	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil && subjectFilter.OptionalRelation != nil {
+		relation := stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis)
+		err = ps.nsm.CheckNamespaceAndRelation(ctx, subjectFilter.SubjectType, relation, true)
+		if err != nil {
 			return err
 		}
 	}
@@ -89,7 +83,12 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		return rewritePermissionsError(err)
 	}
 
-	queryBuilder := ps.ds.QueryTuples(req.RelationshipFilter.ResourceFilter, atRevision)
+	queryBuilder := ps.ds.QueryTuples(
+		req.RelationshipFilter.ResourceType,
+		req.RelationshipFilter.OptionalResourceId,
+		req.RelationshipFilter.OptionalRelation,
+		atRevision,
+	)
 	if req.RelationshipFilter.OptionalSubjectFilter != nil {
 		queryBuilder.WithUsersetFilter(req.RelationshipFilter.OptionalSubjectFilter)
 	}

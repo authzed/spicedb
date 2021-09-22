@@ -128,7 +128,7 @@ func runConsistencyTests(t *testing.T,
 		for _, itpl := range tuples {
 			tpl := itpl.(*v0.RelationTuple)
 			err := tester.Write(context.Background(), tpl)
-			lrequire.NoError(err)
+			lrequire.NoError(err, "failed to write %s", tuple.String(tpl))
 		}
 	}
 

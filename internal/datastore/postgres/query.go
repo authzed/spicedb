@@ -3,7 +3,6 @@ package postgres
 import (
 	sq "github.com/Masterminds/squirrel"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -32,32 +31,28 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (pgd *pgDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
-	if resourceFilter == nil {
-		panic("cannot call QueryTuples with a nil filter")
-	}
-
+func (pgd *pgDatastore) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
 	initialQuery := queryTuples.
-		Where(sq.Eq{colNamespace: resourceFilter.ObjectType}).
+		Where(sq.Eq{colNamespace: resourceType}).
 		Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 		Where(sq.Or{
 			sq.Eq{colDeletedTxn: liveDeletedTxnID},
 			sq.Gt{colDeletedTxn: revision},
 		})
 
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(resourceFilter.ObjectType)}
+	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(resourceType)}
 
-	if resourceFilter.OptionalObjectId != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colObjectID: resourceFilter.OptionalObjectId})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(resourceFilter.OptionalObjectId))
+	if optionalResourceID != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colObjectID: optionalResourceID})
+		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(optionalResourceID))
 	}
 
-	if resourceFilter.OptionalRelation != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colRelation: resourceFilter.OptionalRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(resourceFilter.OptionalRelation))
+	if optionalRelation != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colRelation: optionalRelation})
+		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(optionalRelation))
 	}
 
-	baseSize := len(resourceFilter.ObjectType) + len(resourceFilter.OptionalObjectId) + len(resourceFilter.OptionalRelation)
+	baseSize := len(resourceType) + len(optionalResourceID) + len(optionalRelation)
 
 	return common.TupleQuery{
 		Conn:                      pgd.dbpool,

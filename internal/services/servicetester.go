@@ -42,10 +42,10 @@ func (v0st v0ServiceTester) Check(ctx context.Context, resource *v0.ObjectAndRel
 	return checkResp.IsMember, nil
 }
 
-func (v0st v0ServiceTester) Write(ctx context.Context, relationship *v0.RelationTuple) error {
+func (v0st v0ServiceTester) Write(ctx context.Context, tpl *v0.RelationTuple) error {
 	_, err := v0st.srv.Write(ctx, &v0.WriteRequest{
-		WriteConditions: []*v0.RelationTuple{relationship},
-		Updates:         []*v0.RelationTupleUpdate{tuple.Touch(relationship)},
+		WriteConditions: []*v0.RelationTuple{tpl},
+		Updates:         []*v0.RelationTupleUpdate{tuple.Touch(tpl)},
 	})
 	return err
 }

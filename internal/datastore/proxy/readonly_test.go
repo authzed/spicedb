@@ -144,9 +144,9 @@ func TestQueryTuplesPassthrough(t *testing.T) {
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
 
-	delegate.On("QueryTuples", &v1.ObjectFilter{ObjectType: "test"}, expectedRevision).Return().Times(1)
+	delegate.On("QueryTuples", "test", "", "", expectedRevision).Return().Times(1)
 
-	query := ds.QueryTuples(&v1.ObjectFilter{ObjectType: "test"}, expectedRevision)
+	query := ds.QueryTuples("test", "", "", expectedRevision)
 	require.Nil(query)
 	delegate.AssertExpectations(t)
 }
@@ -246,8 +246,8 @@ func (dm *delegateMock) DeleteNamespace(ctx context.Context, nsName string) (dat
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
-	dm.Called(resourceFilter, revision)
+func (dm *delegateMock) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
+	dm.Called(resourceType, optionalResourceID, optionalRelation, revision)
 	return nil
 }
 

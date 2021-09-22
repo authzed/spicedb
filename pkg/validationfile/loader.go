@@ -49,9 +49,10 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 
 		// Parse the schema, if any.
 		if parsed.Schema != "" {
-			defs, err := compiler.Compile([]compiler.InputSchema{
-				{input.InputSource(filePath), parsed.Schema},
-			}, nil)
+			defs, err := compiler.Compile([]compiler.InputSchema{{
+				Source:       input.InputSource(filePath),
+				SchemaString: parsed.Schema,
+			}}, nil)
 			if err != nil {
 				return nil, decimal.Zero, fmt.Errorf("Error when parsing schema in config file %s: %w", filePath, err)
 			}

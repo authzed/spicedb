@@ -67,7 +67,7 @@ type Datastore interface {
 // graph resolvers.
 type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
-	QueryTuples(resourceFilter *v1.ObjectFilter, revision Revision) TupleQuery
+	QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision Revision) TupleQuery
 
 	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from
 	// subject onward from the datastore.
@@ -110,7 +110,7 @@ type TupleQuery interface {
 	CommonTupleQuery
 
 	// WithUserset adds a userset filter to the query.
-	WithUsersetFilter(filter *v1.ObjectFilter) TupleQuery
+	WithUsersetFilter(*v1.SubjectFilter) TupleQuery
 
 	// WithUsersets adds multiple userset filters to the query.
 	WithUsersets(usersets []*v0.ObjectAndRelation) TupleQuery

@@ -6,7 +6,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -36,25 +35,21 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (cds *crdbDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
-	if resourceFilter == nil {
-		panic("cannot call QueryTuples with a nil filter")
+func (cds *crdbDatastore) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
+	initialQuery := queryTuples.Where(sq.Eq{colNamespace: resourceType})
+	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(resourceType)}
+
+	if optionalResourceID != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colObjectID: optionalResourceID})
+		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(optionalResourceID))
 	}
 
-	initialQuery := queryTuples.Where(sq.Eq{colNamespace: resourceFilter.ObjectType})
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(resourceFilter.ObjectType)}
-
-	if resourceFilter.OptionalObjectId != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colObjectID: resourceFilter.OptionalObjectId})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(resourceFilter.OptionalObjectId))
+	if optionalRelation != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colRelation: optionalRelation})
+		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(optionalRelation))
 	}
 
-	if resourceFilter.OptionalRelation != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colRelation: resourceFilter.OptionalRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(resourceFilter.OptionalRelation))
-	}
-
-	baseSize := len(resourceFilter.ObjectType) + len(resourceFilter.OptionalObjectId) + len(resourceFilter.OptionalRelation)
+	baseSize := len(resourceType) + len(optionalResourceID) + len(optionalRelation)
 
 	return common.TupleQuery{
 		Conn:                      cds.conn,

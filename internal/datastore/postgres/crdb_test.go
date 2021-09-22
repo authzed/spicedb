@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ory/dockertest"
 	"github.com/stretchr/testify/require"
 
@@ -44,9 +43,8 @@ func BenchmarkCRDBQuery(b *testing.B) {
 		require := require.New(b)
 
 		for i := 0; i < b.N; i++ {
-			iter, err := ds.QueryTuples(&v1.ObjectFilter{
-				ObjectType: testfixtures.DocumentNS.Name,
-			}, revision).Execute(context.Background())
+			iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, "", "", revision).
+				Execute(context.Background())
 			require.NoError(err)
 
 			defer iter.Close()

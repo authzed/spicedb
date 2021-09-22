@@ -144,7 +144,7 @@ func TestRead(t *testing.T) {
 			"bad objectId",
 			&v0.RelationTupleFilter{
 				Namespace: tf.DocumentNS.Name,
-				ObjectId:  "ma",
+				ObjectId:  "🍣",
 				Userset:   ONR("folder", "plans", "..."),
 				Filters: []v0.RelationTupleFilter_Filter{
 					v0.RelationTupleFilter_USERSET,

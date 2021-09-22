@@ -71,7 +71,6 @@ func makeTestRelationship(resourceID, userID string) *v1.Relationship {
 				ObjectType: testUserNamespace,
 				ObjectId:   userID,
 			},
-			OptionalRelation: datastore.Ellipsis,
 		},
 	}
 }
