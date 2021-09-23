@@ -85,21 +85,21 @@ func (s *SpiceDb) Client() Client {
 
 type SpiceCluster []*SpiceDb
 
-func NewSpiceClusterFromCockroachCluster(c CockroachCluster, dbName, presharedKey string) SpiceCluster {
+func NewSpiceClusterFromCockroachCluster(c CockroachCluster, dbName, presharedKey string, ports []int) SpiceCluster {
 	ss := make([]*SpiceDb, 0, len(c))
-	grpcPort := 50051
-	metricsPort := 9090
-	dashboardPort := 8090
+	if ports == nil {
+		ports = []int{50051, 9090, 8090}
+	}
 	for i := 0; i < len(c); i++ {
 		ss = append(ss, &SpiceDb{
 			id:            strconv.Itoa(i + 1),
 			presharedKey:  presharedKey,
 			datastore:     "cockroachdb",
 			uri:           c[i].ConnectionString(dbName),
-			grpcPort:      grpcPort + 2*i,
-			internalPort:  grpcPort + 2*i + 1,
-			metricsPort:   metricsPort + i,
-			dashboardPort: dashboardPort + i,
+			grpcPort:      ports[0] + 2*i,
+			internalPort:  ports[0] + 2*i + 1,
+			metricsPort:   ports[1] + i,
+			dashboardPort: ports[2] + i,
 		})
 	}
 	return ss

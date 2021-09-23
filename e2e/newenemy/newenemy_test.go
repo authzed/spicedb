@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"testing"
@@ -77,15 +78,23 @@ func TestNoNewEnemy(t *testing.T) {
 	crdb := startCluster(t, ctx)
 
 	t.Log("starting vulnerable spicedb...")
-	vulnerableSpiceDb := NewSpiceClusterFromCockroachCluster(crdb, dbName, token)
+	vulnerableSpiceDb := NewSpiceClusterFromCockroachCluster(crdb, dbName, token, nil)
 	require.NoError(vulnerableSpiceDb.Start(ctx, os.Stdout, "vulnerable",
 		"--datastore-tx-overlap-strategy=insecure"))
 	require.NoError(vulnerableSpiceDb.Connect(ctx, os.Stdout))
+
+	t.Log("start protected spicedb cluster")
+	protectedSpiceDb := NewSpiceClusterFromCockroachCluster(crdb, dbName, token, []int{50061, 9100, 8100})
+	require.NoError(protectedSpiceDb.Start(ctx, os.Stdout, "protected"))
+	require.NoError(protectedSpiceDb.Connect(ctx, os.Stdout))
 
 	t.Log("configure small ranges, single replicas")
 	require.NoError(crdb.Sql(ctx, os.Stdout, os.Stdout,
 		fmt.Sprintf(setSmallRanges, dbName),
 	))
+
+	t.Log("modifying network")
+	require.NoError(crdb.NetworkDelay(ctx, e2e.MustFile(t, ctx, "netattack.log"), 1, 100*time.Millisecond))
 
 	t.Log("modifying time")
 	require.NoError(crdb.TimeDelay(ctx, e2e.MustFile(t, ctx, "timeattack.log"), 1, -200*time.Millisecond))
@@ -97,25 +106,38 @@ func TestNoNewEnemy(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	fill(vulnerableSpiceDb[0].Client().V0().ACL(), 4000, 100)
 
-	t.Log("check vulnerability with mitigations disabled")
-	checkCtx, checkCancel := context.WithTimeout(ctx, 2*time.Minute)
-	protected, attempts := checkNoNewEnemy(t, checkCtx, vulnerableSpiceDb, crdb, -1)
-	require.NotNil(protected, "unable to determine if spicedb displays newenemy when mitigations are disabled within the time limit")
-	require.False(*protected)
-	checkCancel()
-	t.Logf("determined spicedb vulnerable in %d attempts", attempts)
+	const sampleSize = 10
+	samples := make([]int, sampleSize)
 
-	t.Log("stopping vulnerable spicedb cluster")
-	require.NoError(vulnerableSpiceDb.Stop(os.Stdout))
+	for i := 0; i < sampleSize; i++ {
+		t.Log(i, "check vulnerability with mitigations disabled")
+		checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Minute)
+		protected, attempts := checkNoNewEnemy(t, checkCtx, vulnerableSpiceDb, crdb, -1)
+		require.NotNil(protected, "unable to determine if spicedb displays newenemy when mitigations are disabled within the time limit")
+		require.False(*protected)
+		checkCancel()
+		t.Logf("%d - determined spicedb vulnerable in %d attempts", i, attempts)
+		samples[i] = attempts
+	}
 
-	t.Log("start protected spicedb cluster")
-	protectedSpiceDb := NewSpiceClusterFromCockroachCluster(crdb, dbName, token)
-	require.NoError(protectedSpiceDb.Start(ctx, os.Stdout, "protected"))
-	require.NoError(protectedSpiceDb.Connect(ctx, os.Stdout))
+	// from https://cs.opensource.google/go/x/perf/+/40a54f11:internal/stats/sample.go;l=196
+	// calculates mean and stddev at the same time
+	mean, M2 := 0.0, 0.0
+	for n, x := range samples {
+		delta := float64(x) - mean
+		mean += delta / float64(n+1)
+		M2 += delta * (float64(x) - mean)
+	}
+	variance := M2 / float64(sampleSize-1)
+	stddev := math.Sqrt(variance)
 
-	t.Log("check spicedb is protected")
-	checkCtx, checkCancel = context.WithTimeout(ctx, 2*time.Minute)
-	protected, _ = checkNoNewEnemy(t, checkCtx, protectedSpiceDb, crdb, attempts)
+	samplestddev := stddev / math.Sqrt(float64(sampleSize))
+	// how many iterations do we need to get > 3sigma from the mean?
+	iterations := int(math.Ceil(3*stddev*samplestddev + mean))
+
+	t.Logf("check spicedb is protected after %d attempts", iterations)
+	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Minute)
+	protected, _ := checkNoNewEnemy(t, checkCtx, protectedSpiceDb, crdb, iterations)
 	require.NotNil(protected, "unable to determine if spicedb is protected within the time limit")
 	require.True(*protected, "protection is enabled, but newenemy detected")
 	checkCancel()
@@ -165,9 +187,6 @@ func checkNoNewEnemy(t testing.TB, ctx context.Context, spicedb SpiceCluster, cr
 
 		analyzeCalls(ctx, crdb[2].Conn(), os.Stdout, excludes[0].Tuple, directs[0].Tuple, r1.GetRevision(), r2.GetRevision(), &candidates)
 
-		// let the timestamp caches get back out of sync
-		time.Sleep(100 * time.Millisecond)
-
 		if canHas.IsMember {
 			t.Log("service is subject to the new enemy problem")
 			protected := false
@@ -194,7 +213,7 @@ func BenchmarkBatchWrites(b *testing.B) {
 	ctx, cancel := context.WithCancel(testCtx)
 	defer cancel()
 	crdb := startCluster(b, ctx)
-	spicedb := NewSpiceClusterFromCockroachCluster(crdb, dbName, token)
+	spicedb := NewSpiceClusterFromCockroachCluster(crdb, dbName, token, nil)
 	require.NoError(b, spicedb.Start(ctx, os.Stdout, ""))
 	require.NoError(b, spicedb.Connect(ctx, os.Stdout))
 
@@ -218,7 +237,7 @@ func BenchmarkConflictingTupleWrites(b *testing.B) {
 	ctx, cancel := context.WithCancel(testCtx)
 	defer cancel()
 	crdb := startCluster(b, ctx)
-	spicedb := NewSpiceClusterFromCockroachCluster(crdb, dbName, token)
+	spicedb := NewSpiceClusterFromCockroachCluster(crdb, dbName, token, nil)
 	require.NoError(b, spicedb.Start(ctx, os.Stdout, ""))
 	require.NoError(b, spicedb.Connect(ctx, os.Stdout))
 
@@ -227,8 +246,7 @@ func BenchmarkConflictingTupleWrites(b *testing.B) {
 
 	b.ResetTimer()
 
-	// TODO
-	// checkNoNewEnemy(b, ctx, spicedb, crdb, b.N*20, b.N)
+	checkNoNewEnemy(b, ctx, spicedb, crdb, b.N)
 }
 
 func fill(client v0.ACLServiceClient, fillerCount, batchSize int) {
