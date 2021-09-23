@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -101,8 +100,8 @@ func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	deletedRevision, err := ds.SyncRevision(ctx)
 	require.NoError(err)
 
-	iter, err := ds.QueryTuples(&v1.ObjectFilter{
-		ObjectType: testfixtures.DocumentNS.Name,
+	iter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+		ResourceType: testfixtures.DocumentNS.Name,
 	}, deletedRevision).Execute(ctx)
 	require.NoError(err)
 	tRequire.VerifyIteratorResults(iter)

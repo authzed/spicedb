@@ -100,15 +100,16 @@ var StandardTuples = []string{
 
 func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	ctx := context.Background()
+	validating := NewValidatingDatastore(ds)
 
 	var lastRevision datastore.Revision
 	for _, namespace := range []*v0.NamespaceDefinition{UserNS, FolderNS, DocumentNS} {
 		var err error
-		lastRevision, err = ds.WriteNamespace(ctx, namespace)
+		lastRevision, err = validating.WriteNamespace(ctx, namespace)
 		require.NoError(err)
 	}
 
-	return ds, lastRevision
+	return validating, lastRevision
 }
 
 func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
@@ -121,7 +122,10 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 		require.NotNil(tpl)
 
 		var err error
-		revision, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{tuple.Create(tpl)})
+		revision, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+			Relationship: tuple.ToRelationship(tpl),
+		}})
 		require.NoError(err)
 	}
 
@@ -134,17 +138,14 @@ type TupleChecker struct {
 }
 
 func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) datastore.TupleIterator {
-	userset := tpl.User.GetUserset()
-	iter, err := tc.DS.QueryTuples(&v1.ObjectFilter{
-		ObjectType:       tpl.ObjectAndRelation.Namespace,
-		OptionalObjectId: tpl.ObjectAndRelation.ObjectId,
-		OptionalRelation: tpl.ObjectAndRelation.Relation,
-	}, rev).WithUsersetFilter(&v1.ObjectFilter{
-		ObjectType:       userset.Namespace,
-		OptionalObjectId: userset.ObjectId,
-		OptionalRelation: userset.Relation,
-	}).Execute(ctx)
-
+	filter := tuple.ToFilter(tpl)
+	iter, err := tc.DS.QueryTuples(datastore.TupleQueryResourceFilter{
+		ResourceType:             filter.ResourceType,
+		OptionalResourceID:       filter.OptionalResourceId,
+		OptionalResourceRelation: filter.OptionalRelation,
+	}, rev).
+		WithSubjectFilter(filter.OptionalSubjectFilter).
+		Execute(ctx)
 	tc.Require.NoError(err)
 	return iter
 }

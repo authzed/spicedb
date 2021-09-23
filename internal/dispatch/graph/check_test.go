@@ -8,6 +8,7 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/dgraph-io/ristretto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -153,12 +154,23 @@ func TestMaxDepth(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	mutations := []*v0.RelationTupleUpdate{
-		tuple.Create(&v0.RelationTuple{
-			ObjectAndRelation: ONR("folder", "oops", "owner"),
-			User:              tuple.User(ONR("folder", "oops", "editor")),
-		}),
-	}
+	mutations := []*v1_api.RelationshipUpdate{{
+		Operation: v1_api.RelationshipUpdate_OPERATION_CREATE,
+		Relationship: &v1_api.Relationship{
+			Resource: &v1_api.ObjectReference{
+				ObjectType: "folder",
+				ObjectId:   "oops",
+			},
+			Relation: "owner",
+			Subject: &v1_api.SubjectReference{
+				Object: &v1_api.ObjectReference{
+					ObjectType: "folder",
+					ObjectId:   "oops",
+				},
+				OptionalRelation: "editor",
+			},
+		},
+	}}
 
 	ctx := context.Background()
 

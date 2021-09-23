@@ -3,10 +3,7 @@ package datastore
 import (
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
 )
 
@@ -28,11 +25,11 @@ func (enf ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
 // ErrPreconditionFailed occurs when the precondition to a write tuple call does not match.
 type ErrPreconditionFailed struct {
 	error
-	precondition *v0.RelationTuple
+	precondition *v1.Precondition
 }
 
 func (epf ErrPreconditionFailed) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("error", epf.Error()).Str("precondition", tuple.String(epf.precondition))
+	e.Str("error", epf.Error()).Interface("precondition", epf.precondition)
 }
 
 // ErrWatchDisconnected occurs when a watch has fallen too far behind and was forcibly disconnected
@@ -94,30 +91,10 @@ func NewNamespaceNotFoundErr(nsName string) error {
 }
 
 // NewPreconditionFailedErr constructs a new precondition failed error.
-func NewPreconditionFailedErr(precondition *v0.RelationTuple) error {
+func NewPreconditionFailedErr(precondition *v1.Precondition) error {
 	return ErrPreconditionFailed{
 		error:        fmt.Errorf("unable to satisfy write precondition `%s`", precondition),
 		precondition: precondition,
-	}
-}
-
-// NewPreconditionFailedErrFromRel constructs a new precondition failed error from a
-// Relationship.
-func NewPreconditionFailedErrFromRel(precondition *v1.Relationship) error {
-	return ErrPreconditionFailed{
-		error: fmt.Errorf("unable to satisfy write precondition `%s`", precondition),
-		precondition: &v0.RelationTuple{
-			ObjectAndRelation: &v0.ObjectAndRelation{
-				Namespace: precondition.Resource.ObjectType,
-				ObjectId:  precondition.Resource.ObjectId,
-				Relation:  precondition.Relation,
-			},
-			User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
-				Namespace: precondition.Subject.Object.ObjectType,
-				ObjectId:  precondition.Subject.Object.ObjectId,
-				Relation:  stringz.DefaultEmpty(precondition.Subject.OptionalRelation, Ellipsis),
-			}}},
-		},
 	}
 }
 

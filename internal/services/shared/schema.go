@@ -8,7 +8,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 )
@@ -20,22 +19,21 @@ func EnsureNoRelationshipsExist(ctx context.Context, ds datastore.Datastore, nam
 		return err
 	}
 
-	err = errorIfTupleIteratorReturnsTuples(
+	if err := errorIfTupleIteratorReturnsTuples(
 		ctx,
-		ds.QueryTuples(&v1_api.ObjectFilter{
-			ObjectType: namespaceName,
-		}, syncRevision),
-		"cannot delete Object Definition `%s`, as a Relationship exists under it", namespaceName)
-	if err != nil {
+		ds.QueryTuples(datastore.TupleQueryResourceFilter{ResourceType: namespaceName}, syncRevision),
+		"cannot delete Object Definition `%s`, as a Relationship exists under it",
+		namespaceName,
+	); err != nil {
 		return err
 	}
 
-	// Also check for right sides of tuples.
-	err = errorIfTupleIteratorReturnsTuples(
+	if err := errorIfTupleIteratorReturnsTuples(
 		ctx,
 		ds.ReverseQueryTuplesFromSubjectNamespace(namespaceName, syncRevision),
-		"cannot delete Object Definition `%s`, as a Relationship references it", namespaceName)
-	if err != nil {
+		"cannot delete Object Definition `%s`, as a Relationship references it",
+		namespaceName,
+	); err != nil {
 		return err
 	}
 
@@ -69,9 +67,9 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 		case namespace.RemovedRelation:
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
-				ds.QueryTuples(&v1_api.ObjectFilter{
-					ObjectType:       nsdef.Name,
-					OptionalRelation: delta.RelationName,
+				ds.QueryTuples(datastore.TupleQueryResourceFilter{
+					ResourceType:             nsdef.Name,
+					OptionalResourceRelation: delta.RelationName,
 				}, syncRevision),
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship exists under it", delta.RelationName, nsdef.Name)
 			if err != nil {

@@ -66,10 +66,12 @@ func makeTestRelationship(resourceID, userID string) *v1.Relationship {
 			ObjectId:   resourceID,
 		},
 		Relation: testReaderRelation,
-		Subject: &v1.SubjectReference{Object: &v1.ObjectReference{
-			ObjectType: testUserNamespace,
-			ObjectId:   userID,
-		}},
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: testUserNamespace,
+				ObjectId:   userID,
+			},
+		},
 	}
 }
 

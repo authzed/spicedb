@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
@@ -64,10 +63,10 @@ func (ce *ConcurrentExpander) expandDirect(
 			return
 		}
 
-		it, err := ce.ds.QueryTuples(&v1_api.ObjectFilter{
-			ObjectType:       req.ObjectAndRelation.Namespace,
-			OptionalObjectId: req.ObjectAndRelation.ObjectId,
-			OptionalRelation: req.ObjectAndRelation.Relation,
+		it, err := ce.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             req.ObjectAndRelation.Namespace,
+			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
+			OptionalResourceRelation: req.ObjectAndRelation.Relation,
 		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), 1)
@@ -232,10 +231,10 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.
 			return
 		}
 
-		it, err := ce.ds.QueryTuples(&v1_api.ObjectFilter{
-			ObjectType:       req.ObjectAndRelation.Namespace,
-			OptionalObjectId: req.ObjectAndRelation.ObjectId,
-			OptionalRelation: ttu.Tupleset.Relation,
+		it, err := ce.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             req.ObjectAndRelation.Namespace,
+			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
+			OptionalResourceRelation: ttu.Tupleset.Relation,
 		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), 1)

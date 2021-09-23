@@ -25,11 +25,11 @@ type Datastore interface {
 	// WriteTuples takes a list of existing tuples that must exist, and a list of
 	// tuple mutations and applies it to the datastore for the specified
 	// namespace.
-	WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (Revision, error)
+	WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (Revision, error)
 
 	// DeleteRelationships deletes all Relationships that match the provided
 	// filter if all preconditions are met.
-	DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (Revision, error)
+	DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (Revision, error)
 
 	// Revision gets the currently replicated revision for this datastore.
 	Revision(ctx context.Context) (Revision, error)
@@ -67,7 +67,7 @@ type Datastore interface {
 // graph resolvers.
 type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
-	QueryTuples(resourceFilter *v1.ObjectFilter, revision Revision) TupleQuery
+	QueryTuples(filter TupleQueryResourceFilter, revision Revision) TupleQuery
 
 	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from
 	// subject onward from the datastore.
@@ -84,6 +84,16 @@ type GraphDatastore interface {
 	// CheckRevision checks the specified revision to make sure it's valid and
 	// hasn't been garbage collected.
 	CheckRevision(ctx context.Context, revision Revision) error
+}
+
+// TupleQueryResourceFilter are the baseline fields used to filter results when
+// querying a datastore for tuples.
+//
+// OptionalFields are ignored when their value is the empty string.
+type TupleQueryResourceFilter struct {
+	ResourceType             string
+	OptionalResourceID       string
+	OptionalResourceRelation string
 }
 
 // CommonTupleQuery is the common interface shared between TupleQuery and
@@ -110,7 +120,7 @@ type TupleQuery interface {
 	CommonTupleQuery
 
 	// WithUserset adds a userset filter to the query.
-	WithUsersetFilter(filter *v1.ObjectFilter) TupleQuery
+	WithSubjectFilter(*v1.SubjectFilter) TupleQuery
 
 	// WithUsersets adds multiple userset filters to the query.
 	WithUsersets(usersets []*v0.ObjectAndRelation) TupleQuery

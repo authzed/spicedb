@@ -57,22 +57,16 @@ type permissionServer struct {
 	defaultDepth uint32
 }
 
-func (ps *permissionServer) checkObjectFilterNamespaces(ctx context.Context, filter *v1.ObjectFilter) error {
-	return ps.nsm.CheckNamespaceAndRelation(
-		ctx,
-		filter.ObjectType,
-		stringz.DefaultEmpty(filter.OptionalRelation, datastore.Ellipsis),
-		filter.OptionalRelation == "",
-	)
-}
-
 func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter) error {
-	if err := ps.checkObjectFilterNamespaces(ctx, filter.ResourceFilter); err != nil {
+	err := ps.nsm.CheckNamespaceAndRelation(ctx, filter.ResourceType, filter.OptionalRelation, false)
+	if err != nil {
 		return err
 	}
 
-	if filter.OptionalSubjectFilter != nil {
-		if err := ps.checkObjectFilterNamespaces(ctx, filter.OptionalSubjectFilter); err != nil {
+	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil && subjectFilter.OptionalRelation != nil {
+		relation := stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis)
+		err = ps.nsm.CheckNamespaceAndRelation(ctx, subjectFilter.SubjectType, relation, true)
+		if err != nil {
 			return err
 		}
 	}
@@ -89,9 +83,13 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		return rewritePermissionsError(err)
 	}
 
-	queryBuilder := ps.ds.QueryTuples(req.RelationshipFilter.ResourceFilter, atRevision)
+	queryBuilder := ps.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+		ResourceType:             req.RelationshipFilter.ResourceType,
+		OptionalResourceID:       req.RelationshipFilter.OptionalResourceId,
+		OptionalResourceRelation: req.RelationshipFilter.OptionalRelation,
+	}, atRevision)
 	if req.RelationshipFilter.OptionalSubjectFilter != nil {
-		queryBuilder.WithUsersetFilter(req.RelationshipFilter.OptionalSubjectFilter)
+		queryBuilder.WithSubjectFilter(req.RelationshipFilter.OptionalSubjectFilter)
 	}
 
 	tupleIterator, err := queryBuilder.Execute(ctx)
@@ -134,6 +132,34 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	return nil
+}
+
+func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
+	for _, precond := range req.OptionalPreconditions {
+		if err := ps.checkFilterNamespaces(ctx, precond.Filter); err != nil {
+			return nil, rewritePermissionsError(err)
+		}
+	}
+
+	for _, update := range req.Updates {
+		if err := ps.nsm.CheckNamespaceAndRelation(
+			ctx,
+			update.Relationship.Resource.ObjectType,
+			update.Relationship.Relation,
+			false,
+		); err != nil {
+			return nil, rewritePermissionsError(err)
+		}
+	}
+
+	revision, err := ps.ds.WriteTuples(ctx, req.OptionalPreconditions, req.Updates)
+	if err != nil {
+		return nil, rewritePermissionsError(err)
+	}
+
+	return &v1.WriteRelationshipsResponse{
+		WrittenAt: zedtoken.NewFromRevision(revision),
+	}, nil
 }
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {

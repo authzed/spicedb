@@ -2,8 +2,11 @@ package proxy
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -24,18 +27,24 @@ type testAutoMapper struct {
 	idToNamespace map[string]string
 }
 
+func newID() string {
+	id := uuid.NewString()
+	for firstRune, _ := utf8.DecodeRuneInString(id); unicode.IsDigit(firstRune); firstRune, _ = utf8.DecodeRuneInString(id) {
+		id = uuid.NewString()
+	}
+	return strings.ReplaceAll(id, "-", "")
+}
+
 func (tam testAutoMapper) Encode(name string) (string, error) {
 	if found, ok := tam.namespaceToID[name]; ok {
 		return found, nil
 	}
 
-	// Generate a new name on the fly
-	newID := uuid.New().String()
+	id := newID()
+	tam.namespaceToID[name] = id
+	tam.idToNamespace[id] = name
 
-	tam.namespaceToID[name] = newID
-	tam.idToNamespace[newID] = name
-
-	return newID, nil
+	return id, nil
 }
 
 func (tam testAutoMapper) Reverse(id string) (string, error) {

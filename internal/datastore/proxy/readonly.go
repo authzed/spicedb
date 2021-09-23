@@ -25,11 +25,11 @@ func (rd roDatastore) IsReady(ctx context.Context) (bool, error) {
 	return rd.delegate.IsReady(ctx)
 }
 
-func (rd roDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (rd roDatastore) DeleteRelationships(ctx context.Context, _ []*v1.Precondition, _ *v1.RelationshipFilter) (datastore.Revision, error) {
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (datastore.Revision, error) {
+func (rd roDatastore) WriteTuples(ctx context.Context, _ []*v1.Precondition, _ []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	return datastore.NoRevision, errReadOnly
 }
 
@@ -57,8 +57,8 @@ func (rd roDatastore) DeleteNamespace(ctx context.Context, nsName string) (datas
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
-	return rd.delegate.QueryTuples(resourceFilter, revision)
+func (rd roDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+	return rd.delegate.QueryTuples(filter, revision)
 }
 
 func (rd roDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {

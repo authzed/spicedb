@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
@@ -233,13 +232,10 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 			// For each inferred object found, check for the target ONR.
 			objects := tuple.NewONRSet()
 			if len(result.Resp.ResolvedOnrs) > 0 {
-				it, err := cl.ds.QueryTuples(&v1_api.ObjectFilter{
-					ObjectType:       req.ObjectRelation.Namespace,
-					OptionalRelation: req.ObjectRelation.Relation,
-				}, requestRevision).
-					WithUsersets(result.Resp.ResolvedOnrs).
-					Limit(uint64(req.Limit)).
-					Execute(ctx)
+				it, err := cl.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+					ResourceType:             req.ObjectRelation.Namespace,
+					OptionalResourceRelation: req.ObjectRelation.Relation,
+				}, requestRevision).WithUsersets(result.Resp.ResolvedOnrs).Limit(uint64(req.Limit)).Execute(ctx)
 				if err != nil {
 					resultChan <- lookupResultError(err, 1)
 					return
@@ -419,13 +415,10 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 			// Perform the tupleset lookup.
 			objects := tuple.NewONRSet()
 			if len(usersets) > 0 {
-				it, err := cl.ds.QueryTuples(&v1_api.ObjectFilter{
-					ObjectType:       req.ObjectRelation.Namespace,
-					OptionalRelation: ttu.Tupleset.Relation,
-				}, requestRevision).
-					WithUsersets(usersets).
-					Limit(uint64(req.Limit)).
-					Execute(ctx)
+				it, err := cl.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+					ResourceType:             req.ObjectRelation.Namespace,
+					OptionalResourceRelation: ttu.Tupleset.Relation,
+				}, requestRevision).WithUsersets(usersets).Limit(uint64(req.Limit)).Execute(ctx)
 				if err != nil {
 					resultChan <- lookupResultError(err, 1)
 					return

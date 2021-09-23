@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
@@ -67,10 +66,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 		}
 
 		log.Trace().Object("direct", req).Send()
-		it, err := cc.ds.QueryTuples(&v1_api.ObjectFilter{
-			ObjectType:       req.ObjectAndRelation.Namespace,
-			OptionalObjectId: req.ObjectAndRelation.ObjectId,
-			OptionalRelation: req.ObjectAndRelation.Relation,
+		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             req.ObjectAndRelation.Namespace,
+			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
+			OptionalResourceRelation: req.ObjectAndRelation.Relation,
 		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), 1)
@@ -189,10 +188,10 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 		}
 
 		log.Trace().Object("ttu", req).Send()
-		it, err := cc.ds.QueryTuples(&v1_api.ObjectFilter{
-			ObjectType:       req.ObjectAndRelation.Namespace,
-			OptionalObjectId: req.ObjectAndRelation.ObjectId,
-			OptionalRelation: ttu.Tupleset.Relation,
+		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             req.ObjectAndRelation.Namespace,
+			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
+			OptionalResourceRelation: ttu.Tupleset.Relation,
 		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), 1)

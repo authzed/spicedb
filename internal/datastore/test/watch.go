@@ -9,6 +9,7 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
 
@@ -53,28 +54,38 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 			changes, errchan := ds.Watch(ctx, lowestRevision)
 			require.Zero(len(errchan))
 
-			var testUpdates [][]*v0.RelationTupleUpdate
+			var testUpdates [][]*v1.RelationshipUpdate
 			for i := 0; i < tc.numTuples; i++ {
-				newUpdate := tuple.Touch(
-					makeTestTuple(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)),
-				)
-				batch := []*v0.RelationTupleUpdate{newUpdate}
+				newUpdate := &v1.RelationshipUpdate{
+					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+					Relationship: makeTestRelationship(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)),
+				}
+				batch := []*v1.RelationshipUpdate{newUpdate}
 				testUpdates = append(testUpdates, batch)
 				_, err := ds.WriteTuples(ctx, nil, batch)
 				require.NoError(err)
 			}
 
-			updateUpdate := tuple.Touch(makeTestTuple("relation0", "user0"))
-			createUpdate := tuple.Touch(makeTestTuple("another_relation", "somestuff"))
-			batch := []*v0.RelationTupleUpdate{updateUpdate, createUpdate}
+			updateUpdate := &v1.RelationshipUpdate{
+				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+				Relationship: makeTestRelationship("relation0", "user0"),
+			}
+			createUpdate := &v1.RelationshipUpdate{
+				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+				Relationship: makeTestRelationship("another_relation", "somestuff"),
+			}
+			batch := []*v1.RelationshipUpdate{updateUpdate, createUpdate}
 			_, err = ds.WriteTuples(ctx, nil, batch)
 			require.NoError(err)
 
-			deleteUpdate := tuple.Delete(makeTestTuple("relation0", "user0"))
-			_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{deleteUpdate})
+			deleteUpdate := &v1.RelationshipUpdate{
+				Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
+				Relationship: makeTestRelationship("relation0", "user0"),
+			}
+			_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{deleteUpdate})
 			require.NoError(err)
 
-			testUpdates = append(testUpdates, batch, []*v0.RelationTupleUpdate{deleteUpdate})
+			testUpdates = append(testUpdates, batch, []*v1.RelationshipUpdate{deleteUpdate})
 
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
@@ -87,7 +98,7 @@ func TestWatch(t *testing.T, tester DatastoreTester) {
 
 func verifyUpdates(
 	require *require.Assertions,
-	testUpdates [][]*v0.RelationTupleUpdate,
+	testUpdates [][]*v1.RelationshipUpdate,
 	changes <-chan *datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
@@ -109,7 +120,7 @@ func verifyUpdates(
 				return
 			}
 
-			expectedChangeSet := setOfChanges(expected)
+			expectedChangeSet := setOfChangesRel(expected)
 			actualChangeSet := setOfChanges(change.Changes)
 			require.True(expectedChangeSet.IsEqual(actualChangeSet))
 		case <-changeWait.C:
@@ -120,14 +131,18 @@ func verifyUpdates(
 	require.False(expectDisconnect)
 }
 
-func updateString(update *v0.RelationTupleUpdate) string {
-	return fmt.Sprintf("%s(%s)", update.Operation, tuple.String(update.Tuple))
+func setOfChangesRel(changes []*v1.RelationshipUpdate) *strset.Set {
+	changeSet := strset.NewWithSize(len(changes))
+	for _, change := range changes {
+		changeSet.Add(fmt.Sprintf("%s(%s)", change.Operation, tuple.RelString(change.Relationship)))
+	}
+	return changeSet
 }
 
 func setOfChanges(changes []*v0.RelationTupleUpdate) *strset.Set {
 	changeSet := strset.NewWithSize(len(changes))
-	for _, oneChange := range changes {
-		changeSet.Add(updateString(oneChange))
+	for _, change := range changes {
+		changeSet.Add(fmt.Sprintf("OPERATION_%s(%s)", change.Operation, tuple.String(change.Tuple)))
 	}
 	return changeSet
 }
@@ -144,9 +159,10 @@ func TestWatchCancel(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, startWatchRevision)
 	require.Zero(len(errchan))
 
-	_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{
-		tuple.Create(makeTestTuple("test", "test")),
-	})
+	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+		Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+		Relationship: makeTestRelationship("test", "test"),
+	}})
 	require.NoError(err)
 
 	cancel()

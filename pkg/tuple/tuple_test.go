@@ -10,11 +10,7 @@ import (
 func makeTuple(onr *v0.ObjectAndRelation, userset *v0.ObjectAndRelation) *v0.RelationTuple {
 	return &v0.RelationTuple{
 		ObjectAndRelation: onr,
-		User: &v0.User{
-			UserOneof: &v0.User_Userset{
-				Userset: userset,
-			},
-		},
+		User:              &v0.User{UserOneof: &v0.User_Userset{Userset: userset}},
 	}
 }
 

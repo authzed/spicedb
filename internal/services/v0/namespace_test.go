@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -192,9 +193,12 @@ func TestNamespaceChanged(t *testing.T) {
 			require.NoError(err)
 
 			// Write a tuple into the relation.
-			updates := []*v0.RelationTupleUpdate{}
+			updates := make([]*v1.RelationshipUpdate, 0, len(tc.tuples))
 			for _, tpl := range tc.tuples {
-				updates = append(updates, tuple.Create(tpl))
+				updates = append(updates, &v1.RelationshipUpdate{
+					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+					Relationship: tuple.ToRelationship(tpl),
+				})
 			}
 
 			_, err = ds.WriteTuples(context.Background(), nil, updates)

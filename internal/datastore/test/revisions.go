@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -41,7 +41,10 @@ func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
 			// Create some revisions
 			tpl := makeTestTuple("first", "owner")
 			for i := 0; i < 10; i++ {
-				_, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{tuple.Touch(tpl)})
+				_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+					Relationship: tuple.ToRelationship(tpl),
+				}})
 				require.NoError(err)
 			}
 

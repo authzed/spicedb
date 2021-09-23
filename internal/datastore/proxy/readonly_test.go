@@ -27,27 +27,22 @@ func TestRWOperationErrors(t *testing.T) {
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
-	rev, err = ds.WriteTuples(ctx, nil, []*v0.RelationTupleUpdate{
-		{
-			Operation: v0.RelationTupleUpdate_CREATE,
-			Tuple: &v0.RelationTuple{
-				ObjectAndRelation: &v0.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "test",
-					Relation:  "boss",
-				},
-				User: &v0.User{
-					UserOneof: &v0.User_Userset{
-						Userset: &v0.ObjectAndRelation{
-							Namespace: "user",
-							ObjectId:  "boss",
-							Relation:  datastore.Ellipsis,
-						},
-					},
+	rev, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+		Operation: v1.RelationshipUpdate_OPERATION_CREATE,
+		Relationship: &v1.Relationship{
+			Resource: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "test",
+			},
+			Relation: "boss",
+			Subject: &v1.SubjectReference{
+				Object: &v1.ObjectReference{
+					ObjectType: "user",
+					ObjectId:   "boss",
 				},
 			},
 		},
-	})
+	}})
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 }
@@ -149,9 +144,9 @@ func TestQueryTuplesPassthrough(t *testing.T) {
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
 
-	delegate.On("QueryTuples", &v1.ObjectFilter{ObjectType: "test"}, expectedRevision).Return().Times(1)
+	delegate.On("QueryTuples", datastore.TupleQueryResourceFilter{ResourceType: "test"}, expectedRevision).Return().Times(1)
 
-	query := ds.QueryTuples(&v1.ObjectFilter{ObjectType: "test"}, expectedRevision)
+	query := ds.QueryTuples(datastore.TupleQueryResourceFilter{ResourceType: "test"}, expectedRevision)
 	require.Nil(query)
 	delegate.AssertExpectations(t)
 }
@@ -214,11 +209,11 @@ type delegateMock struct {
 	mock.Mock
 }
 
-func (dm *delegateMock) WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (datastore.Revision, error) {
+func (dm *delegateMock) WriteTuples(ctx context.Context, _ []*v1.Precondition, _ []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (dm *delegateMock) DeleteRelationships(ctx context.Context, _ []*v1.Precondition, _ *v1.RelationshipFilter) (datastore.Revision, error) {
 	panic("shouldn't ever call delete relationships method on delegate")
 }
 
@@ -251,8 +246,8 @@ func (dm *delegateMock) DeleteNamespace(ctx context.Context, nsName string) (dat
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
-	dm.Called(resourceFilter, revision)
+func (dm *delegateMock) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+	dm.Called(filter, revision)
 	return nil
 }
 

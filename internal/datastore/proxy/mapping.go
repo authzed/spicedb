@@ -37,48 +37,42 @@ func (mp mappingProxy) IsReady(ctx context.Context) (bool, error) {
 	return mp.delegate.IsReady(ctx)
 }
 
-func (mp mappingProxy) WriteTuples(ctx context.Context, preconditions []*v0.RelationTuple, mutations []*v0.RelationTupleUpdate) (datastore.Revision, error) {
-	translatedPreconditions := make([]*v0.RelationTuple, 0, len(preconditions))
+func (mp mappingProxy) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+	translatedPreconditions := make([]*v1.Precondition, 0, len(preconditions))
 	for _, pc := range preconditions {
-		translatedPC, err := translateTuple(pc, mp.mapper.Encode)
+		translatedPC, err := translatePrecondition(pc, mp.mapper.Encode)
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf(errTranslation, err)
 		}
 		translatedPreconditions = append(translatedPreconditions, translatedPC)
 	}
 
-	translatedMutations := make([]*v0.RelationTupleUpdate, 0, len(mutations))
+	translatedMutations := make([]*v1.RelationshipUpdate, 0, len(mutations))
 	for _, mut := range mutations {
-		translatedMutationTuple, err := translateTuple(mut.Tuple, mp.mapper.Encode)
+		translatedRel, err := translateRelationship(mut.Relationship, mp.mapper.Encode)
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf(errTranslation, err)
 		}
-		translatedMutations = append(translatedMutations, &v0.RelationTupleUpdate{
-			Operation: mut.Operation,
-			Tuple:     translatedMutationTuple,
+		translatedMutations = append(translatedMutations, &v1.RelationshipUpdate{
+			Operation:    mut.Operation,
+			Relationship: translatedRel,
 		})
 	}
 
 	return mp.delegate.WriteTuples(ctx, translatedPreconditions, translatedMutations)
 }
 
-func (mp mappingProxy) DeleteRelationships(ctx context.Context, preconditions []*v1.Relationship, filter *v1.RelationshipFilter) (datastore.Revision, error) {
-	translatedPreconditions := make([]*v1.Relationship, 0, len(preconditions))
+func (mp mappingProxy) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+	translatedPreconditions := make([]*v1.Precondition, 0, len(preconditions))
 	for _, pc := range preconditions {
-		translatedPC, err := translateRelationship(pc, mp.mapper.Encode)
+		translatedPC, err := translatePrecondition(pc, mp.mapper.Encode)
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf(errTranslation, err)
 		}
 		translatedPreconditions = append(translatedPreconditions, translatedPC)
 	}
 
-	var err error
-	translatedFilter := &v1.RelationshipFilter{}
-	translatedFilter.ResourceFilter, err = translateFilter(filter.ResourceFilter, mp.mapper.Encode)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errTranslation, err)
-	}
-	translatedFilter.OptionalSubjectFilter, err = translateFilter(filter.OptionalSubjectFilter, mp.mapper.Encode)
+	translatedFilter, err := translateRelFilter(filter, mp.mapper.Encode)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errTranslation, err)
 	}
@@ -181,9 +175,18 @@ func (mp mappingProxy) DeleteNamespace(ctx context.Context, nsName string) (data
 	return mp.delegate.DeleteNamespace(ctx, storedNamespaceName)
 }
 
-func (mp mappingProxy) QueryTuples(resourceFilter *v1.ObjectFilter, revision datastore.Revision) datastore.TupleQuery {
-	newFilter, err := translateFilter(resourceFilter, mp.mapper.Encode)
-	return mappingTupleQuery{mp.delegate.QueryTuples(newFilter, revision), mp.mapper, err}
+func (mp mappingProxy) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+	var err error
+	resourceType, err := mp.mapper.Encode(filter.ResourceType)
+	return mappingTupleQuery{
+		mp.delegate.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             resourceType,
+			OptionalResourceID:       filter.OptionalResourceID,
+			OptionalResourceRelation: filter.OptionalResourceRelation,
+		}, revision),
+		mp.mapper,
+		err,
+	}
 }
 
 func (mp mappingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
@@ -283,18 +286,18 @@ func (mtq mappingTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	}
 }
 
-func (mtq mappingTupleQuery) WithUsersetFilter(filter *v1.ObjectFilter) datastore.TupleQuery {
+func (mtq mappingTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
 	if mtq.err != nil {
 		return mtq
 	}
 
-	translatedFilter, err := translateFilter(filter, mtq.mapper.Encode)
+	translatedFilter, err := translateSubjectFilter(filter, mtq.mapper.Encode)
 	if err != nil {
 		mtq.err = err
 		return mtq
 	}
 
-	mtq.delegate = mtq.delegate.WithUsersetFilter(translatedFilter)
+	mtq.delegate = mtq.delegate.WithSubjectFilter(translatedFilter)
 	return mtq
 }
 
@@ -424,20 +427,54 @@ func translateONR(in *v0.ObjectAndRelation, mapper MapperFunc) (*v0.ObjectAndRel
 	}, nil
 }
 
-func translateFilter(in *v1.ObjectFilter, mapper MapperFunc) (*v1.ObjectFilter, error) {
-	if in == nil {
-		return nil, nil
-	}
-
-	newObjectType, err := mapper(in.ObjectType)
+func translateRelFilter(filter *v1.RelationshipFilter, mapper MapperFunc) (*v1.RelationshipFilter, error) {
+	resourceType, err := mapper(filter.ResourceType)
 	if err != nil {
 		return nil, err
 	}
 
-	return &v1.ObjectFilter{
-		ObjectType:       newObjectType,
-		OptionalObjectId: in.OptionalObjectId,
-		OptionalRelation: in.OptionalRelation,
+	var subject *v1.SubjectFilter
+	if filter.OptionalSubjectFilter != nil {
+		subject, err = translateSubjectFilter(filter.OptionalSubjectFilter, mapper)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &v1.RelationshipFilter{
+		ResourceType:          resourceType,
+		OptionalResourceId:    filter.OptionalResourceId,
+		OptionalRelation:      filter.OptionalRelation,
+		OptionalSubjectFilter: subject,
+	}, nil
+}
+
+func translatePrecondition(in *v1.Precondition, mapper MapperFunc) (*v1.Precondition, error) {
+	filter, err := translateRelFilter(in.Filter, mapper)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.Precondition{
+		Operation: in.Operation,
+		Filter:    filter,
+	}, nil
+}
+
+func translateSubjectFilter(in *v1.SubjectFilter, mapper MapperFunc) (*v1.SubjectFilter, error) {
+	if in == nil {
+		return nil, nil
+	}
+
+	newObjectType, err := mapper(in.SubjectType)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.SubjectFilter{
+		SubjectType:       newObjectType,
+		OptionalSubjectId: in.OptionalSubjectId,
+		OptionalRelation:  in.OptionalRelation,
 	}, nil
 }
 

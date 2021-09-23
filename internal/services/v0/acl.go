@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
@@ -65,7 +66,20 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 		}
 	}
 
-	revision, err := as.ds.WriteTuples(ctx, req.WriteConditions, req.Updates)
+	preconditions := make([]*v1_api.Precondition, 0, len(req.WriteConditions))
+	for _, cond := range req.WriteConditions {
+		preconditions = append(preconditions, &v1_api.Precondition{
+			Operation: v1_api.Precondition_OPERATION_MUST_MATCH,
+			Filter:    tuple.ToFilter(cond),
+		})
+	}
+
+	mutations := make([]*v1_api.RelationshipUpdate, 0, len(req.Updates))
+	for _, mut := range req.Updates {
+		mutations = append(mutations, tuple.UpdateToRelationshipUpdate(mut))
+	}
+
+	revision, err := as.ds.WriteTuples(ctx, preconditions, mutations)
 	if err != nil {
 		return nil, rewriteACLError(err)
 	}
@@ -157,17 +171,16 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 	var allTuplesetResults []*v0.ReadResponse_Tupleset
 
 	for _, tuplesetFilter := range req.Tuplesets {
-		resourceFilter := &v1_api.ObjectFilter{
-			ObjectType: tuplesetFilter.Namespace,
+		queryFilter := datastore.TupleQueryResourceFilter{
+			ResourceType: tuplesetFilter.Namespace,
 		}
 		var filterUserset *v0.ObjectAndRelation
-
 		for _, filter := range tuplesetFilter.Filters {
 			switch filter {
 			case v0.RelationTupleFilter_OBJECT_ID:
-				resourceFilter.OptionalObjectId = tuplesetFilter.ObjectId
+				queryFilter.OptionalResourceID = tuplesetFilter.ObjectId
 			case v0.RelationTupleFilter_RELATION:
-				resourceFilter.OptionalRelation = tuplesetFilter.Relation
+				queryFilter.OptionalResourceRelation = tuplesetFilter.Relation
 			case v0.RelationTupleFilter_USERSET:
 				filterUserset = tuplesetFilter.Userset
 			default:
@@ -175,8 +188,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 			}
 		}
 
-		query := as.ds.QueryTuples(resourceFilter, atRevision)
-
+		query := as.ds.QueryTuples(queryFilter, atRevision)
 		if filterUserset != nil {
 			query = query.WithUsersets([]*v0.ObjectAndRelation{filterUserset})
 		}
