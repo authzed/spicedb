@@ -54,7 +54,7 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Name
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	writeSql, writeArgs, err := queryWriteNamespace.
+	writeSQL, writeArgs, err := queryWriteNamespace.
 		Values(newConfig.Name, serialized).
 		ToSql()
 	if err != nil {
@@ -63,7 +63,7 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Name
 
 	var hlcNow decimal.Decimal
 	if err := cds.conn.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), writeSql, writeArgs...,
+		datastore.SeparateContextWithTracing(ctx), writeSQL, writeArgs...,
 	).Scan(&hlcNow); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}

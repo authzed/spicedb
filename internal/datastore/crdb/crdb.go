@@ -49,7 +49,9 @@ const (
 	queryShowZoneConfig     = "SHOW ZONE CONFIGURATION FOR RANGE default;"
 )
 
-func NewCRDBDatastore(url string, options ...CRDBOption) (datastore.Datastore, error) {
+// NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB
+// database while leveraging its AOST functionality.
+func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
