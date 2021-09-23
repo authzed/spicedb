@@ -161,8 +161,8 @@ func (pgd *pgDatastore) DeleteRelationships(ctx context.Context, preconditions [
 			return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
 		}
 
-		var foundObjectID string
-		if err := tx.QueryRow(ctx, sql, args...).Scan(&foundObjectID); err != nil {
+		foundID := -1
+		if err := tx.QueryRow(ctx, sql, args...).Scan(&foundID); err != nil {
 			if err == pgx.ErrNoRows {
 				return datastore.NoRevision, datastore.NewPreconditionFailedErrFromRel(relationship)
 			}
@@ -208,12 +208,19 @@ func (pgd *pgDatastore) DeleteRelationships(ctx context.Context, preconditions [
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
+	query = query.Set(colDeletedTxn, newTxnID)
+
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
 	}
 
 	if _, err := tx.Exec(ctx, sql, args...); err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
