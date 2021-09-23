@@ -140,6 +140,53 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 	}, nil
 }
 
+func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsRequest) (*v0.DeleteConfigsResponse, error) {
+	syncRevision, err := nss.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewriteNamespaceError(err)
+	}
+
+	// Ensure that all the specified namespaces can be deleted.
+	for _, nsName := range req.Namespaces {
+		// Ensure the namespace exists.
+		_, _, err := nss.ds.ReadNamespace(ctx, nsName)
+		if err != nil {
+			return nil, rewriteNamespaceError(err)
+		}
+
+		// Check for relationships under the namespace.
+		err = errorIfTupleIteratorReturnsTuples(
+			nss.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+				ResourceType: nsName,
+			}, syncRevision),
+			ctx,
+			"cannot delete definition `%s`, as a relationship exists under it", nsName)
+		if err != nil {
+			return nil, rewriteNamespaceError(err)
+		}
+
+		// Also check for right sides of relationships.
+		err = errorIfTupleIteratorReturnsTuples(
+			nss.ds.ReverseQueryTuplesFromSubjectNamespace(nsName, syncRevision),
+			ctx,
+			"cannot delete definition `%s`, as a relationship references it", nsName)
+		if err != nil {
+			return nil, rewriteNamespaceError(err)
+		}
+	}
+
+	// Delete all the namespaces specified.
+	for _, nsName := range req.Namespaces {
+		if _, err := nss.ds.DeleteNamespace(ctx, nsName); err != nil {
+			return nil, rewriteNamespaceError(err)
+		}
+	}
+
+	return &v0.DeleteConfigsResponse{
+		Revision: zookie.NewFromRevision(syncRevision),
+	}, nil
+}
+
 func errorIfTupleIteratorReturnsTuples(query datastore.CommonTupleQuery, ctx context.Context, message string, args ...interface{}) error {
 	qy, err := query.Limit(1).Execute(ctx)
 	if err != nil {

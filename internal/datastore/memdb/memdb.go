@@ -33,6 +33,7 @@ const (
 	indexNamespaceAndUsersetID = "namespaceAndUsersetID"
 	indexRelationAndUserset    = "relationAndUserset"
 	indexRelationAndRelation   = "relationAndRelation"
+	indexUsersetNamespace      = "usersetNamespace"
 	indexUsersetRelation       = "usersetRelation"
 	indexUserset               = "userset"
 
@@ -253,6 +254,15 @@ var schema = &memdb.DBSchema{
 							&memdb.StringFieldIndex{Field: "usersetNamespace"},
 							&memdb.StringFieldIndex{Field: "usersetObjectID"},
 							&memdb.StringFieldIndex{Field: "usersetRelation"},
+						},
+					},
+				},
+				indexUsersetNamespace: {
+					Name:   indexUsersetNamespace,
+					Unique: false,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "usersetNamespace"},
 						},
 					},
 				},
