@@ -1,4 +1,4 @@
-package newenemy
+package e2e
 
 import (
 	"context"
@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4"
-
-	"github.com/authzed/spicedb/e2e"
 )
 
+// Cockroach represents a single cockroachdb instance
 type Cockroach struct {
 	peers    []string
 	addr     string
@@ -24,8 +23,9 @@ type Cockroach struct {
 	conn *pgx.Conn
 }
 
+// Start starts the cockroach instance with exec
 func (c *Cockroach) Start(ctx context.Context) error {
-	logfile, err := e2e.File(ctx, fmt.Sprintf("crdb-%s.log", c.id))
+	logfile, err := File(ctx, fmt.Sprintf("crdb-%s.log", c.id))
 	if err != nil {
 		return err
 	}
@@ -40,14 +40,16 @@ func (c *Cockroach) Start(ctx context.Context) error {
 		"--join=" + strings.Join(c.peers, ","),
 	}
 
-	c.pid, err = e2e.GoRun(ctx, logfile, logfile, cmd...)
+	c.pid, err = GoRun(ctx, logfile, logfile, cmd...)
 	return err
 }
 
+// ConnectionString returns the postgres db uri for this cluster
 func (c *Cockroach) ConnectionString(dbName string) string {
 	return fmt.Sprintf("postgresql://root@%s/%s?sslmode=disable", c.addr, dbName)
 }
 
+// Connect connects directly to the cockroach instance and caches the connection
 func (c *Cockroach) Connect(ctx context.Context, out io.Writer, dbName string) error {
 	if c.pid < 1 {
 		return fmt.Errorf("can't connect to unstarted cockroach")
@@ -62,12 +64,16 @@ func (c *Cockroach) Connect(ctx context.Context, out io.Writer, dbName string) e
 	return nil
 }
 
-func (s *Cockroach) Conn() *pgx.Conn {
-	return s.conn
+// Conn returns the current connection. Must only be called after Connect().
+func (c *Cockroach) Conn() *pgx.Conn {
+	return c.conn
 }
 
+// CockroachCluster represents a set of Cockroach nodes configured to talk to
+// each other.
 type CockroachCluster []*Cockroach
 
+// NewCockroachCluster returns a pre-configured cluster of the given size.
 func NewCockroachCluster(n int) CockroachCluster {
 	cs := make([]*Cockroach, 0, n)
 	peers := make([]string, 0, n)
@@ -88,6 +94,7 @@ func NewCockroachCluster(n int) CockroachCluster {
 	return cs
 }
 
+// Started returns true if all instances have been started
 func (cs CockroachCluster) Started() bool {
 	for _, c := range cs {
 		if c.pid <= 0 {
@@ -97,18 +104,20 @@ func (cs CockroachCluster) Started() bool {
 	return true
 }
 
+// Init runs the cockroach init command against the cluster
 func (cs CockroachCluster) Init(ctx context.Context, out, errOut io.Writer) {
 	// this retries until it succeeds, it won't return unless it does
-	e2e.Run(ctx, out, errOut, "./cockroach",
+	Run(ctx, out, errOut, "./cockroach",
 		"init",
 		"--insecure",
 		"--host="+cs[0].addr,
 	)
 }
 
-func (cs CockroachCluster) Sql(ctx context.Context, out, errOut io.Writer, sql ...string) error {
+// SQL runs the set of SQL commands against the cluster
+func (cs CockroachCluster) SQL(ctx context.Context, out, errOut io.Writer, sql ...string) error {
 	for _, s := range sql {
-		if err := e2e.Run(ctx, out, errOut,
+		if err := Run(ctx, out, errOut,
 			"./cockroach", "sql", "--insecure", "--host="+cs[0].addr,
 			"-e", s,
 		); err != nil {
@@ -118,12 +127,13 @@ func (cs CockroachCluster) Sql(ctx context.Context, out, errOut io.Writer, sql .
 	return nil
 }
 
+// NetworkDelay simulates network delay against the selected node
 func (cs CockroachCluster) NetworkDelay(ctx context.Context, out io.Writer, node int, duration time.Duration) error {
 	_, port, err := net.SplitHostPort(cs[node].addr)
 	if err != nil {
 		return err
 	}
-	return e2e.Run(ctx, out, out,
+	return Run(ctx, out, out,
 		"sudo",
 		"./chaosd",
 		"attack",
@@ -136,9 +146,10 @@ func (cs CockroachCluster) NetworkDelay(ctx context.Context, out io.Writer, node
 	)
 }
 
+// TimeDelay adds a skew to the clock of the given node
 func (cs CockroachCluster) TimeDelay(ctx context.Context, out io.Writer, node int, duration time.Duration) error {
 	sec, nsec := secAndNSecFromDuration(duration)
-	return e2e.Run(ctx, out, out,
+	return Run(ctx, out, out,
 		"sudo",
 		"./watchmaker",
 		fmt.Sprintf("--pid=%d", cs[node].pid),

@@ -105,7 +105,7 @@ jobs:
       - name: "Run e2e"
         working-directory: "e2e/newenemy"
         run: |
-          go test -v ./...
+          go test -v -timeout 20m ./...
       - uses: "actions/upload-artifact@v2"
         if: "always()"
         with:

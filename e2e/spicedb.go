@@ -1,4 +1,4 @@
-package newenemy
+package e2e
 
 import (
 	"context"
@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/authzed/grpcutil"
-	"github.com/authzed/spicedb/e2e"
 	"google.golang.org/grpc"
 )
 
+// SpiceDb represents a single instance of spicedb started via exec
 type SpiceDb struct {
 	id            string
 	presharedKey  string
@@ -28,8 +28,9 @@ type SpiceDb struct {
 	client        Client
 }
 
+// Start starts an instance of spicedb using the configuration
 func (s *SpiceDb) Start(ctx context.Context, logprefix string, args ...string) error {
-	logfile, err := e2e.File(ctx, fmt.Sprintf("spicedb-%s-%s.log", logprefix, s.id))
+	logfile, err := File(ctx, fmt.Sprintf("spicedb-%s-%s.log", logprefix, s.id))
 	if err != nil {
 		return err
 	}
@@ -49,10 +50,11 @@ func (s *SpiceDb) Start(ctx context.Context, logprefix string, args ...string) e
 
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
-	s.pid, err = e2e.GoRun(ctx, logfile, logfile, append(cmd, args...)...)
+	s.pid, err = GoRun(ctx, logfile, logfile, append(cmd, args...)...)
 	return err
 }
 
+// Stop will cancel a running spicedb process
 func (s *SpiceDb) Stop() error {
 	if s.pid < 1 {
 		return fmt.Errorf("can't stop an unstarted spicedb")
@@ -61,13 +63,15 @@ func (s *SpiceDb) Stop() error {
 	return nil
 }
 
+// Connect blocks until a connection to the spicedb instance can be established.
+// Once connected, the client is avaialable via Client()
 func (s *SpiceDb) Connect(ctx context.Context, out io.Writer) error {
 	if s.pid < 1 {
 		return fmt.Errorf("can't create client for unstarted spicedb")
 	}
 
 	addr := net.JoinHostPort("localhost", strconv.Itoa(s.grpcPort))
-	e2e.WaitForServerReady(addr, out)
+	WaitForServerReady(addr, out)
 
 	conn, err := grpc.DialContext(ctx, addr,
 		grpc.WithBlock(), grpc.WithInsecure(),
@@ -79,32 +83,38 @@ func (s *SpiceDb) Connect(ctx context.Context, out io.Writer) error {
 	return nil
 }
 
+// Client returns a client that can talk to a started spicedb instance
 func (s *SpiceDb) Client() Client {
 	return s.client
 }
 
+// SpiceCluster is a set of spicedb nodes
 type SpiceCluster []*SpiceDb
 
-func NewSpiceClusterFromCockroachCluster(c CockroachCluster, dbName, presharedKey string) SpiceCluster {
+// NewSpiceClusterFromCockroachCluster creates a spicedb instance for every
+// cockroach instance, with each spicedb configured to talk to the corresponding
+// cockraoch node.
+func NewSpiceClusterFromCockroachCluster(c CockroachCluster, dbName, presharedKey string, ports []int) SpiceCluster {
 	ss := make([]*SpiceDb, 0, len(c))
-	grpcPort := 50051
-	metricsPort := 9090
-	dashboardPort := 8090
+	if ports == nil {
+		ports = []int{50051, 9090, 8090}
+	}
 	for i := 0; i < len(c); i++ {
 		ss = append(ss, &SpiceDb{
 			id:            strconv.Itoa(i + 1),
 			presharedKey:  presharedKey,
 			datastore:     "cockroachdb",
 			uri:           c[i].ConnectionString(dbName),
-			grpcPort:      grpcPort + 2*i,
-			internalPort:  grpcPort + 2*i + 1,
-			metricsPort:   metricsPort + i,
-			dashboardPort: dashboardPort + i,
+			grpcPort:      ports[0] + 2*i,
+			internalPort:  ports[0] + 2*i + 1,
+			metricsPort:   ports[1] + i,
+			dashboardPort: ports[2] + i,
 		})
 	}
 	return ss
 }
 
+// Start starts the entire cluster of spicedb instances
 func (c *SpiceCluster) Start(ctx context.Context, out io.Writer, prefix string, args ...string) error {
 	for _, s := range *c {
 		fmt.Fprintln(out, "starting spice node", s.id)
@@ -115,6 +125,7 @@ func (c *SpiceCluster) Start(ctx context.Context, out io.Writer, prefix string, 
 	return nil
 }
 
+// Stop stops the entire cluster of spicedb instances
 func (c *SpiceCluster) Stop(out io.Writer) error {
 	for _, s := range *c {
 		fmt.Fprintln(out, "stopping spice node", s.id)
@@ -125,6 +136,7 @@ func (c *SpiceCluster) Stop(out io.Writer) error {
 	return nil
 }
 
+// Connect blocks until a connection can be made to each instance in the cluster
 func (c *SpiceCluster) Connect(ctx context.Context, out io.Writer) error {
 	for _, s := range *c {
 		fmt.Fprintln(out, "connecting to", s.grpcPort)
@@ -135,9 +147,10 @@ func (c *SpiceCluster) Connect(ctx context.Context, out io.Writer) error {
 	return nil
 }
 
+// MigrateHead migrates a datastore to the latest revision defined in spicedb
 func MigrateHead(ctx context.Context, datastore, uri string) error {
 	for i := 0; i < 5; i++ {
-		if err := e2e.Run(ctx, os.Stdout, os.Stderr,
+		if err := Run(ctx, os.Stdout, os.Stderr,
 			"./spicedb",
 			"migrate", "head", "--datastore-engine="+datastore,
 			"--datastore-conn-uri="+uri,

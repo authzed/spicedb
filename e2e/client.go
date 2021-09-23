@@ -1,4 +1,4 @@
-package newenemy
+package e2e
 
 import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc"
 )
 
+// Client holds versioned clients to spicedb that all share the same connection
 type Client interface {
 	V0() v0Client
 	V1Alpha1() v1alpha1Client
@@ -79,6 +80,7 @@ func (s *spiceDBv1Client) Schema() v1.SchemaServiceClient {
 	return s
 }
 
+// NewClient returns a spicedb Client for the given grpc connection
 func NewClient(conn *grpc.ClientConn) Client {
 	return &spiceDBClient{
 		v0Client: &spiceDBv0Client{

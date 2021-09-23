@@ -28,7 +28,7 @@ func File(ctx context.Context, name string) (*os.File, error) {
 }
 
 // MustFile fails the test if it can't create a file called name.
-func MustFile(t *testing.T, ctx context.Context, name string) *os.File {
+func MustFile(ctx context.Context, t *testing.T, name string) *os.File {
 	f, err := File(ctx, name)
 	require.NoError(t, err)
 	return f
