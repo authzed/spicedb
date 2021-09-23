@@ -29,12 +29,14 @@ var (
 )
 
 const (
-	tableNamespace = "namespace_config"
-	tableTuple     = "relation_tuple"
+	tableNamespace    = "namespace_config"
+	tableTuple        = "relation_tuple"
+	tableTransactions = "transactions"
 
 	colNamespace        = "namespace"
 	colConfig           = "serialized_config"
 	colTimestamp        = "timestamp"
+	colTransactionKey   = "key"
 	colObjectID         = "object_id"
 	colRelation         = "relation"
 	colUsersetNamespace = "userset_namespace"

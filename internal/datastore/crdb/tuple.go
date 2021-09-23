@@ -47,6 +47,14 @@ var (
 
 	queryDeleteTuples = psql.Delete(tableTuple)
 
+	queryTouchTransaction = fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES ($1::text) ON CONFLICT (%s) DO UPDATE SET %s = now()",
+		tableTransactions,
+		colTransactionKey,
+		colTransactionKey,
+		colTimestamp,
+	)
+
 	queryTupleExists = psql.Select(colObjectID).From(tableTuple)
 )
 
@@ -111,74 +119,72 @@ func (cds *crdbDatastore) checkPreconditions(ctx context.Context, tx pgx.Tx, pre
 func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
+	var nowRevision datastore.Revision
 
-	tx, err := cds.conn.Begin(ctx)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
-	}
-	defer tx.Rollback(ctx)
+	if err := func() error {
+		tx, err := cds.conn.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback(ctx)
 
-	if err := cds.checkPreconditions(ctx, tx, preconditions); err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
-	}
+		if err := cds.checkPreconditions(ctx, tx, preconditions); err != nil {
+			return err
+		}
 
-	bulkWrite := queryWriteTuple
-	var bulkWriteCount int64
+		bulkWrite := queryWriteTuple
+		var bulkWriteCount int64
 
-	// Process the actual updates
-	for _, mutation := range mutations {
-		rel := mutation.Relationship
+		// Process the actual updates
+		for _, mutation := range mutations {
+			rel := mutation.Relationship
 
-		switch mutation.Operation {
-		case v1.RelationshipUpdate_OPERATION_TOUCH, v1.RelationshipUpdate_OPERATION_CREATE:
-			bulkWrite = bulkWrite.Values(
-				rel.Resource.ObjectType,
-				rel.Resource.ObjectId,
-				rel.Relation,
-				rel.Subject.Object.ObjectType,
-				rel.Subject.Object.ObjectId,
-				stringz.DefaultEmpty(rel.Subject.OptionalRelation, datastore.Ellipsis),
-			)
-			bulkWriteCount++
-		case v1.RelationshipUpdate_OPERATION_DELETE:
-			sql, args, err := queryDeleteTuples.Where(exactRelationshipClause(rel)).ToSql()
+			switch mutation.Operation {
+			case v1.RelationshipUpdate_OPERATION_TOUCH, v1.RelationshipUpdate_OPERATION_CREATE:
+				bulkWrite = bulkWrite.Values(
+					rel.Resource.ObjectType,
+					rel.Resource.ObjectId,
+					rel.Relation,
+					rel.Subject.Object.ObjectType,
+					rel.Subject.Object.ObjectId,
+					stringz.DefaultEmpty(rel.Subject.OptionalRelation, datastore.Ellipsis),
+				)
+				bulkWriteCount++
+			case v1.RelationshipUpdate_OPERATION_DELETE:
+				sql, args, err := queryDeleteTuples.Where(exactRelationshipClause(rel)).ToSql()
+				if err != nil {
+					return err
+				}
+
+				if _, err := tx.Exec(ctx, sql, args...); err != nil {
+					return err
+				}
+			default:
+				log.Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
+				return fmt.Errorf("unknown mutation operation: %s", mutation.Operation)
+			}
+		}
+
+		if bulkWriteCount > 0 {
+			sql, args, err := bulkWrite.ToSql()
 			if err != nil {
-				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+				return err
 			}
 
-			if _, err := tx.Exec(ctx, sql, args...); err != nil {
-				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+			if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
+				return err
 			}
-		default:
-			log.Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
-			return datastore.NoRevision, fmt.Errorf(
-				errUnableToWriteTuples,
-				fmt.Errorf("unknown mutation operation: %s", mutation.Operation))
-		}
-	}
-
-	var nowRevision decimal.Decimal
-	if bulkWriteCount > 0 {
-		sql, args, err := bulkWrite.ToSql()
-		if err != nil {
-			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+		} else {
+			nowRevision, err = readCRDBNow(ctx, tx)
+			if err != nil {
+				return err
+			}
 		}
 
-		if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
-			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
-		}
-	} else {
-		nowRevision, err = readCRDBNow(ctx, tx)
-		if err != nil {
-			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
-		}
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
+		return tx.Commit(ctx)
+	}(); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
-
 	return nowRevision, nil
 }
 
