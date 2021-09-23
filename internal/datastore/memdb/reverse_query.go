@@ -20,7 +20,7 @@ type memdbReverseTupleQuery struct {
 
 	subNamespaceName string
 	subRelationName  string
-	subObjectId      string
+	subObjectID      string
 
 	limit *uint64
 
@@ -46,12 +46,12 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 	var err error
 	var bestIterator memdb.ResultIterator
 	if mtq.objNamespaceName != "" {
-		if mtq.subObjectId != "" {
+		if mtq.subObjectID != "" {
 			bestIterator, err = txn.Get(
 				tableTuple,
 				indexRelationAndUserset,
 				mtq.subNamespaceName,
-				mtq.subObjectId,
+				mtq.subObjectID,
 				mtq.subRelationName,
 				mtq.objNamespaceName,
 				mtq.objRelationName,
@@ -66,12 +66,12 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 				mtq.objRelationName,
 			)
 		}
-	} else if mtq.subObjectId != "" {
+	} else if mtq.subObjectID != "" {
 		bestIterator, err = txn.Get(
 			tableTuple,
 			indexUserset,
 			mtq.subNamespaceName,
-			mtq.subObjectId,
+			mtq.subObjectID,
 			mtq.subRelationName,
 		)
 	} else if mtq.subRelationName != "" {
