@@ -18,6 +18,7 @@ func (enf ErrNamespaceNotFound) NotFoundNamespaceName() string {
 	return enf.namespaceName
 }
 
+// MarshalZerologObject implements zerolog object marshalling.
 func (enf ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("error", enf.Error()).Str("namespace", enf.namespaceName)
 }
@@ -28,6 +29,7 @@ type ErrPreconditionFailed struct {
 	precondition *v1.Precondition
 }
 
+// MarshalZerologObject implements zerolog object marshalling.
 func (epf ErrPreconditionFailed) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("error", epf.Error()).Interface("precondition", epf.precondition)
 }
@@ -47,8 +49,16 @@ type ErrReadOnly struct{ error }
 type InvalidRevisionReason int
 
 const (
+	// RevisionStale is the reason returned when a revision is outside the window of
+	// validity by being too old.
 	RevisionStale InvalidRevisionReason = iota
+
+	// RevisionInFuture is the reason returned when a revision is outside the window of
+	// validity by being too new.
 	RevisionInFuture
+
+	// CouldNotDetermineRevision is the reason returned when a revision for a
+	// request could not be determined.
 	CouldNotDetermineRevision
 )
 
@@ -69,6 +79,7 @@ func (eri ErrInvalidRevision) Reason() InvalidRevisionReason {
 	return eri.reason
 }
 
+// MarshalZerologObject implements zerolog object marshalling.
 func (eri ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
 	switch eri.reason {
 	case RevisionStale:
@@ -112,6 +123,8 @@ func NewWatchCanceledErr() error {
 	}
 }
 
+// NewReadonlyErr constructs an error for when a request has failed because
+// the datastore has been configured to be read-only.
 func NewReadonlyErr() error {
 	return ErrReadOnly{
 		error: fmt.Errorf("datastore is in read-only mode"),
