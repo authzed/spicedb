@@ -98,9 +98,12 @@ func TestNoNewEnemy(t *testing.T) {
 	fill(vulnerableSpiceDb[0].Client().V0().ACL(), 4000, 100)
 
 	t.Log("check vulnerability with mitigations disabled")
-	protected := checkNoNewEnemy(t, ctx, vulnerableSpiceDb, crdb, 1000, -1)
-	require.NotNil(protected, "unable to determine if spicedb displays newenemy when mitigations are disabled")
+	checkCtx, checkCancel := context.WithTimeout(ctx, 2*time.Minute)
+	protected, attempts := checkNoNewEnemy(t, checkCtx, vulnerableSpiceDb, crdb, -1)
+	require.NotNil(protected, "unable to determine if spicedb displays newenemy when mitigations are disabled within the time limit")
 	require.False(*protected)
+	checkCancel()
+	t.Logf("determined spicedb vulnerable in %d attempts", attempts)
 
 	t.Log("stopping vulnerable spicedb cluster")
 	require.NoError(vulnerableSpiceDb.Stop(os.Stdout))
@@ -111,19 +114,23 @@ func TestNoNewEnemy(t *testing.T) {
 	require.NoError(protectedSpiceDb.Connect(ctx, os.Stdout))
 
 	t.Log("check spicedb is protected")
-	protected = checkNoNewEnemy(t, ctx, protectedSpiceDb, crdb, 1000, 20)
-	require.NotNil(protected, "unable to determine if spicedb is protected")
+	checkCtx, checkCancel = context.WithTimeout(ctx, 2*time.Minute)
+	protected, _ = checkNoNewEnemy(t, checkCtx, protectedSpiceDb, crdb, attempts)
+	require.NotNil(protected, "unable to determine if spicedb is protected within the time limit")
 	require.True(*protected, "protection is enabled, but newenemy detected")
+	checkCancel()
 }
 
 // checkNoNewEnemy returns true if the service is protected, false if it is vulnerable, and nil if we couldn't determine
-func checkNoNewEnemy(t testing.TB, ctx context.Context, spicedb SpiceCluster, crdb CockroachCluster, attempts, candidateCount int) *bool {
-	directs, excludes := generateTuples(attempts)
-	candidates := 0
-	for i := 0; i < attempts; i++ {
+func checkNoNewEnemy(t testing.TB, ctx context.Context, spicedb SpiceCluster, crdb CockroachCluster, candidateCount int) (*bool, int) {
+	var attempts, candidates int
+	for {
+		attempts++
+		directs, excludes := generateTuples(1)
+
 		// write to node 1
 		r1, err := spicedb[0].Client().V0().ACL().Write(testCtx, &v0.WriteRequest{
-			Updates: []*v0.RelationTupleUpdate{excludes[i]},
+			Updates: []*v0.RelationTupleUpdate{excludes[0]},
 		})
 		if err != nil {
 			t.Log(err)
@@ -132,7 +139,7 @@ func checkNoNewEnemy(t testing.TB, ctx context.Context, spicedb SpiceCluster, cr
 
 		// write to node 2 (clock is behind)
 		r2, err := spicedb[1].Client().V0().ACL().Write(testCtx, &v0.WriteRequest{
-			Updates: []*v0.RelationTupleUpdate{directs[i]},
+			Updates: []*v0.RelationTupleUpdate{directs[0]},
 		})
 		if err != nil {
 			t.Log(err)
@@ -145,7 +152,7 @@ func checkNoNewEnemy(t testing.TB, ctx context.Context, spicedb SpiceCluster, cr
 				ObjectId:  "thegoods",
 				Relation:  "allowed",
 			},
-			User:       directs[i].Tuple.GetUser(),
+			User:       directs[0].Tuple.GetUser(),
 			AtRevision: r2.GetRevision(),
 		})
 		if err != nil {
@@ -156,7 +163,7 @@ func checkNoNewEnemy(t testing.TB, ctx context.Context, spicedb SpiceCluster, cr
 			t.Log("service is subject to the new enemy problem")
 		}
 
-		analyzeCalls(ctx, crdb[2].Conn(), os.Stdout, excludes[i].Tuple, directs[i].Tuple, r1.GetRevision(), r2.GetRevision(), &candidates)
+		analyzeCalls(ctx, crdb[2].Conn(), os.Stdout, excludes[0].Tuple, directs[0].Tuple, r1.GetRevision(), r2.GetRevision(), &candidates)
 
 		// let the timestamp caches get back out of sync
 		time.Sleep(100 * time.Millisecond)
@@ -164,21 +171,23 @@ func checkNoNewEnemy(t testing.TB, ctx context.Context, spicedb SpiceCluster, cr
 		if canHas.IsMember {
 			t.Log("service is subject to the new enemy problem")
 			protected := false
-			return &protected
+			return &protected, attempts
 		}
 
 		// if we find causal reversals, but no newenemy, assume we're protected
 		if candidateCount > 0 && candidates >= candidateCount {
 			t.Log(candidateCount, "(would be) causal reversals with no new enemy detected")
 			protected := true
-			return &protected
+			return &protected, attempts
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, attempts
+		default:
+			continue
 		}
 	}
-	if candidateCount > 0 && candidates < candidateCount {
-		t.Logf("didn't see %d candidates, only saw %d", candidateCount, candidates)
-		return nil
-	}
-	return nil
 }
 
 func BenchmarkBatchWrites(b *testing.B) {
