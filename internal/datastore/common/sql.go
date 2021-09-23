@@ -164,8 +164,9 @@ func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, err
 		}
 
 		if filter.OptionalRelation != nil {
-			query = query.Where(sq.Eq{ctq.Schema.ColUsersetRelation: stringz.DefaultEmpty(filter.OptionalRelation.Relation, datastore.Ellipsis)})
-			baseEstimatedDataSize += len(filter.OptionalRelation.Relation)
+			normalizedRelation := stringz.DefaultEmpty(filter.OptionalRelation.Relation, datastore.Ellipsis)
+			query = query.Where(sq.Eq{ctq.Schema.ColUsersetRelation: normalizedRelation})
+			baseEstimatedDataSize += len(normalizedRelation)
 		}
 	}
 

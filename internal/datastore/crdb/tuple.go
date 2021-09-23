@@ -65,8 +65,8 @@ func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
 		if subjectFilter.OptionalSubjectId != "" {
 			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
 		}
-		if subjectFilter.OptionalRelation != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis)})
+		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
+			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
 		}
 	}
 
@@ -227,9 +227,9 @@ func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions
 			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
 			tracerAttributes = append(tracerAttributes, common.SubObjectIDKey.String(subjectFilter.OptionalSubjectId))
 		}
-		if relation := subjectFilter.OptionalRelation; relation != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relation.Relation, datastore.Ellipsis)})
-			tracerAttributes = append(tracerAttributes, common.SubRelationNameKey.String(relation.Relation))
+		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
+			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+			tracerAttributes = append(tracerAttributes, common.SubRelationNameKey.String(relationFilter.Relation))
 		}
 	}
 	span.SetAttributes(tracerAttributes...)
