@@ -80,7 +80,9 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	serveCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
 	serveCmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
 	serveCmd.Flags().Bool("datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
-	rootCmd.Flags().Int("datastore-max-tx-retries", 50, "number of times a retriable cockroach transaction should be retried")
+	serveCmd.Flags().Int("datastore-max-tx-retries", 50, "number of times a retriable transaction should be retried (cockroach driver only)")
+	serveCmd.Flags().String("datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
+	serveCmd.Flags().String("datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 
 	// Flags for the namespace manager
 	serveCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
@@ -122,6 +124,8 @@ func serveRun(cmd *cobra.Command, args []string) {
 	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "datastore-revision-fuzzing-duration")
 	gcWindow := cobrautil.MustGetDuration(cmd, "datastore-gc-window")
 	maxRetries := cobrautil.MustGetInt(cmd, "datastore-max-tx-retries")
+	overlapKey := cobrautil.MustGetString(cmd, "datastore-tx-overlap-key")
+	overlapStrategy := cobrautil.MustGetString(cmd, "datastore-tx-overlap-strategy")
 
 	splitQuerySize, err := units.ParseBase2Bytes(cobrautil.MustGetString(cmd, "datastore-query-split-size"))
 	if err != nil {
@@ -147,6 +151,8 @@ func serveRun(cmd *cobra.Command, args []string) {
 			crdb.GCWindow(gcWindow),
 			crdb.MaxRetries(maxRetries),
 			crdb.SplitAtEstimatedQuerySize(splitQuerySize),
+			crdb.OverlapKey(overlapKey),
+			crdb.OverlapStrategy(overlapStrategy),
 		)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to init datastore")

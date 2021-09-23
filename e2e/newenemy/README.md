@@ -30,7 +30,7 @@ This is how each operation is translated to SQL
 1. Write exclusion tuple
 
 ```sql
-INSERT INTO relation_tuple (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) VALUES ("resource","thegoods","direct","user","yQsvTktOBKZKPeBR","...") ON CONFLICT (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) DO UPDATE SET timestamp = now() RETURNING cluster_logical_timestamp()
+INSERT INTO relation_tuple (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) VALUES ("resource","thegoods","direct","user","1","...") ON CONFLICT (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) DO UPDATE SET timestamp = now() RETURNING cluster_logical_timestamp()
 ```
 
 2. Write direct tuple
@@ -40,15 +40,7 @@ INSERT INTO relation_tuple (namespace,object_id,relation,userset_namespace,users
 ```
 3. Check
 
-```sql=
--- get current cluster timestamp, chop off sub-ns precision
--- round it down to the nearest quantization
--- if the quantization timestamp is newer than the requested revision, evaluate at that timestamp instead
-SELECT cluster_logical_timestamp();
-
-
--- each query evaluated at the same snapshot
-
+```sql
 SET TRANSACTION AS OF SYSTEM TIME 1631462510162458000;
 
 SELECT namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation FROM relation_tuple WHERE namespace = "resource" AND object_id = "thegoods" AND relation = "excluded";
