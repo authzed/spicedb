@@ -18,7 +18,7 @@ type crdbOptions struct {
 	watchBufferLength         uint16
 	revisionQuantization      time.Duration
 	gcWindow                  time.Duration
-	maxOffset                 time.Duration
+	maxRetries                int
 	splitAtEstimatedQuerySize units.Base2Bytes
 }
 
@@ -27,6 +27,8 @@ const (
 
 	defaultRevisionQuantization = 5 * time.Second
 	defaultWatchBufferLength    = 128
+
+	defaultMaxRetries           = 50
 )
 
 type CRDBOption func(*crdbOptions)
@@ -37,6 +39,7 @@ func generateConfig(options []CRDBOption) (crdbOptions, error) {
 		watchBufferLength:         defaultWatchBufferLength,
 		revisionQuantization:      defaultRevisionQuantization,
 		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
+		maxRetries:                defaultMaxRetries,
 	}
 
 	for _, option := range options {
@@ -120,5 +123,14 @@ func RevisionQuantization(bucketSize time.Duration) CRDBOption {
 func GCWindow(window time.Duration) CRDBOption {
 	return func(po *crdbOptions) {
 		po.gcWindow = window
+	}
+}
+
+// MaxRetries is the maximum number of times a retriable transaction will be
+// client-side retried.
+// Default: 50
+func MaxRetries(maxRetries int) CRDBOption {
+	return func(po *crdbOptions) {
+		po.maxRetries = maxRetries
 	}
 }
