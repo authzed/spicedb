@@ -65,22 +65,48 @@ jobs:
       - uses: "actions/setup-go@v2"
         with:
           go-version: "^1.16"
-      - name: "Install kind"
+      - name: "Cache Binaries"
+        id: "cache-binaries"
+        uses: "actions/cache@v2"
+        with:
+          path: |
+            e2e/newenemy/cockroach
+            e2e/newenemy/chaosd
+            e2e/newenemy/watchmaker
+          # this key will need to be bumped when dependencies are changed
+          key: "cockroach-v21.1.7-chaosd-v1.0.2-2"
+      - name: "Install cockroachdb and chaosd"
+        if: "steps.cache-binaries.outputs.cache-hit != 'true'"
         run: |
-          curl -sLo kind "$(curl -sL https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r '[.assets[] | select(.name == "kind-linux-amd64")] | first | .browser_download_url')"
-          chmod +x kind
-          sudo mv kind /bin/
+          pushd e2e/newenemy
+          curl https://binaries.cockroachdb.com/cockroach-v21.1.7.linux-amd64.tgz | tar -xz && mv cockroach-v21.1.7.linux-amd64/cockroach ./cockroach
+          curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.0.2-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.0.2-linux-amd64/chaosd ./chaosd
+
+          # chaosd doesn't yet include time modification, install it separately
+          git clone https://github.com/chaos-mesh/chaos-mesh/
+          pushd chaos-mesh
+          CGO_ENABLED=1 go build ./cmd/watchmaker/
+          popd
+          mv ./chaos-mesh/watchmaker ./watchmaker
+          popd
+      - uses: "actions/cache@v2"
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: "${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}"
+          restore-keys: |
+            ${{ runner.os }}-go-
       - name: "Run e2e"
         run: |
           pushd e2e/newenemy
-          ./run.sh
+          go test -v ./...
           popd
-      - name: Archive test logs
-        uses: actions/upload-artifact@v2
-        if: always()
+      - uses: "actions/upload-artifact@v2"
+        if: "always()"
         with:
-          name: node-logs
-          path: e2e/newenemy/*.log
+          name: "node-logs"
+          path: "e2e/newenemy/*.log"
 
   protobuf:
     name: "Generate Protobufs"

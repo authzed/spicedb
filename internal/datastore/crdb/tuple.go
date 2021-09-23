@@ -166,7 +166,6 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 
 		if bulkWriteCount > 0 {
 			sql, args, err := bulkWrite.ToSql()
-
 			if err != nil {
 				return err
 			}
