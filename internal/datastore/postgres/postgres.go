@@ -68,18 +68,13 @@ var (
 	tracer = otel.Tracer("spicedb/internal/datastore/postgres")
 )
 
-type RelationTupleRow struct {
-	Namespace        string
-	ObjectID         string
-	Relation         string
-	UsersetNamespace string
-	UsersetObjectID  string
-	UsersetRelation  string
-}
-
+// NewPostgresDatastore initializes a SpiceDB datastore that uses a PostgreSQL
+// database by leveraging manual book-keeping to implement revisioning.
+//
+// This datastore is also tested to be compatible with CockroachDB.
 func NewPostgresDatastore(
 	url string,
-	options ...PostgresOption,
+	options ...Option,
 ) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {

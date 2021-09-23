@@ -32,9 +32,11 @@ const (
 	defaultWatchBufferLength = 128
 )
 
-type PostgresOption func(*postgresOptions)
+// Option provides the facility to configure how clients within the
+// Postgres datastore interact with the running Postgres database.
+type Option func(*postgresOptions)
 
-func generateConfig(options []PostgresOption) (postgresOptions, error) {
+func generateConfig(options []Option) (postgresOptions, error) {
 	computed := postgresOptions{
 		gcWindow:                  24 * time.Hour,
 		watchBufferLength:         defaultWatchBufferLength,
@@ -57,67 +59,105 @@ func generateConfig(options []PostgresOption) (postgresOptions, error) {
 	return computed, nil
 }
 
-func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) PostgresOption {
+// SplitAtEstimatedQuerySize is the query size at which it is split into two
+// (or more) queries.
+//
+// This value defaults to `common.DefaultSplitAtEstimatedQuerySize`.
+func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) Option {
 	return func(po *postgresOptions) {
 		po.splitAtEstimatedQuerySize = splitAtEstimatedQuerySize
 	}
 }
 
-func ConnMaxIdleTime(idle time.Duration) PostgresOption {
+// ConnMaxIdleTime is the duration after which an idle connection will be
+// automatically closed by the health check.
+//
+// This value defaults to having no maximum.
+func ConnMaxIdleTime(idle time.Duration) Option {
 	return func(po *postgresOptions) {
 		po.connMaxIdleTime = &idle
 	}
 }
 
-func ConnMaxLifetime(lifetime time.Duration) PostgresOption {
+// ConnMaxLifetime is the duration since creation after which a connection will
+// be automatically closed.
+//
+// This value defaults to having no maximum.
+func ConnMaxLifetime(lifetime time.Duration) Option {
 	return func(po *postgresOptions) {
 		po.connMaxLifetime = &lifetime
 	}
 }
 
-func HealthCheckPeriod(period time.Duration) PostgresOption {
+// HealthCheckPeriod is the interval by which idle Postgres client connections
+// are health checked in order to keep them alive in a connection pool.
+func HealthCheckPeriod(period time.Duration) Option {
 	return func(po *postgresOptions) {
 		po.healthCheckPeriod = &period
 	}
 }
 
-func MaxOpenConns(conns int) PostgresOption {
+// MaxOpenConns is the maximum size of the connection pool.
+//
+// This value defaults to having no maximum.
+func MaxOpenConns(conns int) Option {
 	return func(po *postgresOptions) {
 		po.maxOpenConns = &conns
 	}
 }
 
-func MinOpenConns(conns int) PostgresOption {
+// MinOpenConns is the minimum size of the connection pool.
+// The health check will increase the number of connections to this amount if
+// it had dropped below.
+//
+// This value defaults to zero.
+func MinOpenConns(conns int) Option {
 	return func(po *postgresOptions) {
 		po.minOpenConns = &conns
 	}
 }
 
-func WatchBufferLength(watchBufferLength uint16) PostgresOption {
+// WatchBufferLength is the number of entries that can be stored in the watch
+// buffer while awaiting read by the client.
+//
+// This value defaults to 128.
+func WatchBufferLength(watchBufferLength uint16) Option {
 	return func(po *postgresOptions) {
 		po.watchBufferLength = watchBufferLength
 	}
 }
 
-func RevisionFuzzingTimedelta(delta time.Duration) PostgresOption {
+// RevisionFuzzingTimedelta is the time bucket size to which advertised
+// revisions will be rounded.
+//
+// This value defaults to 5 seconds.
+func RevisionFuzzingTimedelta(delta time.Duration) Option {
 	return func(po *postgresOptions) {
 		po.revisionFuzzingTimedelta = delta
 	}
 }
 
-func GCWindow(window time.Duration) PostgresOption {
+// GCWindow is the maximum age of a passed revision that will be considered
+// valid.
+//
+// This value defaults to 24 hours.
+func GCWindow(window time.Duration) Option {
 	return func(po *postgresOptions) {
 		po.gcWindow = window
 	}
 }
 
-func EnablePrometheusStats() PostgresOption {
+// EnablePrometheusStats enables Prometheus metrics provided by the Postgres
+// clients being used by the datastore.
+func EnablePrometheusStats() Option {
 	return func(po *postgresOptions) {
 		po.enablePrometheusStats = true
 	}
 }
 
-func EnableTracing() PostgresOption {
+// EnableTracing enables trace-level logging for the Postgres clients being
+// used by the datastore.
+func EnableTracing() Option {
 	return func(po *postgresOptions) {
 		po.logger = &tracingLogger{}
 	}

@@ -21,7 +21,10 @@ type pgxpoolStatsCollector struct {
 	totalConns           *prometheus.Desc
 }
 
-// Returns a collector that exports stats available in pgxpool
+// NewPgxpoolStatsCollector returns a collector that exports stats available in
+// a pgxpool.
+//
+// For more info see:
 // https://pkg.go.dev/github.com/jackc/pgx/v4/pgxpool#Stat
 func NewPgxpoolStatsCollector(dbpool *pgxpool.Pool, dbName string) prometheus.Collector {
 	fqName := func(name string) string {
