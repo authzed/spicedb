@@ -65,6 +65,33 @@ This has strategy has become an industry best-practice and is being used to grea
 
 ## Getting Started
 
+### Installing SpiceDB
+
+#### Pulling down a container image
+
+The latest stable release can be obtained by running the following command:
+
+```sh
+docker pull quay.io/authzed/spicedb:latest
+```
+
+For production usage, we **highly** recommend using a tag that corresponds to the [latest release], rather than `latest`.
+
+[latest release]: https://github.com/authzed/spicedb/releases
+
+#### Building and installing a binary
+
+In order to build and install SpiceDB, the [latest stable version of Go] must be installed.
+
+Running the following command will install the latest stable release: 
+
+```sh
+go install github.com/authzed/spicedb/cmd/spicedb@latest
+```
+
+[latest stable version of Go]: https://golang.org/dl
+[working Go environment]: https://golang.org/doc/code.html
+
 ### Running SpiceDB locally
 
 ```sh
@@ -94,30 +121,3 @@ Visit [http://localhost:8080](http://localhost:8080) to see next steps, includin
 [Protecting Your First App]: https://docs.authzed.com/guides/first-app
 [Buf Registry]: https://buf.build/authzed/api/docs
 [Install zed]: https://github.com/authzed/zed
-
-## Installation
-
-### Pulling down a container image
-
-The latest stable release can be obtained by running the following command:
-
-```sh
-docker pull quay.io/authzed/spicedb:latest
-```
-
-For production usage, we **highly** recommend using a tag that corresponds to the [latest release], rather than `latest`.
-
-[latest release]: https://github.com/authzed/spicedb/releases
-
-### Building and installing a binary
-
-In order to build and install SpiceDB, the [latest stable version of Go] must be installed.
-
-Running the following command will install the latest stable release: 
-
-```sh
-go install github.com/authzed/spicedb/cmd/spicedb@latest
-```
-
-[latest stable version of Go]: https://golang.org/dl
-[working Go environment]: https://golang.org/doc/code.html
