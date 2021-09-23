@@ -67,7 +67,7 @@ type Datastore interface {
 // graph resolvers.
 type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
-	QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision Revision) TupleQuery
+	QueryTuples(filter TupleQueryResourceFilter, revision Revision) TupleQuery
 
 	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from
 	// subject onward from the datastore.
@@ -84,6 +84,16 @@ type GraphDatastore interface {
 	// CheckRevision checks the specified revision to make sure it's valid and
 	// hasn't been garbage collected.
 	CheckRevision(ctx context.Context, revision Revision) error
+}
+
+// TupleQueryResourceFilter are the baseline fields used to filter results when
+// querying a datastore for tuples.
+//
+// OptionalFields are ignored when their value is the empty string.
+type TupleQueryResourceFilter struct {
+	ResourceType             string
+	OptionalResourceID       string
+	OptionalResourceRelation string
 }
 
 // CommonTupleQuery is the common interface shared between TupleQuery and

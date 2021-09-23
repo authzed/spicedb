@@ -66,12 +66,11 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 		}
 
 		log.Trace().Object("direct", req).Send()
-		it, err := cc.ds.QueryTuples(
-			req.ObjectAndRelation.Namespace,
-			req.ObjectAndRelation.ObjectId,
-			req.ObjectAndRelation.Relation,
-			requestRevision,
-		).Execute(ctx)
+		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             req.ObjectAndRelation.Namespace,
+			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
+			OptionalResourceRelation: req.ObjectAndRelation.Relation,
+		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), 1)
 			return
@@ -189,12 +188,11 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 		}
 
 		log.Trace().Object("ttu", req).Send()
-		it, err := cc.ds.QueryTuples(
-			req.ObjectAndRelation.Namespace,
-			req.ObjectAndRelation.ObjectId,
-			ttu.Tupleset.Relation,
-			requestRevision,
-		).Execute(ctx)
+		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             req.ObjectAndRelation.Namespace,
+			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
+			OptionalResourceRelation: ttu.Tupleset.Relation,
+		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), 1)
 			return

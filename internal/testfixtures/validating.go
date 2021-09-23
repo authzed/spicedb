@@ -92,12 +92,12 @@ func (vd validatingDatastore) DeleteNamespace(ctx context.Context, nsName string
 	return vd.delegate.DeleteNamespace(ctx, nsName)
 }
 
-func (vd validatingDatastore) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
+func (vd validatingDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
 	var err error
-	if resourceType == "" {
+	if filter.ResourceType == "" {
 		err = fmt.Errorf("missing required resource type")
 	}
-	return validatingTupleQuery{vd.delegate.QueryTuples(resourceType, optionalResourceID, optionalRelation, revision), nil, nil, err}
+	return validatingTupleQuery{vd.delegate.QueryTuples(filter, revision), nil, nil, err}
 }
 
 func (vd validatingDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {

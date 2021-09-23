@@ -166,15 +166,15 @@ func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, precondition
 	return revisionFromVersion(newChangelogID), nil
 }
 
-func (mds *memdbDatastore) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
+func (mds *memdbDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
 	return &memdbTupleQuery{
 		db:               mds.db,
 		revision:         revision,
 		simulatedLatency: mds.simulatedLatency,
 		relationshipFilter: &v1.RelationshipFilter{
-			ResourceType:       resourceType,
-			OptionalResourceId: optionalResourceID,
-			OptionalRelation:   optionalRelation,
+			ResourceType:       filter.ResourceType,
+			OptionalResourceId: filter.OptionalResourceID,
+			OptionalRelation:   filter.OptionalResourceRelation,
 		},
 	}
 }

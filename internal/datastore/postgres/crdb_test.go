@@ -11,6 +11,7 @@ import (
 	"github.com/ory/dockertest"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
 )
@@ -43,8 +44,9 @@ func BenchmarkCRDBQuery(b *testing.B) {
 		require := require.New(b)
 
 		for i := 0; i < b.N; i++ {
-			iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, "", "", revision).
-				Execute(context.Background())
+			iter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+				ResourceType: testfixtures.DocumentNS.Name,
+			}, revision).Execute(context.Background())
 			require.NoError(err)
 
 			defer iter.Close()

@@ -73,38 +73,30 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 				rq := ds.ReverseQueryTuplesFromSubject(tupleToFind.User.GetUserset(), lastRevision)
 
 				queries := []datastore.CommonTupleQuery{
-					ds.QueryTuples(
-						tupleToFind.ObjectAndRelation.Namespace,
-						tupleToFind.ObjectAndRelation.ObjectId,
-						"",
-						lastRevision,
-					),
-					ds.QueryTuples(tupleToFind.ObjectAndRelation.Namespace, "", "", lastRevision).
-						WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
-					ds.QueryTuples(
-						tupleToFind.ObjectAndRelation.Namespace,
-						tupleToFind.ObjectAndRelation.ObjectId,
-						tupleToFind.ObjectAndRelation.Relation,
-						lastRevision,
-					),
-					ds.QueryTuples(
-						tupleToFind.ObjectAndRelation.Namespace,
-						tupleToFind.ObjectAndRelation.ObjectId,
-						"",
-						lastRevision,
-					).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
-					ds.QueryTuples(
-						tupleToFind.ObjectAndRelation.Namespace,
-						"",
-						tupleToFind.ObjectAndRelation.Relation,
-						lastRevision,
-					).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
-					ds.QueryTuples(
-						tupleToFind.ObjectAndRelation.Namespace,
-						"",
-						tupleToFind.ObjectAndRelation.Relation,
-						lastRevision,
-					).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}).Limit(1),
+					ds.QueryTuples(datastore.TupleQueryResourceFilter{
+						ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+						OptionalResourceID: tupleToFind.ObjectAndRelation.ObjectId,
+					}, lastRevision),
+					ds.QueryTuples(datastore.TupleQueryResourceFilter{
+						ResourceType: tupleToFind.ObjectAndRelation.Namespace,
+					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
+					ds.QueryTuples(datastore.TupleQueryResourceFilter{
+						ResourceType:             tupleToFind.ObjectAndRelation.Namespace,
+						OptionalResourceID:       tupleToFind.ObjectAndRelation.ObjectId,
+						OptionalResourceRelation: tupleToFind.ObjectAndRelation.Relation,
+					}, lastRevision),
+					ds.QueryTuples(datastore.TupleQueryResourceFilter{
+						ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+						OptionalResourceID: tupleToFind.ObjectAndRelation.ObjectId,
+					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
+					ds.QueryTuples(datastore.TupleQueryResourceFilter{
+						ResourceType:             tupleToFind.ObjectAndRelation.Namespace,
+						OptionalResourceRelation: tupleToFind.ObjectAndRelation.Relation,
+					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
+					ds.QueryTuples(datastore.TupleQueryResourceFilter{
+						ResourceType:             tupleToFind.ObjectAndRelation.Namespace,
+						OptionalResourceRelation: tupleToFind.ObjectAndRelation.Relation,
+					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}).Limit(1),
 
 					rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation),
 					rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation).Limit(1),
@@ -132,13 +124,13 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 
 			// Check that we can find the group of tuples too
 			queries := []datastore.TupleQuery{
-				ds.QueryTuples(testTuples[0].ObjectAndRelation.Namespace, "", "", lastRevision),
-				ds.QueryTuples(
-					testTuples[0].ObjectAndRelation.Namespace,
-					"",
-					testTuples[0].ObjectAndRelation.Relation,
-					lastRevision,
-				),
+				ds.QueryTuples(datastore.TupleQueryResourceFilter{
+					ResourceType: testTuples[0].ObjectAndRelation.Namespace,
+				}, lastRevision),
+				ds.QueryTuples(datastore.TupleQueryResourceFilter{
+					ResourceType:             testTuples[0].ObjectAndRelation.Namespace,
+					OptionalResourceRelation: testTuples[0].ObjectAndRelation.Relation,
+				}, lastRevision),
 			}
 			for _, query := range queries {
 				iter, err := query.Execute(ctx)
@@ -148,18 +140,17 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 
 			// Try some bad queries
 			badQueries := []datastore.TupleQuery{
-				ds.QueryTuples(
-					testTuples[0].ObjectAndRelation.Namespace,
-					"fakeobjectid",
-					"",
-					lastRevision,
-				),
-				ds.QueryTuples(testTuples[0].ObjectAndRelation.Namespace, "", "", lastRevision).
-					WithUsersets([]*v0.ObjectAndRelation{{
-						Namespace: "test/user",
-						ObjectId:  "fakeuser",
-						Relation:  ellipsis,
-					}}),
+				ds.QueryTuples(datastore.TupleQueryResourceFilter{
+					ResourceType:       testTuples[0].ObjectAndRelation.Namespace,
+					OptionalResourceID: "fakeobjectid",
+				}, lastRevision),
+				ds.QueryTuples(datastore.TupleQueryResourceFilter{
+					ResourceType: testTuples[0].ObjectAndRelation.Namespace,
+				}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{{
+					Namespace: "test/user",
+					ObjectId:  "fakeuser",
+					Relation:  ellipsis,
+				}}),
 			}
 			for _, badQuery := range badQueries {
 				iter, err := badQuery.Execute(ctx)
@@ -194,7 +185,9 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 
 			// Verify that it does not show up at the new revision
 			tRequire.NoTupleExists(ctx, testTuples[0], deletedAt)
-			alreadyDeletedIter, err := ds.QueryTuples(testTuples[0].ObjectAndRelation.Namespace, "", "", deletedAt).Execute(ctx)
+			alreadyDeletedIter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+				ResourceType: testTuples[0].ObjectAndRelation.Namespace,
+			}, deletedAt).Execute(ctx)
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(alreadyDeletedIter, testTuples[1:]...)
 
@@ -514,8 +507,9 @@ func TestUsersets(t *testing.T, tester DatastoreTester) {
 				}
 
 				// Query for the tuples as a single query.
-				iter, err := ds.QueryTuples(testResourceNamespace, "", "", lastRevision).
-					WithUsersets(usersets).Execute(ctx)
+				iter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+					ResourceType: testResourceNamespace,
+				}, lastRevision).WithUsersets(usersets).Execute(ctx)
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, testTuples...)
 			})

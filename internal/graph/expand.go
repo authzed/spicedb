@@ -63,12 +63,11 @@ func (ce *ConcurrentExpander) expandDirect(
 			return
 		}
 
-		it, err := ce.ds.QueryTuples(
-			req.ObjectAndRelation.Namespace,
-			req.ObjectAndRelation.ObjectId,
-			req.ObjectAndRelation.Relation,
-			requestRevision,
-		).Execute(ctx)
+		it, err := ce.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             req.ObjectAndRelation.Namespace,
+			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
+			OptionalResourceRelation: req.ObjectAndRelation.Relation,
+		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), 1)
 			return
@@ -232,12 +231,11 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.
 			return
 		}
 
-		it, err := ce.ds.QueryTuples(
-			req.ObjectAndRelation.Namespace,
-			req.ObjectAndRelation.ObjectId,
-			ttu.Tupleset.Relation,
-			requestRevision,
-		).Execute(ctx)
+		it, err := ce.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             req.ObjectAndRelation.Namespace,
+			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
+			OptionalResourceRelation: ttu.Tupleset.Relation,
+		}, requestRevision).Execute(ctx)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), 1)
 			return

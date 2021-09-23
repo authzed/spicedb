@@ -175,10 +175,18 @@ func (mp mappingProxy) DeleteNamespace(ctx context.Context, nsName string) (data
 	return mp.delegate.DeleteNamespace(ctx, storedNamespaceName)
 }
 
-func (mp mappingProxy) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
+func (mp mappingProxy) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
 	var err error
-	resourceType, err = mp.mapper.Encode(resourceType)
-	return mappingTupleQuery{mp.delegate.QueryTuples(resourceType, optionalResourceID, optionalRelation, revision), mp.mapper, err}
+	resourceType, err := mp.mapper.Encode(filter.ResourceType)
+	return mappingTupleQuery{
+		mp.delegate.QueryTuples(datastore.TupleQueryResourceFilter{
+			ResourceType:             resourceType,
+			OptionalResourceID:       filter.OptionalResourceID,
+			OptionalResourceRelation: filter.OptionalResourceRelation,
+		}, revision),
+		mp.mapper,
+		err,
+	}
 }
 
 func (mp mappingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {

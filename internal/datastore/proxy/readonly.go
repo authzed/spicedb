@@ -57,8 +57,8 @@ func (rd roDatastore) DeleteNamespace(ctx context.Context, nsName string) (datas
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
-	return rd.delegate.QueryTuples(resourceType, optionalResourceID, optionalRelation, revision)
+func (rd roDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+	return rd.delegate.QueryTuples(filter, revision)
 }
 
 func (rd roDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {

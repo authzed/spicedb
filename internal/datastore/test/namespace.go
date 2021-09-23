@@ -100,7 +100,9 @@ func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
 	deletedRevision, err := ds.SyncRevision(ctx)
 	require.NoError(err)
 
-	iter, err := ds.QueryTuples(testfixtures.DocumentNS.Name, "", "", deletedRevision).Execute(ctx)
+	iter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+		ResourceType: testfixtures.DocumentNS.Name,
+	}, deletedRevision).Execute(ctx)
 	require.NoError(err)
 	tRequire.VerifyIteratorResults(iter)
 

@@ -35,21 +35,21 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (cds *crdbDatastore) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
-	initialQuery := queryTuples.Where(sq.Eq{colNamespace: resourceType})
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(resourceType)}
+func (cds *crdbDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+	initialQuery := queryTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
+	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
 
-	if optionalResourceID != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colObjectID: optionalResourceID})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(optionalResourceID))
+	if filter.OptionalResourceID != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colObjectID: filter.OptionalResourceID})
+		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(filter.OptionalResourceID))
 	}
 
-	if optionalRelation != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colRelation: optionalRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(optionalRelation))
+	if filter.OptionalResourceRelation != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colRelation: filter.OptionalResourceRelation})
+		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(filter.OptionalResourceRelation))
 	}
 
-	baseSize := len(resourceType) + len(optionalResourceID) + len(optionalRelation)
+	baseSize := len(filter.ResourceType) + len(filter.OptionalResourceID) + len(filter.OptionalResourceRelation)
 
 	return common.TupleQuery{
 		Conn:                      cds.conn,

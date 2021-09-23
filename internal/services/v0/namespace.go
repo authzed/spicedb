@@ -80,7 +80,10 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			switch delta.Type {
 			case namespace.RemovedRelation:
 				err = errorIfTupleIteratorReturnsTuples(
-					nss.ds.QueryTuples(config.Name, "", delta.RelationName, syncRevision),
+					nss.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+						ResourceType:             config.Name,
+						OptionalResourceRelation: delta.RelationName,
+					}, syncRevision),
 					ctx,
 					"cannot delete relation `%s` in definition `%s`, as a relationship exists under it", delta.RelationName, config.Name)
 				if err != nil {

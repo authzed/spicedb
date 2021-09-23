@@ -171,14 +171,16 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 	var allTuplesetResults []*v0.ReadResponse_Tupleset
 
 	for _, tuplesetFilter := range req.Tuplesets {
-		var optionalResourceID, optionalRelation string
+		queryFilter := datastore.TupleQueryResourceFilter{
+			ResourceType: tuplesetFilter.Namespace,
+		}
 		var filterUserset *v0.ObjectAndRelation
 		for _, filter := range tuplesetFilter.Filters {
 			switch filter {
 			case v0.RelationTupleFilter_OBJECT_ID:
-				optionalResourceID = tuplesetFilter.ObjectId
+				queryFilter.OptionalResourceID = tuplesetFilter.ObjectId
 			case v0.RelationTupleFilter_RELATION:
-				optionalRelation = tuplesetFilter.Relation
+				queryFilter.OptionalResourceRelation = tuplesetFilter.Relation
 			case v0.RelationTupleFilter_USERSET:
 				filterUserset = tuplesetFilter.Userset
 			default:
@@ -186,8 +188,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 			}
 		}
 
-		query := as.ds.QueryTuples(tuplesetFilter.Namespace, optionalResourceID, optionalRelation, atRevision)
-
+		query := as.ds.QueryTuples(queryFilter, atRevision)
 		if filterUserset != nil {
 			query = query.WithUsersets([]*v0.ObjectAndRelation{filterUserset})
 		}

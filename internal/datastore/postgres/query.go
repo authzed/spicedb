@@ -31,28 +31,28 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (pgd *pgDatastore) QueryTuples(resourceType, optionalResourceID, optionalRelation string, revision datastore.Revision) datastore.TupleQuery {
+func (pgd *pgDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
 	initialQuery := queryTuples.
-		Where(sq.Eq{colNamespace: resourceType}).
+		Where(sq.Eq{colNamespace: filter.ResourceType}).
 		Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 		Where(sq.Or{
 			sq.Eq{colDeletedTxn: liveDeletedTxnID},
 			sq.Gt{colDeletedTxn: revision},
 		})
 
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(resourceType)}
+	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
 
-	if optionalResourceID != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colObjectID: optionalResourceID})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(optionalResourceID))
+	if filter.OptionalResourceID != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colObjectID: filter.OptionalResourceID})
+		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(filter.OptionalResourceID))
 	}
 
-	if optionalRelation != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colRelation: optionalRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(optionalRelation))
+	if filter.OptionalResourceRelation != "" {
+		initialQuery = initialQuery.Where(sq.Eq{colRelation: filter.OptionalResourceRelation})
+		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(filter.OptionalResourceRelation))
 	}
 
-	baseSize := len(resourceType) + len(optionalResourceID) + len(optionalRelation)
+	baseSize := len(filter.ResourceType) + len(filter.OptionalResourceID) + len(filter.OptionalResourceRelation)
 
 	return common.TupleQuery{
 		Conn:                      pgd.dbpool,
