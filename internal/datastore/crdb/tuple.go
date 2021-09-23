@@ -2,6 +2,7 @@ package crdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
@@ -50,7 +51,7 @@ var (
 )
 
 func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
-	query := queryTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
+	query := queryTupleExists.Where(sq.Eq{colNamespace: filter.ResourceType})
 
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
@@ -84,23 +85,21 @@ func (cds *crdbDatastore) checkPreconditions(ctx context.Context, tx pgx.Tx, pre
 				return err
 			}
 
-			rows, err := tx.Query(ctx, sql, args...)
-			if err != nil {
-				return err
+			var foundObjectID string
+			if err := tx.QueryRow(ctx, sql, args...).Scan(&foundObjectID); err != nil {
+				switch {
+				case errors.Is(err, pgx.ErrNoRows) && precond.Operation == v1.Precondition_OPERATION_MUST_MATCH:
+					return datastore.NewPreconditionFailedErr(precond)
+				case errors.Is(err, pgx.ErrNoRows) && precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH:
+					continue
+				default:
+					return err
+				}
 			}
 
-			exists := rows.Next()
-			if err := rows.Err(); err != nil {
-				rows.Close()
-				return err
-			}
-
-			if (precond.Operation == v1.Precondition_OPERATION_MUST_MATCH && !exists) ||
-				(precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH && exists) {
-				rows.Close()
+			if precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH {
 				return datastore.NewPreconditionFailedErr(precond)
 			}
-			rows.Close()
 		default:
 			return fmt.Errorf("unspecified precondition operation")
 		}
@@ -208,10 +207,8 @@ func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
 	}
 
-	query := queryDeleteTuples.Suffix(queryReturningTimestamp)
-
 	// Add clauses for the ResourceFilter
-	query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	query := queryDeleteTuples.Suffix(queryReturningTimestamp).Where(sq.Eq{colNamespace: filter.ResourceType})
 	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})

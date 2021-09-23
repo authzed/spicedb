@@ -39,7 +39,7 @@ var (
 )
 
 func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
-	query := queryTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
+	query := queryTupleExists.Where(sq.Eq{colNamespace: filter.ResourceType})
 
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
@@ -85,7 +85,7 @@ func (pgd *pgDatastore) checkPreconditions(ctx context.Context, tx pgx.Tx, preco
 				}
 			}
 
-			if foundID >= 0 && precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH {
+			if precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH {
 				return datastore.NewPreconditionFailedErr(precond)
 			}
 		default:
