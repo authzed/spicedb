@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"os"
-	"os/signal"
+	"net"
 	"testing"
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
+	"github.com/jackc/pgx/v4"
 	"google.golang.org/grpc"
 
+	"github.com/authzed/spicedb/e2e"
 	"github.com/authzed/spicedb/pkg/zookie"
-	"github.com/jackc/pgx/v4"
 )
 
 const schema = `
@@ -35,38 +35,179 @@ var (
 	schemaClient             v1alpha1.SchemaServiceClient
 	conn                     *pgx.Conn
 	testCtx                  context.Context
-	cancel                   context.CancelFunc
 )
 
 func TestMain(m *testing.M) {
-	testCtx, cancel = context.WithCancel(context.Background())
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
-	defer func() {
-		signal.Stop(signalChan)
-		cancel()
-	}()
-	go func() {
-		select {
-		case <-signalChan:
-			cancel()
-		case <-testCtx.Done():
+	var cancel context.CancelFunc
+	testCtx, cancel = context.WithCancel(e2e.Context())
+	defer cancel()
+
+	fmt.Println("starting cockroach...")
+	if _, err := e2e.GoRun(testCtx, "crdb1.log",
+		"./cockroach", "start", "--store=node1", "--logtostderr",
+		"--insecure", "--listen-addr=localhost:26257",
+		"--http-addr=localhost:8080",
+		"--join=localhost:26257,localhost:26258,localhost:26259",
+	); err != nil {
+		log.Fatalf("unable to start crdb: %v", err)
+	}
+	pid, err := e2e.GoRun(testCtx, "crdb2.log",
+		"./cockroach", "start", "--store=node2", "--logtostderr",
+		"--insecure", "--listen-addr=localhost:26258",
+		"--http-addr=localhost:8081",
+		"--join=localhost:26257,localhost:26258,localhost:26259",
+	)
+	if err != nil {
+		log.Fatalf("unable to start crdb: %v", err)
+	}
+	if _, err := e2e.GoRun(testCtx, "crdb3.log",
+		"./cockroach", "start", "--store=node3", "--logtostderr",
+		"--insecure", "--listen-addr=localhost:26259",
+		"--http-addr=localhost:8082",
+		"--join=localhost:26257,localhost:26258,localhost:26259",
+	); err != nil {
+		log.Fatalf("unable to start crdb: %v", err)
+	}
+
+	fmt.Println("initializing crdb...")
+
+	// this auto-retries until it succeeds
+	e2e.Run(testCtx, "", "./cockroach", "init", "--insecure", "--host=localhost:26257")
+
+	if err := e2e.Run(testCtx, "",
+		"./cockroach", "sql", "--insecure", "--host=localhost:26257",
+		"-e", "CREATE DATABASE spicedb;",
+	); err != nil {
+		log.Fatalf("couldn't create db: %v", err)
+	}
+	if err := e2e.Run(testCtx, "",
+		"./cockroach", "sql", "--insecure", "--host=localhost:26257",
+		"-e", "ALTER DATABASE spicedb CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1;",
+	); err != nil {
+		log.Fatalf("couldn't configure db: %v", err)
+	}
+
+	fmt.Println("fetching dependencies...")
+	if err := e2e.Run(testCtx, "",
+		"go", "get", "-d", "github.com/authzed/spicedb/cmd/spicedb/...",
+	); err != nil {
+		log.Fatalf("error fetching dependencies: %v", err)
+	}
+
+	fmt.Println("building...")
+	if err := e2e.Run(testCtx, "",
+		"go", "build", "github.com/authzed/spicedb/cmd/spicedb/...",
+	); err != nil {
+		log.Fatalf("error building spicedb: %v", err)
+	}
+
+	fmt.Println("migrating...")
+	migrated := false
+	for i := 0; i < 5; i++ {
+		if err := e2e.Run(testCtx, "",
+			"./spicedb",
+			"migrate", "head", "--datastore-engine=cockroachdb",
+			"--datastore-conn-uri=postgresql://root@localhost:26257/spicedb?sslmode=disable",
+		); err == nil {
+			migrated = true
+			break
 		}
-		<-signalChan
-		os.Exit(2)
-	}()
+		time.Sleep(1 * time.Second)
+	}
+	if !migrated {
+		log.Fatalf("couldn't migrate")
+	}
+
+	fmt.Println("starting spicedbs...")
+	if _, err := e2e.GoRun(testCtx, "spicedb1.log",
+		"./spicedb",
+		"serve", "--log-level=debug", "--grpc-preshared-key="+token, "--grpc-no-tls",
+		"--dashboard-addr=:8087", "--datastore-engine=cockroachdb",
+		"--datastore-conn-uri=postgresql://root@localhost:26257/spicedb?sslmode=disable",
+	); err != nil {
+		log.Fatalf("unable to start spicedb: %v", err)
+	}
+
+	if _, err := e2e.GoRun(testCtx, "spicedb2.log",
+		"./spicedb",
+		"serve", "--log-level=debug", "--grpc-preshared-key="+token, "--grpc-no-tls",
+		"--datastore-engine=cockroachdb", "--grpc-addr=:50052",
+		"--internal-grpc-addr=:50054", "--metrics-addr=:9091", "--dashboard-addr=:8085",
+		"--datastore-conn-uri=postgresql://root@localhost:26258/spicedb?sslmode=disable",
+	); err != nil {
+		log.Fatalf("unable to start spicedb: %v", err)
+	}
+
+	if _, err := e2e.GoRun(testCtx, "spicedb3.log",
+		"./spicedb",
+		"serve", "--log-level=debug", "--grpc-preshared-key="+token, "--grpc-no-tls",
+		"--datastore-engine=cockroachdb", "--grpc-addr=:50055",
+		"--internal-grpc-addr=:50056", "--metrics-addr=:9092", "--dashboard-addr=:8086",
+		"--datastore-conn-uri=postgresql://root@localhost:26259/spicedb?sslmode=disable",
+	); err != nil {
+		log.Fatalf("unable to start spicedb: %v", err)
+	}
+
+	fmt.Println("modifying network")
+	if err := e2e.Run(testCtx, "netattack.log",
+		"sudo", "./chaosd", "attack", "network", "delay", "-l=100ms",
+		"-e=26757", "-d=lo", "-p=tcp",
+	); err != nil {
+		log.Fatalf("unable to delay network: %v", err)
+	}
+
+	fmt.Println("modifying network")
+	if err := e2e.Run(testCtx, "netattack.log",
+		"sudo", "./chaosd", "attack", "network", "delay", "-l=100ms",
+		"-e=26757", "-d=lo", "-p=tcp",
+	); err != nil {
+		log.Fatalf("unable to delay network: %v", err)
+	}
+
+	fmt.Println("modifying time")
+	sec, nsec := secAndNSecFromDuration(-200 * time.Millisecond)
+	if err := e2e.Run(testCtx, "timeattack.log",
+		"sudo", "./watchmaker", fmt.Sprintf("--pid=%d", pid), fmt.Sprintf("--sec_delta=%d", sec),
+		fmt.Sprintf("--nsec_delta=%d", nsec), "--clk_ids=CLOCK_REALTIME,CLOCK_MONOTONIC",
+	); err != nil {
+		log.Fatalf("unable to modify time: %v", err)
+	}
 
 	rand.Seed(time.Now().UnixNano())
 
-	grpcConn1, err := grpc.Dial("localhost:50051", grpc.WithInsecure(), grpcutil.WithInsecureBearerToken(token))
+	for {
+		if func() bool {
+			timeout := time.Second
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort("localhost", "50051"), timeout)
+			if err != nil {
+				fmt.Println("waiting for spicedbs to be ready:", err)
+				time.Sleep(1 * time.Second)
+				return false
+			}
+			if conn != nil {
+				conn.Close()
+			}
+			return true
+		}() {
+			break
+		}
+	}
+
+	fmt.Println("attempting to connect...")
+	grpcConn1, err := grpc.DialContext(testCtx, "localhost:50051",
+		grpc.WithBlock(), grpc.WithInsecure(),
+		grpcutil.WithInsecureBearerToken(token))
 	if err != nil {
 		log.Fatalf("unable to connect: %s", err)
 	}
-	grpcConn2, err := grpc.Dial("localhost:50052", grpc.WithInsecure(), grpcutil.WithInsecureBearerToken(token))
+	grpcConn2, err := grpc.DialContext(testCtx, "localhost:50052",
+		grpc.WithBlock(), grpc.WithInsecure(),
+		grpcutil.WithInsecureBearerToken(token))
 	if err != nil {
 		log.Fatalf("unable to connect: %s", err)
 	}
-	grpcConn3, err := grpc.Dial("localhost:50055", grpc.WithInsecure(), grpcutil.WithInsecureBearerToken(token))
+	grpcConn3, err := grpc.DialContext(testCtx, "localhost:50055",
+		grpc.WithBlock(), grpc.WithInsecure(), grpcutil.WithInsecureBearerToken(token))
 	if err != nil {
 		log.Fatalf("unable to connect: %s", err)
 	}
@@ -84,11 +225,18 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
+func secAndNSecFromDuration(duration time.Duration) (sec int64, nsec int64) {
+	sec = duration.Nanoseconds() / 1e9
+	nsec = duration.Nanoseconds() - (sec * 1e9)
+
+	return
+}
+
 func TestNoNewEnemy(t *testing.T) {
 	fillerCount := 2000
-	tupleCount := fillerCount + 300
+	testCount := 1000
 	batchSize := 100
-	excludes, directs := generateTuples(tupleCount)
+	directs, excludes := generateTuples(fillerCount + testCount)
 
 	// fill with tuples to ensure we span multiple ranges
 	fill(fillerCount, batchSize, excludes, directs)
@@ -98,9 +246,9 @@ func TestNoNewEnemy(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	candidates := 0
-	for i := fillerCount; i < tupleCount; i++ {
-		// write to node 2 (clock is behind)
-		r1, err := client2.Write(testCtx, &v0.WriteRequest{
+	for i := fillerCount; i < fillerCount+testCount; i++ {
+		// write to node 1
+		r1, err := client.Write(testCtx, &v0.WriteRequest{
 			Updates: []*v0.RelationTupleUpdate{excludes[i]},
 		})
 		if err != nil {
@@ -108,8 +256,8 @@ func TestNoNewEnemy(t *testing.T) {
 			continue
 		}
 
-		// write to node 1
-		r2, err := client.Write(testCtx, &v0.WriteRequest{
+		// write to node 2 (clock is behind)
+		r2, err := client2.Write(testCtx, &v0.WriteRequest{
 			Updates: []*v0.RelationTupleUpdate{directs[i]},
 		})
 		if err != nil {
@@ -129,25 +277,26 @@ func TestNoNewEnemy(t *testing.T) {
 		if err != nil {
 			fmt.Println(err)
 			continue
-		} else {
-			if canHas.Membership == v0.CheckResponse_MEMBER {
-				fmt.Println("service is subject to the new enemy problem")
-			}
+		}
+		if canHas.IsMember {
+			fmt.Println("service is subject to the new enemy problem")
 		}
 
 		analyzeCalls(excludes[i].Tuple, directs[i].Tuple, r1.GetRevision(), r2.GetRevision(), &candidates)
 
-		// if we find 3 causal reversals, but no newenemy, assume we're protected
-		if candidates > 3 {
-			fmt.Println("3 (would be) causal reversals with no new enemy detected")
-			return
-		}
-		if canHas.Membership == v0.CheckResponse_MEMBER {
+		if canHas.IsMember {
 			log.Fatalf("done")
 		}
+
+		// if we find causal reversals, but no newenemy, assume we're protected
+		if candidates > 5 {
+			fmt.Println("5 (would be) causal reversals with no new enemy detected")
+			return
+		}
+
 	}
-	if candidates < 3 {
-		log.Fatalf("didn't see 3 candidates, only saw %d", candidates)
+	if candidates < 5 {
+		log.Fatalf("didn't see 5 candidates, only saw %d", candidates)
 	}
 }
 
@@ -283,35 +432,26 @@ func generateTuples(n int) (directs []*v0.RelationTupleUpdate, excludes []*v0.Re
 
 // after we've checked, analyze the previous calls
 func analyzeCalls(t1, t2 *v0.RelationTuple, r1, r2 *v0.Zookie, candidates *int) {
-	l1, l2 := getLeaderNode(testCtx, conn, t1), getLeaderNode(testCtx, conn, t2)
-	if l1 != l2 {
-		fmt.Println("different leaders for writes: ", l1, l2)
-	}
+	l1, l1rs := getLeaderNode(testCtx, conn, t1)
+	l2, l2rs := getLeaderNode(testCtx, conn, t2)
 
 	z1, _ := zookie.DecodeRevision(r1)
 	z2, _ := zookie.DecodeRevision(r2)
 
-	// this handles "sleep" candidates
-	// if the direct write has an earlier timestamp than the exclude write,
-	// we would expect the check to fail
-	if z2.LessThan(z1) {
+	// the best we can do when mitigations are enabled is guess that timestamps
+	// with the same nanosecond timestamp were protected
+	if z2.GreaterThan(z1) && z2.IntPart() == z1.IntPart() {
 		*candidates++
 		fmt.Println("candidate found")
 	}
 
-	// this handles "overlapping transaction" candidates
-	// if the writes differ only the logical component,
-	// then the transactions overlapped and crdb assigned them the correct order
-	if z1.LessThan(z2) && z1.IntPart() == z2.IntPart() {
-		*candidates++
-		fmt.Println("candidate found")
-	}
-	fmt.Println(z1, z2, z1.Sub(z2).String())
+	fmt.Println(z1, z2, z1.Sub(z2).String(), l1, l2, l1rs, l2rs)
 }
 
 // getLeaderNode returns the node with the lease leader for the range containing the tuple
-func getLeaderNode(ctx context.Context, conn *pgx.Conn, tuple *v0.RelationTuple) byte {
+func getLeaderNode(ctx context.Context, conn *pgx.Conn, tuple *v0.RelationTuple) (byte, []byte) {
 	t := tuple
+
 	rows, err := conn.Query(ctx, "SHOW RANGE FROM TABLE relation_tuple FOR ROW ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text)",
 		t.ObjectAndRelation.Namespace,
 		t.ObjectAndRelation.ObjectId,
@@ -325,11 +465,25 @@ func getLeaderNode(ctx context.Context, conn *pgx.Conn, tuple *v0.RelationTuple)
 		log.Fatalf("failed to exec: %v", err)
 	}
 	var raw []byte
+	replicas := []byte{}
 	for rows.Next() {
+		// NOTE: this is in lieu of pulling in roachpb, it may be out of date
+		// if those APIs change
 		raw = rows.RawValues()[3]
+
+		replicasRaw := rows.RawValues()[5]
+		for {
+			var found []byte
+			replicasRaw, found = replicasRaw[:len(replicasRaw)-12], replicasRaw[len(replicasRaw)-12:]
+			if found[3] == byte(8) {
+				replicas = append(replicas, found[11])
+			} else {
+				break
+			}
+		}
 		break
 	}
-	return raw[len(raw)-1]
+	return raw[len(raw)-1], replicas
 }
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")

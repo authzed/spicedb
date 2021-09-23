@@ -83,3 +83,16 @@ Even under these conditions, to trigger the new enemy problem we have to:
 - Artificially introduce large time skew and network latency (much larger than we typically see in crdb clusters)
 
 _Note: timechaos only works on amd64 and ptrace calls don't work in qemu, which means there is no way to run this test suite on an arm machine (like m1 mac)._
+
+## Build notes
+
+This runs in CI and builds spicedb from head. 
+The go.mod/go.sum may get out of sync.
+If they do, they can be fixed with:
+
+```bash
+cd e2e
+go get -d github.com/authzed/spicedb/cmd/spicedb/...
+go build github.com/authzed/spicedb/cmd/spicedb/...
+go mod tidy
+```
