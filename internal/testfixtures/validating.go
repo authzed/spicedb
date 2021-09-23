@@ -167,14 +167,14 @@ type validatingTupleQuery struct {
 	foundErr       error
 }
 
-func (vd validatingTupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
+func (vd validatingTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
 	if vd.foundErr != nil {
 		return vd
 	}
 
 	err := filter.Validate()
 	return validatingTupleQuery{
-		wrapped:  vd.wrapped.WithUsersetFilter(filter),
+		wrapped:  vd.wrapped.WithSubjectFilter(filter),
 		foundErr: err,
 	}
 }

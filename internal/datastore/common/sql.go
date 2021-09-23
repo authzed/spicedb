@@ -113,7 +113,7 @@ func (ctq TupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.T
 	}
 
 	if ctq.usersetFilter != nil {
-		panic("cannot call WithUsersets after WithUsersetFilter")
+		panic("cannot call WithUsersets after WithSubjectFilter")
 	}
 
 	if ctq.usersets != nil {
@@ -124,18 +124,18 @@ func (ctq TupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.T
 	return ctq
 }
 
-// WithUsersetFilter implements the datastore.TupleQuery interface
-func (ctq TupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
+// WithSubjectFilter implements the datastore.TupleQuery interface
+func (ctq TupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
 	if filter == nil {
-		panic("cannot call WithUsersetFilter with a nil filter")
+		panic("cannot call WithSubjectFilter with a nil filter")
 	}
 
 	if ctq.usersets != nil {
-		panic("cannot call WithUsersetFilter after WithUsersets")
+		panic("cannot call WithSubjectFilter after WithUsersets")
 	}
 
 	if ctq.usersetFilter != nil {
-		panic("called WithUsersetFilter twice")
+		panic("called WithSubjectFilter twice")
 	}
 
 	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(filter.SubjectType))

@@ -278,7 +278,7 @@ func (mtq mappingTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	}
 }
 
-func (mtq mappingTupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
+func (mtq mappingTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
 	if mtq.err != nil {
 		return mtq
 	}
@@ -289,7 +289,7 @@ func (mtq mappingTupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datasto
 		return mtq
 	}
 
-	mtq.delegate = mtq.delegate.WithUsersetFilter(translatedFilter)
+	mtq.delegate = mtq.delegate.WithSubjectFilter(translatedFilter)
 	return mtq
 }
 

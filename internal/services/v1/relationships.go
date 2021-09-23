@@ -90,7 +90,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		atRevision,
 	)
 	if req.RelationshipFilter.OptionalSubjectFilter != nil {
-		queryBuilder.WithUsersetFilter(req.RelationshipFilter.OptionalSubjectFilter)
+		queryBuilder.WithSubjectFilter(req.RelationshipFilter.OptionalSubjectFilter)
 	}
 
 	tupleIterator, err := queryBuilder.Execute(ctx)

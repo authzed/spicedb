@@ -30,17 +30,17 @@ func (mtq memdbTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
 	return mtq
 }
 
-func (mtq memdbTupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
+func (mtq memdbTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
 	if filter == nil {
-		panic("cannot call WithUsersetFilter with a nil filter")
+		panic("cannot call WithSubjectFilter with a nil filter")
 	}
 
 	if mtq.relationshipFilter.OptionalSubjectFilter != nil {
-		panic("cannot call WithUsersetFilter after WithUsersets")
+		panic("cannot call WithSubjectFilter after WithUsersets")
 	}
 
 	if mtq.usersetsFilter != nil {
-		panic("called WithUsersetFilter twice")
+		panic("called WithSubjectFilter twice")
 	}
 
 	mtq.relationshipFilter.OptionalSubjectFilter = filter
@@ -49,7 +49,7 @@ func (mtq memdbTupleQuery) WithUsersetFilter(filter *v1.SubjectFilter) datastore
 
 func (mtq memdbTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
 	if mtq.relationshipFilter.OptionalSubjectFilter != nil {
-		panic("cannot call WithUsersets after WithUsersetFilter")
+		panic("cannot call WithUsersets after WithSubjectFilter")
 	}
 
 	if mtq.usersetsFilter != nil {

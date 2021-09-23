@@ -110,7 +110,7 @@ type TupleQuery interface {
 	CommonTupleQuery
 
 	// WithUserset adds a userset filter to the query.
-	WithUsersetFilter(*v1.SubjectFilter) TupleQuery
+	WithSubjectFilter(*v1.SubjectFilter) TupleQuery
 
 	// WithUsersets adds multiple userset filters to the query.
 	WithUsersets(usersets []*v0.ObjectAndRelation) TupleQuery
