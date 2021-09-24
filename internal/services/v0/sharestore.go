@@ -45,12 +45,20 @@ type SharedDataV2 struct {
 	AssertionsYaml    string `json:"assertions_yaml"`
 }
 
+// LookupStatus is an enum for the possible ShareStore lookup outcomes.
 type LookupStatus int
 
 const (
+	// LookupError indicates an error has occurred.
 	LookupError LookupStatus = iota
+
+	// LookupNotFound indicates that no results were found for the specified reference.
 	LookupNotFound
+
+	// LookupSuccess indicates success.
 	LookupSuccess
+
+	// LookupConverted indicates when the results have been converted from an earlier version.
 	LookupConverted
 )
 
@@ -65,7 +73,7 @@ type ShareStore interface {
 }
 
 // NewInMemoryShareStore creates a new in memory share store.
-func NewInMemoryShareStore(salt string) *inMemoryShareStore {
+func NewInMemoryShareStore(salt string) ShareStore {
 	return &inMemoryShareStore{
 		shared: map[string][]byte{},
 		salt:   salt,
@@ -105,7 +113,7 @@ type s3ShareStore struct {
 // NewS3ShareStore creates a new S3 share store, reading and writing the shared data to the given
 // bucket, with the given salt for hash computation and the given config for connecting to S3 or
 // and S3-compatible API.
-func NewS3ShareStore(bucket string, salt string, config *aws.Config) (*s3ShareStore, error) {
+func NewS3ShareStore(bucket string, salt string, config *aws.Config) (ShareStore, error) {
 	sess, err := session.NewSession(config)
 	if err != nil {
 		return nil, err

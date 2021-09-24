@@ -48,7 +48,7 @@ func TestSharingConverted(t *testing.T) {
 	srv := NewDeveloperServer(store)
 
 	// Add a share resource in V1 format.
-	store.shared["foo"] = []byte(`{
+	store.(*inMemoryShareStore).shared["foo"] = []byte(`{
 		"version": "1",
 		"namespace_configs": [
 			"name: \"foo\""
