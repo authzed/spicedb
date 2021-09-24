@@ -769,12 +769,12 @@ func TestLookup(t *testing.T) {
 						require.Equal(tc.expectedObjectIds, result.ResolvedObjectIds)
 
 						// Sanity check: Issue a check on every ID returned.
-						for _, objId := range result.ResolvedObjectIds {
+						for _, objID := range result.ResolvedObjectIds {
 							checkResp, err := client.Check(context.Background(), &v0.CheckRequest{
 								TestUserset: &v0.ObjectAndRelation{
 									Namespace: tc.relation.Namespace,
 									Relation:  tc.relation.Relation,
-									ObjectId:  objId,
+									ObjectId:  objID,
 								},
 								User: &v0.User{
 									UserOneof: &v0.User_Userset{
@@ -784,7 +784,7 @@ func TestLookup(t *testing.T) {
 								AtRevision: zookie.NewFromRevision(revision),
 							})
 							require.NoError(err)
-							require.Equal(true, checkResp.IsMember, "Object ID %s is not a member", objId)
+							require.Equal(true, checkResp.IsMember, "Object ID %s is not a member", objID)
 						}
 					} else {
 						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)

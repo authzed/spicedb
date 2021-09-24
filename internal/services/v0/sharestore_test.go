@@ -30,7 +30,7 @@ func TestS3ShareStore(t *testing.T) {
 	sharestore, err := NewS3ShareStore("foo", "bar", s3Config)
 	require.NoError(err)
 
-	err = sharestore.createBucketForTesting()
+	err = sharestore.(*s3ShareStore).createBucketForTesting()
 	require.NoError(err)
 
 	// Check for invalid share.

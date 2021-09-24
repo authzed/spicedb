@@ -23,7 +23,7 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-// NewPermissionServer creates a PermissionsServiceServer instance.
+// NewPermissionsServer creates a PermissionsServiceServer instance.
 func NewPermissionsServer(ds datastore.Datastore,
 	nsm namespace.Manager,
 	dispatch dispatch.Dispatcher,

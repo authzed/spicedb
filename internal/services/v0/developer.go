@@ -367,7 +367,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 		}
 
 		// Run a full recursive expansion over the ONR.
-		er, dispatch_err := devContext.Dispatcher.DispatchExpand(ctx, &v1.DispatchExpandRequest{
+		er, dispatchErr := devContext.Dispatcher.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 			ObjectAndRelation: onr,
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     devContext.Revision.String(),
@@ -375,8 +375,8 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 			},
 			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 		})
-		if dispatch_err != nil {
-			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), dispatch_err)
+		if dispatchErr != nil {
+			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), dispatchErr)
 			if validationErrs != nil {
 				failures = append(failures, validationErrs...)
 				return nil, failures, nil
@@ -501,8 +501,8 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, va
 }
 
 func rewriteGraphError(source v0.DeveloperError_Source, line uint32, column uint32, context string, checkError error) ([]*v0.DeveloperError, error) {
-	var nsNotFoundError sharederrors.UnknownNamespaceError = nil
-	var relNotFoundError sharederrors.UnknownRelationError = nil
+	var nsNotFoundError sharederrors.UnknownNamespaceError
+	var relNotFoundError sharederrors.UnknownRelationError
 
 	if errors.As(checkError, &nsNotFoundError) {
 		return []*v0.DeveloperError{
@@ -561,7 +561,7 @@ func convertSourceError(source v0.DeveloperError_Source, err *validationfile.Err
 var yamlLineRegex = regexp.MustCompile(`line ([0-9]+): (.+)`)
 
 func convertYamlError(source v0.DeveloperError_Source, err error) *v0.DeveloperError {
-	var lineNumber uint64 = 0
+	var lineNumber uint64
 	msg := err.Error()
 
 	pieces := yamlLineRegex.FindStringSubmatch(err.Error())

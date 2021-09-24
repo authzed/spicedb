@@ -309,13 +309,6 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 	}, nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.LookupResponse, error) {
 	err := as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true)
 	if err != nil {
@@ -392,8 +385,8 @@ func (as *aclServer) pickBestRevision(ctx context.Context, requested *v0.Zookie)
 }
 
 func rewriteACLError(err error) error {
-	var nsNotFoundError sharederrors.UnknownNamespaceError = nil
-	var relNotFoundError sharederrors.UnknownRelationError = nil
+	var nsNotFoundError sharederrors.UnknownNamespaceError
+	var relNotFoundError sharederrors.UnknownRelationError
 
 	switch {
 	case err == errInvalidZookie:

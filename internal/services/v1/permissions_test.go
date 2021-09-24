@@ -36,10 +36,10 @@ func init() {
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 }
 
-func obj(objType, objId string) *v1.ObjectReference {
+func obj(objType, objID string) *v1.ObjectReference {
 	return &v1.ObjectReference{
 		ObjectType: objType,
-		ObjectId:   objId,
+		ObjectId:   objID,
 	}
 }
 
