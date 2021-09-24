@@ -17,7 +17,9 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestWatch(t *testing.T, tester DatastoreTester) {
+// WatchTest tests whether or not the requirements for watching changes hold
+// for a particular datastore.
+func WatchTest(t *testing.T, tester DatastoreTester) {
 	testCases := []struct {
 		numTuples        int
 		expectFallBehind bool
@@ -147,7 +149,9 @@ func setOfChanges(changes []*v0.RelationTupleUpdate) *strset.Set {
 	return changeSet
 }
 
-func TestWatchCancel(t *testing.T, tester DatastoreTester) {
+// WatchCancelTest tests whether or not the requirements for cancelling watches
+// hold for a particular datastore.
+func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)

@@ -81,7 +81,7 @@ func TestPostgresDatastore(t *testing.T) {
 	tester := newTester(postgresContainer, "postgres:secret", 5432)
 	defer tester.cleanup()
 
-	test.TestAll(t, tester)
+	test.All(t, tester)
 }
 
 func TestPostgresDatastoreWithSplit(t *testing.T) {
@@ -90,7 +90,7 @@ func TestPostgresDatastoreWithSplit(t *testing.T) {
 	tester.splitAtEstimatedQuerySize = 1 // bytes
 	defer tester.cleanup()
 
-	test.TestAll(t, tester)
+	test.All(t, tester)
 }
 
 func BenchmarkPostgresQuery(b *testing.B) {

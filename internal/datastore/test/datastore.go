@@ -18,23 +18,26 @@ import (
 // effectively disable garbage collection.
 const veryLargeGCWindow = 90000 * time.Second
 
+// DatastoreTester provides a generic datastore suite a means of initializing
+// a particular datastore.
 type DatastoreTester interface {
-	// Creates a new datastore instance for a single test
+	// New creates a new datastore instance for a single test.
 	New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 }
 
-func TestAll(t *testing.T, tester DatastoreTester) {
-	t.Run("TestSimple", func(t *testing.T) { TestSimple(t, tester) })
-	t.Run("TestRevisionFuzzing", func(t *testing.T) { TestRevisionFuzzing(t, tester) })
-	t.Run("TestWritePreconditions", func(t *testing.T) { TestWritePreconditions(t, tester) })
-	t.Run("TestDeletePreconditions", func(t *testing.T) { TestDeletePreconditions(t, tester) })
-	t.Run("TestDeleteRelationships", func(t *testing.T) { TestDeleteRelationships(t, tester) })
-	t.Run("TestInvalidReads", func(t *testing.T) { TestInvalidReads(t, tester) })
-	t.Run("TestNamespaceWrite", func(t *testing.T) { TestNamespaceWrite(t, tester) })
-	t.Run("TestNamespaceDelete", func(t *testing.T) { TestNamespaceDelete(t, tester) })
-	t.Run("TestWatch", func(t *testing.T) { TestWatch(t, tester) })
-	t.Run("TestWatchCancel", func(t *testing.T) { TestWatchCancel(t, tester) })
-	t.Run("TestUsersets", func(t *testing.T) { TestUsersets(t, tester) })
+// All runs all generic datastore tests on a DatastoreTester.
+func All(t *testing.T, tester DatastoreTester) {
+	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
+	t.Run("TestRevisionFuzzing", func(t *testing.T) { RevisionFuzzingTest(t, tester) })
+	t.Run("TestWritePreconditions", func(t *testing.T) { WritePreconditionsTest(t, tester) })
+	t.Run("TestDeletePreconditions", func(t *testing.T) { DeletePreconditionsTest(t, tester) })
+	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })
+	t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })
+	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
+	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })
+	t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
+	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
+	t.Run("TestUsersets", func(t *testing.T) { UsersetsTest(t, tester) })
 }
 
 var testResourceNS = namespace.Namespace(

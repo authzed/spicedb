@@ -26,7 +26,7 @@ func TestCRDBPGDatastore(t *testing.T) {
 	tester := newTester(crdbContainer, "root:fake", 26257)
 	defer tester.cleanup()
 
-	test.TestAll(t, tester)
+	test.All(t, tester)
 }
 
 func BenchmarkCRDBQuery(b *testing.B) {

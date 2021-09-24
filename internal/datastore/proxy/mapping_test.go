@@ -67,7 +67,7 @@ func (mt mappingTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watc
 }
 
 func TestMappingDatastoreProxy(t *testing.T) {
-	test.TestAll(t, mappingTest{func() namespace.Mapper {
+	test.All(t, mappingTest{func() namespace.Mapper {
 		return testAutoMapper{
 			make(map[string]string),
 			make(map[string]string),
@@ -76,7 +76,7 @@ func TestMappingDatastoreProxy(t *testing.T) {
 }
 
 func TestMappingDatastoreProxyPassthrough(t *testing.T) {
-	test.TestAll(t, mappingTest{func() namespace.Mapper {
+	test.All(t, mappingTest{func() namespace.Mapper {
 		return namespace.PassthroughMapper
 	}})
 }
