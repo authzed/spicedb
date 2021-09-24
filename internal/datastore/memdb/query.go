@@ -176,7 +176,7 @@ func (mti *memdbTupleIterator) Next() *v0.RelationTuple {
 	if mti.limit != nil && mti.count >= *mti.limit {
 		return nil
 	}
-	mti.count += 1
+	mti.count++
 
 	return foundRaw.(*tupleEntry).RelationTuple()
 }

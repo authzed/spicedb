@@ -42,10 +42,10 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 		for changes.Next() {
 			var unused interface{}
-			var changeJson []byte
-			var primaryKeyValuesJson []byte
+			var changeJSON []byte
+			var primaryKeyValuesJSON []byte
 
-			if err := changes.Scan(&unused, &primaryKeyValuesJson, &changeJson); err != nil {
+			if err := changes.Scan(&unused, &primaryKeyValuesJSON, &changeJSON); err != nil {
 				if ctx.Err() == context.Canceled {
 					errors <- datastore.NewWatchCanceledErr()
 				} else {
@@ -59,7 +59,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				Updated  string
 				After    interface{}
 			}
-			if err := json.Unmarshal(changeJson, &changeDetails); err != nil {
+			if err := json.Unmarshal(changeJSON, &changeDetails); err != nil {
 				errors <- err
 				return
 			}
@@ -98,7 +98,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 			}
 
 			var pkValues [6]string
-			if err := json.Unmarshal(primaryKeyValuesJson, &pkValues); err != nil {
+			if err := json.Unmarshal(primaryKeyValuesJSON, &pkValues); err != nil {
 				errors <- err
 				return
 			}

@@ -13,25 +13,19 @@ const errInvalidPresharedKey = "invalid preshared key: %w"
 
 var errInvalidToken = errors.New("invalid token")
 
+// RequirePresharedKey requires that gRPC requests have a bearer token value
+// equivalant to the provided presharedKey.
 func RequirePresharedKey(presharedKey string) grpcauth.AuthFunc {
-	return (&requirePresharedKey{[]byte(presharedKey)}).checkPresharedKey
-}
+	return func(ctx context.Context) (context.Context, error) {
+		token, err := grpcauth.AuthFromMD(ctx, "bearer")
+		if err != nil {
+			return nil, fmt.Errorf(errInvalidPresharedKey, err)
+		}
 
-type requirePresharedKey struct {
-	expectedPSK []byte
-}
+		if match := subtle.ConstantTimeCompare([]byte(presharedKey), []byte(token)); match != 1 {
+			return nil, fmt.Errorf(errInvalidPresharedKey, errInvalidToken)
+		}
 
-func (rpsk *requirePresharedKey) checkPresharedKey(
-	ctx context.Context,
-) (context.Context, error) {
-	token, err := grpcauth.AuthFromMD(ctx, "bearer")
-	if err != nil {
-		return nil, fmt.Errorf(errInvalidPresharedKey, err)
+		return ctx, nil
 	}
-
-	if match := subtle.ConstantTimeCompare(rpsk.expectedPSK, []byte(token)); match != 1 {
-		return nil, fmt.Errorf(errInvalidPresharedKey, errInvalidToken)
-	}
-
-	return ctx, nil
 }

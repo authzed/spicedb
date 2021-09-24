@@ -19,10 +19,14 @@ const (
 	queryWriteVersion = "UPDATE schema_version SET version_num=$1 WHERE version_num=$2"
 )
 
+// CRDBDriver implements a schema migration facility for use in SpiceDB's CRDB
+// datastore.
 type CRDBDriver struct {
 	db *pgx.Conn
 }
 
+// NewCRDBDriver creates a new driver with active connections to the database
+// specified.
 func NewCRDBDriver(url string) (*CRDBDriver, error) {
 	connConfig, err := pgx.ParseConfig(url)
 	if err != nil {
@@ -39,6 +43,8 @@ func NewCRDBDriver(url string) (*CRDBDriver, error) {
 	return &CRDBDriver{db}, nil
 }
 
+// Version returns the version of the schema to which the connected database
+// has been migrated.
 func (apd *CRDBDriver) Version() (string, error) {
 	var loaded string
 
@@ -52,6 +58,8 @@ func (apd *CRDBDriver) Version() (string, error) {
 	return loaded, nil
 }
 
+// WriteVersion overwrites the value stored to track the version of the
+// database schema.
 func (apd *CRDBDriver) WriteVersion(version, replaced string) error {
 	result, err := apd.db.Exec(context.Background(), queryWriteVersion, version, replaced)
 	if err != nil {

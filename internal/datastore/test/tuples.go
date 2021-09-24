@@ -25,7 +25,9 @@ const (
 	ellipsis              = "..."
 )
 
-func TestSimple(t *testing.T, tester DatastoreTester) {
+// SimpleTest tests whether or not the requirements for simple reading and
+// writing of relationships hold for a particular datastore.
+func SimpleTest(t *testing.T, tester DatastoreTester) {
 	testCases := []int{1, 2, 4, 32, 1024}
 
 	for _, numTuples := range testCases {
@@ -213,7 +215,9 @@ func TestSimple(t *testing.T, tester DatastoreTester) {
 	}
 }
 
-func TestWritePreconditions(t *testing.T, tester DatastoreTester) {
+// WritePreconditionsTest tests whether or not the requirements for checking
+// preconditions via WriteTuples hold for a particular datastore.
+func WritePreconditionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
@@ -259,7 +263,9 @@ func TestWritePreconditions(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 }
 
-func TestDeletePreconditions(t *testing.T, tester DatastoreTester) {
+// DeletePreconditionsTest tests whether or not the requirements for checking
+// preconditions via DeleteRelationships hold for a particular datastore.
+func DeletePreconditionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
@@ -305,7 +311,9 @@ func TestDeletePreconditions(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 }
 
-func TestDeleteRelationships(t *testing.T, tester DatastoreTester) {
+// DeleteRelationshipsTest tests whether or not the requirements for deleting
+// relationships hold for a particular datastore.
+func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	var testTuples []*v0.RelationTuple
 	for i := 0; i < 10; i++ {
 		newTuple := makeTestTuple(fmt.Sprintf("resource%d", i), fmt.Sprintf("user%d", i%2))
@@ -399,7 +407,9 @@ func TestDeleteRelationships(t *testing.T, tester DatastoreTester) {
 	}
 }
 
-func TestInvalidReads(t *testing.T, tester DatastoreTester) {
+// InvalidReadsTest tests whether or not the requirements for reading via
+// invalid revisions hold for a particular datastore.
+func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 	t.Run("revision expiration", func(t *testing.T) {
 		testGCDuration := 40 * time.Millisecond
 
@@ -463,7 +473,9 @@ func TestInvalidReads(t *testing.T, tester DatastoreTester) {
 	})
 }
 
-func TestUsersets(t *testing.T, tester DatastoreTester) {
+// UsersetsTest tests whether or not the requirements for reading usersets hold
+// for a particular datastore.
+func UsersetsTest(t *testing.T, tester DatastoreTester) {
 	testCases := []int{1, 2, 4, 32, 1024}
 
 	t.Run("multiple usersets tuple query", func(t *testing.T) {

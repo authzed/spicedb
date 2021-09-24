@@ -26,7 +26,9 @@ var (
 	)
 )
 
-func TestNamespaceWrite(t *testing.T, tester DatastoreTester) {
+// NamespaceWriteTest tests whether or not the requirements for writing
+// namespaces hold for a particular datastore.
+func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
@@ -67,7 +69,9 @@ func TestNamespaceWrite(t *testing.T, tester DatastoreTester) {
 	require.Empty(foundUpdated)
 }
 
-func TestNamespaceDelete(t *testing.T, tester DatastoreTester) {
+// NamespaceDeleteTest tests whether or not the requirements for deleting
+// namespaces hold for a particular datastore.
+func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)

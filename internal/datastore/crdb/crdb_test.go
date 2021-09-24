@@ -75,7 +75,7 @@ func TestCRDBDatastore(t *testing.T) {
 	tester := newTester(crdbContainer, "root:fake", 26257)
 	defer tester.cleanup()
 
-	test.TestAll(t, tester)
+	test.All(t, tester)
 }
 
 func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint16) *sqlTest {

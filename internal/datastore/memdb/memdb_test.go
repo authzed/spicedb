@@ -15,5 +15,5 @@ func (mdbt memDBTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watc
 }
 
 func TestMemdbDatastore(t *testing.T) {
-	test.TestAll(t, memDBTest{})
+	test.All(t, memDBTest{})
 }

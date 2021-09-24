@@ -186,7 +186,7 @@ func (mds *memdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRe
 		simulatedLatency: mds.simulatedLatency,
 
 		subNamespaceName: subject.Namespace,
-		subObjectId:      subject.ObjectId,
+		subObjectID:      subject.ObjectId,
 		subRelationName:  subject.Relation,
 	}
 }
@@ -246,9 +246,8 @@ func (mds *memdbDatastore) Revision(ctx context.Context) (datastore.Revision, er
 
 	if len(candidates) > 0 {
 		return candidates[rand.Intn(len(candidates))], nil
-	} else {
-		return mds.SyncRevision(ctx)
 	}
+	return mds.SyncRevision(ctx)
 }
 
 func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

@@ -14,7 +14,9 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestRevisionFuzzing(t *testing.T, tester DatastoreTester) {
+// RevisionFuzzingTest tests whether or not the requirements for revisions hold
+// for a particular datastore.
+func RevisionFuzzingTest(t *testing.T, tester DatastoreTester) {
 	testCases := []struct {
 		fuzzingRange             time.Duration
 		expectFindLowerRevisions bool

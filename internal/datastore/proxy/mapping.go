@@ -363,6 +363,8 @@ func (mrtq mappingReverseTupleQuery) WithObjectRelation(namespace string, relati
 	return mrtq
 }
 
+// MapperFunc is used to translate ObjectTypes into another form before
+// interacting with a datastore.
 type MapperFunc func(string) (string, error)
 
 func translateRelationship(in *v1.Relationship, mapper MapperFunc) (*v1.Relationship, error) {
