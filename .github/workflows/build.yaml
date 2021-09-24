@@ -36,7 +36,9 @@ jobs:
             exit 1
           fi
       - name: "Linting (revive)"
-        run: "revive ./..."
+        run: |
+          bash -c '[ $(find . -iname '*.go' -type f | grep -Ev "internal/dispatch|internal/graph|internal/namespace|internal/services|internal/testfixtures|pkg/consistent|pkg/graph|pkg/membership|pkg/migrate|pkg/namespace|pkg/schemadsl|pkg/graph|pkg/tuple|pkg/validation" | xargs revive | tee /dev/fd/2 | wc -c) -eq 0 ]'
+          revive ./... # print the rest of the failures, but just as warnings
       - name: "Go Generate"
         run: "go generate ./... && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
 
