@@ -184,7 +184,11 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 		// Touching the transaction key happens last so that the "write intent" for
 		// the transaction as a whole lands in a range for the affected tuples.
 		for k := range keySet {
-			if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
+			if err := tx.QueryRow(ctx, "SELECT key FROM transactions WHERE key = $1 FOR UPDATE", k).Scan(nil); err == pgx.ErrNoRows {
+				if _, err := tx.Exec(ctx, "insert into transactions(key) values ($1) on conflict (key) do nothing", k); err != nil {
+					return err
+				}
+			} else if err != nil {
 				return err
 			}
 		}
