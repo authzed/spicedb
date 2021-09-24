@@ -84,7 +84,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{tuple.Scan("folder:somefolder#viewer@user:someuser#...")},
+			[]*v0.RelationTuple{tuple.Parse("folder:somefolder#viewer@user:someuser#...")},
 			ns.Namespace(
 				"folder",
 			),
@@ -103,7 +103,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{tuple.Scan("folder:somefolder#anotherrel@folder:somefolder#viewer")},
+			[]*v0.RelationTuple{tuple.Parse("folder:somefolder#anotherrel@folder:somefolder#viewer")},
 			ns.Namespace(
 				"folder",
 				ns.Relation("anotherrel",
@@ -122,7 +122,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{tuple.Scan("folder:somefolder#viewer@user:someuser#...")},
+			[]*v0.RelationTuple{tuple.Parse("folder:somefolder#viewer@user:someuser#...")},
 			ns.Namespace(
 				"folder",
 				ns.Relation("viewer",
@@ -160,7 +160,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.RelationReference("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{tuple.Scan("folder:somefolder#viewer@user:someuser#...")},
+			[]*v0.RelationTuple{tuple.Parse("folder:somefolder#viewer@user:someuser#...")},
 			ns.Namespace(
 				"folder",
 				ns.Relation("viewer",
@@ -252,7 +252,7 @@ func TestDeleteNamespace(t *testing.T) {
 			),
 			[]string{"folder"},
 			[]*v0.RelationTuple{
-				tuple.Scan("folder:somefolder#viewer@user:someuser#..."),
+				tuple.Parse("folder:somefolder#viewer@user:someuser#..."),
 			},
 			"cannot delete definition `folder`, as a relationship exists under it",
 		},
@@ -267,7 +267,7 @@ func TestDeleteNamespace(t *testing.T) {
 			),
 			[]string{"user"},
 			[]*v0.RelationTuple{
-				tuple.Scan("folder:somefolder#viewer@user:someuser#..."),
+				tuple.Parse("folder:somefolder#viewer@user:someuser#..."),
 			},
 			"cannot delete definition `user`, as a relationship references it",
 		},

@@ -98,7 +98,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 					continue
 				}
 
-				tpl := tuple.Scan(trimmed)
+				tpl := tuple.Parse(trimmed)
 				if tpl == nil {
 					return nil, decimal.Zero, fmt.Errorf("Error parsing relationship #%v: %s", index, trimmed)
 				}
@@ -119,7 +119,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 
 		log.Info().Str("filePath", filePath).Int("tupleCount", len(updates)+len(parsed.ValidationTuples)).Msg("Loading test data")
 		for index, validationTuple := range parsed.ValidationTuples {
-			tpl := tuple.Scan(validationTuple)
+			tpl := tuple.Parse(validationTuple)
 			if tpl == nil {
 				return nil, decimal.Zero, fmt.Errorf("Error parsing validation tuple #%v: %s", index, validationTuple)
 			}

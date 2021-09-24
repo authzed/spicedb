@@ -62,17 +62,17 @@ func TestMembershipSet(t *testing.T) {
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "owner"), companyOwner)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fso, "user:owner#...")
+	verifySubjects(require, fso, "user:owner")
 
 	fse, ok, err := ms.AddExpansion(ONR("folder", "company", "editor"), companyEditor)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fse, "user:owner#...", "user:writer#...")
+	verifySubjects(require, fse, "user:owner", "user:writer")
 
 	fsv, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), companyViewerRecursive)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fsv, "folder:auditors#viewer", "user:auditor#...", "user:legal#...", "user:owner#...", "user:writer#...")
+	verifySubjects(require, fsv, "folder:auditors#viewer", "user:auditor", "user:legal", "user:owner", "user:writer")
 }
 
 func TestMembershipSetIntersection(t *testing.T) {
@@ -93,7 +93,7 @@ func TestMembershipSetIntersection(t *testing.T) {
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fso, "user:legal#...")
+	verifySubjects(require, fso, "user:legal")
 }
 
 func TestMembershipSetExclusion(t *testing.T) {
@@ -114,7 +114,7 @@ func TestMembershipSetExclusion(t *testing.T) {
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fso, "user:owner#...")
+	verifySubjects(require, fso, "user:owner")
 }
 
 func verifySubjects(require *require.Assertions, fs FoundSubjects, expected ...string) {

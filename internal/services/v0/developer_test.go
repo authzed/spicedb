@@ -129,10 +129,10 @@ func TestEditCheck(t *testing.T) {
 				}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("somenamespace:someobj#somerel@user:foo#..."),
+				tuple.Parse("somenamespace:someobj#somerel@user:foo"),
 			},
 			[]*v0.RelationTuple{
-				tuple.Scan("somenamespace:someobj#anotherrel@user:foo#..."),
+				tuple.Parse("somenamespace:someobj#anotherrel@user:foo"),
 			},
 			nil,
 			[]*v0.EditCheckResult{
@@ -141,7 +141,7 @@ func TestEditCheck(t *testing.T) {
 						Message: "relation/permission `anotherrel` not found under definition `somenamespace`",
 						Kind:    v0.DeveloperError_UNKNOWN_RELATION,
 						Source:  v0.DeveloperError_CHECK_WATCH,
-						Context: "somenamespace:someobj#anotherrel@user:foo#...",
+						Context: "somenamespace:someobj#anotherrel@user:foo",
 					},
 				},
 			},
@@ -155,20 +155,20 @@ func TestEditCheck(t *testing.T) {
 				}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("somenamespace:someobj#somerel@user:foo#..."),
+				tuple.Parse("somenamespace:someobj#somerel@user:foo"),
 			},
 			[]*v0.RelationTuple{
-				tuple.Scan("somenamespace:someobj#somerel@user:foo#..."),
-				tuple.Scan("somenamespace:someobj#somerel@user:anotheruser#..."),
+				tuple.Parse("somenamespace:someobj#somerel@user:foo"),
+				tuple.Parse("somenamespace:someobj#somerel@user:anotheruser"),
 			},
 			nil,
 			[]*v0.EditCheckResult{
 				{
-					Relationship: tuple.Scan("somenamespace:someobj#somerel@user:foo#..."),
+					Relationship: tuple.Parse("somenamespace:someobj#somerel@user:foo"),
 					IsMember:     true,
 				},
 				{
-					Relationship: tuple.Scan("somenamespace:someobj#somerel@user:anotheruser#..."),
+					Relationship: tuple.Parse("somenamespace:someobj#somerel@user:anotheruser"),
 					IsMember:     false,
 				},
 			},
@@ -274,16 +274,16 @@ func TestValidate(t *testing.T) {
 				}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#viewer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#viewer@user:jimmy"),
 			},
 			"",
 			`assertTrue:
-- document:somedoc#viewer@user:jake#...`,
+- document:somedoc#viewer@user:jake`,
 			&v0.DeveloperError{
-				Message: "Expected relation or permission document:somedoc#viewer@user:jake#... to exist",
+				Message: "Expected relation or permission document:somedoc#viewer@user:jake to exist",
 				Kind:    v0.DeveloperError_ASSERTION_FAILED,
 				Source:  v0.DeveloperError_ASSERTION,
-				Context: "document:somedoc#viewer@user:jake#...",
+				Context: "document:somedoc#viewer@user:jake",
 				Line:    2,
 				Column:  3,
 			},
@@ -298,16 +298,16 @@ func TestValidate(t *testing.T) {
 				}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#viewer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#viewer@user:jimmy"),
 			},
 			"",
 			`assertFalse:
-- document:somedoc#viewer@user:jimmy#...`,
+- document:somedoc#viewer@user:jimmy`,
 			&v0.DeveloperError{
-				Message: "Expected relation or permission document:somedoc#viewer@user:jimmy#... to not exist",
+				Message: "Expected relation or permission document:somedoc#viewer@user:jimmy to not exist",
 				Kind:    v0.DeveloperError_ASSERTION_FAILED,
 				Source:  v0.DeveloperError_ASSERTION,
-				Context: "document:somedoc#viewer@user:jimmy#...",
+				Context: "document:somedoc#viewer@user:jimmy",
 				Line:    2,
 				Column:  3,
 			},
@@ -322,12 +322,12 @@ func TestValidate(t *testing.T) {
 			[]*v0.RelationTuple{},
 			"",
 			`assertFalse:
-- document:somedoc#viewer@user:jimmy#...`,
+- document:somedoc#viewer@user:jimmy`,
 			&v0.DeveloperError{
 				Message: "relation/permission `viewer` not found under definition `document`",
 				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
 				Source:  v0.DeveloperError_ASSERTION,
-				Context: "document:somedoc#viewer@user:jimmy#...",
+				Context: "document:somedoc#viewer@user:jimmy",
 				Line:    2,
 				Column:  3,
 			},
@@ -344,19 +344,19 @@ func TestValidate(t *testing.T) {
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
 			},
 			`"document:somedoc#view":`,
 			`assertTrue:
-- document:somedoc#view@user:jimmy#...`,
+- document:somedoc#view@user:jimmy`,
 			&v0.DeveloperError{
-				Message: "For object and permission/relation `document:somedoc#view`, subject `user:jimmy#...` found but missing from specified",
+				Message: "For object and permission/relation `document:somedoc#view`, subject `user:jimmy` found but missing from specified",
 				Kind:    v0.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
 				Context: "document:somedoc#view",
 			},
 			`document:somedoc#view:
-- '[user:jimmy#...] is <document:somedoc#writer>'
+- '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -370,21 +370,21 @@ func TestValidate(t *testing.T) {
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
 			},
 			`"document:somedoc#view":
-- "[user:jimmy#...] is <document:somedoc#writer>"
-- "[user:jake#...] is <document:somedoc#viewer>"`,
+- "[user:jimmy] is <document:somedoc#writer>"
+- "[user:jake] is <document:somedoc#viewer>"`,
 			`assertTrue:
-- document:somedoc#view@user:jimmy#...`,
+- document:somedoc#view@user:jimmy`,
 			&v0.DeveloperError{
-				Message: "For object and permission/relation `document:somedoc#view`, missing expected subject `user:jake#...`",
+				Message: "For object and permission/relation `document:somedoc#view`, missing expected subject `user:jake`",
 				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Context: "user:jake#...",
+				Context: "user:jake",
 			},
 			`document:somedoc#view:
-- '[user:jimmy#...] is <document:somedoc#writer>'
+- '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -398,12 +398,12 @@ func TestValidate(t *testing.T) {
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
 			},
 			`"document:somedoc#view":
 - "[user] is <document:somedoc#writer>"`,
 			`assertTrue:
-- document:somedoc#view@user:jimmy#...`,
+- document:somedoc#view@user:jimmy`,
 			&v0.DeveloperError{
 				Message: "For object and permission/relation `document:somedoc#view`, invalid subject: user",
 				Kind:    v0.DeveloperError_PARSE_ERROR,
@@ -411,7 +411,7 @@ func TestValidate(t *testing.T) {
 				Context: "[user]",
 			},
 			`document:somedoc#view:
-- '[user:jimmy#...] is <document:somedoc#writer>'
+- '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -425,12 +425,12 @@ func TestValidate(t *testing.T) {
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
 			},
 			`"document:somedoc#view":
-- "[user:jimmy#...] is <document:som>"`,
+- "[user:jimmy] is <document:som>"`,
 			`assertTrue:
-- document:somedoc#view@user:jimmy#...`,
+- document:somedoc#view@user:jimmy`,
 			&v0.DeveloperError{
 				Message: "For object and permission/relation `document:somedoc#view`, invalid object and relation: document:som",
 				Kind:    v0.DeveloperError_PARSE_ERROR,
@@ -438,7 +438,7 @@ func TestValidate(t *testing.T) {
 				Context: "<document:som>",
 			},
 			`document:somedoc#view:
-- '[user:jimmy#...] is <document:somedoc#writer>'
+- '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -452,20 +452,20 @@ func TestValidate(t *testing.T) {
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
 			},
 			`"document:somedoc#view":
-- "[user:jimmy#...] is <document:somedoc#viewer>"`,
+- "[user:jimmy] is <document:somedoc#viewer>"`,
 			`assertTrue:
-- document:somedoc#view@user:jimmy#...`,
+- document:somedoc#view@user:jimmy`,
 			&v0.DeveloperError{
-				Message: "For object and permission/relation `document:somedoc#view`, found different relationships for subject `user:jimmy#...`: Specified: `<document:somedoc#viewer>`, Computed: `<document:somedoc#writer>`",
+				Message: "For object and permission/relation `document:somedoc#view`, found different relationships for subject `user:jimmy`: Specified: `<document:somedoc#viewer>`, Computed: `<document:somedoc#writer>`",
 				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Context: `[user:jimmy#...] is <document:somedoc#viewer>`,
+				Context: `[user:jimmy] is <document:somedoc#viewer>`,
 			},
 			`document:somedoc#view:
-- '[user:jimmy#...] is <document:somedoc#writer>'
+- '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -479,23 +479,23 @@ func TestValidate(t *testing.T) {
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
-				tuple.Scan("document:somedoc#viewer@user:jake#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
+				tuple.Parse("document:somedoc#viewer@user:jake"),
 			},
 			`"document:somedoc#view":
-- "[user:jimmy#...] is <document:somedoc#writer>"
-- "[user:jake#...] is <document:somedoc#viewer>"`,
+- "[user:jimmy] is <document:somedoc#writer>"
+- "[user:jake] is <document:somedoc#viewer>"`,
 			`assertTrue:
-- document:somedoc#writer@user:jimmy#...
-- document:somedoc#viewer@user:jimmy#...
-- document:somedoc#viewer@user:jake#...
+- document:somedoc#writer@user:jimmy
+- document:somedoc#viewer@user:jimmy
+- document:somedoc#viewer@user:jake
 assertFalse:
-- document:somedoc#writer@user:jake#...
+- document:somedoc#writer@user:jake
 `,
 			nil,
 			`document:somedoc#view:
-- '[user:jake#...] is <document:somedoc#viewer>'
-- '[user:jimmy#...] is <document:somedoc#writer>'
+- '[user:jake] is <document:somedoc#viewer>'
+- '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
 		{
@@ -509,17 +509,17 @@ assertFalse:
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
-				tuple.Scan("document:somedoc#viewer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
+				tuple.Parse("document:somedoc#viewer@user:jimmy"),
 			},
 			`"document:somedoc#view":
-- "[user:jimmy#...] is <document:somedoc#writer>/<document:somedoc#viewer>"`,
+- "[user:jimmy] is <document:somedoc#writer>/<document:somedoc#viewer>"`,
 			`assertTrue:
-- document:somedoc#writer@user:jimmy#...
+- document:somedoc#writer@user:jimmy
 `,
 			nil,
 			`document:somedoc#view:
-- '[user:jimmy#...] is <document:somedoc#viewer>/<document:somedoc#writer>'
+- '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
 `,
 		},
 		{
@@ -533,22 +533,22 @@ assertFalse:
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
-				tuple.Scan("document:somedoc#viewer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
+				tuple.Parse("document:somedoc#viewer@user:jimmy"),
 			},
 			`"document:somedoc#view":
-- "[user:jimmy#...] is <document:somedoc#writer>"`,
+- "[user:jimmy] is <document:somedoc#writer>"`,
 			`assertTrue:
-- document:somedoc#writer@user:jimmy#...
+- document:somedoc#writer@user:jimmy
 `,
 			&v0.DeveloperError{
-				Message: "For object and permission/relation `document:somedoc#view`, found different relationships for subject `user:jimmy#...`: Specified: `<document:somedoc#writer>`, Computed: `<document:somedoc#viewer>/<document:somedoc#writer>`",
+				Message: "For object and permission/relation `document:somedoc#view`, found different relationships for subject `user:jimmy`: Specified: `<document:somedoc#writer>`, Computed: `<document:somedoc#viewer>/<document:somedoc#writer>`",
 				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Context: `[user:jimmy#...] is <document:somedoc#writer>`,
+				Context: `[user:jimmy] is <document:somedoc#writer>`,
 			},
 			`document:somedoc#view:
-- '[user:jimmy#...] is <document:somedoc#viewer>/<document:somedoc#writer>'
+- '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
 `,
 		},
 		{
@@ -557,7 +557,7 @@ assertFalse:
 			definition user {}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
 			},
 			``,
 			``,
@@ -565,7 +565,7 @@ assertFalse:
 				Message: "object definition `document` not found",
 				Kind:    v0.DeveloperError_UNKNOWN_OBJECT_TYPE,
 				Source:  v0.DeveloperError_RELATIONSHIP,
-				Context: `document:somedoc#writer@user:jimmy#...`,
+				Context: `document:somedoc#writer@user:jimmy`,
 			},
 			``,
 		},
@@ -576,7 +576,7 @@ assertFalse:
 			definition document {}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writer@user:jimmy#..."),
+				tuple.Parse("document:somedoc#writer@user:jimmy"),
 			},
 			``,
 			``,
@@ -584,7 +584,7 @@ assertFalse:
 				Message: "relation/permission `writer` not found under definition `document`",
 				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
 				Source:  v0.DeveloperError_RELATIONSHIP,
-				Context: `document:somedoc#writer@user:jimmy#...`,
+				Context: `document:somedoc#writer@user:jimmy`,
 			},
 			``,
 		},
@@ -655,7 +655,22 @@ func TestValidateONR(t *testing.T) {
 			}
 			`,
 			Relationships: []*v0.RelationTuple{
-				tuple.Scan("document:somedoc#writerIsNotValid@user:jimmy#..."),
+				{
+					ObjectAndRelation: &v0.ObjectAndRelation{
+						Namespace: "document",
+						ObjectId:  "somedoc",
+						Relation:  "writerIsNotValid",
+					},
+					User: &v0.User{
+						UserOneof: &v0.User_Userset{
+							Userset: &v0.ObjectAndRelation{
+								Namespace: "user",
+								ObjectId:  "jimmy",
+								Relation:  "...",
+							},
+						},
+					},
+				},
 			},
 		},
 		ValidationYaml:       "",
@@ -668,6 +683,6 @@ func TestValidateONR(t *testing.T) {
 		Message: "invalid RelationTuple.ObjectAndRelation: embedded message failed validation | caused by: invalid ObjectAndRelation.Relation: value does not match regex pattern \"^(\\\\.\\\\.\\\\.|[a-z][a-z0-9_]{2,62}[a-z0-9])$\"",
 		Kind:    v0.DeveloperError_PARSE_ERROR,
 		Source:  v0.DeveloperError_RELATIONSHIP,
-		Context: `document:somedoc#writerIsNotValid@user:jimmy#...`,
+		Context: `document:somedoc#writerIsNotValid@user:jimmy`,
 	}, resp.RequestErrors[0])
 }

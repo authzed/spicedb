@@ -25,13 +25,13 @@ func TestValidationString(t *testing.T) {
 		{
 			"basic",
 			"[tenant/user:someuser#...] is <tenant/document:example#viewer>",
-			"tenant/user:someuser#...",
+			"tenant/user:someuser",
 			[]string{"tenant/document:example#viewer"},
 		},
 		{
 			"missing onrs",
 			"[tenant/user:someuser#...]",
-			"tenant/user:someuser#...",
+			"tenant/user:someuser",
 			[]string{},
 		},
 		{
@@ -43,7 +43,13 @@ func TestValidationString(t *testing.T) {
 		{
 			"multiple onrs",
 			"[tenant/user:someuser#...] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
-			"tenant/user:someuser#...",
+			"tenant/user:someuser",
+			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
+		},
+		{
+			"ellided ellipsis",
+			"[tenant/user:someuser] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
+			"tenant/user:someuser",
 			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
 		},
 		{
@@ -54,7 +60,7 @@ func TestValidationString(t *testing.T) {
 		},
 		{
 			"bad parse",
-			"[tenant/user:someuser...] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
+			"[tenant/user:someuser:asdsad] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
 			"",
 			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
 		},
@@ -85,21 +91,31 @@ func TestValidationString(t *testing.T) {
 
 func TestAssertions(t *testing.T) {
 	type testCase struct {
-		name     string
-		input    string
-		expected bool
+		name                 string
+		input                string
+		expectedRelationship string
 	}
 
 	tests := []testCase{
 		{
 			"empty",
 			"",
-			false,
+			"",
 		},
 		{
 			"empty",
-			"foo:bar#baz@groo:grar#graz",
-			true,
+			"foos:bar#bazzy@groo:grar#graz",
+			"foos:bar#bazzy@groo:grar#graz",
+		},
+		{
+			"empty",
+			"foos:bar#bazzy@groo:grar",
+			"foos:bar#bazzy@groo:grar",
+		},
+		{
+			"empty",
+			"foos:bar#bazzy@groo:grar#...",
+			"foos:bar#bazzy@groo:grar",
 		},
 	}
 
@@ -114,8 +130,8 @@ func TestAssertions(t *testing.T) {
 				foundRelationships = append(foundRelationships, tuple.String(assertion.Relationship))
 			}
 
-			if tc.expected {
-				require.Equal([]string{tc.input}, foundRelationships)
+			if tc.expectedRelationship != "" {
+				require.Equal([]string{tc.expectedRelationship}, foundRelationships)
 			} else {
 				require.Equal(0, len(foundRelationships))
 			}

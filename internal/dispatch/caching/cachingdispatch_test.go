@@ -84,8 +84,8 @@ func TestMaxDepthCaching(t *testing.T) {
 			for _, step := range tc.script {
 				if step.expectPassthrough {
 					delegate.On("DispatchCheck", &v1.DispatchCheckRequest{
-						ObjectAndRelation: tuple.ScanONR(step.start),
-						Subject:           tuple.ScanONR(step.goal),
+						ObjectAndRelation: tuple.ParseONR(step.start),
+						Subject:           tuple.ParseSubjectONR(step.goal),
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     step.atRevision.String(),
 							DepthRemaining: uint32(step.depthRemaining),
@@ -104,8 +104,8 @@ func TestMaxDepthCaching(t *testing.T) {
 
 			for _, step := range tc.script {
 				resp, err := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
-					ObjectAndRelation: tuple.ScanONR(step.start),
-					Subject:           tuple.ScanONR(step.goal),
+					ObjectAndRelation: tuple.ParseONR(step.start),
+					Subject:           tuple.ParseSubjectONR(step.goal),
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     step.atRevision.String(),
 						DepthRemaining: uint32(step.depthRemaining),
