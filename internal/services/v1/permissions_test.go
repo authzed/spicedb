@@ -36,13 +36,220 @@ func init() {
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 }
 
+func obj(objType, objId string) *v1.ObjectReference {
+	return &v1.ObjectReference{
+		ObjectType: objType,
+		ObjectId:   objId,
+	}
+}
+
 func sub(subType string, subID string, subRel string) *v1.SubjectReference {
 	return &v1.SubjectReference{
-		Object: &v1.ObjectReference{
-			ObjectType: subType,
-			ObjectId:   subID,
-		},
+		Object:           obj(subType, subID),
 		OptionalRelation: subRel,
+	}
+}
+
+func TestCheckPermissions(t *testing.T) {
+	testCases := []struct {
+		resource       *v1.ObjectReference
+		permission     string
+		subject        *v1.SubjectReference
+		expected       v1.CheckPermissionResponse_Permissionship
+		expectedStatus codes.Code
+	}{
+		{
+			obj("document", "masterplan"),
+			"viewer",
+			sub("user", "eng_lead", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer",
+			sub("user", "product_manager", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer",
+			sub("user", "chief_financial_officer", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "healthplan"),
+			"viewer",
+			sub("user", "chief_financial_officer", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer",
+			sub("user", "auditor", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "companyplan"),
+			"viewer",
+			sub("user", "auditor", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer",
+			sub("user", "vp_product", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer",
+			sub("user", "legal", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "companyplan"),
+			"viewer",
+			sub("user", "legal", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer",
+			sub("user", "owner", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "companyplan"),
+			"viewer",
+			sub("user", "owner", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer",
+			sub("user", "villain", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer",
+			sub("user", "unknowngal", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+			codes.OK,
+		},
+
+		{
+			obj("document", "masterplan"),
+			"viewer_and_editor",
+			sub("user", "eng_lead", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "specialplan"),
+			"viewer_and_editor",
+			sub("user", "multiroleguy", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer_and_editor",
+			sub("user", "missingrolegal", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "specialplan"),
+			"viewer_and_editor_derived",
+			sub("user", "multiroleguy", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer_and_editor_derived",
+			sub("user", "missingrolegal", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"invalidrelation",
+			sub("user", "missingrolegal", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED,
+			codes.FailedPrecondition,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer_and_editor_derived",
+			sub("user", "someuser", "invalidrelation"),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED,
+			codes.FailedPrecondition,
+		},
+		{
+			obj("invalidnamespace", "masterplan"),
+			"viewer_and_editor_derived",
+			sub("user", "someuser", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED,
+			codes.FailedPrecondition,
+		},
+		{
+			obj("document", "masterplan"),
+			"viewer_and_editor_derived",
+			sub("invalidnamespace", "someuser", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED,
+			codes.FailedPrecondition,
+		},
+	}
+
+	for _, delta := range testTimedeltas {
+		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			for _, tc := range testCases {
+				t.Run(fmt.Sprintf(
+					"%s:%s#%s@%s:%s#%s",
+					tc.resource.ObjectType,
+					tc.resource.ObjectId,
+					tc.permission,
+					tc.subject.Object.ObjectType,
+					tc.subject.Object.ObjectId,
+					tc.subject.OptionalRelation,
+				), func(t *testing.T) {
+					require := require.New(t)
+					client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
+					defer stop()
+
+					checkResp, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
+						Consistency: &v1.Consistency{
+							Requirement: &v1.Consistency_AtLeastAsFresh{
+								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+							},
+						},
+						Resource:   tc.resource,
+						Permission: tc.permission,
+						Subject:    tc.subject,
+					})
+
+					if tc.expectedStatus == codes.OK {
+						require.Equal(tc.expected, checkResp.Permissionship)
+					} else {
+						grpcutil.RequireStatus(t, tc.expectedStatus, err)
+					}
+				})
+			}
+		})
 	}
 }
 
