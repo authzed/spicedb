@@ -110,6 +110,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		quantizationNanos:         config.revisionQuantization.Nanoseconds(),
 		gcWindowNanos:             gcWindowNanos,
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
+		execute:                   executeWithMaxRetries(config.maxRetries),
 	}, nil
 }
 
@@ -120,6 +121,7 @@ type crdbDatastore struct {
 	quantizationNanos         int64
 	gcWindowNanos             int64
 	splitAtEstimatedQuerySize units.Base2Bytes
+	execute                   executeTxRetryFunc
 }
 
 func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
@@ -163,13 +165,15 @@ func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision,
 	ctx, span := tracer.Start(ctx, "SyncRevision")
 	defer span.End()
 
-	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
-	if err != nil {
+	var hlcNow decimal.Decimal
+	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		var err error
+		hlcNow, err = readCRDBNow(ctx, tx)
+		return err
+	}); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
-	defer tx.Rollback(ctx)
-
-	return readCRDBNow(ctx, tx)
+	return hlcNow, nil
 }
 
 func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

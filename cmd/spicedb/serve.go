@@ -80,6 +80,7 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	serveCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
 	serveCmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
 	serveCmd.Flags().Bool("datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
+	rootCmd.Flags().Int("datastore-max-tx-retries", 50, "number of times a retriable cockroach transaction should be retried")
 
 	// Flags for the namespace manager
 	serveCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
@@ -120,6 +121,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 
 	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "datastore-revision-fuzzing-duration")
 	gcWindow := cobrautil.MustGetDuration(cmd, "datastore-gc-window")
+	maxRetries := cobrautil.MustGetInt(cmd, "datastore-max-tx-retries")
 
 	splitQuerySize, err := units.ParseBase2Bytes(cobrautil.MustGetString(cmd, "datastore-query-split-size"))
 	if err != nil {
@@ -143,6 +145,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 			crdb.MinOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-min-open")),
 			crdb.RevisionQuantization(revisionFuzzingTimedelta),
 			crdb.GCWindow(gcWindow),
+			crdb.MaxRetries(maxRetries),
 			crdb.SplitAtEstimatedQuerySize(splitQuerySize),
 		)
 		if err != nil {

@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -121,17 +120,10 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 	defer span.End()
 	var nowRevision datastore.Revision
 
-	if err := func() error {
-		tx, err := cds.conn.Begin(ctx)
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback(ctx)
-
+	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := cds.checkPreconditions(ctx, tx, preconditions); err != nil {
 			return err
 		}
-
 		bulkWrite := queryWriteTuple
 		var bulkWriteCount int64
 
@@ -175,16 +167,24 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 				return err
 			}
 		} else {
+			var err error
 			nowRevision, err = readCRDBNow(ctx, tx)
 			if err != nil {
 				return err
 			}
 		}
 
-		return tx.Commit(ctx)
-	}(); err != nil {
+		// Touching the transaction key happens last so that the "write intent" for
+		// the transaction as a whole lands in a range for the affected tuples.
+		if _, err := tx.Exec(ctx, queryTouchTransaction, "key"); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
+
 	return nowRevision, nil
 }
 
@@ -203,65 +203,59 @@ func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 
-	tx, err := cds.conn.Begin(ctx)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
-	}
-	defer tx.Rollback(ctx)
+	var nowRevision datastore.Revision
 
-	if err := cds.checkPreconditions(ctx, tx, preconditions); err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
-	}
-
-	// Add clauses for the ResourceFilter
-	query := queryDeleteTuples.Suffix(queryReturningTimestamp).Where(sq.Eq{colNamespace: filter.ResourceType})
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
-	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(filter.OptionalResourceId))
-	}
-	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(filter.OptionalRelation))
-	}
-
-	// Add clauses for the SubjectFilter
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
-		tracerAttributes = append(tracerAttributes, common.SubNamespaceNameKey.String(subjectFilter.SubjectType))
-		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
-			tracerAttributes = append(tracerAttributes, common.SubObjectIDKey.String(subjectFilter.OptionalSubjectId))
+	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := cds.checkPreconditions(ctx, tx, preconditions); err != nil {
+			return err
 		}
-		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
-			tracerAttributes = append(tracerAttributes, common.SubRelationNameKey.String(relationFilter.Relation))
+		// Add clauses for the ResourceFilter
+		query := queryDeleteTuples.Suffix(queryReturningTimestamp).Where(sq.Eq{colNamespace: filter.ResourceType})
+		tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
+		if filter.OptionalResourceId != "" {
+			query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+			tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(filter.OptionalResourceId))
 		}
-	}
-	span.SetAttributes(tracerAttributes...)
+		if filter.OptionalRelation != "" {
+			query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+			tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(filter.OptionalRelation))
+		}
 
-	sql, args, err := query.ToSql()
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
-	}
-
-	var nowRevision decimal.Decimal
-	if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
-		if err == pgx.ErrNoRows {
-			// CRDB doesn't return the cluster_logical_timestamp if no rows were deleted
-			// so we have to read it manually in the same transaction.
-			nowRevision, err = readCRDBNow(ctx, tx)
-			if err != nil {
-				return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
+		// Add clauses for the SubjectFilter
+		if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+			query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
+			tracerAttributes = append(tracerAttributes, common.SubNamespaceNameKey.String(subjectFilter.SubjectType))
+			if subjectFilter.OptionalSubjectId != "" {
+				query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+				tracerAttributes = append(tracerAttributes, common.SubObjectIDKey.String(subjectFilter.OptionalSubjectId))
 			}
-		} else {
-			return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
+			if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
+				query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+				tracerAttributes = append(tracerAttributes, common.SubRelationNameKey.String(relationFilter.Relation))
+			}
 		}
-	}
+		span.SetAttributes(tracerAttributes...)
+		sql, args, err := query.ToSql()
+		if err != nil {
+			return err
+		}
 
-	err = tx.Commit(ctx)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+		if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
+			if err == pgx.ErrNoRows {
+				// CRDB doesn't return the cluster_logical_timestamp if no rows were deleted
+				// so we have to read it manually in the same transaction.
+				nowRevision, err = readCRDBNow(ctx, tx)
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
 	}
 
 	return nowRevision, nil
