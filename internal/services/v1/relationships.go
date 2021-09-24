@@ -57,18 +57,23 @@ type permissionServer struct {
 	defaultDepth uint32
 }
 
+func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string) error {
+	relationToTest := stringz.DefaultEmpty(optionalRelation, datastore.Ellipsis)
+	allowEllipsis := optionalRelation == ""
+	return ps.nsm.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis)
+}
+
 func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter) error {
-	if filter.OptionalRelation != "" {
-		err := ps.nsm.CheckNamespaceAndRelation(ctx, filter.ResourceType, filter.OptionalRelation, false)
-		if err != nil {
-			return err
-		}
+	if err := ps.checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation); err != nil {
+		return err
 	}
 
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil && subjectFilter.OptionalRelation != nil {
-		relation := stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis)
-		err := ps.nsm.CheckNamespaceAndRelation(ctx, subjectFilter.SubjectType, relation, true)
-		if err != nil {
+	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+		subjectRelation := ""
+		if subjectFilter.OptionalRelation != nil {
+			subjectRelation = subjectFilter.OptionalRelation.Relation
+		}
+		if err := ps.checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation); err != nil {
 			return err
 		}
 	}
