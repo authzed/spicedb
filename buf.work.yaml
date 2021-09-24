@@ -1,5 +1,4 @@
 ---
 version: "v1"
 directories:
-  - "proto/authzed-api"
   - "proto/internal"
