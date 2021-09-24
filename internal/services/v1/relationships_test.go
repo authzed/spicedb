@@ -30,15 +30,15 @@ func TestReadRelationships(t *testing.T) {
 			&v1.RelationshipFilter{ResourceType: tf.DocumentNS.Name},
 			codes.OK,
 			map[string]struct{}{
-				"document:companyplan#parent@folder:company#...":                 struct{}{},
-				"document:masterplan#parent@folder:strategy#...":                 struct{}{},
-				"document:masterplan#owner@user:product_manager#...":             struct{}{},
-				"document:masterplan#viewer@user:eng_lead#...":                   struct{}{},
-				"document:masterplan#parent@folder:plans#...":                    struct{}{},
-				"document:healthplan#parent@folder:plans#...":                    struct{}{},
-				"document:specialplan#editor@user:multiroleguy#...":              struct{}{},
-				"document:specialplan#viewer_and_editor@user:multiroleguy#...":   struct{}{},
-				"document:specialplan#viewer_and_editor@user:missingrolegal#...": struct{}{},
+				"document:companyplan#parent@folder:company":                 {},
+				"document:masterplan#parent@folder:strategy":                 {},
+				"document:masterplan#owner@user:product_manager":             {},
+				"document:masterplan#viewer@user:eng_lead":                   {},
+				"document:masterplan#parent@folder:plans":                    {},
+				"document:healthplan#parent@folder:plans":                    {},
+				"document:specialplan#editor@user:multiroleguy":              {},
+				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
+				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
 			},
 		},
 		{
@@ -49,7 +49,7 @@ func TestReadRelationships(t *testing.T) {
 			},
 			codes.OK,
 			map[string]struct{}{
-				"document:healthplan#parent@folder:plans#...": struct{}{},
+				"document:healthplan#parent@folder:plans": {},
 			},
 		},
 		{
@@ -60,10 +60,10 @@ func TestReadRelationships(t *testing.T) {
 			},
 			codes.OK,
 			map[string]struct{}{
-				"document:companyplan#parent@folder:company#...": struct{}{},
-				"document:masterplan#parent@folder:strategy#...": struct{}{},
-				"document:masterplan#parent@folder:plans#...":    struct{}{},
-				"document:healthplan#parent@folder:plans#...":    struct{}{},
+				"document:companyplan#parent@folder:company": {},
+				"document:masterplan#parent@folder:strategy": {},
+				"document:masterplan#parent@folder:plans":    {},
+				"document:healthplan#parent@folder:plans":    {},
 			},
 		},
 		{
@@ -77,8 +77,8 @@ func TestReadRelationships(t *testing.T) {
 			},
 			codes.OK,
 			map[string]struct{}{
-				"document:masterplan#parent@folder:plans#...": struct{}{},
-				"document:healthplan#parent@folder:plans#...": struct{}{},
+				"document:masterplan#parent@folder:plans": {},
+				"document:healthplan#parent@folder:plans": {},
 			},
 		},
 		{
@@ -93,7 +93,7 @@ func TestReadRelationships(t *testing.T) {
 			},
 			codes.OK,
 			map[string]struct{}{
-				"document:masterplan#parent@folder:plans#...": struct{}{},
+				"document:masterplan#parent@folder:plans": {},
 			},
 		},
 		{
