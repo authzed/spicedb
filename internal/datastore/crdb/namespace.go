@@ -58,7 +58,7 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Name
 		writeSQL, writeArgs, err := queryWriteNamespace.
 			Values(newConfig.Name, serialized).
 			ToSql()
-		if err != nil{
+		if err != nil {
 			return err
 		}
 		return cds.conn.QueryRow(

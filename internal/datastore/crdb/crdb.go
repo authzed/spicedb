@@ -103,6 +103,24 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		)
 	}
 
+	var keyer overlapKeyer
+	switch config.overlapStrategy {
+	case overlapStrategyStatic:
+		if len(config.overlapKey) == 0 {
+			return nil, fmt.Errorf(
+				errUnableToInstantiate,
+				fmt.Errorf("static tx overlap strategy specified without an overlap key"),
+			)
+		}
+		keyer = appendStaticKey(config.overlapKey)
+	case overlapStrategyPrefix:
+		keyer = prefixKeyer
+	case overlapStrategyInsecure:
+		log.Warn().Str("strategy", overlapStrategyInsecure).
+			Msg("running in this mode is only safe when replicas == nodes")
+		keyer = noOverlapKeyer
+	}
+
 	return &crdbDatastore{
 		dburl:                     url,
 		conn:                      conn,
@@ -111,6 +129,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		gcWindowNanos:             gcWindowNanos,
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
 		execute:                   executeWithMaxRetries(config.maxRetries),
+		overlapKeyer:              keyer,
 	}, nil
 }
 
@@ -122,6 +141,7 @@ type crdbDatastore struct {
 	gcWindowNanos             int64
 	splitAtEstimatedQuerySize units.Base2Bytes
 	execute                   executeTxRetryFunc
+	overlapKeyer              overlapKeyer
 }
 
 func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
@@ -202,6 +222,10 @@ func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.
 	}
 
 	return nil
+}
+
+func (cds *crdbDatastore) AddOverlapKey(keySet map[string]struct{}, namespace string) {
+	cds.overlapKeyer.AddKey(keySet, namespace)
 }
 
 func readCRDBNow(ctx context.Context, tx pgx.Tx) (decimal.Decimal, error) {
