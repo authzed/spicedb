@@ -87,6 +87,14 @@ func Parse(tpl string) *v0.RelationTuple {
 	}
 }
 
+func ParseRel(rel string) *v1.Relationship {
+	tpl := Parse(rel)
+	if tpl == nil {
+		return nil
+	}
+	return ToRelationship(tpl)
+}
+
 func Create(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
 	return &v0.RelationTupleUpdate{
 		Operation: v0.RelationTupleUpdate_CREATE,
