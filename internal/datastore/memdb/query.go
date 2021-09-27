@@ -18,9 +18,10 @@ type memdbTupleQuery struct {
 	db       *memdb.MemDB
 	revision datastore.Revision
 
-	relationshipFilter *v1.RelationshipFilter
-	usersetsFilter     []*v0.ObjectAndRelation
-	limit              *uint64
+	resourceFilter        *v1.RelationshipFilter
+	optionalSubjectFilter *v1.SubjectFilter
+	usersetsFilter        []*v0.ObjectAndRelation
+	limit                 *uint64
 
 	simulatedLatency time.Duration
 }
@@ -35,7 +36,7 @@ func (mtq memdbTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore
 		panic("cannot call WithSubjectFilter with a nil filter")
 	}
 
-	if mtq.relationshipFilter.OptionalSubjectFilter != nil {
+	if mtq.optionalSubjectFilter != nil {
 		panic("cannot call WithSubjectFilter after WithUsersets")
 	}
 
@@ -43,12 +44,12 @@ func (mtq memdbTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore
 		panic("called WithSubjectFilter twice")
 	}
 
-	mtq.relationshipFilter.OptionalSubjectFilter = filter
+	mtq.optionalSubjectFilter = filter
 	return mtq
 }
 
 func (mtq memdbTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	if mtq.relationshipFilter.OptionalSubjectFilter != nil {
+	if mtq.optionalSubjectFilter != nil {
 		panic("cannot call WithUsersets after WithSubjectFilter")
 	}
 
@@ -98,7 +99,14 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 
 	time.Sleep(mtq.simulatedLatency)
 
-	bestIterator, err := iteratorForFilter(txn, mtq.relationshipFilter)
+	relationshipFilter := &v1.RelationshipFilter{
+		ResourceType:          mtq.resourceFilter.ResourceType,
+		OptionalResourceId:    mtq.resourceFilter.OptionalResourceId,
+		OptionalRelation:      mtq.resourceFilter.OptionalRelation,
+		OptionalSubjectFilter: mtq.optionalSubjectFilter,
+	}
+
+	bestIterator, err := iteratorForFilter(txn, relationshipFilter)
 	if err != nil {
 		txn.Abort()
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
@@ -106,7 +114,7 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 
 	filteredIterator := memdb.NewFilterIterator(bestIterator, func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*tupleEntry)
-		filter := mtq.relationshipFilter
+		filter := relationshipFilter
 
 		switch {
 		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.objectID:
