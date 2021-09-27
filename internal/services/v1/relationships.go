@@ -157,6 +157,46 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		); err != nil {
 			return nil, rewritePermissionsError(err)
 		}
+
+		if err := ps.nsm.CheckNamespaceAndRelation(
+			ctx,
+			update.Relationship.Subject.Object.ObjectType,
+			stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
+			true,
+		); err != nil {
+			return nil, rewritePermissionsError(err)
+		}
+
+		_, ts, _, err := ps.nsm.ReadNamespaceAndTypes(ctx, update.Relationship.Resource.ObjectType)
+		if err != nil {
+			return nil, err
+		}
+
+		if ts.IsPermission(update.Relationship.Relation) {
+			return nil, status.Errorf(
+				codes.InvalidArgument,
+				"cannot write a relationship to permission %s",
+				update.Relationship.Relation,
+			)
+		}
+
+		isAllowed, err := ts.IsAllowedDirectRelation(
+			update.Relationship.Relation,
+			update.Relationship.Subject.Object.ObjectType,
+			stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if isAllowed == namespace.DirectRelationNotValid {
+			return nil, status.Errorf(
+				codes.InvalidArgument,
+				"subject %v is not allowed for the resource %v",
+				update.Relationship.Subject,
+				update.Relationship.Resource,
+			)
+		}
 	}
 
 	revision, err := ps.ds.WriteTuples(ctx, req.OptionalPreconditions, req.Updates)
