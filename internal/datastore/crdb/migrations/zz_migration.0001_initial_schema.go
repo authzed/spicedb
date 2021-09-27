@@ -33,7 +33,7 @@ const (
 )
 
 func init() {
-	CRDBMigrations.Register("initial", "", func(apd *CRDBDriver) error {
+	if err := CRDBMigrations.Register("initial", "", func(apd *CRDBDriver) error {
 		ctx := context.Background()
 
 		_, err := apd.db.Exec(ctx, enableRangefeeds)
@@ -63,5 +63,7 @@ func init() {
 		}
 
 		return tx.Commit(ctx)
-	})
+	}); err != nil {
+		panic(err)
+	}
 }

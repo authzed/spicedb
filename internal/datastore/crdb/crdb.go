@@ -29,12 +29,14 @@ var (
 )
 
 const (
-	tableNamespace = "namespace_config"
-	tableTuple     = "relation_tuple"
+	tableNamespace    = "namespace_config"
+	tableTuple        = "relation_tuple"
+	tableTransactions = "transactions"
 
 	colNamespace        = "namespace"
 	colConfig           = "serialized_config"
 	colTimestamp        = "timestamp"
+	colTransactionKey   = "key"
 	colObjectID         = "object_id"
 	colRelation         = "relation"
 	colUsersetNamespace = "userset_namespace"
@@ -101,6 +103,24 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		)
 	}
 
+	var keyer overlapKeyer
+	switch config.overlapStrategy {
+	case overlapStrategyStatic:
+		if len(config.overlapKey) == 0 {
+			return nil, fmt.Errorf(
+				errUnableToInstantiate,
+				fmt.Errorf("static tx overlap strategy specified without an overlap key"),
+			)
+		}
+		keyer = appendStaticKey(config.overlapKey)
+	case overlapStrategyPrefix:
+		keyer = prefixKeyer
+	case overlapStrategyInsecure:
+		log.Warn().Str("strategy", overlapStrategyInsecure).
+			Msg("running in this mode is only safe when replicas == nodes")
+		keyer = noOverlapKeyer
+	}
+
 	return &crdbDatastore{
 		dburl:                     url,
 		conn:                      conn,
@@ -108,6 +128,8 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		quantizationNanos:         config.revisionQuantization.Nanoseconds(),
 		gcWindowNanos:             gcWindowNanos,
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
+		execute:                   executeWithMaxRetries(config.maxRetries),
+		overlapKeyer:              keyer,
 	}, nil
 }
 
@@ -118,6 +140,8 @@ type crdbDatastore struct {
 	quantizationNanos         int64
 	gcWindowNanos             int64
 	splitAtEstimatedQuerySize units.Base2Bytes
+	execute                   executeTxRetryFunc
+	overlapKeyer              overlapKeyer
 }
 
 func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
@@ -161,13 +185,15 @@ func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision,
 	ctx, span := tracer.Start(ctx, "SyncRevision")
 	defer span.End()
 
-	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
-	if err != nil {
+	var hlcNow decimal.Decimal
+	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		var err error
+		hlcNow, err = readCRDBNow(ctx, tx)
+		return err
+	}); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
-	defer tx.Rollback(ctx)
-
-	return readCRDBNow(ctx, tx)
+	return hlcNow, nil
 }
 
 func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
@@ -196,6 +222,10 @@ func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.
 	}
 
 	return nil
+}
+
+func (cds *crdbDatastore) AddOverlapKey(keySet map[string]struct{}, namespace string) {
+	cds.overlapKeyer.AddKey(keySet, namespace)
 }
 
 func readCRDBNow(ctx context.Context, tx pgx.Tx) (decimal.Decimal, error) {
