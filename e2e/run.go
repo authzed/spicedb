@@ -50,7 +50,7 @@ func start(ctx context.Context, out, errOut io.Writer, args ...string) (*exec.Cm
 func cleanupOnDone(done <-chan struct{}, pid int, errOut io.Writer) {
 	go func() {
 		<-done
-		// negative pid sends the signal to all child processes in the group
+		// negative Pid sends the signal to all child processes in the group
 		if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
 			fmt.Fprintln(errOut, err)
 		}

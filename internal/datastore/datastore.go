@@ -119,7 +119,7 @@ type ReverseTupleQuery interface {
 type TupleQuery interface {
 	CommonTupleQuery
 
-	// WithUserset adds a userset filter to the query.
+	// WithSubjectFilter adds a subject filter to the query.
 	WithSubjectFilter(*v1.SubjectFilter) TupleQuery
 
 	// WithUsersets adds multiple userset filters to the query.
