@@ -119,7 +119,7 @@ func Delete(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
 // ToRelationship converts a RelationTuple into a Relationship.
 func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 	if err := tpl.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid tuple: %s %s", String(tpl), err))
+		panic(fmt.Sprintf("invalid tuple: %#v %s", tpl, err))
 	}
 
 	return &v1.Relationship{
@@ -141,7 +141,7 @@ func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 // ToFilter converts a RelationTuple into a RelationshipFilter.
 func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 	if err := tpl.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid tuple: %s %s", String(tpl), err))
+		panic(fmt.Sprintf("invalid tuple: %#v %s", tpl, err))
 	}
 
 	return &v1.RelationshipFilter{
@@ -182,7 +182,7 @@ func UpdateToRelationshipUpdate(update *v0.RelationTupleUpdate) *v1.Relationship
 // FromRelationship converts a Relationship into a RelationTuple.
 func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
 	if err := r.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid relationship: %s %s", RelString(r), err))
+		panic(fmt.Sprintf("invalid relationship: %#v %s", r, err))
 	}
 
 	return &v0.RelationTuple{
