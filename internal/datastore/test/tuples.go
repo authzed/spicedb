@@ -28,7 +28,7 @@ const (
 // SimpleTest tests whether or not the requirements for simple reading and
 // writing of relationships hold for a particular datastore.
 func SimpleTest(t *testing.T, tester DatastoreTester) {
-	testCases := []int{1, 2, 4, 32, 1024}
+	testCases := []int{1, 2, 4, 32, 256}
 
 	for _, numTuples := range testCases {
 		t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
@@ -110,9 +110,31 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				}
 			}
 
+			// Check a query that returns a number of tuples
+			query := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+				ResourceType: testResourceNamespace,
+			}, lastRevision)
+			iter, err := query.Execute(ctx)
+			require.NoError(err)
+			tRequire.VerifyIteratorResults(iter, testTuples...)
+
+			// Filter it down to a single tuple with a userset
+			newQuery := query.WithSubjectFilter(&v1.SubjectFilter{
+				SubjectType:       testUserNamespace,
+				OptionalSubjectId: "user0",
+			})
+			iter, err = newQuery.Execute(ctx)
+			require.NoError(err)
+			tRequire.VerifyIteratorResults(iter, testTuples[0])
+
+			// Verify the original query object is unchanged
+			iter, err = query.Execute(ctx)
+			require.NoError(err)
+			tRequire.VerifyIteratorResults(iter, testTuples...)
+
 			// Check for larger reverse queries.
 			rq := ds.ReverseQueryTuplesFromSubjectRelation(testUserNamespace, ellipsis, lastRevision)
-			iter, err := rq.Execute(ctx)
+			iter, err = rq.Execute(ctx)
 			require.NoError(err)
 
 			tRequire.VerifyIteratorResults(iter, testTuples...)
