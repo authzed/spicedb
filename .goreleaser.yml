@@ -11,6 +11,9 @@ builds:
       - "amd64"
       - "arm64"
     mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - "-s -w"
+      - "-X {{ .Env.PKG }}internal/version.Version={{ .Version }}"
 nfpms:
   - vendor: "authzed inc."
     homepage: "https://spicedb.io"
