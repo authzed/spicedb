@@ -109,7 +109,7 @@ func TestNoNewEnemy(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	fill(vulnerableSpiceDb[0].Client().V0().ACL(), 4000, 100)
 
-	const sampleSize = 10
+	const sampleSize = 5
 	samples := make([]int, sampleSize)
 
 	for i := 0; i < sampleSize; i++ {
@@ -139,7 +139,7 @@ func TestNoNewEnemy(t *testing.T) {
 	iterations := int(math.Ceil(3*stddev*samplestddev + mean))
 
 	t.Logf("check spicedb is protected after %d attempts", iterations)
-	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Minute)
+	checkCtx, checkCancel := context.WithTimeout(ctx, 10*time.Minute)
 	protected, _ := checkNoNewEnemy(checkCtx, t, protectedSpiceDb, iterations)
 	require.NotNil(protected, "unable to determine if spicedb is protected within the time limit")
 	require.True(*protected, "protection is enabled, but newenemy detected")
@@ -148,7 +148,7 @@ func TestNoNewEnemy(t *testing.T) {
 
 // checkNoNewEnemy returns true if the service is protected, false if it is vulnerable, and nil if we couldn't determine
 func checkNoNewEnemy(ctx context.Context, t testing.TB, spicedb spice.Cluster, candidateCount int) (*bool, int) {
-	var attempts, candidates int
+	var attempts int
 	for {
 		attempts++
 		directs, excludes := generateTuples(1)
@@ -188,7 +188,7 @@ func checkNoNewEnemy(ctx context.Context, t testing.TB, spicedb spice.Cluster, c
 			t.Log("service is subject to the new enemy problem")
 		}
 
-		analyzeCalls(os.Stdout, r1.GetRevision(), r2.GetRevision(), &candidates)
+		analyzeCalls(os.Stdout, r1.GetRevision(), r2.GetRevision())
 
 		if canHas.IsMember {
 			t.Log("service is subject to the new enemy problem")
@@ -197,7 +197,7 @@ func checkNoNewEnemy(ctx context.Context, t testing.TB, spicedb spice.Cluster, c
 		}
 
 		// if we find causal reversals, but no newenemy, assume we're protected
-		if candidateCount > 0 && candidates >= candidateCount {
+		if candidateCount > 0 && attempts >= candidateCount {
 			t.Log(candidateCount, "(would be) causal reversals with no new enemy detected")
 			protected := true
 			return &protected, attempts
@@ -320,14 +320,13 @@ func generateTuples(n int) (directs []*v0.RelationTupleUpdate, excludes []*v0.Re
 }
 
 // after we've checked, analyze the previous calls
-func analyzeCalls(out io.Writer, r1, r2 *v0.Zookie, candidates *int) {
+func analyzeCalls(out io.Writer, r1, r2 *v0.Zookie) {
 	z1, _ := zookie.DecodeRevision(r1)
 	z2, _ := zookie.DecodeRevision(r2)
 
 	// the best we can do when mitigations are enabled is guess that timestamps
 	// with the same nanosecond timestamp were protected
 	if z2.GreaterThan(z1) && z2.IntPart() == z1.IntPart() {
-		*candidates++
 		fmt.Fprintln(out, "candidate found")
 	}
 
