@@ -1,8 +1,9 @@
 package testfixtures
 
 import (
-	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"google.golang.org/grpc"
+
+	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 )
 
 // NewTestServer creates a grpc.Server instance that has the service specific

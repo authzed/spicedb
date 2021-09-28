@@ -3,8 +3,9 @@ package namespace
 import (
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/rs/zerolog"
+
+	"github.com/authzed/spicedb/internal/sharederrors"
 )
 
 // ErrNamespaceNotFound occurs when a namespace was not found.

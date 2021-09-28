@@ -7,9 +7,9 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/hashicorp/go-memdb"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"google.golang.org/protobuf/proto"
 )
 
 const (

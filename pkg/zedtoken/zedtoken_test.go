@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/spicedb/pkg/zookie"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 var encodeRevisionTests = []decimal.Decimal{

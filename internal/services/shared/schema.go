@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 )

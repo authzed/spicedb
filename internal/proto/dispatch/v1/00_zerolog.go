@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/rs/zerolog"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // MarshalZerologObject implements zerolog object marshalling.

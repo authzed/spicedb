@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
 
 // ErrMaxDepth is returned from CheckDepth when the max depth is exceeded.

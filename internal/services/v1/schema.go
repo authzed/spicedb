@@ -5,12 +5,12 @@ import (
 	"errors"
 	"strings"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"

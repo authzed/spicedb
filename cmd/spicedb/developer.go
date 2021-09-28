@@ -90,16 +90,13 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 	}()
 
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
-	for {
-		select {
-		case <-signalctx.Done():
-			log.Info().Msg("received interrupt")
-			grpcServer.GracefulStop()
-			if err := metricsrv.Close(); err != nil {
-				log.Fatal().Err(err).Msg("failed while shutting down metrics server")
-			}
-			return
+	for range signalctx.Done() {
+		log.Info().Msg("received interrupt")
+		grpcServer.GracefulStop()
+		if err := metricsrv.Close(); err != nil {
+			log.Fatal().Err(err).Msg("failed while shutting down metrics server")
 		}
+		return
 	}
 }
 
