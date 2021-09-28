@@ -4,9 +4,8 @@ import (
 	"testing"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/golang/protobuf/ptypes"
-	anypb "github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
 )
@@ -14,12 +13,12 @@ import (
 func TestMetadata(t *testing.T) {
 	require := require.New(t)
 
-	marshalled, err := ptypes.MarshalAny(&iv1.DocComment{
+	marshalled, err := anypb.New(&iv1.DocComment{
 		Comment: "Hi there",
 	})
 	require.Nil(err)
 
-	marshalled_kind, err := ptypes.MarshalAny(&iv1.RelationMetadata{
+	marshalled_kind, err := anypb.New(&iv1.RelationMetadata{
 		Kind: iv1.RelationMetadata_PERMISSION,
 	})
 	require.Nil(err)

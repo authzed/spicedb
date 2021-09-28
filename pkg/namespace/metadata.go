@@ -2,9 +2,8 @@ package namespace
 
 import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/protobuf/proto"
-	anypb "google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	// TODO: stop exposing private v0 types in package's API
 	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
@@ -45,7 +44,7 @@ func GetComments(metadata *v0.Metadata) []string {
 	comments := []string{}
 	for _, msg := range metadata.MetadataMessage {
 		var dc iv1.DocComment
-		if err := ptypes.UnmarshalAny(msg, &dc); err == nil {
+		if err := msg.UnmarshalTo(&dc); err == nil {
 			comments = append(comments, dc.Comment)
 		}
 	}
@@ -62,7 +61,7 @@ func AddComment(metadata *v0.Metadata, comment string) (*v0.Metadata, error) {
 	var dc iv1.DocComment
 	dc.Comment = comment
 
-	encoded, err := ptypes.MarshalAny(&dc)
+	encoded, err := anypb.New(&dc)
 	if err != nil {
 		return metadata, err
 	}
@@ -80,7 +79,7 @@ func GetRelationKind(relation *v0.Relation) iv1.RelationMetadata_RelationKind {
 
 	for _, msg := range metadata.MetadataMessage {
 		var rm iv1.RelationMetadata
-		if err := ptypes.UnmarshalAny(msg, &rm); err == nil {
+		if err := msg.UnmarshalTo(&rm); err == nil {
 			return rm.Kind
 		}
 	}
@@ -99,7 +98,7 @@ func SetRelationKind(relation *v0.Relation, kind iv1.RelationMetadata_RelationKi
 	var rm iv1.RelationMetadata
 	rm.Kind = kind
 
-	encoded, err := ptypes.MarshalAny(&rm)
+	encoded, err := anypb.New(&rm)
 	if err != nil {
 		return err
 	}
