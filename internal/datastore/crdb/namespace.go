@@ -23,13 +23,6 @@ const (
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
 
-type updateIntention bool
-
-var (
-	forUpdate updateIntention = true
-	readOnly  updateIntention = false
-)
-
 var (
 	upsertNamespaceSuffix = fmt.Sprintf(
 		"ON CONFLICT (%s) DO UPDATE SET %s = excluded.%s %s",
@@ -74,13 +67,14 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Name
 func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	var config *v0.NamespaceDefinition
-	var timestamp time.Time
-	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		var err error
-		config, timestamp, err = loadNamespace(ctx, tx, nsName, readOnly)
-		return err
-	}); err != nil {
+	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
+	}
+	defer tx.Rollback(ctx)
+
+	config, timestamp, err := loadNamespace(ctx, tx, nsName)
+	if err != nil {
 		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return nil, datastore.NoRevision, err
 		}
@@ -96,7 +90,10 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 	var timestamp time.Time
 	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var err error
-		_, timestamp, err = loadNamespace(ctx, tx, nsName, readOnly)
+		_, timestamp, err = loadNamespace(ctx, tx, nsName)
+		if err != nil {
+			return err
+		}
 		delSQL, delArgs, err := queryDeleteNamespace.
 			Where(sq.Eq{colNamespace: nsName, colTimestamp: timestamp}).
 			ToSql()
@@ -132,12 +129,8 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 	return revisionFromTimestamp(timestamp), nil
 }
 
-func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string, forUpdate updateIntention) (*v0.NamespaceDefinition, time.Time, error) {
+func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*v0.NamespaceDefinition, time.Time, error) {
 	query := queryReadNamespace.Where(sq.Eq{colNamespace: nsName})
-
-	if forUpdate {
-		query.Suffix("FOR UPDATE")
-	}
 
 	sql, args, err := query.ToSql()
 	if err != nil {
@@ -165,33 +158,44 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string, forUpdate upda
 func (cds *crdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
+	tx, err := cds.conn.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+	defer tx.Rollback(ctx)
+
+	query := queryReadNamespace
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
 	var nsDefs []*v0.NamespaceDefinition
-	err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		query := queryReadNamespace
+	rows, err := tx.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+	defer rows.Close()
 
-		sql, args, err := query.ToSql()
-		if err != nil {
-			return err
+	for rows.Next() {
+		var config []byte
+		var timestamp time.Time
+		if err := rows.Scan(&config, &timestamp); err != nil {
+			return nil, fmt.Errorf(errUnableToListNamespaces, err)
 		}
-		rows, err := tx.Query(ctx, sql, args...)
-		defer rows.Close()
 
-		for rows.Next() {
-			var config []byte
-			var timestamp time.Time
-			if err := rows.Scan(&config, &timestamp); err != nil {
-				return fmt.Errorf(errUnableToListNamespaces, err)
-			}
-
-			var loaded v0.NamespaceDefinition
-			if err := proto.Unmarshal(config, &loaded); err != nil {
-				return fmt.Errorf(errUnableToReadConfig, err)
-			}
-
-			nsDefs = append(nsDefs, &loaded)
+		var loaded v0.NamespaceDefinition
+		if err := proto.Unmarshal(config, &loaded); err != nil {
+			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
-		return nil
-	})
 
-	return nsDefs, err
+		nsDefs = append(nsDefs, &loaded)
+	}
+
+	if rows.Err() != nil {
+		return nil, fmt.Errorf(errUnableToReadConfig, err)
+	}
+
+	return nsDefs, nil
 }
