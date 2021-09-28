@@ -50,7 +50,7 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 	if req.StartRevision != nil && req.StartRevision.Token != "" {
 		decodedRevision, err := zookie.DecodeRevision(req.StartRevision)
 		if err != nil {
-			status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
+			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}
 
 		afterRevision = decodedRevision
@@ -58,7 +58,7 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 		var err error
 		afterRevision, err = ws.ds.Revision(stream.Context())
 		if err != nil {
-			status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
+			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
 	}
 

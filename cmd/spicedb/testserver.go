@@ -94,7 +94,9 @@ func runTestServer(cmd *cobra.Command, args []string) {
 		}
 
 		log.Info().Str("addr", addr).Msg("gRPC server started listening")
-		grpcServer.Serve(l)
+		if err := grpcServer.Serve(l); err != nil {
+			log.Warn().Err(err).Msg("gRPC service did not shutdown cleanly")
+		}
 	}()
 
 	go func() {
@@ -105,7 +107,9 @@ func runTestServer(cmd *cobra.Command, args []string) {
 		}
 
 		log.Info().Str("addr", addr).Msg("readonly gRPC server started listening")
-		readonlyServer.Serve(l)
+		if err := readonlyServer.Serve(l); err != nil {
+			log.Warn().Err(err).Msg("readonly gRPC service did not shutdown cleanly")
+		}
 	}()
 
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -221,7 +225,11 @@ func (ptbm *perTokenBackendMiddleware) createUpstream() (*upstream, error) {
 		)
 
 		l := bufconn.Listen(1024 * 1024)
-		go grpcServer.Serve(l)
+		go func() {
+			if err := grpcServer.Serve(l); err != nil {
+				log.Warn().Err(err).Msg("proxy gRPC service did not shutdown cleanly")
+			}
+		}()
 
 		conn, err := grpc.DialContext(
 			context.Background(),

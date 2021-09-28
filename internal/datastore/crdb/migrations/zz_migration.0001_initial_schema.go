@@ -64,6 +64,6 @@ func init() {
 
 		return tx.Commit(ctx)
 	}); err != nil {
-		panic(err)
+		panic("failed to register migration: " + err.Error())
 	}
 }

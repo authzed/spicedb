@@ -12,7 +12,7 @@ const deleteAllButNewestNamespace = `
 		SELECT namespace, max(created_transaction) from namespace_config where deleted_transaction = 9223372036854775807 GROUP BY namespace HAVING COUNT(created_transaction) > 1);`
 
 func init() {
-	DatabaseMigrations.Register("add-unique-living-ns", "add-reverse-index", func(apd *AlembicPostgresDriver) error {
+	if err := DatabaseMigrations.Register("add-unique-living-ns", "add-reverse-index", func(apd *AlembicPostgresDriver) error {
 		tx, err := apd.db.Beginx()
 		if err != nil {
 			return err
@@ -30,5 +30,7 @@ func init() {
 		}
 
 		return tx.Commit()
-	})
+	}); err != nil {
+		panic("failed to register migration: " + err.Error())
+	}
 }

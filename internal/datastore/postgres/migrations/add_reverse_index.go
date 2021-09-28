@@ -6,18 +6,17 @@ const (
 )
 
 func init() {
-	DatabaseMigrations.Register("add-reverse-index", "1eaeba4b8a73", func(apd *AlembicPostgresDriver) error {
+	if err := DatabaseMigrations.Register("add-reverse-index", "1eaeba4b8a73", func(apd *AlembicPostgresDriver) error {
 		tx, err := apd.db.Beginx()
 		if err != nil {
 			return err
 		}
 		defer tx.Rollback()
 
-		statements := []string{
+		for _, stmt := range []string{
 			createReverseQueryIndex,
 			createReverseCheckIndex,
-		}
-		for _, stmt := range statements {
+		} {
 			_, err := tx.Exec(stmt)
 			if err != nil {
 				return err
@@ -25,5 +24,7 @@ func init() {
 		}
 
 		return tx.Commit()
-	})
+	}); err != nil {
+		panic("failed to register migration: " + err.Error())
+	}
 }

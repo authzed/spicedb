@@ -204,9 +204,7 @@ func (s3s *s3ShareStore) StoreShared(shared SharedDataV2) (string, error) {
 
 func computeShareHash(salt string, data []byte) string {
 	h := sha256.New()
-
-	io.WriteString(h, salt)
-	io.WriteString(h, ":")
+	_, _ = io.WriteString(h, salt+":")
 	h.Write(data)
 
 	sum := h.Sum(nil)

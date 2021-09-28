@@ -179,13 +179,17 @@ func (cbc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints
 		} else {
 			// This is a net-new member, add it to the hashring
 			log.Debug().Str("memberKey", memberKey).Msg("adding hashring member")
-			cbc.ring.Add(memberToAdd)
+			if err := cbc.ring.Add(memberToAdd); err != nil {
+				log.Fatal().Err(err).Msg("failed to add backend member")
+			}
 		}
 	}
 
 	for memberName, member := range membersToRemove {
 		log.Debug().Str("memberName", memberName).Msg("removing hashring member")
-		cbc.ring.Remove(member)
+		if err := cbc.ring.Remove(member); err != nil {
+			log.Fatal().Err(err).Msg("failed to remove backend member")
+		}
 	}
 
 	log.Info().Int("numEndpoints", len(endpoints)).Msg("updated smart client endpoint list")

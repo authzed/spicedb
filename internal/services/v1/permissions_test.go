@@ -501,7 +501,11 @@ func newPermissionsServicer(
 	lis := bufconn.Listen(1024 * 1024)
 	s := tf.NewTestServer()
 	v1.RegisterPermissionsServiceServer(s, NewPermissionsServer(ds, ns, dispatch, 50))
-	go s.Serve(lis)
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			panic("failed to shutdown cleanly: " + err.Error())
+		}
+	}()
 
 	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 		return lis.Dial()

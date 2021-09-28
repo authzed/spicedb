@@ -38,10 +38,14 @@ func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ..
 
 	switch {
 	case rewrite != nil && len(allowedDirectRelations) == 0:
-		SetRelationKind(rel, iv1.RelationMetadata_PERMISSION)
+		if err := SetRelationKind(rel, iv1.RelationMetadata_PERMISSION); err != nil {
+			panic("failed to set relation kind: " + err.Error())
+		}
 
 	case rewrite == nil && len(allowedDirectRelations) > 0:
-		SetRelationKind(rel, iv1.RelationMetadata_RELATION)
+		if err := SetRelationKind(rel, iv1.RelationMetadata_RELATION); err != nil {
+			panic("failed to set relation kind: " + err.Error())
+		}
 
 	default:
 		// By default we do not set a relation kind on the relation. Relations without any

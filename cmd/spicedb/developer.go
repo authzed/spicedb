@@ -76,7 +76,9 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 		}
 
 		log.Info().Str("addr", addr).Msg("gRPC server started listening")
-		grpcServer.Serve(l)
+		if err := grpcServer.Serve(l); err != nil {
+			log.Warn().Err(err).Msg("gRPC service did not shutdown cleanly")
+		}
 	}()
 
 	metricsrv := cobrautil.MetricsServerFromFlags(cmd)

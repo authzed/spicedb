@@ -43,7 +43,11 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 	s := tf.NewTestServer()
 	v1.RegisterSchemaServiceServer(s, NewSchemaServer(ds))
 
-	go s.Serve(lis)
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			panic("failed to shutdown cleanly: " + err.Error())
+		}
+	}()
 	defer func() {
 		s.Stop()
 		lis.Close()
