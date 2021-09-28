@@ -121,11 +121,15 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		keyer = noOverlapKeyer
 	}
 
+	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
+		config.maxRevisionStalenessPercent) * time.Nanosecond
+
 	return &crdbDatastore{
 		dburl:                     url,
 		conn:                      conn,
 		watchBufferLength:         config.watchBufferLength,
 		quantizationNanos:         config.revisionQuantization.Nanoseconds(),
+		maxRevisionStaleness:      maxRevisionStaleness,
 		gcWindowNanos:             gcWindowNanos,
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
 		execute:                   executeWithMaxRetries(config.maxRetries),
@@ -138,16 +142,20 @@ type crdbDatastore struct {
 	conn                      *pgxpool.Pool
 	watchBufferLength         uint16
 	quantizationNanos         int64
+	maxRevisionStaleness      time.Duration
 	gcWindowNanos             int64
 	splitAtEstimatedQuerySize units.Base2Bytes
 	execute                   executeTxRetryFunc
 	overlapKeyer              overlapKeyer
+
+	lastQuantizedRevision decimal.Decimal
+	revisionValidThrough  time.Time
 }
 
 func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	headMigration, err := migrations.CRDBMigrations.HeadRevision()
 	if err != nil {
-		return false, fmt.Errorf("Invalid head migration found for postgres: %w", err)
+		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
 
 	currentRevision, err := migrations.NewCRDBDriver(cds.dburl)
@@ -167,18 +175,35 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 	ctx, span := tracer.Start(ctx, "Revision")
 	defer span.End()
 
+	localNow := time.Now()
+	if localNow.Before(cds.revisionValidThrough) {
+		log.Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Msg("returning cached revision")
+		return cds.lastQuantizedRevision, nil
+	}
+
+	log.Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Msg("computing new revision")
+
 	nowHLC, err := cds.SyncRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
 
 	// Round the revision down to the nearest quantization
-	quantized := nowHLC.IntPart()
+	crdbNow := nowHLC.IntPart()
+	quantized := crdbNow
 	if cds.quantizationNanos > 0 {
-		quantized -= (quantized % cds.quantizationNanos)
+		quantized -= (crdbNow % cds.quantizationNanos)
 	}
 
-	return decimal.NewFromInt(quantized), nil
+	validForNanos := (quantized + cds.quantizationNanos) - crdbNow
+
+	cds.revisionValidThrough = localNow.
+		Add(time.Duration(validForNanos) * time.Nanosecond).
+		Add(cds.maxRevisionStaleness)
+	log.Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Int64("validForNanos", validForNanos).Msg("setting valid through")
+	cds.lastQuantizedRevision = decimal.NewFromInt(quantized)
+
+	return cds.lastQuantizedRevision, nil
 }
 
 func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {

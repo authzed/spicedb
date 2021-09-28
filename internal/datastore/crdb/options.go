@@ -15,13 +15,14 @@ type crdbOptions struct {
 	minOpenConns    *int
 	maxOpenConns    *int
 
-	watchBufferLength         uint16
-	revisionQuantization      time.Duration
-	gcWindow                  time.Duration
-	maxRetries                int
-	splitAtEstimatedQuerySize units.Base2Bytes
-	overlapStrategy           string
-	overlapKey                string
+	watchBufferLength           uint16
+	revisionQuantization        time.Duration
+	maxRevisionStalenessPercent float64
+	gcWindow                    time.Duration
+	maxRetries                  int
+	splitAtEstimatedQuerySize   units.Base2Bytes
+	overlapStrategy             string
+	overlapKey                  string
 }
 
 const (
@@ -31,8 +32,9 @@ const (
 	overlapStrategyStatic   = "static"
 	overlapStrategyInsecure = "insecure"
 
-	defaultRevisionQuantization = 5 * time.Second
-	defaultWatchBufferLength    = 128
+	defaultRevisionQuantization        = 5 * time.Second
+	defaultMaxRevisionStalenessPercent = 0.1
+	defaultWatchBufferLength           = 128
 
 	defaultMaxRetries      = 50
 	defaultOverlapKey      = "defaultsynckey"
@@ -45,13 +47,14 @@ type Option func(*crdbOptions)
 
 func generateConfig(options []Option) (crdbOptions, error) {
 	computed := crdbOptions{
-		gcWindow:                  24 * time.Hour,
-		watchBufferLength:         defaultWatchBufferLength,
-		revisionQuantization:      defaultRevisionQuantization,
-		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
-		maxRetries:                defaultMaxRetries,
-		overlapKey:                defaultOverlapKey,
-		overlapStrategy:           defaultOverlapStrategy,
+		gcWindow:                    24 * time.Hour,
+		watchBufferLength:           defaultWatchBufferLength,
+		revisionQuantization:        defaultRevisionQuantization,
+		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
+		splitAtEstimatedQuerySize:   common.DefaultSplitAtEstimatedQuerySize,
+		maxRetries:                  defaultMaxRetries,
+		overlapKey:                  defaultOverlapKey,
+		overlapStrategy:             defaultOverlapStrategy,
 	}
 
 	for _, option := range options {
@@ -137,6 +140,17 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 func RevisionQuantization(bucketSize time.Duration) Option {
 	return func(po *crdbOptions) {
 		po.revisionQuantization = bucketSize
+	}
+}
+
+// MaxRevisionStalenessPercent is the amount of time, expressed as a percentage of
+// the revision quantization window, that a previously computed rounded revision
+// can still be advertised after the next rounded revision would otherwise be ready.
+//
+// This value defaults to 0.1 (10%).
+func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
+	return func(po *crdbOptions) {
+		po.maxRevisionStalenessPercent = stalenessPercent
 	}
 }
 
