@@ -129,10 +129,10 @@ func TestEditCheck(t *testing.T) {
 				}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Parse("somenamespace:someobj#somerel@user:foo"),
+				tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
 			},
 			[]*v0.RelationTuple{
-				tuple.Parse("somenamespace:someobj#anotherrel@user:foo"),
+				tuple.MustParse("somenamespace:someobj#anotherrel@user:foo"),
 			},
 			nil,
 			[]*v0.EditCheckResult{
@@ -155,20 +155,20 @@ func TestEditCheck(t *testing.T) {
 				}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Parse("somenamespace:someobj#somerel@user:foo"),
+				tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
 			},
 			[]*v0.RelationTuple{
-				tuple.Parse("somenamespace:someobj#somerel@user:foo"),
-				tuple.Parse("somenamespace:someobj#somerel@user:anotheruser"),
+				tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
+				tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser"),
 			},
 			nil,
 			[]*v0.EditCheckResult{
 				{
-					Relationship: tuple.Parse("somenamespace:someobj#somerel@user:foo"),
+					Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
 					IsMember:     true,
 				},
 				{
-					Relationship: tuple.Parse("somenamespace:someobj#somerel@user:anotheruser"),
+					Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser"),
 					IsMember:     false,
 				},
 			},
@@ -273,9 +273,7 @@ func TestValidate(t *testing.T) {
 					relation viewer: user
 				}
 			`,
-			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#viewer@user:jimmy"),
-			},
+			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#viewer@user:jimmy")},
 			"",
 			`assertTrue:
 - document:somedoc#viewer@user:jake`,
@@ -297,9 +295,7 @@ func TestValidate(t *testing.T) {
 					relation viewer: user
 				}
 			`,
-			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#viewer@user:jimmy"),
-			},
+			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#viewer@user:jimmy")},
 			"",
 			`assertFalse:
 - document:somedoc#viewer@user:jimmy`,
@@ -343,9 +339,7 @@ func TestValidate(t *testing.T) {
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-			},
+			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":`,
 			`assertTrue:
 - document:somedoc#view@user:jimmy`,
@@ -369,9 +363,7 @@ func TestValidate(t *testing.T) {
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-			},
+			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":
 - "[user:jimmy] is <document:somedoc#writer>"
 - "[user:jake] is <document:somedoc#viewer>"`,
@@ -397,9 +389,7 @@ func TestValidate(t *testing.T) {
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-			},
+			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":
 - "[user] is <document:somedoc#writer>"`,
 			`assertTrue:
@@ -424,9 +414,7 @@ func TestValidate(t *testing.T) {
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-			},
+			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":
 - "[user:jimmy] is <document:som>"`,
 			`assertTrue:
@@ -451,9 +439,7 @@ func TestValidate(t *testing.T) {
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-			},
+			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":
 - "[user:jimmy] is <document:somedoc#viewer>"`,
 			`assertTrue:
@@ -479,8 +465,8 @@ func TestValidate(t *testing.T) {
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-				tuple.Parse("document:somedoc#viewer@user:jake"),
+				tuple.MustParse("document:somedoc#writer@user:jimmy"),
+				tuple.MustParse("document:somedoc#viewer@user:jake"),
 			},
 			`"document:somedoc#view":
 - "[user:jimmy] is <document:somedoc#writer>"
@@ -509,8 +495,8 @@ assertFalse:
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-				tuple.Parse("document:somedoc#viewer@user:jimmy"),
+				tuple.MustParse("document:somedoc#writer@user:jimmy"),
+				tuple.MustParse("document:somedoc#viewer@user:jimmy"),
 			},
 			`"document:somedoc#view":
 - "[user:jimmy] is <document:somedoc#writer>/<document:somedoc#viewer>"`,
@@ -533,8 +519,8 @@ assertFalse:
 			}
 			`,
 			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-				tuple.Parse("document:somedoc#viewer@user:jimmy"),
+				tuple.MustParse("document:somedoc#writer@user:jimmy"),
+				tuple.MustParse("document:somedoc#viewer@user:jimmy"),
 			},
 			`"document:somedoc#view":
 - "[user:jimmy] is <document:somedoc#writer>"`,
@@ -556,9 +542,7 @@ assertFalse:
 			`
 			definition user {}
 			`,
-			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-			},
+			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			``,
 			``,
 			&v0.DeveloperError{
@@ -575,9 +559,7 @@ assertFalse:
 			definition user {}
 			definition document {}
 			`,
-			[]*v0.RelationTuple{
-				tuple.Parse("document:somedoc#writer@user:jimmy"),
-			},
+			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			``,
 			``,
 			&v0.DeveloperError{

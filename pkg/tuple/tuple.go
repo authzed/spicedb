@@ -60,7 +60,19 @@ func RelString(tpl *v1.Relationship) string {
 	return String(FromRelationship(tpl))
 }
 
-// Parse converts a serialized tuple into the proto version
+// MustParse wraps Parse such that any failures panic rather than returning
+// nil.
+func MustParse(tpl string) *v0.RelationTuple {
+	if parsed := Parse(tpl); parsed != nil {
+		return parsed
+	}
+	panic("failed to parse tuple")
+}
+
+// Parse unmarshals the string form of a Tuple and returns nil if there is a
+// failure.
+//
+// This function treats both missing and ellipsis relations equally.
 func Parse(tpl string) *v0.RelationTuple {
 	groups := parserRegex.FindStringSubmatch(tpl)
 	if len(groups) == 0 {
@@ -87,6 +99,14 @@ func Parse(tpl string) *v0.RelationTuple {
 	}
 }
 
+func ParseRel(rel string) *v1.Relationship {
+	tpl := Parse(rel)
+	if tpl == nil {
+		return nil
+	}
+	return ToRelationship(tpl)
+}
+
 func Create(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
 	return &v0.RelationTupleUpdate{
 		Operation: v0.RelationTupleUpdate_CREATE,
@@ -111,7 +131,7 @@ func Delete(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
 // ToRelationship converts a RelationTuple into a Relationship.
 func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 	if err := tpl.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid tuple: %s %s", String(tpl), err))
+		panic(fmt.Sprintf("invalid tuple: %#v %s", tpl, err))
 	}
 
 	return &v1.Relationship{
@@ -133,7 +153,7 @@ func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 // ToFilter converts a RelationTuple into a RelationshipFilter.
 func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 	if err := tpl.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid tuple: %s %s", String(tpl), err))
+		panic(fmt.Sprintf("invalid tuple: %#v %s", tpl, err))
 	}
 
 	return &v1.RelationshipFilter{
@@ -174,7 +194,7 @@ func UpdateToRelationshipUpdate(update *v0.RelationTupleUpdate) *v1.Relationship
 // FromRelationship converts a Relationship into a RelationTuple.
 func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
 	if err := r.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid relationship: %s %s", RelString(r), err))
+		panic(fmt.Sprintf("invalid relationship: %#v %s", r, err))
 	}
 
 	return &v0.RelationTuple{

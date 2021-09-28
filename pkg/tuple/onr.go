@@ -3,8 +3,10 @@ package tuple
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 )
 
@@ -88,4 +90,19 @@ func StringsONRs(onrs []*v0.ObjectAndRelation) []string {
 
 	sort.Strings(onrstrings)
 	return onrstrings
+}
+
+// StringObjectRef marshals a *v1.ObjectReference into a string.
+func StringObjectRef(ref *v1.ObjectReference) string {
+	return ref.ObjectType + ":" + ref.ObjectId
+}
+
+// StringSubjectRef marshals a *v1.SubjectReference into a string.
+func StringSubjectRef(ref *v1.SubjectReference) string {
+	var b strings.Builder
+	b.WriteString(ref.Object.ObjectType + ":" + ref.Object.ObjectId)
+	if ref.OptionalRelation != "" {
+		b.WriteString("#" + ref.OptionalRelation)
+	}
+	return b.String()
 }

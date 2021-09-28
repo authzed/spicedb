@@ -300,8 +300,7 @@ func TestWrite(t *testing.T) {
 	defer stop()
 
 	toWriteStr := "document:totallynew#parent@folder:plans"
-	toWrite := tuple.Parse(toWriteStr)
-	require.NotNil(toWrite)
+	toWrite := tuple.MustParse(toWriteStr)
 
 	resp, err := client.Write(context.Background(), &v0.WriteRequest{
 		WriteConditions: []*v0.RelationTuple{toWrite},
