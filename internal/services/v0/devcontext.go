@@ -3,7 +3,6 @@ package v0
 import (
 	"context"
 	"errors"
-	"regexp"
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -28,8 +27,6 @@ type DevContext struct {
 	Dispatcher    dispatch.Dispatcher
 	RequestErrors []*v0.DeveloperError
 }
-
-var lineColRegex = regexp.MustCompile(`\(line ([0-9]+):([0-9]+)\): (.+)`)
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
 // the datastore as needed.

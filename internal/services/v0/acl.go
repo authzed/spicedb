@@ -37,7 +37,6 @@ type aclServer struct {
 }
 
 const (
-	maxUInt16          = int(^uint16(0))
 	lookupDefaultLimit = uint32(25)
 	lookupMaximumLimit = uint32(100)
 )

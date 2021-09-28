@@ -21,7 +21,6 @@ import (
 const (
 	errInitializingSmartClient = "unable to initialize smart client: %w"
 	errComputingBackend        = "unable to compute backend for request: %w"
-	errParsingFallbackEndpoint = "unable to parse fallback endpoint: %w"
 	errEstablishingWatch       = "unable to establish watch stream: %w"
 
 	hashringReplicationFactor = 20

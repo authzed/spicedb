@@ -19,7 +19,6 @@ import (
 
 const (
 	sharedDataVersion = "2"
-	maximumDataSize   = 1024 * 1024 * 1024 // 1 MB
 	hashPrefixSize    = 12
 )
 

@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	errUnableToInstantiate  = "unable to instantiate datastore: %w"
 	errUnableToWriteConfig  = "unable to write namespace config: %w"
 	errUnableToReadConfig   = "unable to read namespace config: %w"
 	errUnableToDeleteConfig = "unable to delete namespace config: %w"
