@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -192,9 +193,9 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		if isAllowed == namespace.DirectRelationNotValid {
 			return nil, status.Errorf(
 				codes.InvalidArgument,
-				"subject %v is not allowed for the resource %v",
-				update.Relationship.Subject,
-				update.Relationship.Resource,
+				"subject %s is not allowed for the resource %s",
+				tuple.StringSubjectRef(update.Relationship.Subject),
+				tuple.StringObjectRef(update.Relationship.Resource),
 			)
 		}
 	}
