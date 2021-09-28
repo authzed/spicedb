@@ -229,6 +229,9 @@ func (pgd *pgDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefi
 	var nsDefs []*v0.NamespaceDefinition
 
 	rows, err := tx.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 
 	for rows.Next() {
