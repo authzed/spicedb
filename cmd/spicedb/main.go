@@ -12,6 +12,7 @@ var persistentPreRunE = cobrautil.CommandStack(
 
 func main() {
 	rootCmd := newRootCmd()
+	registerVersionCmd(rootCmd)
 	registerServeCmd(rootCmd)
 	registerMigrateCmd(rootCmd)
 	registerHeadCmd(rootCmd)
