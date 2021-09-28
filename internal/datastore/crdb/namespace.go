@@ -23,13 +23,6 @@ const (
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
 
-type updateIntention bool
-
-var (
-	forUpdate updateIntention = true
-	readOnly  updateIntention = false
-)
-
 var (
 	upsertNamespaceSuffix = fmt.Sprintf(
 		"ON CONFLICT (%s) DO UPDATE SET %s = excluded.%s %s",
@@ -97,7 +90,10 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 	var timestamp time.Time
 	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var err error
-		_, timestamp, err = loadNamespace(ctx, tx, nsName, readOnly)
+		_, timestamp, err = loadNamespace(ctx, tx, nsName)
+		if err != nil {
+			return err
+		}
 		delSQL, delArgs, err := queryDeleteNamespace.
 			Where(sq.Eq{colNamespace: nsName, colTimestamp: timestamp}).
 			ToSql()
@@ -133,12 +129,8 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 	return revisionFromTimestamp(timestamp), nil
 }
 
-func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string, forUpdate updateIntention) (*v0.NamespaceDefinition, time.Time, error) {
+func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*v0.NamespaceDefinition, time.Time, error) {
 	query := queryReadNamespace.Where(sq.Eq{colNamespace: nsName})
-
-	if forUpdate {
-		query.Suffix("FOR UPDATE")
-	}
 
 	sql, args, err := query.ToSql()
 	if err != nil {

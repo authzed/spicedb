@@ -26,7 +26,6 @@ var (
 
 // noOverlap adds no keys to the overlap set
 func noOverlap(_ keySet, _ string) {
-	return
 }
 
 // appendStaticKey adds the same transaction overlap key for every namespace
