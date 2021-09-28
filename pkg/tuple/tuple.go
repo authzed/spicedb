@@ -60,7 +60,19 @@ func RelString(tpl *v1.Relationship) string {
 	return String(FromRelationship(tpl))
 }
 
-// Parse converts a serialized tuple into the proto version
+// MustParse wraps Parse such that any failures panic rather than returning
+// nil.
+func MustParse(tpl string) *v0.RelationTuple {
+	if parsed := Parse(tpl); parsed != nil {
+		return parsed
+	}
+	panic("failed to parse tuple")
+}
+
+// Parse unmarshals the string form of a Tuple and returns nil if there is a
+// failure.
+//
+// This function treats both missing and ellipsis relations equally.
 func Parse(tpl string) *v0.RelationTuple {
 	groups := parserRegex.FindStringSubmatch(tpl)
 	if len(groups) == 0 {

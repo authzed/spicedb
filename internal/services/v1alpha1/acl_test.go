@@ -44,7 +44,7 @@ func TestAttemptWriteRelationshipToPermission(t *testing.T) {
 
 	_, err = aclSrv.Write(context.Background(), &v0.WriteRequest{
 		Updates: []*v0.RelationTupleUpdate{tuple.Create(
-			tuple.Parse("example/document:somedoc#reader@example/user:someuser#..."),
+			tuple.MustParse("example/document:somedoc#reader@example/user:someuser#..."),
 		)},
 	})
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestAttemptWriteRelationshipToPermission(t *testing.T) {
 	// Attempt to write a relation to the permission, which should fail.
 	_, err = aclSrv.Write(context.Background(), &v0.WriteRequest{
 		Updates: []*v0.RelationTupleUpdate{tuple.Create(
-			tuple.Parse("example/document:somedoc#read@example/user:someuser#..."),
+			tuple.MustParse("example/document:somedoc#read@example/user:someuser#..."),
 		)},
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)

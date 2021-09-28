@@ -110,7 +110,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 
 	_, err = aclSrv.Write(context.Background(), &v0.WriteRequest{
 		Updates: []*v0.RelationTupleUpdate{tuple.Create(
-			tuple.Parse("example/document:somedoc#somerelation@example/user:someuser#..."),
+			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		)},
 	})
 	require.Nil(t, err)
@@ -138,7 +138,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	// Delete the relationship.
 	_, err = aclSrv.Write(context.Background(), &v0.WriteRequest{
 		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
-			tuple.Parse("example/document:somedoc#somerelation@example/user:someuser#..."),
+			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		)},
 	})
 	require.Nil(t, err)
@@ -178,7 +178,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 
 	_, err = aclSrv.Write(context.Background(), &v0.WriteRequest{
 		Updates: []*v0.RelationTupleUpdate{tuple.Create(
-			tuple.Parse("example/document:somedoc#somerelation@example/user:someuser#..."),
+			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		)},
 	})
 	require.Nil(t, err)
@@ -192,7 +192,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	// Delete the relationship.
 	_, err = aclSrv.Write(context.Background(), &v0.WriteRequest{
 		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
-			tuple.Parse("example/document:somedoc#somerelation@example/user:someuser#..."),
+			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		)},
 	})
 	require.Nil(t, err)

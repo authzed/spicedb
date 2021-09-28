@@ -252,9 +252,7 @@ func TestWriteRelationships(t *testing.T) {
 	client, stop, _ := newPermissionsServicer(require, 0, memdb.DisableGC, 0)
 	defer stop()
 
-	toWriteStr := "document:totallynew#parent@folder:plans"
-	toWrite := tuple.Parse(toWriteStr)
-	require.NotNil(toWrite)
+	toWrite := tuple.MustParse("document:totallynew#parent@folder:plans")
 
 	// Write with a failing precondition
 	resp, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
