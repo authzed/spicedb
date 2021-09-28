@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
@@ -368,90 +370,109 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 		preconditions []*v1.RelationshipFilter
 		relationships []*v1.Relationship
 		expectedCode  codes.Code
+		errorContains string
 	}{
 		{
 			"empty relationship",
 			nil,
 			[]*v1.Relationship{{}},
 			codes.InvalidArgument,
+			"value is required",
 		},
 		{
 			"empty precondition",
 			[]*v1.RelationshipFilter{{}},
 			nil,
 			codes.InvalidArgument,
+			"value does not match regex pattern",
 		},
 		{
 			"good precondition, invalid update",
 			[]*v1.RelationshipFilter{precondFilter("document", "newdoc", "parent", "folder", "afolder", nil)},
 			[]*v1.Relationship{rel("document", "🍣", "parent", "folder", "afolder", "")},
 			codes.InvalidArgument,
+			"caused by: invalid ObjectReference.ObjectId: value does not match regex pattern",
 		},
 		{
 			"invalid precondition, good write",
 			[]*v1.RelationshipFilter{precondFilter("document", "🍣", "parent", "folder", "afolder", nil)},
 			[]*v1.Relationship{rel("document", "newdoc", "parent", "folder", "afolder", "")},
 			codes.InvalidArgument,
+			"caused by: invalid RelationshipFilter.OptionalResourceId: value does not match regex pattern",
 		},
 		{
 			"write non-existing resource namespace",
 			nil,
 			[]*v1.Relationship{rel("notdocument", "newdoc", "parent", "folder", "afolder", "")},
 			codes.FailedPrecondition,
+			"`notdocument` not found",
 		},
 		{
 			"write non-existing relation",
 			nil,
 			[]*v1.Relationship{rel("document", "newdoc", "notparent", "folder", "afolder", "")},
 			codes.FailedPrecondition,
+			"`notparent` not found",
 		},
 		{
 			"write non-existing subject type",
 			nil,
 			[]*v1.Relationship{rel("document", "newdoc", "parent", "notfolder", "afolder", "")},
 			codes.FailedPrecondition,
+			"`notfolder` not found",
 		},
 		{
 			"write non-existing subject relation",
 			nil,
 			[]*v1.Relationship{rel("document", "newdoc", "parent", "folder", "afolder", "none")},
 			codes.FailedPrecondition,
+			"`none` not found",
 		},
 		{
 			"bad write wrong relation type",
 			nil,
 			[]*v1.Relationship{rel("document", "newdoc", "parent", "user", "someuser", "")},
 			codes.InvalidArgument,
+			"user:someuser is not allowed",
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
-			client, stop, _ := newPermissionsServicer(require, 0, memdb.DisableGC, 0)
-			defer stop()
+	for _, delta := range testTimedeltas {
+		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					require := require.New(t)
+					client, stop, _ := newPermissionsServicer(require, 0, memdb.DisableGC, 0)
+					defer stop()
 
-			var preconditions []*v1.Precondition
-			for _, filter := range tc.preconditions {
-				preconditions = append(preconditions, &v1.Precondition{
-					Operation: v1.Precondition_OPERATION_MUST_MATCH,
-					Filter:    filter,
+					var preconditions []*v1.Precondition
+					for _, filter := range tc.preconditions {
+						preconditions = append(preconditions, &v1.Precondition{
+							Operation: v1.Precondition_OPERATION_MUST_MATCH,
+							Filter:    filter,
+						})
+					}
+
+					var mutations []*v1.RelationshipUpdate
+					for _, rel := range tc.relationships {
+						mutations = append(mutations, &v1.RelationshipUpdate{
+							Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+							Relationship: rel,
+						})
+					}
+
+					_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+						Updates:               mutations,
+						OptionalPreconditions: preconditions,
+					})
+					grpcutil.RequireStatus(t, tc.expectedCode, err)
+					errStatus, ok := status.FromError(err)
+					if !ok {
+						panic("failed to find error in status")
+					}
+					require.True(strings.Contains(errStatus.Message(), tc.errorContains))
 				})
 			}
-
-			var mutations []*v1.RelationshipUpdate
-			for _, rel := range tc.relationships {
-				mutations = append(mutations, &v1.RelationshipUpdate{
-					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-					Relationship: rel,
-				})
-			}
-
-			_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-				Updates:               mutations,
-				OptionalPreconditions: preconditions,
-			})
-			grpcutil.RequireStatus(t, tc.expectedCode, err)
 		})
 	}
 }
