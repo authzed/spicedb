@@ -13,7 +13,7 @@ SpiceDB is a [Zanzibar]-inspired database that stores, computes, and validates a
 Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
 Features that distinguish SpiceDB from other systems include:
-- [Dedicated APIs] for checking individual permissions, listing all access, and [ACL filtering]
+- [Expressive APIs] for checking permissions, listing access, and powering devtools
 - An architecture faithful to the [Google Zanzibar] paper, including resistance to the [New Enemy Problem]
 - An intuitive and expressive [schema language] complete with a [playground] dev environment
 - A powerful graph engine that supports distributed, parallel evaluation
@@ -23,8 +23,7 @@ Features that distinguish SpiceDB from other systems include:
 See [CONTRIBUTING.md] for instructions on how to contribute and perform common tasks like building the project and running tests.
 
 [client library]: https://docs.authzed.com/reference/api#client-libraries
-[Dedicated APIs]: https://buf.build/authzed/api
-[ACL filtering]: https://docs.authzed.com/concepts/authz#what-is-acl-filtering
+[Expressive APIs]: https://buf.build/authzed/api
 [Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [Google Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
