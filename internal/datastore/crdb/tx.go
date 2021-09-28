@@ -20,7 +20,7 @@ const (
 var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Name:    "crdb_client_retries",
 	Help:    "cockroachdb client-side retry distribution",
-	Buckets: []float64{1, 2, 3, 4, 5, 10, 20, 30, 40, 50},
+	Buckets: []float64{0, 1, 2, 5, 10, 20, 50},
 })
 
 func init() {
