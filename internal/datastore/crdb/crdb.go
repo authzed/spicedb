@@ -185,14 +185,17 @@ func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision,
 	ctx, span := tracer.Start(ctx, "SyncRevision")
 	defer span.End()
 
-	var hlcNow decimal.Decimal
-	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		var err error
-		hlcNow, err = readCRDBNow(ctx, tx)
-		return err
-	}); err != nil {
+	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
+	defer tx.Rollback(ctx)
+
+	hlcNow, err := readCRDBNow(ctx, tx)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+	}
+
 	return hlcNow, nil
 }
 
