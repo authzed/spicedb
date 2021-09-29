@@ -83,6 +83,33 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 	return errors.New(errReachedMaxRetry)
 }
 
+func executeNoSavePointWithMaxRetries(max int) executeTxRetryFunc {
+	return func(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn) (err error) {
+		return executeNoSavePoint(ctx, conn, txOptions, fn, max)
+	}
+}
+
+func executeNoSavePoint(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn, maxRetries int) (err error) {
+	for i := 0; i < maxRetries; i++ {
+		tx, err := conn.BeginTx(ctx, txOptions)
+		if err != nil {
+			return err
+		}
+		err = fn(tx)
+		if err == nil {
+			return tx.Commit(ctx)
+		}
+		if !retriable(err) {
+			return err
+		}
+		retryHistogram.Observe(float64(i + 1))
+		if err := tx.Rollback(ctx); err != nil {
+			return err
+		}
+	}
+	return errors.New(errReachedMaxRetry)
+}
+
 func retriable(err error) bool {
 	var pgerr *pgconn.PgError
 	if !errors.As(err, &pgerr) {
