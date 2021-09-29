@@ -62,7 +62,11 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 		return
 	}
 
-	for i := 0; i < maxRetries; i++ {
+	var i int
+	defer func() {
+		retryHistogram.Observe(float64(i))
+	}()
+	for i = 0; i < maxRetries; i++ {
 		if err = fn(tx); err != nil {
 			if !retriable(err) {
 				return err
@@ -72,7 +76,6 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 			}
 			continue
 		}
-		retryHistogram.Observe(float64(i))
 
 		// RELEASE acts like COMMIT in CockroachDB. We use it since it gives us an
 		// opportunity to react to retryable errors, whereas tx.Commit() doesn't.
