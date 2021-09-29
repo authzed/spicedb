@@ -267,9 +267,10 @@ definition foos/document {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			defs, err := compiler.Compile([]compiler.InputSchema{
-				{input.InputSource(test.name), test.input},
-			}, nil)
+			defs, err := compiler.Compile([]compiler.InputSchema{{
+				Source:       input.InputSource(test.name),
+				SchemaString: test.input,
+			}}, nil)
 			require.NoError(err)
 
 			source, _ := GenerateSource(defs[0])

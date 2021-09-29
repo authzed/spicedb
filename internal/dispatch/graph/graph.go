@@ -20,8 +20,6 @@ import (
 
 const errDispatch = "error dispatching request: %w"
 
-var errMaxDepth = errors.New("max depth has been reached")
-
 var tracer = otel.Tracer("spicedb/internal/dispatch/local")
 
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.

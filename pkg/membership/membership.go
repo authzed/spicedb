@@ -119,14 +119,19 @@ func populateFoundSubjects(foundSubjectsMap map[string]FoundSubject, rootONR *v0
 			}
 
 			fsm := map[string]FoundSubject{}
-			populateFoundSubjects(fsm, rootONR, typed.IntermediateNode.ChildNodes[0])
+			err := populateFoundSubjects(fsm, rootONR, typed.IntermediateNode.ChildNodes[0])
+			if err != nil {
+				return err
+			}
 
 			subjectset := newSubjectSet()
 			subjectset.union(fsm)
 
 			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
 				fsm := map[string]FoundSubject{}
-				populateFoundSubjects(fsm, rootONR, child)
+				if err := populateFoundSubjects(fsm, rootONR, child); err != nil {
+					return err
+				}
 				subjectset.intersect(fsm)
 			}
 
@@ -138,14 +143,19 @@ func populateFoundSubjects(foundSubjectsMap map[string]FoundSubject, rootONR *v0
 			}
 
 			fsm := map[string]FoundSubject{}
-			populateFoundSubjects(fsm, rootONR, typed.IntermediateNode.ChildNodes[0])
+			err := populateFoundSubjects(fsm, rootONR, typed.IntermediateNode.ChildNodes[0])
+			if err != nil {
+				return err
+			}
 
 			subjectset := newSubjectSet()
 			subjectset.union(fsm)
 
 			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
 				fsm := map[string]FoundSubject{}
-				populateFoundSubjects(fsm, rootONR, child)
+				if err := populateFoundSubjects(fsm, rootONR, child); err != nil {
+					return err
+				}
 				subjectset.exclude(fsm)
 			}
 

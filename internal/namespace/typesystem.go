@@ -97,7 +97,6 @@ type NamespaceTypeSystem struct {
 	lookupNamespace LookupNamespace
 	nsDef           *v0.NamespaceDefinition
 	relationMap     map[string]*v0.Relation
-	additionalDefs  []*v0.NamespaceDefinition
 }
 
 // HasTypeInformation returns true if the relation with the given name exists and has type

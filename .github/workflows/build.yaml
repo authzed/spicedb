@@ -35,10 +35,9 @@ jobs:
             echo "${GOFUMPT_OUTPUT}"
             exit 1
           fi
-      - name: "Linting (revive)"
-        run: |
-          bash -c '[ $(find . -iname '*.go' -type f | grep -Ev "internal/dispatch|internal/graph|internal/namespace|internal/testfixtures|pkg/consistent|pkg/graph|pkg/membership|pkg/migrate|pkg/namespace|pkg/schemadsl|pkg/graph|pkg/tuple|pkg/validation" | xargs revive | tee /dev/fd/2 | wc -c) -eq 0 ]'
-          revive ./... # print the rest of the failures, but just as warnings
+      - uses: "golangci/golangci-lint-action@v2"
+        with:
+          version: "v1.42"
       - name: "Go Generate"
         run: "go generate ./... && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
 

@@ -424,7 +424,7 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 					accessibleTerminalSubjects := vctx.accessibilitySet.AccessibleTerminalSubjects(nsDef.Name, relation.Name, objectIDStr)
 
 					// Run a non-recursive expansion to verify no errors are raised.
-					resp, err := vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+					_, err := vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
 						ObjectAndRelation: &v0.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
@@ -436,11 +436,10 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 						},
 						ExpansionMode: v1.DispatchExpandRequest_SHALLOW,
 					})
-
 					vrequire.NoError(err)
 
 					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
-					resp, err = vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+					resp, err := vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
 						ObjectAndRelation: &v0.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
@@ -452,7 +451,6 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 						},
 						ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 					})
-
 					vrequire.NoError(err)
 
 					subjectsFound := graphpkg.Simplify(resp.TreeNode)

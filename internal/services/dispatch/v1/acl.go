@@ -5,13 +5,14 @@ import (
 	"errors"
 
 	"github.com/authzed/grpcutil"
-	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/internal/graph"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/graph"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
 
 type dispatchServer struct {

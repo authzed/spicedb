@@ -1,0 +1,64 @@
+---
+output:
+  sort-results: true
+linters-settings:
+  goimports:
+    local-prefixes: "github.com/authzed/spicedb"
+  rowserrcheck:
+    packages:
+      - "github.com/jmoiron/sqlx"
+      - "github.com/jackc/pgx"
+linters:
+  enable:
+    - "deadcode"
+    - "errcheck"
+    - "gofumpt"
+    - "goimports"
+    - "gosimple"
+    - "govet"
+    - "ineffassign"
+    - "revive"
+    - "rowserrcheck"
+    - "staticcheck"
+    - "structcheck"
+    - "typecheck"
+    - "unused"
+    - "varcheck"
+issues:
+  exclude-rules:
+    - path: "internal/dispatch"
+      linters:
+        - "revive"
+    - path: "internal/graph"
+      linters:
+        - "revive"
+    - path: "internal/namespace"
+      linters:
+        - "revive"
+    - path: "internal/testfixtures"
+      linters:
+        - "revive"
+    - path: "pkg/consistent"
+      linters:
+        - "revive"
+    - path: "pkg/graph"
+      linters:
+        - "revive"
+    - path: "pkg/membership"
+      linters:
+        - "revive"
+    - path: "pkg/migrate"
+      linters:
+        - "revive"
+    - path: "pkg/namespace"
+      linters:
+        - "revive"
+    - path: "pkg/schemadsl"
+      linters:
+        - "revive"
+    - path: "pkg/validation"
+      linters:
+        - "revive"
+    - text: "tx.Rollback()"
+      linters:
+        - "errcheck"

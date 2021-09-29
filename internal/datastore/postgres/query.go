@@ -9,10 +9,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
-var relationNameKey = attribute.Key("authzed.com/spicedb/relationName")
-
-const errUnableToQueryTuples = "unable to query tuples: %w"
-
 var queryTuples = psql.Select(
 	colNamespace,
 	colObjectID,

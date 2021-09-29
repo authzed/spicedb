@@ -23,7 +23,11 @@ func RunForTesting(t *testing.T, ds datastore.Datastore, nsm namespace.Manager, 
 	v1.RegisterPermissionsServiceServer(s, NewPermissionsServer(ds, nsm, dispatch, 50))
 	v1.RegisterSchemaServiceServer(s, NewSchemaServer(ds))
 
-	go s.Serve(lis)
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			panic("failed to shutdown cleanly: " + err.Error())
+		}
+	}()
 	t.Cleanup(func() {
 		s.Stop()
 		lis.Close()

@@ -14,14 +14,6 @@ type sourceGenerator struct {
 	existingLineLength int             // Length of the existing line.
 }
 
-// ensureBlankLine ensures that there is a blank line at the tail of the buffer. If not,
-// a new line is added.
-func (sf *sourceGenerator) ensureBlankLine() {
-	if !sf.hasBlankline {
-		sf.appendLine()
-	}
-}
-
 // ensureBlankLineOrNewScope ensures that there is a blank line or new scope at the tail of the buffer. If not,
 // a new line is added.
 func (sf *sourceGenerator) ensureBlankLineOrNewScope() {
@@ -38,17 +30,6 @@ func (sf *sourceGenerator) indent() {
 // dedent decreases the current indentation.
 func (sf *sourceGenerator) dedent() {
 	sf.indentationLevel = sf.indentationLevel - 1
-}
-
-// appendRaw adds the given value to the buffer without indenting.
-func (sf *sourceGenerator) appendRaw(value string) {
-	if len(value) > 0 {
-		sf.hasNewline = value[len(value)-1] == '\n'
-	} else {
-		sf.hasNewline = false
-	}
-
-	sf.buf.WriteString(value)
 }
 
 // appendIssue adds an issue found in generation.

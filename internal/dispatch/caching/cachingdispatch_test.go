@@ -79,7 +79,7 @@ func TestMaxDepthCaching(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			delegate := delegateDispatchMock{}
+			delegate := delegateDispatchMock{&mock.Mock{}}
 
 			for _, step := range tc.script {
 				if step.expectPassthrough {
@@ -125,7 +125,7 @@ func TestMaxDepthCaching(t *testing.T) {
 }
 
 type delegateDispatchMock struct {
-	mock.Mock
+	*mock.Mock
 }
 
 func (ddm delegateDispatchMock) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {

@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/rs/zerolog"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // MarshalZerologObject implements zerolog object marshalling.
@@ -56,12 +57,12 @@ type zerologON v0.RelationReference
 // MarshalZerologArray implements zerolog array marshalling.
 func (onrs onArray) MarshalZerologArray(a *zerolog.Array) {
 	for _, onr := range onrs {
-		a.Object(zerologON(*onr))
+		a.Object((*zerologON)(onr))
 	}
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (on zerologON) MarshalZerologObject(e *zerolog.Event) {
+func (on *zerologON) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("ns", on.Namespace)
 	e.Str("rel", on.Relation)
 }

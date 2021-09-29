@@ -107,7 +107,9 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	serveCmd.Flags().String("dashboard-addr", ":8080", "address to listen for the dashboard")
 
 	// Required flags.
-	serveCmd.MarkFlagRequired("grpc-preshared-key")
+	if err := serveCmd.MarkFlagRequired("grpc-preshared-key"); err != nil {
+		panic("failed to mark flag as required: " + err.Error())
+	}
 
 	rootCmd.AddCommand(serveCmd)
 }

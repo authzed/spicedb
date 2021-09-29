@@ -8,11 +8,11 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/encoding/prototext"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"

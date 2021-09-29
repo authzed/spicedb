@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
-	"github.com/rs/zerolog/log"
 )
 
 const rootTemplate = `

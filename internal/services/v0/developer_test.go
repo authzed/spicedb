@@ -96,7 +96,7 @@ func TestEditCheck(t *testing.T) {
 				Line:    3,
 				Column:  4,
 			},
-			[]*v0.EditCheckResult{},
+			nil,
 		},
 		{
 			"invalid namespace name",
@@ -110,7 +110,7 @@ func TestEditCheck(t *testing.T) {
 				Line:    1,
 				Column:  1,
 			},
-			[]*v0.EditCheckResult{},
+			nil,
 		},
 		{
 			"valid namespace",
@@ -118,7 +118,7 @@ func TestEditCheck(t *testing.T) {
 			[]*v0.RelationTuple{},
 			[]*v0.RelationTuple{},
 			nil,
-			[]*v0.EditCheckResult{},
+			nil,
 		},
 		{
 			"invalid check",
@@ -193,6 +193,7 @@ func TestEditCheck(t *testing.T) {
 
 			if tc.expectedError != nil {
 				require.Equal(tc.expectedError, resp.RequestErrors[0])
+				require.Equal(tc.expectedResults, resp.CheckResults)
 			} else {
 				require.Equal(0, len(resp.RequestErrors), "Found error(s): %v", resp.RequestErrors)
 			}

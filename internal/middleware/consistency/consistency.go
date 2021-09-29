@@ -56,7 +56,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 		return ctx, nil
 	}
 
-	revision := decimal.Zero
+	var revision decimal.Decimal
 	consistency := reqWithConsistency.GetConsistency()
 
 	switch {

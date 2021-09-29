@@ -19,5 +19,5 @@ func main() {
 	registerDeveloperServiceCmd(rootCmd)
 	registerTestserverCmd(rootCmd)
 
-	rootCmd.Execute()
+	_ = rootCmd.Execute()
 }

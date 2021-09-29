@@ -17,10 +17,8 @@ import (
 )
 
 const (
-	errUnableToWriteTuples     = "unable to write tuples: %w"
-	errUnableToDeleteTuples    = "unable to delete tuples: %w"
-	errUnableToVerifyNamespace = "unable to verify namespace: %w"
-	errUnableToVerifyRelation  = "unable to verify relation: %w"
+	errUnableToWriteTuples  = "unable to write tuples: %w"
+	errUnableToDeleteTuples = "unable to delete tuples: %w"
 )
 
 var (

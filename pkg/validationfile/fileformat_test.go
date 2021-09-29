@@ -3,8 +3,9 @@ package validationfile
 import (
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestValidationString(t *testing.T) {

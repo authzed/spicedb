@@ -64,7 +64,11 @@ func TestSchemaReadInvalidName(t *testing.T) {
 	s := testfixtures.NewTestServer()
 	v1alpha1.RegisterSchemaServiceServer(s, NewSchemaServer(ds, PrefixRequired))
 
-	go s.Serve(lis)
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			panic("failed to shutdown cleanly: " + err.Error())
+		}
+	}()
 	defer func() {
 		s.Stop()
 		lis.Close()
@@ -91,7 +95,11 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 	s := testfixtures.NewTestServer()
 	v1alpha1.RegisterSchemaServiceServer(s, NewSchemaServer(ds, PrefixRequired))
 
-	go s.Serve(lis)
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			panic("failed to shutdown cleanly: " + err.Error())
+		}
+	}()
 	defer func() {
 		s.Stop()
 		lis.Close()

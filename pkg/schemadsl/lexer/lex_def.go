@@ -189,8 +189,6 @@ func lexMultilineComment(l *Lexer) stateFn {
 			return l.errorf("Unterminated multiline comment")
 		}
 	}
-
-	return lexSource
 }
 
 // lexIdentifierOrKeyword searches for a keyword or literal identifier.
