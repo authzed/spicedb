@@ -25,6 +25,30 @@ nfpms:
       - "apk"
       - "deb"
       - "rpm"
+brews:
+  - tap:
+      owner: "authzed"
+      name: "homebrew-tap"
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    download_strategy: "CurlDownloadStrategy"
+    commit_author:
+      name: "authzedbot"
+      email: "infrastructure@authzed.com"
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: "https://authzed.com/"
+    description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
+    license: "Apache-2.0"
+    folder: "Formula"
+    custom_block: |
+      head "https://github.com/authzed/spicedb.git", :branch => "main"
+    dependencies:
+      - name: "go"
+        type: "build"
+    test: |
+      system "#{bin}/spicedb version"
+    install: |
+      bin.install "spicedb"
 checksum:
   name_template: "checksums.txt"
 snapshot:
