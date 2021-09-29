@@ -2,6 +2,7 @@ package consistentbackend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -179,7 +180,7 @@ func (cbc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints
 		} else {
 			// This is a net-new member, add it to the hashring
 			log.Debug().Str("memberKey", memberKey).Msg("adding hashring member")
-			if err := cbc.ring.Add(memberToAdd); err != nil {
+			if err := cbc.ring.Add(memberToAdd); err != nil && !errors.Is(err, consistent.ErrMemberAlreadyExists) {
 				log.Fatal().Err(err).Msg("failed to add backend member")
 			}
 		}
@@ -187,7 +188,7 @@ func (cbc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints
 
 	for memberName, member := range membersToRemove {
 		log.Debug().Str("memberName", memberName).Msg("removing hashring member")
-		if err := cbc.ring.Remove(member); err != nil {
+		if err := cbc.ring.Remove(member); err != nil && !errors.Is(err, consistent.ErrMemberNotFound) {
 			log.Fatal().Err(err).Msg("failed to remove backend member")
 		}
 	}
