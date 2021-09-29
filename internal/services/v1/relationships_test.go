@@ -696,7 +696,7 @@ func TestDeleteRelationships(t *testing.T) {
 				},
 			},
 			expectedCode:  codes.InvalidArgument,
-			errorContains: "invalid DeleteRelationshipsRequest.RelationshipFilter: embedded message failed validation | caused by: invalid RelationshipFilter.ResourceType: value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
+			errorContains: "invalid DeleteRelationshipsRequest.RelationshipFilter: embedded message failed validation",
 		},
 		{
 			name: "delete unknown resource type",
@@ -755,7 +755,7 @@ func TestDeleteRelationships(t *testing.T) {
 				}},
 			},
 			expectedCode:  codes.FailedPrecondition,
-			errorContains: "failed precondition: unable to delete tuples: unable to satisfy write precondition `operation:OPERATION_MUST_MATCH filter:{resource_type:\"folder\" optional_resource_id:\"auditors\" optional_relation:\"viewer\" optional_subject_filter:{subject_type:\"user\" optional_subject_id:\"jeshk\"}}`",
+			errorContains: "unable to satisfy write precondition",
 		},
 	}
 	for _, delta := range testTimedeltas {
