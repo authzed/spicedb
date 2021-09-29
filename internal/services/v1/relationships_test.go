@@ -476,3 +476,352 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteRelationships(t *testing.T) {
+	testCases := []struct {
+		name          string
+		req           *v1.DeleteRelationshipsRequest
+		deleted       map[string]struct{}
+		expectedCode  codes.Code
+		errorContains string
+	}{
+		{
+			name: "delete fully specified",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "folder",
+					OptionalResourceId: "auditors",
+					OptionalRelation:   "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "user",
+						OptionalSubjectId: "auditor",
+					},
+				},
+			},
+			deleted: map[string]struct{}{
+				"folder:auditors#viewer@user:auditor": {},
+			},
+		},
+		{
+			name: "delete resource + relation + subject type",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "document",
+					OptionalResourceId: "masterplan",
+					OptionalRelation:   "parent",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType: "folder",
+					},
+				},
+			},
+			deleted: map[string]struct{}{
+				"document:masterplan#parent@folder:strategy": {},
+				"document:masterplan#parent@folder:plans":    {},
+			},
+		},
+		{
+			name: "delete resource + relation",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "document",
+					OptionalResourceId: "specialplan",
+					OptionalRelation:   "viewer_and_editor",
+				},
+			},
+			deleted: map[string]struct{}{
+				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
+				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+			},
+		},
+		{
+			name: "delete resource",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "document",
+					OptionalResourceId: "specialplan",
+				},
+			},
+			deleted: map[string]struct{}{
+				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
+				"document:specialplan#editor@user:multiroleguy":              {},
+				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+			},
+		},
+		{
+			name: "delete resource type",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType: "document",
+				},
+			},
+			deleted: map[string]struct{}{
+				"document:companyplan#parent@folder:company":                 {},
+				"document:masterplan#parent@folder:strategy":                 {},
+				"document:masterplan#owner@user:product_manager":             {},
+				"document:masterplan#viewer@user:eng_lead":                   {},
+				"document:masterplan#parent@folder:plans":                    {},
+				"document:healthplan#parent@folder:plans":                    {},
+				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
+				"document:specialplan#editor@user:multiroleguy":              {},
+				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+			},
+		},
+		{
+			name: "delete relation",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:     "document",
+					OptionalRelation: "parent",
+				},
+			},
+			deleted: map[string]struct{}{
+				"document:companyplan#parent@folder:company": {},
+				"document:masterplan#parent@folder:strategy": {},
+				"document:masterplan#parent@folder:plans":    {},
+				"document:healthplan#parent@folder:plans":    {},
+			},
+		},
+		{
+			name: "delete relation + subject type",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:     "folder",
+					OptionalRelation: "parent",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType: "folder",
+					},
+				},
+			},
+			deleted: map[string]struct{}{
+				"folder:strategy#parent@folder:company": {},
+			},
+		},
+		{
+			name: "delete relation + subject type + subject",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:     "document",
+					OptionalRelation: "parent",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "folder",
+						OptionalSubjectId: "plans",
+					},
+				},
+			},
+			deleted: map[string]struct{}{
+				"document:masterplan#parent@folder:plans": {},
+				"document:healthplan#parent@folder:plans": {},
+			},
+		},
+		{
+			name: "delete relation + subject type + subject + relation",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:     "folder",
+					OptionalRelation: "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "folder",
+						OptionalSubjectId: "auditors",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "viewer",
+						},
+					},
+				},
+			},
+			deleted: map[string]struct{}{
+				"folder:company#viewer@folder:auditors#viewer": {},
+			},
+		},
+		{
+			name: "delete unknown relation",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:     "folder",
+					OptionalRelation: "spotter",
+				},
+			},
+			expectedCode:  codes.FailedPrecondition,
+			errorContains: "failed precondition: relation/permission `spotter` not found under definition `folder`",
+		},
+		{
+			name: "delete unknown subject type",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:     "folder",
+					OptionalRelation: "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType: "patron",
+					},
+				},
+			},
+			expectedCode:  codes.FailedPrecondition,
+			errorContains: "failed precondition: object definition `patron` not found",
+		},
+		{
+			name: "delete unknown subject",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:     "folder",
+					OptionalRelation: "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "folder",
+						OptionalSubjectId: "nonexistent",
+					},
+				},
+			},
+			expectedCode: codes.OK,
+		},
+		{
+			name: "delete unknown subject relation",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:     "folder",
+					OptionalRelation: "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType: "folder",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "nonexistent",
+						},
+					},
+				},
+			},
+			expectedCode:  codes.FailedPrecondition,
+			errorContains: "failed precondition: relation/permission `nonexistent` not found under definition `folder`",
+		},
+		{
+			name: "delete no resource type",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					OptionalResourceId: "specialplan",
+				},
+			},
+			expectedCode:  codes.InvalidArgument,
+			errorContains: "invalid DeleteRelationshipsRequest.RelationshipFilter: embedded message failed validation | caused by: invalid RelationshipFilter.ResourceType: value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
+		},
+		{
+			name: "delete unknown resource type",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType: "blah",
+				},
+			},
+			expectedCode:  codes.FailedPrecondition,
+			errorContains: "failed precondition: object definition `blah` not found",
+		},
+		{
+			name: "preconditions met",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "folder",
+					OptionalResourceId: "auditors",
+					OptionalRelation:   "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "user",
+						OptionalSubjectId: "auditor",
+					},
+				},
+				OptionalPreconditions: []*v1.Precondition{{
+					Operation: v1.Precondition_OPERATION_MUST_MATCH,
+					Filter:    &v1.RelationshipFilter{ResourceType: "document"},
+				}},
+			},
+			deleted: map[string]struct{}{
+				"folder:auditors#viewer@user:auditor": {},
+			},
+		},
+		{
+			name: "preconditions not met",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "folder",
+					OptionalResourceId: "auditors",
+					OptionalRelation:   "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "user",
+						OptionalSubjectId: "auditor",
+					},
+				},
+				OptionalPreconditions: []*v1.Precondition{{
+					Operation: v1.Precondition_OPERATION_MUST_MATCH,
+					Filter: &v1.RelationshipFilter{
+						ResourceType:       "folder",
+						OptionalResourceId: "auditors",
+						OptionalRelation:   "viewer",
+						OptionalSubjectFilter: &v1.SubjectFilter{
+							SubjectType:       "user",
+							OptionalSubjectId: "jeshk",
+						},
+					},
+				}},
+			},
+			expectedCode:  codes.FailedPrecondition,
+			errorContains: "failed precondition: unable to delete tuples: unable to satisfy write precondition `operation:OPERATION_MUST_MATCH filter:{resource_type:\"folder\" optional_resource_id:\"auditors\" optional_relation:\"viewer\" optional_subject_filter:{subject_type:\"user\" optional_subject_id:\"jeshk\"}}`",
+		},
+	}
+	for _, delta := range testTimedeltas {
+		for _, tc := range testCases {
+			t.Run(fmt.Sprintf("fuzz%d/%s", delta/time.Millisecond, tc.name), func(t *testing.T) {
+				require := require.New(t)
+				client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
+				defer stop()
+
+				resp, err := client.DeleteRelationships(context.Background(), tc.req)
+
+				if tc.expectedCode != codes.OK {
+					grpcutil.RequireStatus(t, tc.expectedCode, err)
+					errStatus, ok := status.FromError(err)
+					require.True(ok)
+					require.Contains(errStatus.Message(), tc.errorContains)
+					return
+				}
+				require.NoError(err)
+				require.NotNil(resp.DeletedAt)
+				rev, err := zedtoken.DecodeRevision(resp.DeletedAt)
+				require.NoError(err)
+				require.True(rev.GreaterThan(revision))
+				require.EqualValues(standardTuplesWithout(tc.deleted), readAll(require, client, resp.DeletedAt))
+			})
+		}
+	}
+}
+
+func readAll(require *require.Assertions, client v1.PermissionsServiceClient, token *v1.ZedToken) map[string]struct{} {
+	got := make(map[string]struct{})
+	namespaces := []string{"document", "folder"}
+	for _, n := range namespaces {
+		stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_AtExactSnapshot{
+					AtExactSnapshot: token,
+				},
+			},
+			RelationshipFilter: &v1.RelationshipFilter{
+				ResourceType: n,
+			},
+		})
+		require.NoError(err)
+
+		for {
+			rel, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			require.NoError(err)
+
+			got[tuple.RelString(rel.Relationship)] = struct{}{}
+		}
+	}
+	return got
+}
+
+func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
+	out := make(map[string]struct{}, len(tf.StandardTuples)-len(without))
+	for _, t := range tf.StandardTuples {
+		t = tuple.String(tuple.MustParse(t))
+		if _, ok := without[t]; ok {
+			continue
+		}
+		out[t] = struct{}{}
+	}
+	return out
+}

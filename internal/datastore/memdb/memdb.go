@@ -305,7 +305,7 @@ func NewMemdbDatastore(
 	if revisionFuzzingTimedelta > gcWindow {
 		return nil, fmt.Errorf(
 			errUnableToInstantiateTuplestore,
-			errors.New("gc window must be large than fuzzing window"),
+			errors.New("gc window must be larger than fuzzing window"),
 		)
 	}
 
