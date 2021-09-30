@@ -52,10 +52,10 @@ const rootTemplate = `
 
 <pre>
 # Install the zed CLI tool
-brew install --HEAD authzed/tap/zed
+brew install authzed/tap/zed
 
 # Login to SpiceDB
-zed login my_perm_system "the preshared key here" {{if .Args.GrpcNoTLS }}--insecure {{end}}--endpoint {{ .Args.GrpcAddr }}
+zed context set first-dev-context {{ .Args.GrpcAddr }} "the preshared key here" {{if .Args.GrpcNoTLS }}--insecure {{end}}
 
 # Save the sample schema
 cat > sample.zed << 'SCHEMA'
