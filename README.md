@@ -66,9 +66,17 @@ This has strategy has become an industry best-practice and is being used to grea
 
 ### Installing SpiceDB
 
-#### Pulling down a container image
+SpiceDB is currently packaged by [Homebrew] for both macOS and Linux.
+Individual releases and other formats are also available on the [releases page].
 
-The latest stable release can be obtained by running the following command:
+[Homebrew]: https://brew.sh
+[releases page]: https://github.com/authzed/spicedb/releases
+
+```sh
+brew install authzed/tap/spicedb
+```
+
+SpiceDB is also available as a container image:
 
 ```sh
 docker pull quay.io/authzed/spicedb:latest
@@ -77,19 +85,6 @@ docker pull quay.io/authzed/spicedb:latest
 For production usage, we **highly** recommend using a tag that corresponds to the [latest release], rather than `latest`.
 
 [latest release]: https://github.com/authzed/spicedb/releases
-
-#### Building and installing a binary
-
-In order to build and install SpiceDB, the [latest stable version of Go] must be installed.
-
-Running the following command will install the latest stable release: 
-
-```sh
-go install github.com/authzed/spicedb/cmd/spicedb@latest
-```
-
-[latest stable version of Go]: https://golang.org/dl
-[working Go environment]: https://golang.org/doc/code.html
 
 ### Running SpiceDB locally
 
