@@ -36,6 +36,14 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 		return nil, false, err
 	}
 
+	dctx, ok, err := newDevContext(ctx, requestContext, ds)
+	if !ok || err != nil {
+		ds.Dispose()
+	}
+	return dctx, ok, err
+}
+
+func newDevContext(ctx context.Context, requestContext *v0.RequestContext, ds datastore.Datastore) (*DevContext, bool, error) {
 	nsm, err := namespace.NewCachingNamespaceManager(ds, 0*time.Second, nil)
 	if err != nil {
 		return nil, false, err
@@ -91,6 +99,13 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 		Dispatcher:    dispatcher,
 		RequestErrors: requestErrors,
 	}, len(requestErrors) == 0, nil
+}
+
+func (dc *DevContext) dispose() {
+	datastore := dc.Datastore
+	if datastore != nil {
+		datastore.Dispose()
+	}
 }
 
 func compile(schema string) ([]*v0.NamespaceDefinition, *v0.DeveloperError, error) {

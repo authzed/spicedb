@@ -36,6 +36,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			ds, err := tester.New(0, veryLargeGCWindow, 1)
 			require.NoError(err)
+			defer ds.Dispose()
 
 			ctx := context.Background()
 
@@ -244,6 +245,7 @@ func WritePreconditionsTest(t *testing.T, tester DatastoreTester) {
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
 	require.NoError(err)
+	defer ds.Dispose()
 
 	setupDatastore(ds, require)
 
@@ -292,6 +294,7 @@ func DeletePreconditionsTest(t *testing.T, tester DatastoreTester) {
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
 	require.NoError(err)
+	defer ds.Dispose()
 
 	setupDatastore(ds, require)
 
@@ -399,6 +402,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 			ds, err := tester.New(0, veryLargeGCWindow, 1)
 			require.NoError(err)
+			defer ds.Dispose()
 
 			setupDatastore(ds, require)
 
@@ -439,6 +443,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 
 		ds, err := tester.New(0, testGCDuration, 1)
 		require.NoError(err)
+		defer ds.Dispose()
 
 		setupDatastore(ds, require)
 
@@ -507,6 +512,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 
 				ds, err := tester.New(0, veryLargeGCWindow, 1)
 				require.NoError(err)
+				defer ds.Dispose()
 
 				setupDatastore(ds, require)
 

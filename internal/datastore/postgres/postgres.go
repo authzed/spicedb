@@ -156,6 +156,10 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
+func (pgd *pgDatastore) Dispose() {
+	// Close the channel to ensure the GC task is shut down.
+}
+
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "SyncRevision")
 	defer span.End()

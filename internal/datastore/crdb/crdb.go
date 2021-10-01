@@ -171,6 +171,10 @@ func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
+func (cds *crdbDatastore) Dispose() {
+	// Nothing to do.
+}
+
 func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "Revision")
 	defer span.End()
