@@ -66,7 +66,7 @@ This means that in SpiceDB backed by CockroachDB, the new enemy problem is possi
 1. The writes in the `exclude write` and `direct write` must land in different ranges.
 2. The leader of the range for write 2 must not be on the same node as any follower for the range for write 1.
     - Otherwise, the timestamp cache for the two nodes will be in sync and the logical clock will properly order the transactions
-3. The writes are recieved by two different nodes in the cluster, one of which has a slower clock.
+3. The writes are received by two different nodes in the cluster, one of which has a slower clock.
 
 This is possible because the keys that are written in the transactions do not overlap.
 

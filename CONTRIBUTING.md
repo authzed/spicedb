@@ -19,7 +19,7 @@ Before creating an issue, please check that an issue reporting the same problem 
 To make the issue accurate and easy to understand, please try to create issues that are:
 
 - Unique -- do not duplicate existing bug report.
-  Deuplicate bug reports will be closed.
+  Duplicate bug reports will be closed.
 - Specific -- include as much details as possible: which version, what environment, what configuration, etc.
 - Reproducible -- include the steps to reproduce the problem.
   Some issues might be hard to reproduce, so please do your best to include the steps that might lead to the problem.
