@@ -47,7 +47,7 @@ This becomes especially important as you introduce backwards-compatible changes 
 
 ### Optimal Flexibility
 
-The SpiceDB schema langauge is built on top of the concept of a graph of relationships between objects.
+The SpiceDB schema language is built on top of the concept of a graph of relationships between objects.
 This ReBAC design is capable of efficiently supporting all popular access control models (such as [RBAC] and [ABAC]) and custom models that contain hybrid behavior.
 
 Modern solutions to developing permission systems all have a similar goal: to decouple _policy_ from the application.
