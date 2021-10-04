@@ -104,9 +104,11 @@ jobs:
       - name: "Run e2e"
         working-directory: "e2e/newenemy"
         run: |
-          go test -v -timeout 20m ./...
+          go test -v -timeout 30m ./...
       - uses: "actions/upload-artifact@v2"
         if: "always()"
+        # this upload step is really flaky, don't fail the job if it fails
+        continue-on-error: true
         with:
           name: "node-logs"
           path: "e2e/newenemy/*.log"
