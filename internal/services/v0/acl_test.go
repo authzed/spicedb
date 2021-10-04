@@ -246,7 +246,7 @@ func TestRead(t *testing.T) {
 func TestReadBadZookie(t *testing.T) {
 	require := require.New(t)
 
-	client, stop, revision, _ := newACLServicer(require, 0, 10*time.Millisecond, 0)
+	client, stop, revision, _ := newACLServicer(require, 0, 20*time.Millisecond, 0)
 	defer stop()
 
 	_, err := client.Read(context.Background(), &v0.ReadRequest{
@@ -266,7 +266,7 @@ func TestReadBadZookie(t *testing.T) {
 	require.NoError(err)
 
 	// Wait until the gc window expires
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(40 * time.Millisecond)
 
 	_, err = client.Read(context.Background(), &v0.ReadRequest{
 		Tuplesets: []*v0.RelationTupleFilter{
