@@ -96,11 +96,13 @@ func TestNoNewEnemy(t *testing.T) {
 		fmt.Sprintf(setSmallRanges, dbName),
 	))
 
-	t.Log("modifying network")
-	require.NoError(crdb.NetworkDelay(ctx, e2e.MustFile(ctx, t, "netattack.log"), 1, 100*time.Millisecond))
-
 	t.Log("modifying time")
-	require.NoError(crdb.TimeDelay(ctx, e2e.MustFile(ctx, t, "timeattack.log"), 1, -200*time.Millisecond))
+	timeDelay := 100 * time.Millisecond
+	require.NoError(crdb.TimeDelay(ctx, e2e.MustFile(ctx, t, "timeattack.log"), 1, -1*timeDelay))
+
+	t.Log("modifying network")
+	networkDelay := timeDelay / 2
+	require.NoError(crdb.NetworkDelay(ctx, e2e.MustFile(ctx, t, "netattack.log"), 1, networkDelay))
 
 	t.Log("create initial test schema")
 	require.NoError(initSchema(vulnerableSpiceDb[0].Client().V1Alpha1().Schema()))
@@ -139,7 +141,8 @@ func TestNoNewEnemy(t *testing.T) {
 	iterations := int(math.Ceil(3*stddev*samplestddev + mean))
 
 	t.Logf("check spicedb is protected after %d attempts", iterations)
-	checkCtx, checkCancel := context.WithTimeout(ctx, 10*time.Minute)
+	// *6 to cover the worst case where all requests are handled by the slow node
+	checkCtx, checkCancel := context.WithTimeout(ctx, time.Duration(iterations)*(networkDelay+timeDelay)*6)
 	protected, _ := checkNoNewEnemy(checkCtx, t, protectedSpiceDb, iterations)
 	require.NotNil(protected, "unable to determine if spicedb is protected within the time limit")
 	require.True(*protected, "protection is enabled, but newenemy detected")
