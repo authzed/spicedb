@@ -433,7 +433,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 // invalid revisions hold for a particular datastore.
 func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 	t.Run("revision expiration", func(t *testing.T) {
-		testGCDuration := 40 * time.Millisecond
+		testGCDuration := 600 * time.Millisecond
 
 		require := require.New(t)
 
