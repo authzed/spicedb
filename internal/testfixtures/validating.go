@@ -21,7 +21,7 @@ func NewValidatingDatastore(delegate datastore.Datastore) datastore.Datastore {
 }
 
 func (vd validatingDatastore) Dispose() {
-	vd.Dispose()
+	vd.delegate.Dispose()
 }
 
 func (vd validatingDatastore) IsReady(ctx context.Context) (bool, error) {

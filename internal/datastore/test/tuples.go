@@ -40,8 +40,11 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			ctx := context.Background()
 
+			ok, err := ds.IsReady(ctx)
+			require.NoError(err)
+			require.True(ok)
+
 			setupDatastore(ds, require)
-			require.True(ds.IsReady(ctx))
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 

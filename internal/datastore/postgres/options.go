@@ -19,6 +19,8 @@ type postgresOptions struct {
 	watchBufferLength         uint16
 	revisionFuzzingTimedelta  time.Duration
 	gcWindow                  time.Duration
+	gcInterval                time.Duration
+	gcMaxOperationTime        time.Duration
 	splitAtEstimatedQuerySize units.Base2Bytes
 
 	enablePrometheusStats bool
@@ -27,9 +29,12 @@ type postgresOptions struct {
 }
 
 const (
-	errFuzzingTooLarge = "revision fuzzing timdelta (%s) must be less than GC window (%s)"
+	errFuzzingTooLarge = "revision fuzzing timedelta (%s) must be less than GC window (%s)"
 
-	defaultWatchBufferLength = 128
+	defaultWatchBufferLength                 = 128
+	defaultGarbageCollectionWindow           = 24 * time.Hour
+	defaultGarbageCollectionInterval         = time.Minute * 3
+	defaultGarbageCollectionMaxOperationTime = time.Minute
 )
 
 // Option provides the facility to configure how clients within the
@@ -38,7 +43,9 @@ type Option func(*postgresOptions)
 
 func generateConfig(options []Option) (postgresOptions, error) {
 	computed := postgresOptions{
-		gcWindow:                  24 * time.Hour,
+		gcWindow:                  defaultGarbageCollectionWindow,
+		gcInterval:                defaultGarbageCollectionInterval,
+		gcMaxOperationTime:        defaultGarbageCollectionMaxOperationTime,
 		watchBufferLength:         defaultWatchBufferLength,
 		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
 	}
@@ -144,6 +151,25 @@ func RevisionFuzzingTimedelta(delta time.Duration) Option {
 func GCWindow(window time.Duration) Option {
 	return func(po *postgresOptions) {
 		po.gcWindow = window
+	}
+}
+
+// GCInterval is the the interval at which garbage collection will occur.
+//
+// This value defaults to 3 minutes.
+func GCInterval(interval time.Duration) Option {
+	return func(po *postgresOptions) {
+		po.gcInterval = interval
+	}
+}
+
+// GCMaxOperationTime is the maximum operation time of a garbage collection
+// pass before it times out.
+//
+// This value defaults to 1 minute.
+func GCMaxOperationTime(time time.Duration) Option {
+	return func(po *postgresOptions) {
+		po.gcMaxOperationTime = time
 	}
 }
 

@@ -162,6 +162,7 @@ func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	defer currentRevision.Dispose()
 
 	version, err := currentRevision.Version()
 	if err != nil {
