@@ -99,7 +99,7 @@ Load: Example 1 - Example 2 - Example 3
 
 [Implementation](/internal/datastore/memdb)
 
-**DEVELOPMENT AND TESTING ONLY**
+DEVELOPMENT AND TESTING ONLY
 
 The memdb datastore is an *in-memory* datastore implemented via the [github.com/hashicorp/go-memdb](github.com/hashicorp/go-memdb) package.
 
