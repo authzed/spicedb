@@ -56,8 +56,15 @@ const (
 	batchDeleteSize = 1000
 )
 
+var gcDurationHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+	Name:    "postgres_gc_duration",
+	Help:    "postgres garbage collection duration distribution in seconds.",
+	Buckets: []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
+})
+
 func init() {
 	dbsql.Register(tracingDriverName, sqlmw.Driver(stdlib.GetDefaultDriver(), new(traceInterceptor)))
+	prometheus.MustRegister(gcDurationHistogram)
 }
 
 var (
@@ -204,6 +211,11 @@ func (pgd *pgDatastore) getNow(ctx context.Context) (time.Time, error) {
 }
 
 func (pgd *pgDatastore) collectGarbage() error {
+	startTime := time.Now()
+	defer func() {
+		gcDurationHistogram.Observe(float64(time.Since(startTime).Seconds()))
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), pgd.gcMaxOperationTime)
 	defer cancel()
 
