@@ -56,15 +56,27 @@ const (
 	batchDeleteSize = 1000
 )
 
-var gcDurationHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Name:    "postgres_gc_duration",
-	Help:    "postgres garbage collection duration distribution in seconds.",
-	Buckets: []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
-})
+var (
+	gcDurationHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "postgres_gc_duration",
+		Help:    "postgres garbage collection duration distribution in seconds.",
+		Buckets: []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
+	})
+
+	gcRelationshipsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "postgres_relationships_cleared",
+		Help: "number of relationships cleared by postgres garbage collection.",
+	})
+
+	gcTransactionsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "postgres_transactions_cleared",
+		Help: "number of transactions cleared by postgres garbage collection.",
+	})
+)
 
 func init() {
 	dbsql.Register(tracingDriverName, sqlmw.Driver(stdlib.GetDefaultDriver(), new(traceInterceptor)))
-	prometheus.MustRegister(gcDurationHistogram)
+	prometheus.MustRegister(gcDurationHistogram, gcRelationshipsClearedGauge, gcTransactionsClearedGauge)
 }
 
 var (
@@ -280,6 +292,7 @@ func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highes
 	}
 
 	log.Trace().Uint64("highest_transaction_id", highest).Int64("relationships_deleted", relCount).Msg("deleted stale relationships")
+	gcRelationshipsClearedGauge.Set(float64(relCount))
 
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
 	// itself to ensure there is always at least one transaction present.
@@ -289,6 +302,7 @@ func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highes
 	}
 
 	log.Trace().Uint64("highest_transaction_id", highest).Int64("transactions_deleted", transactionCount).Msg("deleted stale transactions")
+	gcTransactionsClearedGauge.Set(float64(transactionCount))
 	return relCount, transactionCount, nil
 }
 
