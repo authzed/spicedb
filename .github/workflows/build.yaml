@@ -25,6 +25,9 @@ jobs:
       - uses: "bewuethr/yamllint-action@v1.1.1"
         with:
           config-file: ".yamllint"
+      - uses: "instrumenta/kubeval-action@5915e4adba5adccac07cb156b82e54c3fed74921"
+        with:
+          files: "k8s"
       - name: "Go Mod Tidy"
         run: "go mod tidy && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
       - name: "Formatting (gofumpt)"
