@@ -1,0 +1,55 @@
+---
+name: "Lint"
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "*"
+jobs:
+  go-lint:
+    name: "Lint Go"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/setup-go@v2"
+        with:
+          go-version: "^1.17"
+      - name: "Install linting tools"
+        run: |
+          # This is done before checking out, as to not modify go.mod
+          go install mvdan.cc/gofumpt/gofumports@latest
+          go install github.com/mgechev/revive@latest
+          go install golang.org/x/tools/cmd/stringer@latest
+      - uses: "actions/checkout@v2"
+      - name: "Go Mod Tidy"
+        run: "go mod tidy && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
+      - name: "Formatting (gofumpt)"
+        run: |
+          GOFUMPT_OUTPUT="$(find . -iname '*.go' -type f | grep -v pb.validate.go | grep -v pb.go | xargs gofumports -d)"
+          if [ -n "$GOFUMPT_OUTPUT" ]; then
+            echo "All the following files are not correctly formatted"
+            echo "${GOFUMPT_OUTPUT}"
+            exit 1
+          fi
+      - uses: "golangci/golangci-lint-action@v2"
+        with:
+          version: "v1.42"
+      - name: "Go Generate"
+        run: "go generate ./... && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
+
+  extra-lint:
+    name: "Lint Everything Else"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v2"
+      - uses: "bewuethr/yamllint-action@v1.1.1"
+        with:
+          config-file: ".yamllint"
+      - uses: "instrumenta/kubeval-action@5915e4adba5adccac07cb156b82e54c3fed74921"
+        with:
+          files: "k8s"
+      - uses: "nosborn/github-action-markdown-cli@v2.0.0"
+        with:
+          files: "."
+          config_file: ".markdownlint.yaml"
