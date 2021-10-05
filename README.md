@@ -13,6 +13,7 @@ SpiceDB is a [Zanzibar]-inspired database that stores, computes, and validates a
 Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
 Features that distinguish SpiceDB from other systems include:
+
 - [Expressive APIs] for checking permissions, listing access, and powering devtools
 - An architecture faithful to the [Google Zanzibar] paper, including resistance to the [New Enemy Problem]
 - An intuitive and expressive [schema language] complete with a [playground] dev environment

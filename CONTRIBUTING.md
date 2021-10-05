@@ -58,7 +58,7 @@ In order to protect both you and ourselves, all commits will require an explicit
 
 Sign-off commits end with the following line:
 
-```
+```git
 Signed-off-by: Random J Developer <random@developer.example.org>
 ```
 
