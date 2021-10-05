@@ -1,0 +1,90 @@
+# This file contains the most basic configuration of SpiceDB in Kubernetes.
+#
+# It runs with the following:
+#   - a single node deployment
+#   - default ports (gRPC 50051, dashboard 8080)
+#   - no TLS
+#   - debug logging
+#   - in-memory datastore
+#
+# To apply this configuration execute the following:
+# kubectl -n $YOUR_NAMESPACE create secret generic spicedb --from-literal=SPICEDB_GRPC_PRESHARED_KEY=$YOUR_SECRET
+# kubectl -n $YOUR_NAMESPACE apply -f basic.yaml
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "spicedb"
+  labels:
+    app: "spicedb"
+spec:
+  selector:
+    app: "spicedb"
+  type: "ClusterIP"
+  ports:
+    - name: "grpc"
+      port: 50051
+      protocol: "TCP"
+      targetPort: 50051
+    - name: "internal"
+      port: 50053
+      protocol: "TCP"
+      targetPort: 50053
+---
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "spicedb"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "spicedb"
+  strategy:
+    rollingUpdate:
+      maxSurge: "25%"
+      maxUnavailable: "25%"
+    type: "RollingUpdate"
+  progressDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: "spicedb"
+    spec:
+      dnsPolicy: "ClusterFirst"
+      restartPolicy: "Always"
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: "spicedb"
+          image: "quay.io/authzed/spicedb:v1.0.0"
+          imagePullPolicy: "IfNotPresent"
+          command: ["spicedb", "serve"]
+          env:
+            - name: "SPICEDB_GRPC_NO_TLS"
+              value: "true"
+            - name: "SPICEDB_GRPC_SHUTDOWN_GRACE_PERIOD"
+              value: "1s"
+            - name: "SPICEDB_LOG_LEVEL"
+              value: "debug"
+            - name: "SPICEDB_GRPC_PRESHARED_KEY"
+              valueFrom:
+                secretKeyRef:
+                  name: "spicedb"
+                  key: "SPICEDB_GRPC_PRESHARED_KEY"
+          ports:
+            - name: "grpc"
+              containerPort: 50051
+              protocol: "TCP"
+            - name: "internal"
+              containerPort: 50053
+              protocol: "TCP"
+            - name: "prometheus"
+              containerPort: 9090
+              protocol: "TCP"
+          readinessProbe:
+            exec:
+              command: ["grpc_health_probe", "-v", "-addr=localhost:50051"]
+            failureThreshold: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
