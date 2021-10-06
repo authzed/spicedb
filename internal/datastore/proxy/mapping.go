@@ -33,8 +33,8 @@ func NewMappingProxy(delegate datastore.Datastore, mapper namespace.Mapper, watc
 	return mappingProxy{delegate, mapper, watchBufferLength}
 }
 
-func (mp mappingProxy) Dispose() {
-	mp.delegate.Dispose()
+func (mp mappingProxy) Close() error {
+	return mp.delegate.Close()
 }
 
 func (mp mappingProxy) IsReady(ctx context.Context) (bool, error) {

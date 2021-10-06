@@ -62,8 +62,8 @@ type Datastore interface {
 	// the necessary tables.
 	IsReady(ctx context.Context) (bool, error)
 
-	// Dispose disposes of the data store.
-	Dispose()
+	// Close closes the data store.
+	Close() error
 }
 
 // GraphDatastore is a subset of the datastore interface that is passed to

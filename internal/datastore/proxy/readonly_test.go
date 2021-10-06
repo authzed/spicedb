@@ -281,6 +281,7 @@ func (dm *delegateMock) IsReady(ctx context.Context) (bool, error) {
 	return args.Bool(0), args.Error(1)
 }
 
-func (dm *delegateMock) Dispose() {
-	dm.Called()
+func (dm *delegateMock) Close() error {
+	args := dm.Called()
+	return args.Error(0)
 }

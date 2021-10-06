@@ -106,7 +106,7 @@ func TestPostgresGarbageCollection(t *testing.T) {
 
 	ds, err := tester.New(0, time.Millisecond*1, 1)
 	require.NoError(err)
-	defer ds.Dispose()
+	defer ds.Close()
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -273,7 +273,7 @@ func TestPostgresGarbageCollectionByTime(t *testing.T) {
 
 	ds, err := tester.New(0, time.Millisecond*1, 1)
 	require.NoError(err)
-	defer ds.Dispose()
+	defer ds.Close()
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -370,7 +370,7 @@ func TestPostgresChunkedGarbageCollection(t *testing.T) {
 
 	ds, err := tester.New(0, time.Millisecond*1, 1)
 	require.NoError(err)
-	defer ds.Dispose()
+	defer ds.Close()
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)

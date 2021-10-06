@@ -7,6 +7,7 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -38,7 +39,10 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 
 	dctx, ok, err := newDevContext(ctx, requestContext, ds)
 	if !ok || err != nil {
-		ds.Dispose()
+		err := ds.Close()
+		if err != nil {
+			return nil, false, err
+		}
 	}
 	return dctx, ok, err
 }
@@ -104,7 +108,10 @@ func newDevContext(ctx context.Context, requestContext *v0.RequestContext, ds da
 func (dc *DevContext) dispose() {
 	datastore := dc.Datastore
 	if datastore != nil {
-		datastore.Dispose()
+		err := datastore.Close()
+		if err != nil {
+			log.Err(err).Msg("error when disposing of datastore in devcontext")
+		}
 	}
 }
 

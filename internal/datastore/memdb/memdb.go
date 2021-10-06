@@ -356,6 +356,7 @@ func revisionFromVersion(version uint64) datastore.Revision {
 	return decimal.NewFromInt(int64(version))
 }
 
-func (mds *memdbDatastore) Dispose() {
-	// Nothing to do.
+func (mds *memdbDatastore) Close() error {
+	mds.db = nil
+	return nil
 }

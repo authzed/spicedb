@@ -5,8 +5,9 @@ import (
 	dbsql "database/sql"
 	"fmt"
 	"math/rand"
-	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/alecthomas/units"
@@ -145,6 +146,8 @@ func NewPostgresDatastore(
 		}
 	}
 
+	gcCtx, cancelGc := context.WithCancel(context.Background())
+
 	datastore := &pgDatastore{
 		dburl:                     url,
 		dbpool:                    dbpool,
@@ -154,13 +157,14 @@ func NewPostgresDatastore(
 		gcInterval:                config.gcInterval,
 		gcMaxOperationTime:        config.gcMaxOperationTime,
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
-		disposed:                  make(chan struct{}),
+		gcCtx:                     gcCtx,
+		cancelGc:                  cancelGc,
 	}
 
 	// Start a goroutine for garbage collection.
 	if datastore.gcInterval > 0*time.Minute {
-		datastore.wg.Add(1)
-		go datastore.runGarbageCollector()
+		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
+		datastore.gcGroup.Go(datastore.runGarbageCollector)
 	} else {
 		log.Warn().Msg("garbage collection disabled in postgres driver")
 	}
@@ -178,19 +182,32 @@ type pgDatastore struct {
 	gcMaxOperationTime        time.Duration
 	splitAtEstimatedQuerySize units.Base2Bytes
 
-	disposed chan struct{}
-	wg       sync.WaitGroup
+	gcGroup  *errgroup.Group
+	gcCtx    context.Context
+	cancelGc context.CancelFunc
 }
 
-func (pgd *pgDatastore) runGarbageCollector() {
+func (pgd *pgDatastore) Close() error {
+	pgd.cancelGc()
+
+	if pgd.gcGroup != nil {
+		err := pgd.gcGroup.Wait()
+		log.Warn().Err(err).Msg("completed shutdown of postgres datastore")
+	}
+
+	pgd.dbpool.Close()
+	return nil
+}
+
+func (pgd *pgDatastore) runGarbageCollector() error {
 	log.Info().Dur("interval", pgd.gcInterval).Msg("garbage collection worker started for postgres driver")
 
-	defer pgd.wg.Done()
 	for {
 		select {
-		case <-pgd.disposed:
-			log.Info().Msg("shutting down postgres GC")
-			return
+		case <-pgd.gcCtx.Done():
+			log.Info().Msg("shutting down garbage collection worker for postgres driver")
+			return pgd.gcCtx.Err()
+
 		case <-time.After(pgd.gcInterval):
 			err := pgd.collectGarbage()
 			if err != nil {
@@ -352,12 +369,6 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	}
 
 	return version == headMigration, nil
-}
-
-func (pgd *pgDatastore) Dispose() {
-	// Close the channel to ensure the GC task is shut down.
-	close(pgd.disposed)
-	pgd.wg.Wait()
 }
 
 func (pgd *pgDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {

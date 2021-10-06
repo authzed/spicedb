@@ -398,6 +398,10 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
 	}
 
+	if err := ds.Close(); err != nil {
+		log.Fatal().Err(err).Msg("failed while shutting down datastore")
+	}
+
 	if dashboardAddr != "" {
 		if err := dashboard.Close(); err != nil {
 			log.Fatal().Err(err).Msg("failed while shutting down dashboard")
