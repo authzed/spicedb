@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 
 const (
 	createDb       = "CREATE DATABASE %s;"
-	setSmallRanges = "ALTER DATABASE %s CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1;"
+	setSmallRanges = "ALTER DATABASE %s CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1, gc.ttlseconds = 5;"
 	dbName         = "spicedbnetest"
 )
 
@@ -91,7 +91,7 @@ func TestNoNewEnemy(t *testing.T) {
 	require.NoError(protectedSpiceDb.Start(ctx, os.Stdout, "protected"))
 	require.NoError(protectedSpiceDb.Connect(ctx, os.Stdout))
 
-	t.Log("configure small ranges, single replicas")
+	t.Log("configure small ranges, single replicas, short ttl")
 	require.NoError(crdb.SQL(ctx, os.Stdout, os.Stdout,
 		fmt.Sprintf(setSmallRanges, dbName),
 	))
