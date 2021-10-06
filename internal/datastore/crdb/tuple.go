@@ -153,6 +153,9 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 					return err
 				}
 
+				if err := overlap(ctx, tx, keySet); err != nil {
+					return err
+				}
 				if _, err := tx.Exec(ctx, sql, args...); err != nil {
 					return err
 				}
@@ -168,6 +171,9 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 				return err
 			}
 
+			if err := overlap(ctx, tx, keySet); err != nil {
+				return err
+			}
 			if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
 				return err
 			}
@@ -179,20 +185,25 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 			}
 		}
 
-		// Touching the transaction key happens last so that the "write intent" for
-		// the transaction as a whole lands in a range for the affected tuples.
-		for k := range keySet {
-			if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
-				return err
-			}
-		}
-
 		return nil
 	}); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	return nowRevision, nil
+}
+
+func overlap(ctx context.Context, tx pgx.Tx, keys keySet) error {
+	for k := range keys {
+		if err := tx.QueryRow(ctx, "SELECT key FROM transactions WHERE key = $1 FOR UPDATE", k).Scan(nil); err == pgx.ErrNoRows {
+			if _, err := tx.Exec(ctx, "INSERT into transactions(key) values ($1) on conflict (key) do nothing", k); err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func exactRelationshipClause(r *v1.Relationship) sq.Eq {
@@ -250,6 +261,9 @@ func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions
 			return err
 		}
 
+		if err := overlap(ctx, tx, keySet); err != nil {
+			return err
+		}
 		if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
 			if err == pgx.ErrNoRows {
 				// CRDB doesn't return the cluster_logical_timestamp if no rows were deleted
