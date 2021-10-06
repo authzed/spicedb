@@ -61,6 +61,9 @@ type Datastore interface {
 	// database schema creation will return false until the migrations have been run to create
 	// the necessary tables.
 	IsReady(ctx context.Context) (bool, error)
+
+	// Close closes the data store.
+	Close() error
 }
 
 // GraphDatastore is a subset of the datastore interface that is passed to

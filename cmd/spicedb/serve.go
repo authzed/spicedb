@@ -76,6 +76,8 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	serveCmd.Flags().Duration("datastore-conn-max-idletime", 30*time.Minute, "maximum amount of time a connection can idle in a remote datastore's connection pool")
 	serveCmd.Flags().Duration("datastore-conn-healthcheck-interval", 30*time.Second, "time between a remote datastore's connection pool health checks")
 	serveCmd.Flags().Duration("datastore-gc-window", 24*time.Hour, "amount of time before revisions are garbage collected")
+	serveCmd.Flags().Duration("datastore-gc-interval", 3*time.Minute, "amount of time between passes of garbage collection (postgres driver only)")
+	serveCmd.Flags().Duration("datastore-gc-max-operation-time", 1*time.Minute, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
 	serveCmd.Flags().Duration("datastore-revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
 	serveCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
 	serveCmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
@@ -169,6 +171,8 @@ func serveRun(cmd *cobra.Command, args []string) {
 			postgres.MaxOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-max-open")),
 			postgres.MinOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-min-open")),
 			postgres.RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+			postgres.GCInterval(cobrautil.MustGetDuration(cmd, "datastore-gc-interval")),
+			postgres.GCMaxOperationTime(cobrautil.MustGetDuration(cmd, "datastore-gc-max-operation-time")),
 			postgres.GCWindow(gcWindow),
 			postgres.EnablePrometheusStats(),
 			postgres.EnableTracing(),
@@ -392,6 +396,10 @@ func serveRun(cmd *cobra.Command, args []string) {
 
 	if err := metricsrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
+	}
+
+	if err := ds.Close(); err != nil {
+		log.Fatal().Err(err).Msg("failed while shutting down datastore")
 	}
 
 	if dashboardAddr != "" {

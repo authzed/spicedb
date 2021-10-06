@@ -355,3 +355,8 @@ func (mds *memdbDatastore) IsReady(ctx context.Context) (bool, error) {
 func revisionFromVersion(version uint64) datastore.Revision {
 	return decimal.NewFromInt(int64(version))
 }
+
+func (mds *memdbDatastore) Close() error {
+	mds.db = nil
+	return nil
+}

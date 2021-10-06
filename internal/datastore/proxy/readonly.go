@@ -21,6 +21,10 @@ func NewReadonlyDatastore(delegate datastore.Datastore) datastore.Datastore {
 	return roDatastore{delegate: delegate}
 }
 
+func (rd roDatastore) Close() error {
+	return rd.delegate.Close()
+}
+
 func (rd roDatastore) IsReady(ctx context.Context) (bool, error) {
 	return rd.delegate.IsReady(ctx)
 }

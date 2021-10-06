@@ -149,6 +149,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 			RequestErrors: devContext.RequestErrors,
 		}, nil
 	}
+	defer devContext.dispose()
 
 	// Run the checks and store their output.
 	var results []*v0.EditCheckResult
@@ -199,6 +200,7 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 			RequestErrors: devContext.RequestErrors,
 		}, nil
 	}
+	defer devContext.dispose()
 
 	// Parse the validation YAML.
 	validation, err := validationfile.ParseValidationBlock([]byte(req.ValidationYaml))

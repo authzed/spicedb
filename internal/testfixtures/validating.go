@@ -20,6 +20,10 @@ func NewValidatingDatastore(delegate datastore.Datastore) datastore.Datastore {
 	return validatingDatastore{delegate: delegate}
 }
 
+func (vd validatingDatastore) Close() error {
+	return vd.delegate.Close()
+}
+
 func (vd validatingDatastore) IsReady(ctx context.Context) (bool, error) {
 	return vd.delegate.IsReady(ctx)
 }

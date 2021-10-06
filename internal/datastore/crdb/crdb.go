@@ -162,6 +162,7 @@ func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	defer currentRevision.Dispose()
 
 	version, err := currentRevision.Version()
 	if err != nil {
@@ -169,6 +170,11 @@ func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	}
 
 	return version == headMigration, nil
+}
+
+func (cds *crdbDatastore) Close() error {
+	cds.conn.Close()
+	return nil
 }
 
 func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {

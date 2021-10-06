@@ -36,11 +36,15 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			ds, err := tester.New(0, veryLargeGCWindow, 1)
 			require.NoError(err)
+			defer ds.Close()
 
 			ctx := context.Background()
 
+			ok, err := ds.IsReady(ctx)
+			require.NoError(err)
+			require.True(ok)
+
 			setupDatastore(ds, require)
-			require.True(ds.IsReady(ctx))
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
@@ -244,6 +248,7 @@ func WritePreconditionsTest(t *testing.T, tester DatastoreTester) {
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
 	require.NoError(err)
+	defer ds.Close()
 
 	setupDatastore(ds, require)
 
@@ -292,6 +297,7 @@ func DeletePreconditionsTest(t *testing.T, tester DatastoreTester) {
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
 	require.NoError(err)
+	defer ds.Close()
 
 	setupDatastore(ds, require)
 
@@ -399,6 +405,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 			ds, err := tester.New(0, veryLargeGCWindow, 1)
 			require.NoError(err)
+			defer ds.Close()
 
 			setupDatastore(ds, require)
 
@@ -439,6 +446,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 
 		ds, err := tester.New(0, testGCDuration, 1)
 		require.NoError(err)
+		defer ds.Close()
 
 		setupDatastore(ds, require)
 
@@ -507,6 +515,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 
 				ds, err := tester.New(0, veryLargeGCWindow, 1)
 				require.NoError(err)
+				defer ds.Close()
 
 				setupDatastore(ds, require)
 

@@ -95,6 +95,10 @@ func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.Res
 }
 
 func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
+	if mtq.db == nil {
+		return nil, fmt.Errorf("memdb closed")
+	}
+
 	txn := mtq.db.Txn(false)
 
 	time.Sleep(mtq.simulatedLatency)

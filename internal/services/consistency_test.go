@@ -62,6 +62,7 @@ func TestConsistency(t *testing.T) {
 					lrequire.NoError(err)
 
 					ds := testfixtures.NewValidatingDatastore(unvalidated)
+					// defer ds.Close()
 
 					fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
 					lrequire.NoError(err)

@@ -23,7 +23,7 @@ func newRootCmd() *cobra.Command {
 	        		  --grpc-key-path path/to/tls/key --datastore-engine postgres
 	        		  --datastore-conn-uri "postgres-connection-string-here"
 	%s:
-		spicedb serve-testing"
+		spicedb serve-testing
 `,
 			color.YellowString("No TLS and in-memory"),
 			color.GreenString("TLS and a real datastore"),
