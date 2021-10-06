@@ -153,7 +153,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 
 		updates = append(updates, &v1.RelationshipUpdate{
 			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: tuple.ToRelationship(tpl),
+			Relationship: tuple.MustToRelationship(tpl),
 		})
 	}
 

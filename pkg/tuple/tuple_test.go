@@ -136,7 +136,7 @@ func TestSerialize(t *testing.T) {
 				return
 			}
 
-			serialized := RelString(tc.relFormat)
+			serialized := MustRelString(tc.relFormat)
 			require.Equal(t, tc.expectedOutput, serialized)
 		})
 	}
@@ -168,7 +168,7 @@ func TestConvert(t *testing.T) {
 			}
 
 			relationship := ToRelationship(parsed)
-			relString := RelString(relationship)
+			relString := MustRelString(relationship)
 			require.Equal(tc.expectedOutput, relString)
 
 			backToTpl := FromRelationship(relationship)

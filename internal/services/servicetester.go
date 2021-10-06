@@ -142,7 +142,7 @@ func (v1st v1ServiceTester) Write(ctx context.Context, relationship *v0.Relation
 		OptionalPreconditions: []*v1.Precondition{
 			{
 				Operation: v1.Precondition_OPERATION_MUST_MATCH,
-				Filter:    tuple.ToFilter(relationship),
+				Filter:    tuple.MustToFilter(relationship),
 			},
 		},
 		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Touch(relationship))},
