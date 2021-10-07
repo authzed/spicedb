@@ -124,7 +124,7 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 		var err error
 		revision, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: tuple.ToRelationship(tpl),
+			Relationship: tuple.MustToRelationship(tpl),
 		}})
 		require.NoError(err)
 	}
@@ -138,7 +138,7 @@ type TupleChecker struct {
 }
 
 func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) datastore.TupleIterator {
-	filter := tuple.ToFilter(tpl)
+	filter := tuple.MustToFilter(tpl)
 	iter, err := tc.DS.QueryTuples(datastore.TupleQueryResourceFilter{
 		ResourceType:             filter.ResourceType,
 		OptionalResourceID:       filter.OptionalResourceId,

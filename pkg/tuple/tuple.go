@@ -46,7 +46,7 @@ var parserRegex = regexp.MustCompile(
 	),
 )
 
-// String converts a tuple to a string.
+// String converts a tuple to a string. If the tuple is nil or empty, returns empty string.
 func String(tpl *v0.RelationTuple) string {
 	if tpl == nil || tpl.ObjectAndRelation == nil || tpl.User == nil || tpl.User.GetUserset() == nil {
 		return ""
@@ -55,9 +55,10 @@ func String(tpl *v0.RelationTuple) string {
 	return fmt.Sprintf("%s@%s", StringONR(tpl.ObjectAndRelation), StringONR(tpl.User.GetUserset()))
 }
 
-// RelString converts a relationship into a string.
-func RelString(tpl *v1.Relationship) string {
-	return String(FromRelationship(tpl))
+// MustRelString converts a relationship into a string.  Will panic if
+// the Relationship does not validate.
+func MustRelString(tpl *v1.Relationship) string {
+	return String(MustFromRelationship(tpl))
 }
 
 // MustParse wraps Parse such that any failures panic rather than returning
@@ -67,6 +68,11 @@ func MustParse(tpl string) *v0.RelationTuple {
 		return parsed
 	}
 	panic("failed to parse tuple")
+}
+
+// RelString converts a relationship into a string.
+func RelString(tpl *v1.Relationship) string {
+	return String(FromRelationship(tpl))
 }
 
 // Parse unmarshals the string form of a Tuple and returns nil if there is a
@@ -128,12 +134,18 @@ func Delete(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
 	}
 }
 
-// ToRelationship converts a RelationTuple into a Relationship.
-func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
+// MustToRelationship converts a RelationTuple into a Relationship. Will panic if
+// the RelationTuple does not validate.
+func MustToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 	if err := tpl.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid tuple: %#v %s", tpl, err))
 	}
 
+	return ToRelationship(tpl)
+}
+
+// ToRelationship converts a RelationTuple into a Relationship.
+func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
 			ObjectType: tpl.ObjectAndRelation.Namespace,
@@ -150,12 +162,18 @@ func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 	}
 }
 
-// ToFilter converts a RelationTuple into a RelationshipFilter.
-func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
+// MustToFilter converts a RelationTuple into a RelationshipFilter. Will panic if
+// the RelationTuple does not validate.
+func MustToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 	if err := tpl.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid tuple: %#v %s", tpl, err))
 	}
 
+	return ToFilter(tpl)
+}
+
+// ToFilter converts a RelationTuple into a RelationshipFilter.
+func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 	return &v1.RelationshipFilter{
 		ResourceType:       tpl.ObjectAndRelation.Namespace,
 		OptionalResourceId: tpl.ObjectAndRelation.ObjectId,
@@ -191,12 +209,16 @@ func UpdateToRelationshipUpdate(update *v0.RelationTupleUpdate) *v1.Relationship
 	}
 }
 
-// FromRelationship converts a Relationship into a RelationTuple.
-func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
+// MustFromRelationship converts a Relationship into a RelationTuple.
+func MustFromRelationship(r *v1.Relationship) *v0.RelationTuple {
 	if err := r.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid relationship: %#v %s", r, err))
 	}
+	return FromRelationship(r)
+}
 
+// FromRelationship converts a Relationship into a RelationTuple.
+func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
 	return &v0.RelationTuple{
 		ObjectAndRelation: &v0.ObjectAndRelation{
 			Namespace: r.Resource.ObjectType,

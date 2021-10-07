@@ -45,7 +45,7 @@ func RevisionFuzzingTest(t *testing.T, tester DatastoreTester) {
 			for i := 0; i < 10; i++ {
 				_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
 					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-					Relationship: tuple.ToRelationship(tpl),
+					Relationship: tuple.MustToRelationship(tpl),
 				}})
 				require.NoError(err)
 			}

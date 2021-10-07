@@ -112,7 +112,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 				tuples = append(tuples, tpl)
 				updates = append(updates, &v1.RelationshipUpdate{
 					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-					Relationship: tuple.ToRelationship(tpl),
+					Relationship: tuple.MustToRelationship(tpl),
 				})
 			}
 		}
@@ -133,7 +133,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 			tuples = append(tuples, tpl)
 			updates = append(updates, &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-				Relationship: tuple.ToRelationship(tpl),
+				Relationship: tuple.MustToRelationship(tpl),
 			})
 		}
 

@@ -69,7 +69,7 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 	for _, cond := range req.WriteConditions {
 		preconditions = append(preconditions, &v1_api.Precondition{
 			Operation: v1_api.Precondition_OPERATION_MUST_MATCH,
-			Filter:    tuple.ToFilter(cond),
+			Filter:    tuple.MustToFilter(cond),
 		})
 	}
 

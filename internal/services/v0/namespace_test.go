@@ -197,7 +197,7 @@ func TestNamespaceChanged(t *testing.T) {
 			for _, tpl := range tc.tuples {
 				updates = append(updates, &v1.RelationshipUpdate{
 					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-					Relationship: tuple.ToRelationship(tpl),
+					Relationship: tuple.MustToRelationship(tpl),
 				})
 			}
 

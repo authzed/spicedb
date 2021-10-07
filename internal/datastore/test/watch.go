@@ -136,7 +136,7 @@ func verifyUpdates(
 func setOfChangesRel(changes []*v1.RelationshipUpdate) *strset.Set {
 	changeSet := strset.NewWithSize(len(changes))
 	for _, change := range changes {
-		changeSet.Add(fmt.Sprintf("%s(%s)", change.Operation, tuple.RelString(change.Relationship)))
+		changeSet.Add(fmt.Sprintf("%s(%s)", change.Operation, tuple.MustRelString(change.Relationship)))
 	}
 	return changeSet
 }

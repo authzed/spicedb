@@ -227,7 +227,7 @@ func TestReadRelationships(t *testing.T) {
 
 							require.NoError(err)
 
-							relString := tuple.RelString(rel.Relationship)
+							relString := tuple.MustRelString(rel.Relationship)
 							_, found := tc.expected[relString]
 							require.True(found, "relationship was not expected: %s", relString)
 
@@ -260,11 +260,11 @@ func TestWriteRelationships(t *testing.T) {
 	resp, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: tuple.ToRelationship(toWrite),
+			Relationship: tuple.MustToRelationship(toWrite),
 		}},
 		OptionalPreconditions: []*v1.Precondition{{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
-			Filter:    tuple.ToFilter(toWrite),
+			Filter:    tuple.MustToFilter(toWrite),
 		}},
 	})
 	require.Nil(resp)
@@ -277,11 +277,11 @@ func TestWriteRelationships(t *testing.T) {
 	resp, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: tuple.ToRelationship(toWrite),
+			Relationship: tuple.MustToRelationship(toWrite),
 		}},
 		OptionalPreconditions: []*v1.Precondition{{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
-			Filter:    tuple.ToFilter(existing),
+			Filter:    tuple.MustToFilter(existing),
 		}},
 	})
 	require.NoError(err)
@@ -301,7 +301,7 @@ func TestWriteRelationships(t *testing.T) {
 
 	rel, err := stream.Recv()
 	require.NoError(err)
-	require.Equal(tuple.String(toWrite), tuple.RelString(rel.Relationship))
+	require.Equal(tuple.String(toWrite), tuple.MustRelString(rel.Relationship))
 
 	_, err = stream.Recv()
 	require.ErrorIs(err, io.EOF)
@@ -310,7 +310,7 @@ func TestWriteRelationships(t *testing.T) {
 	deleted, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: tuple.ToRelationship(toWrite),
+			Relationship: tuple.MustToRelationship(toWrite),
 		}},
 	})
 	require.NoError(err)
@@ -808,7 +808,7 @@ func readAll(require *require.Assertions, client v1.PermissionsServiceClient, to
 			}
 			require.NoError(err)
 
-			got[tuple.RelString(rel.Relationship)] = struct{}{}
+			got[tuple.MustRelString(rel.Relationship)] = struct{}{}
 		}
 	}
 	return got
