@@ -1,14 +1,12 @@
 # New Enemy Test
 
-This test suite performs testing for the New Enemy problem on CockroachDB, including 
-verification that they occur without mitigations and ensuring that when present, 
-those mitigations work to prevent the issue from occurring.
+This test suite performs testing for the New Enemy problem on CockroachDB, including verification that they occur without mitigations and ensuring that when present, those mitigations work to prevent the issue from occurring.
 
-## The Test 
+## The Test
 
 This is the schema:
 
-```
+```zed
 definition user {}
 definition resource {
 	relation direct: user
@@ -30,34 +28,36 @@ This is how each operation is translated to SQL
 
 1. Write exclusion tuple
 
-```sql
-INSERT INTO relation_tuple (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) VALUES ("resource","thegoods","direct","user","1","...") ON CONFLICT (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) DO UPDATE SET timestamp = now() RETURNING cluster_logical_timestamp()
-```
+   ```sql
+   INSERT INTO relation_tuple (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) VALUES ("resource","thegoods","direct","user","1","...") ON CONFLICT (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) DO UPDATE SET timestamp = now() RETURNING cluster_logical_timestamp()
+   ```
 
 2. Write direct tuple
 
-```sql
-INSERT INTO relation_tuple (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) VALUES ("resource","thegoods","excluded","user","1","...") ON CONFLICT (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) DO UPDATE SET timestamp = now() RETURNING cluster_logical_timestamp()
-```
+   ```sql
+   INSERT INTO relation_tuple (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) VALUES ("resource","thegoods","excluded","user","1","...") ON CONFLICT (namespace,object_id,relation,userset_namespace,userset_object_id,userset_relation) DO UPDATE SET timestamp = now() RETURNING cluster_logical_timestamp()
+   ```
+
 3. Check
 
-```sql
-SET TRANSACTION AS OF SYSTEM TIME 1631462510162458000;
+   ```sql
+   SET TRANSACTION AS OF SYSTEM TIME 1631462510162458000;
 
-SELECT namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation FROM relation_tuple WHERE namespace = "resource" AND object_id = "thegoods" AND relation = "excluded";
+   SELECT namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation FROM relation_tuple WHERE namespace = "resource" AND object_id = "thegoods" AND relation = "excluded";
 
 
-SET TRANSACTION AS OF SYSTEM TIME 1631462510162458000;
+   SET TRANSACTION AS OF SYSTEM TIME 1631462510162458000;
 
-SELECT namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation FROM relation_tuple WHERE namespace = "resource" AND object_id = "thegoods" AND relation = "direct";
-```
+   SELECT namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation FROM relation_tuple WHERE namespace = "resource" AND object_id = "thegoods" AND relation = "direct";
+   ```
 
 ## Triggering a "New Enemy"
 
-The new enemy problem occurs when a client can observe test steps `exclude write` and `direct write` in sequence, request a check with the revision returned by `direct write`, but still be granted access. This should only happen if the timestamp returned by `direct write` is below the timestamp returned by `exclude write`.
+The new enemy problem occurs when a client can observe test steps `exclude write` and `direct write` in sequence, request a check with the revision returned by `direct write`, but still be granted access.
+This should only happen if the timestamp returned by `direct write` is below the timestamp returned by `exclude write`.
 
 In Zanzibar, this is prevented by Spanner's TrueTime:
->  Spanner’s TrueTime mechanism assigns each ACL write a microsecond-resolution timestamp, such that the timestamps of writes reflect the causal ordering between writes, and thereby provide external consistency.
+> Spanner’s TrueTime mechanism assigns each ACL write a microsecond-resolution timestamp, such that the timestamps of writes reflect the causal ordering between writes, and thereby provide external consistency.
 
 CockroachDB doesn't provide the same guarantees, instead choosing to wait on subsequent reads of overlapping keys.
 
@@ -76,7 +76,7 @@ It's easier to force these conditions by configuring cockroach with:
 ALTER DATABASE spicedb CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1;"
 ```
 
-This makes ranges as small as possible (increasing the likelihood keys will land in different ranges) and reduces the replica count to 1 (making it impossible for a node to have a follower of the raft leader)
+This makes ranges as small as possible (increasing the likelihood keys will land in different ranges) and reduces the replica count to 1 (making it impossible for a node to have a follower of the raft leader).
 
 Even under these conditions, to trigger the new enemy problem we have to:
 
@@ -87,7 +87,7 @@ _Note: timechaos only works on amd64 and ptrace calls don't work in qemu, which 
 
 ## Build notes
 
-This runs in CI and builds spicedb from head. 
+This runs in CI and builds spicedb from head.
 The go.mod/go.sum may get out of sync.
 If they do, they can be fixed with:
 
