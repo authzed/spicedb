@@ -398,6 +398,10 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
 	}
 
+	if err := nsm.Close(); err != nil {
+		log.Fatal().Err(err).Msg("failed while shutting down namespace manager")
+	}
+
 	if err := ds.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down datastore")
 	}

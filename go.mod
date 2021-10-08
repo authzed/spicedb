@@ -53,6 +53,7 @@ require (
 	go.opentelemetry.io/otel v1.0.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.0.0 // indirect
 	go.opentelemetry.io/otel/trace v1.0.0
+	go.uber.org/goleak v1.1.12
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210921065528-437939a70204 // indirect
 	golang.org/x/tools v0.1.6 // indirect

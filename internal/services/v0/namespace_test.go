@@ -23,6 +23,7 @@ func TestNamespace(t *testing.T) {
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
+	defer ds.Close()
 
 	srv := NewNamespaceServer(ds)
 
@@ -179,6 +180,7 @@ func TestNamespaceChanged(t *testing.T) {
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 			require.NoError(err)
+			defer ds.Close()
 
 			srv := NewNamespaceServer(ds)
 
@@ -279,6 +281,7 @@ func TestDeleteNamespace(t *testing.T) {
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 			require.NoError(err)
+			defer ds.Close()
 
 			srv := NewNamespaceServer(ds)
 

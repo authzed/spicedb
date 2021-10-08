@@ -19,6 +19,7 @@ func createLexer(source input.InputSource, input string) *Lexer {
 		source: source,
 		input:  input,
 		tokens: make(chan Lexeme),
+		closed: make(chan struct{}),
 	}
 	go l.run()
 	return l
@@ -30,6 +31,12 @@ func (l *Lexer) run() {
 		l.state = l.state(l)
 	}
 	close(l.tokens)
+}
+
+// Close stops the lexer from running.
+func (l *Lexer) Close() {
+	l.state = nil
+	close(l.closed)
 }
 
 // Lexeme represents a token returned from scanning the contents of a file.
@@ -55,6 +62,7 @@ type Lexer struct {
 	currentToken           Lexeme             // The current token if any
 	lastNonWhitespaceToken Lexeme             // The last token returned that is non-whitespace
 	lastNonIgnoredToken    Lexeme             // The last token returned that is non-whitespace and non-comment
+	closed                 chan struct{}      // Holds the closed channel
 }
 
 // nextToken returns the next token from the input.
@@ -105,9 +113,14 @@ func (l *Lexer) emit(t TokenType) {
 		l.lastNonIgnoredToken = currentToken
 	}
 
-	l.tokens <- currentToken
-	l.currentToken = currentToken
-	l.start = l.pos
+	select {
+	case l.tokens <- currentToken:
+		l.currentToken = currentToken
+		l.start = l.pos
+
+	case <-l.closed:
+		return
+	}
 }
 
 // errorf returns an error token and terminates the scan by passing
@@ -173,11 +186,11 @@ func buildLexUntil(findType TokenType, checker checkFn) stateFn {
 	return func(l *Lexer) stateFn {
 		for {
 			r := l.next()
-			is_valid, err := checker(r)
+			isValid, err := checker(r)
 			if err != nil {
 				return l.errorf("%v", err)
 			}
-			if !is_valid {
+			if !isValid {
 				l.backup()
 				break
 			}
