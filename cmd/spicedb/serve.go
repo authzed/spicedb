@@ -11,11 +11,14 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 	"github.com/fatih/color"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -99,6 +102,9 @@ func registerServeCmd(rootCmd *cobra.Command) {
 
 	// Flags for internal dispatch API
 	serveCmd.Flags().String("internal-grpc-addr", ":50053", "address to listen for internal requests")
+
+	// Flags for HTTP gateway
+	serveCmd.Flags().String("http-addr", ":443", "address to listen for HTTP API requests")
 
 	// Flags for configuring dispatch behavior
 	serveCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
@@ -321,6 +327,14 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to initialize redispatcher cache")
 	}
 
+	internalDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
+	cachingInternalDispatch, err := caching.NewCachingDispatcher(internalDispatch, nil, "dispatch")
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize internal dispatcher cache")
+	}
+
+	internaldispatch.RegisterGrpcServices(internalGrpcServer, cachingInternalDispatch)
+
 	prefixRequiredOption := v1alpha1svc.PrefixRequired
 	if !cobrautil.MustGetBool(cmd, "schema-prefixes-required") {
 		prefixRequiredOption = v1alpha1svc.PrefixNotRequired
@@ -331,16 +345,15 @@ func serveRun(cmd *cobra.Command, args []string) {
 		v1SchemaServiceOption = services.V1SchemaServiceDisabled
 	}
 
-	maxDepth := cobrautil.MustGetUint32(cmd, "dispatch-max-depth")
-	services.RegisterGrpcServices(grpcServer, ds, nsm, cachingRedispatch, maxDepth, prefixRequiredOption, v1SchemaServiceOption)
-
-	internalDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
-	cachingInternalDispatch, err := caching.NewCachingDispatcher(internalDispatch, nil, "dispatch")
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize internal dispatcher cache")
-	}
-
-	internaldispatch.RegisterGrpcServices(internalGrpcServer, cachingInternalDispatch)
+	services.RegisterGrpcServices(
+		grpcServer,
+		ds,
+		nsm,
+		cachingRedispatch,
+		cobrautil.MustGetUint32(cmd, "dispatch-max-depth"),
+		prefixRequiredOption,
+		v1SchemaServiceOption,
+	)
 
 	go func() {
 		addr := cobrautil.MustGetString(cmd, "grpc-addr")
@@ -370,8 +383,15 @@ func serveRun(cmd *cobra.Command, args []string) {
 		}
 	}()
 
+	gatewaySrv, err := newRestGateway(context.TODO(), cmd)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to listen on addr for gRPC REST gateway server")
+	}
+
 	metricsrv := cobrautil.MetricsServerFromFlags(cmd)
 	go func() {
+		addr := cobrautil.MustGetStringExpanded(cmd, "metrics-addr")
+		log.Info().Str("addr", addr).Msg("metrics server started listening")
 		if err := metricsrv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
@@ -385,13 +405,11 @@ func serveRun(cmd *cobra.Command, args []string) {
 	}, ds)
 	if dashboardAddr != "" {
 		go func() {
+			log.Info().Str("addr", dashboardAddr).Msg("dashboard server started listening")
 			if err := dashboard.ListenAndServe(); err != http.ErrServerClosed {
 				log.Fatal().Err(err).Msg("failed while serving dashboard")
 			}
 		}()
-
-		url := fmt.Sprintf("http://localhost%s", dashboardAddr)
-		log.Info().Str("url", url).Msg("dashboard running")
 	}
 
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -418,8 +436,8 @@ func serveRun(cmd *cobra.Command, args []string) {
 	internalGrpcServer.GracefulStop()
 	redispatchClientCancel()
 
-	if err := metricsrv.Close(); err != nil {
-		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
+	if err := gatewaySrv.Close(); err != nil {
+		log.Fatal().Err(err).Msg("failed while shutting down rest gateway")
 	}
 
 	if err := nsm.Close(); err != nil {
@@ -430,9 +448,45 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed while shutting down datastore")
 	}
 
+	if err := metricsrv.Close(); err != nil {
+		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
+	}
+
 	if dashboardAddr != "" {
 		if err := dashboard.Close(); err != nil {
 			log.Fatal().Err(err).Msg("failed while shutting down dashboard")
 		}
 	}
+}
+
+func newRestGateway(ctx context.Context, cmd *cobra.Command) (*http.Server, error) {
+	opts := []grpc.DialOption{grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor())}
+	if cobrautil.MustGetBool(cmd, "grpc-no-tls") {
+		opts = append(opts, grpc.WithInsecure())
+	} else {
+		opts = append(opts, grpcutil.WithCustomCerts(
+			cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
+			grpcutil.SkipVerifyCA,
+		))
+	}
+
+	mux := runtime.NewServeMux(runtime.WithMetadata(auth.PresharedKeyAnnotator))
+	upstream := cobrautil.MustGetString(cmd, "grpc-addr")
+	v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, mux, upstream, opts)
+	v1.RegisterPermissionsServiceHandlerFromEndpoint(ctx, mux, upstream, opts)
+
+	addr := cobrautil.MustGetStringExpanded(cmd, "http-addr")
+	gatewaySrv := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	go func() {
+		log.Info().Str("addr", addr).Msg("http server started listening")
+		if err := gatewaySrv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatal().Err(err).Msg("failed while serving rest gateway")
+		}
+	}()
+
+	return gatewaySrv, nil
 }

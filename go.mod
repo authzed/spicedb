@@ -24,6 +24,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2 v2.0.0-rc.2
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.6.0
 	github.com/hashicorp/go-memdb v1.3.2
 	github.com/influxdata/tdigest v0.0.1
 	github.com/jackc/pgconn v1.10.0
@@ -63,5 +64,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
 
-// TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged
-replace github.com/dgraph-io/ristretto => github.com/josephschorr/ristretto v0.1.1-0.20211008180146-169a43af0a0d
+replace (
+	github.com/authzed/authzed-go => ../authzed-go
+	// TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged
+	github.com/dgraph-io/ristretto => github.com/josephschorr/ristretto v0.1.1-0.20211008180146-169a43af0a0d
+)
