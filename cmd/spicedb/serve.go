@@ -86,6 +86,11 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	serveCmd.Flags().String("datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	serveCmd.Flags().String("datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 
+	serveCmd.Flags().Bool("datastore-request-hedging", true, "enable request hedging")
+	serveCmd.Flags().Duration("datastore-request-hedging-initial-slow-value", 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
+	serveCmd.Flags().Uint64("datastore-request-hedging-max-requests", 1_000_000, "maximum number of historical requests to consider")
+	serveCmd.Flags().Float64("datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
+
 	// Flags for the namespace manager
 	serveCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 
@@ -201,6 +206,25 @@ func serveRun(cmd *cobra.Command, args []string) {
 		} else {
 			log.Fatal().Err(err).Msg("cannot apply bootstrap data: schema or tuples already exist in the datastore. Delete existing data or set the flag --datastore-bootstrap-overwrite=true")
 		}
+	}
+
+	if cobrautil.MustGetBool(cmd, "datastore-request-hedging") {
+		initialSlowRequest := cobrautil.MustGetDuration(cmd, "datastore-request-hedging-initial-slow-value")
+		maxRequests := cobrautil.MustGetUint64(cmd, "datastore-request-hedging-max-requests")
+		hedgingQuantile := cobrautil.MustGetFloat64(cmd, "datastore-request-hedging-quantile")
+
+		log.Info().
+			Stringer("initialSlowRequest", initialSlowRequest).
+			Uint64("maxRequests", maxRequests).
+			Float64("hedgingQuantile", hedgingQuantile).
+			Msg("request hedging enabled")
+
+		ds = proxy.NewHedgingProxy(
+			ds,
+			initialSlowRequest,
+			maxRequests,
+			hedgingQuantile,
+		)
 	}
 
 	if cobrautil.MustGetBool(cmd, "datastore-readonly") {

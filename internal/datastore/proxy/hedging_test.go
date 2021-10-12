@@ -349,3 +349,81 @@ func TestBadArgs(t *testing.T) {
 	}
 	require.Panics(invalidQuantileTooLarge)
 }
+
+func TestDatastoreE2E(t *testing.T) {
+	require := require.New(t)
+
+	delegateDatastore := &test.MockedDatastore{}
+	delegateQuery := &test.MockedTupleQuery{}
+
+	proxy := NewHedgingProxy(delegateDatastore, slowQueryTime, maxSampleCount, quantile)
+
+	delegateDatastore.
+		On("QueryTuples", mock.Anything, mock.Anything).
+		Return(delegateQuery).
+		Once()
+
+	expectedTuples := []*v0.RelationTuple{
+		{
+			ObjectAndRelation: &v0.ObjectAndRelation{
+				Namespace: "test",
+				ObjectId:  "test",
+				Relation:  "test",
+			},
+			User: &v0.User{
+				UserOneof: &v0.User_Userset{
+					Userset: &v0.ObjectAndRelation{
+						Namespace: "test",
+						ObjectId:  "test",
+						Relation:  "test",
+					},
+				},
+			},
+		},
+	}
+	delegateQuery.
+		On("Execute", mock.Anything).
+		Return(datastore.NewSliceTupleIterator(expectedTuples), nil).
+		After(2 * slowQueryTime).
+		Once()
+	delegateQuery.
+		On("Execute", mock.Anything).
+		Return(datastore.NewSliceTupleIterator(expectedTuples), nil).
+		Once()
+
+	it, err := proxy.QueryTuples(datastore.TupleQueryResourceFilter{
+		ResourceType: "test",
+	}, revisionKnown).Execute(context.Background())
+	require.NoError(err)
+
+	only := it.Next()
+	require.Equal(expectedTuples[0], only)
+
+	require.Nil(it.Next())
+	require.NoError(it.Err())
+
+	delegateDatastore.AssertExpectations(t)
+	delegateQuery.AssertExpectations(t)
+}
+
+func TestContextCancellation(t *testing.T) {
+	require := require.New(t)
+
+	delegate := &test.MockedDatastore{}
+	proxy := NewHedgingProxy(delegate, slowQueryTime, maxSampleCount, quantile)
+
+	delegate.
+		On("SyncRevision", mock.Anything).
+		Return(decimal.Zero, errKnown).
+		After(500 * time.Microsecond).
+		Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Microsecond)
+		cancel()
+	}()
+	_, err := proxy.SyncRevision(ctx)
+
+	require.Error(err)
+}

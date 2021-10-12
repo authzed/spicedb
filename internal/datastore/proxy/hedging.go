@@ -58,14 +58,10 @@ func newHedger(
 
 		select {
 		case <-responseReady:
-		case <-ctx.Done():
 		case <-timer.C:
 			log.Debug().Dur("after", slowRequestThreshold).Msg("sending hedged datastore request")
 			go req(ctx, responseReady)
-			select {
-			case <-responseReady:
-			case <-ctx.Done():
-			}
+			<-responseReady
 		}
 
 		// Compute how long it took for us to get any answer
@@ -75,7 +71,7 @@ func newHedger(
 
 		// Swap the current active digest if it has too many samples
 		if digests[0].Count() >= float64(maxSampleCount) {
-			log.Debug().Float64("count", digests[0].Count()).Msg("switching to next hedging digest")
+			log.Trace().Float64("count", digests[0].Count()).Msg("switching to next hedging digest")
 			exhausted := digests[0]
 			digests = digests[1:]
 			exhausted.Reset()
@@ -231,15 +227,36 @@ type hedgingTupleQuery struct {
 	queryTuplesHedger hedger
 }
 
-func (htq hedgingTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
+type tupleExecutor func(ctx context.Context) (datastore.TupleIterator, error)
+
+func executeQuery(ctx context.Context, exec tupleExecutor, queryHedger hedger) (delegateIterator datastore.TupleIterator, err error) {
+	doneLock := sync.Mutex{}
+	alreadyReturned := false
+
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegateIterator, err = htq.delegate.Execute(ctx)
-		responseReady <- struct{}{}
+		tempIterator, tempErr := exec(ctx)
+		doneLock.Lock()
+		defer doneLock.Unlock()
+
+		if alreadyReturned {
+			if tempErr == nil {
+				tempIterator.Close()
+			}
+		} else {
+			alreadyReturned = true
+			delegateIterator = tempIterator
+			err = tempErr
+			responseReady <- struct{}{}
+		}
 	}
 
-	htq.queryTuplesHedger(ctx, subreq)
+	queryHedger(ctx, subreq)
 
 	return
+}
+
+func (htq hedgingTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
+	return executeQuery(ctx, htq.delegate.Execute, htq.queryTuplesHedger)
 }
 
 func (htq hedgingTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
@@ -265,14 +282,7 @@ type hedgingReverseTupleQuery struct {
 }
 
 func (hrtq hedgingReverseTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
-	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegateIterator, err = hrtq.delegate.Execute(ctx)
-		responseReady <- struct{}{}
-	}
-
-	hrtq.queryTuplesHedger(ctx, subreq)
-
-	return
+	return executeQuery(ctx, hrtq.delegate.Execute, hrtq.queryTuplesHedger)
 }
 
 func (hrtq hedgingReverseTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
@@ -298,12 +308,5 @@ func (hctq hedgingCommonTupleQuery) Limit(limit uint64) datastore.CommonTupleQue
 }
 
 func (hctq hedgingCommonTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
-	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegateIterator, err = hctq.delegate.Execute(ctx)
-		responseReady <- struct{}{}
-	}
-
-	hctq.queryTuplesHedger(ctx, subreq)
-
-	return
+	return executeQuery(ctx, hctq.delegate.Execute, hctq.queryTuplesHedger)
 }
