@@ -128,21 +128,21 @@ func registerServeCmd(rootCmd *cobra.Command) {
 }
 
 func serveRun(cmd *cobra.Command, args []string) {
-	token := cobrautil.MustGetString(cmd, "grpc-preshared-key")
+	token := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
 	if len(token) < 1 {
 		log.Fatal().Msg("a preshared key must be provided via --grpc-preshared-key to authenticate API requests")
 	}
 
-	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
-	datastoreURI := cobrautil.MustGetString(cmd, "datastore-conn-uri")
+	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
+	datastoreURI := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
 
 	revisionFuzzingTimedelta := cobrautil.MustGetDuration(cmd, "datastore-revision-fuzzing-duration")
 	gcWindow := cobrautil.MustGetDuration(cmd, "datastore-gc-window")
 	maxRetries := cobrautil.MustGetInt(cmd, "datastore-max-tx-retries")
-	overlapKey := cobrautil.MustGetString(cmd, "datastore-tx-overlap-key")
-	overlapStrategy := cobrautil.MustGetString(cmd, "datastore-tx-overlap-strategy")
+	overlapKey := cobrautil.MustGetStringExpanded(cmd, "datastore-tx-overlap-key")
+	overlapStrategy := cobrautil.MustGetStringExpanded(cmd, "datastore-tx-overlap-strategy")
 
-	splitQuerySize, err := units.ParseBase2Bytes(cobrautil.MustGetString(cmd, "datastore-query-split-size"))
+	splitQuerySize, err := units.ParseBase2Bytes(cobrautil.MustGetStringExpanded(cmd, "datastore-query-split-size"))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to parse datastore-query-split-size")
 	}
@@ -277,13 +277,13 @@ func serveRun(cmd *cobra.Command, args []string) {
 	redispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
 	redispatchClientCtx, redispatchClientCancel := context.WithCancel(context.Background())
 
-	redispatchTarget := cobrautil.MustGetString(cmd, "dispatch-redispatch-dns-name")
-	redispatchServiceName := cobrautil.MustGetString(cmd, "dispatch-redispatch-service-name")
+	redispatchTarget := cobrautil.MustGetStringExpanded(cmd, "dispatch-redispatch-dns-name")
+	redispatchServiceName := cobrautil.MustGetStringExpanded(cmd, "dispatch-redispatch-service-name")
 	if redispatchTarget != "" {
 		log.Info().Str("target", redispatchTarget).Msg("initializing remote redispatcher")
 
-		resolverAddr := cobrautil.MustGetString(cmd, "dispatch-peer-resolver-addr")
-		resolverCertPath := cobrautil.MustGetString(cmd, "dispatch-peer-resolver-cert-path")
+		resolverAddr := cobrautil.MustGetStringExpanded(cmd, "dispatch-peer-resolver-addr")
+		resolverCertPath := cobrautil.MustGetStringExpanded(cmd, "dispatch-peer-resolver-cert-path")
 		var resolverConfig *consistentbackend.EndpointResolverConfig
 		if resolverCertPath != "" {
 			log.Debug().Str("addr", resolverAddr).Str("cacert", resolverCertPath).Msg("using TLS protected peer resolver")
@@ -294,8 +294,8 @@ func serveRun(cmd *cobra.Command, args []string) {
 		}
 
 		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path")
-		peerPSK := cobrautil.MustGetString(cmd, "grpc-preshared-key")
-		selfEndpoint := cobrautil.MustGetString(cmd, "internal-grpc-addr")
+		peerPSK := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
+		selfEndpoint := cobrautil.MustGetStringExpanded(cmd, "internal-grpc-addr")
 
 		var endpointConfig *consistentbackend.EndpointConfig
 		var fallbackConfig *consistentbackend.FallbackEndpointConfig
@@ -356,7 +356,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	)
 
 	go func() {
-		addr := cobrautil.MustGetString(cmd, "grpc-addr")
+		addr := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
 			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for gRPC server")
@@ -370,7 +370,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	}()
 
 	go func() {
-		addr := cobrautil.MustGetString(cmd, "internal-grpc-addr")
+		addr := cobrautil.MustGetStringExpanded(cmd, "internal-grpc-addr")
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
 			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for internal gRPC server")
@@ -397,10 +397,10 @@ func serveRun(cmd *cobra.Command, args []string) {
 		}
 	}()
 
-	dashboardAddr := cobrautil.MustGetString(cmd, "dashboard-addr")
+	dashboardAddr := cobrautil.MustGetStringExpanded(cmd, "dashboard-addr")
 	dashboard := dashboard.NewDashboard(dashboardAddr, dashboard.Args{
 		GrpcNoTLS:       cobrautil.MustGetBool(cmd, "grpc-no-tls"),
-		GrpcAddr:        cobrautil.MustGetString(cmd, "grpc-addr"),
+		GrpcAddr:        cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
 		DatastoreEngine: datastoreEngine,
 	}, ds)
 	if dashboardAddr != "" {
@@ -471,7 +471,7 @@ func newRestGateway(ctx context.Context, cmd *cobra.Command) (*http.Server, erro
 	}
 
 	mux := runtime.NewServeMux(runtime.WithMetadata(auth.PresharedKeyAnnotator))
-	upstream := cobrautil.MustGetString(cmd, "grpc-addr")
+	upstream := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
 	v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, mux, upstream, opts)
 	v1.RegisterPermissionsServiceHandlerFromEndpoint(ctx, mux, upstream, opts)
 

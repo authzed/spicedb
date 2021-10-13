@@ -34,7 +34,7 @@ require (
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jpillora/backoff v1.0.0
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
-	github.com/jzelinskie/cobrautil v0.0.4
+	github.com/jzelinskie/cobrautil v0.0.5
 	github.com/jzelinskie/stringz v0.0.1
 	github.com/lib/pq v1.10.3
 	github.com/mitchellh/mapstructure v1.4.2 // indirect

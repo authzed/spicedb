@@ -59,7 +59,7 @@ func registerTestserverCmd(rootCmd *cobra.Command) {
 }
 
 func runTestServer(cmd *cobra.Command, args []string) {
-	configFilePaths := cobrautil.MustGetStringSlice(cmd, "load-configs")
+	configFilePaths := cobrautil.MustGetStringSliceExpanded(cmd, "load-configs")
 
 	backendMiddleware := &perTokenBackendMiddleware{
 		&sync.Map{},
@@ -87,7 +87,7 @@ func runTestServer(cmd *cobra.Command, args []string) {
 	}
 
 	go func() {
-		addr := cobrautil.MustGetString(cmd, "grpc-addr")
+		addr := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
 			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for gRPC server")
@@ -100,7 +100,7 @@ func runTestServer(cmd *cobra.Command, args []string) {
 	}()
 
 	go func() {
-		addr := cobrautil.MustGetString(cmd, "readonly-grpc-addr")
+		addr := cobrautil.MustGetStringExpanded(cmd, "readonly-grpc-addr")
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
 			log.Fatal().Str("addr", addr).Msg("failed to listen on readonly addr for gRPC server")
