@@ -9,10 +9,26 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/influxdata/tdigest"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
+
+var hedgeableCount = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "datastore",
+	Name:      "hedgeable_requests_total",
+	Help:      "total number of datastore requests which are eligible for hedging",
+})
+
+var hedgedCount = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "datastore",
+	Name:      "hedged_requests_total",
+	Help:      "total number of requests which have been hedged",
+})
 
 const (
 	minMaxRequestsThreshold   = 1000
@@ -54,12 +70,14 @@ func newHedger(
 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
+		hedgeableCount.Inc()
 		go req(ctx, responseReady)
 
 		select {
 		case <-responseReady:
 		case <-timer.C:
 			log.Debug().Dur("after", slowRequestThreshold).Msg("sending hedged datastore request")
+			hedgedCount.Inc()
 			go req(ctx, responseReady)
 			<-responseReady
 		}
