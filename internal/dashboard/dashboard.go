@@ -84,13 +84,13 @@ zed schema write sample.zed {{if .Args.GrpcNoTLS }}--insecure {{end}}
 			<h3>How to write a relationship</h3>
 <pre>
 # Write a sample relationship
-zed relationship create user:sampleuser reader resource:sampleresource {{if .Args.GrpcNoTLS }}--insecure {{end}}
+zed relationship create resource:sampleresource reader user:sampleuser {{if .Args.GrpcNoTLS }}--insecure {{end}}
 </pre>
 
 					<h3>How to check a permission</h3>
 		<pre>
 		# Check a permission
-		zed permission check user:sampleuser view resource:sampleresource {{if .Args.GrpcNoTLS }}--insecure {{end}}
+		zed permission check resource:sampleresource view user:sampleuser {{if .Args.GrpcNoTLS }}--insecure {{end}}
 		</pre>
 		{{ end }}
 		{{ end }}
