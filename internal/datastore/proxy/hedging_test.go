@@ -3,10 +3,12 @@ package proxy
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/benbjohnson/clock"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -89,8 +91,11 @@ func TestDatastoreRequestHedging(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.methodName, func(t *testing.T) {
+			mockTime := clock.NewMock()
 			delegate := &test.MockedDatastore{}
-			proxy := NewHedgingProxy(delegate, slowQueryTime, maxSampleCount, quantile)
+			proxy := newHedgingProxyWithTimeSource(
+				delegate, slowQueryTime, maxSampleCount, quantile, mockTime,
+			)
 
 			delegate.
 				On(tc.methodName, tc.arguments...).
@@ -102,27 +107,33 @@ func TestDatastoreRequestHedging(t *testing.T) {
 
 			delegate.
 				On(tc.methodName, tc.arguments...).
-				After(2 * slowQueryTime).
+				WaitUntil(mockTime.After(2 * slowQueryTime)).
 				Return(tc.firstCallResults...).
 				Once()
 			delegate.
 				On(tc.methodName, tc.arguments...).
 				Return(tc.secondCallResults...).
 				Once()
+
+			done := autoAdvance(mockTime, slowQueryTime, 3*slowQueryTime)
 
 			tc.f(t, proxy, false)
 			delegate.AssertExpectations(t)
 
+			<-done
+
 			delegate.
 				On(tc.methodName, tc.arguments...).
-				After(2 * slowQueryTime).
+				WaitUntil(mockTime.After(2 * slowQueryTime)).
 				Return(tc.firstCallResults...).
 				Once()
 			delegate.
 				On(tc.methodName, tc.arguments...).
-				After(2 * slowQueryTime).
+				WaitUntil(mockTime.After(3 * slowQueryTime)).
 				Return(tc.secondCallResults...).
 				Once()
+
+			autoAdvance(mockTime, slowQueryTime, 4*slowQueryTime)
 
 			tc.f(t, proxy, true)
 			delegate.AssertExpectations(t)
@@ -130,27 +141,27 @@ func TestDatastoreRequestHedging(t *testing.T) {
 	}
 }
 
-func TestTupleQueryRequestHedging(t *testing.T) {
+type isMock interface {
+	On(methodName string, arguments ...interface{}) *mock.Call
+
+	AssertExpectations(t mock.TestingT) bool
+}
+
+func runQueryTest(t *testing.T, delegate isMock, mockTime *clock.Mock, exec tupleExecutor) {
 	require := require.New(t)
 
-	delegate := &test.MockedTupleQuery{}
-	proxy := &hedgingTupleQuery{
-		delegate,
-		newHedger(slowQueryTime, maxSampleCount, quantile),
-	}
-
 	delegate.
 		On("Execute", mock.Anything).
 		Return(datastore.NewSliceTupleIterator(nil), errKnown).
 		Once()
 
-	_, err := proxy.Execute(context.Background())
+	_, err := exec(context.Background())
 	require.ErrorIs(errKnown, err)
 	delegate.AssertExpectations(t)
 
 	delegate.
 		On("Execute", mock.Anything).
-		After(2*slowQueryTime).
+		WaitUntil(mockTime.After(2*slowQueryTime)).
 		Return(datastore.NewSliceTupleIterator(nil), errKnown).
 		Once()
 	delegate.
@@ -158,152 +169,104 @@ func TestTupleQueryRequestHedging(t *testing.T) {
 		Return(datastore.NewSliceTupleIterator(nil), errAnotherKnown).
 		Once()
 
-	_, err = proxy.Execute(context.Background())
+	done := autoAdvance(mockTime, slowQueryTime, 3*slowQueryTime)
+
+	_, err = exec(context.Background())
 	require.ErrorIs(errAnotherKnown, err)
 	delegate.AssertExpectations(t)
+	<-done
 
 	delegate.
 		On("Execute", mock.Anything).
-		After(2*slowQueryTime).
+		WaitUntil(mockTime.After(2*slowQueryTime)).
 		Return(datastore.NewSliceTupleIterator(nil), errKnown).
 		Once()
 	delegate.
 		On("Execute", mock.Anything).
-		After(2*slowQueryTime).
+		WaitUntil(mockTime.After(3*slowQueryTime)).
 		Return(datastore.NewSliceTupleIterator(nil), errAnotherKnown).
 		Once()
 
-	_, err = proxy.Execute(context.Background())
+	autoAdvance(mockTime, slowQueryTime, 4*slowQueryTime)
+
+	_, err = exec(context.Background())
 	require.ErrorIs(errKnown, err)
 	delegate.AssertExpectations(t)
+}
+
+func TestTupleQueryRequestHedging(t *testing.T) {
+	delegate := &test.MockedTupleQuery{}
+	mockTime := clock.NewMock()
+	proxy := &hedgingTupleQuery{
+		delegate,
+		newHedger(mockTime, slowQueryTime, maxSampleCount, quantile),
+	}
+
+	runQueryTest(t, delegate, mockTime, proxy.Execute)
 }
 
 func TestReverseTupleQueryRequestHedging(t *testing.T) {
-	require := require.New(t)
-
 	delegate := &test.MockedReverseTupleQuery{}
+	mockTime := clock.NewMock()
 	proxy := &hedgingReverseTupleQuery{
 		delegate,
-		newHedger(slowQueryTime, maxSampleCount, quantile),
+		newHedger(mockTime, slowQueryTime, maxSampleCount, quantile),
 	}
 
-	delegate.
-		On("Execute", mock.Anything).
-		Return(datastore.NewSliceTupleIterator(nil), errKnown).
-		Once()
-
-	_, err := proxy.Execute(context.Background())
-	require.ErrorIs(errKnown, err)
-	delegate.AssertExpectations(t)
-
-	delegate.
-		On("Execute", mock.Anything).
-		After(2*slowQueryTime).
-		Return(datastore.NewSliceTupleIterator(nil), errKnown).
-		Once()
-	delegate.
-		On("Execute", mock.Anything).
-		Return(datastore.NewSliceTupleIterator(nil), errAnotherKnown).
-		Once()
-
-	_, err = proxy.Execute(context.Background())
-	require.ErrorIs(errAnotherKnown, err)
-	delegate.AssertExpectations(t)
-
-	delegate.
-		On("Execute", mock.Anything).
-		After(2*slowQueryTime).
-		Return(datastore.NewSliceTupleIterator(nil), errKnown).
-		Once()
-	delegate.
-		On("Execute", mock.Anything).
-		After(2*slowQueryTime).
-		Return(datastore.NewSliceTupleIterator(nil), errAnotherKnown).
-		Once()
-
-	_, err = proxy.Execute(context.Background())
-	require.ErrorIs(errKnown, err)
-	delegate.AssertExpectations(t)
+	runQueryTest(t, delegate, mockTime, proxy.Execute)
 }
 
 func TestCommonTupleQueryRequestHedging(t *testing.T) {
-	require := require.New(t)
-
 	delegate := &test.MockedCommonTupleQuery{}
+	mockTime := clock.NewMock()
 	proxy := &hedgingCommonTupleQuery{
 		delegate,
-		newHedger(slowQueryTime, maxSampleCount, quantile),
+		newHedger(mockTime, slowQueryTime, maxSampleCount, quantile),
 	}
 
-	delegate.
-		On("Execute", mock.Anything).
-		Return(datastore.NewSliceTupleIterator(nil), errKnown).
-		Once()
-
-	_, err := proxy.Execute(context.Background())
-	require.ErrorIs(errKnown, err)
-	delegate.AssertExpectations(t)
-
-	delegate.
-		On("Execute", mock.Anything).
-		After(2*slowQueryTime).
-		Return(datastore.NewSliceTupleIterator(nil), errKnown).
-		Once()
-	delegate.
-		On("Execute", mock.Anything).
-		Return(datastore.NewSliceTupleIterator(nil), errAnotherKnown).
-		Once()
-
-	_, err = proxy.Execute(context.Background())
-	require.ErrorIs(errAnotherKnown, err)
-	delegate.AssertExpectations(t)
-
-	delegate.
-		On("Execute", mock.Anything).
-		After(2*slowQueryTime).
-		Return(datastore.NewSliceTupleIterator(nil), errKnown).
-		Once()
-	delegate.
-		On("Execute", mock.Anything).
-		After(2*slowQueryTime).
-		Return(datastore.NewSliceTupleIterator(nil), errAnotherKnown).
-		Once()
-
-	_, err = proxy.Execute(context.Background())
-	require.ErrorIs(errKnown, err)
-	delegate.AssertExpectations(t)
+	runQueryTest(t, delegate, mockTime, proxy.Execute)
 }
 
 func TestDigestRollover(t *testing.T) {
 	require := require.New(t)
 
 	delegate := &test.MockedCommonTupleQuery{}
+	mockTime := clock.NewMock()
 	proxy := &hedgingCommonTupleQuery{
 		delegate,
-		newHedger(slowQueryTime, 100, 0.9999999999),
+		newHedger(mockTime, slowQueryTime, 100, 0.9999999999),
 	}
 
 	// Simulate a request that starts off fast enough
 	delegate.
 		On("Execute", mock.Anything).
-		After(slowQueryTime/2).
+		WaitUntil(mockTime.After(slowQueryTime/2)).
 		Return(datastore.NewSliceTupleIterator(nil), errKnown).
 		Once()
+
+	done := autoAdvance(mockTime, slowQueryTime/4, slowQueryTime*2)
 
 	_, err := proxy.Execute(context.Background())
 	require.ErrorIs(err, errKnown)
 	delegate.AssertExpectations(t)
 
-	delegate.
-		On("Execute", mock.Anything).
-		After(100*time.Microsecond).
-		Return(datastore.NewSliceTupleIterator(nil), errKnown)
+	<-done
+
+	for i := time.Duration(0); i < 205; i++ {
+		delegate.
+			On("Execute", mock.Anything).
+			WaitUntil(mockTime.After(i*100*time.Microsecond)).
+			Return(datastore.NewSliceTupleIterator(nil), errKnown).
+			Once()
+	}
+
+	done = autoAdvance(mockTime, 100*time.Microsecond, 205*100*time.Microsecond)
 
 	for i := 0; i < 200; i++ {
 		_, err := proxy.Execute(context.Background())
 		require.ErrorIs(err, errKnown)
 	}
-	delegate.AssertExpectations(t)
+	<-done
 
 	delegate.ExpectedCalls = nil
 
@@ -311,14 +274,16 @@ func TestDigestRollover(t *testing.T) {
 	// request is hedged
 	delegate.
 		On("Execute", mock.Anything).
-		After(slowQueryTime/2).
+		WaitUntil(mockTime.After(slowQueryTime/2)).
 		Return(datastore.NewSliceTupleIterator(nil), errKnown).
 		Once()
 	delegate.
 		On("Execute", mock.Anything).
-		After(100*time.Microsecond).
+		WaitUntil(mockTime.After(100*time.Microsecond)).
 		Return(datastore.NewSliceTupleIterator(nil), errAnotherKnown).
 		Once()
+
+	autoAdvance(mockTime, 100*time.Microsecond, slowQueryTime)
 
 	_, err = proxy.Execute(context.Background())
 	require.ErrorIs(errAnotherKnown, err)
@@ -355,8 +320,11 @@ func TestDatastoreE2E(t *testing.T) {
 
 	delegateDatastore := &test.MockedDatastore{}
 	delegateQuery := &test.MockedTupleQuery{}
+	mockTime := clock.NewMock()
 
-	proxy := NewHedgingProxy(delegateDatastore, slowQueryTime, maxSampleCount, quantile)
+	proxy := newHedgingProxyWithTimeSource(
+		delegateDatastore, slowQueryTime, maxSampleCount, quantile, mockTime,
+	)
 
 	delegateDatastore.
 		On("QueryTuples", mock.Anything, mock.Anything).
@@ -384,12 +352,14 @@ func TestDatastoreE2E(t *testing.T) {
 	delegateQuery.
 		On("Execute", mock.Anything).
 		Return(datastore.NewSliceTupleIterator(expectedTuples), nil).
-		After(2 * slowQueryTime).
+		WaitUntil(mockTime.After(2 * slowQueryTime)).
 		Once()
 	delegateQuery.
 		On("Execute", mock.Anything).
 		Return(datastore.NewSliceTupleIterator(expectedTuples), nil).
 		Once()
+
+	autoAdvance(mockTime, slowQueryTime/2, 2*slowQueryTime)
 
 	it, err := proxy.QueryTuples(datastore.TupleQueryResourceFilter{
 		ResourceType: "test",
@@ -410,20 +380,46 @@ func TestContextCancellation(t *testing.T) {
 	require := require.New(t)
 
 	delegate := &test.MockedDatastore{}
-	proxy := NewHedgingProxy(delegate, slowQueryTime, maxSampleCount, quantile)
+	mockTime := clock.NewMock()
+	proxy := newHedgingProxyWithTimeSource(
+		delegate, slowQueryTime, maxSampleCount, quantile, mockTime,
+	)
 
 	delegate.
 		On("SyncRevision", mock.Anything).
 		Return(decimal.Zero, errKnown).
-		After(500 * time.Microsecond).
+		WaitUntil(mockTime.After(500 * time.Microsecond)).
 		Once()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(100 * time.Microsecond)
+		mockTime.Sleep(100 * time.Microsecond)
 		cancel()
 	}()
+
+	autoAdvance(mockTime, 150*time.Microsecond, 1*time.Millisecond)
+
 	_, err := proxy.SyncRevision(ctx)
 
 	require.Error(err)
+}
+
+func autoAdvance(timeSource *clock.Mock, step time.Duration, totalTime time.Duration) <-chan time.Time {
+	done := make(chan time.Time)
+
+	go func() {
+		defer close(done)
+
+		endTime := timeSource.Now().Add(totalTime)
+
+		runtime.Gosched()
+		for now := timeSource.Now(); now.Before(endTime); now = timeSource.Now() {
+			timeSource.Add(step)
+			runtime.Gosched()
+		}
+
+		done <- timeSource.Now()
+	}()
+
+	return done
 }

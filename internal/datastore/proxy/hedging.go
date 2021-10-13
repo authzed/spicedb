@@ -8,6 +8,7 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/benbjohnson/clock"
 	"github.com/influxdata/tdigest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -40,6 +41,7 @@ type subrequest func(ctx context.Context, responseReady chan<- struct{})
 type hedger func(ctx context.Context, req subrequest)
 
 func newHedger(
+	timeSource clock.Clock,
 	initialSlowRequestThreshold time.Duration,
 	maxSampleCount uint64,
 	quantile float64,
@@ -65,8 +67,8 @@ func newHedger(
 		digestLock.Unlock()
 		slowRequestThreshold := time.Duration(slowRequestThresholdSeconds * float64(time.Second))
 
-		timer := time.NewTimer(slowRequestThreshold)
-		start := time.Now()
+		timer := timeSource.Timer(slowRequestThreshold)
+		start := timeSource.Now()
 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -83,7 +85,7 @@ func newHedger(
 		}
 
 		// Compute how long it took for us to get any answer
-		duration := time.Since(start)
+		duration := timeSource.Since(start)
 		digestLock.Lock()
 		defer digestLock.Unlock()
 
@@ -122,6 +124,22 @@ func NewHedgingProxy(
 	maxSampleCount uint64,
 	hedgingQuantile float64,
 ) datastore.Datastore {
+	return newHedgingProxyWithTimeSource(
+		delegate,
+		initialSlowRequestThreshold,
+		maxSampleCount,
+		hedgingQuantile,
+		clock.New(),
+	)
+}
+
+func newHedgingProxyWithTimeSource(
+	delegate datastore.Datastore,
+	initialSlowRequestThreshold time.Duration,
+	maxSampleCount uint64,
+	hedgingQuantile float64,
+	timeSource clock.Clock,
+) datastore.Datastore {
 	if initialSlowRequestThreshold < 0 {
 		panic("initial slow request threshold negative")
 	}
@@ -136,10 +154,10 @@ func NewHedgingProxy(
 
 	return hedgingProxy{
 		delegate,
-		newHedger(initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
-		newHedger(initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
-		newHedger(initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
-		newHedger(initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
+		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
+		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
+		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
+		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 	}
 }
 
