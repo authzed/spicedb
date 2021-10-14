@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/auth"
@@ -33,7 +34,10 @@ type Config struct {
 
 // NewHttpServer initializes a new HTTP server with the provided configuration.
 func NewHttpServer(ctx context.Context, cfg Config) (*http.Server, error) {
-	opts := []grpc.DialOption{grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor())}
+	opts := []grpc.DialOption{
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+	}
 	if cfg.UpstreamTlsDisabled {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
@@ -50,6 +54,6 @@ func NewHttpServer(ctx context.Context, cfg Config) (*http.Server, error) {
 
 	return &http.Server{
 		Addr:    cfg.Addr,
-		Handler: promhttp.InstrumentHandlerDuration(histogram, mux),
+		Handler: promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway")),
 	}, nil
 }
