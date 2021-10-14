@@ -11,14 +11,11 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/grpcutil"
 	"github.com/fatih/color"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -37,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/client/consistentbackend"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
+	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
@@ -354,7 +352,6 @@ func serveRun(cmd *cobra.Command, args []string) {
 		prefixRequiredOption,
 		v1SchemaServiceOption,
 	)
-
 	go func() {
 		addr := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
 		l, err := net.Listen("tcp", addr)
@@ -383,11 +380,24 @@ func serveRun(cmd *cobra.Command, args []string) {
 		}
 	}()
 
-	gatewaySrv, err := newRestGateway(context.TODO(), cmd)
+	// Start the REST gateway to serve HTTP/JSON.
+	gatewaySrv, err := gateway.NewHttpServer(context.TODO(), gateway.Config{
+		Addr:                cobrautil.MustGetStringExpanded(cmd, "http-addr"),
+		UpstreamAddr:        cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
+		UpstreamTlsDisabled: cobrautil.MustGetBool(cmd, "grpc-no-tls"),
+		UpstreamTlsCaPath:   cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
+	})
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to listen on addr for gRPC REST gateway server")
+		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
+	go func() {
+		log.Info().Str("addr", gatewaySrv.Addr).Msg("rest gateway server started listening")
+		if err := gatewaySrv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatal().Err(err).Msg("failed while serving rest gateway")
+		}
+	}()
 
+	// Start the metrics endpoint.
 	metricsrv := cobrautil.MetricsServerFromFlags(cmd)
 	go func() {
 		addr := cobrautil.MustGetStringExpanded(cmd, "metrics-addr")
@@ -397,6 +407,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 		}
 	}()
 
+	// Start a dashboard.
 	dashboardAddr := cobrautil.MustGetStringExpanded(cmd, "dashboard-addr")
 	dashboard := dashboard.NewDashboard(dashboardAddr, dashboard.Args{
 		GrpcNoTLS:       cobrautil.MustGetBool(cmd, "grpc-no-tls"),
@@ -457,36 +468,4 @@ func serveRun(cmd *cobra.Command, args []string) {
 			log.Fatal().Err(err).Msg("failed while shutting down dashboard")
 		}
 	}
-}
-
-func newRestGateway(ctx context.Context, cmd *cobra.Command) (*http.Server, error) {
-	opts := []grpc.DialOption{grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor())}
-	if cobrautil.MustGetBool(cmd, "grpc-no-tls") {
-		opts = append(opts, grpc.WithInsecure())
-	} else {
-		opts = append(opts, grpcutil.WithCustomCerts(
-			cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
-			grpcutil.SkipVerifyCA,
-		))
-	}
-
-	mux := runtime.NewServeMux(runtime.WithMetadata(auth.PresharedKeyAnnotator))
-	upstream := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
-	v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, mux, upstream, opts)
-	v1.RegisterPermissionsServiceHandlerFromEndpoint(ctx, mux, upstream, opts)
-
-	addr := cobrautil.MustGetStringExpanded(cmd, "http-addr")
-	gatewaySrv := &http.Server{
-		Addr:    addr,
-		Handler: mux,
-	}
-
-	go func() {
-		log.Info().Str("addr", addr).Msg("http server started listening")
-		if err := gatewaySrv.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("failed while serving rest gateway")
-		}
-	}()
-
-	return gatewaySrv, nil
 }
