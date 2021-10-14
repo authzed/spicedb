@@ -28,7 +28,7 @@ type Config struct {
 	Addr                string
 	UpstreamAddr        string
 	UpstreamTlsDisabled bool
-	UpstreamTlsCaPath   string
+	UpstreamTlsCertPath string
 }
 
 // NewHttpServer initializes a new HTTP server with the provided configuration.
@@ -37,7 +37,7 @@ func NewHttpServer(ctx context.Context, cfg Config) (*http.Server, error) {
 	if cfg.UpstreamTlsDisabled {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
-		opts = append(opts, grpcutil.WithCustomCerts(cfg.UpstreamTlsCaPath, grpcutil.SkipVerifyCA))
+		opts = append(opts, grpcutil.WithCustomCerts(cfg.UpstreamTlsCertPath, grpcutil.SkipVerifyCA))
 	}
 
 	mux := runtime.NewServeMux(runtime.WithMetadata(auth.PresharedKeyAnnotator))

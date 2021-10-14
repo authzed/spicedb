@@ -16,12 +16,12 @@ func newRootCmd() *cobra.Command {
 		PersistentPreRunE: persistentPreRunE,
 		TraverseChildren:  true,
 		Example: fmt.Sprintf(`	%s:
-		spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls
+		spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls --http-no-tls
 
 	%s:
-		spicedb serve --grpc-preshared-key "realkeyhere" --grpc-cert-path path/to/tls/cert
-	        		  --grpc-key-path path/to/tls/key --datastore-engine postgres
-	        		  --datastore-conn-uri "postgres-connection-string-here"
+		spicedb serve --grpc-preshared-key "realkeyhere" --grpc-cert-path path/to/tls/cert --grpc-key-path path/to/tls/key \
+			--http-cert-path path/to/tls/cert --http-key-path path/to/tls/key \
+			--datastore-engine postgres --datastore-conn-uri "postgres-connection-string-here"
 	%s:
 		spicedb serve-testing
 `,

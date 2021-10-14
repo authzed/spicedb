@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -51,12 +52,12 @@ func registerServeCmd(rootCmd *cobra.Command) {
 		PersistentPreRunE: persistentPreRunE,
 		Run:               serveRun,
 		Example: fmt.Sprintf(`	%s:
-		spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls
+		spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls --http-no-tls
 
 	%s:
-		spicedb serve --grpc-preshared-key "realkeyhere" --grpc-cert-path path/to/tls/cert
-	        		  --grpc-key-path path/to/tls/key --datastore-engine postgres
-	        		  --datastore-conn-uri "postgres-connection-string-here"
+		spicedb serve --grpc-preshared-key "realkeyhere" --grpc-cert-path path/to/tls/cert --grpc-key-path path/to/tls/key \
+			--http-cert-path path/to/tls/cert --http-key-path path/to/tls/key \
+			--datastore-engine postgres --datastore-conn-uri "postgres-connection-string-here"
 `, color.YellowString("No TLS and in-memory"), color.GreenString("TLS and a real datastore")),
 	}
 
@@ -103,6 +104,9 @@ func registerServeCmd(rootCmd *cobra.Command) {
 
 	// Flags for HTTP gateway
 	serveCmd.Flags().String("http-addr", ":443", "address to listen for HTTP API requests")
+	serveCmd.Flags().Bool("http-no-tls", false, "serve HTTP API requests unencrypted")
+	serveCmd.Flags().String("http-cert-path", "", "local path to the TLS certificate used to serve HTTP API requests")
+	serveCmd.Flags().String("http-key-path", "", "local path to the TLS key used to serve HTTP API requests")
 
 	// Flags for configuring dispatch behavior
 	serveCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
@@ -385,15 +389,28 @@ func serveRun(cmd *cobra.Command, args []string) {
 		Addr:                cobrautil.MustGetStringExpanded(cmd, "http-addr"),
 		UpstreamAddr:        cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
 		UpstreamTlsDisabled: cobrautil.MustGetBool(cmd, "grpc-no-tls"),
-		UpstreamTlsCaPath:   cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
+		UpstreamTlsCertPath: cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
 	go func() {
 		log.Info().Str("addr", gatewaySrv.Addr).Msg("rest gateway server started listening")
-		if err := gatewaySrv.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("failed while serving rest gateway")
+		if cobrautil.MustGetBool(cmd, "http-no-tls") {
+			if err := gatewaySrv.ListenAndServe(); err != http.ErrServerClosed {
+				log.Fatal().Err(err).Msg("failed while serving rest gateway")
+			}
+		} else {
+			certPath := cobrautil.MustGetStringExpanded(cmd, "http-cert-path")
+			keyPath := cobrautil.MustGetStringExpanded(cmd, "http-key-path")
+			if certPath == "" || keyPath == "" {
+				errStr := "failed to start http server: must provide either --http-no-tls or --http-cert-path and --http-key-path"
+				log.Fatal().Err(errors.New(errStr)).Msg("failed to create http server")
+			}
+
+			if err := gatewaySrv.ListenAndServeTLS(certPath, keyPath); err != http.ErrServerClosed {
+				log.Fatal().Err(err).Msg("failed while serving rest gateway")
+			}
 		}
 	}()
 
