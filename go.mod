@@ -64,3 +64,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gotest.tools v2.2.0+incompatible // indirect
 )
+
+// TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged
+replace github.com/dgraph-io/ristretto => github.com/josephschorr/ristretto v0.1.1-0.20211008180146-169a43af0a0d
