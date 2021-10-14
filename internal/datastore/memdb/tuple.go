@@ -50,11 +50,12 @@ func (mds *memdbDatastore) checkPrecondition(txn *memdb.Txn, preconditions []*v1
 }
 
 func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
-	if mds.db == nil {
+	db := mds.db
+	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
 
-	txn := mds.db.Txn(true)
+	txn := db.Txn(true)
 	defer txn.Abort()
 
 	if err := mds.checkPrecondition(txn, preconditions); err != nil {
@@ -137,11 +138,12 @@ func (mds *memdbDatastore) write(ctx context.Context, txn *memdb.Txn, mutations 
 }
 
 func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
-	if mds.db == nil {
+	db := mds.db
+	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
 
-	txn := mds.db.Txn(true)
+	txn := db.Txn(true)
 	defer txn.Abort()
 
 	if err := mds.checkPrecondition(txn, preconditions); err != nil {
@@ -221,12 +223,13 @@ func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespa
 }
 
 func (mds *memdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	if mds.db == nil {
+	db := mds.db
+	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
 
 	// Compute the current revision
-	txn := mds.db.Txn(false)
+	txn := db.Txn(false)
 	defer txn.Abort()
 
 	lastRaw, err := txn.Last(tableChangelog, indexID)
@@ -240,11 +243,12 @@ func (mds *memdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision
 }
 
 func (mds *memdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
-	if mds.db == nil {
+	db := mds.db
+	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
 
-	txn := mds.db.Txn(false)
+	txn := db.Txn(false)
 	defer txn.Abort()
 
 	lowerBound := uint64(time.Now().Add(-1 * mds.revisionFuzzingTimedelta).UnixNano())
@@ -267,7 +271,12 @@ func (mds *memdbDatastore) Revision(ctx context.Context) (datastore.Revision, er
 }
 
 func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	txn := mds.db.Txn(false)
+	db := mds.db
+	if db == nil {
+		return fmt.Errorf("memdb closed")
+	}
+
+	txn := db.Txn(false)
 	defer txn.Abort()
 
 	// We need to know the highest possible revision

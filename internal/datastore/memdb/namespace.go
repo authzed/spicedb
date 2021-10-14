@@ -19,11 +19,12 @@ const (
 )
 
 func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
-	if mds.db == nil {
+	db := mds.db
+	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
 
-	txn := mds.db.Txn(true)
+	txn := db.Txn(true)
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
@@ -79,11 +80,12 @@ func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 
 // ReadNamespace reads a namespace definition and version and returns it if found.
 func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
-	if mds.db == nil {
+	db := mds.db
+	if db == nil {
 		return nil, datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
 
-	txn := mds.db.Txn(false)
+	txn := db.Txn(false)
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
@@ -107,11 +109,12 @@ func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v
 }
 
 func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
-	if mds.db == nil {
+	db := mds.db
+	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
 
-	txn := mds.db.Txn(true)
+	txn := db.Txn(true)
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
@@ -165,13 +168,14 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 }
 
 func (mds *memdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
-	if mds.db == nil {
+	db := mds.db
+	if db == nil {
 		return nil, fmt.Errorf("memdb closed")
 	}
 
 	var nsDefs []*v0.NamespaceDefinition
 
-	txn := mds.db.Txn(false)
+	txn := db.Txn(false)
 	defer txn.Abort()
 
 	it, err := txn.Get(tableNamespaceConfig, indexID)

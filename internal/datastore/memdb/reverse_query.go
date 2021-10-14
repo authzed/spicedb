@@ -39,7 +39,12 @@ func (mtq memdbReverseTupleQuery) WithObjectRelation(namespaceName string, relat
 }
 
 func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	txn := mtq.db.Txn(false)
+	db := mtq.db
+	if db == nil {
+		return nil, fmt.Errorf("memdb closed")
+	}
+
+	txn := db.Txn(false)
 
 	time.Sleep(mtq.simulatedLatency)
 
