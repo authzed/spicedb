@@ -13,6 +13,7 @@ import (
 func Parse(builder NodeBuilder, source input.InputSource, input string) AstNode {
 	lx := lexer.Lex(source, input)
 	parser := buildParser(lx, builder, source, input)
+	defer parser.close()
 	return parser.consumeTopLevel()
 }
 

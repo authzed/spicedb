@@ -28,4 +28,9 @@ type Manager interface {
 
 	// ReadNamespaceAndTypes reads a namespace definition, version, and type system and returns it if found.
 	ReadNamespaceAndTypes(ctx context.Context, nsName string) (*v0.NamespaceDefinition, *NamespaceTypeSystem, decimal.Decimal, error)
+
+	// Closes the namespace manager, disposing of any resources.
+	//
+	// NOTE: Should *not* call Close on the datastore.
+	Close() error
 }

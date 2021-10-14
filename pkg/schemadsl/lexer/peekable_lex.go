@@ -20,6 +20,11 @@ func NewPeekableLexer(lex *Lexer) *PeekableLexer {
 	}
 }
 
+// Close stops the lexer from running.
+func (l *PeekableLexer) Close() {
+	l.lex.Close()
+}
+
 // NextToken returns the next token found in the lexer.
 func (l *PeekableLexer) NextToken() Lexeme {
 	frontElement := l.readTokens.Front()

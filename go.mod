@@ -53,6 +53,7 @@ require (
 	go.opentelemetry.io/otel v1.0.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.0.0 // indirect
 	go.opentelemetry.io/otel/trace v1.0.0
+	go.uber.org/goleak v1.1.12
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210921065528-437939a70204 // indirect
 	golang.org/x/tools v0.1.6 // indirect
@@ -63,3 +64,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gotest.tools v2.2.0+incompatible // indirect
 )
+
+// TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged
+replace github.com/dgraph-io/ristretto => github.com/josephschorr/ristretto v0.1.1-0.20211008180146-169a43af0a0d

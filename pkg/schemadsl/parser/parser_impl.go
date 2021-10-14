@@ -66,6 +66,10 @@ func buildParser(lx *lexer.Lexer, builder NodeBuilder, source input.InputSource,
 	}
 }
 
+func (p *sourceParser) close() {
+	p.lex.Close()
+}
+
 // createNode creates a new AstNode and returns it.
 func (p *sourceParser) createNode(kind dslshape.NodeType) AstNode {
 	return p.builder(p.source, kind)

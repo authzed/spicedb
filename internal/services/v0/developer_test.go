@@ -6,11 +6,14 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestSharing(t *testing.T) {
+func TestDeveloperSharing(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
 	require := require.New(t)
 
 	store := NewInMemoryShareStore("flavored")
@@ -41,7 +44,9 @@ func TestSharing(t *testing.T) {
 	require.Equal("s", lresp.Schema)
 }
 
-func TestSharingConverted(t *testing.T) {
+func TestDeveloperSharingConverted(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
 	require := require.New(t)
 
 	store := NewInMemoryShareStore("flavored")
@@ -72,6 +77,8 @@ func TestSharingConverted(t *testing.T) {
 }
 
 func TestEditCheck(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
 	type testCase struct {
 		name               string
 		schema             string
@@ -201,7 +208,9 @@ func TestEditCheck(t *testing.T) {
 	}
 }
 
-func TestValidate(t *testing.T) {
+func TestDeveloperValidate(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
 	type testCase struct {
 		name                   string
 		schema                 string
@@ -607,7 +616,9 @@ assertFalse:
 	}
 }
 
-func TestFormatSchema(t *testing.T) {
+func TestDeveloperFormatSchema(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
 	require := require.New(t)
 
 	store := NewInMemoryShareStore("flavored")
@@ -621,7 +632,9 @@ func TestFormatSchema(t *testing.T) {
 	require.Equal("definition foos {}\n\ndefinition bars {}", lresp.FormattedSchema)
 }
 
-func TestValidateONR(t *testing.T) {
+func TestDeveloperValidateONR(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
 	require := require.New(t)
 
 	store := NewInMemoryShareStore("flavored")

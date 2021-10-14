@@ -73,7 +73,6 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string) (*v0
 
 	// Check the cache.
 	now := time.Now()
-
 	value, found := nsc.c.Get(nsName)
 	if found {
 		foundEntry := value.(cacheEntry)
@@ -125,4 +124,9 @@ func (nsc cachingManager) CheckNamespaceAndRelation(ctx context.Context, namespa
 	}
 
 	return NewRelationNotFoundErr(namespace, relation)
+}
+
+func (nsc cachingManager) Close() error {
+	nsc.c.Close()
+	return nil
 }

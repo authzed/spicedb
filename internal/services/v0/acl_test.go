@@ -854,6 +854,8 @@ func newACLServicer(
 	require.NoError(err)
 
 	return v0.NewACLServiceClient(conn), func() {
+		ns.Close()
+		ds.Close()
 		s.Stop()
 		lis.Close()
 	}, revision, ds
