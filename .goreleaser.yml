@@ -55,6 +55,34 @@ brews:
       (bash_completion/"spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "bash")
       (zsh_completion/"_spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "zsh")
       (fish_completion/"spicedb.fish").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "fish")
+dockers:
+  - image_templates:
+      - &amd_image "quay.io/authzed/spicedb:{{ .Version }}-amd64"
+    ids: ["linux-amd64"]
+    dockerfile: &dockerfile "Dockerfile"
+    goos: "linux"
+    goarch: "amd64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - image_templates:
+      - &arm_image "quay.io/authzed/spicedb:{{ .Version }}-arm64"
+    ids: ["linux-arm64"]
+    dockerfile: *dockerfile
+    goos: "linux"
+    goarch: "arm64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/arm64"
+docker_manifests:
+  - name_template: "quay.io/authzed/spicedb:{{ .Version }}"
+    image_templates:
+      - *amd_image
+      - *arm_image
+  - name_template: "quay.io/authzed/spicedb:latest"
+    image_templates:
+      - *amd_image
+      - *arm_image
 checksum:
   name_template: "checksums.txt"
 snapshot:
