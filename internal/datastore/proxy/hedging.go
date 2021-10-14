@@ -68,24 +68,34 @@ func newHedger(
 		slowRequestThreshold := time.Duration(slowRequestThresholdSeconds * float64(time.Second))
 
 		timer := timeSource.Timer(slowRequestThreshold)
-		start := timeSource.Now()
+		originalStart := timeSource.Now()
 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		hedgeableCount.Inc()
 		go req(ctx, responseReady)
 
+		var duration time.Duration
+
 		select {
 		case <-responseReady:
+			duration = timeSource.Since(originalStart)
 		case <-timer.C:
 			log.Debug().Dur("after", slowRequestThreshold).Msg("sending hedged datastore request")
 			hedgedCount.Inc()
-			go req(ctx, responseReady)
-			<-responseReady
+
+			hedgedResponseReady := make(chan struct{})
+			hedgedStart := timeSource.Now()
+			go req(ctx, hedgedResponseReady)
+
+			select {
+			case <-responseReady:
+				duration = timeSource.Since(originalStart)
+			case <-hedgedResponseReady:
+				duration = timeSource.Since(hedgedStart)
+			}
 		}
 
-		// Compute how long it took for us to get any answer
-		duration := timeSource.Since(start)
 		digestLock.Lock()
 		defer digestLock.Unlock()
 
