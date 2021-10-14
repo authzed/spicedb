@@ -35,6 +35,9 @@ jobs:
       - uses: "golangci/golangci-lint-action@v2"
         with:
           version: "v1.42"
+          skip-go-installation: true
+          skip-pkg-cache: true
+          skip-build-cache: false
       - name: "Go Generate"
         run: "go generate ./... && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
 
