@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4"
-	"github.com/ory/dockertest"
+	"github.com/ory/dockertest/v3"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"

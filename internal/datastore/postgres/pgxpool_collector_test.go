@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/ory/dockertest"
+	"github.com/ory/dockertest/v3"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
