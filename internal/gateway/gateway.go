@@ -4,8 +4,10 @@ package gateway
 
 import (
 	"context"
+	"io"
 	"net/http"
 
+	"github.com/authzed/authzed-go/proto"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -44,13 +46,19 @@ func NewHttpServer(ctx context.Context, cfg Config) (*http.Server, error) {
 		opts = append(opts, grpcutil.WithCustomCerts(cfg.UpstreamTlsCertPath, grpcutil.SkipVerifyCA))
 	}
 
-	mux := runtime.NewServeMux(runtime.WithMetadata(auth.PresharedKeyAnnotator))
-	if err := v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, mux, cfg.UpstreamAddr, opts); err != nil {
+	gwMux := runtime.NewServeMux(runtime.WithMetadata(auth.PresharedKeyAnnotator))
+	if err := v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, gwMux, cfg.UpstreamAddr, opts); err != nil {
 		return nil, err
 	}
-	if err := v1.RegisterPermissionsServiceHandlerFromEndpoint(ctx, mux, cfg.UpstreamAddr, opts); err != nil {
+	if err := v1.RegisterPermissionsServiceHandlerFromEndpoint(ctx, gwMux, cfg.UpstreamAddr, opts); err != nil {
 		return nil, err
 	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/openapi.json", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, proto.OpenAPISchema)
+	}))
+	mux.Handle("/", gwMux)
 
 	return &http.Server{
 		Addr:    cfg.Addr,
