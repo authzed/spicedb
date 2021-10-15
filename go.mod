@@ -11,6 +11,7 @@ require (
 	github.com/authzed/authzed-go v0.1.1-0.20210923172306-b4b512e4d359
 	github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f
 	github.com/aws/aws-sdk-go v1.40.53
+	github.com/benbjohnson/clock v1.1.0
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/containerd/continuity v0.0.0-20210315143101-93e15499afd5 // indirect
@@ -29,6 +30,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-memdb v1.3.2
+	github.com/influxdata/tdigest v0.0.1
 	github.com/jackc/pgconn v1.10.0
 	github.com/jackc/pgtype v1.8.1
 	github.com/jackc/pgx/v4 v4.13.0
