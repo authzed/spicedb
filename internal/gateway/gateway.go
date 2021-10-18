@@ -16,9 +16,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
-
-	"github.com/authzed/spicedb/internal/auth"
+	"google.golang.org/grpc/metadata"
 )
 
 var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -46,7 +47,7 @@ func NewHttpServer(ctx context.Context, cfg Config) (*http.Server, error) {
 		opts = append(opts, grpcutil.WithCustomCerts(cfg.UpstreamTlsCertPath, grpcutil.SkipVerifyCA))
 	}
 
-	gwMux := runtime.NewServeMux(runtime.WithMetadata(auth.PresharedKeyAnnotator))
+	gwMux := runtime.NewServeMux(runtime.WithMetadata(OtelAnnotator))
 	if err := v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, gwMux, cfg.UpstreamAddr, opts); err != nil {
 		return nil, err
 	}
@@ -64,4 +65,20 @@ func NewHttpServer(ctx context.Context, cfg Config) (*http.Server, error) {
 		Addr:    cfg.Addr,
 		Handler: promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway")),
 	}, nil
+}
+
+var defaultOtelOpts = []otelgrpc.Option{
+	otelgrpc.WithPropagators(otel.GetTextMapPropagator()),
+	otelgrpc.WithTracerProvider(otel.GetTracerProvider()),
+}
+
+// OtelAnnotator propagates the OpenTelemetry tracing context to the outgoing
+// gRPC metadata.
+func OtelAnnotator(ctx context.Context, r *http.Request) metadata.MD {
+	requestMetadata, _ := metadata.FromOutgoingContext(ctx)
+	metadataCopy := requestMetadata.Copy()
+
+	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header))
+	otelgrpc.Inject(ctx, &metadataCopy, defaultOtelOpts...)
+	return metadataCopy
 }
