@@ -23,8 +23,10 @@ import (
 )
 
 var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Name: "spicedb_rest_gateway_request_duration_seconds",
-	Help: "A histogram of the duration spent processing requests to the SpiceDB REST Gateway.",
+	Namespace: "spicedb",
+	Subsystem: "rest_gateway",
+	Name:      "request_duration_seconds",
+	Help:      "A histogram of the duration spent processing requests to the SpiceDB REST Gateway.",
 }, []string{"method"})
 
 // Config represents the require configuration for initializing a REST gateway.
