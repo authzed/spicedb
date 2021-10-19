@@ -175,6 +175,8 @@ func GCMaxOperationTime(time time.Duration) Option {
 
 // EnablePrometheusStats enables Prometheus metrics provided by the Postgres
 // clients being used by the datastore.
+//
+// Prometheus metrics are disable by default.
 func EnablePrometheusStats() Option {
 	return func(po *postgresOptions) {
 		po.enablePrometheusStats = true
@@ -183,6 +185,8 @@ func EnablePrometheusStats() Option {
 
 // EnableTracing enables trace-level logging for the Postgres clients being
 // used by the datastore.
+//
+// Tracing is disabled by default.
 func EnableTracing() Option {
 	return func(po *postgresOptions) {
 		po.logger = &tracingLogger{}

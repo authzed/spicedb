@@ -59,25 +59,30 @@ const (
 
 var (
 	gcDurationHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "postgres_gc_duration",
-		Help:    "postgres garbage collection duration distribution in seconds.",
-		Buckets: []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "postgres_gc_duration",
+		Help:      "postgres garbage collection duration distribution in seconds.",
+		Buckets:   []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
 	})
 
 	gcRelationshipsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "postgres_relationships_cleared",
-		Help: "number of relationships cleared by postgres garbage collection.",
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "postgres_relationships_cleared",
+		Help:      "number of relationships cleared by postgres garbage collection.",
 	})
 
 	gcTransactionsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "postgres_transactions_cleared",
-		Help: "number of transactions cleared by postgres garbage collection.",
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "postgres_transactions_cleared",
+		Help:      "number of transactions cleared by postgres garbage collection.",
 	})
 )
 
 func init() {
 	dbsql.Register(tracingDriverName, sqlmw.Driver(stdlib.GetDefaultDriver(), new(traceInterceptor)))
-	prometheus.MustRegister(gcDurationHistogram, gcRelationshipsClearedGauge, gcTransactionsClearedGauge)
 }
 
 var (
@@ -141,6 +146,18 @@ func NewPostgresDatastore(
 	if config.enablePrometheusStats {
 		collector := NewPgxpoolStatsCollector(dbpool, "spicedb")
 		err := prometheus.Register(collector)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		err = prometheus.Register(gcDurationHistogram)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		err = prometheus.Register(gcRelationshipsClearedGauge)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		err = prometheus.Register(gcTransactionsClearedGauge)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
