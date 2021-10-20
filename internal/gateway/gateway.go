@@ -31,9 +31,19 @@ var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 // Config represents the require configuration for initializing a REST gateway.
 type Config struct {
-	Addr                string
-	UpstreamAddr        string
+	// Addr is the address on which the HTTP server will be configured to listen.
+	Addr string
+
+	// UpstreamAddr is the address of the gRPC server to which requests will be
+	// forwarded.
+	UpstreamAddr string
+
+	// UpstreamTlsDisabled toggles whether or not the upstream connection will be
+	// secure.
 	UpstreamTlsDisabled bool
+
+	// UpstreamTlsCertPath is the filesystem location of the certificate used to
+	// secure the upstream connection.
 	UpstreamTlsCertPath string
 }
 
