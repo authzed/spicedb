@@ -85,6 +85,7 @@ func TestNoNewEnemy(t *testing.T) {
 	protectedSpiceDb := spice.NewClusterFromCockroachCluster(crdb,
 		spice.WithGrpcPort(50061),
 		spice.WithInternalPort(50062),
+		spice.WithHttpPort(8444),
 		spice.WithMetricsPort(9100),
 		spice.WithDashboardPort(8100),
 		spice.WithDbName(dbName))
