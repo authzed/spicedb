@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/Masterminds/squirrel v1.5.0
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
-	github.com/authzed/authzed-go v0.1.1-0.20210923172306-b4b512e4d359
+	github.com/authzed/authzed-go v0.3.0
 	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
 	github.com/aws/aws-sdk-go v1.40.53
 	github.com/benbjohnson/clock v1.1.0
@@ -65,8 +65,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
 
-replace (
-	github.com/authzed/authzed-go => ../authzed-go
-	// TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged
-	github.com/dgraph-io/ristretto => github.com/josephschorr/ristretto v0.1.1-0.20211008180146-169a43af0a0d
-)
+// TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged
+replace github.com/dgraph-io/ristretto => github.com/josephschorr/ristretto v0.1.1-0.20211008180146-169a43af0a0d
