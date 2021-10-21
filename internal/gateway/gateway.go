@@ -38,25 +38,25 @@ type Config struct {
 	// forwarded.
 	UpstreamAddr string
 
-	// UpstreamTlsDisabled toggles whether or not the upstream connection will be
+	// UpstreamTLSDisabled toggles whether or not the upstream connection will be
 	// secure.
-	UpstreamTlsDisabled bool
+	UpstreamTLSDisabled bool
 
-	// UpstreamTlsCertPath is the filesystem location of the certificate used to
+	// UpstreamTLSCertPath is the filesystem location of the certificate used to
 	// secure the upstream connection.
-	UpstreamTlsCertPath string
+	UpstreamTLSCertPath string
 }
 
-// NewHttpServer initializes a new HTTP server with the provided configuration.
-func NewHttpServer(ctx context.Context, cfg Config) (*http.Server, error) {
+// NewHTTPServer initializes a new HTTP server with the provided configuration.
+func NewHTTPServer(ctx context.Context, cfg Config) (*http.Server, error) {
 	opts := []grpc.DialOption{
 		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
 	}
-	if cfg.UpstreamTlsDisabled {
+	if cfg.UpstreamTLSDisabled {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
-		opts = append(opts, grpcutil.WithCustomCerts(cfg.UpstreamTlsCertPath, grpcutil.SkipVerifyCA))
+		opts = append(opts, grpcutil.WithCustomCerts(cfg.UpstreamTLSCertPath, grpcutil.SkipVerifyCA))
 	}
 
 	gwMux := runtime.NewServeMux(runtime.WithMetadata(OtelAnnotator))
@@ -69,7 +69,7 @@ func NewHttpServer(ctx context.Context, cfg Config) (*http.Server, error) {
 
 	mux := http.NewServeMux()
 	mux.Handle("/openapi.json", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, proto.OpenAPISchema)
+		_, _ = io.WriteString(w, proto.OpenAPISchema)
 	}))
 	mux.Handle("/", gwMux)
 

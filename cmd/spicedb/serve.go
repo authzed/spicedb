@@ -385,11 +385,11 @@ func serveRun(cmd *cobra.Command, args []string) {
 	}()
 
 	// Start the REST gateway to serve HTTP/JSON.
-	gatewaySrv, err := gateway.NewHttpServer(context.TODO(), gateway.Config{
+	gatewaySrv, err := gateway.NewHTTPServer(context.TODO(), gateway.Config{
 		Addr:                cobrautil.MustGetStringExpanded(cmd, "http-addr"),
 		UpstreamAddr:        cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
-		UpstreamTlsDisabled: cobrautil.MustGetBool(cmd, "grpc-no-tls"),
-		UpstreamTlsCertPath: cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
+		UpstreamTLSDisabled: cobrautil.MustGetBool(cmd, "grpc-no-tls"),
+		UpstreamTLSCertPath: cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
