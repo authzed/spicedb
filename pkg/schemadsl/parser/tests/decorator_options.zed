@@ -1,0 +1,4 @@
+definition mydefinition {
+    @example(opt1, opt2)
+    relation foo: sometype
+}

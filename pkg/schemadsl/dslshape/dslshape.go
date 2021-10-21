@@ -17,6 +17,9 @@ const (
 	NodeTypeRelation   // A relation
 	NodeTypePermission // A permission
 
+	NodeTypeDecorator        // A decorator
+	NodeTypeDecoratorOptions // Options for a decorator
+
 	NodeTypeTypeReference         // A type reference
 	NodeTypeSpecificTypeReference // A reference to a specific type.
 
@@ -46,6 +49,9 @@ const (
 	// automatically for this predicate.
 	NodePredicateChild = "child-node"
 
+	// A decorator for this node
+	NodePredicateDecorator = "decorator-node"
+
 	//
 	// NodeTypeError
 	//
@@ -73,6 +79,27 @@ const (
 
 	// The name of the relation/permission
 	NodePredicateName = "relation-name"
+
+	//
+	// NodeTypeDecorator
+	//
+
+	// The name of the decorator
+	NodeDecoratorName = "decorator-name"
+
+	//
+	// NodeTypeDecoratorOptions
+	//
+
+	// The options or sub-options for a decorator
+	NodeDecoratorOptions = "decorator-options"
+
+	//
+	// NodeTypeDecoratorOptions
+	//
+
+	// The value of an option for a decortor
+	NodeDecoratorOptionValue = "decorator-option-value"
 
 	//
 	// NodeTypeRelation

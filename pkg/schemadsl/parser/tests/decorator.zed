@@ -1,0 +1,4 @@
+definition mydefinition {
+    @example
+    relation foo: sometype
+}

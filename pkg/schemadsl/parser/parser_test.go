@@ -106,6 +106,9 @@ func TestParser(t *testing.T) {
 		{"indented comments test", "indentedcomments"},
 		{"parens test", "parens"},
 		{"multiple parens test", "multiparen"},
+		{"decorator test", "decorator"},
+		{"decorator options test", "decorator_options"},
+		{"decorator nested options test", "decorator_nested_options"},
 	}
 
 	for _, test := range parserTests {

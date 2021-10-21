@@ -1,0 +1,49 @@
+NodeTypeFile
+  end-rune = 78
+  input-source = decorator options test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = mydefinition
+      end-rune = 78
+      input-source = decorator options test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 76
+          input-source = decorator options test
+          relation-name = foo
+          start-rune = 55
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 76
+              input-source = decorator options test
+              start-rune = 69
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 76
+                  input-source = decorator options test
+                  start-rune = 69
+                  type-name = sometype
+          decorator-node =>
+            NodeTypeDecorator
+              decorator-name = example
+              end-rune = 49
+              input-source = decorator options test
+              start-rune = 30
+              decorator-options =>
+                NodeTypeDecoratorOptions
+                  end-rune = 49
+                  input-source = decorator options test
+                  start-rune = 38
+                  decorator-options =>
+                    NodeTypeDecoratorOptions
+                      decorator-option-value = opt1
+                      end-rune = 42
+                      input-source = decorator options test
+                      start-rune = 43
+                    NodeTypeDecoratorOptions
+                      decorator-option-value = opt2
+                      end-rune = 48
+                      input-source = decorator options test
+                      start-rune = 49
