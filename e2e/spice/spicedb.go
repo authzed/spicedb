@@ -48,7 +48,7 @@ func WithTestDefaults(opts ...SpiceDbOption) SpiceDbOption {
 			s.InternalPort = 50052
 		}
 		if s.HttpPort == 0 {
-			s.HttpPort = 443
+			s.HttpPort = 8443
 		}
 		if s.MetricsPort == 0 {
 			s.MetricsPort = 9090

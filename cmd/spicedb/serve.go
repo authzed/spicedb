@@ -103,7 +103,7 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	serveCmd.Flags().String("internal-grpc-addr", ":50053", "address to listen for internal requests")
 
 	// Flags for HTTP gateway
-	serveCmd.Flags().String("http-addr", ":443", "address to listen for HTTP API requests")
+	serveCmd.Flags().String("http-addr", ":8443", "address to listen for HTTP API requests")
 	serveCmd.Flags().Bool("http-no-tls", false, "serve HTTP API requests unencrypted")
 	serveCmd.Flags().String("http-cert-path", "", "local path to the TLS certificate used to serve HTTP API requests")
 	serveCmd.Flags().String("http-key-path", "", "local path to the TLS key used to serve HTTP API requests")
