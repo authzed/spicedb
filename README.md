@@ -81,6 +81,14 @@ SpiceDB is also available as a container image:
 
 ```sh
 docker pull quay.io/authzed/spicedb:latest
+docker run quay.io/authzed/spicedb spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls
+```
+
+SpiceDB supports environment variables. You can replace any command's argument with an environment variable by adding the `SPICEDB` prefix.  
+For example `--log-level` becomes `SPICEDB_LOG_LEVEL`.
+
+```sh
+docker run -e SPICEDB_GRPC_PRESHARED_KEY=somerandomkeyhere -e SPICEDB_GRPC_NO_TLS=1 quay.io/authzed/spicedb spicedb serve
 ```
 
 For production usage, we **highly** recommend using a tag that corresponds to the [latest release], rather than `latest`.
