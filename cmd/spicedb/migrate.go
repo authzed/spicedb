@@ -30,8 +30,8 @@ func registerMigrateCmd(rootCmd *cobra.Command) {
 }
 
 func migrateRun(cmd *cobra.Command, args []string) {
-	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
-	dbURL := cobrautil.MustGetString(cmd, "datastore-conn-uri")
+	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
+	dbURL := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
 
 	if datastoreEngine == "cockroachdb" {
 		log.Info().Msg("migrating cockroachdb datastore")
@@ -81,7 +81,7 @@ func registerHeadCmd(rootCmd *cobra.Command) {
 }
 
 func headRevisionRun(cmd *cobra.Command, args []string) {
-	datastoreEngine := cobrautil.MustGetString(cmd, "datastore-engine")
+	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
 
 	var headRevision string
 	var err error

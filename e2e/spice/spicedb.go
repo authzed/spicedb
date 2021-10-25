@@ -26,6 +26,7 @@ type Node struct {
 	DbName        string
 	URI           string
 	GrpcPort      int
+	HttpPort      int
 	InternalPort  int
 	MetricsPort   int
 	DashboardPort int
@@ -45,6 +46,9 @@ func WithTestDefaults(opts ...SpiceDbOption) SpiceDbOption {
 		}
 		if s.InternalPort == 0 {
 			s.InternalPort = 50052
+		}
+		if s.HttpPort == 0 {
+			s.HttpPort = 8443
 		}
 		if s.MetricsPort == 0 {
 			s.MetricsPort = 9090
@@ -74,9 +78,11 @@ func (s *Node) Start(ctx context.Context, logprefix string, args ...string) erro
 		"--log-level=debug",
 		"--grpc-preshared-key=" + s.PresharedKey,
 		"--grpc-no-tls",
+		"--http-no-tls",
 		"--datastore-engine=" + s.Datastore,
 		"--datastore-conn-uri=" + s.URI,
 		fmt.Sprintf("--grpc-addr=:%d", s.GrpcPort),
+		fmt.Sprintf("--http-addr=:%d", s.HttpPort),
 		fmt.Sprintf("--internal-grpc-addr=:%d", s.InternalPort),
 		fmt.Sprintf("--metrics-addr=:%d", s.MetricsPort),
 		fmt.Sprintf("--dashboard-addr=:%d", s.DashboardPort),
@@ -142,6 +148,7 @@ func NewClusterFromCockroachCluster(c cockroach.Cluster, opts ...SpiceDbOption) 
 			URI:           c[i].ConnectionString(proto.DbName),
 			GrpcPort:      proto.GrpcPort + 2*i,
 			InternalPort:  proto.InternalPort + 2*i,
+			HttpPort:      proto.HttpPort + 2*i,
 			MetricsPort:   proto.MetricsPort + i,
 			DashboardPort: proto.DashboardPort + i,
 		})

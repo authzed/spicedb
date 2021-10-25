@@ -71,6 +71,13 @@ func WithInternalPort(internalPort int) SpiceDbOption {
 	}
 }
 
+// WithHttpPort returns an option that can set HttpPort on a Node
+func WithHttpPort(httpPort int) SpiceDbOption {
+	return func(s *Node) {
+		s.HttpPort = httpPort
+	}
+}
+
 // WithMetricsPort returns an option that can set MetricsPort on a Node
 func WithMetricsPort(metricsPort int) SpiceDbOption {
 	return func(s *Node) {

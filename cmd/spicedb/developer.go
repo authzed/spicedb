@@ -69,7 +69,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 	registerDeveloperGrpcServices(grpcServer, shareStore)
 
 	go func() {
-		addr := cobrautil.MustGetString(cmd, "grpc-addr")
+		addr := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
 			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for gRPC server")
@@ -99,8 +99,8 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 }
 
 func shareStoreFromCmd(cmd *cobra.Command) (v0svc.ShareStore, error) {
-	shareStoreSalt := cobrautil.MustGetString(cmd, "share-store-salt")
-	shareStoreKind := cobrautil.MustGetString(cmd, "share-store")
+	shareStoreSalt := cobrautil.MustGetStringExpanded(cmd, "share-store-salt")
+	shareStoreKind := cobrautil.MustGetStringExpanded(cmd, "share-store")
 	event := log.Info()
 
 	var shareStore v0svc.ShareStore
@@ -109,11 +109,11 @@ func shareStoreFromCmd(cmd *cobra.Command) (v0svc.ShareStore, error) {
 		shareStore = v0svc.NewInMemoryShareStore(shareStoreSalt)
 
 	case "s3":
-		bucketName := cobrautil.MustGetString(cmd, "s3-bucket")
-		accessKey := cobrautil.MustGetString(cmd, "s3-access-key")
-		secretKey := cobrautil.MustGetString(cmd, "s3-secret-key")
-		endpoint := cobrautil.MustGetString(cmd, "s3-endpoint")
-		region := stringz.DefaultEmpty(cobrautil.MustGetString(cmd, "s3-region"), "auto")
+		bucketName := cobrautil.MustGetStringExpanded(cmd, "s3-bucket")
+		accessKey := cobrautil.MustGetStringExpanded(cmd, "s3-access-key")
+		secretKey := cobrautil.MustGetStringExpanded(cmd, "s3-secret-key")
+		endpoint := cobrautil.MustGetStringExpanded(cmd, "s3-endpoint")
+		region := stringz.DefaultEmpty(cobrautil.MustGetStringExpanded(cmd, "s3-region"), "auto")
 
 		optsNames := []string{"s3-bucket", "s3-access-key", "s3-secret-key", "s3-endpoint"}
 		opts := []string{bucketName, accessKey, secretKey, endpoint}
