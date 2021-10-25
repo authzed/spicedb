@@ -20,7 +20,7 @@ Datastore for storing and accessing data in a [Cockroach DB](https://github.com/
 
 Caveats:
 
-- Setup and maintanence complexity of the Cockroach DB cluster
+- Setup and maintenance complexity of the Cockroach DB cluster
 
 ### Running with CockroachDB datastore
 
