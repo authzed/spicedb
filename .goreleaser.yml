@@ -58,8 +58,7 @@ brews:
 dockers:
   - image_templates:
       - &amd_image "quay.io/authzed/spicedb:{{ .Version }}-amd64"
-    ids: ["linux-amd64"]
-    dockerfile: &dockerfile "Dockerfile"
+    dockerfile: &dockerfile "Dockerfile.release"
     goos: "linux"
     goarch: "amd64"
     use: "buildx"
@@ -67,7 +66,6 @@ dockers:
       - "--platform=linux/amd64"
   - image_templates:
       - &arm_image "quay.io/authzed/spicedb:{{ .Version }}-arm64"
-    ids: ["linux-arm64"]
     dockerfile: *dockerfile
     goos: "linux"
     goarch: "arm64"
@@ -92,3 +90,6 @@ changelog:
 release:
   draft: true
   prerelease: "auto"
+  footer: |
+    ## Docker Images
+    This release is available at `quay.io/authzed/spicedb:{{ .Version }}`
