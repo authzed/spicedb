@@ -1,7 +1,7 @@
 package migrations
 
 const createIndexOnTupleTransactionTimestamp = `
-	CREATE INDEX id_relation_tuple_transaction_by_timestamp on relation_tuple_transaction(timestamp);
+	CREATE INDEX ix_relation_tuple_transaction_by_timestamp on relation_tuple_transaction(timestamp);
 `
 
 func init() {
