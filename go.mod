@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.0
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/authzed/authzed-go v0.1.1-0.20210923172306-b4b512e4d359
-	github.com/authzed/grpcutil v0.0.0-20210914195113-c0d8369e7e1f
+	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
 	github.com/aws/aws-sdk-go v1.40.53
 	github.com/benbjohnson/clock v1.1.0
 	github.com/cespare/xxhash v1.1.0
@@ -52,11 +52,11 @@ require (
 	go.opentelemetry.io/otel/exporters/jaeger v1.0.0 // indirect
 	go.opentelemetry.io/otel/trace v1.0.0
 	go.uber.org/goleak v1.1.12
-	golang.org/x/net v0.0.0-20211015174653-db2dff38ab41 // indirect
+	golang.org/x/net v0.0.0-20211020060615-d418f374d309 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20211015200801-69063c4bb744 // indirect
+	golang.org/x/sys v0.0.0-20211020174200-9d6173849985 // indirect
 	golang.org/x/tools v0.1.6 // indirect
-	google.golang.org/genproto v0.0.0-20210909211513-a8c4777a87af
+	google.golang.org/genproto v0.0.0-20211020151524-b7c3a969101a
 	google.golang.org/grpc v1.41.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/yaml.v2 v2.4.0
