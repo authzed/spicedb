@@ -46,6 +46,13 @@ In the [v1 API], a `ZedToken` is returned by all API calls, representing the poi
 2) The `ZedToken` is found in the `written_at` field in [the Write response].
 3) The `ZedToken` is stored next to the resource, in the database.
 
+**When adding or removing a resource**:
+
+1) Issue a `WriteRelationships` call for the resource and its parent resource, indicating that the resource is now linked to its parent resource.
+2) The `ZedToken` is found in the `written_at` field in [the Write response].
+3) The `ZedToken` is stored next to the *parent* resource, in the database.
+4) Use the `ZedToken` for calls to `LookupResources`.
+
 **Using the stored ZedToken**:
 All `CheckPermission` calls are given the stored `ZedToken` via the [Consistency] configuration:
 
@@ -113,6 +120,31 @@ This window is determined by the `--datastore-gc-window` when running SpiceDB.
 The recommendation (see above) is to issue a `CheckPermission` on the resource being modified with [Consistency] of `fully_consistent` *before sensitive information is saved*, storing the resulting `ZedToken` along with the sensitive information being written.
 
 This **ensures** that subsequent `CheckPermission` calls (if they are given the `ZedToken`) will compute on the state of the permissions system from *right when* the sensitive information was written.
+
+### How do I use ZedToken's with `LookupResources`?
+
+Since `LookupResources` provides the ability to lookup all accessible resources of a particular type, this means we cannot simply use the `ZedToken` associated with the resources being found.
+
+The recommendation for using a `ZedToken` with `LookupResources` is to use the `ZedToken` stored for the *parent* resource of the resources being found.
+For example, imagine the following schema:
+
+```zed
+definition user {}
+
+definition organization {
+  relation admin: user
+}
+
+definition resource {
+  relation org: organization
+  relation viewer: user
+
+  permission view = viewer + org->admin
+}
+```
+
+Since all resources "live" within an organization, the recommendation is to **store the `ZedToken` created when the relationship between the `resource` and its parent `organization` is written**.
+By doing so, when the `ZedToken` is given to `LookupResources`, the resource is guarenteed to be visible. It is also recommended to grant the user access to the resource in the **same** call to `WriteRelationships`.
 
 ### What happens if I lose my ZedToken?
 
