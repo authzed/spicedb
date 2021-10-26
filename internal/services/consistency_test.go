@@ -21,6 +21,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
@@ -56,47 +57,58 @@ func TestConsistency(t *testing.T) {
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, filePath := range consistencyTestFiles {
 				t.Run(path.Base(filePath), func(t *testing.T) {
-					lrequire := require.New(t)
+					for _, dispatcherKind := range []string{"local", "caching"} {
+						t.Run(dispatcherKind, func(t *testing.T) {
+							lrequire := require.New(t)
 
-					unvalidated, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
-					lrequire.NoError(err)
+							unvalidated, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
+							lrequire.NoError(err)
 
-					ds := testfixtures.NewValidatingDatastore(unvalidated)
-					// defer ds.Close()
+							ds := testfixtures.NewValidatingDatastore(unvalidated)
 
-					fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
-					lrequire.NoError(err)
+							fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
+							lrequire.NoError(err)
 
-					ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
-					lrequire.NoError(err)
+							ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
+							lrequire.NoError(err)
 
-					dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
+							localOnlyDispatcher := graph.NewLocalOnlyDispatcher(ns, ds)
 
-					// Validate the type system for each namespace.
-					for _, nsDef := range fullyResolved.NamespaceDefinitions {
-						_, ts, _, err := ns.ReadNamespaceAndTypes(context.Background(), nsDef.Name)
-						lrequire.NoError(err)
+							// Validate the type system for each namespace.
+							for _, nsDef := range fullyResolved.NamespaceDefinitions {
+								_, ts, _, err := ns.ReadNamespaceAndTypes(context.Background(), nsDef.Name)
+								lrequire.NoError(err)
 
-						err = ts.Validate(context.Background())
-						lrequire.NoError(err)
-					}
+								err = ts.Validate(context.Background())
+								lrequire.NoError(err)
+							}
 
-					// Build the list of tuples per namespace.
-					tuplesPerNamespace := slicemultimap.New()
-					for _, tpl := range fullyResolved.Tuples {
-						tuplesPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl)
-					}
+							// Build the list of tuples per namespace.
+							tuplesPerNamespace := slicemultimap.New()
+							for _, tpl := range fullyResolved.Tuples {
+								tuplesPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl)
+							}
 
-					// Run the consistency tests for each service.
-					v1permclient, _ := v1svc.RunForTesting(t, ds, ns, dispatch, 50)
-					testers := []serviceTester{
-						v0ServiceTester{v0svc.NewACLServer(ds, ns, dispatch, 50)},
-						v1ServiceTester{v1permclient},
-					}
+							// Run the consistency tests for each service.
+							dispatcher := localOnlyDispatcher
+							if dispatcherKind == "caching" {
+								cachingDispatcher, err := caching.NewCachingDispatcher(localOnlyDispatcher, nil, "")
+								lrequire.NoError(err)
+								defer cachingDispatcher.Close()
+								dispatcher = cachingDispatcher
+							}
 
-					for _, tester := range testers {
-						t.Run(tester.Name(), func(t *testing.T) {
-							runConsistencyTests(t, tester, dispatch, fullyResolved, tuplesPerNamespace, revision)
+							v1permclient, _ := v1svc.RunForTesting(t, ds, ns, dispatcher, 50)
+							testers := []serviceTester{
+								v0ServiceTester{v0svc.NewACLServer(ds, ns, dispatcher, 50)},
+								v1ServiceTester{v1permclient},
+							}
+
+							for _, tester := range testers {
+								t.Run(tester.Name(), func(t *testing.T) {
+									runConsistencyTests(t, tester, dispatcher, fullyResolved, tuplesPerNamespace, revision)
+								})
+							}
 						})
 					}
 				})

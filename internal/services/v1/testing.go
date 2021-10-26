@@ -20,7 +20,7 @@ import (
 func RunForTesting(t *testing.T, ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) (v1.PermissionsServiceClient, v1.SchemaServiceClient) {
 	lis := bufconn.Listen(1024 * 1024)
 	s := tf.NewTestServer()
-	v1.RegisterPermissionsServiceServer(s, NewPermissionsServer(ds, nsm, dispatch, 50))
+	v1.RegisterPermissionsServiceServer(s, NewPermissionsServer(ds, nsm, dispatch, defaultDepth))
 	v1.RegisterSchemaServiceServer(s, NewSchemaServer(ds))
 
 	go func() {
