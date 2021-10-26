@@ -101,6 +101,7 @@ func TestMaxDepthCaching(t *testing.T) {
 
 			dispatch, err := NewCachingDispatcher(delegate, nil, "")
 			require.NoError(err)
+			defer dispatch.Close()
 
 			for _, step := range tc.script {
 				resp, err := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
@@ -139,4 +140,8 @@ func (ddm delegateDispatchMock) DispatchExpand(ctx context.Context, req *v1.Disp
 
 func (ddm delegateDispatchMock) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	return &v1.DispatchLookupResponse{}, nil
+}
+
+func (ddm delegateDispatchMock) Close() error {
+	return nil
 }

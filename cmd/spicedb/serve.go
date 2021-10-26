@@ -426,6 +426,10 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed while shutting down namespace manager")
 	}
 
+	if err := cachingRedispatch.Close(); err != nil {
+		log.Fatal().Err(err).Msg("failed while shutting down dispatcher")
+	}
+
 	if err := ds.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down datastore")
 	}

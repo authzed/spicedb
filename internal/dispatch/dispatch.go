@@ -19,6 +19,9 @@ type Dispatcher interface {
 	Check
 	Expand
 	Lookup
+
+	// Close closes the dispatcher.
+	Close() error
 }
 
 // Check interface describes just the methods required to dispatch check requests.

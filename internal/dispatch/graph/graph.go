@@ -159,6 +159,10 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	return ld.lookupHandler.Lookup(ctx, req)
 }
 
+func (ld *localDispatcher) Close() error {
+	return nil
+}
+
 func rewriteError(original error) error {
 	nsNotFound := datastore.ErrNamespaceNotFound{}
 
