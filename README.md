@@ -95,6 +95,20 @@ spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls
 
 Visit [http://localhost:8080](http://localhost:8080) to see next steps, including loading the schema
 
+### Running SpiceDB for testing
+
+```sh
+spicedb serve-testing
+```
+
+This command runs SpiceDB such that each [Bearer Token] provided by the client is allocated its own isolated, ephemeral datastore.
+By using unique tokens in each of your application's integration tests, they can be executed in parallel safely against a single instance of SpiceDB.
+
+A [SpiceDB GitHub action] is also available to run SpiceDB as part of your integration test workflows.
+
+[Bearer Token]: https://docs.authzed.com/concepts/terminology/#api-token
+[SpiceDB GitHub action]: https://github.com/authzed/action-spicedb
+
 ### Developing your own schema
 
 - Follow the guide for [developing a schema]
