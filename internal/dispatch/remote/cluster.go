@@ -67,6 +67,10 @@ func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	return resp, nil
 }
 
+func (cr *clusterDispatcher) Close() error {
+	return nil
+}
+
 // Always verify that we implement the interface
 var _ dispatch.Dispatcher = &clusterDispatcher{}
 

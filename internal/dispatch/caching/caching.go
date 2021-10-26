@@ -149,6 +149,15 @@ func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	return cd.d.DispatchLookup(ctx, req)
 }
 
+func (cd *cachingDispatcher) Close() error {
+	cache := cd.c
+	if cache != nil {
+		cache.Close()
+	}
+
+	return nil
+}
+
 func requestToKey(req *v1.DispatchCheckRequest) string {
 	return fmt.Sprintf("%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }
