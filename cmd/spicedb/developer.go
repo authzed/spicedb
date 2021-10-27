@@ -47,6 +47,7 @@ func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 	developerServiceCmd.Flags().String("s3-bucket", "", "s3 bucket name for s3 share store")
 	developerServiceCmd.Flags().String("s3-endpoint", "", "s3 endpoint for s3 share store")
 	developerServiceCmd.Flags().String("s3-region", "auto", "s3 region for s3 share store")
+	developerServiceCmd.Flags().String("download-addr", ":8443", "address to listen for download requests")
 
 	rootCmd.AddCommand(developerServiceCmd)
 }
@@ -86,6 +87,14 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 		log.Info().Str("addr", metricsrv.Addr).Msg("metrics server started listening")
 		if err := metricsrv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
+		}
+	}()
+
+	downloadSrv := v0svc.NewHTTPDownloadServer(cobrautil.MustGetString(cmd, "download-addr"), shareStore)
+	go func() {
+		log.Info().Str("addr", downloadSrv.Addr).Msg("download server started listening")
+		if err := downloadSrv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatal().Err(err).Msg("failed while serving http api")
 		}
 	}()
 
