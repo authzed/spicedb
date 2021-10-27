@@ -57,7 +57,7 @@ brews:
       (fish_completion/"spicedb.fish").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "fish")
 dockers:
   - image_templates:
-      - &amd_image "quay.io/authzed/spicedb:{{ .Version }}-amd64"
+      - &amd_image "quay.io/authzed/spicedb:v{{ .Version }}-amd64"
     dockerfile: &dockerfile "Dockerfile.release"
     goos: "linux"
     goarch: "amd64"
@@ -65,7 +65,7 @@ dockers:
     build_flag_templates:
       - "--platform=linux/amd64"
   - image_templates:
-      - &arm_image "quay.io/authzed/spicedb:{{ .Version }}-arm64"
+      - &arm_image "quay.io/authzed/spicedb:v{{ .Version }}-arm64"
     dockerfile: *dockerfile
     goos: "linux"
     goarch: "arm64"
@@ -73,7 +73,7 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64"
 docker_manifests:
-  - name_template: "quay.io/authzed/spicedb:{{ .Version }}"
+  - name_template: "quay.io/authzed/spicedb:v{{ .Version }}"
     image_templates:
       - *amd_image
       - *arm_image
