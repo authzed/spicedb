@@ -755,6 +755,8 @@ func (m *ResponseMeta) Validate() error {
 
 	// no validation rules for DispatchCount
 
+	// no validation rules for DepthRequired
+
 	return nil
 }
 

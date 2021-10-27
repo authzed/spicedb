@@ -140,6 +140,7 @@ func TestSimple(t *testing.T) {
 
 					require.NoError(err)
 					require.Equal(expected.isMember, checkResult.Membership == v1.DispatchCheckResponse_MEMBER)
+					require.GreaterOrEqual(checkResult.Metadata.DepthRequired, uint32(1))
 				})
 			}
 		}

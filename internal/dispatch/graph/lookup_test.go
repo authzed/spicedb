@@ -131,6 +131,7 @@ func TestSimpleLookup(t *testing.T) {
 
 			require.NoError(err)
 			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
+			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
 		})
 	}
 }

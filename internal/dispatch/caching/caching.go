@@ -30,13 +30,13 @@ type cachingDispatcher struct {
 }
 
 type checkResultEntry struct {
-	result                     *v1.DispatchCheckResponse
-	computedWithDepthRemaining uint32
+	result        *v1.DispatchCheckResponse
+	depthRequired uint32
 }
 
 type lookupResultEntry struct {
-	result                     *v1.DispatchLookupResponse
-	computedWithDepthRemaining uint32
+	result        *v1.DispatchLookupResponse
+	depthRequired uint32
 }
 
 var (
@@ -150,7 +150,7 @@ func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(checkResultEntry)
-		if req.Metadata.DepthRemaining >= cachedResult.computedWithDepthRemaining {
+		if req.Metadata.DepthRemaining >= cachedResult.depthRequired {
 			cd.checkFromCacheCounter.Inc()
 			return cachedResult.result, nil
 		}
@@ -160,7 +160,7 @@ func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 
 	// We only want to cache the result if there was no error
 	if err == nil {
-		toCache := checkResultEntry{computed, req.Metadata.DepthRemaining}
+		toCache := checkResultEntry{computed, computed.Metadata.DepthRequired}
 		toCache.result.Metadata.DispatchCount = 0
 		cd.c.Set(requestKey, toCache, checkResultEntryCost)
 	}
@@ -178,10 +178,10 @@ func (cd *cachingDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 // DispatchLookup implements dispatch.Lookup interface and does not do any caching yet.
 func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	cd.lookupTotalCounter.Inc()
-	if req.Metadata.DepthRemaining > 0 {
-		requestKey := lookupRequestToKey(req)
-		if cachedResultRaw, found := cd.c.Get(requestKey); found {
-			cachedResult := cachedResultRaw.(lookupResultEntry)
+	requestKey := lookupRequestToKey(req)
+	if cachedResultRaw, found := cd.c.Get(requestKey); found {
+		cachedResult := cachedResultRaw.(lookupResultEntry)
+		if req.Metadata.DepthRemaining >= cachedResult.depthRequired {
 			cd.lookupFromCacheCounter.Inc()
 			return cachedResult.result, nil
 		}
@@ -192,7 +192,7 @@ func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	// We only want to cache the result if there was no error
 	if err == nil {
 		requestKey := lookupRequestToKey(req)
-		toCache := lookupResultEntry{computed, req.Metadata.DepthRemaining}
+		toCache := lookupResultEntry{computed, computed.Metadata.DepthRequired}
 		toCache.result.Metadata.DispatchCount = 0
 
 		estimatedSize := lookupResultEntryEmptyCost

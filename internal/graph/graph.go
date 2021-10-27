@@ -37,7 +37,7 @@ type Reducer func(ctx context.Context, requests []ReduceableCheckFunc) CheckResu
 
 // AlwaysFail is a ReduceableCheckFunc which will always fail when reduced.
 func AlwaysFail(ctx context.Context, resultChan chan<- CheckResult) {
-	resultChan <- checkResultError(NewAlwaysFailErr(), 0)
+	resultChan <- checkResultError(NewAlwaysFailErr(), 0, 0)
 }
 
 // ReduceableExpandFunc is a function that can be bound to a execution context.
@@ -45,7 +45,7 @@ type ReduceableExpandFunc func(ctx context.Context, resultChan chan<- ExpandResu
 
 // AlwaysFailExpand is a ReduceableExpandFunc which will always fail when reduced.
 func AlwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {
-	resultChan <- expandResultError(NewAlwaysFailErr(), 0)
+	resultChan <- expandResultError(NewAlwaysFailErr(), 0, 0)
 }
 
 // ExpandReducer is a type for the functions Any and All which combine check results.
@@ -66,4 +66,11 @@ func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 		AtRevision:     md.AtRevision,
 		DepthRemaining: md.DepthRemaining - 1,
 	}
+}
+
+func max(x, y uint32) uint32 {
+	if x < y {
+		return y
+	}
+	return x
 }

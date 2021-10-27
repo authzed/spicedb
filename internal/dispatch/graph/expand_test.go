@@ -151,6 +151,7 @@ func TestExpand(t *testing.T) {
 
 			require.NoError(err)
 			require.NotNil(expandResult.TreeNode)
+			require.GreaterOrEqual(expandResult.Metadata.DepthRequired, uint32(1))
 
 			if diff := cmp.Diff(tc.expected, expandResult.TreeNode, protocmp.Transform()); diff != "" {
 				fset := token.NewFileSet()

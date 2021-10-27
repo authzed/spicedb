@@ -59,7 +59,7 @@ func (ce *ConcurrentExpander) expandDirect(
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 		if err != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(err), 0)
+			resultChan <- expandResultError(NewExpansionFailureErr(err), 0, 0)
 			return
 		}
 
@@ -69,7 +69,7 @@ func (ce *ConcurrentExpander) expandDirect(
 			OptionalResourceRelation: req.ObjectAndRelation.Relation,
 		}, requestRevision).Execute(ctx)
 		if err != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(err), 1)
+			resultChan <- expandResultError(NewExpansionFailureErr(err), 1, 0)
 			return
 		}
 		defer it.Close()
@@ -84,7 +84,7 @@ func (ce *ConcurrentExpander) expandDirect(
 			}
 		}
 		if it.Err() != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(it.Err()), 1)
+			resultChan <- expandResultError(NewExpansionFailureErr(it.Err()), 1, 0)
 			return
 		}
 
@@ -107,6 +107,7 @@ func (ce *ConcurrentExpander) expandDirect(
 					Expanded: start,
 				},
 				1,
+				0,
 			)
 			return
 		}
@@ -227,7 +228,7 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 		if err != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(err), 0)
+			resultChan <- expandResultError(NewExpansionFailureErr(err), 0, 0)
 			return
 		}
 
@@ -237,7 +238,7 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.
 			OptionalResourceRelation: ttu.Tupleset.Relation,
 		}, requestRevision).Execute(ctx)
 		if err != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(err), 1)
+			resultChan <- expandResultError(NewExpansionFailureErr(err), 1, 0)
 			return
 		}
 		defer it.Close()
@@ -247,7 +248,7 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.
 			requestsToDispatch = append(requestsToDispatch, ce.expandComputedUserset(ctx, req, ttu.ComputedUserset, tpl))
 		}
 		if it.Err() != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(it.Err()), 1)
+			resultChan <- expandResultError(NewExpansionFailureErr(it.Err()), 1, 0)
 			return
 		}
 
@@ -260,6 +261,7 @@ func setResult(
 	start *v0.ObjectAndRelation,
 	children []*v0.RelationTupleTreeNode,
 	totalRequestCount uint32,
+	maxDepthRequired uint32,
 ) ExpandResult {
 	return expandResult(
 		&v0.RelationTupleTreeNode{
@@ -272,6 +274,7 @@ func setResult(
 			Expanded: start,
 		},
 		totalRequestCount,
+		maxDepthRequired,
 	)
 }
 
@@ -284,7 +287,7 @@ func expandSetOperation(
 	children := make([]*v0.RelationTupleTreeNode, 0, len(requests))
 
 	if len(requests) == 0 {
-		return setResult(op, start, children, 0)
+		return setResult(op, start, children, 0, 0)
 	}
 
 	childCtx, cancelFn := context.WithCancel(ctx)
@@ -298,20 +301,22 @@ func expandSetOperation(
 	}
 
 	var totalRequestCount uint32
+	var maxDepthRequired uint32
 	for _, resultChan := range resultChans {
 		select {
 		case result := <-resultChan:
 			totalRequestCount += result.Resp.Metadata.DispatchCount
+			maxDepthRequired = max(maxDepthRequired, result.Resp.Metadata.DepthRequired)
 			if result.Err != nil {
-				return expandResultError(result.Err, totalRequestCount)
+				return expandResultError(result.Err, totalRequestCount, maxDepthRequired)
 			}
 			children = append(children, result.Resp.TreeNode)
 		case <-ctx.Done():
-			return expandResultError(NewRequestCanceledErr(), totalRequestCount)
+			return expandResultError(NewRequestCanceledErr(), totalRequestCount, maxDepthRequired)
 		}
 	}
 
-	return setResult(op, start, children, totalRequestCount)
+	return setResult(op, start, children, totalRequestCount, maxDepthRequired)
 }
 
 // emptyExpansion returns an empty expansion.
@@ -322,14 +327,14 @@ func emptyExpansion(start *v0.ObjectAndRelation) ReduceableExpandFunc {
 				LeafNode: &v0.DirectUserset{},
 			},
 			Expanded: start,
-		}, 0)
+		}, 0, 0)
 	}
 }
 
 // expandError returns the error.
 func expandError(err error) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		resultChan <- expandResultError(err, 0)
+		resultChan <- expandResultError(err, 0, 0)
 	}
 }
 
@@ -360,21 +365,22 @@ func expandOne(ctx context.Context, request ReduceableExpandFunc) ExpandResult {
 		}
 		return result
 	case <-ctx.Done():
-		return expandResultError(NewRequestCanceledErr(), 0)
+		return expandResultError(NewRequestCanceledErr(), 0, 0)
 	}
 }
 
 var errAlwaysFailExpand = errors.New("always fail")
 
 func alwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {
-	resultChan <- expandResultError(errAlwaysFailExpand, 0)
+	resultChan <- expandResultError(errAlwaysFailExpand, 0, 0)
 }
 
-func expandResult(treeNode *v0.RelationTupleTreeNode, numRequests uint32) ExpandResult {
+func expandResult(treeNode *v0.RelationTupleTreeNode, numRequests uint32, maxDepthRequired uint32) ExpandResult {
 	return ExpandResult{
 		&v1.DispatchExpandResponse{
 			Metadata: &v1.ResponseMeta{
 				DispatchCount: numRequests,
+				DepthRequired: maxDepthRequired + 1, // +1 for the current call.
 			},
 			TreeNode: treeNode,
 		},
@@ -382,11 +388,12 @@ func expandResult(treeNode *v0.RelationTupleTreeNode, numRequests uint32) Expand
 	}
 }
 
-func expandResultError(err error, numRequests uint32) ExpandResult {
+func expandResultError(err error, numRequests uint32, maxDepthRequired uint32) ExpandResult {
 	return ExpandResult{
 		&v1.DispatchExpandResponse{
 			Metadata: &v1.ResponseMeta{
 				DispatchCount: numRequests,
+				DepthRequired: maxDepthRequired + 1, // +1 for the current call.
 			},
 		},
 		err,
