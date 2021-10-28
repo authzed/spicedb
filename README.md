@@ -14,7 +14,7 @@ Developers create a schema that models their permissions requirements and use a 
 
 Features that distinguish SpiceDB from other systems include:
 
-- [Expressive APIs] for checking permissions, listing access, and powering devtools
+- Expressive [gRPC] and [HTTP] APIs for checking permissions, listing access, and powering devtools
 - An architecture faithful to the [Google Zanzibar] paper, including resistance to the [New Enemy Problem]
 - An intuitive and expressive [schema language] complete with a [playground] dev environment
 - A powerful graph engine that supports distributed, parallel evaluation
@@ -24,7 +24,8 @@ Features that distinguish SpiceDB from other systems include:
 See [CONTRIBUTING.md] for instructions on how to contribute and perform common tasks like building the project and running tests.
 
 [client library]: https://docs.authzed.com/reference/api#client-libraries
-[Expressive APIs]: https://buf.build/authzed/api
+[gRPC]: https://buf.build/authzed/api
+[HTTP]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/authzed/authzed-go/main/proto/apidocs.swagger.json
 [Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [Google Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
