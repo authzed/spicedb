@@ -81,14 +81,14 @@ SpiceDB is also available as a container image:
 
 ```sh
 docker pull quay.io/authzed/spicedb:latest
-docker run quay.io/authzed/spicedb spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls
+docker run quay.io/authzed/spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls --http-no-tls
 ```
 
 SpiceDB supports environment variables. You can replace any command's argument with an environment variable by adding the `SPICEDB` prefix.  
 For example `--log-level` becomes `SPICEDB_LOG_LEVEL`.
 
 ```sh
-docker run -e SPICEDB_GRPC_PRESHARED_KEY=somerandomkeyhere -e SPICEDB_GRPC_NO_TLS=1 quay.io/authzed/spicedb spicedb serve
+docker run -e SPICEDB_GRPC_PRESHARED_KEY=somerandomkeyhere -e SPICEDB_GRPC_NO_TLS=1 -e SPICEDB_HTTP_NO_TLS=1 quay.io/authzed/spicedb serve
 ```
 
 For production usage, we **highly** recommend using a tag that corresponds to the [latest release], rather than `latest`.
@@ -98,7 +98,7 @@ For production usage, we **highly** recommend using a tag that corresponds to th
 ### Running SpiceDB locally
 
 ```sh
-spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls
+spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls --http-no-tls
 ```
 
 Visit [http://localhost:8080](http://localhost:8080) to see next steps, including loading the schema
