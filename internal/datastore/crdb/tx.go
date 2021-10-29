@@ -66,8 +66,25 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 	defer func() {
 		retryHistogram.Observe(float64(i))
 	}()
+
+	releasedFn := func(tx pgx.Tx) error {
+		if err := fn(tx); err != nil {
+			return err
+		}
+
+		// RELEASE acts like COMMIT in CockroachDB. We use it since it gives us an
+		// opportunity to react to retryable errors, whereas tx.Commit() doesn't.
+
+		// RELEASE SAVEPOINT itself can fail, in which case the entire
+		// transaction needs to be retried
+		if _, err := tx.Exec(ctx, "RELEASE SAVEPOINT cockroach_restart"); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	for i = 0; i < maxRetries; i++ {
-		if err = fn(tx); err != nil {
+		if err = releasedFn(tx); err != nil {
 			if !retriable(err) {
 				return err
 			}
@@ -76,12 +93,7 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 			}
 			continue
 		}
-
-		// RELEASE acts like COMMIT in CockroachDB. We use it since it gives us an
-		// opportunity to react to retryable errors, whereas tx.Commit() doesn't.
-		if _, err = tx.Exec(ctx, "RELEASE SAVEPOINT cockroach_restart"); err == nil {
-			return nil
-		}
+		return nil
 	}
 	return errors.New(errReachedMaxRetry)
 }

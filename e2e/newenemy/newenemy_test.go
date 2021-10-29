@@ -110,7 +110,7 @@ func TestNoNewEnemy(t *testing.T) {
 
 	t.Log("filling with data to span multiple ranges")
 	rand.Seed(time.Now().UnixNano())
-	fill(vulnerableSpiceDb[0].Client().V0().ACL(), 4000, 100)
+	fill(require, vulnerableSpiceDb[0].Client().V0().ACL(), 4000, 100)
 
 	const sampleSize = 5
 	samples := make([]int, sampleSize)
@@ -249,29 +249,25 @@ func BenchmarkConflictingTupleWrites(b *testing.B) {
 	require.NoError(b, spicedb.Connect(ctx, os.Stdout))
 
 	// fill with tuples to ensure we span multiple ranges
-	fill(spicedb[0].Client().V0().ACL(), 2000, 100)
+	fill(require.New(b), spicedb[0].Client().V0().ACL(), 2000, 100)
 
 	b.ResetTimer()
 
 	checkNoNewEnemy(ctx, b, spicedb, b.N)
 }
 
-func fill(client v0.ACLServiceClient, fillerCount, batchSize int) {
+func fill(require *require.Assertions, client v0.ACLServiceClient, fillerCount, batchSize int) {
 	directs, excludes := generateTuples(fillerCount)
 	for i := 0; i < fillerCount/batchSize; i++ {
 		fmt.Println("filling ", i*batchSize, "to", (i+1)*batchSize)
 		_, err := client.Write(testCtx, &v0.WriteRequest{
 			Updates: excludes[i*batchSize : (i+1)*batchSize],
 		})
-		if err != nil {
-			fmt.Println(err)
-		}
+		require.NoError(err)
 		_, err = client.Write(testCtx, &v0.WriteRequest{
 			Updates: directs[i*batchSize : (i+1)*batchSize],
 		})
-		if err != nil {
-			fmt.Println(err)
-		}
+		require.NoError(err)
 	}
 }
 
