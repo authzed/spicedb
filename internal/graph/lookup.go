@@ -54,7 +54,7 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 
 	nsdef, typeSystem, _, err := cl.nsm.ReadNamespaceAndTypes(ctx, req.ObjectRelation.Namespace)
 	if err != nil {
-		return returnResult(lookupResultError(err, 0))
+		return returnResult(lookupResultError(err, 0, 0))
 	}
 
 	// Ensure the relation exists.
@@ -62,6 +62,7 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 	if !ok {
 		return returnResult(lookupResultError(
 			NewRelationNotFoundErr(req.ObjectRelation.Namespace, req.ObjectRelation.Relation),
+			0,
 			0,
 		))
 	}
@@ -77,7 +78,7 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 	// Perform the structural lookup.
 	result := lookupAny(ctx, req.Limit, []ReduceableLookupFunc{request})
 	if result.Err != nil {
-		return returnResult(lookupResultError(result.Err, result.Resp.Metadata.DispatchCount))
+		return returnResult(lookupResultError(result.Err, result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired))
 	}
 
 	objSet.Update(result.Resp.ResolvedOnrs)
@@ -85,6 +86,8 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 	// Recursively perform lookup on any of the ONRs found that do not match the target ONR.
 	// This ensures that we resolve the full transitive closure of all objects.
 	totalRequestCount := result.Resp.Metadata.DispatchCount
+	maxDepthRequired := result.Resp.Metadata.DepthRequired
+
 	toCheck := objSet
 	for toCheck.Length() != 0 && objSet.Length() < req.Limit {
 		var requests []ReduceableLookupFunc
@@ -107,9 +110,12 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 		}
 
 		result := lookupAny(ctx, req.Limit, requests)
+
 		totalRequestCount += result.Resp.Metadata.DispatchCount
+		maxDepthRequired = max(maxDepthRequired, result.Resp.Metadata.DepthRequired)
+
 		if result.Err != nil {
-			return returnResult(lookupResultError(result.Err, totalRequestCount))
+			return returnResult(lookupResultError(result.Err, totalRequestCount, maxDepthRequired))
 		}
 
 		toCheck = tuple.NewONRSet()
@@ -122,7 +128,7 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 		}
 	}
 
-	return returnResult(lookupResult(limitedSlice(objSet.AsSlice(), req.Limit), totalRequestCount))
+	return returnResult(lookupResult(limitedSlice(objSet.AsSlice(), req.Limit), totalRequestCount, maxDepthRequired))
 }
 
 func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLookupRequest, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
@@ -133,18 +139,19 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 		return returnResult(lookupResultError(
 			NewRelationMissingTypeInfoErr(req.ObjectRelation.Namespace, req.ObjectRelation.Relation),
 			0,
+			0,
 		))
 	}
 
 	// Dispatch a check for the target ONR directly, if it is allowed on the start relation.
 	isDirectAllowed, err := typeSystem.IsAllowedDirectRelation(req.ObjectRelation.Relation, req.Subject.Namespace, req.Subject.Relation)
 	if err != nil {
-		return returnResult(lookupResultError(err, 0))
+		return returnResult(lookupResultError(err, 0, 0))
 	}
 
 	requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 	if err != nil {
-		return returnResult(lookupResultError(err, 0))
+		return returnResult(lookupResultError(err, 0, 0))
 	}
 
 	if isDirectAllowed == namespace.DirectRelationValid {
@@ -154,7 +161,7 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 				WithObjectRelation(req.ObjectRelation.Namespace, req.ObjectRelation.Relation).
 				Execute(ctx)
 			if err != nil {
-				resultChan <- lookupResultError(err, 1)
+				resultChan <- lookupResultError(err, 1, 0)
 				return
 			}
 			defer it.Close()
@@ -167,11 +174,11 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 			}
 
 			if it.Err() != nil {
-				resultChan <- lookupResultError(it.Err(), 1)
+				resultChan <- lookupResultError(it.Err(), 1, 0)
 				return
 			}
 
-			resultChan <- lookupResult(objects.AsSlice(), 1)
+			resultChan <- lookupResult(objects.AsSlice(), 1, 0)
 		})
 	}
 
@@ -179,7 +186,7 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 	// the found object IDs, and then search for those.
 	allowedDirect, err := typeSystem.AllowedDirectRelations(req.ObjectRelation.Relation)
 	if err != nil {
-		return returnResult(lookupResultError(err, 0))
+		return returnResult(lookupResultError(err, 0, 0))
 	}
 
 	directStack := append(req.DirectStack, &v0.RelationReference{
@@ -237,14 +244,14 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 					OptionalResourceRelation: req.ObjectRelation.Relation,
 				}, requestRevision).WithUsersets(result.Resp.ResolvedOnrs).Limit(uint64(req.Limit)).Execute(ctx)
 				if err != nil {
-					resultChan <- lookupResultError(err, 1)
+					resultChan <- lookupResultError(err, 1, 0)
 					return
 				}
 				defer it.Close()
 
 				for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 					if it.Err() != nil {
-						resultChan <- lookupResultError(it.Err(), 1)
+						resultChan <- lookupResultError(it.Err(), 1, 0)
 						return
 					}
 
@@ -255,7 +262,7 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 				}
 			}
 
-			resultChan <- lookupResult(objects.AsSlice(), 1)
+			resultChan <- lookupResult(objects.AsSlice(), result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired)
 		})
 	}
 
@@ -273,7 +280,7 @@ func (cl *ConcurrentLookup) processRewrite(ctx context.Context, req *v1.Dispatch
 	case *v0.UsersetRewrite_Exclusion:
 		return cl.processSetOperation(ctx, req, nsdef, typeSystem, rw.Exclusion, lookupExclude)
 	default:
-		return returnResult(lookupResultError(fmt.Errorf("unknown userset rewrite kind under `%s#%s`", req.ObjectRelation.Namespace, req.ObjectRelation.Relation), 0))
+		return returnResult(lookupResultError(fmt.Errorf("unknown userset rewrite kind under `%s#%s`", req.ObjectRelation.Namespace, req.ObjectRelation.Relation), 0, 0))
 	}
 }
 
@@ -291,7 +298,7 @@ func (cl *ConcurrentLookup) processSetOperation(ctx context.Context, req *v1.Dis
 		case *v0.SetOperation_Child_TupleToUserset:
 			requests = append(requests, cl.processTupleToUserset(ctx, req, nsdef, typeSystem, child.TupleToUserset))
 		default:
-			return returnResult(lookupResultError(fmt.Errorf("unknown set operation child"), 0))
+			return returnResult(lookupResultError(fmt.Errorf("unknown set operation child"), 0, 0))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
@@ -317,17 +324,17 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 		Relation:  req.ObjectRelation.Relation,
 	}
 	if checkStackContains(req.TtuStack, nr) {
-		return returnResult(lookupResult([]*v0.ObjectAndRelation{}, 0))
+		return returnResult(lookupResult([]*v0.ObjectAndRelation{}, 0, 1))
 	}
 
 	tuplesetDirectRelations, err := typeSystem.AllowedDirectRelations(ttu.Tupleset.Relation)
 	if err != nil {
-		return returnResult(lookupResultError(err, 0))
+		return returnResult(lookupResultError(err, 0, 0))
 	}
 
 	requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 	if err != nil {
-		return returnResult(lookupResultError(err, 0))
+		return returnResult(lookupResultError(err, 0, 0))
 	}
 
 	// Dispatch to all the accessible namespaces for the computed userset.
@@ -342,7 +349,7 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 
 		_, directRelTypeSystem, _, err := cl.nsm.ReadNamespaceAndTypes(ctx, directRelation.Namespace)
 		if err != nil {
-			return returnResult(lookupResultError(err, 0))
+			return returnResult(lookupResultError(err, 0, 0))
 		}
 
 		if !directRelTypeSystem.HasRelation(ttu.ComputedUserset.Relation) {
@@ -377,13 +384,12 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 			// For each computed userset object, collect the usersets and then perform a tupleset lookup.
 			usersets := []*v0.ObjectAndRelation{}
 			for _, resolvedObj := range result.Resp.ResolvedOnrs {
-
 				// Determine the relation(s) to use or the tupleset. This is determined based on the allowed direct relations and
 				// we always check for both the actual relation resolved, as well as `...`
 				allowedRelations := []string{}
 				allowedDirect, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.Namespace, resolvedObj.Relation)
 				if err != nil {
-					resultChan <- lookupResultError(err, 0)
+					resultChan <- lookupResultError(err, result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired)
 					return
 				}
 
@@ -394,7 +400,7 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 				if resolvedObj.Relation != Ellipsis {
 					allowedEllipsis, err := typeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, resolvedObj.Namespace, Ellipsis)
 					if err != nil {
-						resultChan <- lookupResultError(err, 0)
+						resultChan <- lookupResultError(err, result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired)
 					}
 
 					if allowedEllipsis == namespace.DirectRelationValid {
@@ -420,19 +426,19 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 					OptionalResourceRelation: ttu.Tupleset.Relation,
 				}, requestRevision).WithUsersets(usersets).Limit(uint64(req.Limit)).Execute(ctx)
 				if err != nil {
-					resultChan <- lookupResultError(err, 1)
+					resultChan <- lookupResultError(err, result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired)
 					return
 				}
 				defer it.Close()
 
 				for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 					if it.Err() != nil {
-						resultChan <- lookupResultError(it.Err(), 1)
+						resultChan <- lookupResultError(it.Err(), result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired)
 						return
 					}
 
 					if tpl.ObjectAndRelation.Namespace != req.ObjectRelation.Namespace {
-						resultChan <- lookupResultError(fmt.Errorf("got unexpected namespace"), 1)
+						resultChan <- lookupResultError(fmt.Errorf("got unexpected namespace"), result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired)
 						return
 					}
 
@@ -448,7 +454,7 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 				}
 			}
 
-			resultChan <- lookupResult(objects.AsSlice(), 1)
+			resultChan <- lookupResult(objects.AsSlice(), result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired)
 		})
 	}
 
@@ -474,7 +480,7 @@ func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req *v1.Dispatch
 	}))
 
 	if result.Err != nil {
-		return returnResult(lookupResultError(result.Err, result.Resp.Metadata.DispatchCount))
+		return returnResult(lookupResultError(result.Err, result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired))
 	}
 
 	// Rewrite the found ONRs to be this relation.
@@ -488,6 +494,7 @@ func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req *v1.Dispatch
 					req.ObjectRelation.Namespace,
 				),
 				result.Resp.Metadata.DispatchCount,
+				result.Resp.Metadata.DepthRequired,
 			))
 		}
 
@@ -499,7 +506,7 @@ func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req *v1.Dispatch
 			})
 	}
 
-	return returnResult(lookupResult(rewrittenResolved, result.Resp.Metadata.DispatchCount))
+	return returnResult(lookupResult(rewrittenResolved, result.Resp.Metadata.DispatchCount, result.Resp.Metadata.DepthRequired))
 }
 
 func (cl *ConcurrentLookup) dispatch(req *v1.DispatchLookupRequest) ReduceableLookupFunc {
@@ -521,7 +528,7 @@ func lookupOne(ctx context.Context, request ReduceableLookupFunc) LookupResult {
 	case result := <-resultChan:
 		return result
 	case <-ctx.Done():
-		return lookupResultError(NewRequestCanceledErr(), 0)
+		return lookupResultError(NewRequestCanceledErr(), 0, 0)
 	}
 }
 
@@ -537,31 +544,36 @@ func lookupAny(ctx context.Context, limit uint32, requests []ReduceableLookupFun
 	}
 
 	objects := tuple.NewONRSet()
+
 	var totalRequestCount uint32
+	var maxDepthRequired uint32
+
 	for _, resultChan := range resultChans {
 		select {
 		case result := <-resultChan:
 			totalRequestCount += result.Resp.Metadata.DispatchCount
+			maxDepthRequired = max(maxDepthRequired, result.Resp.Metadata.DepthRequired)
+
 			if result.Err != nil {
-				return lookupResultError(result.Err, totalRequestCount)
+				return lookupResultError(result.Err, totalRequestCount, maxDepthRequired)
 			}
 
 			objects.Update(result.Resp.ResolvedOnrs)
 
 			if objects.Length() >= limit {
-				return lookupResult(limitedSlice(objects.AsSlice(), limit), totalRequestCount)
+				return lookupResult(limitedSlice(objects.AsSlice(), limit), totalRequestCount, maxDepthRequired)
 			}
 		case <-ctx.Done():
-			return lookupResultError(NewRequestCanceledErr(), totalRequestCount)
+			return lookupResultError(NewRequestCanceledErr(), totalRequestCount, maxDepthRequired)
 		}
 	}
 
-	return lookupResult(limitedSlice(objects.AsSlice(), limit), totalRequestCount)
+	return lookupResult(limitedSlice(objects.AsSlice(), limit), totalRequestCount, maxDepthRequired)
 }
 
 func lookupAll(ctx context.Context, limit uint32, requests []ReduceableLookupFunc) LookupResult {
 	if len(requests) == 0 {
-		return lookupResult([]*v0.ObjectAndRelation{}, 0)
+		return lookupResult([]*v0.ObjectAndRelation{}, 0, 1)
 	}
 
 	resultChan := make(chan LookupResult, len(requests))
@@ -573,13 +585,18 @@ func lookupAll(ctx context.Context, limit uint32, requests []ReduceableLookupFun
 	}
 
 	objSet := tuple.NewONRSet()
+
 	var totalRequestCount uint32
+	var maxDepthRequired uint32
+
 	for i := 0; i < len(requests); i++ {
 		select {
 		case result := <-resultChan:
 			totalRequestCount += result.Resp.Metadata.DispatchCount
+			maxDepthRequired = max(maxDepthRequired, result.Resp.Metadata.DepthRequired)
+
 			if result.Err != nil {
-				return lookupResultError(result.Err, totalRequestCount)
+				return lookupResultError(result.Err, totalRequestCount, maxDepthRequired)
 			}
 
 			subSet := tuple.NewONRSet()
@@ -592,14 +609,14 @@ func lookupAll(ctx context.Context, limit uint32, requests []ReduceableLookupFun
 			}
 
 			if objSet.Length() == 0 {
-				return lookupResult([]*v0.ObjectAndRelation{}, totalRequestCount)
+				return lookupResult([]*v0.ObjectAndRelation{}, totalRequestCount, maxDepthRequired)
 			}
 		case <-ctx.Done():
-			return lookupResultError(NewRequestCanceledErr(), totalRequestCount)
+			return lookupResultError(NewRequestCanceledErr(), totalRequestCount, maxDepthRequired)
 		}
 	}
 
-	return lookupResult(objSet.AsSlice(), totalRequestCount)
+	return lookupResult(objSet.AsSlice(), totalRequestCount, maxDepthRequired)
 }
 
 func lookupExclude(ctx context.Context, limit uint32, requests []ReduceableLookupFunc) LookupResult {
@@ -616,29 +633,36 @@ func lookupExclude(ctx context.Context, limit uint32, requests []ReduceableLooku
 
 	objSet := tuple.NewONRSet()
 	excSet := tuple.NewONRSet()
+
 	var totalRequestCount uint32
+	var maxDepthRequired uint32
+
 	for i := 0; i < len(requests); i++ {
 		select {
 		case base := <-baseChan:
 			totalRequestCount += base.Resp.Metadata.DispatchCount
+			maxDepthRequired = max(maxDepthRequired, base.Resp.Metadata.DepthRequired)
+
 			if base.Err != nil {
-				return lookupResultError(base.Err, totalRequestCount)
+				return lookupResultError(base.Err, totalRequestCount, maxDepthRequired)
 			}
 			objSet.Update(base.Resp.ResolvedOnrs)
 
 		case sub := <-othersChan:
 			totalRequestCount += sub.Resp.Metadata.DispatchCount
+			maxDepthRequired = max(maxDepthRequired, sub.Resp.Metadata.DepthRequired)
+
 			if sub.Err != nil {
-				return lookupResultError(sub.Err, totalRequestCount)
+				return lookupResultError(sub.Err, totalRequestCount, maxDepthRequired)
 			}
 
 			excSet.Update(sub.Resp.ResolvedOnrs)
 		case <-ctx.Done():
-			return lookupResultError(NewRequestCanceledErr(), totalRequestCount)
+			return lookupResultError(NewRequestCanceledErr(), totalRequestCount, maxDepthRequired)
 		}
 	}
 
-	return lookupResult(limitedSlice(objSet.Subtract(excSet).AsSlice(), limit), totalRequestCount)
+	return lookupResult(limitedSlice(objSet.Subtract(excSet).AsSlice(), limit), totalRequestCount, maxDepthRequired)
 }
 
 func returnResult(result LookupResult) ReduceableLookupFunc {
@@ -655,11 +679,12 @@ func limitedSlice(slice []*v0.ObjectAndRelation, limit uint32) []*v0.ObjectAndRe
 	return slice
 }
 
-func lookupResult(resolvedONRs []*v0.ObjectAndRelation, numRequests uint32) LookupResult {
+func lookupResult(resolvedONRs []*v0.ObjectAndRelation, numRequests uint32, maxDepthRequired uint32) LookupResult {
 	return LookupResult{
 		&v1.DispatchLookupResponse{
 			Metadata: &v1.ResponseMeta{
 				DispatchCount: numRequests,
+				DepthRequired: maxDepthRequired + 1, // +1 for the current call
 			},
 			ResolvedOnrs: resolvedONRs,
 		},
@@ -667,11 +692,12 @@ func lookupResult(resolvedONRs []*v0.ObjectAndRelation, numRequests uint32) Look
 	}
 }
 
-func lookupResultError(err error, numRequests uint32) LookupResult {
+func lookupResultError(err error, numRequests uint32, maxDepthRequired uint32) LookupResult {
 	return LookupResult{
 		&v1.DispatchLookupResponse{
 			Metadata: &v1.ResponseMeta{
 				DispatchCount: numRequests,
+				DepthRequired: maxDepthRequired + 1, // +1 for the current call
 			},
 		},
 		err,

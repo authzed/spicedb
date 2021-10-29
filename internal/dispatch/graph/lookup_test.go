@@ -111,6 +111,27 @@ func TestSimpleLookup(t *testing.T) {
 
 			require.NoError(err)
 			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
+
+			// We have to sleep a while to let the cache converge:
+			// https://github.com/dgraph-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
+			time.Sleep(10 * time.Millisecond)
+
+			// Run again with the cache available.
+			lookupResult, err = dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+				ObjectRelation: tc.start,
+				Subject:        tc.target,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+				Limit:       10,
+				DirectStack: nil,
+				TtuStack:    nil,
+			})
+
+			require.NoError(err)
+			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
+			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
 		})
 	}
 }

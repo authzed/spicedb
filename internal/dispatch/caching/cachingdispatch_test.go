@@ -17,7 +17,8 @@ type checkRequest struct {
 	start             string
 	goal              string
 	atRevision        decimal.Decimal
-	depthRemaining    uint16
+	depthRequired     uint32
+	depthRemaining    uint32
 	expectPassthrough bool
 }
 
@@ -32,46 +33,46 @@ func TestMaxDepthCaching(t *testing.T) {
 		script []checkRequest
 	}{
 		{"single request", []checkRequest{
-			{start1, user1, decimal.Zero, 50, true},
+			{start1, user1, decimal.Zero, 1, 50, true},
 		}},
 		{"two requests, hit", []checkRequest{
-			{start1, user1, decimal.Zero, 50, true},
-			{start1, user1, decimal.Zero, 50, false},
+			{start1, user1, decimal.Zero, 1, 50, true},
+			{start1, user1, decimal.Zero, 1, 50, false},
 		}},
 		{"many requests, hit", []checkRequest{
-			{start1, user1, decimal.Zero, 50, true},
-			{start1, user1, decimal.Zero, 50, false},
-			{start1, user1, decimal.Zero, 50, false},
-			{start1, user1, decimal.Zero, 50, false},
-			{start1, user1, decimal.Zero, 50, false},
+			{start1, user1, decimal.Zero, 1, 50, true},
+			{start1, user1, decimal.Zero, 1, 50, false},
+			{start1, user1, decimal.Zero, 1, 50, false},
+			{start1, user1, decimal.Zero, 1, 50, false},
+			{start1, user1, decimal.Zero, 1, 50, false},
 		}},
 		{"multiple keys", []checkRequest{
-			{start1, user1, decimal.Zero, 50, true},
-			{start2, user2, decimal.Zero, 50, true},
+			{start1, user1, decimal.Zero, 1, 50, true},
+			{start2, user2, decimal.Zero, 1, 50, true},
 		}},
 		{"same object, different revisions miss", []checkRequest{
-			{start1, user1, decimal.Zero, 50, true},
-			{start1, user1, decimal.NewFromInt(50), 50, true},
+			{start1, user1, decimal.Zero, 1, 50, true},
+			{start1, user1, decimal.NewFromInt(50), 1, 50, true},
 		}},
 		{"interleaved objects, hit", []checkRequest{
-			{start1, user1, decimal.Zero, 50, true},
-			{start2, user2, decimal.Zero, 50, true},
-			{start1, user1, decimal.Zero, 50, false},
-			{start2, user2, decimal.Zero, 50, false},
+			{start1, user1, decimal.Zero, 1, 50, true},
+			{start2, user2, decimal.Zero, 1, 50, true},
+			{start1, user1, decimal.Zero, 1, 50, false},
+			{start2, user2, decimal.Zero, 1, 50, false},
 		}},
 		{"insufficient depth", []checkRequest{
-			{start1, user1, decimal.Zero, 50, true},
-			{start1, user1, decimal.Zero, 40, true},
+			{start1, user1, decimal.Zero, 21, 50, true},
+			{start1, user1, decimal.Zero, 21, 20, true},
 		}},
 		{"sufficient depth", []checkRequest{
-			{start1, user1, decimal.Zero, 40, true},
-			{start1, user1, decimal.Zero, 50, false},
+			{start1, user1, decimal.Zero, 1, 40, true},
+			{start1, user1, decimal.Zero, 1, 50, false},
 		}},
 		{"updated cached depth", []checkRequest{
-			{start1, user1, decimal.Zero, 50, true},
-			{start1, user1, decimal.Zero, 40, true},
-			{start1, user1, decimal.Zero, 40, false},
-			{start1, user1, decimal.Zero, 50, false},
+			{start1, user1, decimal.Zero, 21, 50, true},
+			{start1, user1, decimal.Zero, 21, 40, false},
+			{start1, user1, decimal.Zero, 21, 20, true},
+			{start1, user1, decimal.Zero, 21, 50, false},
 		}},
 	}
 
@@ -88,12 +89,13 @@ func TestMaxDepthCaching(t *testing.T) {
 						Subject:           tuple.ParseSubjectONR(step.goal),
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     step.atRevision.String(),
-							DepthRemaining: uint32(step.depthRemaining),
+							DepthRemaining: step.depthRemaining,
 						},
 					}).Return(&v1.DispatchCheckResponse{
 						Membership: v1.DispatchCheckResponse_MEMBER,
 						Metadata: &v1.ResponseMeta{
 							DispatchCount: 1,
+							DepthRequired: step.depthRequired,
 						},
 					}, nil).Times(1)
 				}
@@ -109,7 +111,7 @@ func TestMaxDepthCaching(t *testing.T) {
 					Subject:           tuple.ParseSubjectONR(step.goal),
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     step.atRevision.String(),
-						DepthRemaining: uint32(step.depthRemaining),
+						DepthRemaining: step.depthRemaining,
 					},
 				})
 				require.NoError(err)

@@ -23,16 +23,26 @@ type cachingDispatcher struct {
 	d dispatch.Dispatcher
 	c *ristretto.Cache
 
-	checkTotalCounter     prometheus.Counter
-	checkFromCacheCounter prometheus.Counter
+	checkTotalCounter      prometheus.Counter
+	checkFromCacheCounter  prometheus.Counter
+	lookupTotalCounter     prometheus.Counter
+	lookupFromCacheCounter prometheus.Counter
 }
 
 type checkResultEntry struct {
-	result                     *v1.DispatchCheckResponse
-	computedWithDepthRemaining uint32
+	result        *v1.DispatchCheckResponse
+	depthRequired uint32
 }
 
-var checkResultEntryCost = int64(unsafe.Sizeof(checkResultEntry{}))
+type lookupResultEntry struct {
+	result        *v1.DispatchLookupResponse
+	depthRequired uint32
+}
+
+var (
+	checkResultEntryCost       = int64(unsafe.Sizeof(checkResultEntry{}))
+	lookupResultEntryEmptyCost = int64(unsafe.Sizeof(lookupResultEntry{}))
+)
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
 // and caches the responses when possible and desirable.
@@ -66,6 +76,17 @@ func NewCachingDispatcher(
 		Name:      "check_from_cache_total",
 	})
 
+	lookupTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "lookup_total",
+	})
+	lookupFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "lookup_from_cache_total",
+	})
+
 	if prometheusSubsystem != "" {
 		err = prometheus.Register(checkTotalCounter)
 		if err != nil {
@@ -73,6 +94,16 @@ func NewCachingDispatcher(
 		}
 
 		err = prometheus.Register(checkFromCacheCounter)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
+
+		err = prometheus.Register(lookupTotalCounter)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
+
+		err = prometheus.Register(lookupFromCacheCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
@@ -99,7 +130,7 @@ func NewCachingDispatcher(
 		}
 	}
 
-	return &cachingDispatcher{delegate, cache, checkTotalCounter, checkFromCacheCounter}, nil
+	return &cachingDispatcher{delegate, cache, checkTotalCounter, checkFromCacheCounter, lookupTotalCounter, lookupFromCacheCounter}, nil
 }
 
 func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint64) error {
@@ -115,11 +146,11 @@ func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint6
 // DispatchCheck implements dispatch.Check interface
 func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
-	requestKey := requestToKey(req)
+	requestKey := checkRequestToKey(req)
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(checkResultEntry)
-		if req.Metadata.DepthRemaining >= cachedResult.computedWithDepthRemaining {
+		if req.Metadata.DepthRemaining >= cachedResult.depthRequired {
 			cd.checkFromCacheCounter.Inc()
 			return cachedResult.result, nil
 		}
@@ -129,7 +160,7 @@ func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 
 	// We only want to cache the result if there was no error
 	if err == nil {
-		toCache := checkResultEntry{computed, req.Metadata.DepthRemaining}
+		toCache := checkResultEntry{computed, computed.Metadata.DepthRequired}
 		toCache.result.Metadata.DispatchCount = 0
 		cd.c.Set(requestKey, toCache, checkResultEntryCost)
 	}
@@ -146,7 +177,35 @@ func (cd *cachingDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 
 // DispatchLookup implements dispatch.Lookup interface and does not do any caching yet.
 func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
-	return cd.d.DispatchLookup(ctx, req)
+	cd.lookupTotalCounter.Inc()
+	requestKey := lookupRequestToKey(req)
+	if cachedResultRaw, found := cd.c.Get(requestKey); found {
+		cachedResult := cachedResultRaw.(lookupResultEntry)
+		if req.Metadata.DepthRemaining >= cachedResult.depthRequired {
+			cd.lookupFromCacheCounter.Inc()
+			return cachedResult.result, nil
+		}
+	}
+
+	computed, err := cd.d.DispatchLookup(ctx, req)
+
+	// We only want to cache the result if there was no error
+	if err == nil {
+		requestKey := lookupRequestToKey(req)
+		toCache := lookupResultEntry{computed, computed.Metadata.DepthRequired}
+		toCache.result.Metadata.DispatchCount = 0
+
+		estimatedSize := lookupResultEntryEmptyCost
+		for _, onr := range toCache.result.ResolvedOnrs {
+			estimatedSize += int64(len(onr.Namespace) + len(onr.ObjectId) + len(onr.Relation))
+		}
+
+		cd.c.Set(requestKey, toCache, estimatedSize)
+	}
+
+	// Return both the computed and err in ALL cases: computed contains resolved metadata even
+	// if there was an error.
+	return computed, err
 }
 
 func (cd *cachingDispatcher) Close() error {
@@ -158,6 +217,10 @@ func (cd *cachingDispatcher) Close() error {
 	return nil
 }
 
-func requestToKey(req *v1.DispatchCheckRequest) string {
-	return fmt.Sprintf("%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+func checkRequestToKey(req *v1.DispatchCheckRequest) string {
+	return fmt.Sprintf("check//%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+}
+
+func lookupRequestToKey(req *v1.DispatchLookupRequest) string {
+	return fmt.Sprintf("lookup//%s#%s@%s@%s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }

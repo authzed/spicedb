@@ -1,0 +1,34 @@
+---
+schema: >-
+  definition test/user {}
+
+  definition test/resource {
+      relation viewer: test/user | test/usergroup#member | test/usergroup#manager
+      relation editor: test/user | test/usergroup#member | test/usergroup#manager
+      relation creator: test/user | test/usergroup#member | test/usergroup#manager
+      relation owner: test/user | test/usergroup#member | test/usergroup#manager
+
+      permission view = viewer + editor + creator + owner
+  }
+
+  definition test/usergroup {
+    relation direct_member: test/user | test/usergroup#member | test/usergroup#manager | test/usergroup#contributor
+    relation contributor: test/user | test/usergroup#member | test/usergroup#contributor | test/usergroup#manager
+    relation manager: test/user | test/usergroup#member | test/usergroup#manager
+    permission member = direct_member + contributor + manager
+  }
+relationships: |
+  test/usergroup:productname#manager@test/user:an_eng_manager#...
+  test/usergroup:productname#direct_member@test/user:an_engineer#...
+  test/usergroup:applications#manager@test/user:an_eng_director#...
+  test/usergroup:engineering#manager@test/user:cto#...
+  test/usergroup:csuite#manager@test/user:ceo#...
+  test/usergroup:csuite#direct_member@test/user:cto#...
+  test/usergroup:other#direct_member@test/user:denied#...
+  test/usergroup:engineering#direct_member@test/usergroup:applications#member
+  test/usergroup:applications#direct_member@test/usergroup:productname#member
+  test/usergroup:engineering#direct_member@test/usergroup:csuite#member
+  test/resource:promserver#creator@test/user:an_engineer#...
+  test/resource:promserver#viewer@test/usergroup:engineering#member
+  test/resource:jira#viewer@test/usergroup:engineering#member
+  test/resource:promserver#viewer@test/user:an_external_test/user#...

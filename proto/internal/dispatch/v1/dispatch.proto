@@ -78,4 +78,7 @@ message ResolverMeta {
   uint32 depth_remaining = 2 [ (validate.rules).uint32.gt = 0 ];
 }
 
-message ResponseMeta { uint32 dispatch_count = 1; }
+message ResponseMeta {
+  uint32 dispatch_count = 1;
+  uint32 depth_required = 2;
+}
