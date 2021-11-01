@@ -60,7 +60,7 @@ func newHedger(
 	digests[0].Add(initialSlowRequestThreshold.Seconds(), float64(maxSampleCount)/2)
 
 	return func(ctx context.Context, req subrequest) {
-		responseReady := make(chan struct{})
+		responseReady := make(chan struct{}, 1)
 
 		digestLock.Lock()
 		slowRequestThresholdSeconds := digests[0].Quantile(quantile)
@@ -84,7 +84,7 @@ func newHedger(
 			log.Debug().Dur("after", slowRequestThreshold).Msg("sending hedged datastore request")
 			hedgedCount.Inc()
 
-			hedgedResponseReady := make(chan struct{})
+			hedgedResponseReady := make(chan struct{}, 1)
 			hedgedStart := timeSource.Now()
 			go req(ctx, hedgedResponseReady)
 
@@ -172,8 +172,13 @@ func newHedgingProxyWithTimeSource(
 }
 
 func (hp hedgingProxy) Revision(ctx context.Context) (rev datastore.Revision, err error) {
+	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		rev, err = hp.delegate.Revision(ctx)
+		delegatedRev, delegatedErr := hp.delegate.Revision(ctx)
+		once.Do(func() {
+			rev = delegatedRev
+			err = delegatedErr
+		})
 		responseReady <- struct{}{}
 	}
 
@@ -183,8 +188,13 @@ func (hp hedgingProxy) Revision(ctx context.Context) (rev datastore.Revision, er
 }
 
 func (hp hedgingProxy) SyncRevision(ctx context.Context) (rev datastore.Revision, err error) {
+	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		rev, err = hp.delegate.SyncRevision(ctx)
+		delegatedRev, delegatedErr := hp.delegate.SyncRevision(ctx)
+		once.Do(func() {
+			rev = delegatedRev
+			err = delegatedErr
+		})
 		responseReady <- struct{}{}
 	}
 
@@ -194,8 +204,14 @@ func (hp hedgingProxy) SyncRevision(ctx context.Context) (rev datastore.Revision
 }
 
 func (hp hedgingProxy) ReadNamespace(ctx context.Context, nsName string) (ns *v0.NamespaceDefinition, rev datastore.Revision, err error) {
+	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		ns, rev, err = hp.delegate.ReadNamespace(ctx, nsName)
+		delegatedNs, delegatedRev, delegatedErr := hp.delegate.ReadNamespace(ctx, nsName)
+		once.Do(func() {
+			ns = delegatedNs
+			rev = delegatedRev
+			err = delegatedErr
+		})
 		responseReady <- struct{}{}
 	}
 
@@ -276,24 +292,22 @@ type hedgingTupleQuery struct {
 type tupleExecutor func(ctx context.Context) (datastore.TupleIterator, error)
 
 func executeQuery(ctx context.Context, exec tupleExecutor, queryHedger hedger) (delegateIterator datastore.TupleIterator, err error) {
-	doneLock := sync.Mutex{}
-	alreadyReturned := false
-
+	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
 		tempIterator, tempErr := exec(ctx)
-		doneLock.Lock()
-		defer doneLock.Unlock()
-
-		if alreadyReturned {
-			if tempErr == nil {
-				tempIterator.Close()
-			}
-		} else {
-			alreadyReturned = true
+		resultsUsed := false
+		once.Do(func() {
 			delegateIterator = tempIterator
 			err = tempErr
-			responseReady <- struct{}{}
+			resultsUsed = true
+		})
+		// close the unused iterator
+		// only the first call to once.Do will run the function, so whichever
+		// hedged request is slower will have resultsUsed = false
+		if !resultsUsed && tempErr == nil {
+			tempIterator.Close()
 		}
+		responseReady <- struct{}{}
 	}
 
 	queryHedger(ctx, subreq)

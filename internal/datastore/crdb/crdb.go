@@ -213,7 +213,7 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 }
 
 func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "SyncRevision")
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "SyncRevision")
 	defer span.End()
 
 	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})

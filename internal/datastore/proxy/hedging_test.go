@@ -12,6 +12,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/test"
@@ -91,6 +92,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.methodName, func(t *testing.T) {
+			defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/authzed/spicedb/internal/datastore/proxy.autoAdvance.func1"), goleak.IgnoreCurrent())
 			mockTime := clock.NewMock()
 			delegate := &test.MockedDatastore{}
 			proxy := newHedgingProxyWithTimeSource(
@@ -148,6 +150,7 @@ type isMock interface {
 }
 
 func runQueryTest(t *testing.T, delegate isMock, mockTime *clock.Mock, exec tupleExecutor) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/authzed/spicedb/internal/datastore/proxy.autoAdvance.func1"), goleak.IgnoreCurrent())
 	require := require.New(t)
 
 	delegate.
