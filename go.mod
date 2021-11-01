@@ -3,7 +3,7 @@ module github.com/authzed/spicedb
 go 1.16
 
 require (
-	github.com/Masterminds/squirrel v1.5.0
+	github.com/Masterminds/squirrel v1.5.1
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/authzed/authzed-go v0.3.0
 	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
