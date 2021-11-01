@@ -1,10 +1,9 @@
 # SpiceDB
 
 [![Container Image](https://img.shields.io/github/v/release/authzed/spicedb?color=%232496ED&label=container&logo=docker "Container Image")](https://quay.io/repository/authzed/spicedb?tab=tags)
+[![Docs](https://img.shields.io/badge/docs-authzed.com-%234B4B6C "Authzed Documentation")](https://docs.authzed.com)
 [![GoDoc](https://godoc.org/github.com/authzed/spicedb?status.svg "Go documentation")](https://godoc.org/github.com/authzed/spicedb)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg "Apache 2.0 License")](https://www.apache.org/licenses/LICENSE-2.0.html)
 [![Build Status](https://github.com/authzed/spicedb/workflows/Build%20&%20Test/badge.svg "GitHub Actions")](https://github.com/authzed/spicedb/actions)
-[![Mailing List](https://img.shields.io/badge/email-google%20groups-4285F4 "authzed-oss@googlegroups.com")](https://groups.google.com/g/authzed-oss)
 [![Discord Server](https://img.shields.io/discord/844600078504951838?color=7289da&logo=discord "Discord Server")](https://discord.gg/jTysUaxXzM)
 [![Twitter](https://img.shields.io/twitter/follow/authzed?color=%23179CF0&logo=twitter&style=flat-square "@authzed on Twitter")](https://twitter.com/authzed)
 
@@ -14,7 +13,7 @@ Developers create a schema that models their permissions requirements and use a 
 
 Features that distinguish SpiceDB from other systems include:
 
-- [Expressive APIs] for checking permissions, listing access, and powering devtools
+- Expressive [gRPC] and [HTTP] APIs for checking permissions, listing access, and powering devtools
 - An architecture faithful to the [Google Zanzibar] paper, including resistance to the [New Enemy Problem]
 - An intuitive and expressive [schema language] complete with a [playground] dev environment
 - A powerful graph engine that supports distributed, parallel evaluation
@@ -24,7 +23,8 @@ Features that distinguish SpiceDB from other systems include:
 See [CONTRIBUTING.md] for instructions on how to contribute and perform common tasks like building the project and running tests.
 
 [client library]: https://docs.authzed.com/reference/api#client-libraries
-[Expressive APIs]: https://buf.build/authzed/api
+[gRPC]: https://buf.build/authzed/api
+[HTTP]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/authzed/authzed-go/main/proto/apidocs.swagger.json
 [Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [Google Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
