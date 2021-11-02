@@ -25,4 +25,4 @@ jobs:
           path-to-signatures: "v1/signatures.json"
           path-to-document: "https://github.com/authzed/cla/blob/main/v1/icla.md"
           branch: "main"
-          allowlist: "authzedbot,dependabot"
+          allowlist: "authzedbot,dependabot-preview[bot]"
