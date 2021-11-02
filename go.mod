@@ -3,11 +3,11 @@ module github.com/authzed/spicedb
 go 1.16
 
 require (
-	github.com/Masterminds/squirrel v1.5.0
+	github.com/Masterminds/squirrel v1.5.1
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/authzed/authzed-go v0.3.0
 	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
-	github.com/aws/aws-sdk-go v1.40.53
+	github.com/aws/aws-sdk-go v1.41.15
 	github.com/benbjohnson/clock v1.1.0
 	github.com/cespare/xxhash v1.1.0
 	github.com/containerd/continuity v0.2.1 // indirect
@@ -44,15 +44,15 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/rs/zerolog v1.25.0
 	github.com/scylladb/go-set v1.0.2
-	github.com/shopspring/decimal v1.2.0
+	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.24.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.25.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.25.0
-	go.opentelemetry.io/otel v1.0.1
+	go.opentelemetry.io/otel v1.1.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.0.0 // indirect
-	go.opentelemetry.io/otel/trace v1.0.1
+	go.opentelemetry.io/otel/trace v1.1.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/net v0.0.0-20211020060615-d418f374d309 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
