@@ -1,4 +1,4 @@
-FROM golang:1.17.1-alpine3.13 AS spicedb-builder
+FROM golang:1.17.2-alpine3.13 AS spicedb-builder
 
 ARG GRPC_HEALTH_PROBE_VERSION=0.3.6
 RUN apk add curl
