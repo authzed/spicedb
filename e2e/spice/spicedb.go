@@ -27,7 +27,7 @@ type Node struct {
 	URI           string
 	GrpcPort      int
 	HttpPort      int
-	InternalPort  int
+	DispatchPort  int
 	MetricsPort   int
 	DashboardPort int
 	Pid           int
@@ -44,8 +44,8 @@ func WithTestDefaults(opts ...SpiceDbOption) SpiceDbOption {
 		if s.GrpcPort == 0 {
 			s.GrpcPort = 50051
 		}
-		if s.InternalPort == 0 {
-			s.InternalPort = 50052
+		if s.DispatchPort == 0 {
+			s.DispatchPort = 50052
 		}
 		if s.HttpPort == 0 {
 			s.HttpPort = 8443
@@ -83,7 +83,7 @@ func (s *Node) Start(ctx context.Context, logprefix string, args ...string) erro
 		"--datastore-conn-uri=" + s.URI,
 		fmt.Sprintf("--grpc-addr=:%d", s.GrpcPort),
 		fmt.Sprintf("--http-addr=:%d", s.HttpPort),
-		fmt.Sprintf("--internal-grpc-addr=:%d", s.InternalPort),
+		fmt.Sprintf("--dispatch-cluster-addr=:%d", s.DispatchPort),
 		fmt.Sprintf("--metrics-addr=:%d", s.MetricsPort),
 		fmt.Sprintf("--dashboard-addr=:%d", s.DashboardPort),
 	}
@@ -147,7 +147,7 @@ func NewClusterFromCockroachCluster(c cockroach.Cluster, opts ...SpiceDbOption) 
 			Datastore:     "cockroachdb",
 			URI:           c[i].ConnectionString(proto.DbName),
 			GrpcPort:      proto.GrpcPort + 2*i,
-			InternalPort:  proto.InternalPort + 2*i,
+			DispatchPort:  proto.DispatchPort + 2*i,
 			HttpPort:      proto.HttpPort + 2*i,
 			MetricsPort:   proto.MetricsPort + i,
 			DashboardPort: proto.DashboardPort + i,

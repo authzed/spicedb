@@ -37,7 +37,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
-	internaldispatch "github.com/authzed/spicedb/internal/services/dispatch"
+	clusterdispatch "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
@@ -103,9 +103,9 @@ func registerServeCmd(rootCmd *cobra.Command) {
 
 	// Flags for configuring dispatch behavior
 	serveCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
-	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags(), "dispatch-redispatch", "redispatch", ":50053")
-	serveCmd.Flags().String("dispatch-redispatch-dns-name", "", "dns SRV record name to resolve for remote redispatch, empty string disables redispatch")
-	serveCmd.Flags().String("dispatch-redispatch-service-name", "grpc", "dns SRV record service name to resolve for remote redispatch")
+	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags(), "dispatch-cluster", "dispatch", ":50053")
+	serveCmd.Flags().String("dispatch-cluster-dns-name", "", "DNS SRV record name to resolve for cluster dispatch")
+	serveCmd.Flags().String("dispatch-cluster-service-name", "grpc", "DNS SRV record service name to resolve for cluster dispatch")
 	serveCmd.Flags().String("dispatch-peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
 	serveCmd.Flags().String("dispatch-peer-resolver-cert-path", "", "local path to the TLS certificate for the peer endpoint resolver")
 
@@ -263,7 +263,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to create gRPC server")
 	}
 
-	redispatchGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "dispatch-redispatch", middleware, streamMiddleware)
+	redispatchGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "dispatch-cluster", middleware, streamMiddleware)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create redispatch gRPC server")
 	}
@@ -271,8 +271,8 @@ func serveRun(cmd *cobra.Command, args []string) {
 	redispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
 	redispatchClientCtx, redispatchClientCancel := context.WithCancel(context.Background())
 
-	redispatchTarget := cobrautil.MustGetStringExpanded(cmd, "dispatch-redispatch-dns-name")
-	redispatchServiceName := cobrautil.MustGetStringExpanded(cmd, "dispatch-redispatch-service-name")
+	redispatchTarget := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-dns-name")
+	redispatchServiceName := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-service-name")
 	if redispatchTarget != "" {
 		log.Info().Str("target", redispatchTarget).Msg("initializing remote redispatcher")
 
@@ -289,7 +289,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 
 		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path")
 		peerPSK := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
-		selfEndpoint := cobrautil.MustGetStringExpanded(cmd, "dispatch-redispatch-addr")
+		selfEndpoint := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-addr")
 
 		var endpointConfig *consistentbackend.EndpointConfig
 		var fallbackConfig *consistentbackend.FallbackEndpointConfig
@@ -321,13 +321,13 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to initialize redispatcher cache")
 	}
 
-	internalDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
-	cachingInternalDispatch, err := caching.NewCachingDispatcher(internalDispatch, nil, "dispatch")
+	clusterDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(clusterDispatch, nil, "dispatch")
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize internal dispatcher cache")
+		log.Fatal().Err(err).Msg("failed to initialize cluster dispatcher cache")
 	}
 
-	internaldispatch.RegisterGrpcServices(redispatchGrpcServer, cachingInternalDispatch)
+	clusterdispatch.RegisterGrpcServices(redispatchGrpcServer, cachingClusterDispatch)
 
 	prefixRequiredOption := v1alpha1svc.PrefixRequired
 	if !cobrautil.MustGetBool(cmd, "schema-prefixes-required") {
@@ -363,7 +363,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	}()
 
 	go func() {
-		addr := cobrautil.MustGetStringExpanded(cmd, "dispatch-redispatch-addr")
+		addr := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-addr")
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
 			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for redispatch gRPC server")
