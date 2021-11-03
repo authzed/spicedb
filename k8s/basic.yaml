@@ -60,8 +60,6 @@ spec:
           imagePullPolicy: "IfNotPresent"
           command: ["spicedb", "serve"]
           env:
-            - name: "SPICEDB_GRPC_NO_TLS"
-              value: "true"
             - name: "SPICEDB_GRPC_SHUTDOWN_GRACE_PERIOD"
               value: "1s"
             - name: "SPICEDB_LOG_LEVEL"
