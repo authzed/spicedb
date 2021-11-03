@@ -77,8 +77,6 @@ func (s *Node) Start(ctx context.Context, logprefix string, args ...string) erro
 		"serve",
 		"--log-level=debug",
 		"--grpc-preshared-key=" + s.PresharedKey,
-		"--grpc-no-tls",
-		"--http-no-tls",
 		"--datastore-engine=" + s.Datastore,
 		"--datastore-conn-uri=" + s.URI,
 		fmt.Sprintf("--grpc-addr=:%d", s.GrpcPort),

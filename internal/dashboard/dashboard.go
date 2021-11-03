@@ -54,7 +54,7 @@ const rootTemplate = `
 brew install authzed/tap/zed
 
 # Login to SpiceDB
-zed context set first-dev-context {{ .GrpcAddr }} "the preshared key here" {{if .GrpcNoTLS }}--insecure {{end}}
+zed context set first-dev-context {{ .GrpcAddr }} "the preshared key here" {{if not .GrpcTLSEnabled }}--insecure {{end}}
 
 # Save the sample schema
 cat > sample.zed << 'SCHEMA'
@@ -70,7 +70,7 @@ definition resource {
 SCHEMA
 
 # Write a sample schema
-zed schema write sample.zed {{if .GrpcNoTLS }}--insecure {{end}}
+zed schema write sample.zed {{if not .GrpcTLSEnabled }}--insecure {{end}}
 </pre>
 			</p>
 		{{ else }}
@@ -83,13 +83,13 @@ zed schema write sample.zed {{if .GrpcNoTLS }}--insecure {{end}}
 			<h3>How to write a relationship</h3>
 <pre>
 # Write a sample relationship
-zed relationship create resource:sampleresource reader user:sampleuser {{if .GrpcNoTLS }}--insecure {{end}}
+zed relationship create resource:sampleresource reader user:sampleuser {{if not .GrpcTLSEnabled }}--insecure {{end}}
 </pre>
 
 					<h3>How to check a permission</h3>
 		<pre>
 		# Check a permission
-		zed permission check resource:sampleresource view user:sampleuser {{if .GrpcNoTLS }}--insecure {{end}}
+		zed permission check resource:sampleresource view user:sampleuser {{if not .GrpcTLSEnabled }}--insecure {{end}}
 		</pre>
 		{{ end }}
 		{{ end }}
@@ -107,7 +107,7 @@ spicedb migrate head --datastore-engine={{ .DatastoreEngine }} --datastore-conn-
 `
 
 // NewHandler returns an http.Handler capable of serving a developer dashboard.
-func NewHandler(grpcAddr string, grpcNoTLS bool, datastoreEngine string, ds datastore.Datastore) http.Handler {
+func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds datastore.Datastore) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tmpl, err := template.New("root").Parse(rootTemplate)
 		if err != nil {
@@ -156,7 +156,7 @@ func NewHandler(grpcAddr string, grpcNoTLS bool, datastoreEngine string, ds data
 
 		err = tmpl.Execute(w, struct {
 			GrpcAddr        string
-			GrpcNoTLS       bool
+			GrpcTLSEnabled  bool
 			DatastoreEngine string
 			IsReady         bool
 			IsEmpty         bool
@@ -164,7 +164,7 @@ func NewHandler(grpcAddr string, grpcNoTLS bool, datastoreEngine string, ds data
 			HasSampleSchema bool
 		}{
 			GrpcAddr:        grpcAddr,
-			GrpcNoTLS:       grpcNoTLS,
+			GrpcTLSEnabled:  grpcTLSEnabled,
 			DatastoreEngine: datastoreEngine,
 			IsReady:         isReady,
 			IsEmpty:         isReady && schema == "",

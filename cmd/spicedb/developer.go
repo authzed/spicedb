@@ -38,8 +38,8 @@ func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 		Args:    cobra.ExactArgs(0),
 	}
 
-	cobrautil.RegisterGrpcServerFlags(developerServiceCmd.Flags(), "grpc", "gRPC", ":50051")
-	cobrautil.RegisterHttpServerFlags(developerServiceCmd.Flags(), "metrics", "metrics", ":9090")
+	cobrautil.RegisterGrpcServerFlags(developerServiceCmd.Flags(), "grpc", "gRPC", ":50051", true)
+	cobrautil.RegisterHttpServerFlags(developerServiceCmd.Flags(), "metrics", "metrics", ":9090", true)
 
 	developerServiceCmd.Flags().String("share-store", "inmemory", "kind of share store to use")
 	developerServiceCmd.Flags().String("share-store-salt", "", "salt for share store hashing")
