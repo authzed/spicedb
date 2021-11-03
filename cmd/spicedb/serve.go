@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -46,11 +44,11 @@ import (
 
 func registerServeCmd(rootCmd *cobra.Command) {
 	serveCmd := &cobra.Command{
-		Use:               "serve",
-		Short:             "serve the permissions database",
-		Long:              "A database that stores, computes, and validates application permissions",
-		PersistentPreRunE: persistentPreRunE,
-		Run:               serveRun,
+		Use:     "serve",
+		Short:   "serve the permissions database",
+		Long:    "A database that stores, computes, and validates application permissions",
+		PreRunE: defaultPreRunE,
+		Run:     serveRun,
 		Example: fmt.Sprintf(`	%s:
 		spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls --http-no-tls
 
@@ -61,12 +59,13 @@ func registerServeCmd(rootCmd *cobra.Command) {
 `, color.YellowString("No TLS and in-memory"), color.GreenString("TLS and a real datastore")),
 	}
 
-	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags())
-	cobrautil.RegisterMetricsServerFlags(serveCmd.Flags())
-
-	// Flags for the gRPC server beyond those provided from cobrautil
+	// Flags for the gRPC API server
+	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags(), "grpc", "gRPC", ":50051")
 	serveCmd.Flags().String("grpc-preshared-key", "", "preshared key to require for authenticated requests")
 	serveCmd.Flags().Duration("grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
+	if err := serveCmd.MarkFlagRequired("grpc-preshared-key"); err != nil {
+		panic("failed to mark flag as required: " + err.Error())
+	}
 
 	// Flags for the datastore
 	serveCmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
@@ -99,17 +98,12 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	// Flags for parsing and validating schemas.
 	serveCmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
-	// Flags for internal dispatch API
-	serveCmd.Flags().String("internal-grpc-addr", ":50053", "address to listen for internal requests")
-
 	// Flags for HTTP gateway
-	serveCmd.Flags().String("http-addr", ":8443", "address to listen for HTTP API requests")
-	serveCmd.Flags().Bool("http-no-tls", false, "serve HTTP API requests unencrypted")
-	serveCmd.Flags().String("http-cert-path", "", "local path to the TLS certificate used to serve HTTP API requests")
-	serveCmd.Flags().String("http-key-path", "", "local path to the TLS key used to serve HTTP API requests")
+	cobrautil.RegisterHttpServerFlags(serveCmd.Flags(), "http", "http", ":8443")
 
 	// Flags for configuring dispatch behavior
 	serveCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
+	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags(), "dispatch-redispatch", "redispatch", ":50053")
 	serveCmd.Flags().String("dispatch-redispatch-dns-name", "", "dns SRV record name to resolve for remote redispatch, empty string disables redispatch")
 	serveCmd.Flags().String("dispatch-redispatch-service-name", "grpc", "dns SRV record service name to resolve for remote redispatch")
 	serveCmd.Flags().String("dispatch-peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
@@ -118,13 +112,11 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	// Flags for configuring API behavior
 	serveCmd.Flags().Bool("disable-v1-schema-api", false, "disables the V1 schema API")
 
-	// Flags for local dev dashboard
-	serveCmd.Flags().String("dashboard-addr", ":8080", "address to listen for the dashboard")
+	// Flags for misc services
+	cobrautil.RegisterHttpServerFlags(serveCmd.Flags(), "dashboard", "dashboard", ":8080")
+	cobrautil.RegisterHttpServerFlags(serveCmd.Flags(), "metrics", "metrics", ":9090")
 
 	// Required flags.
-	if err := serveCmd.MarkFlagRequired("grpc-preshared-key"); err != nil {
-		panic("failed to mark flag as required: " + err.Error())
-	}
 
 	rootCmd.AddCommand(serveCmd)
 }
@@ -266,14 +258,14 @@ func serveRun(cmd *cobra.Command, args []string) {
 		servicespecific.StreamServerInterceptor,
 	)
 
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware, streamMiddleware)
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "grpc", middleware, streamMiddleware)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create gRPC server")
 	}
 
-	internalGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, middleware, streamMiddleware)
+	redispatchGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "dispatch-redispatch", middleware, streamMiddleware)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to create internal gRPC server")
+		log.Fatal().Err(err).Msg("failed to create redispatch gRPC server")
 	}
 
 	redispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
@@ -297,7 +289,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 
 		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path")
 		peerPSK := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
-		selfEndpoint := cobrautil.MustGetStringExpanded(cmd, "internal-grpc-addr")
+		selfEndpoint := cobrautil.MustGetStringExpanded(cmd, "dispatch-redispatch-addr")
 
 		var endpointConfig *consistentbackend.EndpointConfig
 		var fallbackConfig *consistentbackend.FallbackEndpointConfig
@@ -318,7 +310,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 
 		go func() {
 			client.Start(redispatchClientCtx)
-			log.Info().Msg("started internal redispatch client")
+			log.Info().Msg("started redispatch redispatch client")
 		}()
 
 		redispatch = remote.NewClusterDispatcher(client)
@@ -335,7 +327,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to initialize internal dispatcher cache")
 	}
 
-	internaldispatch.RegisterGrpcServices(internalGrpcServer, cachingInternalDispatch)
+	internaldispatch.RegisterGrpcServices(redispatchGrpcServer, cachingInternalDispatch)
 
 	prefixRequiredOption := v1alpha1svc.PrefixRequired
 	if !cobrautil.MustGetBool(cmd, "schema-prefixes-required") {
@@ -371,22 +363,21 @@ func serveRun(cmd *cobra.Command, args []string) {
 	}()
 
 	go func() {
-		addr := cobrautil.MustGetStringExpanded(cmd, "internal-grpc-addr")
+		addr := cobrautil.MustGetStringExpanded(cmd, "dispatch-redispatch-addr")
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
-			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for internal gRPC server")
+			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for redispatch gRPC server")
 		}
 
-		log.Info().Str("addr", addr).Msg("internal gRPC server started listening")
-		err = internalGrpcServer.Serve(l)
+		log.Info().Str("addr", addr).Msg("redispatch gRPC server started listening")
+		err = redispatchGrpcServer.Serve(l)
 		if err != nil {
-			log.Fatal().Msg("failed to start internal gRPC server")
+			log.Fatal().Msg("failed to start redispatch gRPC server")
 		}
 	}()
 
 	// Start the REST gateway to serve HTTP/JSON.
-	gatewaySrv, err := gateway.NewHTTPServer(context.TODO(), gateway.Config{
-		Addr:                cobrautil.MustGetStringExpanded(cmd, "http-addr"),
+	gatewayHandler, err := gateway.NewHandler(context.TODO(), gateway.UpstreamConfig{
 		UpstreamAddr:        cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
 		UpstreamTLSDisabled: cobrautil.MustGetBool(cmd, "grpc-no-tls"),
 		UpstreamTLSCertPath: cobrautil.MustGetStringExpanded(cmd, "grpc-cert-path"),
@@ -394,51 +385,39 @@ func serveRun(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
+	gatewaySrv := cobrautil.HttpServerFromFlags(cmd, "http")
+	gatewaySrv.Handler = gatewayHandler
 	go func() {
 		log.Info().Str("addr", gatewaySrv.Addr).Msg("rest gateway server started listening")
-		if cobrautil.MustGetBool(cmd, "http-no-tls") {
-			if err := gatewaySrv.ListenAndServe(); err != http.ErrServerClosed {
-				log.Fatal().Err(err).Msg("failed while serving rest gateway")
-			}
-		} else {
-			certPath := cobrautil.MustGetStringExpanded(cmd, "http-cert-path")
-			keyPath := cobrautil.MustGetStringExpanded(cmd, "http-key-path")
-			if certPath == "" || keyPath == "" {
-				errStr := "failed to start http server: must provide either --http-no-tls or --http-cert-path and --http-key-path"
-				log.Fatal().Err(errors.New(errStr)).Msg("failed to create http server")
-			}
-
-			if err := gatewaySrv.ListenAndServeTLS(certPath, keyPath); err != http.ErrServerClosed {
-				log.Fatal().Err(err).Msg("failed while serving rest gateway")
-			}
+		if err := cobrautil.HttpListenFromFlags(cmd, "http", gatewaySrv); err != nil {
+			log.Fatal().Err(err).Msg("failed while serving http")
 		}
 	}()
 
 	// Start the metrics endpoint.
-	metricsrv := cobrautil.MetricsServerFromFlags(cmd)
+	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
+	metricsSrv.Handler = metricsHandler()
 	go func() {
-		addr := cobrautil.MustGetStringExpanded(cmd, "metrics-addr")
-		log.Info().Str("addr", addr).Msg("metrics server started listening")
-		if err := metricsrv.ListenAndServe(); err != http.ErrServerClosed {
+		log.Info().Str("addr", metricsSrv.Addr).Msg("metrics server started listening")
+		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
 
 	// Start a dashboard.
-	dashboardAddr := cobrautil.MustGetStringExpanded(cmd, "dashboard-addr")
-	dashboard := dashboard.NewDashboard(dashboardAddr, dashboard.Args{
-		GrpcNoTLS:       cobrautil.MustGetBool(cmd, "grpc-no-tls"),
-		GrpcAddr:        cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
-		DatastoreEngine: datastoreEngine,
-	}, ds)
-	if dashboardAddr != "" {
-		go func() {
-			log.Info().Str("addr", dashboardAddr).Msg("dashboard server started listening")
-			if err := dashboard.ListenAndServe(); err != http.ErrServerClosed {
-				log.Fatal().Err(err).Msg("failed while serving dashboard")
-			}
-		}()
-	}
+	dashboardSrv := cobrautil.HttpServerFromFlags(cmd, "dashboard")
+	dashboardSrv.Handler = dashboard.NewHandler(
+		cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
+		cobrautil.MustGetBool(cmd, "grpc-no-tls"),
+		datastoreEngine,
+		ds,
+	)
+	go func() {
+		log.Info().Str("addr", dashboardSrv.Addr).Msg("dashboard server started listening")
+		if err := cobrautil.HttpListenFromFlags(cmd, "dashboard", dashboardSrv); err != nil {
+			log.Fatal().Err(err).Msg("failed while serving dashboard")
+		}
+	}()
 
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	gracePeriod := cobrautil.MustGetDuration(cmd, "grpc-shutdown-grace-period")
@@ -461,7 +440,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 
 	log.Info().Msg("shutting down")
 	grpcServer.GracefulStop()
-	internalGrpcServer.GracefulStop()
+	redispatchGrpcServer.GracefulStop()
 	redispatchClientCancel()
 
 	if err := gatewaySrv.Close(); err != nil {
@@ -480,13 +459,11 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed while shutting down datastore")
 	}
 
-	if err := metricsrv.Close(); err != nil {
+	if err := metricsSrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
 	}
 
-	if dashboardAddr != "" {
-		if err := dashboard.Close(); err != nil {
-			log.Fatal().Err(err).Msg("failed while shutting down dashboard")
-		}
+	if err := dashboardSrv.Close(); err != nil {
+		log.Fatal().Err(err).Msg("failed while shutting down dashboard")
 	}
 }

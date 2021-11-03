@@ -15,12 +15,12 @@ import (
 
 func registerMigrateCmd(rootCmd *cobra.Command) {
 	migrateCmd := &cobra.Command{
-		Use:               "migrate [revision]",
-		Short:             "execute datastore schema migrations",
-		Long:              fmt.Sprintf("Executes datastore schema migrations for the datastore.\nThe special value \"%s\" can be used to migrate to the latest revision.", color.YellowString(migrate.Head)),
-		PersistentPreRunE: persistentPreRunE,
-		Run:               migrateRun,
-		Args:              cobra.ExactArgs(1),
+		Use:     "migrate [revision]",
+		Short:   "execute datastore schema migrations",
+		Long:    fmt.Sprintf("Executes datastore schema migrations for the datastore.\nThe special value \"%s\" can be used to migrate to the latest revision.", color.YellowString(migrate.Head)),
+		PreRunE: defaultPreRunE,
+		Run:     migrateRun,
+		Args:    cobra.ExactArgs(1),
 	}
 
 	migrateCmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)

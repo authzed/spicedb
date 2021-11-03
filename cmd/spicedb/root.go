@@ -10,11 +10,9 @@ import (
 
 func newRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:               "spicedb",
-		Short:             "A modern permissions database",
-		Long:              "A database that stores, computes, and validates application permissions",
-		PersistentPreRunE: persistentPreRunE,
-		TraverseChildren:  true,
+		Use:   "spicedb",
+		Short: "A modern permissions database",
+		Long:  "A database that stores, computes, and validates application permissions",
 		Example: fmt.Sprintf(`	%s:
 		spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls --http-no-tls
 
@@ -31,8 +29,8 @@ func newRootCmd() *cobra.Command {
 		),
 	}
 
-	cobrautil.RegisterZeroLogFlags(rootCmd.PersistentFlags())
-	cobrautil.RegisterOpenTelemetryFlags(rootCmd.PersistentFlags(), rootCmd.Use)
+	cobrautil.RegisterZeroLogFlags(rootCmd.PersistentFlags(), "log")
+	cobrautil.RegisterOpenTelemetryFlags(rootCmd.PersistentFlags(), "otel", rootCmd.Use)
 
 	return rootCmd
 }
