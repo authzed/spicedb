@@ -72,6 +72,22 @@ dockers:
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/arm64"
+  - image_templates:
+      - &amd_image_gh "ghcr.io/authzed/spicedb:v{{ .Version }}-amd64"
+    dockerfile: *dockerfile
+    goos: "linux"
+    goarch: "amd64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - image_templates:
+      - &arm_image_gh "ghcr.io/authzed/spicedb:v{{ .Version }}-arm64"
+    dockerfile: *dockerfile
+    goos: "linux"
+    goarch: "arm64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/arm64"
 docker_manifests:
   - name_template: "quay.io/authzed/spicedb:v{{ .Version }}"
     image_templates:
@@ -81,6 +97,14 @@ docker_manifests:
     image_templates:
       - *amd_image
       - *arm_image
+  - name_template: "ghcr.io/authzed/spicedb:v{{ .Version }}"
+    image_templates:
+      - *amd_image_gh
+      - *arm_image_gh
+  - name_template: "ghcr.io/authzed/spicedb:latest"
+    image_templates:
+      - *amd_image_gh
+      - *arm_image_gh
 checksum:
   name_template: "checksums.txt"
 snapshot:
@@ -92,4 +116,4 @@ release:
   prerelease: "auto"
   footer: |
     ## Docker Images
-    This release is available at `quay.io/authzed/spicedb:{{ .Version }}`
+    This release is available at `quay.io/authzed/spicedb:{{ .Version }}` and `ghcr.io/authzed/spicedb:{{ .Version }}`
