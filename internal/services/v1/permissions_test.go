@@ -16,6 +16,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/test/bufconn"
@@ -378,6 +379,7 @@ func TestLookupResources(t *testing.T) {
 				t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
 					require := require.New(t)
 					client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
+					defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 					defer stop()
 
 					lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
@@ -513,7 +515,8 @@ func newPermissionsServicer(
 	require.NoError(err)
 
 	return v1.NewPermissionsServiceClient(conn), func() {
+		require.NoError(conn.Close())
 		s.Stop()
-		lis.Close()
+		require.NoError(lis.Close())
 	}, revision
 }

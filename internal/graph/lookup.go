@@ -521,7 +521,7 @@ func lookupOne(ctx context.Context, request ReduceableLookupFunc) LookupResult {
 	childCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
-	resultChan := make(chan LookupResult)
+	resultChan := make(chan LookupResult, 1)
 	go request(childCtx, resultChan)
 
 	select {
@@ -538,7 +538,7 @@ func lookupAny(ctx context.Context, limit uint32, requests []ReduceableLookupFun
 
 	resultChans := make([]chan LookupResult, 0, len(requests))
 	for _, req := range requests {
-		resultChan := make(chan LookupResult)
+		resultChan := make(chan LookupResult, 1)
 		resultChans = append(resultChans, resultChan)
 		go req(childCtx, resultChan)
 	}
