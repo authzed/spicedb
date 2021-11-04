@@ -64,10 +64,10 @@ func WithGrpcPort(grpcPort int) SpiceDbOption {
 	}
 }
 
-// WithInternalPort returns an option that can set InternalPort on a Node
-func WithInternalPort(internalPort int) SpiceDbOption {
+// WithDispatchPort returns an option that can set DispatchPort on a Node
+func WithDispatchPort(dispatchPort int) SpiceDbOption {
 	return func(s *Node) {
-		s.InternalPort = internalPort
+		s.DispatchPort = dispatchPort
 	}
 }
 

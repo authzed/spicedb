@@ -29,41 +29,24 @@ var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Help:      "A histogram of the duration spent processing requests to the SpiceDB REST Gateway.",
 }, []string{"method"})
 
-// Config represents the require configuration for initializing a REST gateway.
-type Config struct {
-	// Addr is the address on which the HTTP server will be configured to listen.
-	Addr string
-
-	// UpstreamAddr is the address of the gRPC server to which requests will be
-	// forwarded.
-	UpstreamAddr string
-
-	// UpstreamTLSDisabled toggles whether or not the upstream connection will be
-	// secure.
-	UpstreamTLSDisabled bool
-
-	// UpstreamTLSCertPath is the filesystem location of the certificate used to
-	// secure the upstream connection.
-	UpstreamTLSCertPath string
-}
-
-// NewHTTPServer initializes a new HTTP server with the provided configuration.
-func NewHTTPServer(ctx context.Context, cfg Config) (*http.Server, error) {
+// NewHandler creates an REST gateway HTTP Handler with the provided upstream
+// configuration.
+func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (http.Handler, error) {
 	opts := []grpc.DialOption{
 		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
 	}
-	if cfg.UpstreamTLSDisabled {
+	if upstreamTLSCertPath == "" {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
-		opts = append(opts, grpcutil.WithCustomCerts(cfg.UpstreamTLSCertPath, grpcutil.SkipVerifyCA))
+		opts = append(opts, grpcutil.WithCustomCerts(upstreamTLSCertPath, grpcutil.SkipVerifyCA))
 	}
 
 	gwMux := runtime.NewServeMux(runtime.WithMetadata(OtelAnnotator))
-	if err := v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, gwMux, cfg.UpstreamAddr, opts); err != nil {
+	if err := v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, gwMux, upstreamAddr, opts); err != nil {
 		return nil, err
 	}
-	if err := v1.RegisterPermissionsServiceHandlerFromEndpoint(ctx, gwMux, cfg.UpstreamAddr, opts); err != nil {
+	if err := v1.RegisterPermissionsServiceHandlerFromEndpoint(ctx, gwMux, upstreamAddr, opts); err != nil {
 		return nil, err
 	}
 
@@ -73,10 +56,7 @@ func NewHTTPServer(ctx context.Context, cfg Config) (*http.Server, error) {
 	}))
 	mux.Handle("/", gwMux)
 
-	return &http.Server{
-		Addr:    cfg.Addr,
-		Handler: promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway")),
-	}, nil
+	return promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway")), nil
 }
 
 var defaultOtelOpts = []otelgrpc.Option{

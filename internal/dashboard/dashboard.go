@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"context"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -55,7 +54,7 @@ const rootTemplate = `
 brew install authzed/tap/zed
 
 # Login to SpiceDB
-zed context set first-dev-context {{ .Args.GrpcAddr }} "the preshared key here" {{if .Args.GrpcNoTLS }}--insecure {{end}}
+zed context set first-dev-context {{ .GrpcAddr }} "the preshared key here" {{if not .GrpcTLSEnabled }}--insecure {{end}}
 
 # Save the sample schema
 cat > sample.zed << 'SCHEMA'
@@ -71,7 +70,7 @@ definition resource {
 SCHEMA
 
 # Write a sample schema
-zed schema write sample.zed {{if .Args.GrpcNoTLS }}--insecure {{end}}
+zed schema write sample.zed {{if not .GrpcTLSEnabled }}--insecure {{end}}
 </pre>
 			</p>
 		{{ else }}
@@ -84,13 +83,13 @@ zed schema write sample.zed {{if .Args.GrpcNoTLS }}--insecure {{end}}
 			<h3>How to write a relationship</h3>
 <pre>
 # Write a sample relationship
-zed relationship create resource:sampleresource reader user:sampleuser {{if .Args.GrpcNoTLS }}--insecure {{end}}
+zed relationship create resource:sampleresource reader user:sampleuser {{if not .GrpcTLSEnabled }}--insecure {{end}}
 </pre>
 
 					<h3>How to check a permission</h3>
 		<pre>
 		# Check a permission
-		zed permission check resource:sampleresource view user:sampleuser {{if .Args.GrpcNoTLS }}--insecure {{end}}
+		zed permission check resource:sampleresource view user:sampleuser {{if not .GrpcTLSEnabled }}--insecure {{end}}
 		</pre>
 		{{ end }}
 		{{ end }}
@@ -100,118 +99,82 @@ zed relationship create resource:sampleresource reader user:sampleuser {{if .Arg
 		To get started with SpiceDB, please run the migrate command below to setup your backing data store:
 	</p>
 <pre>
-spicedb migrate head --datastore-engine={{ .Args.DatastoreEngine }} --datastore-conn-uri="your-connection-uri-here"
+spicedb migrate head --datastore-engine={{ .DatastoreEngine }} --datastore-conn-uri="your-connection-uri-here"
 </pre>
 	{{ end }}
 	</body>
 </html>
 `
 
-// NewDashboard instantiates a new dashboard server for the given addr.
-func NewDashboard(addr string, args Args, datastore datastore.Datastore) *Dashboard {
-	return &Dashboard{
-		addr:      addr,
-		server:    nil,
-		args:      args,
-		datastore: datastore,
-	}
-}
-
-// Args are various arguments passed to SpiceDB.
-type Args struct {
-	// GrpcAddr is the address of the GRPC endpoint.
-	GrpcAddr string
-
-	// GrpcNoTls is true if no TLS is being used.
-	GrpcNoTLS bool
-
-	// DatastoreEngine is the datastore engine being used.
-	DatastoreEngine string
-}
-
-// Dashboard is a dashboard for displaying usage information for SpiceDB.
-type Dashboard struct {
-	addr      string
-	server    *http.Server
-	args      Args
-	datastore datastore.Datastore
-}
-
-// ListenAndServe runs the dashboard on the configured HTTP address.
-func (db *Dashboard) ListenAndServe() error {
-	m := http.NewServeMux()
-	m.HandleFunc("/", db.rootHandler)
-	db.server = &http.Server{Addr: db.addr, Handler: m}
-	return db.server.ListenAndServe()
-}
-
-func (db *Dashboard) rootHandler(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.New("root").Parse(rootTemplate)
-	if err != nil {
-		log.Error().AnErr("template-error", err).Msg("Got error when parsing template")
-		fmt.Fprintf(w, "Internal Error")
-		return
-	}
-
-	isReady, err := db.datastore.IsReady(r.Context())
-	if err != nil {
-		log.Error().AnErr("template-error", err).Msg("Got error when checking database")
-		fmt.Fprintf(w, "Internal Error")
-		return
-	}
-
-	schema := ""
-	hasSampleSchema := false
-
-	if isReady {
-		var objectDefs []string
-		userFound := false
-		resourceFound := false
-
-		nsDefs, err := db.datastore.ListNamespaces(r.Context())
+// NewHandler returns an http.Handler capable of serving a developer dashboard.
+func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds datastore.Datastore) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.New("root").Parse(rootTemplate)
 		if err != nil {
-			log.Error().AnErr("datastore-error", err).Msg("Got error when trying to load namespaces")
+			log.Error().AnErr("template-error", err).Msg("Got error when parsing template")
 			fmt.Fprintf(w, "Internal Error")
 			return
 		}
 
-		for _, nsDef := range nsDefs {
-			objectDef, _ := generator.GenerateSource(nsDef)
-			objectDefs = append(objectDefs, objectDef)
-
-			if nsDef.Name == "user" {
-				userFound = true
-			}
-			if nsDef.Name == "resource" {
-				resourceFound = true
-			}
+		isReady, err := ds.IsReady(r.Context())
+		if err != nil {
+			log.Error().AnErr("template-error", err).Msg("Got error when checking database")
+			fmt.Fprintf(w, "Internal Error")
+			return
 		}
 
-		schema = strings.Join(objectDefs, "\n\n")
-		hasSampleSchema = userFound && resourceFound
-	}
+		schema := ""
+		hasSampleSchema := false
 
-	err = tmpl.Execute(w, struct {
-		Args            Args
-		IsReady         bool
-		IsEmpty         bool
-		Schema          string
-		HasSampleSchema bool
-	}{
-		Args:            db.args,
-		IsReady:         isReady,
-		IsEmpty:         isReady && schema == "",
-		Schema:          schema,
-		HasSampleSchema: hasSampleSchema,
+		if isReady {
+			var objectDefs []string
+			userFound := false
+			resourceFound := false
+
+			nsDefs, err := ds.ListNamespaces(r.Context())
+			if err != nil {
+				log.Error().AnErr("datastore-error", err).Msg("Got error when trying to load namespaces")
+				fmt.Fprintf(w, "Internal Error")
+				return
+			}
+
+			for _, nsDef := range nsDefs {
+				objectDef, _ := generator.GenerateSource(nsDef)
+				objectDefs = append(objectDefs, objectDef)
+
+				if nsDef.Name == "user" {
+					userFound = true
+				}
+				if nsDef.Name == "resource" {
+					resourceFound = true
+				}
+			}
+
+			schema = strings.Join(objectDefs, "\n\n")
+			hasSampleSchema = userFound && resourceFound
+		}
+
+		err = tmpl.Execute(w, struct {
+			GrpcAddr        string
+			GrpcTLSEnabled  bool
+			DatastoreEngine string
+			IsReady         bool
+			IsEmpty         bool
+			Schema          string
+			HasSampleSchema bool
+		}{
+			GrpcAddr:        grpcAddr,
+			GrpcTLSEnabled:  grpcTLSEnabled,
+			DatastoreEngine: datastoreEngine,
+			IsReady:         isReady,
+			IsEmpty:         isReady && schema == "",
+			Schema:          schema,
+			HasSampleSchema: hasSampleSchema,
+		})
+		if err != nil {
+			log.Error().AnErr("template-error", err).Msg("Got error when executing template")
+			fmt.Fprintf(w, "Internal Error")
+			return
+		}
 	})
-	if err != nil {
-		log.Error().AnErr("template-error", err).Msg("Got error when executing template")
-		fmt.Fprintf(w, "Internal Error")
-		return
-	}
-}
-
-// Close closes the dashboard server.
-func (db *Dashboard) Close() error {
-	return db.server.Shutdown(context.Background())
 }

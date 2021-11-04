@@ -10,17 +10,15 @@ import (
 
 func newRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:               "spicedb",
-		Short:             "A modern permissions database",
-		Long:              "A database that stores, computes, and validates application permissions",
-		PersistentPreRunE: persistentPreRunE,
-		TraverseChildren:  true,
+		Use:   "spicedb",
+		Short: "A modern permissions database",
+		Long:  "A database that stores, computes, and validates application permissions",
 		Example: fmt.Sprintf(`	%s:
-		spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls --http-no-tls
+		spicedb serve --grpc-preshared-key "somerandomkeyhere"
 
 	%s:
-		spicedb serve --grpc-preshared-key "realkeyhere" --grpc-cert-path path/to/tls/cert --grpc-key-path path/to/tls/key \
-			--http-cert-path path/to/tls/cert --http-key-path path/to/tls/key \
+		spicedb serve --grpc-preshared-key "realkeyhere" --grpc-tls-cert-path path/to/tls/cert --grpc-tls-key-path path/to/tls/key \
+			--http-tls-cert-path path/to/tls/cert --http-tls-key-path path/to/tls/key \
 			--datastore-engine postgres --datastore-conn-uri "postgres-connection-string-here"
 	%s:
 		spicedb serve-testing
@@ -31,8 +29,8 @@ func newRootCmd() *cobra.Command {
 		),
 	}
 
-	cobrautil.RegisterZeroLogFlags(rootCmd.PersistentFlags())
-	cobrautil.RegisterOpenTelemetryFlags(rootCmd.PersistentFlags(), rootCmd.Use)
+	cobrautil.RegisterZeroLogFlags(rootCmd.PersistentFlags(), "log")
+	cobrautil.RegisterOpenTelemetryFlags(rootCmd.PersistentFlags(), "otel", rootCmd.Use)
 
 	return rootCmd
 }

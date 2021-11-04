@@ -44,11 +44,11 @@ const (
 
 func registerTestserverCmd(rootCmd *cobra.Command) {
 	testserveCmd := &cobra.Command{
-		Use:               "serve-testing",
-		Short:             "test server with an in-memory datastore",
-		Long:              "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
-		PersistentPreRunE: persistentPreRunE,
-		Run:               runTestServer,
+		Use:     "serve-testing",
+		Short:   "test server with an in-memory datastore",
+		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
+		PreRunE: defaultPreRunE,
+		Run:     runTestServer,
 	}
 
 	testserveCmd.Flags().String("grpc-addr", ":50051", "address to listen on for serving gRPC services")

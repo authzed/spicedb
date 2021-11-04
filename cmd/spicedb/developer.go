@@ -30,15 +30,16 @@ import (
 
 func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 	developerServiceCmd := &cobra.Command{
-		Use:   "serve-devtools",
-		Short: "runs the developer tools service",
-		Long:  "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
-		Run:   developerServiceRun,
-		Args:  cobra.ExactArgs(0),
+		Use:     "serve-devtools",
+		Short:   "runs the developer tools service",
+		Long:    "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
+		PreRunE: defaultPreRunE,
+		Run:     developerServiceRun,
+		Args:    cobra.ExactArgs(0),
 	}
 
-	cobrautil.RegisterGrpcServerFlags(developerServiceCmd.Flags())
-	cobrautil.RegisterMetricsServerFlags(developerServiceCmd.Flags())
+	cobrautil.RegisterGrpcServerFlags(developerServiceCmd.Flags(), "grpc", "gRPC", ":50051", true)
+	cobrautil.RegisterHttpServerFlags(developerServiceCmd.Flags(), "metrics", "metrics", ":9090", true)
 
 	developerServiceCmd.Flags().String("share-store", "inmemory", "kind of share store to use")
 	developerServiceCmd.Flags().String("share-store-salt", "", "salt for share store hashing")
@@ -48,12 +49,11 @@ func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 	developerServiceCmd.Flags().String("s3-endpoint", "", "s3 endpoint for s3 share store")
 	developerServiceCmd.Flags().String("s3-region", "auto", "s3 region for s3 share store")
 	developerServiceCmd.Flags().String("download-addr", ":8443", "address to listen for download requests")
-
 	rootCmd.AddCommand(developerServiceCmd)
 }
 
 func developerServiceRun(cmd *cobra.Command, args []string) {
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, grpc.ChainUnaryInterceptor(
+	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "grpc", grpc.ChainUnaryInterceptor(
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 		otelgrpc.UnaryServerInterceptor(),
 		grpcprom.UnaryServerInterceptor,
@@ -73,7 +73,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 		addr := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
-			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for gRPC server")
+			log.Fatal().Err(err).Str("addr", addr).Msg("failed to listen on addr for gRPC server")
 		}
 
 		log.Info().Str("addr", addr).Msg("gRPC server started listening")
@@ -82,10 +82,12 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 		}
 	}()
 
-	metricsrv := cobrautil.MetricsServerFromFlags(cmd)
+	// Start the metrics endpoint.
+	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
+	metricsSrv.Handler = metricsHandler()
 	go func() {
-		log.Info().Str("addr", metricsrv.Addr).Msg("metrics server started listening")
-		if err := metricsrv.ListenAndServe(); err != http.ErrServerClosed {
+		log.Info().Str("addr", metricsSrv.Addr).Msg("metrics server started listening")
+		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
@@ -102,7 +104,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 	<-signalctx.Done()
 	log.Info().Msg("received interrupt")
 	grpcServer.GracefulStop()
-	if err := metricsrv.Close(); err != nil {
+	if err := metricsSrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
 	}
 }

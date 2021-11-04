@@ -37,7 +37,7 @@ require (
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jpillora/backoff v1.0.0
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
-	github.com/jzelinskie/cobrautil v0.0.5
+	github.com/jzelinskie/cobrautil v0.0.6
 	github.com/jzelinskie/stringz v0.0.1
 	github.com/lib/pq v1.10.3
 	github.com/mattn/go-colorable v0.1.11 // indirect
@@ -62,11 +62,11 @@ require (
 	go.opentelemetry.io/otel/trace v1.1.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
-	golang.org/x/net v0.0.0-20211101193420-4a448f8816b3 // indirect
+	golang.org/x/net v0.0.0-20211104170005-ce137452f963 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20211102061401-a2f17f7b995c // indirect
-	google.golang.org/genproto v0.0.0-20211101144312-62acf1d99145
-	google.golang.org/grpc v1.41.0
+	golang.org/x/sys v0.0.0-20211103235746-7861aae1554b // indirect
+	google.golang.org/genproto v0.0.0-20211102202547-e9cf271f7f2c
+	google.golang.org/grpc v1.42.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
