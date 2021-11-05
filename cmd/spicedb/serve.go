@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -106,7 +105,6 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags(), "dispatch-cluster", "dispatch", ":50053", false)
 	serveCmd.Flags().String("dispatch-cluster-dns-name", "", "DNS SRV record name to resolve for cluster dispatch")
 	serveCmd.Flags().String("dispatch-cluster-service-name", "grpc", "DNS SRV record service name to resolve for cluster dispatch")
-	serveCmd.Flags().String("dispatch-peer-resolver-preshared-key", "", "preshared key used to authenticate with the peer endpoint resolver")
 	serveCmd.Flags().String("dispatch-peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
 	serveCmd.Flags().String("dispatch-peer-resolver-tls-cert-path", "", "local path to the TLS certificate for the peer endpoint resolver")
 
@@ -288,23 +286,20 @@ func serveRun(cmd *cobra.Command, args []string) {
 			resolverConfig = consistentbackend.NewEndpointResolverNoTLS(resolverAddr)
 		}
 
-		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "dispatch-peer-resolver-tls-cert-path")
-		peerPSK := cobrautil.MustGetStringExpanded(cmd, "dispatch-peer-resolver-preshared-key")
+		peerPSK := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
+		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-tls-cert-path")
 		selfEndpoint := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-addr")
 
 		var endpointConfig *consistentbackend.EndpointConfig
 		var fallbackConfig *consistentbackend.FallbackEndpointConfig
-		switch {
-		case peerPSK == "" && peerCertPath == "":
+		if peerCertPath == "" {
 			log.Debug().Str("endpoint", redispatchTarget).Msg("using insecure peers")
 			endpointConfig = consistentbackend.NewEndpointConfigNoTLS(redispatchServiceName, redispatchTarget, peerPSK)
 			fallbackConfig = consistentbackend.NewFallbackEndpointNoTLS(selfEndpoint, peerPSK)
-		case peerPSK != "" && peerCertPath != "":
+		} else {
 			log.Debug().Str("endpoint", redispatchTarget).Str("cacert", resolverCertPath).Msg("using TLS protected peers")
 			endpointConfig = consistentbackend.NewEndpointConfig(redispatchServiceName, redispatchTarget, peerPSK, peerCertPath)
 			fallbackConfig = consistentbackend.NewFallbackEndpoint(selfEndpoint, peerPSK, peerCertPath)
-		default:
-			log.Fatal().Err(errors.New("must provide none or both --dispatch-peer-resolver-preshared-key and --dispatch-peer-resolver-tls-cert-path")).Msg("failed to configure dispatch endpoints")
 		}
 
 		client, err := consistentbackend.NewConsistentBackendClient(resolverConfig, endpointConfig, fallbackConfig)
