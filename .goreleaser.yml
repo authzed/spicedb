@@ -58,6 +58,7 @@ brews:
 dockers:
   - image_templates:
       - &amd_image "quay.io/authzed/spicedb:v{{ .Version }}-amd64"
+      - &amd_image_gh "ghcr.io/authzed/spicedb:v{{ .Version }}-amd64"
     dockerfile: &dockerfile "Dockerfile.release"
     goos: "linux"
     goarch: "amd64"
@@ -66,21 +67,6 @@ dockers:
       - "--platform=linux/amd64"
   - image_templates:
       - &arm_image "quay.io/authzed/spicedb:v{{ .Version }}-arm64"
-    dockerfile: *dockerfile
-    goos: "linux"
-    goarch: "arm64"
-    use: "buildx"
-    build_flag_templates:
-      - "--platform=linux/arm64"
-  - image_templates:
-      - &amd_image_gh "ghcr.io/authzed/spicedb:v{{ .Version }}-amd64"
-    dockerfile: *dockerfile
-    goos: "linux"
-    goarch: "amd64"
-    use: "buildx"
-    build_flag_templates:
-      - "--platform=linux/amd64"
-  - image_templates:
       - &arm_image_gh "ghcr.io/authzed/spicedb:v{{ .Version }}-arm64"
     dockerfile: *dockerfile
     goos: "linux"
