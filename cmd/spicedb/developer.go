@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 
@@ -40,6 +39,7 @@ func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 
 	cobrautil.RegisterGrpcServerFlags(developerServiceCmd.Flags(), "grpc", "gRPC", ":50051", true)
 	cobrautil.RegisterHttpServerFlags(developerServiceCmd.Flags(), "metrics", "metrics", ":9090", true)
+	cobrautil.RegisterHttpServerFlags(developerServiceCmd.Flags(), "http", "download", ":8443", false)
 
 	developerServiceCmd.Flags().String("share-store", "inmemory", "kind of share store to use")
 	developerServiceCmd.Flags().String("share-store-salt", "", "salt for share store hashing")
@@ -48,7 +48,7 @@ func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
 	developerServiceCmd.Flags().String("s3-bucket", "", "s3 bucket name for s3 share store")
 	developerServiceCmd.Flags().String("s3-endpoint", "", "s3 endpoint for s3 share store")
 	developerServiceCmd.Flags().String("s3-region", "auto", "s3 region for s3 share store")
-	developerServiceCmd.Flags().String("download-addr", ":8443", "address to listen for download requests")
+
 	rootCmd.AddCommand(developerServiceCmd)
 }
 
@@ -92,14 +92,15 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 		}
 	}()
 
-	downloadSrv := v0svc.NewHTTPDownloadServer(cobrautil.MustGetString(cmd, "download-addr"), shareStore)
+	// start the http download api
+	downloadSrv := cobrautil.HttpServerFromFlags(cmd, "http")
+	downloadSrv.Handler = v0svc.NewHTTPDownloadServer(cobrautil.MustGetString(cmd, "http-addr"), shareStore).Handler
 	go func() {
 		log.Info().Str("addr", downloadSrv.Addr).Msg("download server started listening")
-		if err := downloadSrv.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("failed while serving http api")
+		if err := cobrautil.HttpListenFromFlags(cmd, "http", downloadSrv); err != nil {
+			log.Fatal().Err(err).Msg("failed while serving download http api")
 		}
 	}()
-
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 	<-signalctx.Done()
 	log.Info().Msg("received interrupt")
