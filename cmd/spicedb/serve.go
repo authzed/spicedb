@@ -315,16 +315,18 @@ func serveRun(cmd *cobra.Command, args []string) {
 		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn))
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(redispatch, nil, "dispatch_client")
+	cachingRedispatch, err := caching.NewCachingDispatcher(nil, "local_caching")
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize redispatcher cache")
+		log.Fatal().Err(err).Msg("failed to initialize dispatcher cache")
 	}
+	cachingRedispatch.SetDelegate(redispatch)
 
 	clusterDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(clusterDispatch, nil, "dispatch")
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(nil, "dispatch")
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize cluster dispatcher cache")
 	}
+	cachingClusterDispatch.SetDelegate(clusterDispatch)
 
 	clusterdispatch.RegisterGrpcServices(dispatchGrpcServer, cachingClusterDispatch)
 

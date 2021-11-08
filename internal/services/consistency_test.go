@@ -72,8 +72,6 @@ func TestConsistency(t *testing.T) {
 							ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
 							lrequire.NoError(err)
 
-							localOnlyDispatcher := graph.NewLocalOnlyDispatcher(ns, ds)
-
 							// Validate the type system for each namespace.
 							for _, nsDef := range fullyResolved.NamespaceDefinitions {
 								_, ts, _, err := ns.ReadNamespaceAndTypes(context.Background(), nsDef.Name)
@@ -90,13 +88,17 @@ func TestConsistency(t *testing.T) {
 							}
 
 							// Run the consistency tests for each service.
-							dispatcher := localOnlyDispatcher
+							dispatcher := graph.NewLocalOnlyDispatcher(ns, ds)
 							if dispatcherKind == "caching" {
-								cachingDispatcher, err := caching.NewCachingDispatcher(localOnlyDispatcher, nil, "")
+								cachingDispatcher, err := caching.NewCachingDispatcher(nil, "")
 								lrequire.NoError(err)
-								defer cachingDispatcher.Close()
+
+								localDispatcher := graph.NewDispatcher(cachingDispatcher, ns, ds)
+								defer localDispatcher.Close()
+								cachingDispatcher.SetDelegate(localDispatcher)
 								dispatcher = cachingDispatcher
 							}
+							defer dispatcher.Close()
 
 							v1permclient, _ := v1svc.RunForTesting(t, ds, ns, dispatcher, 50)
 							testers := []serviceTester{

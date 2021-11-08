@@ -208,7 +208,8 @@ func newLocalDispatcher(require *require.Assertions) (dispatch.Dispatcher, decim
 
 	dispatch := NewLocalOnlyDispatcher(nsm, ds)
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(dispatch, nil, "")
+	cachingDispatcher, err := caching.NewCachingDispatcher(nil, "")
+	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(err)
 
 	return cachingDispatcher, revision
