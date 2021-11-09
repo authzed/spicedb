@@ -11,19 +11,20 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-type fieldSpec struct {
+// FieldSpec provides a mapping between a metadata context field and a logging field.
+type FieldSpec struct {
 	metadataKey string
 	tagKey      string
 }
 
 // ExtractMetadataField creates a specification for converting gRPC metadata fields
 // to log tags.
-func ExtractMetadataField(metadataKey, tagKey string) fieldSpec {
-	return fieldSpec{metadataKey, tagKey}
+func ExtractMetadataField(metadataKey, tagKey string) FieldSpec {
+	return FieldSpec{metadataKey, tagKey}
 }
 
 type extractMetadata struct {
-	fields []fieldSpec
+	fields []FieldSpec
 }
 
 func (r *extractMetadata) ServerReporter(
@@ -53,12 +54,12 @@ func (r *extractMetadata) ServerReporter(
 
 // UnaryServerInterceptor creates an interceptor for extracting fields from requests
 // and setting them as log tags.
-func UnaryServerInterceptor(fields ...fieldSpec) grpc.UnaryServerInterceptor {
+func UnaryServerInterceptor(fields ...FieldSpec) grpc.UnaryServerInterceptor {
 	return interceptors.UnaryServerInterceptor(&extractMetadata{fields})
 }
 
 // StreamServerInterceptor creates an interceptor for extracting fields from requests
 // and setting them as log tags.
-func StreamServerInterceptor(fields ...fieldSpec) grpc.StreamServerInterceptor {
+func StreamServerInterceptor(fields ...FieldSpec) grpc.StreamServerInterceptor {
 	return interceptors.StreamServerInterceptor(&extractMetadata{fields})
 }
