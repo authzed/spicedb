@@ -146,11 +146,11 @@ func (pgd *pgDatastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			addChange(stagedChanges, createdTxn, tpl, v0.RelationTupleUpdate_TOUCH)
+			addChange(ctx, stagedChanges, createdTxn, tpl, v0.RelationTupleUpdate_TOUCH)
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			addChange(stagedChanges, deletedTxn, tpl, v0.RelationTupleUpdate_DELETE)
+			addChange(ctx, stagedChanges, deletedTxn, tpl, v0.RelationTupleUpdate_DELETE)
 		}
 	}
 	if err = rows.Err(); err != nil {
@@ -195,6 +195,7 @@ type changeRecord struct {
 }
 
 func addChange(
+	ctx context.Context,
 	changes map[uint64]*changeRecord,
 	revision uint64,
 	tpl *v0.RelationTuple,
@@ -224,6 +225,6 @@ func addChange(
 			revisionChanges.tupleDeletes[tplKey] = tpl
 		}
 	default:
-		log.Fatal().Stringer("operation", op).Msg("unknown change operation")
+		log.Ctx(ctx).Fatal().Stringer("operation", op).Msg("unknown change operation")
 	}
 }

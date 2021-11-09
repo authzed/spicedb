@@ -88,7 +88,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
 
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter); err != nil {
-		return rewritePermissionsError(err)
+		return rewritePermissionsError(ctx, err)
 	}
 
 	queryBuilder := ps.ds.QueryTuples(datastore.TupleQueryResourceFilter{
@@ -102,7 +102,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	tupleIterator, err := queryBuilder.Execute(ctx)
 	if err != nil {
-		return rewritePermissionsError(err)
+		return rewritePermissionsError(ctx, err)
 	}
 	defer tupleIterator.Close()
 
@@ -145,7 +145,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
 	for _, precond := range req.OptionalPreconditions {
 		if err := ps.checkFilterNamespaces(ctx, precond.Filter); err != nil {
-			return nil, rewritePermissionsError(err)
+			return nil, rewritePermissionsError(ctx, err)
 		}
 	}
 
@@ -156,7 +156,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			update.Relationship.Relation,
 			false,
 		); err != nil {
-			return nil, rewritePermissionsError(err)
+			return nil, rewritePermissionsError(ctx, err)
 		}
 
 		if err := ps.nsm.CheckNamespaceAndRelation(
@@ -165,7 +165,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
 			true,
 		); err != nil {
-			return nil, rewritePermissionsError(err)
+			return nil, rewritePermissionsError(ctx, err)
 		}
 
 		_, ts, _, err := ps.nsm.ReadNamespaceAndTypes(ctx, update.Relationship.Resource.ObjectType)
@@ -202,7 +202,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	revision, err := ps.ds.WriteTuples(ctx, req.OptionalPreconditions, req.Updates)
 	if err != nil {
-		return nil, rewritePermissionsError(err)
+		return nil, rewritePermissionsError(ctx, err)
 	}
 
 	return &v1.WriteRelationshipsResponse{
@@ -212,12 +212,12 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter); err != nil {
-		return nil, rewritePermissionsError(err)
+		return nil, rewritePermissionsError(ctx, err)
 	}
 
 	revision, err := ps.ds.DeleteRelationships(ctx, req.OptionalPreconditions, req.RelationshipFilter)
 	if err != nil {
-		return nil, rewritePermissionsError(err)
+		return nil, rewritePermissionsError(ctx, err)
 	}
 
 	return &v1.DeleteRelationshipsResponse{
@@ -225,7 +225,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	}, nil
 }
 
-func rewritePermissionsError(err error) error {
+func rewritePermissionsError(ctx context.Context, err error) error {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
 
@@ -250,11 +250,11 @@ func rewritePermissionsError(err error) error {
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &graph.ErrAlwaysFail{}):
-		log.Err(err)
+		log.Ctx(ctx).Err(err)
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 
 	default:
-		log.Err(err)
+		log.Ctx(ctx).Err(err)
 		return err
 	}
 }

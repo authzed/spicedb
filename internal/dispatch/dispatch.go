@@ -50,10 +50,10 @@ type HasMetadata interface {
 }
 
 // CheckDepth returns ErrMaxDepth if there is insufficient depth remaining to dispatch.
-func CheckDepth(req HasMetadata) error {
+func CheckDepth(ctx context.Context, req HasMetadata) error {
 	metadata := req.GetMetadata()
 	if metadata == nil {
-		log.Warn().Object("req", req).Msg("request missing metadata")
+		log.Ctx(ctx).Warn().Object("req", req).Msg("request missing metadata")
 		return fmt.Errorf("request missing metadata")
 	}
 

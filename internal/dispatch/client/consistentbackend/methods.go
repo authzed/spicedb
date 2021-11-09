@@ -9,7 +9,7 @@ import (
 )
 
 func (sc *ConsistentBackendClient) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error) {
-	backend, err := sc.getConsistentBackend(req)
+	backend, err := sc.getConsistentBackend(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -18,7 +18,7 @@ func (sc *ConsistentBackendClient) DispatchCheck(ctx context.Context, req *v1.Di
 }
 
 func (sc *ConsistentBackendClient) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error) {
-	backend, err := sc.getConsistentBackend(req)
+	backend, err := sc.getConsistentBackend(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func (sc *ConsistentBackendClient) DispatchExpand(ctx context.Context, req *v1.D
 }
 
 func (sc *ConsistentBackendClient) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest, opts ...grpc.CallOption) (*v1.DispatchLookupResponse, error) {
-	backend, err := sc.getConsistentBackend(req)
+	backend, err := sc.getConsistentBackend(ctx, req)
 	if err != nil {
 		return nil, err
 	}

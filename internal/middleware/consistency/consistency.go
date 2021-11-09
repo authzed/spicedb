@@ -64,7 +64,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 		// Minimize Latency: Use the datastore's current revision, whatever it may be.
 		databaseRev, err := ds.Revision(ctx)
 		if err != nil {
-			return nil, rewriteDatastoreError(err)
+			return nil, rewriteDatastoreError(ctx, err)
 		}
 		revision = databaseRev
 
@@ -72,7 +72,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 		// Fully Consistent: Use the datastore's synchronized revision.
 		databaseRev, err := ds.SyncRevision(ctx)
 		if err != nil {
-			return nil, rewriteDatastoreError(err)
+			return nil, rewriteDatastoreError(ctx, err)
 		}
 		revision = databaseRev
 
@@ -81,7 +81,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 		// ever is later.
 		picked, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), ds)
 		if err != nil {
-			return nil, rewriteDatastoreError(err)
+			return nil, rewriteDatastoreError(ctx, err)
 		}
 		revision = picked
 
@@ -94,7 +94,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 
 		err = ds.CheckRevision(ctx, requestedRev)
 		if err != nil {
-			return nil, rewriteDatastoreError(err)
+			return nil, rewriteDatastoreError(ctx, err)
 		}
 
 		revision = requestedRev
@@ -175,7 +175,7 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 	return databaseRev, nil
 }
 
-func rewriteDatastoreError(err error) error {
+func rewriteDatastoreError(ctx context.Context, err error) error {
 	switch {
 	case errors.As(err, &datastore.ErrPreconditionFailed{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
@@ -187,7 +187,7 @@ func rewriteDatastoreError(err error) error {
 		return serviceerrors.ErrServiceReadOnly
 
 	default:
-		log.Err(err)
+		log.Ctx(ctx).Err(err)
 		return err
 	}
 }

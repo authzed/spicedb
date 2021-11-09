@@ -22,6 +22,7 @@ import (
 
 // DevContext holds the various helper types for running the developer calls.
 type DevContext struct {
+	Ctx              context.Context
 	Datastore        datastore.Datastore
 	Revision         decimal.Decimal
 	Namespaces       []*v0.NamespaceDefinition
@@ -50,6 +51,7 @@ func NewDevContext(ctx context.Context, requestContext *v0.RequestContext) (*Dev
 			return nil, false, err
 		}
 	}
+
 	return dctx, ok, err
 }
 
@@ -63,46 +65,47 @@ func newDevContext(ctx context.Context, requestContext *v0.RequestContext, ds da
 
 	namespaces, devError, err := compile(requestContext.Schema)
 	if err != nil {
-		return &DevContext{NamespaceManager: nsm}, false, err
+		return &DevContext{Ctx: ctx, NamespaceManager: nsm}, false, err
 	}
 
 	if devError != nil {
-		return &DevContext{NamespaceManager: nsm, RequestErrors: []*v0.DeveloperError{devError}}, false, nil
+		return &DevContext{Ctx: ctx, NamespaceManager: nsm, RequestErrors: []*v0.DeveloperError{devError}}, false, nil
 	}
 
 	requestErrors, err := loadNamespaces(ctx, namespaces, nsm, ds)
 	if err != nil {
-		return &DevContext{NamespaceManager: nsm}, false, err
+		return &DevContext{Ctx: ctx, NamespaceManager: nsm}, false, err
 	}
 
 	if len(requestErrors) > 0 {
-		return &DevContext{NamespaceManager: nsm, RequestErrors: requestErrors}, false, nil
+		return &DevContext{Ctx: ctx, NamespaceManager: nsm, RequestErrors: requestErrors}, false, nil
 	}
 
 	if len(requestContext.LegacyNsConfigs) > 0 {
 		requestErrors, err := loadNamespaces(ctx, requestContext.LegacyNsConfigs, nsm, ds)
 		if err != nil {
-			return &DevContext{NamespaceManager: nsm}, false, err
+			return &DevContext{Ctx: ctx, NamespaceManager: nsm}, false, err
 		}
 
 		if len(requestErrors) > 0 {
-			return &DevContext{NamespaceManager: nsm, RequestErrors: requestErrors}, false, nil
+			return &DevContext{Ctx: ctx, NamespaceManager: nsm, RequestErrors: requestErrors}, false, nil
 		}
 	}
 
 	revision, requestErrors, err := loadTuples(ctx, requestContext.Relationships, nsm, ds)
 	if err != nil {
-		return &DevContext{NamespaceManager: nsm, Namespaces: namespaces}, false, err
+		return &DevContext{Ctx: ctx, NamespaceManager: nsm, Namespaces: namespaces}, false, err
 	}
 
 	if len(requestErrors) == 0 {
 		err = requestContext.Validate()
 		if err != nil {
-			return &DevContext{NamespaceManager: nsm, Namespaces: namespaces}, false, err
+			return &DevContext{Ctx: ctx, NamespaceManager: nsm, Namespaces: namespaces}, false, err
 		}
 	}
 
 	return &DevContext{
+		Ctx:              ctx,
 		Datastore:        ds,
 		Namespaces:       namespaces,
 		Revision:         revision,
@@ -117,12 +120,12 @@ func (dc *DevContext) dispose() {
 	if datastore != nil {
 		err := dc.NamespaceManager.Close()
 		if err != nil {
-			log.Err(err).Msg("error when disposing of namespace manager in devcontext")
+			log.Ctx(dc.Ctx).Err(err).Msg("error when disposing of namespace manager in devcontext")
 		}
 
 		err = datastore.Close()
 		if err != nil {
-			log.Err(err).Msg("error when disposing of datastore in devcontext")
+			log.Ctx(dc.Ctx).Err(err).Msg("error when disposing of datastore in devcontext")
 		}
 	}
 }
@@ -176,7 +179,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 
 		err := validateTupleWrite(ctx, tpl, nsm)
 		if err != nil {
-			verrs, wireErr := rewriteGraphError(v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl), err)
+			verrs, wireErr := rewriteGraphError(ctx, v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl), err)
 			if wireErr == nil {
 				errors = append(errors, verrs...)
 				continue

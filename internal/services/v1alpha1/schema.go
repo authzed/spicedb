@@ -58,7 +58,7 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 	for _, objectDefName := range in.GetObjectDefinitionsNames() {
 		found, _, err := ss.ds.ReadNamespace(ctx, objectDefName)
 		if err != nil {
-			return nil, rewriteError(err)
+			return nil, rewriteError(ctx, err)
 		}
 
 		objectDef, _ := generator.GenerateSource(found)
@@ -71,10 +71,10 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 }
 
 func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {
-	log.Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
+	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 	nsm, err := namespace.NewCachingNamespaceManager(ss.ds, 0, nil) // non-caching manager
 	if err != nil {
-		return nil, rewriteError(err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	inputSchema := compiler.InputSchema{
@@ -90,42 +90,42 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 
 	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, prefix)
 	if err != nil {
-		return nil, rewriteError(err)
+		return nil, rewriteError(ctx, err)
 	}
-	log.Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
 
 	for _, nsdef := range nsdefs {
 		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsdef, nsm, nsdefs)
 		if err != nil {
-			return nil, rewriteError(err)
+			return nil, rewriteError(ctx, err)
 		}
 
 		if err := ts.Validate(ctx); err != nil {
-			return nil, rewriteError(err)
+			return nil, rewriteError(ctx, err)
 		}
 
 		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef); err != nil {
-			return nil, rewriteError(err)
+			return nil, rewriteError(ctx, err)
 		}
 	}
-	log.Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
 
 	var names []string
 	for _, nsdef := range nsdefs {
 		if _, err := ss.ds.WriteNamespace(ctx, nsdef); err != nil {
-			return nil, rewriteError(err)
+			return nil, rewriteError(ctx, err)
 		}
 
 		names = append(names, nsdef.Name)
 	}
-	log.Trace().Interface("namespace definitions", nsdefs).Msg("wrote namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("wrote namespace definitions")
 
 	return &v1alpha1.WriteSchemaResponse{
 		ObjectDefinitionsNames: names,
 	}, nil
 }
 
-func rewriteError(err error) error {
+func rewriteError(ctx context.Context, err error) error {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var errWithContext compiler.ErrorWithContext
 
@@ -137,7 +137,7 @@ func rewriteError(err error) error {
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return serviceerrors.ErrServiceReadOnly
 	default:
-		log.Err(err)
+		log.Ctx(ctx).Err(err)
 		return err
 	}
 }

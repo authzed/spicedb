@@ -37,20 +37,20 @@ func NewDispatchServer(localDispatch dispatch.Dispatcher) v1.DispatchServiceServ
 
 func (ds *dispatchServer) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	resp, err := ds.localDispatch.DispatchCheck(ctx, req)
-	return resp, rewriteGraphError(err)
+	return resp, rewriteGraphError(ctx, err)
 }
 
 func (ds *dispatchServer) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	resp, err := ds.localDispatch.DispatchExpand(ctx, req)
-	return resp, rewriteGraphError(err)
+	return resp, rewriteGraphError(ctx, err)
 }
 
 func (ds *dispatchServer) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	resp, err := ds.localDispatch.DispatchLookup(ctx, req)
-	return resp, rewriteGraphError(err)
+	return resp, rewriteGraphError(ctx, err)
 }
 
-func rewriteGraphError(err error) error {
+func rewriteGraphError(ctx context.Context, err error) error {
 	switch {
 	case errors.As(err, &graph.ErrRequestCanceled{}):
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)

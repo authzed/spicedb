@@ -36,23 +36,23 @@ func downloadHandler(shareStore ShareStore) func(w http.ResponseWriter, r *http.
 		}
 		shared, status, err := shareStore.LookupSharedByReference(ref)
 		if err != nil {
-			log.Debug().Str("id", ref).Err(err).Msg("Lookup Shared Error")
+			log.Ctx(r.Context()).Debug().Str("id", ref).Err(err).Msg("Lookup Shared Error")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		if status == LookupNotFound {
-			log.Debug().Str("id", ref).Msg("Lookup Shared Not Found")
+			log.Ctx(r.Context()).Debug().Str("id", ref).Msg("Lookup Shared Not Found")
 			http.NotFound(w, r)
 			return
 		}
 		out, err := yaml.Marshal(&shared)
 		if err != nil {
-			log.Debug().Str("id", ref).Err(err).Msg("Couldn't marshall as yaml")
+			log.Ctx(r.Context()).Debug().Str("id", ref).Err(err).Msg("Couldn't marshall as yaml")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if _, err := w.Write(out); err != nil {
-			log.Debug().Str("id", ref).Err(err).Msg("Couldn't write as yaml")
+			log.Ctx(r.Context()).Debug().Str("id", ref).Err(err).Msg("Couldn't write as yaml")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

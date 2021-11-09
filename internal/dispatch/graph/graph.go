@@ -105,7 +105,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	))
 	defer span.End()
 
-	err := dispatch.CheckDepth(req)
+	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
@@ -125,7 +125,7 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 	))
 	defer span.End()
 
-	err := dispatch.CheckDepth(req)
+	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
@@ -147,7 +147,7 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	))
 	defer span.End()
 
-	err := dispatch.CheckDepth(req)
+	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
