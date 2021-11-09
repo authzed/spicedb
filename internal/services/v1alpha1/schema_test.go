@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -49,10 +50,14 @@ func TestSchemaWriteNoPrefixNotRequired(t *testing.T) {
 	require.NoError(t, err)
 
 	srv := NewSchemaServer(ds, PrefixNotRequired)
-	_, err = srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+	resp, err := srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
 		Schema: `definition user {}`,
 	})
 	require.NoError(t, err)
+
+	rev, err := nspkg.DecodeV1Alpha1Revision(resp.ComputedDefinitionsRevision)
+	require.NoError(t, err)
+	require.Len(t, rev, 1)
 }
 
 func TestSchemaReadInvalidName(t *testing.T) {
@@ -140,6 +145,10 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, requestedObjectDefNames, writeResp.GetObjectDefinitionsNames())
+
+	rev, err := nspkg.DecodeV1Alpha1Revision(writeResp.ComputedDefinitionsRevision)
+	require.NoError(t, err)
+	require.Len(t, rev, 1)
 
 	readback, err := srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
 		ObjectDefinitionsNames: writeResp.GetObjectDefinitionsNames(),
@@ -240,10 +249,113 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to delete the `somerelation` relation, which should succeed.
-	_, err = srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+	writeResp, err := srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 		
 			definition example/document {}`,
 	})
 	require.Nil(t, err)
+
+	rev, err := nspkg.DecodeV1Alpha1Revision(writeResp.ComputedDefinitionsRevision)
+	require.NoError(t, err)
+	require.Len(t, rev, 2)
+}
+
+func TestSchemaReadUpdateAndFailWrite(t *testing.T) {
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	require.NoError(t, err)
+
+	srv := NewSchemaServer(ds, PrefixRequired)
+	requestedObjectDefNames := []string{"example/user"}
+
+	// Issue a write to create the schema's namespaces.
+	writeResp, err := srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		Schema: `definition example/user {}`,
+	})
+	require.NoError(t, err)
+	require.Equal(t, requestedObjectDefNames, writeResp.GetObjectDefinitionsNames())
+
+	// Read the schema.
+	resp, err := srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
+		ObjectDefinitionsNames: requestedObjectDefNames,
+	})
+	require.NoError(t, err)
+
+	// Issue a write with the precondition and ensure it succeeds.
+	updateResp, err := srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		Schema: `definition example/user {
+			relation foo1: example/user
+		}`,
+		OptionalDefinitionsRevisionPrecondition: resp.ComputedDefinitionsRevision,
+	})
+	require.NoError(t, err)
+
+	// Issue another write out of band to update the namespace.
+	_, err = srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		Schema: `definition example/user {
+			relation foo2: example/user
+		}`,
+	})
+	require.NoError(t, err)
+
+	// Try to write using the previous revision and ensure it fails.
+	_, err = srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		Schema: `definition example/user {
+			relation foo3: example/user
+		}`,
+		OptionalDefinitionsRevisionPrecondition: updateResp.ComputedDefinitionsRevision,
+	})
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
+
+	// Read the schema and ensure it did not change.
+	readResp, err := srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
+		ObjectDefinitionsNames: requestedObjectDefNames,
+	})
+	require.NoError(t, err)
+	require.Contains(t, readResp.ObjectDefinitions[0], "foo2")
+}
+
+func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	require.NoError(t, err)
+
+	srv := NewSchemaServer(ds, PrefixRequired)
+	requestedObjectDefNames := []string{"example/user"}
+
+	// Issue a write to create the schema's namespaces.
+	writeResp, err := srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		Schema: `definition example/user {
+			relation foo1: example/user
+		}`,
+	})
+	require.NoError(t, err)
+	require.Equal(t, requestedObjectDefNames, writeResp.GetObjectDefinitionsNames())
+
+	// Read the schema.
+	resp, err := srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
+		ObjectDefinitionsNames: requestedObjectDefNames,
+	})
+	require.NoError(t, err)
+
+	// Issue a delete out of band for the namespace.
+	namespaceSrv := v0svc.NewNamespaceServer(ds)
+	_, err = namespaceSrv.DeleteConfigs(context.Background(), &v0.DeleteConfigsRequest{
+		Namespaces: requestedObjectDefNames,
+	})
+	require.NoError(t, err)
+
+	// Try to write using the previous revision and ensure it fails.
+	_, err = srv.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		Schema: `definition example/user {
+			relation foo3: example/user
+		}`,
+		OptionalDefinitionsRevisionPrecondition: resp.ComputedDefinitionsRevision,
+	})
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
+
+	// Read the schema and ensure it was not written.
+	_, err = srv.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
+		ObjectDefinitionsNames: requestedObjectDefNames,
+	})
+	grpcutil.RequireStatus(t, codes.NotFound, err)
 }
