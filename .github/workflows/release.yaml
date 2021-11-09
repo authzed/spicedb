@@ -18,6 +18,11 @@ jobs:
           registry: "quay.io"
           username: "${{ secrets.QUAYIO_USER }}"
           password: "${{ secrets.QUAYIO_PASSWORD }}"
+      - uses: "docker/login-action@v1"
+        with:
+          registry: "ghcr.io"
+          username: "${{ github.actor }}"
+          password: "${{ secrets.GITHUB_TOKEN }}"
       - uses: "actions/setup-go@v2"
         with:
           go-version: "^1.17"
