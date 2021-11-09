@@ -7,14 +7,14 @@
 [![Discord Server](https://img.shields.io/discord/844600078504951838?color=7289da&logo=discord "Discord Server")](https://discord.gg/jTysUaxXzM)
 [![Twitter](https://img.shields.io/twitter/follow/authzed?color=%23179CF0&logo=twitter&style=flat-square "@authzed on Twitter")](https://twitter.com/authzed)
 
-SpiceDB is a [Zanzibar]-inspired database that stores, computes, and validates application permissions.
+SpiceDB is a database system for managing security-critical application permissions.
 
 Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
 Features that distinguish SpiceDB from other systems include:
 
 - Expressive [gRPC] and [HTTP] APIs for checking permissions, listing access, and powering devtools
-- An architecture faithful to the [Google Zanzibar] paper, including resistance to the [New Enemy Problem]
+- An architecture faithful to [Google's Zanzibar paper], including resistance to the [New Enemy Problem]
 - An intuitive and expressive [schema language] complete with a [playground] dev environment
 - A powerful graph engine that supports distributed, parallel evaluation
 - Pluggable storage that supports [in-memory], [PostgreSQL], and [CockroachDB]
@@ -25,8 +25,7 @@ See [CONTRIBUTING.md] for instructions on how to contribute and perform common t
 [client library]: https://docs.authzed.com/reference/api#client-libraries
 [gRPC]: https://buf.build/authzed/api
 [HTTP]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/authzed/authzed-go/main/proto/apidocs.swagger.json
-[Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
-[Google Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
+[Google's Zanzibar paper]: https://authzed.com/blog/what-is-zanzibar/
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
 [schema language]: https://docs.authzed.com/guides/schema
 [playground]: https://play.authzed.com
@@ -81,7 +80,7 @@ SpiceDB is also available as a container image:
 
 ```sh
 docker pull quay.io/authzed/spicedb:latest
-docker run quay.io/authzed/spicedb serve --grpc-preshared-key "somerandomkeyhere" --grpc-no-tls --http-no-tls
+docker run quay.io/authzed/spicedb serve --grpc-preshared-key "somerandomkeyhere"
 ```
 
 SpiceDB supports environment variables. You can replace any command's argument with an environment variable by adding the `SPICEDB` prefix.  
@@ -114,7 +113,7 @@ By using unique tokens in each of your application's integration tests, they can
 
 A [SpiceDB GitHub action] is also available to run SpiceDB as part of your integration test workflows.
 
-[Bearer Token]: https://docs.authzed.com/concepts/terminology/#api-token
+[Bearer Token]: https://docs.authzed.com/reference/api#authentication
 [SpiceDB GitHub action]: https://github.com/authzed/action-spicedb
 
 ### Developing your own schema
