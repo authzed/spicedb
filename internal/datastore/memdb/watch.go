@@ -65,7 +65,7 @@ func (mds *memdbDatastore) loadChanges(currentTxn uint64) ([]*datastore.Revision
 	loadNewTxn := mds.db.Txn(false)
 	defer loadNewTxn.Abort()
 
-	it, err := loadNewTxn.LowerBound(tableChangelog, indexID, currentTxn+1)
+	it, err := loadNewTxn.LowerBound(tableChangelog, indexID, currentTxn-1)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf(errWatchError, err)
 	}
