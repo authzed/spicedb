@@ -17,6 +17,7 @@ import (
 	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/jzelinskie/cobrautil"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -51,8 +52,8 @@ func registerTestserverCmd(rootCmd *cobra.Command) {
 		Run:     runTestServer,
 	}
 
-	testserveCmd.Flags().String("grpc-addr", ":50051", "address to listen on for serving gRPC services")
-	testserveCmd.Flags().String("readonly-grpc-addr", ":50052", "address to listen on for serving read-only gRPC services")
+	cobrautil.RegisterGrpcServerFlags(testserveCmd.Flags(), "grpc", "gRPC", ":50051", true)
+	cobrautil.RegisterGrpcServerFlags(testserveCmd.Flags(), "readonly-grpc", "read-only gRPC", ":50052", true)
 	testserveCmd.Flags().StringSlice("load-configs", []string{}, "configuration yaml files to load")
 
 	rootCmd.AddCommand(testserveCmd)
@@ -87,28 +88,14 @@ func runTestServer(cmd *cobra.Command, args []string) {
 	}
 
 	go func() {
-		addr := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
-		l, err := net.Listen("tcp", addr)
-		if err != nil {
-			log.Fatal().Str("addr", addr).Msg("failed to listen on addr for gRPC server")
-		}
-
-		log.Info().Str("addr", addr).Msg("gRPC server started listening")
-		if err := grpcServer.Serve(l); err != nil {
-			log.Warn().Err(err).Msg("gRPC service did not shutdown cleanly")
+		if err := cobrautil.GrpcListenFromFlags(cmd, "grpc", grpcServer, zerolog.InfoLevel); err != nil {
+			log.Fatal().Err(err).Msg("failed to start gRPC server")
 		}
 	}()
 
 	go func() {
-		addr := cobrautil.MustGetStringExpanded(cmd, "readonly-grpc-addr")
-		l, err := net.Listen("tcp", addr)
-		if err != nil {
-			log.Fatal().Str("addr", addr).Msg("failed to listen on readonly addr for gRPC server")
-		}
-
-		log.Info().Str("addr", addr).Msg("readonly gRPC server started listening")
-		if err := readonlyServer.Serve(l); err != nil {
-			log.Warn().Err(err).Msg("readonly gRPC service did not shutdown cleanly")
+		if err := cobrautil.GrpcListenFromFlags(cmd, "readonly-grpc", readonlyServer, zerolog.InfoLevel); err != nil {
+			log.Fatal().Err(err).Msg("failed to start gRPC server")
 		}
 	}()
 

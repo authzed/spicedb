@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 
@@ -17,6 +16,7 @@ import (
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/jzelinskie/stringz"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -70,14 +70,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 	registerDeveloperGrpcServices(grpcServer, shareStore)
 
 	go func() {
-		addr := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
-		l, err := net.Listen("tcp", addr)
-		if err != nil {
-			log.Fatal().Err(err).Str("addr", addr).Msg("failed to listen on addr for gRPC server")
-		}
-
-		log.Info().Str("addr", addr).Msg("gRPC server started listening")
-		if err := grpcServer.Serve(l); err != nil {
+		if err := cobrautil.GrpcListenFromFlags(cmd, "grpc", grpcServer, zerolog.InfoLevel); err != nil {
 			log.Warn().Err(err).Msg("gRPC service did not shutdown cleanly")
 		}
 	}()
@@ -86,8 +79,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
 	metricsSrv.Handler = metricsHandler()
 	go func() {
-		log.Info().Str("addr", metricsSrv.Addr).Msg("metrics server started listening")
-		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv); err != nil {
+		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
@@ -96,8 +88,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 	downloadSrv := cobrautil.HttpServerFromFlags(cmd, "http")
 	downloadSrv.Handler = v0svc.NewHTTPDownloadServer(cobrautil.MustGetString(cmd, "http-addr"), shareStore).Handler
 	go func() {
-		log.Info().Str("addr", downloadSrv.Addr).Msg("download server started listening")
-		if err := cobrautil.HttpListenFromFlags(cmd, "http", downloadSrv); err != nil {
+		if err := cobrautil.HttpListenFromFlags(cmd, "http", downloadSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving download http api")
 		}
 	}()

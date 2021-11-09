@@ -15,6 +15,7 @@ import (
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -348,17 +349,13 @@ func serveRun(cmd *cobra.Command, args []string) {
 		v1SchemaServiceOption,
 	)
 	go func() {
-		grpcAddr := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
-		log.Info().Str("addr", grpcAddr).Msg("grpc server started listening")
-		if err := cobrautil.GrpcListenFromFlags(cmd, "grpc", grpcServer); err != nil {
+		if err := cobrautil.GrpcListenFromFlags(cmd, "grpc", grpcServer, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed to start gRPC server")
 		}
 	}()
 
 	go func() {
-		dispatchAddr := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-addr")
-		log.Info().Str("addr", dispatchAddr).Msg("cluster dispatch server started listening")
-		if err := cobrautil.GrpcListenFromFlags(cmd, "dispatch-cluster", dispatchGrpcServer); err != nil {
+		if err := cobrautil.GrpcListenFromFlags(cmd, "dispatch-cluster", dispatchGrpcServer, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed to start gRPC server")
 		}
 	}()
@@ -375,8 +372,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	gatewaySrv := cobrautil.HttpServerFromFlags(cmd, "http")
 	gatewaySrv.Handler = gatewayHandler
 	go func() {
-		log.Info().Str("addr", gatewaySrv.Addr).Msg("rest gateway server started listening")
-		if err := cobrautil.HttpListenFromFlags(cmd, "http", gatewaySrv); err != nil {
+		if err := cobrautil.HttpListenFromFlags(cmd, "http", gatewaySrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving http")
 		}
 	}()
@@ -385,8 +381,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
 	metricsSrv.Handler = metricsHandler()
 	go func() {
-		log.Info().Str("addr", metricsSrv.Addr).Msg("metrics server started listening")
-		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv); err != nil {
+		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
@@ -400,8 +395,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 		ds,
 	)
 	go func() {
-		log.Info().Str("addr", dashboardSrv.Addr).Msg("dashboard server started listening")
-		if err := cobrautil.HttpListenFromFlags(cmd, "dashboard", dashboardSrv); err != nil {
+		if err := cobrautil.HttpListenFromFlags(cmd, "dashboard", dashboardSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving dashboard")
 		}
 	}()
