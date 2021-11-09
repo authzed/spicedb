@@ -7,6 +7,7 @@ import (
 
 	"github.com/dgraph-io/ristretto"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
@@ -181,10 +182,12 @@ func (cd *CachingDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 // DispatchLookup implements dispatch.Lookup interface and does not do any caching yet.
 func (cd *CachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	cd.lookupTotalCounter.Inc()
+
 	requestKey := dispatch.LookupRequestToKey(req)
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupResultEntry)
 		if req.Metadata.DepthRemaining >= cachedResult.depthRequired {
+			log.Trace().Object("using cached lookup", req).Int("result count", len(cachedResult.result.ResolvedOnrs)).Send()
 			cd.lookupFromCacheCounter.Inc()
 			return cachedResult.result, nil
 		}
@@ -192,11 +195,15 @@ func (cd *CachingDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 
 	computed, err := cd.d.DispatchLookup(ctx, req)
 
-	// We only want to cache the result if there was no error
-	if err == nil {
+	// We only want to cache the result if there was no error and nothing was excluded.
+	if err == nil && len(computed.Metadata.LookupExcludedDirect) == 0 && len(computed.Metadata.LookupExcludedTtu) == 0 {
+		log.Trace().Object("caching lookup", req).Int("result count", len(computed.ResolvedOnrs)).Send()
+
 		requestKey := dispatch.LookupRequestToKey(req)
 		toCache := lookupResultEntry{computed, computed.Metadata.DepthRequired}
 		toCache.result.Metadata.DispatchCount = 0
+		toCache.result.Metadata.LookupExcludedDirect = nil
+		toCache.result.Metadata.LookupExcludedTtu = nil
 
 		estimatedSize := lookupResultEntryEmptyCost
 		for _, onr := range toCache.result.ResolvedOnrs {

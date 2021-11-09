@@ -279,7 +279,12 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to create redispatch gRPC server")
 	}
 
-	redispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
+	cachingRedispatch, err := caching.NewCachingDispatcher(nil, "dispatch_client")
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize redispatcher cache")
+	}
+
+	redispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
 
 	// grpc consistent loadbalancer redispatch configuration
 	dispatchAddr := cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-addr")
@@ -315,10 +320,6 @@ func serveRun(cmd *cobra.Command, args []string) {
 		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn))
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(nil, "local_caching")
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize dispatcher cache")
-	}
 	cachingRedispatch.SetDelegate(redispatch)
 
 	clusterDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
