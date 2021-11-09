@@ -39,6 +39,7 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	clusterdispatch "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -243,6 +244,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	))
 
 	middleware := grpc.ChainUnaryInterceptor(
+		requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 		otelgrpc.UnaryServerInterceptor(),
 		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
@@ -251,6 +253,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	)
 
 	streamMiddleware := grpc.ChainStreamInterceptor(
+		requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 		grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 		otelgrpc.StreamServerInterceptor(),
 		grpcauth.StreamServerInterceptor(auth.RequirePresharedKey(token)),
