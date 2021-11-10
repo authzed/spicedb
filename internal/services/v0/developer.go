@@ -106,14 +106,14 @@ func (ds *devServer) Share(ctx context.Context, req *v0.ShareRequest) (*v0.Share
 func (ds *devServer) LookupShared(ctx context.Context, req *v0.LookupShareRequest) (*v0.LookupShareResponse, error) {
 	shared, status, err := ds.shareStore.LookupSharedByReference(req.ShareReference)
 	if err != nil {
-		log.Debug().Str("id", req.ShareReference).Err(err).Msg("Lookup Shared Error")
+		log.Ctx(ctx).Debug().Str("id", req.ShareReference).Err(err).Msg("Lookup Shared Error")
 		return &v0.LookupShareResponse{
 			Status: v0.LookupShareResponse_FAILED_TO_LOOKUP,
 		}, nil
 	}
 
 	if status == LookupNotFound {
-		log.Debug().Str("id", req.ShareReference).Msg("Lookup Shared Not Found")
+		log.Ctx(ctx).Debug().Str("id", req.ShareReference).Msg("Lookup Shared Not Found")
 		return &v0.LookupShareResponse{
 			Status: v0.LookupShareResponse_UNKNOWN_REFERENCE,
 		}, nil
@@ -163,7 +163,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 			},
 		})
 		if err != nil {
-			requestErrors, wireErr := rewriteGraphError(v0.DeveloperError_CHECK_WATCH, 0, 0, tuple.String(checkTpl), err)
+			requestErrors, wireErr := rewriteGraphError(ctx, v0.DeveloperError_CHECK_WATCH, 0, 0, tuple.String(checkTpl), err)
 			if len(requestErrors) == 1 {
 				results = append(results, &v0.EditCheckResult{
 					Relationship: checkTpl,
@@ -287,6 +287,7 @@ func runAssertions(ctx context.Context, devContext *DevContext, assertions []val
 		})
 		if err != nil {
 			validationErrs, wireErr := rewriteGraphError(
+				ctx,
 				v0.DeveloperError_ASSERTION,
 				assertion.LineNumber,
 				assertion.ColumnPosition,
@@ -378,7 +379,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 		})
 		if dispatchErr != nil {
-			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), dispatchErr)
+			validationErrs, wireErr := rewriteGraphError(ctx, v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), dispatchErr)
 			if validationErrs != nil {
 				failures = append(failures, validationErrs...)
 				return nil, failures, nil
@@ -390,7 +391,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 		// Add the ONR and its expansion to the membership set.
 		foundSubjects, _, aerr := membershipSet.AddExpansion(onr, er.TreeNode)
 		if aerr != nil {
-			validationErrs, wireErr := rewriteGraphError(v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), aerr)
+			validationErrs, wireErr := rewriteGraphError(ctx, v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), aerr)
 			if validationErrs != nil {
 				failures = append(failures, validationErrs...)
 				continue
@@ -502,7 +503,7 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, va
 	return failures
 }
 
-func rewriteGraphError(source v0.DeveloperError_Source, line uint32, column uint32, context string, checkError error) ([]*v0.DeveloperError, error) {
+func rewriteGraphError(ctx context.Context, source v0.DeveloperError_Source, line uint32, column uint32, context string, checkError error) ([]*v0.DeveloperError, error) {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
 
@@ -546,7 +547,7 @@ func rewriteGraphError(source v0.DeveloperError_Source, line uint32, column uint
 		}, nil
 	}
 
-	return nil, rewriteACLError(checkError)
+	return nil, rewriteACLError(ctx, checkError)
 }
 
 func convertSourceError(source v0.DeveloperError_Source, err *validationfile.ErrorWithSource) *v0.DeveloperError {

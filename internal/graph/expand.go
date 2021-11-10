@@ -36,7 +36,7 @@ type ConcurrentExpander struct {
 
 // Expand performs an expand request with the provided request and context.
 func (ce *ConcurrentExpander) Expand(ctx context.Context, req *v1.DispatchExpandRequest, relation *v0.Relation) (*v1.DispatchExpandResponse, error) {
-	log.Trace().Object("expand", req).Send()
+	log.Ctx(ctx).Trace().Object("expand", req).Send()
 
 	var directFunc ReduceableExpandFunc
 	if relation.UsersetRewrite == nil {
@@ -55,7 +55,7 @@ func (ce *ConcurrentExpander) expandDirect(
 	startBehavior startInclusion,
 ) ReduceableExpandFunc {
 
-	log.Trace().Object("direct", req).Send()
+	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 		if err != nil {
@@ -145,13 +145,13 @@ func (ce *ConcurrentExpander) expandDirect(
 func (ce *ConcurrentExpander) expandUsersetRewrite(ctx context.Context, req *v1.DispatchExpandRequest, usr *v0.UsersetRewrite) ReduceableExpandFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *v0.UsersetRewrite_Union:
-		log.Trace().Msg("union")
+		log.Ctx(ctx).Trace().Msg("union")
 		return ce.expandSetOperation(ctx, req, rw.Union, expandAny)
 	case *v0.UsersetRewrite_Intersection:
-		log.Trace().Msg("intersection")
+		log.Ctx(ctx).Trace().Msg("intersection")
 		return ce.expandSetOperation(ctx, req, rw.Intersection, expandAll)
 	case *v0.UsersetRewrite_Exclusion:
-		log.Trace().Msg("exclusion")
+		log.Ctx(ctx).Trace().Msg("exclusion")
 		return ce.expandSetOperation(ctx, req, rw.Exclusion, expandDifference)
 	default:
 		return alwaysFailExpand
@@ -179,14 +179,14 @@ func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req *v1.Di
 
 func (ce *ConcurrentExpander) dispatch(req *v1.DispatchExpandRequest) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		log.Trace().Object("dispatch expand", req).Send()
+		log.Ctx(ctx).Trace().Object("dispatch expand", req).Send()
 		result, err := ce.d.DispatchExpand(ctx, req)
 		resultChan <- ExpandResult{result, err}
 	}
 }
 
 func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req *v1.DispatchExpandRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableExpandFunc {
-	log.Trace().Str("relation", cu.Relation).Msg("computed userset")
+	log.Ctx(ctx).Trace().Str("relation", cu.Relation).Msg("computed userset")
 	var start *v0.ObjectAndRelation
 	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if tpl == nil {

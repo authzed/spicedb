@@ -42,19 +42,19 @@ func NewNamespaceServer(ds datastore.Datastore) v0.NamespaceServiceServer {
 func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest) (*v0.WriteConfigResponse, error) {
 	nsm, err := namespace.NewCachingNamespaceManager(nss.ds, 0*time.Second, nil)
 	if err != nil {
-		return nil, rewriteNamespaceError(err)
+		return nil, rewriteNamespaceError(ctx, err)
 	}
 
 	for _, config := range req.Configs {
 		// Validate the type system for the updated namespace.
 		ts, terr := namespace.BuildNamespaceTypeSystemWithFallback(config, nsm, req.Configs)
 		if terr != nil {
-			return nil, rewriteNamespaceError(terr)
+			return nil, rewriteNamespaceError(ctx, terr)
 		}
 
 		tverr := ts.Validate(ctx)
 		if tverr != nil {
-			return nil, rewriteNamespaceError(tverr)
+			return nil, rewriteNamespaceError(ctx, tverr)
 		}
 
 		// Ensure that the updated namespace does not break the existing tuple data.
@@ -63,17 +63,17 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		// to ensure there is no caching being used.
 		existing, _, err := nss.ds.ReadNamespace(ctx, config.Name)
 		if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) {
-			return nil, rewriteNamespaceError(err)
+			return nil, rewriteNamespaceError(ctx, err)
 		}
 
 		diff, err := namespace.DiffNamespaces(existing, config)
 		if err != nil {
-			return nil, rewriteNamespaceError(err)
+			return nil, rewriteNamespaceError(ctx, err)
 		}
 
 		syncRevision, err := nss.ds.SyncRevision(ctx)
 		if err != nil {
-			return nil, rewriteNamespaceError(err)
+			return nil, rewriteNamespaceError(ctx, err)
 		}
 
 		for _, delta := range diff.Deltas() {
@@ -87,7 +87,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 					}, syncRevision),
 					"cannot delete relation `%s` in definition `%s`, as a relationship exists under it", delta.RelationName, config.Name)
 				if err != nil {
-					return nil, rewriteNamespaceError(err)
+					return nil, rewriteNamespaceError(ctx, err)
 				}
 
 				// Also check for right sides of tuples.
@@ -96,7 +96,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 					nss.ds.ReverseQueryTuplesFromSubjectRelation(config.Name, delta.RelationName, syncRevision),
 					"cannot delete relation `%s` in definition `%s`, as a relationship references it", delta.RelationName, config.Name)
 				if err != nil {
-					return nil, rewriteNamespaceError(err)
+					return nil, rewriteNamespaceError(ctx, err)
 				}
 
 			case namespace.RelationDirectTypeRemoved:
@@ -107,7 +107,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 					"cannot remove allowed relation/permission `%s#%s` from relation `%s` in definition `%s`, as a relationship exists with it",
 					delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name)
 				if err != nil {
-					return nil, rewriteNamespaceError(err)
+					return nil, rewriteNamespaceError(ctx, err)
 				}
 			}
 		}
@@ -118,7 +118,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		var err error
 		revision, err = nss.ds.WriteNamespace(ctx, config)
 		if err != nil {
-			return nil, rewriteNamespaceError(err)
+			return nil, rewriteNamespaceError(ctx, err)
 		}
 	}
 
@@ -130,7 +130,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) (*v0.ReadConfigResponse, error) {
 	found, version, err := nss.ds.ReadNamespace(ctx, req.Namespace)
 	if err != nil {
-		return nil, rewriteNamespaceError(err)
+		return nil, rewriteNamespaceError(ctx, err)
 	}
 
 	return &v0.ReadConfigResponse{
@@ -143,7 +143,7 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsRequest) (*v0.DeleteConfigsResponse, error) {
 	syncRevision, err := nss.ds.SyncRevision(ctx)
 	if err != nil {
-		return nil, rewriteNamespaceError(err)
+		return nil, rewriteNamespaceError(ctx, err)
 	}
 
 	// Ensure that all the specified namespaces can be deleted.
@@ -151,7 +151,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 		// Ensure the namespace exists.
 		_, _, err := nss.ds.ReadNamespace(ctx, nsName)
 		if err != nil {
-			return nil, rewriteNamespaceError(err)
+			return nil, rewriteNamespaceError(ctx, err)
 		}
 
 		// Check for relationships under the namespace.
@@ -162,7 +162,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 			}, syncRevision),
 			"cannot delete definition `%s`, as a relationship exists under it", nsName)
 		if err != nil {
-			return nil, rewriteNamespaceError(err)
+			return nil, rewriteNamespaceError(ctx, err)
 		}
 
 		// Also check for right sides of relationships.
@@ -171,14 +171,14 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 			nss.ds.ReverseQueryTuplesFromSubjectNamespace(nsName, syncRevision),
 			"cannot delete definition `%s`, as a relationship references it", nsName)
 		if err != nil {
-			return nil, rewriteNamespaceError(err)
+			return nil, rewriteNamespaceError(ctx, err)
 		}
 	}
 
 	// Delete all the namespaces specified.
 	for _, nsName := range req.Namespaces {
 		if _, err := nss.ds.DeleteNamespace(ctx, nsName); err != nil {
-			return nil, rewriteNamespaceError(err)
+			return nil, rewriteNamespaceError(ctx, err)
 		}
 	}
 
@@ -205,7 +205,7 @@ func errorIfTupleIteratorReturnsTuples(ctx context.Context, query datastore.Comm
 	return nil
 }
 
-func rewriteNamespaceError(err error) error {
+func rewriteNamespaceError(ctx context.Context, err error) error {
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return status.Errorf(codes.NotFound, "object definition not found: %s", err)
@@ -214,7 +214,7 @@ func rewriteNamespaceError(err error) error {
 		return serviceerrors.ErrServiceReadOnly
 
 	default:
-		log.Err(err)
+		log.Ctx(ctx).Err(err)
 		return err
 	}
 }

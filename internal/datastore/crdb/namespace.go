@@ -107,7 +107,7 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 		}
 		numDeleted := deletedNSResult.RowsAffected()
 		if numDeleted != 1 {
-			log.Warn().Int64("numDeleted", numDeleted).Msg("deleted wrong number of namespaces")
+			log.Ctx(ctx).Warn().Int64("numDeleted", numDeleted).Msg("deleted wrong number of namespaces")
 		}
 
 		deleteTupleSQL, deleteTupleArgs, err := queryDeleteTuples.

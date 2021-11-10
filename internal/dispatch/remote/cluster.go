@@ -26,7 +26,7 @@ type clusterDispatcher struct {
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
-	err := dispatch.CheckDepth(req)
+	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
@@ -40,7 +40,7 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 }
 
 func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
-	err := dispatch.CheckDepth(req)
+	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
@@ -54,7 +54,7 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 }
 
 func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
-	err := dispatch.CheckDepth(req)
+	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}

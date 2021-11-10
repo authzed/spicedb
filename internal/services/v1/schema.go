@@ -42,7 +42,7 @@ type schemaServer struct {
 func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
 	nsDefs, err := ss.ds.ListNamespaces(ctx)
 	if err != nil {
-		return nil, rewriteSchemaError(err)
+		return nil, rewriteSchemaError(ctx, err)
 	}
 
 	if len(nsDefs) == 0 {
@@ -61,7 +61,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 }
 
 func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaRequest) (*v1.WriteSchemaResponse, error) {
-	log.Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
+	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 	inputSchema := compiler.InputSchema{
 		Source:       input.InputSource("schema"),
 		SchemaString: in.GetSchema(),
@@ -70,7 +70,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	// Build a map of existing definitions to determine those being removed, if any.
 	existingDefs, err := ss.ds.ListNamespaces(ctx)
 	if err != nil {
-		return nil, rewriteSchemaError(err)
+		return nil, rewriteSchemaError(ctx, err)
 	}
 
 	existingDefMap := map[string]bool{}
@@ -82,29 +82,29 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	emptyDefaultPrefix := ""
 	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
 	if err != nil {
-		return nil, rewriteSchemaError(err)
+		return nil, rewriteSchemaError(ctx, err)
 	}
-	log.Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
 
 	// For each definition, perform a diff and ensure the changes will not result in any
 	// relationships left without associated schema.
 	for _, nsdef := range nsdefs {
 		ts, err := namespace.BuildNamespaceTypeSystemForDefs(nsdef, nsdefs)
 		if err != nil {
-			return nil, rewriteSchemaError(err)
+			return nil, rewriteSchemaError(ctx, err)
 		}
 
 		if err := ts.Validate(ctx); err != nil {
-			return nil, rewriteSchemaError(err)
+			return nil, rewriteSchemaError(ctx, err)
 		}
 
 		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef); err != nil {
-			return nil, rewriteSchemaError(err)
+			return nil, rewriteSchemaError(ctx, err)
 		}
 
 		existingDefMap[nsdef.Name] = false
 	}
-	log.Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
 
 	// Ensure that deleting namespaces will not result in any relationships left without associated
 	// schema.
@@ -115,7 +115,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 		err := shared.EnsureNoRelationshipsExist(ctx, ss.ds, nsdefName)
 		if err != nil {
-			return nil, rewriteSchemaError(err)
+			return nil, rewriteSchemaError(ctx, err)
 		}
 	}
 
@@ -123,7 +123,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	var names []string
 	for _, nsdef := range nsdefs {
 		if _, err := ss.ds.WriteNamespace(ctx, nsdef); err != nil {
-			return nil, rewriteSchemaError(err)
+			return nil, rewriteSchemaError(ctx, err)
 		}
 
 		names = append(names, nsdef.Name)
@@ -136,17 +136,17 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 			continue
 		}
 		if _, err := ss.ds.DeleteNamespace(ctx, nsdefName); err != nil {
-			return nil, rewriteSchemaError(err)
+			return nil, rewriteSchemaError(ctx, err)
 		}
 		removedNames = append(removedNames, nsdefName)
 	}
 
-	log.Trace().Interface("namespace definitions", nsdefs).Strs("added/changed", names).Strs("removed", removedNames).Msg("wrote namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Strs("added/changed", names).Strs("removed", removedNames).Msg("wrote namespace definitions")
 
 	return &v1.WriteSchemaResponse{}, nil
 }
 
-func rewriteSchemaError(err error) error {
+func rewriteSchemaError(ctx context.Context, err error) error {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var errWithContext compiler.ErrorWithContext
 
@@ -158,7 +158,7 @@ func rewriteSchemaError(err error) error {
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return serviceerrors.ErrServiceReadOnly
 	default:
-		log.Err(err)
+		log.Ctx(ctx).Err(err)
 		return err
 	}
 }

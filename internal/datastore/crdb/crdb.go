@@ -183,11 +183,11 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 
 	localNow := time.Now()
 	if localNow.Before(cds.revisionValidThrough) {
-		log.Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Msg("returning cached revision")
+		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Msg("returning cached revision")
 		return cds.lastQuantizedRevision, nil
 	}
 
-	log.Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Msg("computing new revision")
+	log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Msg("computing new revision")
 
 	nowHLC, err := cds.SyncRevision(ctx)
 	if err != nil {
@@ -206,7 +206,7 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 	cds.revisionValidThrough = localNow.
 		Add(time.Duration(validForNanos) * time.Nanosecond).
 		Add(cds.maxRevisionStaleness)
-	log.Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Int64("validForNanos", validForNanos).Msg("setting valid through")
+	log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Int64("validForNanos", validForNanos).Msg("setting valid through")
 	cds.lastQuantizedRevision = decimal.NewFromInt(quantized)
 
 	return cds.lastQuantizedRevision, nil
@@ -245,13 +245,13 @@ func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.
 
 	staleRevision := revisionNanos < (nowNanos - cds.gcWindowNanos)
 	if staleRevision {
-		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("stale revision")
+		log.Ctx(ctx).Debug().Stringer("now", now).Stringer("revision", revision).Msg("stale revision")
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
 	futureRevision := revisionNanos > nowNanos
 	if futureRevision {
-		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("future revision")
+		log.Ctx(ctx).Debug().Stringer("now", now).Stringer("revision", revision).Msg("future revision")
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
 	}
 

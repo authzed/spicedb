@@ -85,7 +85,7 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 
 	for i = 0; i < maxRetries; i++ {
 		if err = releasedFn(tx); err != nil {
-			if !retriable(err) {
+			if !retriable(ctx, err) {
 				return err
 			}
 			if _, retryErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT cockroach_restart"); retryErr != nil {
@@ -98,10 +98,10 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 	return errors.New(errReachedMaxRetry)
 }
 
-func retriable(err error) bool {
+func retriable(ctx context.Context, err error) bool {
 	var pgerr *pgconn.PgError
 	if !errors.As(err, &pgerr) {
-		log.Error().Err(err).Msg("error not retriable")
+		log.Ctx(ctx).Error().Err(err).Msg("error not retriable")
 		return false
 	}
 	return pgerr.SQLState() == crdbRetryErrCode

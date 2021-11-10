@@ -81,7 +81,7 @@ func newHedger(
 		case <-responseReady:
 			duration = timeSource.Since(originalStart)
 		case <-timer.C:
-			log.Debug().Dur("after", slowRequestThreshold).Msg("sending hedged datastore request")
+			log.Ctx(ctx).Debug().Dur("after", slowRequestThreshold).Msg("sending hedged datastore request")
 			hedgedCount.Inc()
 
 			hedgedResponseReady := make(chan struct{}, 1)
@@ -101,7 +101,7 @@ func newHedger(
 
 		// Swap the current active digest if it has too many samples
 		if digests[0].Count() >= float64(maxSampleCount) {
-			log.Trace().Float64("count", digests[0].Count()).Msg("switching to next hedging digest")
+			log.Ctx(ctx).Trace().Float64("count", digests[0].Count()).Msg("switching to next hedging digest")
 			exhausted := digests[0]
 			digests = digests[1:]
 			exhausted.Reset()
@@ -109,7 +109,7 @@ func newHedger(
 		}
 
 		// Record the duration to all candidate digests
-		log.Trace().Dur("duration", duration).Msg("adding sample duration to statistics")
+		log.Ctx(ctx).Trace().Dur("duration", duration).Msg("adding sample duration to statistics")
 		durSeconds := duration.Seconds()
 		for _, digest := range digests {
 			digest.Add(durSeconds, 1)

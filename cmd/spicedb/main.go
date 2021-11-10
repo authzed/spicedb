@@ -1,8 +1,10 @@
 package main
 
 import (
+	"math/rand"
 	"net/http"
 	"net/http/pprof"
+	"time"
 
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -27,6 +29,8 @@ func metricsHandler() http.Handler {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	rootCmd := newRootCmd()
 	registerVersionCmd(rootCmd)
 	registerServeCmd(rootCmd)

@@ -51,7 +51,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req *v1.DispatchCheckReq
 
 func (cc *ConcurrentChecker) dispatch(req *v1.DispatchCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		log.Trace().Object("dispatch", req).Send()
+		log.Ctx(ctx).Trace().Object("dispatch", req).Send()
 		result, err := cc.d.DispatchCheck(ctx, req)
 		resultChan <- CheckResult{result, err}
 	}
@@ -65,7 +65,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 			return
 		}
 
-		log.Trace().Object("direct", req).Send()
+		log.Ctx(ctx).Trace().Object("direct", req).Send()
 		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
 			ResourceType:             req.ObjectAndRelation.Namespace,
 			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
@@ -130,7 +130,7 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req *v1.Disp
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		log.Trace().Object("set operation", req).Stringer("operation", so).Send()
+		log.Ctx(ctx).Trace().Object("set operation", req).Stringer("operation", so).Send()
 		resultChan <- reducer(ctx, requests)
 	}
 }
@@ -187,7 +187,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 			return
 		}
 
-		log.Trace().Object("ttu", req).Send()
+		log.Ctx(ctx).Trace().Object("ttu", req).Send()
 		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
 			ResourceType:             req.ObjectAndRelation.Namespace,
 			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
@@ -290,7 +290,7 @@ func any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	for i := 0; i < len(requests); i++ {
 		select {
 		case result := <-resultChan:
-			log.Trace().Object("any result", result.Resp).Send()
+			log.Ctx(ctx).Trace().Object("any result", result.Resp).Send()
 			totalRequestCount += result.Resp.Metadata.DispatchCount
 			maxDepthRequired = max(maxDepthRequired, result.Resp.Metadata.DepthRequired)
 			if result.Err == nil && result.Resp.Membership == v1.DispatchCheckResponse_MEMBER {
@@ -300,7 +300,7 @@ func any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 				return checkResultError(result.Err, totalRequestCount, maxDepthRequired)
 			}
 		case <-ctx.Done():
-			log.Trace().Msg("any canceled")
+			log.Ctx(ctx).Trace().Msg("any canceled")
 			return checkResultError(NewRequestCanceledErr(), totalRequestCount, maxDepthRequired)
 		}
 	}

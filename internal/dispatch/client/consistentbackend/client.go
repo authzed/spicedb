@@ -110,7 +110,7 @@ func (cbc *ConsistentBackendClient) Start(ctx context.Context) {
 		stream, err := establishServokWatch(ctx, cbc.resolverConfig, cbc.endpointConfig)
 		if err != nil {
 			wait := b.Duration()
-			log.Warn().Stringer("retryAfter", wait).Err(err).Msg("unable to establish endpoint resolver connection")
+			log.Ctx(ctx).Warn().Stringer("retryAfter", wait).Err(err).Msg("unable to establish endpoint resolver connection")
 			time.Sleep(wait)
 
 			// We need to re-establish the stream
@@ -121,7 +121,7 @@ func (cbc *ConsistentBackendClient) Start(ctx context.Context) {
 			endpointResponse, err := stream.Recv()
 			if err != nil {
 				wait := b.Duration()
-				log.Error().Stringer("retryAfter", wait).Err(err).Msg("error reading from endpoint server")
+				log.Ctx(ctx).Error().Stringer("retryAfter", wait).Err(err).Msg("error reading from endpoint server")
 
 				waitTimer := time.NewTimer(wait)
 
@@ -142,14 +142,14 @@ func (cbc *ConsistentBackendClient) Start(ctx context.Context) {
 }
 
 func (cbc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints []*servok.Endpoint, endpointDialOptions []grpc.DialOption) {
-	log.Info().Int("numEndpoints", len(endpoints)).Msg("received servok endpoint update")
+	log.Ctx(ctx).Info().Int("numEndpoints", len(endpoints)).Msg("received servok endpoint update")
 
 	// This is only its own method to get the defer unlock here
 	cbc.ringMu.Lock()
 	defer cbc.ringMu.Unlock()
 
 	if ctx.Err() != nil {
-		log.Fatal().Err(ctx.Err()).Msg("cannot update members, client already stopped")
+		log.Ctx(ctx).Fatal().Err(ctx.Err()).Msg("cannot update members, client already stopped")
 	}
 
 	membersToRemove := map[string]consistent.Member{}
@@ -162,7 +162,7 @@ func (cbc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints
 
 		conn, err := grpc.Dial(clientEndpoint, endpointDialOptions...)
 		if err != nil {
-			log.Fatal().Str("endpoint", clientEndpoint).Err(err).Msg("error constructing client for endpoint")
+			log.Ctx(ctx).Fatal().Str("endpoint", clientEndpoint).Err(err).Msg("error constructing client for endpoint")
 		}
 
 		client := v1.NewDispatchServiceClient(conn)
@@ -179,24 +179,24 @@ func (cbc *ConsistentBackendClient) updateMembers(ctx context.Context, endpoints
 			delete(membersToRemove, memberKey)
 		} else {
 			// This is a net-new member, add it to the hashring
-			log.Debug().Str("memberKey", memberKey).Msg("adding hashring member")
+			log.Ctx(ctx).Debug().Str("memberKey", memberKey).Msg("adding hashring member")
 			if err := cbc.ring.Add(memberToAdd); err != nil && !errors.Is(err, consistent.ErrMemberAlreadyExists) {
-				log.Fatal().Err(err).Msg("failed to add backend member")
+				log.Ctx(ctx).Fatal().Err(err).Msg("failed to add backend member")
 			}
 		}
 	}
 
 	for memberName, member := range membersToRemove {
-		log.Debug().Str("memberName", memberName).Msg("removing hashring member")
+		log.Ctx(ctx).Debug().Str("memberName", memberName).Msg("removing hashring member")
 		if err := cbc.ring.Remove(member); err != nil && !errors.Is(err, consistent.ErrMemberNotFound) {
-			log.Fatal().Err(err).Msg("failed to remove backend member")
+			log.Ctx(ctx).Fatal().Err(err).Msg("failed to remove backend member")
 		}
 	}
 
-	log.Info().Int("numEndpoints", len(endpoints)).Msg("updated smart client endpoint list")
+	log.Ctx(ctx).Info().Int("numEndpoints", len(endpoints)).Msg("updated smart client endpoint list")
 }
 
-func (cbc *ConsistentBackendClient) getConsistentBackend(request proto.Message) (*backend, error) {
+func (cbc *ConsistentBackendClient) getConsistentBackend(ctx context.Context, request proto.Message) (*backend, error) {
 	requestKey, err := protoMarshal.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf(errComputingBackend, err)
@@ -205,7 +205,7 @@ func (cbc *ConsistentBackendClient) getConsistentBackend(request proto.Message) 
 	members, err := cbc.ring.FindN(requestKey, cbc.backendsPerKey)
 	if err != nil {
 		if err == consistent.ErrNotEnoughMembers && cbc.fallbackBackend != nil {
-			log.Warn().
+			log.Ctx(ctx).Warn().
 				Str("backend", cbc.fallbackBackend.Key()).
 				Str("type", "consistent").
 				Msg("using fallback backend")
@@ -217,7 +217,7 @@ func (cbc *ConsistentBackendClient) getConsistentBackend(request proto.Message) 
 
 	chosen := members[rand.Intn(int(cbc.backendsPerKey))].(*backend)
 
-	log.Debug().Str("chosen", chosen.Key()).Msg("chose consistent backend for call")
+	log.Ctx(ctx).Debug().Str("chosen", chosen.Key()).Msg("chose consistent backend for call")
 
 	return chosen, nil
 }

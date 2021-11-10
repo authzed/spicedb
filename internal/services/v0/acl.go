@@ -61,7 +61,7 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 	for _, mutation := range req.Updates {
 		err := validateTupleWrite(ctx, mutation.Tuple, as.nsm)
 		if err != nil {
-			return nil, rewriteACLError(err)
+			return nil, rewriteACLError(ctx, err)
 		}
 	}
 
@@ -80,7 +80,7 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 
 	revision, err := as.ds.WriteTuples(ctx, preconditions, mutations)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	return &v0.WriteResponse{
@@ -113,7 +113,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 					tuplesetFilter.Relation,
 					false, // Disallow ellipsis
 				); err != nil {
-					return nil, rewriteACLError(err)
+					return nil, rewriteACLError(ctx, err)
 				}
 				checkedRelation = true
 			case v0.RelationTupleFilter_USERSET:
@@ -139,7 +139,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 				datastore.Ellipsis,
 				true, // Allow ellipsis
 			); err != nil {
-				return nil, rewriteACLError(err)
+				return nil, rewriteACLError(ctx, err)
 			}
 		}
 	}
@@ -164,7 +164,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 
 	err := as.ds.CheckRevision(ctx, atRevision)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	var allTuplesetResults []*v0.ReadResponse_Tupleset
@@ -194,7 +194,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 
 		tupleIterator, err := query.Execute(ctx)
 		if err != nil {
-			return nil, rewriteACLError(err)
+			return nil, rewriteACLError(ctx, err)
 		}
 
 		defer tupleIterator.Close()
@@ -219,7 +219,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 func (as *aclServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.CheckResponse, error) {
 	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	return as.commonCheck(ctx, atRevision, req.TestUserset, req.User.GetUserset())
@@ -228,7 +228,7 @@ func (as *aclServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.Check
 func (as *aclServer) ContentChangeCheck(ctx context.Context, req *v0.ContentChangeCheckRequest) (*v0.CheckResponse, error) {
 	atRevision, err := as.ds.SyncRevision(ctx)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	return as.commonCheck(ctx, atRevision, req.TestUserset, req.User.GetUserset())
@@ -242,12 +242,12 @@ func (as *aclServer) commonCheck(
 ) (*v0.CheckResponse, error) {
 	err := as.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, start.Relation, false)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	err = as.nsm.CheckNamespaceAndRelation(ctx, goal.Namespace, goal.Relation, true)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	cr, err := as.dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -259,7 +259,7 @@ func (as *aclServer) commonCheck(
 		Subject:           goal,
 	})
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	var membership v0.CheckResponse_Membership
@@ -282,12 +282,12 @@ func (as *aclServer) commonCheck(
 func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.ExpandResponse, error) {
 	err := as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	resp, err := as.dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
@@ -299,7 +299,7 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 		ExpansionMode:     v1.DispatchExpandRequest_SHALLOW,
 	})
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	return &v0.ExpandResponse{
@@ -311,17 +311,17 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.LookupResponse, error) {
 	err := as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	err = as.nsm.CheckNamespaceAndRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, false)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	limit := req.Limit
@@ -343,13 +343,16 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 		TtuStack:       nil,
 	})
 	if err != nil {
-		return nil, rewriteACLError(err)
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	resolvedObjectIDs := []string{}
 	for _, found := range resp.ResolvedOnrs {
 		if found.Namespace != req.ObjectRelation.Namespace {
-			return nil, rewriteACLError(fmt.Errorf("got invalid resolved object %v (expected %v)", found, req.ObjectRelation))
+			return nil, rewriteACLError(
+				ctx,
+				fmt.Errorf("got invalid resolved object %v (expected %v)", found, req.ObjectRelation),
+			)
 		}
 
 		resolvedObjectIDs = append(resolvedObjectIDs, found.ObjectId)
@@ -383,7 +386,7 @@ func (as *aclServer) pickBestRevision(ctx context.Context, requested *v0.Zookie)
 	return databaseRev, nil
 }
 
-func rewriteACLError(err error) error {
+func rewriteACLError(ctx context.Context, err error) error {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
 
@@ -411,7 +414,7 @@ func rewriteACLError(err error) error {
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &graph.ErrAlwaysFail{}):
-		log.Err(err)
+		log.Ctx(ctx).Err(err)
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 
 	default:
@@ -419,7 +422,7 @@ func rewriteACLError(err error) error {
 			return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 		}
 
-		log.Err(err)
+		log.Ctx(ctx).Err(err)
 		return err
 	}
 }

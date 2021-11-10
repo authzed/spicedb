@@ -17,7 +17,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false)
 	if err != nil {
-		return nil, rewritePermissionsError(err)
+		return nil, rewritePermissionsError(ctx, err)
 	}
 
 	err = ps.nsm.CheckNamespaceAndRelation(ctx,
@@ -25,7 +25,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		normalizeSubjectRelation(req.Subject),
 		true)
 	if err != nil {
-		return nil, rewritePermissionsError(err)
+		return nil, rewritePermissionsError(ctx, err)
 	}
 
 	cr, err := ps.dispatch.DispatchCheck(ctx, &dispatch.DispatchCheckRequest{
@@ -45,7 +45,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		},
 	})
 	if err != nil {
-		return nil, rewritePermissionsError(err)
+		return nil, rewritePermissionsError(ctx, err)
 	}
 
 	var permissionship v1.CheckPermissionResponse_Permissionship
@@ -69,7 +69,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 
 	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false)
 	if err != nil {
-		return nil, rewritePermissionsError(err)
+		return nil, rewritePermissionsError(ctx, err)
 	}
 
 	resp, err := ps.dispatch.DispatchExpand(ctx, &dispatch.DispatchExpandRequest{
@@ -85,7 +85,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 		ExpansionMode: dispatch.DispatchExpandRequest_SHALLOW,
 	})
 	if err != nil {
-		return nil, rewritePermissionsError(err)
+		return nil, rewritePermissionsError(ctx, err)
 	}
 
 	// TODO(jschorr): Change to either using shared interfaces for nodes, or switch the internal
@@ -179,12 +179,12 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Subject.Object.ObjectType,
 		normalizeSubjectRelation(req.Subject), true)
 	if err != nil {
-		return rewritePermissionsError(err)
+		return rewritePermissionsError(ctx, err)
 	}
 
 	err = ps.nsm.CheckNamespaceAndRelation(ctx, req.ResourceObjectType, req.Permission, false)
 	if err != nil {
-		return rewritePermissionsError(err)
+		return rewritePermissionsError(ctx, err)
 	}
 
 	// TODO(jschorr): Change the internal dispatched lookup to also be streamed.
@@ -207,12 +207,15 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		TtuStack:    nil,
 	})
 	if err != nil {
-		return rewritePermissionsError(err)
+		return rewritePermissionsError(ctx, err)
 	}
 
 	for _, found := range lookupResp.ResolvedOnrs {
 		if found.Namespace != req.ResourceObjectType {
-			return rewritePermissionsError(fmt.Errorf("got invalid resolved object %v (expected %v)", found.Namespace, req.ResourceObjectType))
+			return rewritePermissionsError(
+				ctx,
+				fmt.Errorf("got invalid resolved object %v (expected %v)", found.Namespace, req.ResourceObjectType),
+			)
 		}
 
 		err := resp.Send(&v1.LookupResourcesResponse{

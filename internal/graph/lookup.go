@@ -42,7 +42,7 @@ func (cl *ConcurrentLookup) Lookup(ctx context.Context, req *v1.DispatchLookupRe
 }
 
 func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.DispatchLookupRequest) ReduceableLookupFunc {
-	log.Trace().Object("lookup", req).Send()
+	log.Ctx(ctx).Trace().Object("lookup", req).Send()
 
 	objSet := tuple.NewONRSet()
 
@@ -302,7 +302,7 @@ func (cl *ConcurrentLookup) processSetOperation(ctx context.Context, req *v1.Dis
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		log.Trace().Object("set operation", req).Stringer("operation", so).Send()
+		log.Ctx(ctx).Trace().Object("set operation", req).Stringer("operation", so).Send()
 		resultChan <- reducer(ctx, req.Limit, requests)
 	}
 }
@@ -511,7 +511,7 @@ func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req *v1.Dispatch
 
 func (cl *ConcurrentLookup) dispatch(req *v1.DispatchLookupRequest) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		log.Trace().Object("dispatch lookup", req).Send()
+		log.Ctx(ctx).Trace().Object("dispatch lookup", req).Send()
 		result, err := cl.d.DispatchLookup(ctx, req)
 		resultChan <- LookupResult{result, err}
 	}

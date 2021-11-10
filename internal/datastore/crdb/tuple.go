@@ -157,7 +157,7 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 					return err
 				}
 			default:
-				log.Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
+				log.Ctx(ctx).Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
 				return fmt.Errorf("unknown mutation operation: %s", mutation.Operation)
 			}
 		}

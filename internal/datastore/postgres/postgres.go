@@ -272,7 +272,7 @@ func (pgd *pgDatastore) collectGarbage() error {
 	}
 
 	if !ready {
-		log.Warn().Msg("cannot perform postgres garbage collection: postgres driver is not yet ready")
+		log.Ctx(ctx).Warn().Msg("cannot perform postgres garbage collection: postgres driver is not yet ready")
 		return nil
 	}
 
@@ -282,7 +282,7 @@ func (pgd *pgDatastore) collectGarbage() error {
 	}
 
 	before := now.Add(pgd.gcWindowInverted)
-	log.Debug().Time("before", before).Msg("running postgres garbage collection")
+	log.Ctx(ctx).Debug().Time("before", before).Msg("running postgres garbage collection")
 	_, _, err = pgd.collectGarbageBefore(ctx, before)
 	return err
 }
@@ -303,7 +303,7 @@ func (pgd *pgDatastore) collectGarbageBefore(ctx context.Context, before time.Ti
 	}
 
 	if value.Status != pgtype.Present {
-		log.Debug().Time("before", before).Msg("no stale transactions found in the datastore")
+		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
 		return 0, 0, nil
 	}
 
@@ -313,7 +313,7 @@ func (pgd *pgDatastore) collectGarbageBefore(ctx context.Context, before time.Ti
 		return 0, 0, err
 	}
 
-	log.Trace().Uint64("highest_transaction_id", highest).Msg("retrieved transaction ID for GC")
+	log.Ctx(ctx).Trace().Uint64("highest_transaction_id", highest).Msg("retrieved transaction ID for GC")
 
 	return pgd.collectGarbageForTransaction(ctx, highest)
 }
@@ -325,7 +325,7 @@ func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highes
 		return 0, 0, err
 	}
 
-	log.Trace().Uint64("highest_transaction_id", highest).Int64("relationships_deleted", relCount).Msg("deleted stale relationships")
+	log.Ctx(ctx).Trace().Uint64("highest_transaction_id", highest).Int64("relationships_deleted", relCount).Msg("deleted stale relationships")
 	gcRelationshipsClearedGauge.Set(float64(relCount))
 
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
@@ -335,7 +335,7 @@ func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highes
 		return relCount, 0, err
 	}
 
-	log.Trace().Uint64("highest_transaction_id", highest).Int64("transactions_deleted", transactionCount).Msg("deleted stale transactions")
+	log.Ctx(ctx).Trace().Uint64("highest_transaction_id", highest).Int64("transactions_deleted", transactionCount).Msg("deleted stale transactions")
 	gcTransactionsClearedGauge.Set(float64(transactionCount))
 	return relCount, transactionCount, nil
 }
@@ -371,7 +371,7 @@ func (pgd *pgDatastore) batchDelete(ctx context.Context, tableName string, filte
 func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
 	if err != nil {
-		return false, fmt.Errorf("Invalid head migration found for postgres: %w", err)
+		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
 
 	currentRevision, err := migrations.NewAlembicPostgresDriver(pgd.dburl)
