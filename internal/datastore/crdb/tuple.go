@@ -33,14 +33,19 @@ var (
 		colTimestamp,
 		queryReturningTimestamp,
 	)
-	queryWriteTuple = psql.Insert(tableTuple).Columns(
+
+	baseInsertQuery = psql.Insert(tableTuple).Columns(
 		colNamespace,
 		colObjectID,
 		colRelation,
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
-	).Suffix(upsertTupleSuffix)
+	)
+
+	queryWriteTuple = baseInsertQuery.Suffix(queryReturningTimestamp)
+
+	queryTouchTuple = baseInsertQuery.Suffix(upsertTupleSuffix)
 
 	queryDeleteTuples = psql.Delete(tableTuple)
 
@@ -130,6 +135,9 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 		bulkWrite := queryWriteTuple
 		var bulkWriteCount int64
 
+		bulkTouch := queryTouchTuple
+		var bulkTouchCount int64
+
 		// Process the actual updates
 		for _, mutation := range mutations {
 			rel := mutation.Relationship
@@ -137,7 +145,17 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 			cds.AddOverlapKey(keySet, rel.Subject.Object.ObjectType)
 
 			switch mutation.Operation {
-			case v1.RelationshipUpdate_OPERATION_TOUCH, v1.RelationshipUpdate_OPERATION_CREATE:
+			case v1.RelationshipUpdate_OPERATION_TOUCH:
+				bulkTouch = bulkTouch.Values(
+					rel.Resource.ObjectType,
+					rel.Resource.ObjectId,
+					rel.Relation,
+					rel.Subject.Object.ObjectType,
+					rel.Subject.Object.ObjectId,
+					stringz.DefaultEmpty(rel.Subject.OptionalRelation, datastore.Ellipsis),
+				)
+				bulkTouchCount++
+			case v1.RelationshipUpdate_OPERATION_CREATE:
 				bulkWrite = bulkWrite.Values(
 					rel.Resource.ObjectType,
 					rel.Resource.ObjectId,
@@ -162,8 +180,16 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 			}
 		}
 
+		bulkUpdateQueries := []sq.InsertBuilder{}
 		if bulkWriteCount > 0 {
-			sql, args, err := bulkWrite.ToSql()
+			bulkUpdateQueries = append(bulkUpdateQueries, bulkWrite)
+		}
+		if bulkTouchCount > 0 {
+			bulkUpdateQueries = append(bulkUpdateQueries, bulkTouch)
+		}
+
+		for _, updateQuery := range bulkUpdateQueries {
+			sql, args, err := updateQuery.ToSql()
 			if err != nil {
 				return err
 			}
@@ -171,7 +197,9 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 			if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
 				return err
 			}
-		} else {
+		}
+
+		if len(bulkUpdateQueries) == 0 {
 			var err error
 			nowRevision, err = readCRDBNow(ctx, tx)
 			if err != nil {

@@ -74,6 +74,17 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				lastRevision = writtenAt
 			}
 
+			// Write a duplicate tuple to make sure the datastore rejects it
+			_, err = ds.WriteTuples(
+				ctx,
+				nil,
+				[]*v1.RelationshipUpdate{{
+					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+					Relationship: tuple.MustToRelationship(testTuples[0]),
+				}},
+			)
+			require.Error(err)
+
 			for _, tupleToFind := range testTuples {
 				// Check that we can find the tuple a number of ways
 				rq := ds.ReverseQueryTuplesFromSubject(tupleToFind.User.GetUserset(), lastRevision)
@@ -396,6 +407,16 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			nil,
 			testTuples,
 		},
+		{
+			"duplicates",
+			append(testTuples, testTuples[0]),
+			&v1.RelationshipFilter{
+				ResourceType:       testResourceNamespace,
+				OptionalResourceId: "resource0",
+			},
+			testTuples[1:],
+			testTuples[:1],
+		},
 	}
 
 	for _, tt := range table {
@@ -411,16 +432,14 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
-			var updates []*v1.RelationshipUpdate
 			for _, tpl := range tt.inputTuples {
-				updates = append(updates, &v1.RelationshipUpdate{
-					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+				update := &v1.RelationshipUpdate{
+					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
 					Relationship: tuple.MustToRelationship(tpl),
-				})
+				}
+				_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{update})
+				require.NoError(err)
 			}
-
-			_, err = ds.WriteTuples(ctx, nil, updates)
-			require.NoError(err)
 
 			deletedAt, err := ds.DeleteRelationships(ctx, nil, tt.filter)
 			require.NoError(err)

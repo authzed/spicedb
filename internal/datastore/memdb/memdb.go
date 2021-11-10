@@ -119,6 +119,20 @@ func (t tupleEntry) RelationTuple() *v0.RelationTuple {
 	}
 }
 
+func (t tupleEntry) String() string {
+	return fmt.Sprintf(
+		"%s:%s#%s@%s:%s#%s[%d-%d)",
+		t.namespace,
+		t.objectID,
+		t.relation,
+		t.usersetNamespace,
+		t.usersetObjectID,
+		t.usersetRelation,
+		t.createdTxn,
+		t.deletedTxn,
+	)
+}
+
 var schema = &memdb.DBSchema{
 	Tables: map[string]*memdb.TableSchema{
 		tableNamespaceChangelog: {
