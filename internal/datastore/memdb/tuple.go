@@ -111,6 +111,10 @@ func (mds *memdbDatastore) write(ctx context.Context, txn *memdb.Txn, mutations 
 		newVersion := tupleEntryFromRelationship(mutation.Relationship, newChangelogID, deletedTransactionID)
 		switch mutation.Operation {
 		case v1.RelationshipUpdate_OPERATION_CREATE:
+			if existing != nil {
+				return 0, fmt.Errorf("duplicate relationship found for create operation")
+			}
+
 			if err := txn.Insert(tableTuple, newVersion); err != nil {
 				return 0, err
 			}
