@@ -18,8 +18,7 @@ jobs:
       - name: "Install linting tools"
         run: |
           # This is done before checking out, as to not modify go.mod
-          go install mvdan.cc/gofumpt/gofumports@latest
-          go install github.com/mgechev/revive@latest
+          go install mvdan.cc/gofumpt/gofumports@v0.1.1
           go install golang.org/x/tools/cmd/stringer@latest
       - uses: "actions/checkout@v2"
       - name: "Go Mod Tidy"
