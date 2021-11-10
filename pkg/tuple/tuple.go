@@ -188,6 +188,18 @@ func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 	}
 }
 
+// UpdatesToRelationshipUpdates converts a slice of RelationTupleUpdate into a
+// slice of RelationshipUpdate.
+func UpdatesToRelationshipUpdates(updates []*v0.RelationTupleUpdate) []*v1.RelationshipUpdate {
+	relationshipUpdates := make([]*v1.RelationshipUpdate, 0, len(updates))
+
+	for _, update := range updates {
+		relationshipUpdates = append(relationshipUpdates, UpdateToRelationshipUpdate(update))
+	}
+
+	return relationshipUpdates
+}
+
 // UpdateToRelationshipUpdate converts a RelationTupleUpdate into a
 // RelationshipUpdate.
 func UpdateToRelationshipUpdate(update *v0.RelationTupleUpdate) *v1.RelationshipUpdate {

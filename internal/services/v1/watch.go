@@ -1,0 +1,104 @@
+package v1
+
+import (
+	"errors"
+
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
+	"github.com/shopspring/decimal"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/zedtoken"
+)
+
+type watchServer struct {
+	v1.UnimplementedWatchServiceServer
+	shared.WithStreamServiceSpecificInterceptor
+
+	ds datastore.Datastore
+}
+
+// NewWatchServer creates an instance of the watch server.
+func NewWatchServer(ds datastore.Datastore) v1.WatchServiceServer {
+	s := &watchServer{
+		ds: ds,
+		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
+			Stream: grpcvalidate.StreamServerInterceptor(),
+		},
+	}
+	return s
+}
+
+func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchServer) error {
+	objectTypesMap := make(map[string]struct{})
+	for _, objectType := range req.GetOptionalObjectTypes() {
+		objectTypesMap[objectType] = struct{}{}
+	}
+
+	var afterRevision decimal.Decimal
+	if req.OptionalStartCursor != nil && req.OptionalStartCursor.Token != "" {
+		decodedRevision, err := zedtoken.DecodeRevision(req.OptionalStartCursor)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
+		}
+
+		afterRevision = decodedRevision
+	} else {
+		var err error
+		afterRevision, err = ws.ds.Revision(stream.Context())
+		if err != nil {
+			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
+		}
+	}
+
+	updates, errchan := ws.ds.Watch(stream.Context(), afterRevision)
+	for {
+		select {
+		case update, ok := <-updates:
+			if ok {
+				filtered := filterUpdates(objectTypesMap, update.Changes)
+				if len(filtered) > 0 {
+					if err := stream.Send(&v1.WatchResponse{
+						Updates:        filtered,
+						ChangesThrough: zedtoken.NewFromRevision(update.Revision),
+					}); err != nil {
+						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
+					}
+				}
+			}
+		case err := <-errchan:
+			switch {
+			case errors.As(err, &datastore.ErrWatchCanceled{}):
+				return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
+			case errors.As(err, &datastore.ErrWatchDisconnected{}):
+				return status.Errorf(codes.ResourceExhausted, "watch disconnected: %s", err)
+			default:
+				return status.Errorf(codes.Internal, "watch error: %s", err)
+			}
+		}
+	}
+}
+
+func filterUpdates(objectTypes map[string]struct{}, candidates []*v0.RelationTupleUpdate) []*v1.RelationshipUpdate {
+	updates := tuple.UpdatesToRelationshipUpdates(candidates)
+
+	if len(objectTypes) == 0 {
+		return updates
+	}
+
+	var filtered []*v1.RelationshipUpdate
+	for _, update := range updates {
+		objectType := update.GetRelationship().GetResource().GetObjectType()
+
+		if _, ok := objectTypes[objectType]; ok {
+			filtered = append(filtered, update)
+		}
+	}
+
+	return filtered
+}

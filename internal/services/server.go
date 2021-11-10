@@ -55,6 +55,9 @@ func RegisterGrpcServices(
 	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(ds, nsm, dispatch, maxDepth))
 	healthSrv.SetServicesHealthy(&v1.PermissionsService_ServiceDesc)
 
+	v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer(ds))
+	healthSrv.SetServicesHealthy(&v1.WatchService_ServiceDesc)
+
 	if schemaServiceOption == V1SchemaServiceEnabled {
 		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(ds))
 		healthSrv.SetServicesHealthy(&v1.SchemaService_ServiceDesc)
