@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog"
@@ -25,6 +26,8 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
+	pgraph "github.com/authzed/spicedb/pkg/graph"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -519,4 +522,85 @@ func newPermissionsServicer(
 		s.Stop()
 		require.NoError(lis.Close())
 	}, revision
+}
+
+func TestTranslateExpansionTree(t *testing.T) {
+	var (
+		ONR  = tuple.ObjectAndRelation
+		User = tuple.User
+	)
+
+	table := []struct {
+		name  string
+		input *v0.RelationTupleTreeNode
+	}{
+		{"simple leaf", pgraph.Leaf(nil, User(ONR("user", "user1", "...")))},
+		{
+			"simple union",
+			pgraph.Union(nil,
+				pgraph.Leaf(nil, User(ONR("user", "user1", "..."))),
+				pgraph.Leaf(nil, User(ONR("user", "user2", "..."))),
+				pgraph.Leaf(nil, User(ONR("user", "user3", "..."))),
+			),
+		},
+		{
+			"simple intersection",
+			pgraph.Intersection(nil,
+				pgraph.Leaf(nil,
+					User(ONR("user", "user1", "...")),
+					User(ONR("user", "user2", "...")),
+				),
+				pgraph.Leaf(nil,
+					User(ONR("user", "user2", "...")),
+					User(ONR("user", "user3", "...")),
+				),
+				pgraph.Leaf(nil,
+					User(ONR("user", "user2", "...")),
+					User(ONR("user", "user4", "...")),
+				),
+			),
+		},
+		{
+			"empty intersection",
+			pgraph.Intersection(nil,
+				pgraph.Leaf(nil,
+					User(ONR("user", "user1", "...")),
+					User(ONR("user", "user2", "...")),
+				),
+				pgraph.Leaf(nil,
+					User(ONR("user", "user3", "...")),
+					User(ONR("user", "user4", "...")),
+				),
+			),
+		},
+		{
+			"simple exclusion",
+			pgraph.Exclusion(nil,
+				pgraph.Leaf(nil,
+					User(ONR("user", "user1", "...")),
+					User(ONR("user", "user2", "...")),
+				),
+				pgraph.Leaf(nil, User(ONR("user", "user2", "..."))),
+				pgraph.Leaf(nil, User(ONR("user", "user3", "..."))),
+			),
+		},
+		{
+			"empty exclusion",
+			pgraph.Exclusion(nil,
+				pgraph.Leaf(nil,
+					User(ONR("user", "user1", "...")),
+					User(ONR("user", "user2", "...")),
+				),
+				pgraph.Leaf(nil, User(ONR("user", "user1", "..."))),
+				pgraph.Leaf(nil, User(ONR("user", "user2", "..."))),
+			),
+		},
+	}
+
+	for _, tt := range table {
+		t.Run(tt.name, func(t *testing.T) {
+			out := translateRelationshipTree(translateExpansionTree(tt.input))
+			require.Equal(t, tt.input, out)
+		})
+	}
 }

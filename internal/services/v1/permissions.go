@@ -6,6 +6,7 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
@@ -96,6 +97,60 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 	}, nil
 }
 
+func translateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.RelationTupleTreeNode {
+	switch t := tree.TreeType.(type) {
+	case *v1.PermissionRelationshipTree_Intermediate:
+		operation := v0.SetOperationUserset_INVALID
+		switch t.Intermediate.Operation {
+		case v1.AlgebraicSubjectSet_OPERATION_EXCLUSION:
+			operation = v0.SetOperationUserset_EXCLUSION
+		case v1.AlgebraicSubjectSet_OPERATION_INTERSECTION:
+			operation = v0.SetOperationUserset_INTERSECTION
+		case v1.AlgebraicSubjectSet_OPERATION_UNION:
+			operation = v0.SetOperationUserset_UNION
+		default:
+			panic("Unknown set operation")
+		}
+
+		var children []*v0.RelationTupleTreeNode
+		for _, child := range t.Intermediate.Children {
+			children = append(children, translateRelationshipTree(child))
+		}
+
+		return &v0.RelationTupleTreeNode{
+			NodeType: &v0.RelationTupleTreeNode_IntermediateNode{
+				IntermediateNode: &v0.SetOperationUserset{
+					Operation:  operation,
+					ChildNodes: children,
+				},
+			},
+		}
+
+	case *v1.PermissionRelationshipTree_Leaf:
+		var users []*v0.User
+		for _, subj := range t.Leaf.Subjects {
+			users = append(users, &v0.User{
+				UserOneof: &v0.User_Userset{
+					Userset: &v0.ObjectAndRelation{
+						Namespace: subj.Object.ObjectType,
+						ObjectId:  subj.Object.ObjectId,
+						Relation:  stringz.DefaultEmpty(subj.OptionalRelation, "..."),
+					},
+				},
+			})
+		}
+
+		return &v0.RelationTupleTreeNode{
+			NodeType: &v0.RelationTupleTreeNode_LeafNode{
+				LeafNode: &v0.DirectUserset{Users: users},
+			},
+		}
+
+	default:
+		panic("Unknown type of expansion tree node")
+	}
+}
+
 func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelationshipTree {
 	switch t := node.NodeType.(type) {
 	case *v0.RelationTupleTreeNode_IntermediateNode:
@@ -105,7 +160,7 @@ func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelati
 		case v0.SetOperationUserset_EXCLUSION:
 			operation = v1.AlgebraicSubjectSet_OPERATION_EXCLUSION
 		case v0.SetOperationUserset_INTERSECTION:
-			operation = v1.AlgebraicSubjectSet_OPERATION_UNION
+			operation = v1.AlgebraicSubjectSet_OPERATION_INTERSECTION
 		case v0.SetOperationUserset_UNION:
 			operation = v1.AlgebraicSubjectSet_OPERATION_UNION
 		default:
@@ -117,6 +172,16 @@ func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelati
 			children = append(children, translateExpansionTree(child))
 		}
 
+		var objRef *v1.ObjectReference
+		var objRel string
+		if node.Expanded != nil {
+			objRef = &v1.ObjectReference{
+				ObjectType: node.Expanded.Namespace,
+				ObjectId:   node.Expanded.ObjectId,
+			}
+			objRel = node.Expanded.Relation
+		}
+
 		return &v1.PermissionRelationshipTree{
 			TreeType: &v1.PermissionRelationshipTree_Intermediate{
 				Intermediate: &v1.AlgebraicSubjectSet{
@@ -124,11 +189,8 @@ func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelati
 					Children:  children,
 				},
 			},
-			ExpandedObject: &v1.ObjectReference{
-				ObjectType: node.Expanded.Namespace,
-				ObjectId:   node.Expanded.ObjectId,
-			},
-			ExpandedRelation: node.Expanded.Relation,
+			ExpandedObject:   objRef,
+			ExpandedRelation: objRel,
 		}
 
 	case *v0.RelationTupleTreeNode_LeafNode:
