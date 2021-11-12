@@ -49,6 +49,7 @@ require (
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/rs/zerolog v1.26.0
 	github.com/scylladb/go-set v1.0.2
+	github.com/sercand/kuberesolver/v3 v3.1.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.9.0 // indirect

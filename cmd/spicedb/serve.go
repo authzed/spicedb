@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"os/signal"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
+	"github.com/authzed/grpcutil"
 	"github.com/fatih/color"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
@@ -20,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
@@ -36,12 +39,14 @@ import (
 	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services"
 	clusterdispatch "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/validationfile"
+	"github.com/authzed/spicedb/pkg/x509util"
 )
 
 func registerServeCmd(rootCmd *cobra.Command) {
@@ -106,6 +111,7 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	// Flags for configuring dispatch behavior
 	serveCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
 	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags(), "dispatch-cluster", "dispatch", ":50053", false)
+	serveCmd.Flags().String("dispatch-upstream-addr", "", "upstream grpc address to dispatch to")
 	serveCmd.Flags().String("dispatch-cluster-dns-name", "", "DNS SRV record name to resolve for cluster dispatch")
 	serveCmd.Flags().String("dispatch-cluster-service-name", "grpc", "DNS SRV record service name to resolve for cluster dispatch")
 	serveCmd.Flags().String("dispatch-peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
@@ -275,8 +281,9 @@ func serveRun(cmd *cobra.Command, args []string) {
 	}
 
 	redispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
-	redispatchClientCtx, redispatchClientCancel := context.WithCancel(context.Background())
 
+	// servok redispatch configuration
+	redispatchClientCtx, redispatchClientCancel := context.WithCancel(context.Background())
 	redispatchTarget := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-dns-name")
 	redispatchServiceName := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-service-name")
 	if redispatchTarget != "" {
@@ -320,6 +327,31 @@ func serveRun(cmd *cobra.Command, args []string) {
 		}()
 
 		redispatch = remote.NewClusterDispatcher(client)
+	}
+
+	// grpc consistent loadbalancer redispatch configuration
+	dispatchAddr := cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-addr")
+	if len(dispatchAddr) > 0 {
+		log.Info().Str("upstream", dispatchAddr).Msg("configuring grpc consistent load balancer for redispatch")
+
+		peerPSK := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
+		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-tls-cert-path")
+		pool, err := x509util.CustomCertPool(peerCertPath)
+		if err != nil {
+			log.Fatal().Str("certpath", peerCertPath).Err(err).Msg("error loading certs for dispatch")
+		}
+		creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
+
+		conn, err := grpc.Dial(dispatchAddr,
+			grpc.WithTransportCredentials(creds),
+			grpcutil.WithBearerToken(peerPSK),
+			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+			grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
+		)
+		if err != nil {
+			log.Fatal().Str("endpoint", dispatchAddr).Err(err).Msg("error constructing client for endpoint")
+		}
+		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn))
 	}
 
 	cachingRedispatch, err := caching.NewCachingDispatcher(redispatch, nil, "dispatch_client")
