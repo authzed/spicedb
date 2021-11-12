@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"io"
+	"sort"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -96,6 +97,8 @@ func (v0st v0ServiceTester) Lookup(ctx context.Context, resourceRelation *v0.Rel
 	if err != nil {
 		return nil, err
 	}
+
+	sort.Strings(result.ResolvedObjectIds)
 	return result.ResolvedObjectIds, nil
 }
 
@@ -264,5 +267,6 @@ func (v1st v1ServiceTester) Lookup(ctx context.Context, resourceRelation *v0.Rel
 		objectIds = append(objectIds, resp.ResourceObjectId)
 	}
 
+	sort.Strings(objectIds)
 	return objectIds, nil
 }

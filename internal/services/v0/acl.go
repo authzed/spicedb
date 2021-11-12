@@ -346,7 +346,7 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	resolvedObjectIDs := []string{}
+	var resolvedObjectIDs []string
 	for _, found := range resp.ResolvedOnrs {
 		if found.Namespace != req.ObjectRelation.Namespace {
 			return nil, rewriteACLError(

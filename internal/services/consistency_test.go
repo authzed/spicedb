@@ -104,6 +104,8 @@ func TestConsistency(t *testing.T) {
 								v1ServiceTester{v1permclient},
 							}
 
+							runCrossVersionTests(t, testers, dispatcher, fullyResolved, tuplesPerNamespace, revision)
+
 							for _, tester := range testers {
 								t.Run(tester.Name(), func(t *testing.T) {
 									runConsistencyTests(t, tester, dispatcher, fullyResolved, tuplesPerNamespace, revision)
@@ -115,6 +117,64 @@ func TestConsistency(t *testing.T) {
 			}
 		})
 	}
+}
+
+func runCrossVersionTests(t *testing.T,
+	testers []serviceTester,
+	dispatch dispatch.Dispatcher,
+	fullyResolved *validationfile.FullyParsedValidationFile,
+	tuplesPerNamespace *slicemultimap.MultiMap,
+	revision decimal.Decimal) {
+
+	for _, nsDef := range fullyResolved.NamespaceDefinitions {
+		for _, relation := range nsDef.Relation {
+			verifyCrossVersion(t, "read", testers, func(tester serviceTester) (interface{}, error) {
+				return tester.Read(context.Background(), nsDef.Name, revision)
+			})
+
+			for _, tpl := range fullyResolved.Tuples {
+				if tpl.ObjectAndRelation.Namespace != nsDef.Name {
+					continue
+				}
+
+				verifyCrossVersion(t, "expand", testers, func(tester serviceTester) (interface{}, error) {
+					return tester.Expand(context.Background(), &v0.ObjectAndRelation{
+						Namespace: nsDef.Name,
+						Relation:  relation.Name,
+						ObjectId:  tpl.ObjectAndRelation.ObjectId,
+					}, revision)
+				})
+
+				verifyCrossVersion(t, "lookup", testers, func(tester serviceTester) (interface{}, error) {
+					return tester.Lookup(context.Background(), &v0.RelationReference{
+						Namespace: nsDef.Name,
+						Relation:  relation.Name,
+					}, &v0.ObjectAndRelation{
+						Namespace: tpl.ObjectAndRelation.Namespace,
+						Relation:  tpl.ObjectAndRelation.Relation,
+						ObjectId:  tpl.ObjectAndRelation.ObjectId,
+					}, revision)
+				})
+			}
+		}
+	}
+}
+
+type apiRunner func(tester serviceTester) (interface{}, error)
+
+func verifyCrossVersion(t *testing.T, name string, testers []serviceTester, runAPI apiRunner) {
+	t.Run(fmt.Sprintf("crossversion_%s", name), func(t *testing.T) {
+		var result interface{}
+		for _, tester := range testers {
+			value, err := runAPI(tester)
+			require.NoError(t, err)
+			if result == nil {
+				result = value
+			} else {
+				require.Equal(t, result, value, "Found mismatch between versions")
+			}
+		}
+	})
 }
 
 func runConsistencyTests(t *testing.T,
