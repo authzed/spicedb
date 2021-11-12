@@ -146,6 +146,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	var ds datastore.Datastore
 	if datastoreEngine == "memory" {
 		log.Info().Msg("using in-memory datastore")
+		log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion.")
 		ds, err = memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, 0)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to init datastore")
