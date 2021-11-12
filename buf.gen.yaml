@@ -1,4 +1,4 @@
-#!/usr/bin/env -S ./proto/buf-generate.sh
+#!/usr/bin/env -S buf generate -o internal/proto proto/internal --template
 ---
 version: "v1"
 managed:

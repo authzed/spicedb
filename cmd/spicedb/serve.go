@@ -33,7 +33,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
-	"github.com/authzed/spicedb/internal/dispatch/client/consistentbackend"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/gateway"
@@ -108,14 +107,12 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	// Flags for HTTP gateway
 	cobrautil.RegisterHttpServerFlags(serveCmd.Flags(), "http", "http", ":8443", false)
 
-	// Flags for configuring dispatch behavior
-	serveCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
+	// Flags for configuring the dispatch server
 	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags(), "dispatch-cluster", "dispatch", ":50053", false)
+
+	// Flags for configuring dispatch requests
+	serveCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
 	serveCmd.Flags().String("dispatch-upstream-addr", "", "upstream grpc address to dispatch to")
-	serveCmd.Flags().String("dispatch-cluster-dns-name", "", "DNS SRV record name to resolve for cluster dispatch")
-	serveCmd.Flags().String("dispatch-cluster-service-name", "grpc", "DNS SRV record service name to resolve for cluster dispatch")
-	serveCmd.Flags().String("dispatch-peer-resolver-addr", "", "address used to connect to the peer endpoint resolver")
-	serveCmd.Flags().String("dispatch-peer-resolver-tls-cert-path", "", "local path to the TLS certificate for the peer endpoint resolver")
 
 	// Flags for configuring API behavior
 	serveCmd.Flags().Bool("disable-v1-schema-api", false, "disables the V1 schema API")
@@ -282,53 +279,6 @@ func serveRun(cmd *cobra.Command, args []string) {
 
 	redispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
 
-	// servok redispatch configuration
-	redispatchClientCtx, redispatchClientCancel := context.WithCancel(context.Background())
-	redispatchTarget := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-dns-name")
-	redispatchServiceName := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-service-name")
-	if redispatchTarget != "" {
-		log.Info().Str("target", redispatchTarget).Msg("initializing remote redispatcher")
-
-		resolverAddr := cobrautil.MustGetStringExpanded(cmd, "dispatch-peer-resolver-addr")
-		resolverCertPath := cobrautil.MustGetStringExpanded(cmd, "dispatch-peer-resolver-tls-cert-path")
-		var resolverConfig *consistentbackend.EndpointResolverConfig
-		if resolverCertPath != "" {
-			log.Debug().Str("addr", resolverAddr).Str("cacert", resolverCertPath).Msg("using TLS protected peer resolver")
-			resolverConfig = consistentbackend.NewEndpointResolver(resolverAddr, resolverCertPath)
-		} else {
-			log.Debug().Str("addr", resolverAddr).Msg("using insecure peer resolver")
-			resolverConfig = consistentbackend.NewEndpointResolverNoTLS(resolverAddr)
-		}
-
-		peerPSK := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
-		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-tls-cert-path")
-		selfEndpoint := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-addr")
-
-		var endpointConfig *consistentbackend.EndpointConfig
-		var fallbackConfig *consistentbackend.FallbackEndpointConfig
-		if peerCertPath == "" {
-			log.Debug().Str("endpoint", redispatchTarget).Msg("using insecure peers")
-			endpointConfig = consistentbackend.NewEndpointConfigNoTLS(redispatchServiceName, redispatchTarget, peerPSK)
-			fallbackConfig = consistentbackend.NewFallbackEndpointNoTLS(selfEndpoint, peerPSK)
-		} else {
-			log.Debug().Str("endpoint", redispatchTarget).Str("cacert", resolverCertPath).Msg("using TLS protected peers")
-			endpointConfig = consistentbackend.NewEndpointConfig(redispatchServiceName, redispatchTarget, peerPSK, peerCertPath)
-			fallbackConfig = consistentbackend.NewFallbackEndpoint(selfEndpoint, peerPSK, peerCertPath)
-		}
-
-		client, err := consistentbackend.NewConsistentBackendClient(resolverConfig, endpointConfig, fallbackConfig)
-		if err != nil {
-			log.Fatal().Err(err).Msg("failed to initialize smart client")
-		}
-
-		go func() {
-			client.Start(redispatchClientCtx)
-			log.Info().Msg("started redispatch redispatch client")
-		}()
-
-		redispatch = remote.NewClusterDispatcher(client)
-	}
-
 	// grpc consistent loadbalancer redispatch configuration
 	dispatchAddr := cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-addr")
 	if len(dispatchAddr) > 0 {
@@ -460,7 +410,6 @@ func serveRun(cmd *cobra.Command, args []string) {
 	log.Info().Msg("shutting down")
 	grpcServer.GracefulStop()
 	dispatchGrpcServer.GracefulStop()
-	redispatchClientCancel()
 
 	if err := gatewaySrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down rest gateway")

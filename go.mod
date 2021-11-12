@@ -35,7 +35,6 @@ require (
 	github.com/jackc/puddle v1.1.4 // indirect
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
-	github.com/jpillora/backoff v1.0.0
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.7
 	github.com/jzelinskie/stringz v0.0.1
