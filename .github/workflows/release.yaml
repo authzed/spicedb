@@ -22,7 +22,7 @@ jobs:
         with:
           registry: "ghcr.io"
           username: "${{ github.actor }}"
-          password: "${{ secrets.GITHUB_TOKEN }}"
+          password: "${{ secrets.GHCR_TOKEN }}"
       - uses: "actions/setup-go@v2"
         with:
           go-version: "^1.17"
