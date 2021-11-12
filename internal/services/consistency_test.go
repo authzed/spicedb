@@ -195,8 +195,11 @@ func runConsistencyTests(t *testing.T,
 		revision:            revision,
 	}
 
-	// Run a fully recursive expand on each relRunFation and ensure all terminal subjects are reached.
+	// Run basic expansion on each relation and ensure it matches the structure of the relation.
 	validateExpansion(t, vctx)
+
+	// Run a fully recursive expand on each relation and ensure all terminal subjects are reached.
+	validateExpansionSubjects(t, vctx)
 
 	// For each relation in each namespace, for each user, collect the objects accessible
 	// to that user and then verify the lookup returns the same set of objects.
@@ -433,6 +436,34 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 			for _, objectID := range allObjectIds {
 				objectIDStr := objectID.(string)
 				t.Run(fmt.Sprintf("expand_%s_%s_%s", nsDef.Name, objectIDStr, relation.Name), func(t *testing.T) {
+					vrequire := require.New(t)
+
+					_, err := vctx.tester.Expand(context.Background(),
+						&v0.ObjectAndRelation{
+							Namespace: nsDef.Name,
+							Relation:  relation.Name,
+							ObjectId:  objectIDStr,
+						},
+						vctx.revision,
+					)
+					vrequire.NoError(err)
+				})
+			}
+		}
+	}
+}
+
+func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
+	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
+		allObjectIds, ok := vctx.objectsPerNamespace.Get(nsDef.Name)
+		if !ok {
+			continue
+		}
+
+		for _, relation := range nsDef.Relation {
+			for _, objectID := range allObjectIds {
+				objectIDStr := objectID.(string)
+				t.Run(fmt.Sprintf("expand_subjects_%s_%s_%s", nsDef.Name, objectIDStr, relation.Name), func(t *testing.T) {
 					vrequire := require.New(t)
 					accessibleTerminalSubjects := vctx.accessibilitySet.AccessibleTerminalSubjects(nsDef.Name, relation.Name, objectIDStr)
 

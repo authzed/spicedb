@@ -97,7 +97,8 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 	}, nil
 }
 
-func translateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.RelationTupleTreeNode {
+// TranslateRelationshipTree translates a V1 PermissionRelationshipTree into a V0 RelationTupleTreeNode.
+func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.RelationTupleTreeNode {
 	switch t := tree.TreeType.(type) {
 	case *v1.PermissionRelationshipTree_Intermediate:
 		operation := v0.SetOperationUserset_INVALID
@@ -114,7 +115,7 @@ func translateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 
 		var children []*v0.RelationTupleTreeNode
 		for _, child := range t.Intermediate.Children {
-			children = append(children, translateRelationshipTree(child))
+			children = append(children, TranslateRelationshipTree(child))
 		}
 
 		return &v0.RelationTupleTreeNode{

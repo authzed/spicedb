@@ -599,7 +599,7 @@ func TestTranslateExpansionTree(t *testing.T) {
 
 	for _, tt := range table {
 		t.Run(tt.name, func(t *testing.T) {
-			out := translateRelationshipTree(translateExpansionTree(tt.input))
+			out := TranslateRelationshipTree(translateExpansionTree(tt.input))
 			require.Equal(t, tt.input, out)
 		})
 	}
