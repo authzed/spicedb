@@ -1,4 +1,6 @@
 ---
+run:
+  timeout: "5m"
 output:
   sort-results: true
 linters-settings:
