@@ -1,23 +1,35 @@
 ---
-area/dependencies:
-  - "Dockerfile"
-  - "go.mod"
-  - "go.sum"
-area/tooling:
-  - "**/*_test.go"
-  - ".github/**/*"
-  - ".*"
-  - "Dockerfile*"
-area/docs:
-  - "CODE-OF-CONDUCT.md"
-  - "CONTRIBUTING.md"
-  - "DCO"
-  - "LICENSE"
-  - "README.md"
+"area/api devtools":
+  - "cmd/spicedb/developer.go"
+"area/api http":
+  - "internal/gateway/**/*"
 "area/api v0":
   - "internal/services/v0/**/*"
 "area/api v1":
   - "internal/services/v1/**/*"
   - "internal/services/v1alpha1/**/*"
+"area/cli":
+  - "cmd/**/*"
+"area/dashboard":
+  - "internal/dashboard/**/*"
 "area/datastore":
   - "internal/datastore/**/*"
+"area/dependencies":
+  - "Dockerfile"
+  - "go.mod"
+  - "go.sum"
+"area/dispatch":
+  - "internal/dispatch/**/*"
+"area/docs":
+  - "CODE-OF-CONDUCT.md"
+  - "CONTRIBUTING.md"
+  - "DCO"
+  - "LICENSE"
+  - "README.md"
+"area/schema":
+  - "pkg/schemadsl/**/*"
+"area/tooling":
+  - "**/*_test.go"
+  - ".github/**/*"
+  - ".*"
+  - "Dockerfile*"
