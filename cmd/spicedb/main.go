@@ -6,9 +6,19 @@ import (
 	"net/http/pprof"
 	"time"
 
+	"github.com/cespare/xxhash"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
+	"github.com/sercand/kuberesolver/v3"
+	"google.golang.org/grpc/balancer"
+
+	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
+)
+
+const (
+	hashringReplicationFactor = 20
+	backendsPerKey            = 1
 )
 
 var defaultPreRunE = cobrautil.CommandStack(
@@ -30,6 +40,11 @@ func metricsHandler() http.Handler {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+
+	// enable kubernetes grpc resolver
+	kuberesolver.RegisterInCluster()
+	// enable consistent hashring grpc load balancer
+	balancer.Register(consistentbalancer.NewConsistentHashringBuilder(xxhash.Sum64, hashringReplicationFactor, backendsPerKey))
 
 	rootCmd := newRootCmd()
 	registerVersionCmd(rootCmd)
