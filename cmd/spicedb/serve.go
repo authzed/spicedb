@@ -113,6 +113,7 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	// Flags for configuring dispatch requests
 	serveCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
 	serveCmd.Flags().String("dispatch-upstream-addr", "", "upstream grpc address to dispatch to")
+	serveCmd.Flags().String("dispatch-upstream-ca-path", "", "local path to the TLS CA used when connecting to the dispatch cluster")
 
 	// Flags for configuring API behavior
 	serveCmd.Flags().Bool("disable-v1-schema-api", false, "disables the V1 schema API")
@@ -284,20 +285,29 @@ func serveRun(cmd *cobra.Command, args []string) {
 	if len(dispatchAddr) > 0 {
 		log.Info().Str("upstream", dispatchAddr).Msg("configuring grpc consistent load balancer for redispatch")
 
-		peerPSK := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
-		peerCertPath := cobrautil.MustGetStringExpanded(cmd, "dispatch-cluster-tls-cert-path")
-		pool, err := x509util.CustomCertPool(peerCertPath)
-		if err != nil {
-			log.Fatal().Str("certpath", peerCertPath).Err(err).Msg("error loading certs for dispatch")
-		}
-		creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
-
-		conn, err := grpc.Dial(dispatchAddr,
-			grpc.WithTransportCredentials(creds),
-			grpcutil.WithBearerToken(peerPSK),
+		// default options
+		opts := []grpc.DialOption{
 			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 			grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
-		)
+		}
+
+		// optional CA
+		peerCAPath := cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-ca-path")
+		if len(peerCAPath) > 0 {
+			log.Info().Str("certpath", peerCAPath).Err(err).Msg("loading CA cert for dispatch cluster")
+			pool, err := x509util.CustomCertPool(peerCAPath)
+			if err != nil {
+				log.Fatal().Str("certpath", peerCAPath).Err(err).Msg("error loading certs for dispatch")
+			}
+			creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
+			opts = append(opts, grpc.WithTransportCredentials(creds))
+			opts = append(opts, grpcutil.WithBearerToken(cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")))
+		} else {
+			opts = append(opts, grpcutil.WithInsecureBearerToken(cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")))
+			opts = append(opts, grpc.WithInsecure())
+		}
+
+		conn, err := grpc.Dial(dispatchAddr, opts...)
 		if err != nil {
 			log.Fatal().Str("endpoint", dispatchAddr).Err(err).Msg("error constructing client for endpoint")
 		}
