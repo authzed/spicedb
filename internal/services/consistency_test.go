@@ -104,6 +104,8 @@ func TestConsistency(t *testing.T) {
 								v1ServiceTester{v1permclient},
 							}
 
+							runCrossVersionTests(t, testers, dispatcher, fullyResolved, tuplesPerNamespace, revision)
+
 							for _, tester := range testers {
 								t.Run(tester.Name(), func(t *testing.T) {
 									runConsistencyTests(t, tester, dispatcher, fullyResolved, tuplesPerNamespace, revision)
@@ -115,6 +117,64 @@ func TestConsistency(t *testing.T) {
 			}
 		})
 	}
+}
+
+func runCrossVersionTests(t *testing.T,
+	testers []serviceTester,
+	dispatch dispatch.Dispatcher,
+	fullyResolved *validationfile.FullyParsedValidationFile,
+	tuplesPerNamespace *slicemultimap.MultiMap,
+	revision decimal.Decimal) {
+
+	for _, nsDef := range fullyResolved.NamespaceDefinitions {
+		for _, relation := range nsDef.Relation {
+			verifyCrossVersion(t, "read", testers, func(tester serviceTester) (interface{}, error) {
+				return tester.Read(context.Background(), nsDef.Name, revision)
+			})
+
+			for _, tpl := range fullyResolved.Tuples {
+				if tpl.ObjectAndRelation.Namespace != nsDef.Name {
+					continue
+				}
+
+				verifyCrossVersion(t, "expand", testers, func(tester serviceTester) (interface{}, error) {
+					return tester.Expand(context.Background(), &v0.ObjectAndRelation{
+						Namespace: nsDef.Name,
+						Relation:  relation.Name,
+						ObjectId:  tpl.ObjectAndRelation.ObjectId,
+					}, revision)
+				})
+
+				verifyCrossVersion(t, "lookup", testers, func(tester serviceTester) (interface{}, error) {
+					return tester.Lookup(context.Background(), &v0.RelationReference{
+						Namespace: nsDef.Name,
+						Relation:  relation.Name,
+					}, &v0.ObjectAndRelation{
+						Namespace: tpl.ObjectAndRelation.Namespace,
+						Relation:  tpl.ObjectAndRelation.Relation,
+						ObjectId:  tpl.ObjectAndRelation.ObjectId,
+					}, revision)
+				})
+			}
+		}
+	}
+}
+
+type apiRunner func(tester serviceTester) (interface{}, error)
+
+func verifyCrossVersion(t *testing.T, name string, testers []serviceTester, runAPI apiRunner) {
+	t.Run(fmt.Sprintf("crossversion_%s", name), func(t *testing.T) {
+		var result interface{}
+		for _, tester := range testers {
+			value, err := runAPI(tester)
+			require.NoError(t, err)
+			if result == nil {
+				result = value
+			} else {
+				require.Equal(t, result, value, "Found mismatch between versions")
+			}
+		}
+	})
 }
 
 func runConsistencyTests(t *testing.T,
@@ -195,8 +255,11 @@ func runConsistencyTests(t *testing.T,
 		revision:            revision,
 	}
 
-	// Run a fully recursive expand on each relRunFation and ensure all terminal subjects are reached.
+	// Run basic expansion on each relation and ensure it matches the structure of the relation.
 	validateExpansion(t, vctx)
+
+	// Run a fully recursive expand on each relation and ensure all terminal subjects are reached.
+	validateExpansionSubjects(t, vctx)
 
 	// For each relation in each namespace, for each user, collect the objects accessible
 	// to that user and then verify the lookup returns the same set of objects.
@@ -433,6 +496,34 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 			for _, objectID := range allObjectIds {
 				objectIDStr := objectID.(string)
 				t.Run(fmt.Sprintf("expand_%s_%s_%s", nsDef.Name, objectIDStr, relation.Name), func(t *testing.T) {
+					vrequire := require.New(t)
+
+					_, err := vctx.tester.Expand(context.Background(),
+						&v0.ObjectAndRelation{
+							Namespace: nsDef.Name,
+							Relation:  relation.Name,
+							ObjectId:  objectIDStr,
+						},
+						vctx.revision,
+					)
+					vrequire.NoError(err)
+				})
+			}
+		}
+	}
+}
+
+func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
+	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
+		allObjectIds, ok := vctx.objectsPerNamespace.Get(nsDef.Name)
+		if !ok {
+			continue
+		}
+
+		for _, relation := range nsDef.Relation {
+			for _, objectID := range allObjectIds {
+				objectIDStr := objectID.(string)
+				t.Run(fmt.Sprintf("expand_subjects_%s_%s_%s", nsDef.Name, objectIDStr, relation.Name), func(t *testing.T) {
 					vrequire := require.New(t)
 					accessibleTerminalSubjects := vctx.accessibilitySet.AccessibleTerminalSubjects(nsDef.Name, relation.Name, objectIDStr)
 

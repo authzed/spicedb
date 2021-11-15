@@ -3,12 +3,14 @@ package services
 import (
 	"context"
 	"io"
+	"sort"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 	"github.com/authzed/spicedb/pkg/zookie"
@@ -17,6 +19,7 @@ import (
 type serviceTester interface {
 	Name() string
 	Check(ctx context.Context, resource *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, atRevision decimal.Decimal) (bool, error)
+	Expand(ctx context.Context, resource *v0.ObjectAndRelation, atRevision decimal.Decimal) (*v0.RelationTupleTreeNode, error)
 	Write(ctx context.Context, relationship *v0.RelationTuple) error
 	Read(ctx context.Context, namespaceName string, atRevision decimal.Decimal) ([]*v0.RelationTuple, error)
 	Lookup(ctx context.Context, resourceRelation *v0.RelationReference, subject *v0.ObjectAndRelation, atRevision decimal.Decimal) ([]string, error)
@@ -45,6 +48,17 @@ func (v0st v0ServiceTester) Check(ctx context.Context, resource *v0.ObjectAndRel
 		return false, err
 	}
 	return checkResp.IsMember, nil
+}
+
+func (v0st v0ServiceTester) Expand(ctx context.Context, resource *v0.ObjectAndRelation, atRevision decimal.Decimal) (*v0.RelationTupleTreeNode, error) {
+	expandResp, err := v0st.srv.Expand(ctx, &v0.ExpandRequest{
+		Userset:    resource,
+		AtRevision: zookie.NewFromRevision(atRevision),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return expandResp.TreeNode, nil
 }
 
 func (v0st v0ServiceTester) Write(ctx context.Context, tpl *v0.RelationTuple) error {
@@ -83,6 +97,8 @@ func (v0st v0ServiceTester) Lookup(ctx context.Context, resourceRelation *v0.Rel
 	if err != nil {
 		return nil, err
 	}
+
+	sort.Strings(result.ResolvedObjectIds)
 	return result.ResolvedObjectIds, nil
 }
 
@@ -135,6 +151,25 @@ func (v1st v1ServiceTester) Check(ctx context.Context, resource *v0.ObjectAndRel
 		return false, err
 	}
 	return checkResp.Permissionship == v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, nil
+}
+
+func (v1st v1ServiceTester) Expand(ctx context.Context, resource *v0.ObjectAndRelation, atRevision decimal.Decimal) (*v0.RelationTupleTreeNode, error) {
+	expandResp, err := v1st.permClient.ExpandPermissionTree(ctx, &v1.ExpandPermissionTreeRequest{
+		Resource: &v1.ObjectReference{
+			ObjectType: resource.Namespace,
+			ObjectId:   resource.ObjectId,
+		},
+		Permission: resource.Relation,
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(atRevision),
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v1svc.TranslateRelationshipTree(expandResp.TreeRoot), nil
 }
 
 func (v1st v1ServiceTester) Write(ctx context.Context, relationship *v0.RelationTuple) error {
@@ -232,5 +267,6 @@ func (v1st v1ServiceTester) Lookup(ctx context.Context, resourceRelation *v0.Rel
 		objectIds = append(objectIds, resp.ResourceObjectId)
 	}
 
+	sort.Strings(objectIds)
 	return objectIds, nil
 }
