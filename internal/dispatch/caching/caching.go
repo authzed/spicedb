@@ -10,7 +10,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -146,7 +145,7 @@ func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint6
 // DispatchCheck implements dispatch.Check interface
 func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
-	requestKey := checkRequestToKey(req)
+	requestKey := dispatch.CheckRequestToKey(req)
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(checkResultEntry)
@@ -178,7 +177,7 @@ func (cd *cachingDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 // DispatchLookup implements dispatch.Lookup interface and does not do any caching yet.
 func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	cd.lookupTotalCounter.Inc()
-	requestKey := lookupRequestToKey(req)
+	requestKey := dispatch.LookupRequestToKey(req)
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupResultEntry)
 		if req.Metadata.DepthRemaining >= cachedResult.depthRequired {
@@ -191,7 +190,7 @@ func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 
 	// We only want to cache the result if there was no error
 	if err == nil {
-		requestKey := lookupRequestToKey(req)
+		requestKey := dispatch.LookupRequestToKey(req)
 		toCache := lookupResultEntry{computed, computed.Metadata.DepthRequired}
 		toCache.result.Metadata.DispatchCount = 0
 
@@ -215,12 +214,4 @@ func (cd *cachingDispatcher) Close() error {
 	}
 
 	return nil
-}
-
-func checkRequestToKey(req *v1.DispatchCheckRequest) string {
-	return fmt.Sprintf("check//%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
-}
-
-func lookupRequestToKey(req *v1.DispatchLookupRequest) string {
-	return fmt.Sprintf("lookup//%s#%s@%s@%s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/tuple"
+
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -62,4 +64,19 @@ func CheckDepth(ctx context.Context, req HasMetadata) error {
 	}
 
 	return nil
+}
+
+// CheckRequestToKey converts a check request into a cache key
+func CheckRequestToKey(req *v1.DispatchCheckRequest) string {
+	return fmt.Sprintf("check//%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+}
+
+// LookupRequestToKey converts a lookup request into a cache key
+func LookupRequestToKey(req *v1.DispatchLookupRequest) string {
+	return fmt.Sprintf("lookup//%s#%s@%s@%s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+}
+
+// ExpandRequestToKey converts an expand request into a cache key
+func ExpandRequestToKey(req *v1.DispatchExpandRequest) string {
+	return fmt.Sprintf("expand//%s@%s", tuple.StringONR(req.ObjectAndRelation), req.Metadata.AtRevision)
 }

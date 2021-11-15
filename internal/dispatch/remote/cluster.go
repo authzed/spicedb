@@ -1,7 +1,6 @@
 package remote
 
 import (
-	"bytes"
 	"context"
 
 	"google.golang.org/grpc"
@@ -32,12 +31,7 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
-	requestKey := bytes.Join([][]byte{
-		[]byte(req.ObjectAndRelation.String()),
-		[]byte(req.Subject.String()),
-		[]byte(req.Metadata.AtRevision),
-	}, []byte("-"))
-	ctx = context.WithValue(ctx, balancer.CtxKey, requestKey)
+	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.CheckRequestToKey(req)))
 	resp, err := cr.clusterClient.DispatchCheck(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
@@ -51,13 +45,7 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
-
-	requestKey := bytes.Join([][]byte{
-		[]byte(req.ObjectAndRelation.String()),
-		[]byte(req.ExpansionMode.String()),
-		[]byte(req.Metadata.AtRevision),
-	}, []byte("-"))
-	ctx = context.WithValue(ctx, balancer.CtxKey, requestKey)
+	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.ExpandRequestToKey(req)))
 	resp, err := cr.clusterClient.DispatchExpand(ctx, req)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: requestFailureMetadata}, err
@@ -71,27 +59,7 @@ func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
-
-	requestKey := bytes.Join([][]byte{
-		[]byte(req.ObjectRelation.String()),
-		[]byte(req.Subject.String()),
-		[]byte(req.Metadata.AtRevision),
-	}, []byte("-"))
-	for _, d := range req.DirectStack {
-		requestKey = bytes.Join([][]byte{
-			requestKey,
-			[]byte("d"),
-			[]byte(d.String()),
-		}, []byte("-"))
-	}
-	for _, t := range req.TtuStack {
-		requestKey = bytes.Join([][]byte{
-			requestKey,
-			[]byte("t"),
-			[]byte(t.String()),
-		}, []byte("-"))
-	}
-	ctx = context.WithValue(ctx, balancer.CtxKey, requestKey)
+	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.LookupRequestToKey(req)))
 	resp, err := cr.clusterClient.DispatchLookup(ctx, req)
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: requestFailureMetadata}, err
