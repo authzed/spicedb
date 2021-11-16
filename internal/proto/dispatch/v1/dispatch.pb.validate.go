@@ -757,6 +757,36 @@ func (m *ResponseMeta) Validate() error {
 
 	// no validation rules for DepthRequired
 
+	for idx, item := range m.GetLookupExcludedDirect() {
+		_, _ = idx, item
+
+		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ResponseMetaValidationError{
+					field:  fmt.Sprintf("LookupExcludedDirect[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	for idx, item := range m.GetLookupExcludedTtu() {
+		_, _ = idx, item
+
+		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ResponseMetaValidationError{
+					field:  fmt.Sprintf("LookupExcludedTtu[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
 	return nil
 }
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/dgraph-io/ristretto"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
@@ -18,7 +19,7 @@ const (
 	prometheusNamespace = "spicedb"
 )
 
-type cachingDispatcher struct {
+type CachingDispatcher struct {
 	d dispatch.Dispatcher
 	c *ristretto.Cache
 
@@ -46,10 +47,9 @@ var (
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
 // and caches the responses when possible and desirable.
 func NewCachingDispatcher(
-	delegate dispatch.Dispatcher,
 	cacheConfig *ristretto.Config,
 	prometheusSubsystem string,
-) (dispatch.Dispatcher, error) {
+) (*CachingDispatcher, error) {
 	if cacheConfig == nil {
 		cacheConfig = &ristretto.Config{
 			NumCounters: 1e4,     // number of keys to track frequency of (10k).
@@ -129,7 +129,7 @@ func NewCachingDispatcher(
 		}
 	}
 
-	return &cachingDispatcher{delegate, cache, checkTotalCounter, checkFromCacheCounter, lookupTotalCounter, lookupFromCacheCounter}, nil
+	return &CachingDispatcher{fakeDelegate{}, cache, checkTotalCounter, checkFromCacheCounter, lookupTotalCounter, lookupFromCacheCounter}, nil
 }
 
 func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint64) error {
@@ -142,8 +142,13 @@ func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint6
 	}))
 }
 
+// SetDelegate sets the internal delegate to the specific dispatcher instance.
+func (cd *CachingDispatcher) SetDelegate(delegate dispatch.Dispatcher) {
+	cd.d = delegate
+}
+
 // DispatchCheck implements dispatch.Check interface
-func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (cd *CachingDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
 	requestKey := dispatch.CheckRequestToKey(req)
 
@@ -170,17 +175,19 @@ func (cd *cachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 }
 
 // DispatchExpand implements dispatch.Expand interface and does not do any caching yet.
-func (cd *cachingDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+func (cd *CachingDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	return cd.d.DispatchExpand(ctx, req)
 }
 
 // DispatchLookup implements dispatch.Lookup interface and does not do any caching yet.
-func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+func (cd *CachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	cd.lookupTotalCounter.Inc()
+
 	requestKey := dispatch.LookupRequestToKey(req)
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupResultEntry)
 		if req.Metadata.DepthRemaining >= cachedResult.depthRequired {
+			log.Trace().Object("using cached lookup", req).Int("result count", len(cachedResult.result.ResolvedOnrs)).Send()
 			cd.lookupFromCacheCounter.Inc()
 			return cachedResult.result, nil
 		}
@@ -188,11 +195,15 @@ func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 
 	computed, err := cd.d.DispatchLookup(ctx, req)
 
-	// We only want to cache the result if there was no error
-	if err == nil {
+	// We only want to cache the result if there was no error and nothing was excluded.
+	if err == nil && len(computed.Metadata.LookupExcludedDirect) == 0 && len(computed.Metadata.LookupExcludedTtu) == 0 {
+		log.Trace().Object("caching lookup", req).Int("result count", len(computed.ResolvedOnrs)).Send()
+
 		requestKey := dispatch.LookupRequestToKey(req)
 		toCache := lookupResultEntry{computed, computed.Metadata.DepthRequired}
 		toCache.result.Metadata.DispatchCount = 0
+		toCache.result.Metadata.LookupExcludedDirect = nil
+		toCache.result.Metadata.LookupExcludedTtu = nil
 
 		estimatedSize := lookupResultEntryEmptyCost
 		for _, onr := range toCache.result.ResolvedOnrs {
@@ -207,7 +218,7 @@ func (cd *cachingDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	return computed, err
 }
 
-func (cd *cachingDispatcher) Close() error {
+func (cd *CachingDispatcher) Close() error {
 	cache := cd.c
 	if cache != nil {
 		cache.Close()
