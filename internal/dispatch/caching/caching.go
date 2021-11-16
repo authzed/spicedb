@@ -8,6 +8,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
@@ -30,13 +31,11 @@ type CachingDispatcher struct {
 }
 
 type checkResultEntry struct {
-	result        *v1.DispatchCheckResponse
-	depthRequired uint32
+	response *v1.DispatchCheckResponse
 }
 
 type lookupResultEntry struct {
-	result        *v1.DispatchLookupResponse
-	depthRequired uint32
+	response *v1.DispatchLookupResponse
 }
 
 var (
@@ -154,9 +153,9 @@ func (cd *CachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(checkResultEntry)
-		if req.Metadata.DepthRemaining >= cachedResult.depthRequired {
+		if req.Metadata.DepthRemaining >= cachedResult.response.Metadata.DepthRequired {
 			cd.checkFromCacheCounter.Inc()
-			return cachedResult.result, nil
+			return cachedResult.response, nil
 		}
 	}
 
@@ -164,8 +163,11 @@ func (cd *CachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 
 	// We only want to cache the result if there was no error
 	if err == nil {
-		toCache := checkResultEntry{computed, computed.Metadata.DepthRequired}
-		toCache.result.Metadata.DispatchCount = 0
+		adjustedComputed := proto.Clone(computed).(*v1.DispatchCheckResponse)
+		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
+		adjustedComputed.Metadata.DispatchCount = 0
+
+		toCache := checkResultEntry{adjustedComputed}
 		cd.c.Set(requestKey, toCache, checkResultEntryCost)
 	}
 
@@ -176,7 +178,8 @@ func (cd *CachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 
 // DispatchExpand implements dispatch.Expand interface and does not do any caching yet.
 func (cd *CachingDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
-	return cd.d.DispatchExpand(ctx, req)
+	resp, err := cd.d.DispatchExpand(ctx, req)
+	return resp, err
 }
 
 // DispatchLookup implements dispatch.Lookup interface and does not do any caching yet.
@@ -186,10 +189,10 @@ func (cd *CachingDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	requestKey := dispatch.LookupRequestToKey(req)
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupResultEntry)
-		if req.Metadata.DepthRemaining >= cachedResult.depthRequired {
-			log.Trace().Object("using cached lookup", req).Int("result count", len(cachedResult.result.ResolvedOnrs)).Send()
+		if req.Metadata.DepthRemaining >= cachedResult.response.Metadata.DepthRequired {
+			log.Trace().Object("using cached lookup", req).Int("result count", len(cachedResult.response.ResolvedOnrs)).Send()
 			cd.lookupFromCacheCounter.Inc()
-			return cachedResult.result, nil
+			return cachedResult.response, nil
 		}
 	}
 
@@ -199,14 +202,17 @@ func (cd *CachingDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	if err == nil && len(computed.Metadata.LookupExcludedDirect) == 0 && len(computed.Metadata.LookupExcludedTtu) == 0 {
 		log.Trace().Object("caching lookup", req).Int("result count", len(computed.ResolvedOnrs)).Send()
 
+		adjustedComputed := proto.Clone(computed).(*v1.DispatchLookupResponse)
+		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
+		adjustedComputed.Metadata.DispatchCount = 0
+		adjustedComputed.Metadata.LookupExcludedDirect = nil
+		adjustedComputed.Metadata.LookupExcludedTtu = nil
+
 		requestKey := dispatch.LookupRequestToKey(req)
-		toCache := lookupResultEntry{computed, computed.Metadata.DepthRequired}
-		toCache.result.Metadata.DispatchCount = 0
-		toCache.result.Metadata.LookupExcludedDirect = nil
-		toCache.result.Metadata.LookupExcludedTtu = nil
+		toCache := lookupResultEntry{adjustedComputed}
 
 		estimatedSize := lookupResultEntryEmptyCost
-		for _, onr := range toCache.result.ResolvedOnrs {
+		for _, onr := range toCache.response.ResolvedOnrs {
 			estimatedSize += int64(len(onr.Namespace) + len(onr.ObjectId) + len(onr.Relation))
 		}
 

@@ -114,7 +114,7 @@ func TestSimple(t *testing.T) {
 		for _, userset := range tc.usersets {
 			for _, expected := range userset.expected {
 				name := fmt.Sprintf(
-					"%s:%s#%s@%s:%s#%s=>%t",
+					"simple:%s:%s#%s@%s:%s#%s=>%t",
 					tc.namespace,
 					tc.objectID,
 					expected.relation,
@@ -195,6 +195,100 @@ func TestMaxDepth(t *testing.T) {
 
 	require.Error(err)
 	require.Equal(v1.DispatchCheckResponse_UNKNOWN, checkResult.Membership)
+}
+
+func TestCheckMetadata(t *testing.T) {
+	type expected struct {
+		relation              string
+		isMember              bool
+		expectedDispatchCount int
+		expectedDepthRequired int
+	}
+
+	type userset struct {
+		userset  *v0.ObjectAndRelation
+		expected []expected
+	}
+
+	testCases := []struct {
+		namespace string
+		objectID  string
+		usersets  []userset
+	}{
+		{"document", "masterplan", []userset{
+			{
+				ONR("user", "product_manager", graph.Ellipsis),
+				[]expected{
+					{"owner", true, 1, 1},
+					{"editor", true, 2, 2},
+					{"viewer", true, 3, 3},
+				},
+			},
+			{
+				ONR("user", "owner", graph.Ellipsis),
+				[]expected{
+					{"owner", false, 1, 1},
+					{"editor", false, 2, 2},
+					{"viewer", true, 5, 5},
+				},
+			},
+		}},
+		{"folder", "strategy", []userset{
+			{
+				ONR("user", "vp_product", graph.Ellipsis),
+				[]expected{
+					{"owner", true, 1, 1},
+					{"editor", true, 2, 2},
+					{"viewer", true, 3, 3},
+				},
+			},
+		}},
+		{"folder", "company", []userset{
+			{
+				ONR("user", "unknown", graph.Ellipsis),
+				[]expected{
+					{"viewer", false, 6, 4},
+				},
+			},
+		}},
+	}
+
+	for _, tc := range testCases {
+		for _, userset := range tc.usersets {
+			for _, expected := range userset.expected {
+				name := fmt.Sprintf(
+					"metadata:%s:%s#%s@%s:%s#%s=>%t",
+					tc.namespace,
+					tc.objectID,
+					expected.relation,
+					userset.userset.Namespace,
+					userset.userset.ObjectId,
+					userset.userset.Relation,
+					expected.isMember,
+				)
+
+				t.Run(name, func(t *testing.T) {
+					require := require.New(t)
+
+					dispatch, revision := newLocalDispatcher(require)
+
+					checkResult, err := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+						ObjectAndRelation: ONR(tc.namespace, tc.objectID, expected.relation),
+						Subject:           userset.userset,
+						Metadata: &v1.ResolverMeta{
+							AtRevision:     revision.String(),
+							DepthRemaining: 50,
+						},
+					})
+
+					require.NoError(err)
+					require.Equal(expected.isMember, checkResult.Membership == v1.DispatchCheckResponse_MEMBER)
+					require.Equal(expected.expectedDispatchCount, int(checkResult.Metadata.DispatchCount))
+					require.Equal(expected.expectedDepthRequired, int(checkResult.Metadata.DepthRequired))
+				})
+			}
+		}
+	}
 }
 
 func newLocalDispatcher(require *require.Assertions) (dispatch.Dispatcher, decimal.Decimal) {

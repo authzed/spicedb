@@ -114,24 +114,26 @@ var (
 
 func TestExpand(t *testing.T) {
 	testCases := []struct {
-		start         *v0.ObjectAndRelation
-		expansionMode v1.DispatchExpandRequest_ExpansionMode
-		expected      *v0.RelationTupleTreeNode
+		start                 *v0.ObjectAndRelation
+		expansionMode         v1.DispatchExpandRequest_ExpansionMode
+		expected              *v0.RelationTupleTreeNode
+		expectedDispatchCount int
+		expectedDepthRequired int
 	}{
-		{start: ONR("folder", "company", "owner"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyOwner},
-		{start: ONR("folder", "company", "editor"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyEditor},
-		{start: ONR("folder", "company", "viewer"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyViewer},
-		{start: ONR("document", "masterplan", "owner"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docOwner},
-		{start: ONR("document", "masterplan", "editor"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docEditor},
-		{start: ONR("document", "masterplan", "viewer"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docViewer},
+		{start: ONR("folder", "company", "owner"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyOwner, expectedDispatchCount: 1, expectedDepthRequired: 1},
+		{start: ONR("folder", "company", "editor"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyEditor, expectedDispatchCount: 2, expectedDepthRequired: 2},
+		{start: ONR("folder", "company", "viewer"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyViewer, expectedDispatchCount: 3, expectedDepthRequired: 3},
+		{start: ONR("document", "masterplan", "owner"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docOwner, expectedDispatchCount: 1, expectedDepthRequired: 1},
+		{start: ONR("document", "masterplan", "editor"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docEditor, expectedDispatchCount: 2, expectedDepthRequired: 2},
+		{start: ONR("document", "masterplan", "viewer"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docViewer, expectedDispatchCount: 12, expectedDepthRequired: 5},
 
-		{start: ONR("folder", "auditors", "owner"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsOwner},
-		{start: ONR("folder", "auditors", "editor"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsEditor},
-		{start: ONR("folder", "auditors", "viewer"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsViewerRecursive},
+		{start: ONR("folder", "auditors", "owner"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsOwner, expectedDispatchCount: 1, expectedDepthRequired: 1},
+		{start: ONR("folder", "auditors", "editor"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsEditor, expectedDispatchCount: 2, expectedDepthRequired: 2},
+		{start: ONR("folder", "auditors", "viewer"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsViewerRecursive, expectedDispatchCount: 3, expectedDepthRequired: 3},
 
-		{start: ONR("folder", "company", "owner"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyOwner},
-		{start: ONR("folder", "company", "editor"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyEditor},
-		{start: ONR("folder", "company", "viewer"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyViewerRecursive},
+		{start: ONR("folder", "company", "owner"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyOwner, expectedDispatchCount: 1, expectedDepthRequired: 1},
+		{start: ONR("folder", "company", "editor"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyEditor, expectedDispatchCount: 2, expectedDepthRequired: 2},
+		{start: ONR("folder", "company", "viewer"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyViewerRecursive, expectedDispatchCount: 6, expectedDepthRequired: 4},
 	}
 
 	for _, tc := range testCases {
@@ -152,6 +154,8 @@ func TestExpand(t *testing.T) {
 			require.NoError(err)
 			require.NotNil(expandResult.TreeNode)
 			require.GreaterOrEqual(expandResult.Metadata.DepthRequired, uint32(1))
+			require.Equal(tc.expectedDispatchCount, int(expandResult.Metadata.DispatchCount))
+			require.Equal(tc.expectedDepthRequired, int(expandResult.Metadata.DepthRequired))
 
 			if diff := cmp.Diff(tc.expected, expandResult.TreeNode, protocmp.Transform()); diff != "" {
 				fset := token.NewFileSet()

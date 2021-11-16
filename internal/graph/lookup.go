@@ -52,10 +52,9 @@ func (cl *ConcurrentLookup) Lookup(ctx context.Context, req *v1.DispatchLookupRe
 	}
 
 	resolved.Resp.Metadata.LookupExcludedDirect = lookupExcludedDirect
+	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
 	return resolved.Resp, resolved.Err
 }
-
-var emptyMetadata = &v1.ResponseMeta{}
 
 func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.DispatchLookupRequest) ReduceableLookupFunc {
 	log.Ctx(ctx).Trace().Object("lookup", req).Send()
@@ -124,7 +123,7 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req *v1.Dispatch
 		}
 
 		result := lookupAny(ctx, req, req.Limit, requests)
-		responseMetadata = updateRespMetadata(responseMetadata, result.Resp)
+		responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
 
 		if result.Err != nil {
 			return returnResult(lookupResultError(req, result.Err, responseMetadata))
@@ -585,7 +584,7 @@ func lookupAny(ctx context.Context, parentReq *v1.DispatchLookupRequest, limit u
 	for _, resultChan := range resultChans {
 		select {
 		case result := <-resultChan:
-			responseMetadata = updateRespMetadata(responseMetadata, result.Resp)
+			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
 			if result.Err != nil {
 				return lookupResultError(parentReq, result.Err, responseMetadata)
 			}
@@ -622,7 +621,7 @@ func lookupAll(ctx context.Context, parentReq *v1.DispatchLookupRequest, limit u
 	for i := 0; i < len(requests); i++ {
 		select {
 		case result := <-resultChan:
-			responseMetadata = updateRespMetadata(responseMetadata, result.Resp)
+			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
 
 			if result.Err != nil {
 				return lookupResultError(parentReq, result.Err, responseMetadata)
@@ -668,7 +667,7 @@ func lookupExclude(ctx context.Context, parentReq *v1.DispatchLookupRequest, lim
 	for i := 0; i < len(requests); i++ {
 		select {
 		case base := <-baseChan:
-			responseMetadata = updateRespMetadata(responseMetadata, base.Resp)
+			responseMetadata = combineResponseMetadata(responseMetadata, base.Resp.Metadata)
 
 			if base.Err != nil {
 				return lookupResultError(parentReq, base.Err, responseMetadata)
@@ -676,7 +675,7 @@ func lookupExclude(ctx context.Context, parentReq *v1.DispatchLookupRequest, lim
 			objSet.Update(base.Resp.ResolvedOnrs)
 
 		case sub := <-othersChan:
-			responseMetadata = updateRespMetadata(responseMetadata, sub.Resp)
+			responseMetadata = combineResponseMetadata(responseMetadata, sub.Resp.Metadata)
 
 			if sub.Err != nil {
 				return lookupResultError(parentReq, sub.Err, responseMetadata)
@@ -689,25 +688,6 @@ func lookupExclude(ctx context.Context, parentReq *v1.DispatchLookupRequest, lim
 	}
 
 	return lookupResult(parentReq, limitedSlice(objSet.Subtract(excSet).AsSlice(), limit), responseMetadata)
-}
-
-func updateRespMetadata(existing *v1.ResponseMeta, response *v1.DispatchLookupResponse) *v1.ResponseMeta {
-	lookupExcludedDirect := existing.LookupExcludedDirect
-	if response.Metadata.LookupExcludedDirect != nil {
-		lookupExcludedDirect = append(lookupExcludedDirect, response.Metadata.LookupExcludedDirect...)
-	}
-
-	lookupExcludedTtu := existing.LookupExcludedTtu
-	if response.Metadata.LookupExcludedTtu != nil {
-		lookupExcludedTtu = append(lookupExcludedTtu, response.Metadata.LookupExcludedTtu...)
-	}
-
-	return &v1.ResponseMeta{
-		DispatchCount:        existing.DispatchCount + response.Metadata.DispatchCount,
-		DepthRequired:        max(existing.DepthRequired, response.Metadata.DepthRequired),
-		LookupExcludedDirect: lookupExcludedDirect,
-		LookupExcludedTtu:    lookupExcludedTtu,
-	}
 }
 
 func returnResult(result LookupResult) ReduceableLookupFunc {
@@ -724,36 +704,20 @@ func limitedSlice(slice []*v0.ObjectAndRelation, limit uint32) []*v0.ObjectAndRe
 	return slice
 }
 
-func lookupResult(req *v1.DispatchLookupRequest, resolvedONRs []*v0.ObjectAndRelation, metadata *v1.ResponseMeta) LookupResult {
-	if metadata == nil {
-		metadata = emptyMetadata
-	}
-
+func lookupResult(req *v1.DispatchLookupRequest, resolvedONRs []*v0.ObjectAndRelation, subProblemMetadata *v1.ResponseMeta) LookupResult {
 	return LookupResult{
 		&v1.DispatchLookupResponse{
-			Metadata: &v1.ResponseMeta{
-				DispatchCount:        metadata.DispatchCount,
-				DepthRequired:        metadata.DepthRequired + 1, // +1 for the current call,
-				LookupExcludedDirect: metadata.LookupExcludedDirect,
-				LookupExcludedTtu:    metadata.LookupExcludedTtu,
-			},
+			Metadata:     ensureMetadata(subProblemMetadata),
 			ResolvedOnrs: resolvedONRs,
 		},
 		nil,
 	}
 }
 
-func lookupResultError(req *v1.DispatchLookupRequest, err error, metadata *v1.ResponseMeta) LookupResult {
-	if metadata == nil {
-		metadata = emptyMetadata
-	}
-
+func lookupResultError(req *v1.DispatchLookupRequest, err error, subProblemMetadata *v1.ResponseMeta) LookupResult {
 	return LookupResult{
 		&v1.DispatchLookupResponse{
-			Metadata: &v1.ResponseMeta{
-				DispatchCount: metadata.DispatchCount,
-				DepthRequired: metadata.DepthRequired + 1, // +1 for the current call
-			},
+			Metadata: ensureMetadata(subProblemMetadata),
 		},
 		err,
 	}
