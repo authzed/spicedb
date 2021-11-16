@@ -33,3 +33,12 @@ message RelationMetadata {
 
   RelationKind kind = 1;
 }
+
+message NamespaceAndRevision {
+  string namespace_name = 1;
+  string revision = 2;
+}
+
+message V1Alpha1Revision {
+  repeated NamespaceAndRevision ns_revisions = 1;
+}

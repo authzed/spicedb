@@ -354,6 +354,157 @@ var _ interface {
 	ErrorName() string
 } = RelationMetadataValidationError{}
 
+// Validate checks the field values on NamespaceAndRevision with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *NamespaceAndRevision) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	// no validation rules for NamespaceName
+
+	// no validation rules for Revision
+
+	return nil
+}
+
+// NamespaceAndRevisionValidationError is the validation error returned by
+// NamespaceAndRevision.Validate if the designated constraints aren't met.
+type NamespaceAndRevisionValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e NamespaceAndRevisionValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e NamespaceAndRevisionValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e NamespaceAndRevisionValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e NamespaceAndRevisionValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e NamespaceAndRevisionValidationError) ErrorName() string {
+	return "NamespaceAndRevisionValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e NamespaceAndRevisionValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sNamespaceAndRevision.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = NamespaceAndRevisionValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = NamespaceAndRevisionValidationError{}
+
+// Validate checks the field values on V1Alpha1Revision with the rules defined
+// in the proto definition for this message. If any rules are violated, an
+// error is returned.
+func (m *V1Alpha1Revision) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	for idx, item := range m.GetNsRevisions() {
+		_, _ = idx, item
+
+		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return V1Alpha1RevisionValidationError{
+					field:  fmt.Sprintf("NsRevisions[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	return nil
+}
+
+// V1Alpha1RevisionValidationError is the validation error returned by
+// V1Alpha1Revision.Validate if the designated constraints aren't met.
+type V1Alpha1RevisionValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e V1Alpha1RevisionValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e V1Alpha1RevisionValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e V1Alpha1RevisionValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e V1Alpha1RevisionValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e V1Alpha1RevisionValidationError) ErrorName() string { return "V1Alpha1RevisionValidationError" }
+
+// Error satisfies the builtin error interface
+func (e V1Alpha1RevisionValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sV1Alpha1Revision.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = V1Alpha1RevisionValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = V1Alpha1RevisionValidationError{}
+
 // Validate checks the field values on DecodedZookie_V1Zookie with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, an error is returned.
