@@ -67,6 +67,35 @@ func ParseValidationBlock(contents []byte) (ValidationMap, error) {
 	return block, err
 }
 
+func ParseRelationships(relationshipsBlock ...string) ([]*v0.RelationTuple, error) {
+	var tuples []*v0.RelationTuple
+	tupleExists := map[string]bool{}
+	for _, block := range relationshipsBlock {
+		if block != "" {
+			lines := strings.Split(block, "\n")
+			for index, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if len(trimmed) == 0 {
+					continue
+				}
+
+				tpl := tuple.Parse(trimmed)
+				if tpl == nil {
+					return nil, fmt.Errorf("Error parsing relationship #%v: %s", index, trimmed)
+				}
+				_, ok := tupleExists[tuple.String(tpl)]
+				if ok {
+					continue
+				}
+				tupleExists[tuple.String(tpl)] = true
+				tuples = append(tuples, tpl)
+			}
+		}
+	}
+
+	return tuples, nil
+}
+
 // ParseAssertionsBlock attempts to parse the given contents as a YAML assertions block.
 func ParseAssertionsBlock(contents []byte) (Assertions, error) {
 	var node yamlv3.Node

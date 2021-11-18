@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -34,7 +33,7 @@ type FullyParsedValidationFile struct {
 func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsedValidationFile, decimal.Decimal, error) {
 	var revision decimal.Decimal
 	nsDefs := []*v0.NamespaceDefinition{}
-	tuples := []*v0.RelationTuple{}
+	var tuples []*v0.RelationTuple
 
 	for _, filePath := range filePaths {
 		fileContents, err := os.ReadFile(filePath)
@@ -86,56 +85,16 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 		}
 
 		// Load the validation tuples/relationships.
-		var updates []*v1.RelationshipUpdate
-		seenTuples := map[string]bool{}
-
-		relationships := parsed.Relationships
-		if relationships != "" {
-			lines := strings.Split(relationships, "\n")
-			for index, line := range lines {
-				trimmed := strings.TrimSpace(line)
-				if len(trimmed) == 0 {
-					continue
-				}
-
-				tpl := tuple.Parse(trimmed)
-				if tpl == nil {
-					return nil, decimal.Zero, fmt.Errorf("Error parsing relationship #%v: %s", index, trimmed)
-				}
-
-				_, ok := seenTuples[tuple.String(tpl)]
-				if ok {
-					continue
-				}
-				seenTuples[tuple.String(tpl)] = true
-
-				tuples = append(tuples, tpl)
-				updates = append(updates, &v1.RelationshipUpdate{
-					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-					Relationship: tuple.MustToRelationship(tpl),
-				})
-			}
-		}
-
-		log.Info().Str("filePath", filePath).Int("tupleCount", len(updates)+len(parsed.ValidationTuples)).Msg("Loading test data")
-		for index, validationTuple := range parsed.ValidationTuples {
-			tpl := tuple.Parse(validationTuple)
-			if tpl == nil {
-				return nil, decimal.Zero, fmt.Errorf("Error parsing validation tuple #%v: %s", index, validationTuple)
-			}
-
-			_, ok := seenTuples[tuple.String(tpl)]
-			if ok {
-				continue
-			}
-			seenTuples[tuple.String(tpl)] = true
-
-			tuples = append(tuples, tpl)
-			updates = append(updates, &v1.RelationshipUpdate{
+		tuples, err := ParseRelationships(append([]string{parsed.Relationships}, parsed.ValidationTuples...)...)
+		var updates = make([]*v1.RelationshipUpdate, len(tuples))
+		for i, relationTuple := range tuples {
+			updates[i] = &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-				Relationship: tuple.MustToRelationship(tpl),
-			})
+				Relationship: tuple.MustToRelationship(relationTuple),
+			}
 		}
+
+		log.Info().Str("filePath", filePath).Int("tupleCount", len(updates)).Msg("Loading test data")
 
 		wrevision, terr := ds.WriteTuples(context.Background(), nil, updates)
 		if terr != nil {
