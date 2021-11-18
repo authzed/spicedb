@@ -18,6 +18,7 @@ func main() {
 	registerHeadCmd(rootCmd)
 	registerDeveloperServiceCmd(rootCmd)
 	registerTestserverCmd(rootCmd)
+	registerValidateCmd(rootCmd)
 
 	_ = rootCmd.Execute()
 }
