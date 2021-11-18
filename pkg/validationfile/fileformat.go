@@ -81,7 +81,7 @@ func ParseRelationships(relationshipsBlock ...string) ([]*v0.RelationTuple, erro
 
 				tpl := tuple.Parse(trimmed)
 				if tpl == nil {
-					return nil, fmt.Errorf("Error parsing relationship #%v: %s", index, trimmed)
+					return nil, fmt.Errorf("error parsing relationship #%v: %s", index, trimmed)
 				}
 				_, ok := tupleExists[tuple.String(tpl)]
 				if ok {
