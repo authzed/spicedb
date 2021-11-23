@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/Masterminds/squirrel v1.5.1
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a
-	github.com/authzed/authzed-go v0.3.1-0.20211109190421-0b30d667df2e
+	github.com/authzed/authzed-go v0.3.1-0.20211130221323-9d59da6e55da
 	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
 	github.com/aws/aws-sdk-go v1.41.15
 	github.com/benbjohnson/clock v1.2.0
@@ -22,8 +22,8 @@ require (
 	github.com/google/go-cmp v0.5.6
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
-	github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2 v2.0.0-rc.2
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2
+	github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2 v2.0.0-rc.2.0.20210831071041-dd1540ef8252
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2.0.20210831071041-dd1540ef8252
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.6.0
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect

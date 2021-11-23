@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -527,6 +529,7 @@ func TestCheck(t *testing.T) {
 								AtRevision: zookie.NewFromRevision(revision),
 							})
 
+							var trailer metadata.MD
 							ccResp, ccErr := client.ContentChangeCheck(context.Background(), &v0.ContentChangeCheckRequest{
 								TestUserset: tc.start,
 								User: &v0.User{
@@ -534,7 +537,7 @@ func TestCheck(t *testing.T) {
 										Userset: checkTest.user,
 									},
 								},
-							})
+							}, grpc.Trailer(&trailer))
 
 							if tc.expectedErrorCode == codes.OK {
 								require.NoError(err)
@@ -552,6 +555,10 @@ func TestCheck(t *testing.T) {
 									require.Equal(v0.CheckResponse_NOT_MEMBER, resp.Membership)
 									require.Equal(v0.CheckResponse_NOT_MEMBER, ccResp.Membership)
 								}
+
+								dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+								require.NoError(err)
+								require.GreaterOrEqual(dispatchCount, 0)
 							} else {
 								grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
 								grpcutil.RequireStatus(t, tc.expectedErrorCode, ccErr)
@@ -607,16 +614,21 @@ func TestExpand(t *testing.T) {
 					client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
 					defer stop()
 
+					var trailer metadata.MD
 					expanded, err := client.Expand(context.Background(), &v0.ExpandRequest{
 						Userset:    tc.start,
 						AtRevision: zookie.NewFromRevision(revision),
-					})
+					}, grpc.Trailer(&trailer))
 					if tc.expectedErrorCode == codes.OK {
 						require.NoError(err)
 						require.NotNil(expanded.Revision)
 						require.NotEmpty(expanded.Revision.Token)
 
 						require.Equal(tc.expandRelatedCount, len(g.Simplify(expanded.TreeNode)))
+
+						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+						require.NoError(err)
+						require.GreaterOrEqual(dispatchCount, 0)
 					} else {
 						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
 					}
@@ -752,12 +764,13 @@ func TestLookup(t *testing.T) {
 					client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
 					defer stop()
 
+					var trailer metadata.MD
 					result, err := client.Lookup(context.Background(), &v0.LookupRequest{
 						User:           tc.user,
 						ObjectRelation: tc.relation,
 						Limit:          100,
 						AtRevision:     zookie.NewFromRevision(revision),
-					})
+					}, grpc.Trailer(&trailer))
 					if tc.expectedErrorCode == codes.OK {
 						require.NoError(err)
 						require.NotNil(result.Revision)
@@ -786,6 +799,10 @@ func TestLookup(t *testing.T) {
 							require.NoError(err)
 							require.Equal(true, checkResp.IsMember, "Object ID %s is not a member", objID)
 						}
+
+						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+						require.NoError(err)
+						require.GreaterOrEqual(dispatchCount, 0)
 					} else {
 						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
 					}

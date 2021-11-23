@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/tags"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -27,24 +27,23 @@ type extractMetadata struct {
 	fields []FieldSpec
 }
 
-func (r *extractMetadata) ServerReporter(
-	ctx context.Context, _ interface{}, _ interceptors.GRPCType, _ string, _ string) (interceptors.Reporter, context.Context) {
+func (r *extractMetadata) ServerReporter(ctx context.Context, _ interceptors.CallMeta) (interceptors.Reporter, context.Context) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
-		metadataTags := tags.NewTags()
+
+		fields := []string{}
 		logContext := log.With()
 		for _, field := range r.fields {
 			value, ok := md[field.metadataKey]
 			if ok {
 				joinedValue := strings.Join(value, ",")
-				metadataTags.Set(field.tagKey, joinedValue)
-
+				fields = append(fields, field.tagKey)
+				fields = append(fields, joinedValue)
 				logContext = logContext.Str(field.tagKey, joinedValue)
 			}
 		}
 
-		ctx = tags.SetInContext(ctx, metadataTags)
-
+		ctx = logging.InjectFields(ctx, fields)
 		loggerForContext := logContext.Logger()
 		ctx = loggerForContext.WithContext(ctx)
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	dispatch "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 )
 
@@ -45,6 +46,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			Relation:  normalizeSubjectRelation(req.Subject),
 		},
 	})
+	usagemetrics.SetInContext(ctx, cr.Metadata)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -85,6 +87,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 		},
 		ExpansionMode: dispatch.DispatchExpandRequest_SHALLOW,
 	})
+	usagemetrics.SetInContext(ctx, resp.Metadata)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -247,7 +250,6 @@ func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelati
 
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	ctx := resp.Context()
-
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
 
 	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Subject.Object.ObjectType,
@@ -280,6 +282,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		DirectStack: nil,
 		TtuStack:    nil,
 	})
+	usagemetrics.SetInContext(ctx, lookupResp.Metadata)
 	if err != nil {
 		return rewritePermissionsError(ctx, err)
 	}
@@ -301,7 +304,6 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		}
 
 	}
-
 	return nil
 }
 

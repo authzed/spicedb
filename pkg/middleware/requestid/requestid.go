@@ -4,7 +4,9 @@ import (
 	"context"
 	"math/rand"
 
+	"github.com/authzed/authzed-go/pkg/responsemeta"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -42,8 +44,7 @@ type handleRequestID struct {
 	requestIDGenerator IDGenerator
 }
 
-func (r *handleRequestID) ServerReporter(
-	ctx context.Context, _ interface{}, _ interceptors.GRPCType, _ string, _ string) (interceptors.Reporter, context.Context) {
+func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.CallMeta) (interceptors.Reporter, context.Context) {
 	var requestID string
 	var haveRequestID bool
 	md, ok := metadata.FromIncomingContext(ctx)
@@ -65,6 +66,12 @@ func (r *handleRequestID) ServerReporter(
 
 	if haveRequestID {
 		ctx = metadata.AppendToOutgoingContext(ctx, RequestIDMetadataKey, requestID)
+		err := responsemeta.SetResponseHeaderMetadata(ctx, map[responsemeta.ResponseMetadataHeaderKey]string{
+			responsemeta.RequestID: requestID,
+		})
+		if err != nil {
+			log.Ctx(ctx).Err(err).Msg("could not report metadata")
+		}
 	}
 
 	return interceptors.NoopReporter{}, ctx
