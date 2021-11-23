@@ -17,6 +17,7 @@ type crdbOptions struct {
 
 	watchBufferLength           uint16
 	revisionQuantization        time.Duration
+	followerReadDelay           time.Duration
 	maxRevisionStalenessPercent float64
 	gcWindow                    time.Duration
 	maxRetries                  int
@@ -33,6 +34,7 @@ const (
 	overlapStrategyInsecure = "insecure"
 
 	defaultRevisionQuantization        = 5 * time.Second
+	defaultFollowerReadDelay           = 5 * time.Second
 	defaultMaxRevisionStalenessPercent = 0.1
 	defaultWatchBufferLength           = 128
 
@@ -50,6 +52,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		gcWindow:                    24 * time.Hour,
 		watchBufferLength:           defaultWatchBufferLength,
 		revisionQuantization:        defaultRevisionQuantization,
+		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		splitAtEstimatedQuerySize:   common.DefaultSplitAtEstimatedQuerySize,
 		maxRetries:                  defaultMaxRetries,
@@ -140,6 +143,15 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 func RevisionQuantization(bucketSize time.Duration) Option {
 	return func(po *crdbOptions) {
 		po.revisionQuantization = bucketSize
+	}
+}
+
+// FollowerReadDelay is the time delay to apply to enable historial reads.
+//
+// This value defaults to 5 seconds.
+func FollowerReadDelay(delay time.Duration) Option {
+	return func(po *crdbOptions) {
+		po.followerReadDelay = delay
 	}
 }
 
