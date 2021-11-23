@@ -757,6 +757,8 @@ func (m *ResponseMeta) Validate() error {
 
 	// no validation rules for DepthRequired
 
+	// no validation rules for CachedDispatchCount
+
 	for idx, item := range m.GetLookupExcludedDirect() {
 		_, _ = idx, item
 

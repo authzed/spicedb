@@ -81,6 +81,7 @@ message ResolverMeta {
 message ResponseMeta {
   uint32 dispatch_count = 1;
   uint32 depth_required = 2;
+  uint32 cached_dispatch_count = 3;
 
   repeated authzed.api.v0.RelationReference lookup_excluded_direct = 4;
   repeated authzed.api.v0.RelationReference lookup_excluded_ttu = 5;

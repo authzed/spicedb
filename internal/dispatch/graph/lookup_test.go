@@ -36,14 +36,18 @@ func init() {
 
 func TestSimpleLookup(t *testing.T) {
 	testCases := []struct {
-		start           *v0.RelationReference
-		target          *v0.ObjectAndRelation
-		resolvedObjects []*v0.ObjectAndRelation
+		start                 *v0.RelationReference
+		target                *v0.ObjectAndRelation
+		resolvedObjects       []*v0.ObjectAndRelation
+		expectedDispatchCount int
+		expectedDepthRequired int
 	}{
 		{
 			RR("document", "viewer"),
 			ONR("user", "unknown", "..."),
 			[]*v0.ObjectAndRelation{},
+			9,
+			5,
 		},
 		{
 			RR("document", "viewer"),
@@ -51,6 +55,8 @@ func TestSimpleLookup(t *testing.T) {
 			[]*v0.ObjectAndRelation{
 				ONR("document", "masterplan", "viewer"),
 			},
+			18,
+			6,
 		},
 		{
 			RR("document", "owner"),
@@ -58,6 +64,8 @@ func TestSimpleLookup(t *testing.T) {
 			[]*v0.ObjectAndRelation{
 				ONR("document", "masterplan", "owner"),
 			},
+			2,
+			2,
 		},
 		{
 			RR("document", "viewer"),
@@ -66,6 +74,8 @@ func TestSimpleLookup(t *testing.T) {
 				ONR("document", "companyplan", "viewer"),
 				ONR("document", "masterplan", "viewer"),
 			},
+			48,
+			7,
 		},
 		{
 			RR("document", "viewer_and_editor"),
@@ -73,6 +83,8 @@ func TestSimpleLookup(t *testing.T) {
 			[]*v0.ObjectAndRelation{
 				ONR("document", "specialplan", "viewer_and_editor"),
 			},
+			8,
+			4,
 		},
 		{
 			RR("folder", "viewer"),
@@ -81,6 +93,8 @@ func TestSimpleLookup(t *testing.T) {
 				ONR("folder", "strategy", "viewer"),
 				ONR("folder", "company", "viewer"),
 			},
+			33,
+			6,
 		},
 	}
 
@@ -111,6 +125,10 @@ func TestSimpleLookup(t *testing.T) {
 
 			require.NoError(err)
 			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
+			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
+			require.Equal(tc.expectedDispatchCount, int(lookupResult.Metadata.DispatchCount))
+			require.Equal(0, int(lookupResult.Metadata.CachedDispatchCount))
+			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired))
 
 			// We have to sleep a while to let the cache converge:
 			// https://github.com/dgraph-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
@@ -132,6 +150,9 @@ func TestSimpleLookup(t *testing.T) {
 			require.NoError(err)
 			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
+			require.Equal(0, int(lookupResult.Metadata.DispatchCount))
+			require.Equal(tc.expectedDispatchCount, int(lookupResult.Metadata.CachedDispatchCount))
+			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired))
 		})
 	}
 }

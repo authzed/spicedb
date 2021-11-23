@@ -46,6 +46,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req *v1.DispatchCheckReq
 	}
 
 	resolved := any(ctx, []ReduceableCheckFunc{directFunc})
+	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
 	return resolved.Resp, resolved.Err
 }
 
@@ -61,7 +62,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 		if err != nil {
-			resultChan <- checkResultError(NewCheckFailureErr(err), 0, 0)
+			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return
 		}
 
@@ -72,7 +73,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 			OptionalResourceRelation: req.ObjectAndRelation.Relation,
 		}, requestRevision).Execute(ctx)
 		if err != nil {
-			resultChan <- checkResultError(NewCheckFailureErr(err), 1, 0)
+			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return
 		}
 		defer it.Close()
@@ -81,7 +82,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 			tplUserset := tpl.User.GetUserset()
 			if onrEqual(tplUserset, req.Subject) {
-				resultChan <- checkResult(v1.DispatchCheckResponse_MEMBER, 1, 0)
+				resultChan <- checkResult(v1.DispatchCheckResponse_MEMBER, emptyMetadata)
 				return
 			}
 			if tplUserset.Relation != Ellipsis {
@@ -95,7 +96,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 			}
 		}
 		if it.Err() != nil {
-			resultChan <- checkResultError(NewCheckFailureErr(it.Err()), 1, 0)
+			resultChan <- checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
 			return
 		}
 		resultChan <- any(ctx, requestsToDispatch)
@@ -183,7 +184,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
 		if err != nil {
-			resultChan <- checkResultError(NewCheckFailureErr(err), 0, 0)
+			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return
 		}
 
@@ -194,7 +195,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 			OptionalResourceRelation: ttu.Tupleset.Relation,
 		}, requestRevision).Execute(ctx)
 		if err != nil {
-			resultChan <- checkResultError(NewCheckFailureErr(err), 1, 0)
+			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return
 		}
 		defer it.Close()
@@ -204,7 +205,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 			requestsToDispatch = append(requestsToDispatch, cc.checkComputedUserset(ctx, req, ttu.ComputedUserset, tpl))
 		}
 		if it.Err() != nil {
-			resultChan <- checkResultError(NewCheckFailureErr(it.Err()), 1, 0)
+			resultChan <- checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
 			return
 		}
 
@@ -215,12 +216,10 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 // all returns whether all of the lazy checks pass, and is used for intersection.
 func all(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	if len(requests) == 0 {
-		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, 0, 0)
+		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, emptyMetadata)
 	}
 
-	var totalRequestCount uint32
-	var maxDepthRequired uint32
-
+	responseMetadata := emptyMetadata
 	resultChan := make(chan CheckResult, len(requests))
 	childCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
@@ -232,48 +231,47 @@ func all(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	for i := 0; i < len(requests); i++ {
 		select {
 		case result := <-resultChan:
-			totalRequestCount += result.Resp.Metadata.DispatchCount
-			maxDepthRequired = max(maxDepthRequired, result.Resp.Metadata.DepthRequired)
+			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
 			if result.Err != nil {
-				return checkResultError(result.Err, totalRequestCount, maxDepthRequired)
+				return checkResultError(result.Err, responseMetadata)
 			}
 
 			if result.Resp.Membership != v1.DispatchCheckResponse_MEMBER {
-				return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, totalRequestCount, maxDepthRequired)
+				return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, responseMetadata)
 			}
 		case <-ctx.Done():
-			return checkResultError(NewRequestCanceledErr(), totalRequestCount, maxDepthRequired)
+			return checkResultError(NewRequestCanceledErr(), responseMetadata)
 		}
 	}
 
-	return checkResult(v1.DispatchCheckResponse_MEMBER, totalRequestCount, maxDepthRequired)
+	return checkResult(v1.DispatchCheckResponse_MEMBER, responseMetadata)
 }
 
 // checkError returns the error.
 func checkError(err error) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		resultChan <- checkResultError(err, 0, 0)
+		resultChan <- checkResultError(err, emptyMetadata)
 	}
 }
 
 // alwaysMember returns that the check always passes.
 func alwaysMember() ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		resultChan <- checkResult(v1.DispatchCheckResponse_MEMBER, 0, 0)
+		resultChan <- checkResult(v1.DispatchCheckResponse_MEMBER, emptyMetadata)
 	}
 }
 
 // notMember returns that the check always returns false.
 func notMember() ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		resultChan <- checkResult(v1.DispatchCheckResponse_NOT_MEMBER, 0, 0)
+		resultChan <- checkResult(v1.DispatchCheckResponse_NOT_MEMBER, emptyMetadata)
 	}
 }
 
 // any returns whether any one of the lazy checks pass, and is used for union.
 func any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	if len(requests) == 0 {
-		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, 0, 0)
+		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, emptyMetadata)
 	}
 
 	resultChan := make(chan CheckResult, len(requests))
@@ -284,28 +282,27 @@ func any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 		go req(childCtx, resultChan)
 	}
 
-	var totalRequestCount uint32
-	var maxDepthRequired uint32
+	responseMetadata := emptyMetadata
 
 	for i := 0; i < len(requests); i++ {
 		select {
 		case result := <-resultChan:
 			log.Ctx(ctx).Trace().Object("any result", result.Resp).Send()
-			totalRequestCount += result.Resp.Metadata.DispatchCount
-			maxDepthRequired = max(maxDepthRequired, result.Resp.Metadata.DepthRequired)
+			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
+
 			if result.Err == nil && result.Resp.Membership == v1.DispatchCheckResponse_MEMBER {
-				return checkResult(v1.DispatchCheckResponse_MEMBER, totalRequestCount, maxDepthRequired)
+				return checkResult(v1.DispatchCheckResponse_MEMBER, result.Resp.Metadata)
 			}
 			if result.Err != nil {
-				return checkResultError(result.Err, totalRequestCount, maxDepthRequired)
+				return checkResultError(result.Err, result.Resp.Metadata)
 			}
 		case <-ctx.Done():
 			log.Ctx(ctx).Trace().Msg("any canceled")
-			return checkResultError(NewRequestCanceledErr(), totalRequestCount, maxDepthRequired)
+			return checkResultError(NewRequestCanceledErr(), responseMetadata)
 		}
 	}
 
-	return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, totalRequestCount, maxDepthRequired)
+	return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, responseMetadata)
 }
 
 // difference returns whether the first lazy check passes and none of the supsequent checks pass.
@@ -321,61 +318,52 @@ func difference(ctx context.Context, requests []ReduceableCheckFunc) CheckResult
 		go req(childCtx, othersChan)
 	}
 
-	var totalRequestCount uint32
-	var maxDepthRequired uint32
+	responseMetadata := emptyMetadata
 
 	for i := 0; i < len(requests); i++ {
 		select {
 		case base := <-baseChan:
-			totalRequestCount += base.Resp.Metadata.DispatchCount
-			maxDepthRequired = max(maxDepthRequired, base.Resp.Metadata.DepthRequired)
+			responseMetadata = combineResponseMetadata(responseMetadata, base.Resp.Metadata)
 
 			if base.Err != nil {
-				return checkResultError(base.Err, totalRequestCount, maxDepthRequired)
+				return checkResultError(base.Err, responseMetadata)
 			}
 
 			if base.Resp.Membership != v1.DispatchCheckResponse_MEMBER {
-				return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, totalRequestCount, maxDepthRequired)
+				return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, responseMetadata)
 			}
 		case sub := <-othersChan:
-			totalRequestCount += sub.Resp.Metadata.DispatchCount
-			maxDepthRequired = max(maxDepthRequired, sub.Resp.Metadata.DepthRequired)
+			responseMetadata = combineResponseMetadata(responseMetadata, sub.Resp.Metadata)
 
 			if sub.Err != nil {
-				return checkResultError(sub.Err, totalRequestCount, maxDepthRequired)
+				return checkResultError(sub.Err, responseMetadata)
 			}
 
 			if sub.Resp.Membership == v1.DispatchCheckResponse_MEMBER {
-				return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, totalRequestCount, maxDepthRequired)
+				return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, responseMetadata)
 			}
 		case <-ctx.Done():
-			return checkResultError(NewRequestCanceledErr(), totalRequestCount, maxDepthRequired)
+			return checkResultError(NewRequestCanceledErr(), responseMetadata)
 		}
 	}
 
-	return checkResult(v1.DispatchCheckResponse_MEMBER, totalRequestCount, maxDepthRequired)
+	return checkResult(v1.DispatchCheckResponse_MEMBER, responseMetadata)
 }
 
-func checkResult(membership v1.DispatchCheckResponse_Membership, numRequests uint32, maxDepthRequired uint32) CheckResult {
+func checkResult(membership v1.DispatchCheckResponse_Membership, subProblemMetadata *v1.ResponseMeta) CheckResult {
 	return CheckResult{
 		&v1.DispatchCheckResponse{
-			Metadata: &v1.ResponseMeta{
-				DispatchCount: numRequests,
-				DepthRequired: maxDepthRequired + 1, // +1 for the current call.
-			},
+			Metadata:   ensureMetadata(subProblemMetadata),
 			Membership: membership,
 		},
 		nil,
 	}
 }
 
-func checkResultError(err error, numRequests uint32, maxDepthRequired uint32) CheckResult {
+func checkResultError(err error, subProblemMetadata *v1.ResponseMeta) CheckResult {
 	return CheckResult{
 		&v1.DispatchCheckResponse{
-			Metadata: &v1.ResponseMeta{
-				DispatchCount: numRequests,
-				DepthRequired: maxDepthRequired + 1, // +1 for the current call.
-			},
+			Metadata:   ensureMetadata(subProblemMetadata),
 			Membership: v1.DispatchCheckResponse_UNKNOWN,
 		},
 		err,
