@@ -82,6 +82,7 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	serveCmd.Flags().Duration("datastore-gc-interval", 3*time.Minute, "amount of time between passes of garbage collection (postgres driver only)")
 	serveCmd.Flags().Duration("datastore-gc-max-operation-time", 1*time.Minute, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
 	serveCmd.Flags().Duration("datastore-revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
+	serveCmd.Flags().Duration("datastore-follower-read-delay-duration", 0*time.Second, "amount of time to use as a delay to enable follower reads (cockroach driver only)")
 	serveCmd.Flags().String("datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
 	serveCmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
 	serveCmd.Flags().Bool("datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
@@ -159,6 +160,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 			crdb.MaxOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-max-open")),
 			crdb.MinOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-min-open")),
 			crdb.RevisionQuantization(revisionFuzzingTimedelta),
+			crdb.FollowerReadDelay(cobrautil.MustGetDuration(cmd, "datastore-follower-read-delay-duration")),
 			crdb.GCWindow(gcWindow),
 			crdb.MaxRetries(maxRetries),
 			crdb.SplitAtEstimatedQuerySize(splitQuerySize),

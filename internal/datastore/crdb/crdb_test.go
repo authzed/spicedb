@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	"github.com/ory/dockertest/v3"
+	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
@@ -21,9 +22,11 @@ import (
 )
 
 type sqlTest struct {
-	conn    *pgx.Conn
-	port    string
-	creds   string
+	conn              *pgx.Conn
+	port              string
+	creds             string
+	followerReadDelay time.Duration
+
 	cleanup func()
 }
 
@@ -68,6 +71,7 @@ func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBuf
 		GCWindow(gcWindow),
 		RevisionQuantization(revisionFuzzingTimedelta),
 		WatchBufferLength(watchBufferLength),
+		FollowerReadDelay(st.followerReadDelay),
 	)
 }
 
@@ -76,6 +80,44 @@ func TestCRDBDatastore(t *testing.T) {
 	defer tester.cleanup()
 
 	test.All(t, tester)
+}
+
+func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
+	followerReadDelay := time.Duration(4.8 * float64(time.Second))
+	gcWindow := 100 * time.Second
+
+	quantizationDurations := []time.Duration{
+		0 * time.Second,
+		100 * time.Millisecond,
+	}
+	for _, quantization := range quantizationDurations {
+		t.Run(fmt.Sprintf("followReadDelayWithQuantization%s", quantization), func(t *testing.T) {
+			require := require.New(t)
+
+			tester := newTester(crdbContainer, "root:fake", 26257)
+			tester.followerReadDelay = followerReadDelay
+
+			ds, err := tester.New(quantization, gcWindow, 1)
+			require.NoError(err)
+
+			ctx := context.Background()
+			ok, err := ds.IsReady(ctx)
+			require.NoError(err)
+			require.True(ok)
+
+			// Revisions should be at least the follower read delay amount in the past
+			for start := time.Now(); time.Since(start) < 50*time.Millisecond; {
+				testRevision, err := ds.Revision(ctx)
+				nowRevision, err := ds.SyncRevision(ctx)
+				require.NoError(err)
+
+				diff := nowRevision.IntPart() - testRevision.IntPart()
+				require.True(diff > followerReadDelay.Nanoseconds())
+			}
+			tester.cleanup()
+			ds.Close()
+		})
+	}
 }
 
 func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint16) *sqlTest {
@@ -109,5 +151,5 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		}
 	}
 
-	return &sqlTest{conn: conn, port: port, cleanup: cleanup, creds: creds}
+	return &sqlTest{conn: conn, port: port, cleanup: cleanup, creds: creds, followerReadDelay: 0 * time.Second}
 }
