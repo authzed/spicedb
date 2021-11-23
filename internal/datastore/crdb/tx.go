@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 )
@@ -27,11 +28,7 @@ func init() {
 	prometheus.MustRegister(retryHistogram)
 }
 
-// conn is satisfied by both pgx.conn and pgxpool.Pool.
-type conn interface {
-	Begin(context.Context) (pgx.Tx, error)
-	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
-}
+type conn = *pgxpool.Pool
 
 type transactionFn func(tx pgx.Tx) error
 
@@ -85,13 +82,23 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 
 	for i = 0; i < maxRetries; i++ {
 		if err = releasedFn(tx); err != nil {
-			if !retriable(ctx, err) {
-				return err
+			if retriable(ctx, err) {
+				if _, retryErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT cockroach_restart"); retryErr != nil {
+					return fmt.Errorf(errUnableToRetry, err)
+				}
+			} else {
+				// Close connection on error and retry with newly acquired connection
+				tx.Rollback(ctx)
+				tx.Conn().Close(ctx)
+				if newConn, acqErr := conn.Acquire(ctx); acqErr != nil {
+					return fmt.Errorf(errUnableToRetry, err)
+				} else {
+					tx, err = newConn.BeginTx(ctx, txOptions)
+					if _, err = tx.Exec(ctx, "SAVEPOINT cockroach_restart"); err != nil {
+						return
+					}
+				}
 			}
-			if _, retryErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT cockroach_restart"); retryErr != nil {
-				return fmt.Errorf(errUnableToRetry, err)
-			}
-			continue
 		}
 		return nil
 	}
