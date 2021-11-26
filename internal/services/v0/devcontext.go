@@ -7,6 +7,7 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
@@ -112,7 +113,7 @@ func newDevContext(ctx context.Context, requestContext *v0.RequestContext, ds da
 	}, len(requestErrors) == 0, nil
 }
 
-func (dc *DevContext) dispose() {
+func (dc *DevContext) Dispose() {
 	datastore := dc.Datastore
 	if datastore != nil {
 		err := dc.NamespaceManager.Close()
@@ -176,7 +177,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 
 		err := validateTupleWrite(ctx, tpl, nsm)
 		if err != nil {
-			verrs, wireErr := rewriteGraphError(v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl), err)
+			verrs, wireErr := validationfile.RewriteGraphError(v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl), err)
 			if wireErr == nil {
 				errors = append(errors, verrs...)
 				continue

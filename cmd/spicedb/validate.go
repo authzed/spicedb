@@ -11,7 +11,6 @@ import (
 	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 )
 
 func registerValidateCmd(rootCmd *cobra.Command) {
@@ -52,48 +51,20 @@ func runValidate(cmd *cobra.Command, _ []string) {
 	}
 }
 
-// v2 playground files are not yet exposed in the API
-type playgroundYAMLv2 struct {
-	Validations map[string][]string `json:"validation_yaml" yaml:"validation"`
-	Assertions  map[string][]string `json:"assertions_yaml" yaml:"assertions"`
-}
-
 func validatePlaygroundYAML(playgroundYaml []byte) ([]*v0.DeveloperError, error) {
-	var playgroundv2 playgroundYAMLv2
-	var validationFile validationfile.ValidationFile
-
-	err := yaml.Unmarshal(playgroundYaml, &playgroundv2)
+	validationFile, err := validationfile.ParseValidationFile(playgroundYaml)
 	if err != nil {
 		return nil, fmt.Errorf("failed unmarshal playground YAML: %w", err)
 	}
-	err = yaml.Unmarshal(playgroundYaml, &validationFile)
+	req, err := validationfile.RequestFromFile(context.Background(), validationFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed unmarshal playground YAML: %w", err)
+		return nil, fmt.Errorf("failed to generate validation request from playground YAML: %w", err)
 	}
-
-	validationYAML, err := yaml.Marshal(playgroundv2.Validations)
+	devContext, _, err := v0svc.NewDevContext(context.Background(), req.Context)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse playground YAML validations: %w", err)
+		return nil, fmt.Errorf("failed to initializing validation runtime: %w", err)
 	}
-	assertionYAML, err := yaml.Marshal(playgroundv2.Assertions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse playground YAML assertions: %w", err)
-	}
-	tuples, err := validationfile.ParseRelationships(validationFile.Relationships)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse playground YAML relationships: %w", err)
-	}
-	dev := v0svc.NewDeveloperServer(v0svc.NewInMemoryShareStore("salt"))
-
-	resp, err := dev.Validate(context.Background(), &v0.ValidateRequest{
-		Context: &v0.RequestContext{
-			Schema:        validationFile.Schema,
-			Relationships: tuples,
-		},
-		AssertionsYaml:       string(assertionYAML),
-		ValidationYaml:       string(validationYAML),
-		UpdateValidationYaml: false,
-	})
+	resp, err := validationfile.Validate(context.Background(), req, devContext.Dispatcher, devContext.Revision)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate playground YAML: %w", err)
 	}

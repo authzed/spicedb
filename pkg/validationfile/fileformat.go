@@ -35,6 +35,10 @@ type ValidationFile struct {
 	// ValidationTuples are the validation tuples, in tuple string syntax. Optional if Relationships
 	// are specified.
 	ValidationTuples []string `yaml:"validation_tuples"`
+
+	Validations map[string][]string `yaml:"validation"`
+
+	Assertions map[string][]string `yaml:"assertions"`
 }
 
 // ErrorWithSource is an error that includes the source text and position information.
