@@ -199,7 +199,7 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 	}
 
 	// Round the revision down to the nearest quantization
-	// Apply a delay to enable historial reads
+	// Apply a delay to enable follower reads: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	crdbNow := nowHLC.IntPart() - cds.followerReadDelayNanos
 	quantized := crdbNow
 	if cds.quantizationNanos > 0 {

@@ -91,7 +91,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 		100 * time.Millisecond,
 	}
 	for _, quantization := range quantizationDurations {
-		t.Run(fmt.Sprintf("followReadDelayWithQuantization%s", quantization), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
 			require := require.New(t)
 
 			tester := newTester(crdbContainer, "root:fake", 26257)
