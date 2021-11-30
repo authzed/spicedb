@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
@@ -38,10 +39,12 @@ func NewPermissionsServer(ds datastore.Datastore,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: grpcmw.ChainUnaryServer(
 				grpcvalidate.UnaryServerInterceptor(),
+				usagemetrics.UnaryServerInterceptor(),
 				consistency.UnaryServerInterceptor(ds),
 			),
 			Stream: grpcmw.ChainStreamServer(
 				grpcvalidate.StreamServerInterceptor(),
+				usagemetrics.StreamServerInterceptor(),
 				consistency.StreamServerInterceptor(ds),
 			),
 		},

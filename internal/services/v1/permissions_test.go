@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
@@ -20,6 +21,7 @@ import (
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -235,6 +237,7 @@ func TestCheckPermissions(t *testing.T) {
 					client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
 					defer stop()
 
+					var trailer metadata.MD
 					checkResp, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
@@ -244,10 +247,14 @@ func TestCheckPermissions(t *testing.T) {
 						Resource:   tc.resource,
 						Permission: tc.permission,
 						Subject:    tc.subject,
-					})
+					}, grpc.Trailer(&trailer))
 
 					if tc.expectedStatus == codes.OK {
 						require.Equal(tc.expected, checkResp.Permissionship)
+
+						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+						require.NoError(err)
+						require.GreaterOrEqual(dispatchCount, 0)
 					} else {
 						grpcutil.RequireStatus(t, tc.expectedStatus, err)
 					}
@@ -385,6 +392,7 @@ func TestLookupResources(t *testing.T) {
 					defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 					defer stop()
 
+					var trailer metadata.MD
 					lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
 						ResourceObjectType: tc.objectType,
 						Permission:         tc.permission,
@@ -394,7 +402,7 @@ func TestLookupResources(t *testing.T) {
 								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
 							},
 						},
-					})
+					}, grpc.Trailer(&trailer))
 
 					require.NoError(err)
 					if tc.expectedErrorCode == codes.OK {
@@ -414,6 +422,10 @@ func TestLookupResources(t *testing.T) {
 						sort.Strings(resolvedObjectIds)
 
 						require.Equal(tc.expectedObjectIds, resolvedObjectIds)
+
+						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+						require.NoError(err)
+						require.GreaterOrEqual(dispatchCount, 0)
 					} else {
 						_, err := lookupClient.Recv()
 						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
@@ -447,6 +459,7 @@ func TestExpand(t *testing.T) {
 					client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
 					defer stop()
 
+					var trailer metadata.MD
 					expanded, err := client.ExpandPermissionTree(context.Background(), &v1.ExpandPermissionTreeRequest{
 						Resource: &v1.ObjectReference{
 							ObjectType: tc.startObjectType,
@@ -458,10 +471,14 @@ func TestExpand(t *testing.T) {
 								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
 							},
 						},
-					})
+					}, grpc.Trailer(&trailer))
 					if tc.expectedErrorCode == codes.OK {
 						require.NoError(err)
 						require.Equal(tc.expandRelatedCount, countLeafs(expanded.TreeRoot))
+
+						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+						require.NoError(err)
+						require.GreaterOrEqual(dispatchCount, 0)
 					} else {
 						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
 					}

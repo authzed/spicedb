@@ -11,12 +11,14 @@ import (
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
@@ -45,13 +47,19 @@ var errInvalidZookie = errors.New("invalid revision requested")
 
 // NewACLServer creates an instance of the ACL server.
 func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
+	middleware := []grpc.UnaryServerInterceptor{
+		usagemetrics.UnaryServerInterceptor(),
+	}
+
+	middleware = append(middleware, grpcutil.DefaultUnaryMiddleware...)
+
 	s := &aclServer{
 		ds:           ds,
 		nsm:          nsm,
 		dispatch:     dispatch,
 		defaultDepth: defaultDepth,
 		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
-			Unary: grpcmw.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
+			Unary: grpcmw.ChainUnaryServer(middleware...),
 		},
 	}
 	return s
@@ -258,6 +266,8 @@ func (as *aclServer) commonCheck(
 		ObjectAndRelation: start,
 		Subject:           goal,
 	})
+
+	usagemetrics.SetInContext(ctx, cr.Metadata)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -298,6 +308,7 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 		ObjectAndRelation: req.Userset,
 		ExpansionMode:     v1.DispatchExpandRequest_SHALLOW,
 	})
+	usagemetrics.SetInContext(ctx, resp.Metadata)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -342,6 +353,7 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 		DirectStack:    nil,
 		TtuStack:       nil,
 	})
+	usagemetrics.SetInContext(ctx, resp.Metadata)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
