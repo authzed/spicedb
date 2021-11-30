@@ -124,6 +124,8 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
+	followerReadDelayNanos := config.followerReadDelay.Nanoseconds()
+
 	return &crdbDatastore{
 		dburl:                     url,
 		conn:                      conn,
@@ -131,6 +133,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		quantizationNanos:         config.revisionQuantization.Nanoseconds(),
 		maxRevisionStaleness:      maxRevisionStaleness,
 		gcWindowNanos:             gcWindowNanos,
+		followerReadDelayNanos:    followerReadDelayNanos,
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
 		execute:                   executeWithMaxRetries(config.maxRetries),
 		overlapKeyer:              keyer,
@@ -144,6 +147,7 @@ type crdbDatastore struct {
 	quantizationNanos         int64
 	maxRevisionStaleness      time.Duration
 	gcWindowNanos             int64
+	followerReadDelayNanos    int64
 	splitAtEstimatedQuerySize units.Base2Bytes
 	execute                   executeTxRetryFunc
 	overlapKeyer              overlapKeyer
@@ -195,7 +199,8 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 	}
 
 	// Round the revision down to the nearest quantization
-	crdbNow := nowHLC.IntPart()
+	// Apply a delay to enable follower reads: https://www.cockroachlabs.com/docs/stable/follower-reads.html
+	crdbNow := nowHLC.IntPart() - cds.followerReadDelayNanos
 	quantized := crdbNow
 	if cds.quantizationNanos > 0 {
 		quantized -= (crdbNow % cds.quantizationNanos)
