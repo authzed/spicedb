@@ -151,5 +151,5 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		}
 	}
 
-	return &sqlTest{conn: conn, port: port, cleanup: cleanup, creds: creds, followerReadDelay: 0 * time.Second}
+	return &sqlTest{conn: conn, port: port, cleanup: cleanup, creds: creds}
 }
