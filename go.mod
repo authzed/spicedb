@@ -13,7 +13,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/containerd/continuity v0.2.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
-	github.com/docker/cli v20.10.9+incompatible // indirect
 	github.com/docker/docker v20.10.9+incompatible // indirect
 	github.com/emirpasic/gods v1.12.0
 	github.com/envoyproxy/protoc-gen-validate v0.6.2
@@ -41,7 +40,7 @@ require (
 	github.com/mattn/go-colorable v0.1.11 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/ngrok/sqlmw v0.0.0-20210819213940-241da6c2def4
-	github.com/ory/dockertest/v3 v3.8.0
+	github.com/ory/dockertest/v3 v3.8.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
