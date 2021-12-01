@@ -3,7 +3,7 @@ module github.com/authzed/spicedb
 go 1.16
 
 require (
-	github.com/Masterminds/squirrel v1.5.1
+	github.com/Masterminds/squirrel v1.5.2
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a
 	github.com/authzed/authzed-go v0.3.1-0.20211130221323-9d59da6e55da
 	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
@@ -38,7 +38,7 @@ require (
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.7
 	github.com/jzelinskie/stringz v0.0.1
-	github.com/lib/pq v1.10.3
+	github.com/lib/pq v1.10.4
 	github.com/mattn/go-colorable v0.1.11 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/ngrok/sqlmw v0.0.0-20210819213940-241da6c2def4
