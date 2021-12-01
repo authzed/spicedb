@@ -30,7 +30,7 @@ require (
 	github.com/hashicorp/go-memdb v1.3.2
 	github.com/influxdata/tdigest v0.0.1
 	github.com/jackc/pgconn v1.10.0
-	github.com/jackc/pgtype v1.8.1
+	github.com/jackc/pgtype v1.9.1
 	github.com/jackc/pgx/v4 v4.13.0
 	github.com/jackc/puddle v1.1.4 // indirect
 	github.com/jmoiron/sqlx v1.3.4
