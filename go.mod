@@ -8,7 +8,7 @@ require (
 	github.com/authzed/authzed-go v0.3.1-0.20211130221323-9d59da6e55da
 	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
 	github.com/aws/aws-sdk-go v1.42.16
-	github.com/benbjohnson/clock v1.2.0
+	github.com/benbjohnson/clock v1.3.0
 	github.com/cespare/xxhash v1.1.0
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/containerd/continuity v0.2.1 // indirect
