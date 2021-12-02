@@ -80,7 +80,7 @@ type GraphDatastore interface {
 	// from a subject relation onward from the datastore.
 	ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision Revision) ReverseTupleQuery
 
-	// ReverseQueryTuplesFromSubjectNamespace creates a builder for reading
+	//  ReverseQueryTuplesFromSubjectNamespace creates a builder for reading
 	// tuples from a subject namespace onward from the datastore.
 	ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision Revision) ReverseTupleQuery
 
@@ -150,3 +150,6 @@ type Revision = decimal.Decimal
 // revision type in the future a bit easier if necessary. Implementations
 // should use any time they want to signal an empty/error revision.
 var NoRevision Revision
+
+// Engine represents the type of a datastore engine, i.e. Cockroach or Postgres
+type Engine string

@@ -24,6 +24,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	"github.com/authzed/spicedb/pkg/cmd/serve"
 )
 
 const (
@@ -55,6 +56,8 @@ const (
 	tracingDriverName = "postgres-tracing"
 
 	batchDeleteSize = 1000
+
+	postgresEngine datastore.Engine = "postgres"
 )
 
 var (
@@ -83,6 +86,29 @@ var (
 
 func init() {
 	dbsql.Register(tracingDriverName, sqlmw.Driver(stdlib.GetDefaultDriver(), new(traceInterceptor)))
+	serve.RegisterEngine(postgresEngine, newFromDatastoreOptions)
+}
+
+func newFromDatastoreOptions(opts serve.Options) (datastore.Datastore, error) {
+	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse split query size: %w", err)
+	}
+	return NewPostgresDatastore(
+		opts.URI,
+		GCWindow(opts.GCWindow),
+		RevisionFuzzingTimedelta(opts.RevisionQuantization),
+		ConnMaxIdleTime(opts.MaxIdleTime),
+		ConnMaxLifetime(opts.MaxLifetime),
+		MaxOpenConns(opts.MaxOpenConns),
+		MinOpenConns(opts.MinOpenConns),
+		SplitAtEstimatedQuerySize(splitQuerySize),
+		HealthCheckPeriod(opts.HealthCheckPeriod),
+		GCInterval(opts.GCInterval),
+		GCMaxOperationTime(opts.GCMaxOperationTime),
+		EnablePrometheusStats(),
+		EnableTracing(),
+	)
 }
 
 var (
