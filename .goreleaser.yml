@@ -102,4 +102,4 @@ release:
   prerelease: "auto"
   footer: |
     ## Docker Images
-    This release is available at `quay.io/authzed/spicedb:{{ .Version }}` and `ghcr.io/authzed/spicedb:{{ .Version }}`
+    This release is available at `quay.io/authzed/spicedb:v{{ .Version }}` and `ghcr.io/authzed/spicedb:v{{ .Version }}`
