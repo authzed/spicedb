@@ -69,14 +69,14 @@ func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.Res
 	switch {
 	case filter.OptionalResourceId != "":
 		return txn.Get(
-			tableTuple,
+			tableRelationship,
 			indexNamespaceAndObjectID,
 			filter.ResourceType,
 			filter.OptionalResourceId,
 		)
 	case filter.OptionalSubjectFilter != nil && filter.OptionalSubjectFilter.OptionalSubjectId != "":
 		return txn.Get(
-			tableTuple,
+			tableRelationship,
 			indexNamespaceAndUsersetID,
 			filter.ResourceType,
 			filter.OptionalSubjectFilter.SubjectType,
@@ -84,14 +84,14 @@ func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.Res
 		)
 	case filter.OptionalRelation != "":
 		return txn.Get(
-			tableTuple,
+			tableRelationship,
 			indexNamespaceAndRelation,
 			filter.ResourceType,
 			filter.OptionalRelation,
 		)
 	}
 
-	return txn.Get(tableTuple, indexNamespace, filter.ResourceType)
+	return txn.Get(tableRelationship, indexNamespace, filter.ResourceType)
 }
 
 func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
@@ -118,7 +118,7 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 	}
 
 	filteredIterator := memdb.NewFilterIterator(bestIterator, func(tupleRaw interface{}) bool {
-		tuple := tupleRaw.(*tupleEntry)
+		tuple := tupleRaw.(*relationship)
 		filter := relationshipFilter
 
 		switch {
@@ -191,7 +191,7 @@ func (mti *memdbTupleIterator) Next() *v0.RelationTuple {
 	}
 	mti.count++
 
-	return foundRaw.(*tupleEntry).RelationTuple()
+	return foundRaw.(*relationship).RelationTuple()
 }
 
 func (mti *memdbTupleIterator) Err() error {

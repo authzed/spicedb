@@ -6,7 +6,7 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/hashicorp/go-memdb"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -28,22 +28,23 @@ func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
-	newVersion, err := nextChangelogID(txn)
+	newVersion, err := createNewTransaction(txn)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	foundRaw, err := txn.First(tableNamespaceConfig, indexID, newConfig.Name)
+	foundRaw, err := txn.First(tableNamespace, indexLive, newConfig.Name, deletedTransactionID)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	var replacing []byte
-	var oldVersion uint64
 	if foundRaw != nil {
-		found := foundRaw.(*namespace)
-		replacing = found.configBytes
-		oldVersion = found.version
+		// Mark the old one as deleted
+		var toDelete namespace = *(foundRaw.(*namespace))
+		toDelete.deletedTxn = newVersion
+		if err := txn.Insert(tableNamespace, &toDelete); err != nil {
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
+		}
 	}
 
 	serialized, err := proto.Marshal(newConfig)
@@ -54,22 +55,12 @@ func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 	newConfigEntry := &namespace{
 		name:        newConfig.Name,
 		configBytes: serialized,
-		version:     newVersion,
-	}
-	changeLogEntry := &changelog{
-		id:         newVersion,
-		name:       newConfig.Name,
-		replaces:   replacing,
-		oldVersion: oldVersion,
+		createdTxn:  newVersion,
+		deletedTxn:  deletedTransactionID,
 	}
 
 	time.Sleep(mds.simulatedLatency)
-	if err := txn.Insert(tableNamespaceConfig, newConfigEntry); err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
-	}
-
-	time.Sleep(mds.simulatedLatency)
-	if err := txn.Insert(tableNamespaceChangelog, changeLogEntry); err != nil {
+	if err := txn.Insert(tableNamespace, newConfigEntry); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
@@ -89,7 +80,7 @@ func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
-	foundRaw, err := txn.First(tableNamespaceConfig, indexID, nsName)
+	foundRaw, err := txn.First(tableNamespace, indexLive, nsName, deletedTransactionID)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
@@ -105,7 +96,7 @@ func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
-	return &loaded, revisionFromVersion(found.version), nil
+	return &loaded, revisionFromVersion(found.createdTxn), nil
 }
 
 func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
@@ -118,7 +109,7 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
-	foundRaw, err := txn.First(tableNamespaceConfig, indexID, nsName)
+	foundRaw, err := txn.First(tableNamespace, indexLive, nsName, deletedTransactionID)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -129,42 +120,34 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	found := foundRaw.(*namespace)
 
 	time.Sleep(mds.simulatedLatency)
-	newChangelogID, err := nextChangelogID(txn)
+	newChangelogID, err := createNewTransaction(txn)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	changeLogEntry := &changelog{
-		id:         newChangelogID,
-		name:       nsName,
-		replaces:   found.configBytes,
-		oldVersion: found.version,
-	}
-
-	// Delete the namespace config
+	// Mark the namespace as deleted
 	time.Sleep(mds.simulatedLatency)
-	err = txn.Delete(tableNamespaceConfig, found)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
-	}
 
-	// Write the changelog that we delete the namespace
-	time.Sleep(mds.simulatedLatency)
-	err = txn.Insert(tableNamespaceChangelog, changeLogEntry)
+	var markedDeleted namespace = *found
+	markedDeleted.deletedTxn = newChangelogID
+	err = txn.Insert(tableNamespace, &markedDeleted)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	// Delete the tuples in this namespace
 	time.Sleep(mds.simulatedLatency)
-	_, err = txn.DeleteAll(tableTuple, indexNamespace, nsName)
+
+	writeTxnID, err := mds.delete(ctx, txn, &v1.RelationshipFilter{
+		ResourceType: markedDeleted.name,
+	})
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	txn.Commit()
 
-	return revisionFromVersion(found.version), nil
+	return revisionFromVersion(writeTxnID), nil
 }
 
 func (mds *memdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
@@ -178,7 +161,7 @@ func (mds *memdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceD
 	txn := db.Txn(false)
 	defer txn.Abort()
 
-	it, err := txn.Get(tableNamespaceConfig, indexID)
+	it, err := txn.Get(tableNamespace, indexDeletedTxn, deletedTransactionID)
 	if err != nil {
 		return nsDefs, err
 	}
@@ -199,17 +182,4 @@ func (mds *memdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceD
 	}
 
 	return nsDefs, nil
-}
-
-func nextChangelogID(txn *memdb.Txn) (uint64, error) {
-	lastChangeRaw, err := txn.Last(tableNamespaceChangelog, indexID)
-	if err != nil {
-		return 0, err
-	}
-
-	if lastChangeRaw == nil {
-		return 1, nil
-	}
-
-	return lastChangeRaw.(*changelog).id + 1, nil
 }

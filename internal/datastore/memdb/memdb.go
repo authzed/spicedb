@@ -21,10 +21,9 @@ import (
 const DisableGC = time.Duration(math.MaxInt64)
 
 const (
-	tableTuple              = "tuple"
-	tableChangelog          = "changelog"
-	tableNamespaceChangelog = "namespaceChangelog"
-	tableNamespaceConfig    = "namespaceConfig"
+	tableRelationship = "relationship"
+	tableTransaction  = "transaction"
+	tableNamespace    = "namespaceConfig"
 
 	indexID                    = "id"
 	indexTimestamp             = "timestamp"
@@ -38,32 +37,29 @@ const (
 	indexUsersetNamespace      = "usersetNamespace"
 	indexUsersetRelation       = "usersetRelation"
 	indexUserset               = "userset"
+	indexCreatedTxn            = "createdTxn"
+	indexDeletedTxn            = "deletedTxn"
 
 	defaultWatchBufferLength = 128
+
+	deletedTransactionID = ^uint64(0)
 
 	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
 )
 
-type changelog struct {
-	id         uint64
-	name       string
-	replaces   []byte
-	oldVersion uint64
-}
-
 type namespace struct {
 	name        string
 	configBytes []byte
-	version     uint64
+	createdTxn  uint64
+	deletedTxn  uint64
 }
 
-type tupleChangelog struct {
+type transaction struct {
 	id        uint64
 	timestamp uint64
-	changes   []*v0.RelationTupleUpdate
 }
 
-type tupleEntry struct {
+type relationship struct {
 	namespace        string
 	objectID         string
 	relation         string
@@ -74,8 +70,8 @@ type tupleEntry struct {
 	deletedTxn       uint64
 }
 
-func tupleEntryFromRelationship(r *v1.Relationship, created, deleted uint64) *tupleEntry {
-	return &tupleEntry{
+func tupleEntryFromRelationship(r *v1.Relationship, created, deleted uint64) *relationship {
+	return &relationship{
 		namespace:        r.Resource.ObjectType,
 		objectID:         r.Resource.ObjectId,
 		relation:         r.Relation,
@@ -87,7 +83,7 @@ func tupleEntryFromRelationship(r *v1.Relationship, created, deleted uint64) *tu
 	}
 }
 
-func (t tupleEntry) Relationship() *v1.Relationship {
+func (t relationship) Relationship() *v1.Relationship {
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
 			ObjectType: t.namespace,
@@ -104,7 +100,7 @@ func (t tupleEntry) Relationship() *v1.Relationship {
 	}
 }
 
-func (t tupleEntry) RelationTuple() *v0.RelationTuple {
+func (t relationship) RelationTuple() *v0.RelationTuple {
 	return &v0.RelationTuple{
 		ObjectAndRelation: &v0.ObjectAndRelation{
 			Namespace: t.namespace,
@@ -119,7 +115,7 @@ func (t tupleEntry) RelationTuple() *v0.RelationTuple {
 	}
 }
 
-func (t tupleEntry) String() string {
+func (t relationship) String() string {
 	return fmt.Sprintf(
 		"%s:%s#%s@%s:%s#%s[%d-%d)",
 		t.namespace,
@@ -135,28 +131,38 @@ func (t tupleEntry) String() string {
 
 var schema = &memdb.DBSchema{
 	Tables: map[string]*memdb.TableSchema{
-		tableNamespaceChangelog: {
-			Name: tableNamespaceChangelog,
+		tableNamespace: {
+			Name: tableNamespace,
 			Indexes: map[string]*memdb.IndexSchema{
 				indexID: {
-					Name:    indexID,
-					Unique:  true,
-					Indexer: &memdb.UintFieldIndex{Field: "id"},
+					Name:   indexID,
+					Unique: true,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "name"},
+							&memdb.UintFieldIndex{Field: "createdTxn"},
+						},
+					},
+				},
+				indexLive: {
+					Name:   indexLive,
+					Unique: true,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "name"},
+							&memdb.UintFieldIndex{Field: "deletedTxn"},
+						},
+					},
+				},
+				indexDeletedTxn: {
+					Name:    indexDeletedTxn,
+					Unique:  false,
+					Indexer: &memdb.UintFieldIndex{Field: "deletedTxn"},
 				},
 			},
 		},
-		tableNamespaceConfig: {
-			Name: tableNamespaceConfig,
-			Indexes: map[string]*memdb.IndexSchema{
-				indexID: {
-					Name:    indexID,
-					Unique:  true,
-					Indexer: &memdb.StringFieldIndex{Field: "name"},
-				},
-			},
-		},
-		tableChangelog: {
-			Name: tableChangelog,
+		tableTransaction: {
+			Name: tableTransaction,
 			Indexes: map[string]*memdb.IndexSchema{
 				indexID: {
 					Name:    indexID,
@@ -170,8 +176,8 @@ var schema = &memdb.DBSchema{
 				},
 			},
 		},
-		tableTuple: {
-			Name: tableTuple,
+		tableRelationship: {
+			Name: tableRelationship,
 			Indexes: map[string]*memdb.IndexSchema{
 				indexID: {
 					Name:   indexID,
@@ -294,6 +300,16 @@ var schema = &memdb.DBSchema{
 						},
 					},
 				},
+				indexCreatedTxn: {
+					Name:    indexCreatedTxn,
+					Unique:  false,
+					Indexer: &memdb.UintFieldIndex{Field: "createdTxn"},
+				},
+				indexDeletedTxn: {
+					Name:    indexDeletedTxn,
+					Unique:  false,
+					Indexer: &memdb.UintFieldIndex{Field: "deletedTxn"},
+				},
 			},
 		},
 	},
@@ -333,16 +349,8 @@ func NewMemdbDatastore(
 
 	// Add a changelog entry to make the first revision non-zero, matching the other datastore
 	// implementations.
-	newChangelogID, err := nextTupleChangelogID(txn)
+	_, err = createNewTransaction(txn)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
-	}
-
-	newChangelogEntry := &tupleChangelog{
-		id:        newChangelogID,
-		timestamp: uint64(time.Now().UnixNano()),
-	}
-	if err := txn.Insert(tableChangelog, newChangelogEntry); err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiateTuplestore, err)
 	}
 
@@ -373,4 +381,28 @@ func revisionFromVersion(version uint64) datastore.Revision {
 func (mds *memdbDatastore) Close() error {
 	mds.db = nil
 	return nil
+}
+
+func createNewTransaction(txn *memdb.Txn) (uint64, error) {
+	var newTransactionID uint64 = 1
+
+	lastChangeRaw, err := txn.Last(tableTransaction, indexID)
+	if err != nil {
+		return 0, err
+	}
+
+	if lastChangeRaw != nil {
+		newTransactionID = lastChangeRaw.(*transaction).id + 1
+	}
+
+	newChangelogEntry := &transaction{
+		id:        newTransactionID,
+		timestamp: uint64(time.Now().UnixNano()),
+	}
+
+	if err := txn.Insert(tableTransaction, newChangelogEntry); err != nil {
+		return 0, err
+	}
+
+	return newTransactionID, nil
 }
