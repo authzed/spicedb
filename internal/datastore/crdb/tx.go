@@ -5,10 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v4/pgxpool"
-
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 )
@@ -16,9 +15,19 @@ import (
 const (
 	crdbRetryErrCode       = "40001"
 	crdbAmbiguousErrorCode = "40003"
-	errUnableToRetry       = "failed to retry conflicted transaction: %w"
 	errReachedMaxRetry     = "maximum retries reached"
 )
+
+type RetryError struct {
+	err error
+}
+
+func (e RetryError) Error() string {
+	return fmt.Errorf("failed to retry conflicted transaction: %w", e.err).Error()
+}
+func (e RetryError) Unwrap() error {
+	return e.err
+}
 
 var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Name:    "crdb_client_retries",
@@ -37,10 +46,10 @@ func init() {
 	prometheus.MustRegister(resetHistogram)
 }
 
+// conn is satisfied by both pgx.conn and pgxpool.Pool.
 type conn interface {
 	Begin(context.Context) (pgx.Tx, error)
 	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
-	Acquire(ctx context.Context) (*pgxpool.Conn, error)
 }
 
 type transactionFn func(tx pgx.Tx) error
@@ -48,17 +57,54 @@ type transactionFn func(tx pgx.Tx) error
 type executeTxRetryFunc func(context.Context, conn, pgx.TxOptions, transactionFn) error
 
 func executeWithMaxRetries(max int) executeTxRetryFunc {
+	return func(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn) error {
+		_, err := execute(ctx, conn, txOptions, fn, max)
+		return err
+	}
+}
+
+func executeWithMaxResetsAndRetries(maxRetries int) executeTxRetryFunc {
 	return func(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn) (err error) {
-		return execute(ctx, conn, txOptions, fn, max)
+		pool, ok := conn.(*pgxpool.Pool)
+		if !ok {
+			panic("connections cannot be reset without a pool")
+		}
+		var tries, resets int
+		defer func() {
+			retryHistogram.Observe(float64(tries))
+			resetHistogram.Observe(float64(resets))
+		}()
+		var txConn *pgxpool.Conn
+		for tries = 0; tries < maxRetries; tries++ {
+			txConn, err = pool.Acquire(ctx)
+			if err != nil {
+				resets++
+				continue
+			}
+			// this ties the overall reset + retry count together
+			tries, err = execute(ctx, txConn, txOptions, fn, maxRetries)
+			if err == nil {
+				return
+			}
+			if resetable(ctx, err) {
+				resets++
+				continue
+			}
+			// non-resettable error
+			err = RetryError{err: err}
+			return
+		}
+		err = errors.New(errReachedMaxRetry)
+		return
 	}
 }
 
 // adapted from https://github.com/cockroachdb/cockroach-go
-func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn, maxRetries int) (err error) {
+func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn, maxRetries int) (tries int, err error) {
 	var tx pgx.Tx
 	tx, err = conn.BeginTx(ctx, txOptions)
 	if err != nil {
-		return err
+		return
 	}
 	defer func() {
 		if err == nil {
@@ -71,12 +117,6 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 	if _, err = tx.Exec(ctx, "SAVEPOINT cockroach_restart"); err != nil {
 		return
 	}
-
-	var i, resets int
-	defer func() {
-		retryHistogram.Observe(float64(i))
-		resetHistogram.Observe(float64(resets))
-	}()
 
 	releasedFn := func(tx pgx.Tx) error {
 		if err := fn(tx); err != nil {
@@ -94,58 +134,21 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 		return nil
 	}
 
-	for i = 0; i < maxRetries; i++ {
+	for tries = 0; tries < maxRetries; tries++ {
 		if err = releasedFn(tx); err != nil {
-			if retriable(ctx, err) {
-				if _, retryErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT cockroach_restart"); retryErr != nil {
-					// Attempt to reset on failed retries
-					newTx, resetErr := resetExecution(ctx, conn, &tx, txOptions)
-					if resetErr != nil {
-						return fmt.Errorf(errUnableToRetry, err)
-					}
-					tx = newTx
-					resets++
-				}
-				continue
-			} else if resetable(ctx, err) {
-				newTx, resetErr := resetExecution(ctx, conn, &tx, txOptions)
-				if resetErr != nil {
-					return fmt.Errorf(errUnableToRetry, err)
-				}
-				tx = newTx
-				resets++
-				continue
+			if !retriable(ctx, err) {
+				return
 			}
-			return err
+			if _, retryErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT cockroach_restart"); retryErr != nil {
+				err = RetryError{err: err}
+				return
+			}
+			continue
 		}
-		return nil
+		return
 	}
-	return errors.New(errReachedMaxRetry)
-}
-
-// tx will be rolled back and it's connection closed
-func resetExecution(ctx context.Context, conn conn, tx *pgx.Tx, txOptions pgx.TxOptions) (newTx pgx.Tx, err error) {
-	err = (*tx).Rollback(ctx)
-	if err != nil {
-		return nil, err
-	}
-	err = (*tx).Conn().Close(ctx)
-	if err != nil {
-		return nil, err
-	}
-	newConn, err := conn.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	newTx, err = newConn.BeginTx(ctx, txOptions)
-	if err != nil {
-		return nil, err
-	}
-	if _, err = newTx.Exec(ctx, "SAVEPOINT cockroach_restart"); err != nil {
-		return nil, err
-	}
-
-	return newTx, nil
+	err = errors.New(errReachedMaxRetry)
+	return
 }
 
 func retriable(ctx context.Context, err error) bool {
@@ -153,6 +156,10 @@ func retriable(ctx context.Context, err error) bool {
 }
 
 func resetable(ctx context.Context, err error) bool {
+	// errors with underlying retries can be reset
+	if errors.As(err, &RetryError{}) {
+		return true
+	}
 	// Ambiguous result error includes connection closed errors
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
 	return sqlErrorCode(ctx, err) == crdbAmbiguousErrorCode

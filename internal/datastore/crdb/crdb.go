@@ -132,7 +132,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		maxRevisionStaleness:      maxRevisionStaleness,
 		gcWindowNanos:             gcWindowNanos,
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
-		execute:                   executeWithMaxRetries(config.maxRetries),
+		execute:                   executeWithMaxResetsAndRetries(config.maxRetries),
 		overlapKeyer:              keyer,
 	}, nil
 }
