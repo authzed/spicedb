@@ -149,31 +149,21 @@ func resetExecution(ctx context.Context, conn conn, tx *pgx.Tx, txOptions pgx.Tx
 }
 
 func retriable(ctx context.Context, err error) bool {
-	errorCode, err := sqlErrorCode(ctx, err)
-	if err != nil {
-		log.Ctx(ctx).Error().Err(err).Msg("error not retriable")
-		return false
-	}
-	return errorCode == crdbRetryErrCode
+	return sqlErrorCode(ctx, err) == crdbRetryErrCode
 }
 
 func resetable(ctx context.Context, err error) bool {
-	errorCode, err := sqlErrorCode(ctx, err)
-	if err != nil {
-		log.Ctx(ctx).Info().Err(err).Msg("error not resetable")
-		return false
-	}
-
 	// Ambiguous result error includes connection closed errors
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
-	return errorCode == crdbAmbiguousErrorCode
+	return sqlErrorCode(ctx, err) == crdbAmbiguousErrorCode
 }
 
-func sqlErrorCode(ctx context.Context, err error) (string, error) {
+func sqlErrorCode(ctx context.Context, err error) string {
 	var pgerr *pgconn.PgError
 	if !errors.As(err, &pgerr) {
-		return "", err
+		log.Ctx(ctx).Info().Err(err).Msg("couldn't determine a sqlstate error code")
+		return ""
 	}
 
-	return pgerr.SQLState(), nil
+	return pgerr.SQLState()
 }
