@@ -101,6 +101,12 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.True(ver.GreaterThan(datastore.NoRevision))
 	require.NoError(err)
 
+	allNamespaces, err := ds.ListNamespaces(ctx)
+	require.NoError(err)
+	for _, ns := range allNamespaces {
+		require.NotEqual(testfixtures.DocumentNS.Name, ns.Name, "deleted namespace '%s' should not be in namespace list", ns.Name)
+	}
+
 	deletedRevision, err := ds.SyncRevision(ctx)
 	require.NoError(err)
 

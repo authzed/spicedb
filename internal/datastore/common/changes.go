@@ -61,8 +61,8 @@ func (ch Changes) AddChange(
 	}
 }
 
-// AsRevisionChanges returns the list of changes processes so far as a datastore watch
-// compatible, ordered changelist.
+// AsRevisionChanges returns the list of changes processed so far as a datastore watch
+// compatible, ordered, changelist.
 func (ch Changes) AsRevisionChanges() (changes []*datastore.RevisionChanges) {
 	revisionsWithChanges := make([]uint64, 0, len(ch))
 	for revTxID := range ch {
