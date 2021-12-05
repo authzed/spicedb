@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
-	"github.com/authzed/grpcutil"
 	"github.com/fatih/color"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
@@ -22,7 +20,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
@@ -32,20 +29,15 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
-	"github.com/authzed/spicedb/internal/dispatch/caching"
-	"github.com/authzed/spicedb/internal/dispatch/graph"
-	"github.com/authzed/spicedb/internal/dispatch/remote"
+	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services"
-	clusterdispatch "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/validationfile"
-	"github.com/authzed/spicedb/pkg/x509util"
 )
 
 func registerServeCmd(rootCmd *cobra.Command) {
@@ -282,57 +274,18 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to create redispatch gRPC server")
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(nil, "dispatch_client")
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize redispatcher cache")
-	}
-
-	redispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
-
-	// grpc consistent loadbalancer redispatch configuration
-	dispatchAddr := cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-addr")
-	if len(dispatchAddr) > 0 {
-		log.Info().Str("upstream", dispatchAddr).Msg("configuring grpc consistent load balancer for redispatch")
-
-		// default options
-		opts := []grpc.DialOption{
+	redispatch, err := combineddispatch.NewDispatcher(nsm, ds, dispatchGrpcServer,
+		combineddispatch.UpstreamAddr(cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-addr")),
+		combineddispatch.UpstreamCAPath(cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-ca-path")),
+		combineddispatch.GrpcPresharedKey(cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")),
+		combineddispatch.GrpcDialOpts(
 			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 			grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
-		}
-
-		// optional CA
-		peerCAPath := cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-ca-path")
-		if len(peerCAPath) > 0 {
-			log.Info().Str("certpath", peerCAPath).Err(err).Msg("loading CA cert for dispatch cluster")
-			pool, err := x509util.CustomCertPool(peerCAPath)
-			if err != nil {
-				log.Fatal().Str("certpath", peerCAPath).Err(err).Msg("error loading certs for dispatch")
-			}
-			creds := credentials.NewTLS(&tls.Config{RootCAs: pool})
-			opts = append(opts, grpc.WithTransportCredentials(creds))
-			opts = append(opts, grpcutil.WithBearerToken(cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")))
-		} else {
-			opts = append(opts, grpcutil.WithInsecureBearerToken(cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")))
-			opts = append(opts, grpc.WithInsecure())
-		}
-
-		conn, err := grpc.Dial(dispatchAddr, opts...)
-		if err != nil {
-			log.Fatal().Str("endpoint", dispatchAddr).Err(err).Msg("error constructing client for endpoint")
-		}
-		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn))
-	}
-
-	cachingRedispatch.SetDelegate(redispatch)
-
-	clusterDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(nil, "dispatch")
+		),
+	)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize cluster dispatcher cache")
+		log.Fatal().Err(err).Msg("failed when configuring dispatch")
 	}
-	cachingClusterDispatch.SetDelegate(clusterDispatch)
-
-	clusterdispatch.RegisterGrpcServices(dispatchGrpcServer, cachingClusterDispatch)
 
 	prefixRequiredOption := v1alpha1svc.PrefixRequired
 	if !cobrautil.MustGetBool(cmd, "schema-prefixes-required") {
@@ -348,7 +301,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 		grpcServer,
 		ds,
 		nsm,
-		cachingRedispatch,
+		redispatch,
 		cobrautil.MustGetUint32(cmd, "dispatch-max-depth"),
 		prefixRequiredOption,
 		v1SchemaServiceOption,
@@ -436,7 +389,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed while shutting down namespace manager")
 	}
 
-	if err := cachingRedispatch.Close(); err != nil {
+	if err := redispatch.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down dispatcher")
 	}
 
