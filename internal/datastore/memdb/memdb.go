@@ -25,20 +25,20 @@ const (
 	tableTransaction  = "transaction"
 	tableNamespace    = "namespaceConfig"
 
-	indexID                    = "id"
-	indexTimestamp             = "timestamp"
-	indexLive                  = "live"
-	indexNamespace             = "namespace"
-	indexNamespaceAndObjectID  = "namespaceAndObjectID"
-	indexNamespaceAndRelation  = "namespaceAndRelation"
-	indexNamespaceAndUsersetID = "namespaceAndUsersetID"
-	indexRelationAndUserset    = "relationAndUserset"
-	indexRelationAndRelation   = "relationAndRelation"
-	indexUsersetNamespace      = "usersetNamespace"
-	indexUsersetRelation       = "usersetRelation"
-	indexUserset               = "userset"
-	indexCreatedTxn            = "createdTxn"
-	indexDeletedTxn            = "deletedTxn"
+	indexID                     = "id"
+	indexTimestamp              = "timestamp"
+	indexLive                   = "live"
+	indexNamespace              = "namespace"
+	indexNamespaceAndResourceID = "namespaceAndResourceID"
+	indexNamespaceAndRelation   = "namespaceAndRelation"
+	indexNamespaceAndSubjectID  = "namespaceAndSubjectID"
+	indexRelationAndSubject     = "relationAndSubject"
+	indexRelationAndRelation    = "relationAndRelation"
+	indexSubjectNamespace       = "subjectNamespace"
+	indexSubjectRelation        = "subjectRelation"
+	indexSubject                = "subject"
+	indexCreatedTxn             = "createdTxn"
+	indexDeletedTxn             = "deletedTxn"
 
 	defaultWatchBufferLength = 128
 
@@ -61,11 +61,11 @@ type transaction struct {
 
 type relationship struct {
 	namespace        string
-	objectID         string
+	resourceID       string
 	relation         string
-	usersetNamespace string
-	usersetObjectID  string
-	usersetRelation  string
+	subjectNamespace string
+	subjectObjectID  string
+	subjectRelation  string
 	createdTxn       uint64
 	deletedTxn       uint64
 }
@@ -73,11 +73,11 @@ type relationship struct {
 func tupleEntryFromRelationship(r *v1.Relationship, created, deleted uint64) *relationship {
 	return &relationship{
 		namespace:        r.Resource.ObjectType,
-		objectID:         r.Resource.ObjectId,
+		resourceID:       r.Resource.ObjectId,
 		relation:         r.Relation,
-		usersetNamespace: r.Subject.Object.ObjectType,
-		usersetObjectID:  r.Subject.Object.ObjectId,
-		usersetRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, "..."),
+		subjectNamespace: r.Subject.Object.ObjectType,
+		subjectObjectID:  r.Subject.Object.ObjectId,
+		subjectRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, "..."),
 		createdTxn:       created,
 		deletedTxn:       deleted,
 	}
@@ -87,15 +87,15 @@ func (t relationship) Relationship() *v1.Relationship {
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
 			ObjectType: t.namespace,
-			ObjectId:   t.objectID,
+			ObjectId:   t.resourceID,
 		},
 		Relation: t.relation,
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
-				ObjectType: t.usersetNamespace,
-				ObjectId:   t.usersetObjectID,
+				ObjectType: t.subjectNamespace,
+				ObjectId:   t.subjectObjectID,
 			},
-			OptionalRelation: stringz.Default(t.usersetRelation, "", datastore.Ellipsis),
+			OptionalRelation: stringz.Default(t.subjectRelation, "", datastore.Ellipsis),
 		},
 	}
 }
@@ -104,13 +104,13 @@ func (t relationship) RelationTuple() *v0.RelationTuple {
 	return &v0.RelationTuple{
 		ObjectAndRelation: &v0.ObjectAndRelation{
 			Namespace: t.namespace,
-			ObjectId:  t.objectID,
+			ObjectId:  t.resourceID,
 			Relation:  t.relation,
 		},
 		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
-			Namespace: t.usersetNamespace,
-			ObjectId:  t.usersetObjectID,
-			Relation:  t.usersetRelation,
+			Namespace: t.subjectNamespace,
+			ObjectId:  t.subjectObjectID,
+			Relation:  t.subjectRelation,
 		}}},
 	}
 }
@@ -119,11 +119,11 @@ func (t relationship) String() string {
 	return fmt.Sprintf(
 		"%s:%s#%s@%s:%s#%s[%d-%d)",
 		t.namespace,
-		t.objectID,
+		t.resourceID,
 		t.relation,
-		t.usersetNamespace,
-		t.usersetObjectID,
-		t.usersetRelation,
+		t.subjectNamespace,
+		t.subjectObjectID,
+		t.subjectRelation,
 		t.createdTxn,
 		t.deletedTxn,
 	)
@@ -185,11 +185,11 @@ var schema = &memdb.DBSchema{
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
 							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "objectID"},
+							&memdb.StringFieldIndex{Field: "resourceID"},
 							&memdb.StringFieldIndex{Field: "relation"},
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetObjectID"},
-							&memdb.StringFieldIndex{Field: "usersetRelation"},
+							&memdb.StringFieldIndex{Field: "subjectNamespace"},
+							&memdb.StringFieldIndex{Field: "subjectObjectID"},
+							&memdb.StringFieldIndex{Field: "subjectRelation"},
 							&memdb.UintFieldIndex{Field: "createdTxn"},
 						},
 					},
@@ -200,11 +200,11 @@ var schema = &memdb.DBSchema{
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
 							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "objectID"},
+							&memdb.StringFieldIndex{Field: "resourceID"},
 							&memdb.StringFieldIndex{Field: "relation"},
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetObjectID"},
-							&memdb.StringFieldIndex{Field: "usersetRelation"},
+							&memdb.StringFieldIndex{Field: "subjectNamespace"},
+							&memdb.StringFieldIndex{Field: "subjectObjectID"},
+							&memdb.StringFieldIndex{Field: "subjectRelation"},
 							&memdb.UintFieldIndex{Field: "deletedTxn"},
 						},
 					},
@@ -214,13 +214,13 @@ var schema = &memdb.DBSchema{
 					Unique:  false,
 					Indexer: &memdb.StringFieldIndex{Field: "namespace"},
 				},
-				indexNamespaceAndObjectID: {
-					Name:   indexNamespaceAndObjectID,
+				indexNamespaceAndResourceID: {
+					Name:   indexNamespaceAndResourceID,
 					Unique: false,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
 							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "objectID"},
+							&memdb.StringFieldIndex{Field: "resourceID"},
 						},
 					},
 				},
@@ -234,57 +234,57 @@ var schema = &memdb.DBSchema{
 						},
 					},
 				},
-				indexNamespaceAndUsersetID: {
-					Name:   indexNamespaceAndUsersetID,
+				indexNamespaceAndSubjectID: {
+					Name:   indexNamespaceAndSubjectID,
 					Unique: false,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
 							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetObjectID"},
+							&memdb.StringFieldIndex{Field: "subjectNamespace"},
+							&memdb.StringFieldIndex{Field: "subjectObjectID"},
 						},
 					},
 				},
-				indexRelationAndUserset: {
-					Name:   indexRelationAndUserset,
+				indexRelationAndSubject: {
+					Name:   indexRelationAndSubject,
 					Unique: false,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetObjectID"},
-							&memdb.StringFieldIndex{Field: "usersetRelation"},
+							&memdb.StringFieldIndex{Field: "subjectNamespace"},
+							&memdb.StringFieldIndex{Field: "subjectObjectID"},
+							&memdb.StringFieldIndex{Field: "subjectRelation"},
 							&memdb.StringFieldIndex{Field: "namespace"},
 							&memdb.StringFieldIndex{Field: "relation"},
 						},
 					},
 				},
-				indexUsersetRelation: {
-					Name:   indexUsersetRelation,
+				indexSubjectRelation: {
+					Name:   indexSubjectRelation,
 					Unique: false,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetRelation"},
+							&memdb.StringFieldIndex{Field: "subjectNamespace"},
+							&memdb.StringFieldIndex{Field: "subjectRelation"},
 						},
 					},
 				},
-				indexUserset: {
-					Name:   indexUserset,
+				indexSubject: {
+					Name:   indexSubject,
 					Unique: false,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetObjectID"},
-							&memdb.StringFieldIndex{Field: "usersetRelation"},
+							&memdb.StringFieldIndex{Field: "subjectNamespace"},
+							&memdb.StringFieldIndex{Field: "subjectObjectID"},
+							&memdb.StringFieldIndex{Field: "subjectRelation"},
 						},
 					},
 				},
-				indexUsersetNamespace: {
-					Name:   indexUsersetNamespace,
+				indexSubjectNamespace: {
+					Name:   indexSubjectNamespace,
 					Unique: false,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
+							&memdb.StringFieldIndex{Field: "subjectNamespace"},
 						},
 					},
 				},
@@ -293,8 +293,8 @@ var schema = &memdb.DBSchema{
 					Unique: false,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "usersetNamespace"},
-							&memdb.StringFieldIndex{Field: "usersetRelation"},
+							&memdb.StringFieldIndex{Field: "subjectNamespace"},
+							&memdb.StringFieldIndex{Field: "subjectRelation"},
 							&memdb.StringFieldIndex{Field: "namespace"},
 							&memdb.StringFieldIndex{Field: "relation"},
 						},

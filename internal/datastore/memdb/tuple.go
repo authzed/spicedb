@@ -322,7 +322,7 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{
 		switch {
 		case filter.ResourceType != tuple.namespace:
 			return true
-		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.objectID:
+		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.resourceID:
 			return true
 		case filter.OptionalRelation != "" && filter.OptionalRelation != tuple.relation:
 			return true
@@ -331,12 +331,12 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{
 		// If it doesn't match one of the subject filters, filter it.
 		if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
 			switch {
-			case subjectFilter.SubjectType != tuple.usersetNamespace:
+			case subjectFilter.SubjectType != tuple.subjectNamespace:
 				return true
-			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.usersetObjectID:
+			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.subjectObjectID:
 				return true
 			case subjectFilter.OptionalRelation != nil &&
-				stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.usersetRelation:
+				stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
 				return true
 			}
 		}

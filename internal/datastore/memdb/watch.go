@@ -99,5 +99,5 @@ func (mds *memdbDatastore) loadChanges(ctx context.Context, currentTxn uint64) (
 		return nil, 0, nil, fmt.Errorf(errWatchError, err)
 	}
 
-	return stagedChanges.RevisionChanges(), currentTxn, watchChan, nil
+	return stagedChanges.AsRevisionChanges(), currentTxn, watchChan, nil
 }

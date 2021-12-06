@@ -54,7 +54,7 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 		if mtq.subObjectID != "" {
 			bestIterator, err = txn.Get(
 				tableRelationship,
-				indexRelationAndUserset,
+				indexRelationAndSubject,
 				mtq.subNamespaceName,
 				mtq.subObjectID,
 				mtq.subRelationName,
@@ -74,7 +74,7 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 	} else if mtq.subObjectID != "" {
 		bestIterator, err = txn.Get(
 			tableRelationship,
-			indexUserset,
+			indexSubject,
 			mtq.subNamespaceName,
 			mtq.subObjectID,
 			mtq.subRelationName,
@@ -82,14 +82,14 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 	} else if mtq.subRelationName != "" {
 		bestIterator, err = txn.Get(
 			tableRelationship,
-			indexUsersetRelation,
+			indexSubjectRelation,
 			mtq.subNamespaceName,
 			mtq.subRelationName,
 		)
 	} else {
 		bestIterator, err = txn.Get(
 			tableRelationship,
-			indexUsersetNamespace,
+			indexSubjectNamespace,
 			mtq.subNamespaceName,
 		)
 	}
