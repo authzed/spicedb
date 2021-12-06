@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/balancer"
 
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
+	"github.com/authzed/spicedb/pkg/cmd"
 )
 
 const (
@@ -46,7 +47,9 @@ func main() {
 	// enable consistent hashring grpc load balancer
 	balancer.Register(consistentbalancer.NewConsistentHashringBuilder(xxhash.Sum64, hashringReplicationFactor, backendsPerKey))
 
-	rootCmd := newRootCmd()
+	rootCmd := cmd.NewRootCmd()
+	cmd.RegisterRootFlags(rootCmd)
+
 	registerVersionCmd(rootCmd)
 	registerServeCmd(rootCmd)
 	registerMigrateCmd(rootCmd)

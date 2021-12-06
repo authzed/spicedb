@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"fmt"
@@ -8,8 +8,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newRootCmd() *cobra.Command {
-	rootCmd := &cobra.Command{
+func RegisterRootFlags(cmd *cobra.Command) {
+	cobrautil.RegisterZeroLogFlags(cmd.PersistentFlags(), "log")
+	cobrautil.RegisterOpenTelemetryFlags(cmd.PersistentFlags(), "otel", cmd.Use)
+}
+
+func NewRootCmd() *cobra.Command {
+	return &cobra.Command{
 		Use:   "spicedb",
 		Short: "A modern permissions database",
 		Long:  "A database that stores, computes, and validates application permissions",
@@ -28,9 +33,4 @@ func newRootCmd() *cobra.Command {
 			color.CyanString("In-memory integration test server"),
 		),
 	}
-
-	cobrautil.RegisterZeroLogFlags(rootCmd.PersistentFlags(), "log")
-	cobrautil.RegisterOpenTelemetryFlags(rootCmd.PersistentFlags(), "otel", rootCmd.Use)
-
-	return rootCmd
 }
