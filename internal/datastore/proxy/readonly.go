@@ -61,20 +61,20 @@ func (rd roDatastore) DeleteNamespace(ctx context.Context, nsName string) (datas
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	return rd.delegate.QueryTuples(filter, revision)
+func (rd roDatastore) QueryTuples(ctx context.Context, filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+	return rd.delegate.QueryTuples(ctx, filter, revision)
 }
 
-func (rd roDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return rd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision)
+func (rd roDatastore) ReverseQueryTuplesFromSubjectNamespace(ctx context.Context, subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	return rd.delegate.ReverseQueryTuplesFromSubjectNamespace(ctx, subjectNamespace, revision)
 }
 
-func (rd roDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return rd.delegate.ReverseQueryTuplesFromSubject(subject, revision)
+func (rd roDatastore) ReverseQueryTuplesFromSubject(ctx context.Context, subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
+	return rd.delegate.ReverseQueryTuplesFromSubject(ctx, subject, revision)
 }
 
-func (rd roDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return rd.delegate.ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation, revision)
+func (rd roDatastore) ReverseQueryTuplesFromSubjectRelation(ctx context.Context, subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	return rd.delegate.ReverseQueryTuplesFromSubjectRelation(ctx, subjectNamespace, subjectRelation, revision)
 }
 
 func (rd roDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

@@ -144,9 +144,9 @@ func TestQueryTuplesPassthrough(t *testing.T) {
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
 
-	delegate.On("QueryTuples", datastore.TupleQueryResourceFilter{ResourceType: "test"}, expectedRevision).Return().Times(1)
+	delegate.On("QueryTuples", mock.Anything, datastore.TupleQueryResourceFilter{ResourceType: "test"}, expectedRevision).Return().Times(1)
 
-	query := ds.QueryTuples(datastore.TupleQueryResourceFilter{ResourceType: "test"}, expectedRevision)
+	query := ds.QueryTuples(context.Background(), datastore.TupleQueryResourceFilter{ResourceType: "test"}, expectedRevision)
 	require.Nil(query)
 	delegate.AssertExpectations(t)
 }
@@ -157,9 +157,9 @@ func TestReverseQueryTuplesFromSubjectPassthrough(t *testing.T) {
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
 
-	delegate.On("ReverseQueryTuplesFromSubject", &v0.ObjectAndRelation{}, expectedRevision).Return().Times(1)
+	delegate.On("ReverseQueryTuplesFromSubject", mock.Anything, &v0.ObjectAndRelation{}, expectedRevision).Return().Times(1)
 
-	query := ds.ReverseQueryTuplesFromSubject(&v0.ObjectAndRelation{}, expectedRevision)
+	query := ds.ReverseQueryTuplesFromSubject(context.Background(), &v0.ObjectAndRelation{}, expectedRevision)
 	require.Nil(query)
 	delegate.AssertExpectations(t)
 }
@@ -170,9 +170,9 @@ func TestReverseQueryTuplesFromSubjectRelationPassthrough(t *testing.T) {
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
 
-	delegate.On("ReverseQueryTuplesFromSubjectRelation", "subject", "relation", expectedRevision).Return().Times(1)
+	delegate.On("ReverseQueryTuplesFromSubjectRelation", mock.Anything, "subject", "relation", expectedRevision).Return().Times(1)
 
-	query := ds.ReverseQueryTuplesFromSubjectRelation("subject", "relation", expectedRevision)
+	query := ds.ReverseQueryTuplesFromSubjectRelation(context.Background(), "subject", "relation", expectedRevision)
 	require.Nil(query)
 	delegate.AssertExpectations(t)
 }
@@ -183,9 +183,9 @@ func TestReverseQueryTuplesFromSubjectNamespacePassthrough(t *testing.T) {
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
 
-	delegate.On("ReverseQueryTuplesFromSubjectNamespace", "somenamespace", expectedRevision).Return().Times(1)
+	delegate.On("ReverseQueryTuplesFromSubjectNamespace", mock.Anything, "somenamespace", expectedRevision).Return().Times(1)
 
-	query := ds.ReverseQueryTuplesFromSubjectNamespace("somenamespace", expectedRevision)
+	query := ds.ReverseQueryTuplesFromSubjectNamespace(context.Background(), "somenamespace", expectedRevision)
 	require.Nil(query)
 	delegate.AssertExpectations(t)
 }
@@ -246,23 +246,23 @@ func (dm *delegateMock) DeleteNamespace(ctx context.Context, nsName string) (dat
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	dm.Called(filter, revision)
+func (dm *delegateMock) QueryTuples(ctx context.Context, filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+	dm.Called(ctx, filter, revision)
 	return nil
 }
 
-func (dm *delegateMock) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	dm.Called(subject, revision)
+func (dm *delegateMock) ReverseQueryTuplesFromSubject(ctx context.Context, subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
+	dm.Called(ctx, subject, revision)
 	return nil
 }
 
-func (dm *delegateMock) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	dm.Called(subjectNamespace, subjectRelation, revision)
+func (dm *delegateMock) ReverseQueryTuplesFromSubjectRelation(ctx context.Context, subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	dm.Called(ctx, subjectNamespace, subjectRelation, revision)
 	return nil
 }
 
-func (dm *delegateMock) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	dm.Called(subjectNamespace, revision)
+func (dm *delegateMock) ReverseQueryTuplesFromSubjectNamespace(ctx context.Context, subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	dm.Called(ctx, subjectNamespace, revision)
 	return nil
 }
 

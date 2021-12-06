@@ -21,7 +21,7 @@ func EnsureNoRelationshipsExist(ctx context.Context, ds datastore.Datastore, nam
 
 	if err := errorIfTupleIteratorReturnsTuples(
 		ctx,
-		ds.QueryTuples(datastore.TupleQueryResourceFilter{ResourceType: namespaceName}, syncRevision),
+		ds.QueryTuples(ctx, datastore.TupleQueryResourceFilter{ResourceType: namespaceName}, syncRevision),
 		"cannot delete Object Definition `%s`, as a Relationship exists under it",
 		namespaceName,
 	); err != nil {
@@ -30,7 +30,7 @@ func EnsureNoRelationshipsExist(ctx context.Context, ds datastore.Datastore, nam
 
 	if err := errorIfTupleIteratorReturnsTuples(
 		ctx,
-		ds.ReverseQueryTuplesFromSubjectNamespace(namespaceName, syncRevision),
+		ds.ReverseQueryTuplesFromSubjectNamespace(ctx, namespaceName, syncRevision),
 		"cannot delete Object Definition `%s`, as a Relationship references it",
 		namespaceName,
 	); err != nil {
@@ -67,7 +67,7 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 		case namespace.RemovedRelation:
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
-				ds.QueryTuples(datastore.TupleQueryResourceFilter{
+				ds.QueryTuples(ctx, datastore.TupleQueryResourceFilter{
 					ResourceType:             nsdef.Name,
 					OptionalResourceRelation: delta.RelationName,
 				}, syncRevision),
@@ -79,7 +79,7 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 			// Also check for right sides of tuples.
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
-				ds.ReverseQueryTuplesFromSubjectRelation(nsdef.Name, delta.RelationName, syncRevision),
+				ds.ReverseQueryTuplesFromSubjectRelation(ctx, nsdef.Name, delta.RelationName, syncRevision),
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship references it", delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
@@ -88,7 +88,7 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 		case namespace.RelationDirectTypeRemoved:
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
-				ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, syncRevision).
+				ds.ReverseQueryTuplesFromSubjectRelation(ctx, delta.DirectType.Namespace, delta.DirectType.Relation, syncRevision).
 					WithObjectRelation(nsdef.Name, delta.RelationName),
 				"cannot remove allowed direct Relation `%s#%s` from Relation `%s` in Object Definition `%s`, as a Relationship exists with it",
 				delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, nsdef.Name)

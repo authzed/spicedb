@@ -179,11 +179,11 @@ func (mp mappingProxy) DeleteNamespace(ctx context.Context, nsName string) (data
 	return mp.delegate.DeleteNamespace(ctx, storedNamespaceName)
 }
 
-func (mp mappingProxy) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+func (mp mappingProxy) QueryTuples(ctx context.Context, filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
 	var err error
 	resourceType, err := mp.mapper.Encode(filter.ResourceType)
 	return mappingTupleQuery{
-		mp.delegate.QueryTuples(datastore.TupleQueryResourceFilter{
+		mp.delegate.QueryTuples(ctx, datastore.TupleQueryResourceFilter{
 			ResourceType:             resourceType,
 			OptionalResourceID:       filter.OptionalResourceID,
 			OptionalResourceRelation: filter.OptionalResourceRelation,
@@ -193,20 +193,20 @@ func (mp mappingProxy) QueryTuples(filter datastore.TupleQueryResourceFilter, re
 	}
 }
 
-func (mp mappingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (mp mappingProxy) ReverseQueryTuplesFromSubject(ctx context.Context, subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
 	translatedONR, err := translateONR(subject, mp.mapper.Encode)
-	return mappingReverseTupleQuery{mp.delegate.ReverseQueryTuplesFromSubject(translatedONR, revision), mp.mapper, err}
+	return mappingReverseTupleQuery{mp.delegate.ReverseQueryTuplesFromSubject(ctx, translatedONR, revision), mp.mapper, err}
 }
 
-func (mp mappingProxy) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (mp mappingProxy) ReverseQueryTuplesFromSubjectNamespace(ctx context.Context, subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	translatedNamespace, err := mp.mapper.Encode(subjectNamespace)
-	return mappingReverseTupleQuery{mp.delegate.ReverseQueryTuplesFromSubjectNamespace(translatedNamespace, revision), mp.mapper, err}
+	return mappingReverseTupleQuery{mp.delegate.ReverseQueryTuplesFromSubjectNamespace(ctx, translatedNamespace, revision), mp.mapper, err}
 }
 
-func (mp mappingProxy) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (mp mappingProxy) ReverseQueryTuplesFromSubjectRelation(ctx context.Context, subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	translatedNamespace, err := mp.mapper.Encode(subjectNamespace)
 	return mappingReverseTupleQuery{
-		mp.delegate.ReverseQueryTuplesFromSubjectRelation(translatedNamespace, subjectRelation, revision),
+		mp.delegate.ReverseQueryTuplesFromSubjectRelation(ctx, translatedNamespace, subjectRelation, revision),
 		mp.mapper,
 		err,
 	}

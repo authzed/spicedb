@@ -65,23 +65,23 @@ func (md *MockedDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (md *MockedDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	args := md.Called(filter, revision)
+func (md *MockedDatastore) QueryTuples(ctx context.Context, filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+	args := md.Called(ctx, filter, revision)
 	return args.Get(0).(datastore.TupleQuery)
 }
 
-func (md *MockedDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	args := md.Called(subjectNamespace, revision)
+func (md *MockedDatastore) ReverseQueryTuplesFromSubjectNamespace(ctx context.Context, subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	args := md.Called(ctx, subjectNamespace, revision)
 	return args.Get(0).(datastore.ReverseTupleQuery)
 }
 
-func (md *MockedDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	args := md.Called(subject, revision)
+func (md *MockedDatastore) ReverseQueryTuplesFromSubject(ctx context.Context, subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
+	args := md.Called(ctx, subject, revision)
 	return args.Get(0).(datastore.ReverseTupleQuery)
 }
 
-func (md *MockedDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	args := md.Called(subjectNamespace, subjectRelation, revision)
+func (md *MockedDatastore) ReverseQueryTuplesFromSubjectRelation(ctx context.Context, subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
+	args := md.Called(ctx, subjectNamespace, subjectRelation, revision)
 	return args.Get(0).(datastore.ReverseTupleQuery)
 }
 

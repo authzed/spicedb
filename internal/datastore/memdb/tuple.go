@@ -171,7 +171,7 @@ func (mds *memdbDatastore) delete(ctx context.Context, txn *memdb.Txn, filter *v
 	return newTxnID, nil
 }
 
-func (mds *memdbDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+func (mds *memdbDatastore) QueryTuples(ctx context.Context, filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
 	return &memdbTupleQuery{
 		db:               mds.db,
 		revision:         revision,
@@ -184,7 +184,7 @@ func (mds *memdbDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter
 	}
 }
 
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (mds *memdbDatastore) ReverseQueryTuplesFromSubject(ctx context.Context, subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return &memdbReverseTupleQuery{
 		db:               mds.db,
 		revision:         revision,
@@ -196,7 +196,7 @@ func (mds *memdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRe
 	}
 }
 
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectRelation(ctx context.Context, subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return &memdbReverseTupleQuery{
 		db:               mds.db,
 		revision:         revision,
@@ -207,7 +207,7 @@ func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespac
 	}
 }
 
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectNamespace(ctx context.Context, subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return &memdbReverseTupleQuery{
 		db:               mds.db,
 		revision:         revision,

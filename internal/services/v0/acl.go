@@ -195,7 +195,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 			}
 		}
 
-		query := as.ds.QueryTuples(queryFilter, atRevision)
+		query := as.ds.QueryTuples(ctx, queryFilter, atRevision)
 		if filterUserset != nil {
 			query = query.WithUsersets([]*v0.ObjectAndRelation{filterUserset})
 		}

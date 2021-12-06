@@ -67,7 +67,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 		}
 
 		log.Ctx(ctx).Trace().Object("direct", req).Send()
-		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+		it, err := cc.ds.QueryTuples(ctx, datastore.TupleQueryResourceFilter{
 			ResourceType:             req.ObjectAndRelation.Namespace,
 			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
 			OptionalResourceRelation: req.ObjectAndRelation.Relation,
@@ -189,7 +189,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.Di
 		}
 
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
-		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+		it, err := cc.ds.QueryTuples(ctx, datastore.TupleQueryResourceFilter{
 			ResourceType:             req.ObjectAndRelation.Namespace,
 			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
 			OptionalResourceRelation: ttu.Tupleset.Relation,

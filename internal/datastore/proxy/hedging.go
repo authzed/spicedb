@@ -248,30 +248,30 @@ func (hp hedgingProxy) DeleteNamespace(ctx context.Context, nsName string) (data
 	return hp.delegate.DeleteNamespace(ctx, nsName)
 }
 
-func (hp hedgingProxy) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+func (hp hedgingProxy) QueryTuples(ctx context.Context, filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
 	return hedgingTupleQuery{
-		hp.delegate.QueryTuples(filter, revision),
+		hp.delegate.QueryTuples(ctx, filter, revision),
 		hp.queryTuplesHedger,
 	}
 }
 
-func (hp hedgingProxy) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (hp hedgingProxy) ReverseQueryTuplesFromSubjectNamespace(ctx context.Context, subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return hedgingReverseTupleQuery{
-		hp.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
+		hp.delegate.ReverseQueryTuplesFromSubjectNamespace(ctx, subjectNamespace, revision),
 		hp.queryTuplesHedger,
 	}
 }
 
-func (hp hedgingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (hp hedgingProxy) ReverseQueryTuplesFromSubject(ctx context.Context, subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return hedgingReverseTupleQuery{
-		hp.delegate.ReverseQueryTuplesFromSubject(subject, revision),
+		hp.delegate.ReverseQueryTuplesFromSubject(ctx, subject, revision),
 		hp.queryTuplesHedger,
 	}
 }
 
-func (hp hedgingProxy) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (hp hedgingProxy) ReverseQueryTuplesFromSubjectRelation(ctx context.Context, subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return hedgingReverseTupleQuery{
-		hp.delegate.ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation, revision),
+		hp.delegate.ReverseQueryTuplesFromSubjectRelation(ctx, subjectNamespace, subjectRelation, revision),
 		hp.queryTuplesHedger,
 	}
 }

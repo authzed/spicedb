@@ -330,7 +330,7 @@ func TestDatastoreE2E(t *testing.T) {
 	)
 
 	delegateDatastore.
-		On("QueryTuples", mock.Anything, mock.Anything).
+		On("QueryTuples", mock.Anything, mock.Anything, mock.Anything).
 		Return(delegateQuery).
 		Once()
 
@@ -364,7 +364,7 @@ func TestDatastoreE2E(t *testing.T) {
 
 	autoAdvance(mockTime, slowQueryTime/2, 2*slowQueryTime)
 
-	it, err := proxy.QueryTuples(datastore.TupleQueryResourceFilter{
+	it, err := proxy.QueryTuples(context.Background(), datastore.TupleQueryResourceFilter{
 		ResourceType: "test",
 	}, revisionKnown).Execute(context.Background())
 	require.NoError(err)

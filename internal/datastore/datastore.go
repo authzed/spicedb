@@ -70,19 +70,19 @@ type Datastore interface {
 // graph resolvers.
 type GraphDatastore interface {
 	// QueryTuples creates a builder for reading tuples from the datastore.
-	QueryTuples(filter TupleQueryResourceFilter, revision Revision) TupleQuery
+	QueryTuples(ctx context.Context, filter TupleQueryResourceFilter, revision Revision) TupleQuery
 
 	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from
 	// subject onward from the datastore.
-	ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision Revision) ReverseTupleQuery
+	ReverseQueryTuplesFromSubject(ctx context.Context, subject *v0.ObjectAndRelation, revision Revision) ReverseTupleQuery
 
 	// ReverseQueryTuplesFromSubjectRelation creates a builder for reading tuples
 	// from a subject relation onward from the datastore.
-	ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision Revision) ReverseTupleQuery
+	ReverseQueryTuplesFromSubjectRelation(ctx context.Context, subjectNamespace, subjectRelation string, revision Revision) ReverseTupleQuery
 
 	// ReverseQueryTuplesFromSubjectNamespace creates a builder for reading
 	// tuples from a subject namespace onward from the datastore.
-	ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision Revision) ReverseTupleQuery
+	ReverseQueryTuplesFromSubjectNamespace(ctx context.Context, subjectNamespace string, revision Revision) ReverseTupleQuery
 
 	// CheckRevision checks the specified revision to make sure it's valid and
 	// hasn't been garbage collected.

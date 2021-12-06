@@ -110,7 +110,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	deletedRevision, err := ds.SyncRevision(ctx)
 	require.NoError(err)
 
-	iter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+	iter, err := ds.QueryTuples(ctx, datastore.TupleQueryResourceFilter{
 		ResourceType: testfixtures.DocumentNS.Name,
 	}, deletedRevision).Execute(ctx)
 	require.NoError(err)

@@ -168,7 +168,7 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 	if isDirectAllowed == namespace.DirectRelationValid {
 		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
 			objects := tuple.NewONRSet()
-			it, err := cl.ds.ReverseQueryTuplesFromSubject(req.Subject, requestRevision).
+			it, err := cl.ds.ReverseQueryTuplesFromSubject(ctx, req.Subject, requestRevision).
 				WithObjectRelation(req.ObjectRelation.Namespace, req.ObjectRelation.Relation).
 				Execute(ctx)
 			if err != nil {
@@ -252,7 +252,7 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req *v1.DispatchLo
 			// For each inferred object found, check for the target ONR.
 			objects := tuple.NewONRSet()
 			if len(result.Resp.ResolvedOnrs) > 0 {
-				it, err := cl.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+				it, err := cl.ds.QueryTuples(ctx, datastore.TupleQueryResourceFilter{
 					ResourceType:             req.ObjectRelation.Namespace,
 					OptionalResourceRelation: req.ObjectRelation.Relation,
 				}, requestRevision).WithUsersets(result.Resp.ResolvedOnrs).Limit(uint64(req.Limit)).Execute(ctx)
@@ -436,7 +436,7 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req *v1.D
 			// Perform the tupleset lookup.
 			objects := tuple.NewONRSet()
 			if len(usersets) > 0 {
-				it, err := cl.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+				it, err := cl.ds.QueryTuples(ctx, datastore.TupleQueryResourceFilter{
 					ResourceType:             req.ObjectRelation.Namespace,
 					OptionalResourceRelation: ttu.Tupleset.Relation,
 				}, requestRevision).WithUsersets(usersets).Limit(uint64(req.Limit)).Execute(ctx)

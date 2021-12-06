@@ -96,37 +96,37 @@ func (vd validatingDatastore) DeleteNamespace(ctx context.Context, nsName string
 	return vd.delegate.DeleteNamespace(ctx, nsName)
 }
 
-func (vd validatingDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
+func (vd validatingDatastore) QueryTuples(ctx context.Context, filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
 	var err error
 	if filter.ResourceType == "" {
 		err = fmt.Errorf("missing required resource type")
 	}
-	return validatingTupleQuery{vd.delegate.QueryTuples(filter, revision), nil, nil, err}
+	return validatingTupleQuery{vd.delegate.QueryTuples(ctx, filter, revision), nil, nil, err}
 }
 
-func (vd validatingDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (vd validatingDatastore) ReverseQueryTuplesFromSubjectNamespace(ctx context.Context, subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	if subjectNamespace == "" {
 		return validatingTupleQuery{
 			nil,
-			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
+			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(ctx, subjectNamespace, revision),
 			nil,
 			fmt.Errorf("Empty subject namespace given to ReverseQueryTuplesFromSubjectNamespace"),
 		}
 	}
 
-	return validatingTupleQuery{nil, vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision), nil, nil}
+	return validatingTupleQuery{nil, vd.delegate.ReverseQueryTuplesFromSubjectNamespace(ctx, subjectNamespace, revision), nil, nil}
 }
 
-func (vd validatingDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (vd validatingDatastore) ReverseQueryTuplesFromSubject(ctx context.Context, subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
 	err := subject.Validate()
-	return validatingTupleQuery{nil, vd.delegate.ReverseQueryTuplesFromSubject(subject, revision), nil, err}
+	return validatingTupleQuery{nil, vd.delegate.ReverseQueryTuplesFromSubject(ctx, subject, revision), nil, err}
 }
 
-func (vd validatingDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
+func (vd validatingDatastore) ReverseQueryTuplesFromSubjectRelation(ctx context.Context, subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
 	if subjectNamespace == "" {
 		return validatingTupleQuery{
 			nil,
-			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
+			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(ctx, subjectNamespace, revision),
 			nil,
 			fmt.Errorf("Empty subject namespace given to ReverseQueryTuplesFromSubjectRelation"),
 		}
@@ -135,13 +135,13 @@ func (vd validatingDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNames
 	if subjectRelation == "" {
 		return validatingTupleQuery{
 			nil,
-			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
+			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(ctx, subjectNamespace, revision),
 			nil,
 			fmt.Errorf("Empty subject relation given to ReverseQueryTuplesFromSubjectRelation"),
 		}
 	}
 
-	return validatingTupleQuery{nil, vd.delegate.ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation, revision), nil, nil}
+	return validatingTupleQuery{nil, vd.delegate.ReverseQueryTuplesFromSubjectRelation(ctx, subjectNamespace, subjectRelation, revision), nil, nil}
 }
 
 func (vd validatingDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
