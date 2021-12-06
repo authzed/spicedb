@@ -73,6 +73,7 @@ jobs:
           # chaosd doesn't yet include time modification, install it separately
           git clone https://github.com/chaos-mesh/chaos-mesh/
           pushd chaos-mesh
+          git reset --hard 72d2bc17febc7f2a4a10c97417f11c5eb1d86a13
           CGO_ENABLED=1 go build ./cmd/watchmaker/
           popd
           mv ./chaos-mesh/watchmaker ./watchmaker
