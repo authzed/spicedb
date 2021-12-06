@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const errWatchError = "watch error: %w"
@@ -25,7 +27,7 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 			var stagedUpdates []*datastore.RevisionChanges
 			var watchChan <-chan struct{}
 			var err error
-			stagedUpdates, currentTxn, watchChan, err = mds.loadChanges(currentTxn)
+			stagedUpdates, currentTxn, watchChan, err = mds.loadChanges(ctx, currentTxn)
 			if err != nil {
 				errors <- err
 				return
@@ -61,29 +63,41 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	return updates, errors
 }
 
-func (mds *memdbDatastore) loadChanges(currentTxn uint64) ([]*datastore.RevisionChanges, uint64, <-chan struct{}, error) {
+func (mds *memdbDatastore) loadChanges(ctx context.Context, currentTxn uint64) ([]*datastore.RevisionChanges, uint64, <-chan struct{}, error) {
 	loadNewTxn := mds.db.Txn(false)
 	defer loadNewTxn.Abort()
 
-	it, err := loadNewTxn.LowerBound(tableChangelog, indexID, currentTxn+1)
+	it, err := loadNewTxn.LowerBound(tableTransaction, indexID, currentTxn+1)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf(errWatchError, err)
 	}
 
-	var stagedUpdates []*datastore.RevisionChanges
+	stagedChanges := make(common.Changes)
 	for newChangeRaw := it.Next(); newChangeRaw != nil; newChangeRaw = it.Next() {
-		newChange := newChangeRaw.(*tupleChangelog)
-		stagedUpdates = append(stagedUpdates, &datastore.RevisionChanges{
-			Revision: revisionFromVersion(newChange.id),
-			Changes:  newChange.changes,
-		})
-		currentTxn = newChange.id
+		currentTxn = newChangeRaw.(*transaction).id
+		createdIt, err := loadNewTxn.Get(tableRelationship, indexCreatedTxn, currentTxn)
+		if err != nil {
+			return nil, 0, nil, fmt.Errorf(errWatchError, err)
+		}
+		for rawCreated := createdIt.Next(); rawCreated != nil; rawCreated = createdIt.Next() {
+			created := rawCreated.(*relationship)
+			stagedChanges.AddChange(ctx, currentTxn, created.RelationTuple(), v0.RelationTupleUpdate_TOUCH)
+		}
+
+		deletedIt, err := loadNewTxn.Get(tableRelationship, indexDeletedTxn, currentTxn)
+		if err != nil {
+			return nil, 0, nil, fmt.Errorf(errWatchError, err)
+		}
+		for rawDeleted := deletedIt.Next(); rawDeleted != nil; rawDeleted = deletedIt.Next() {
+			deleted := rawDeleted.(*relationship)
+			stagedChanges.AddChange(ctx, currentTxn, deleted.RelationTuple(), v0.RelationTupleUpdate_DELETE)
+		}
 	}
 
-	watchChan, _, err := loadNewTxn.LastWatch(tableChangelog, indexID)
+	watchChan, _, err := loadNewTxn.LastWatch(tableTransaction, indexID)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf(errWatchError, err)
 	}
 
-	return stagedUpdates, currentTxn, watchChan, nil
+	return stagedChanges.AsRevisionChanges(), currentTxn, watchChan, nil
 }

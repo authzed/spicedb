@@ -12,7 +12,6 @@ import (
 	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -22,8 +21,6 @@ const (
 	errRevision             = "unable to find revision: %w"
 	errCheckRevision        = "unable to check revision: %w"
 )
-
-const deletedTransactionID = ^uint64(0)
 
 func (mds *memdbDatastore) checkPrecondition(txn *memdb.Txn, preconditions []*v1.Precondition) error {
 	for _, precond := range preconditions {
@@ -75,23 +72,8 @@ func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 func (mds *memdbDatastore) write(ctx context.Context, txn *memdb.Txn, mutations []*v1.RelationshipUpdate) (uint64, error) {
 	// Create the changelog entry
 	time.Sleep(mds.simulatedLatency)
-	newChangelogID, err := nextTupleChangelogID(txn)
+	newTxnID, err := createNewTransaction(txn)
 	if err != nil {
-		return 0, err
-	}
-
-	changes := make([]*v0.RelationTupleUpdate, 0, len(mutations))
-	for _, mut := range mutations {
-		changes = append(changes, tuple.UpdateFromRelationshipUpdate(mut))
-	}
-
-	newChangelogEntry := &tupleChangelog{
-		id:        newChangelogID,
-		timestamp: uint64(time.Now().UnixNano()),
-		changes:   changes,
-	}
-
-	if err := txn.Insert(tableChangelog, newChangelogEntry); err != nil {
 		return 0, err
 	}
 
@@ -102,35 +84,35 @@ func (mds *memdbDatastore) write(ctx context.Context, txn *memdb.Txn, mutations 
 			return 0, err
 		}
 
-		var deletedExisting tupleEntry
+		var deletedExisting relationship
 		if existing != nil {
 			deletedExisting = *existing
-			deletedExisting.deletedTxn = newChangelogID
+			deletedExisting.deletedTxn = newTxnID
 		}
 
-		newVersion := tupleEntryFromRelationship(mutation.Relationship, newChangelogID, deletedTransactionID)
+		newVersion := tupleEntryFromRelationship(mutation.Relationship, newTxnID, deletedTransactionID)
 		switch mutation.Operation {
 		case v1.RelationshipUpdate_OPERATION_CREATE:
 			if existing != nil {
 				return 0, fmt.Errorf("duplicate relationship found for create operation")
 			}
 
-			if err := txn.Insert(tableTuple, newVersion); err != nil {
+			if err := txn.Insert(tableRelationship, newVersion); err != nil {
 				return 0, err
 			}
 		case v1.RelationshipUpdate_OPERATION_DELETE:
 			if existing != nil {
-				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
+				if err := txn.Insert(tableRelationship, &deletedExisting); err != nil {
 					return 0, err
 				}
 			}
 		case v1.RelationshipUpdate_OPERATION_TOUCH:
 			if existing != nil {
-				if err := txn.Insert(tableTuple, &deletedExisting); err != nil {
+				if err := txn.Insert(tableRelationship, &deletedExisting); err != nil {
 					return 0, err
 				}
 			}
-			if err := txn.Insert(tableTuple, newVersion); err != nil {
+			if err := txn.Insert(tableRelationship, newVersion); err != nil {
 				return 0, err
 			}
 		default:
@@ -138,7 +120,7 @@ func (mds *memdbDatastore) write(ctx context.Context, txn *memdb.Txn, mutations 
 		}
 	}
 
-	return newChangelogID, nil
+	return newTxnID, nil
 }
 
 func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
@@ -154,10 +136,21 @@ func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, precondition
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
 	}
 
+	newChangelogID, err := mds.delete(ctx, txn, filter)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
+	}
+
+	txn.Commit()
+
+	return revisionFromVersion(newChangelogID), nil
+}
+
+func (mds *memdbDatastore) delete(ctx context.Context, txn *memdb.Txn, filter *v1.RelationshipFilter) (uint64, error) {
 	// Create an iterator to find the relevant tuples
 	bestIter, err := iteratorForFilter(txn, filter)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
+		return 0, err
 	}
 	filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(filter))
 
@@ -166,18 +159,16 @@ func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, precondition
 	for row := filteredIter.Next(); row != nil; row = filteredIter.Next() {
 		mutations = append(mutations, &v1.RelationshipUpdate{
 			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: row.(*tupleEntry).Relationship(),
+			Relationship: row.(*relationship).Relationship(),
 		})
 	}
 
-	newChangelogID, err := mds.write(ctx, txn, mutations)
+	newTxnID, err := mds.write(ctx, txn, mutations)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
+		return 0, err
 	}
 
-	txn.Commit()
-
-	return revisionFromVersion(newChangelogID), nil
+	return newTxnID, nil
 }
 
 func (mds *memdbDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
@@ -236,12 +227,12 @@ func (mds *memdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision
 	txn := db.Txn(false)
 	defer txn.Abort()
 
-	lastRaw, err := txn.Last(tableChangelog, indexID)
+	lastRaw, err := txn.Last(tableTransaction, indexID)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 	if lastRaw != nil {
-		return revisionFromVersion(lastRaw.(*tupleChangelog).id), nil
+		return revisionFromVersion(lastRaw.(*transaction).id), nil
 	}
 	return datastore.NoRevision, nil
 }
@@ -258,14 +249,14 @@ func (mds *memdbDatastore) Revision(ctx context.Context) (datastore.Revision, er
 	lowerBound := uint64(time.Now().Add(-1 * mds.revisionFuzzingTimedelta).UnixNano())
 
 	time.Sleep(mds.simulatedLatency)
-	iter, err := txn.LowerBound(tableChangelog, indexTimestamp, lowerBound)
+	iter, err := txn.LowerBound(tableTransaction, indexTimestamp, lowerBound)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
 	var candidates []datastore.Revision
 	for oneChange := iter.Next(); oneChange != nil; oneChange = iter.Next() {
-		candidates = append(candidates, revisionFromVersion(oneChange.(*tupleChangelog).id))
+		candidates = append(candidates, revisionFromVersion(oneChange.(*transaction).id))
 	}
 
 	if len(candidates) > 0 {
@@ -285,7 +276,7 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore
 
 	// We need to know the highest possible revision
 	time.Sleep(mds.simulatedLatency)
-	lastRaw, err := txn.Last(tableChangelog, indexID)
+	lastRaw, err := txn.Last(tableTransaction, indexID)
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -293,7 +284,7 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 
-	highest := revisionFromVersion(lastRaw.(*tupleChangelog).id)
+	highest := revisionFromVersion(lastRaw.(*transaction).id)
 
 	if revision.GreaterThan(highest) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
@@ -301,7 +292,7 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore
 
 	lowerBound := uint64(time.Now().Add(mds.gcWindowInverted).UnixNano())
 	time.Sleep(mds.simulatedLatency)
-	iter, err := txn.LowerBound(tableChangelog, indexTimestamp, lowerBound)
+	iter, err := txn.LowerBound(tableTransaction, indexTimestamp, lowerBound)
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -311,7 +302,7 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
-	if firstValid != nil && revision.LessThan(revisionFromVersion(firstValid.(*tupleChangelog).id)) {
+	if firstValid != nil && revision.LessThan(revisionFromVersion(firstValid.(*transaction).id)) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
@@ -320,7 +311,7 @@ func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore
 
 func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{}) bool {
 	return func(tupleRaw interface{}) bool {
-		tuple := tupleRaw.(*tupleEntry)
+		tuple := tupleRaw.(*relationship)
 
 		// If it's already dead, filter it.
 		if tuple.deletedTxn != deletedTransactionID {
@@ -331,7 +322,7 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{
 		switch {
 		case filter.ResourceType != tuple.namespace:
 			return true
-		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.objectID:
+		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.resourceID:
 			return true
 		case filter.OptionalRelation != "" && filter.OptionalRelation != tuple.relation:
 			return true
@@ -340,12 +331,12 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{
 		// If it doesn't match one of the subject filters, filter it.
 		if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
 			switch {
-			case subjectFilter.SubjectType != tuple.usersetNamespace:
+			case subjectFilter.SubjectType != tuple.subjectNamespace:
 				return true
-			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.usersetObjectID:
+			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.subjectObjectID:
 				return true
 			case subjectFilter.OptionalRelation != nil &&
-				stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.usersetRelation:
+				stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
 				return true
 			}
 		}
@@ -354,9 +345,9 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{
 	}
 }
 
-func findRelationship(txn *memdb.Txn, toFind *v1.Relationship) (*tupleEntry, error) {
+func findRelationship(txn *memdb.Txn, toFind *v1.Relationship) (*relationship, error) {
 	foundRaw, err := txn.First(
-		tableTuple,
+		tableRelationship,
 		indexLive,
 		toFind.Resource.ObjectType,
 		toFind.Resource.ObjectId,
@@ -374,18 +365,5 @@ func findRelationship(txn *memdb.Txn, toFind *v1.Relationship) (*tupleEntry, err
 		return nil, nil
 	}
 
-	return foundRaw.(*tupleEntry), nil
-}
-
-func nextTupleChangelogID(txn *memdb.Txn) (uint64, error) {
-	lastChangeRaw, err := txn.Last(tableChangelog, indexID)
-	if err != nil {
-		return 0, err
-	}
-
-	if lastChangeRaw == nil {
-		return 1, nil
-	}
-
-	return lastChangeRaw.(*tupleChangelog).id + 1, nil
+	return foundRaw.(*relationship), nil
 }

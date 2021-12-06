@@ -177,7 +177,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 		case created, ok := <-changes:
 			if ok {
 				require.Equal(
-					[]*v0.RelationTupleUpdate{tuple.Create(makeTestTuple("test", "test"))},
+					[]*v0.RelationTupleUpdate{tuple.Touch(makeTestTuple("test", "test"))},
 					created.Changes,
 				)
 				require.True(created.Revision.GreaterThan(datastore.NoRevision))

@@ -20,7 +20,7 @@ type memdbTupleQuery struct {
 
 	resourceFilter        *v1.RelationshipFilter
 	optionalSubjectFilter *v1.SubjectFilter
-	usersetsFilter        []*v0.ObjectAndRelation
+	subjectsFilter        []*v0.ObjectAndRelation
 	limit                 *uint64
 
 	simulatedLatency time.Duration
@@ -40,7 +40,7 @@ func (mtq memdbTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore
 		panic("cannot call WithSubjectFilter after WithUsersets")
 	}
 
-	if mtq.usersetsFilter != nil {
+	if mtq.subjectsFilter != nil {
 		panic("called WithSubjectFilter twice")
 	}
 
@@ -48,20 +48,20 @@ func (mtq memdbTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore
 	return mtq
 }
 
-func (mtq memdbTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
+func (mtq memdbTupleQuery) WithUsersets(subjects []*v0.ObjectAndRelation) datastore.TupleQuery {
 	if mtq.optionalSubjectFilter != nil {
 		panic("cannot call WithUsersets after WithSubjectFilter")
 	}
 
-	if mtq.usersetsFilter != nil {
+	if mtq.subjectsFilter != nil {
 		panic("called WithUsersets twice")
 	}
 
-	if len(usersets) == 0 {
-		panic("Given nil or empty usersets")
+	if len(subjects) == 0 {
+		panic("Given nil or empty subjects")
 	}
 
-	mtq.usersetsFilter = usersets
+	mtq.subjectsFilter = subjects
 	return mtq
 }
 
@@ -69,29 +69,29 @@ func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.Res
 	switch {
 	case filter.OptionalResourceId != "":
 		return txn.Get(
-			tableTuple,
-			indexNamespaceAndObjectID,
+			tableRelationship,
+			indexNamespaceAndResourceID,
 			filter.ResourceType,
 			filter.OptionalResourceId,
 		)
 	case filter.OptionalSubjectFilter != nil && filter.OptionalSubjectFilter.OptionalSubjectId != "":
 		return txn.Get(
-			tableTuple,
-			indexNamespaceAndUsersetID,
+			tableRelationship,
+			indexNamespaceAndSubjectID,
 			filter.ResourceType,
 			filter.OptionalSubjectFilter.SubjectType,
 			filter.OptionalSubjectFilter.OptionalSubjectId,
 		)
 	case filter.OptionalRelation != "":
 		return txn.Get(
-			tableTuple,
+			tableRelationship,
 			indexNamespaceAndRelation,
 			filter.ResourceType,
 			filter.OptionalRelation,
 		)
 	}
 
-	return txn.Get(tableTuple, indexNamespace, filter.ResourceType)
+	return txn.Get(tableRelationship, indexNamespace, filter.ResourceType)
 }
 
 func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
@@ -118,11 +118,11 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 	}
 
 	filteredIterator := memdb.NewFilterIterator(bestIterator, func(tupleRaw interface{}) bool {
-		tuple := tupleRaw.(*tupleEntry)
+		tuple := tupleRaw.(*relationship)
 		filter := relationshipFilter
 
 		switch {
-		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.objectID:
+		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.resourceID:
 			return true
 		case filter.OptionalRelation != "" && filter.OptionalRelation != tuple.relation:
 			return true
@@ -130,21 +130,21 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 
 		if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
 			switch {
-			case subjectFilter.SubjectType != tuple.usersetNamespace:
+			case subjectFilter.SubjectType != tuple.subjectNamespace:
 				return true
-			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.usersetObjectID:
+			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.subjectObjectID:
 				return true
-			case subjectFilter.OptionalRelation != nil && stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.usersetRelation:
+			case subjectFilter.OptionalRelation != nil && stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
 				return true
 			}
 		}
 
-		if len(mtq.usersetsFilter) > 0 {
+		if len(mtq.subjectsFilter) > 0 {
 			found := false
-			for _, filter := range mtq.usersetsFilter {
-				if filter.Namespace == tuple.usersetNamespace &&
-					filter.ObjectId == tuple.usersetObjectID &&
-					filter.Relation == tuple.usersetRelation {
+			for _, filter := range mtq.subjectsFilter {
+				if filter.Namespace == tuple.subjectNamespace &&
+					filter.ObjectId == tuple.subjectObjectID &&
+					filter.Relation == tuple.subjectRelation {
 					found = true
 					break
 				}
@@ -191,7 +191,7 @@ func (mti *memdbTupleIterator) Next() *v0.RelationTuple {
 	}
 	mti.count++
 
-	return foundRaw.(*tupleEntry).RelationTuple()
+	return foundRaw.(*relationship).RelationTuple()
 }
 
 func (mti *memdbTupleIterator) Err() error {
