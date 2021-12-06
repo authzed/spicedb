@@ -7,14 +7,31 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+
+	"github.com/jzelinskie/cobrautil"
+	"github.com/spf13/cobra"
 )
 
-// Version is this program's version string
+func RegisterVersionFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("include-deps", false, "include versions of dependencies")
+}
+
+func NewCommand(programName string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "displays the version of spicedb",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(UsageVersion(programName, cobrautil.MustGetBool(cmd, "include-deps")))
+		},
+	}
+}
+
+// Version is this program's version string.
 var Version string
 
 // UsageVersion introspects the process debug data for Go modules to return a
 // version string.
-func UsageVersion(includeDeps bool) string {
+func UsageVersion(programName string, includeDeps bool) string {
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		panic("failed to read BuildInfo because the program was compiled with Go " + runtime.Version())
@@ -33,9 +50,9 @@ func UsageVersion(includeDeps bool) string {
 
 	if !includeDeps {
 		if Version == "(devel)" {
-			return "spicedb development build (unknown exact version)"
+			return fmt.Sprintf("%s development build (unknown exact version)", programName)
 		}
-		return "spicedb " + Version
+		return fmt.Sprintf("%s %s", programName, Version)
 	}
 
 	var b strings.Builder

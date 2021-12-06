@@ -15,6 +15,7 @@ import (
 
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
 	"github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/version"
 )
 
 const (
@@ -50,7 +51,10 @@ func main() {
 	rootCmd := cmd.NewRootCmd()
 	cmd.RegisterRootFlags(rootCmd)
 
-	registerVersionCmd(rootCmd)
+	versionCmd := version.NewCommand(rootCmd.Use)
+	version.RegisterVersionFlags(versionCmd)
+	rootCmd.AddCommand(versionCmd)
+
 	registerServeCmd(rootCmd)
 	registerMigrateCmd(rootCmd)
 	registerHeadCmd(rootCmd)
