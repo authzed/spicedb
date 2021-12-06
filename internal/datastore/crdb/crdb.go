@@ -205,6 +205,7 @@ func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, err
 	if cds.quantizationNanos > 0 {
 		quantized -= (crdbNow % cds.quantizationNanos)
 	}
+	log.Ctx(ctx).Debug().Int64("readSkew", cds.followerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
 
 	validForNanos := (quantized + cds.quantizationNanos) - crdbNow
 
