@@ -1,4 +1,4 @@
-package main
+package migrate
 
 import (
 	"fmt"
@@ -10,23 +10,24 @@ import (
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	defaults "github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
-func registerMigrateCmd(rootCmd *cobra.Command) {
-	migrateCmd := &cobra.Command{
+func RegisterMigrateFlags(cmd *cobra.Command) {
+	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+	cmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
+}
+
+func NewMigrateCommand(programName string) *cobra.Command {
+	return &cobra.Command{
 		Use:     "migrate [revision]",
 		Short:   "execute datastore schema migrations",
 		Long:    fmt.Sprintf("Executes datastore schema migrations for the datastore.\nThe special value \"%s\" can be used to migrate to the latest revision.", color.YellowString(migrate.Head)),
-		PreRunE: defaultPreRunE,
+		PreRunE: defaults.DefaultPreRunE(programName),
 		Run:     migrateRun,
 		Args:    cobra.ExactArgs(1),
 	}
-
-	migrateCmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
-	migrateCmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
-
-	rootCmd.AddCommand(migrateCmd)
 }
 
 func migrateRun(cmd *cobra.Command, args []string) {
@@ -67,33 +68,35 @@ func migrateRun(cmd *cobra.Command, args []string) {
 	}
 }
 
-func registerHeadCmd(rootCmd *cobra.Command) {
-	headCmd := &cobra.Command{
-		Use:   "head",
-		Short: "compute the head database migration revision",
-		Run:   headRevisionRun,
-		Args:  cobra.ExactArgs(0),
+func RegisterHeadFlags(cmd *cobra.Command) {
+	cmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
+}
+
+func NewHeadCommand(programName string) *cobra.Command {
+	return &cobra.Command{
+		Use:     "head",
+		Short:   "compute the head database migration revision",
+		PreRunE: defaults.DefaultPreRunE(programName),
+		Run:     headRevisionRun,
+		Args:    cobra.ExactArgs(0),
 	}
-
-	headCmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
-
-	rootCmd.AddCommand(headCmd)
 }
 
 func headRevisionRun(cmd *cobra.Command, args []string) {
-	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
+	var (
+		engine       = cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
+		headRevision string
+		err          error
+	)
 
-	var headRevision string
-	var err error
-
-	if datastoreEngine == "cockroachdb" {
+	switch engine {
+	case "cockroachdb":
 		headRevision, err = crdbmigrations.CRDBMigrations.HeadRevision()
-	} else if datastoreEngine == "postgres" {
+	case "postgres":
 		headRevision, err = migrations.DatabaseMigrations.HeadRevision()
-	} else {
-		log.Fatal().Str("datastore-engine", datastoreEngine).Msg("cannot migrate datastore engine type")
+	default:
+		log.Fatal().Str("engine", engine).Msg("cannot migrate datastore engine type")
 	}
-
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to compute head revision")
 	}

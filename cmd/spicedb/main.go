@@ -15,6 +15,7 @@ import (
 
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
 	"github.com/authzed/spicedb/pkg/cmd/devsvc"
+	"github.com/authzed/spicedb/pkg/cmd/migrate"
 	"github.com/authzed/spicedb/pkg/cmd/root"
 	"github.com/authzed/spicedb/pkg/cmd/version"
 )
@@ -42,27 +43,39 @@ func metricsHandler() http.Handler {
 }
 
 func main() {
+	// Set up a seed for randomness
 	rand.Seed(time.Now().UnixNano())
 
-	// enable kubernetes grpc resolver
+	// Enable Kubernetes gRPC resolver
 	kuberesolver.RegisterInCluster()
-	// enable consistent hashring grpc load balancer
+
+	// Enable consistent hashring gRPC load balancer
 	balancer.Register(consistentbalancer.NewConsistentHashringBuilder(xxhash.Sum64, hashringReplicationFactor, backendsPerKey))
 
+	// Create a root command
 	rootCmd := root.NewCommand()
 	root.RegisterFlags(rootCmd)
 
+	// Add a version command
 	versionCmd := version.NewCommand(rootCmd.Use)
 	version.RegisterVersionFlags(versionCmd)
 	rootCmd.AddCommand(versionCmd)
 
+	// Add migration commands
+	migrateCmd := migrate.NewMigrateCommand(rootCmd.Use)
+	migrate.RegisterMigrateFlags(migrateCmd)
+	rootCmd.AddCommand(migrateCmd)
+
+	headCmd := migrate.NewHeadCommand(rootCmd.Use)
+	migrate.RegisterHeadFlags(headCmd)
+	rootCmd.AddCommand(headCmd)
+
+	// Add server commands
 	devSvcCmd := devsvc.NewCommand(rootCmd.Use)
 	devsvc.RegisterFlags(devSvcCmd)
 	rootCmd.AddCommand(devSvcCmd)
 
 	registerServeCmd(rootCmd)
-	registerMigrateCmd(rootCmd)
-	registerHeadCmd(rootCmd)
 	registerTestserverCmd(rootCmd)
 
 	_ = rootCmd.Execute()
