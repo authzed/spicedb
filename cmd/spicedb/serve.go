@@ -22,7 +22,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
@@ -30,19 +29,22 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	"github.com/authzed/spicedb/pkg/cmd/serve"
+	cmdlib "github.com/authzed/spicedb/pkg/cmd"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
 func registerServeCmd(rootCmd *cobra.Command) {
+	var datastoreOptions cmdlib.DatastoreConfig
 	serveCmd := &cobra.Command{
 		Use:     "serve",
 		Short:   "serve the permissions database",
 		Long:    "A database that stores, computes, and validates application permissions",
 		PreRunE: defaultPreRunE,
-		Run:     serveRun,
+		Run: func(cmd *cobra.Command, args []string) {
+			serveRun(cmd, args, datastoreOptions)
+		},
 		Example: fmt.Sprintf(`	%s:
 		spicedb serve --grpc-preshared-key "somerandomkeyhere"
 
@@ -62,8 +64,7 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	}
 
 	// Flags for the datastore
-	var datastoreOptions serve.Options
-	serve.RegisterDatastoreFlags(serveCmd, &datastoreOptions)
+	cmdlib.RegisterDatastoreFlags(serveCmd, &datastoreOptions)
 	serveCmd.Flags().Bool("datastore-readonly", false, "set the service to read-only mode")
 	serveCmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
 	serveCmd.Flags().Bool("datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
@@ -102,31 +103,13 @@ func registerServeCmd(rootCmd *cobra.Command) {
 	rootCmd.AddCommand(serveCmd)
 }
 
-func serveRun(cmd *cobra.Command, args []string) {
+func serveRun(cmd *cobra.Command, args []string, datastoreOpts cmdlib.DatastoreConfig) {
 	token := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
 	if len(token) < 1 {
 		log.Fatal().Msg("a preshared key must be provided via --grpc-preshared-key to authenticate API requests")
 	}
 
-	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
-	ds, err := serve.NewDatastore(
-		datastore.Engine(datastoreEngine),
-		serve.WithRevisionQuantization(cobrautil.MustGetDuration(cmd, "datastore-revision-fuzzing-duration")),
-		serve.WithGCWindow(cobrautil.MustGetDuration(cmd, "datastore-gc-window")),
-		serve.WithURI(cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")),
-		serve.WithMaxIdleTime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-idletime")),
-		serve.WithMaxLifetime(cobrautil.MustGetDuration(cmd, "datastore-conn-max-lifetime")),
-		serve.WithMaxOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-max-open")),
-		serve.WithMinOpenConns(cobrautil.MustGetInt(cmd, "datastore-conn-min-open")),
-		serve.WithSplitQuerySize(cobrautil.MustGetStringExpanded(cmd, "datastore-query-split-size")),
-		serve.WithFollowerReadDelay(cobrautil.MustGetDuration(cmd, "datastore-follower-read-delay-duration")),
-		serve.WithMaxRetries(cobrautil.MustGetInt(cmd, "datastore-max-tx-retries")),
-		serve.WithOverlapKey(cobrautil.MustGetStringExpanded(cmd, "datastore-tx-overlap-key")),
-		serve.WithOverlapStrategy(cobrautil.MustGetStringExpanded(cmd, "datastore-tx-overlap-strategy")),
-		serve.WithHealthCheckPeriod(cobrautil.MustGetDuration(cmd, "datastore-conn-healthcheck-interval")),
-		serve.WithGCInterval(cobrautil.MustGetDuration(cmd, "datastore-gc-interval")),
-		serve.WithGCMaxOperationTime(cobrautil.MustGetDuration(cmd, "datastore-gc-max-operation-time")),
-	)
+	ds, err := cmdlib.NewDatastore(datastoreOpts.ToOption())
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to init datastore")
 	}
@@ -288,7 +271,7 @@ func serveRun(cmd *cobra.Command, args []string) {
 	dashboardSrv.Handler = dashboard.NewHandler(
 		cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
 		cobrautil.MustGetStringExpanded(cmd, "grpc-tls-cert-path") != "" && cobrautil.MustGetStringExpanded(cmd, "grpc-tls-key-path") != "",
-		datastoreEngine,
+		datastoreOpts.Engine,
 		ds,
 	)
 	go func() {

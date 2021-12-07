@@ -18,7 +18,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
-	"github.com/authzed/spicedb/pkg/cmd/serve"
 )
 
 var (
@@ -50,34 +49,7 @@ const (
 	querySelectNow          = "SELECT cluster_logical_timestamp()"
 	queryReturningTimestamp = "RETURNING cluster_logical_timestamp()"
 	queryShowZoneConfig     = "SHOW ZONE CONFIGURATION FOR RANGE default;"
-
-	cockroachEngine datastore.Engine = "cockroach"
 )
-
-func init() {
-	serve.RegisterEngine(cockroachEngine, newFromDatastoreOptions)
-}
-
-func newFromDatastoreOptions(opts serve.Options) (datastore.Datastore, error) {
-	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse split query size: %w", err)
-	}
-	return NewCRDBDatastore(
-		opts.URI,
-		GCWindow(opts.GCWindow),
-		RevisionQuantization(opts.RevisionQuantization),
-		ConnMaxIdleTime(opts.MaxIdleTime),
-		ConnMaxLifetime(opts.MaxLifetime),
-		MaxOpenConns(opts.MaxOpenConns),
-		MinOpenConns(opts.MinOpenConns),
-		SplitAtEstimatedQuerySize(splitQuerySize),
-		FollowerReadDelay(opts.FollowerReadDelay),
-		MaxRetries(opts.MaxRetries),
-		OverlapKey(opts.OverlapKey),
-		OverlapStrategy(opts.OverlapStrategy),
-	)
-}
 
 // NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB
 // database while leveraging its AOST functionality.

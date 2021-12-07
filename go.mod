@@ -14,6 +14,7 @@ require (
 	github.com/containerd/continuity v0.2.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/docker/docker v20.10.9+incompatible // indirect
+	github.com/ecordell/optgen v0.0.4
 	github.com/emirpasic/gods v1.12.0
 	github.com/envoyproxy/protoc-gen-validate v0.6.2
 	github.com/fatih/color v1.13.0

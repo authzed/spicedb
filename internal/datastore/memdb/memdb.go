@@ -11,23 +11,10 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/pkg/cmd/serve"
 )
-
-const memoryEngine datastore.Engine = "memory"
-
-func init() {
-	serve.RegisterEngine(memoryEngine, newFromDatastoreOptions)
-}
-
-func newFromDatastoreOptions(opts serve.Options) (datastore.Datastore, error) {
-	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
-	return NewMemdbDatastore(0, opts.RevisionQuantization, opts.GCWindow, 0)
-}
 
 // DisableGC is a convenient constant for setting the garbage collection
 // interval high enough that it will never run.

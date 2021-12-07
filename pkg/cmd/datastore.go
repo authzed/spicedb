@@ -1,31 +1,33 @@
-package serve
+package cmd
 
 import (
 	"fmt"
 	"time"
 
+	"github.com/alecthomas/units"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/crdb"
+	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/postgres"
 )
 
-type engineBuilderFunc func(options Options) (datastore.Datastore, error)
+type engineBuilderFunc func(options DatastoreConfig) (datastore.Datastore, error)
 
-func RegisterEngine(key datastore.Engine, builder engineBuilderFunc) {
-	if builderForEngine == nil {
-		builderForEngine = make(map[datastore.Engine]engineBuilderFunc)
-	}
-	if _, ok := builderForEngine[key]; ok {
-		panic("cannot register two datastore engines with the same name: " + key)
-	}
-	builderForEngine[key] = builder
+var builderForEngine = map[string]engineBuilderFunc{
+	"cockroachdb": newCRDBDatastore,
+	"postgres":    newPostgresDatastore,
+	"memory":      newMemoryDatstore,
 }
 
-var builderForEngine map[datastore.Engine]engineBuilderFunc
+type Option func(*DatastoreConfig)
 
-type Options struct {
+//go:generate go run github.com/ecordell/optgen -output zz_generated.datastore_options.go . DatastoreConfig
+type DatastoreConfig struct {
+	Engine               string
 	URI                  string
 	GCWindow             time.Duration
 	RevisionQuantization time.Duration
@@ -48,9 +50,29 @@ type Options struct {
 	GCMaxOperationTime time.Duration
 }
 
+func (o *DatastoreConfig) ToOption() Option {
+	return func(to *DatastoreConfig) {
+		to.Engine = o.Engine
+		to.URI = o.URI
+		to.GCWindow = o.GCWindow
+		to.RevisionQuantization = o.RevisionQuantization
+		to.MaxIdleTime = o.MaxIdleTime
+		to.MaxOpenConns = o.MaxOpenConns
+		to.MinOpenConns = o.MinOpenConns
+		to.SplitQuerySize = o.SplitQuerySize
+		to.FollowerReadDelay = o.FollowerReadDelay
+		to.MaxRetries = o.MaxRetries
+		to.OverlapKey = o.OverlapKey
+		to.OverlapStrategy = o.OverlapStrategy
+		to.HealthCheckPeriod = o.HealthCheckPeriod
+		to.GCInterval = o.GCInterval
+		to.GCMaxOperationTime = o.GCMaxOperationTime
+	}
+}
+
 // RegisterDatastoreFlags adds datastore flags to a cobra command
-func RegisterDatastoreFlags(cmd *cobra.Command, opts *Options) {
-	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+func RegisterDatastoreFlags(cmd *cobra.Command, opts *DatastoreConfig) {
+	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
 	cmd.Flags().IntVar(&opts.MinOpenConns, "datastore-conn-min-open", 10, "number of minimum concurrent connections open in a remote datastore's connection pool")
@@ -67,113 +89,68 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Options) {
 	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 50, "number of times a retriable transaction should be retried (cockroach driver only)")
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
-	return
 }
 
-type Option func(*Options)
-
 // NewDatastore initializes a datastore given the options
-func NewDatastore(kind datastore.Engine, options ...Option) (datastore.Datastore, error) {
-	var opts Options
+func NewDatastore(options ...Option) (datastore.Datastore, error) {
+	var opts DatastoreConfig
 	for _, o := range options {
 		o(&opts)
 	}
 
-	dsBuilder, ok := builderForEngine[kind]
+	dsBuilder, ok := builderForEngine[opts.Engine]
 	if !ok {
-		return nil, fmt.Errorf("unknown datastore engine type: %s", kind)
+		return nil, fmt.Errorf("unknown datastore engine type: %s", opts.Engine)
 	}
-	log.Info().Msgf("using %s datastore engine", kind)
+	log.Info().Msgf("using %s datastore engine", opts.Engine)
 
 	return dsBuilder(opts)
 }
 
-func WithRevisionQuantization(revisionQuantization time.Duration) Option {
-	return func(c *Options) {
-		c.RevisionQuantization = revisionQuantization
+func newCRDBDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
+	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse split query size: %w", err)
 	}
+	return crdb.NewCRDBDatastore(
+		opts.URI,
+		crdb.GCWindow(opts.GCWindow),
+		crdb.RevisionQuantization(opts.RevisionQuantization),
+		crdb.ConnMaxIdleTime(opts.MaxIdleTime),
+		crdb.ConnMaxLifetime(opts.MaxLifetime),
+		crdb.MaxOpenConns(opts.MaxOpenConns),
+		crdb.MinOpenConns(opts.MinOpenConns),
+		crdb.SplitAtEstimatedQuerySize(splitQuerySize),
+		crdb.FollowerReadDelay(opts.FollowerReadDelay),
+		crdb.MaxRetries(opts.MaxRetries),
+		crdb.OverlapKey(opts.OverlapKey),
+		crdb.OverlapStrategy(opts.OverlapStrategy),
+	)
 }
 
-func WithGCWindow(gcWindow time.Duration) Option {
-	return func(c *Options) {
-		c.GCWindow = gcWindow
+func newPostgresDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
+	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse split query size: %w", err)
 	}
+	return postgres.NewPostgresDatastore(
+		opts.URI,
+		postgres.GCWindow(opts.GCWindow),
+		postgres.RevisionFuzzingTimedelta(opts.RevisionQuantization),
+		postgres.ConnMaxIdleTime(opts.MaxIdleTime),
+		postgres.ConnMaxLifetime(opts.MaxLifetime),
+		postgres.MaxOpenConns(opts.MaxOpenConns),
+		postgres.MinOpenConns(opts.MinOpenConns),
+		postgres.SplitAtEstimatedQuerySize(splitQuerySize),
+		postgres.HealthCheckPeriod(opts.HealthCheckPeriod),
+		postgres.GCInterval(opts.GCInterval),
+		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
+		postgres.EnablePrometheusStats(),
+		postgres.EnableTracing(),
+	)
 }
 
-func WithURI(uri string) Option {
-	return func(c *Options) {
-		c.URI = uri
-	}
-}
-
-func WithMaxIdleTime(maxIdleTime time.Duration) Option {
-	return func(c *Options) {
-		c.MaxIdleTime = maxIdleTime
-	}
-}
-
-func WithMaxLifetime(maxLifetime time.Duration) Option {
-	return func(c *Options) {
-		c.MaxLifetime = maxLifetime
-	}
-}
-
-func WithMaxOpenConns(maxOpenConns int) Option {
-	return func(c *Options) {
-		c.MaxOpenConns = maxOpenConns
-	}
-}
-
-func WithMinOpenConns(minOpenConns int) Option {
-	return func(c *Options) {
-		c.MinOpenConns = minOpenConns
-	}
-}
-
-func WithSplitQuerySize(splitQuerySize string) Option {
-	return func(c *Options) {
-		c.SplitQuerySize = splitQuerySize
-	}
-}
-
-func WithFollowerReadDelay(followerDelay time.Duration) Option {
-	return func(c *Options) {
-		c.FollowerReadDelay = followerDelay
-	}
-}
-
-func WithMaxRetries(retries int) Option {
-	return func(c *Options) {
-		c.MaxRetries = retries
-	}
-}
-
-func WithOverlapKey(key string) Option {
-	return func(c *Options) {
-		c.OverlapKey = key
-	}
-}
-
-func WithOverlapStrategy(strategy string) Option {
-	return func(c *Options) {
-		c.OverlapStrategy = strategy
-	}
-}
-
-func WithHealthCheckPeriod(interval time.Duration) Option {
-	return func(c *Options) {
-		c.HealthCheckPeriod = interval
-	}
-}
-
-func WithGCInterval(interval time.Duration) Option {
-	return func(c *Options) {
-		c.GCInterval = interval
-	}
-}
-
-func WithGCMaxOperationTime(interval time.Duration) Option {
-	return func(c *Options) {
-		c.GCMaxOperationTime = interval
-	}
+func newMemoryDatstore(opts DatastoreConfig) (datastore.Datastore, error) {
+	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
+	return memdb.NewMemdbDatastore(0, opts.RevisionQuantization, opts.GCWindow, 0)
 }
