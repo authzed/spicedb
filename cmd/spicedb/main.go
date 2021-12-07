@@ -49,6 +49,7 @@ func main() {
 	rootCmd := newRootCmd()
 	registerVersionCmd(rootCmd)
 	registerServeCmd(rootCmd)
+	registerServeLookupWatchCmd(rootCmd)
 	registerMigrateCmd(rootCmd)
 	registerHeadCmd(rootCmd)
 	registerDeveloperServiceCmd(rootCmd)
