@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"fmt"
 	"io"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -20,11 +21,22 @@ type lookupWatchServiceServer struct {
 
 // NewLookupWatchServer returns an new instance of a server that implements
 // authzed.api.v1alpha1.LookupWatchService.
-func NewLookupWatchServer() v1alpha1.LookupWatchServiceServer {
+func NewLookupWatchServer(watchClient v1.WatchServiceClient, permissionsClient v1.PermissionsServiceClient) v1alpha1.LookupWatchServiceServer {
+
+	if watchClient == nil {
+		panic("A non-nil watchClient must be provided")
+	}
+
+	if permissionsClient == nil {
+		panic("A non-nil permissionsClient must be provided")
+	}
+
 	return &lookupWatchServiceServer{
 		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
 			Unary: grpcmw.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
 		},
+		permissionsClient: permissionsClient,
+		watchClient:       watchClient,
 	}
 }
 
@@ -33,15 +45,17 @@ func (lws *lookupWatchServiceServer) WatchAccessibleResources(req *v1alpha1.Watc
 	ctx := resp.Context()
 
 	done := make(chan bool)
+	errCh := make(chan error, 1)
 
 	go func() {
 
+		// start a watch over all changes
 		stream, err := lws.watchClient.Watch(ctx, &v1.WatchRequest{
-			ObjectTypes:         []string{"*"}, // watch for 'all' changes
 			OptionalStartCursor: req.GetOptionalStartCursor(),
 		})
 		if err != nil {
-			// handle error
+			errCh <- fmt.Errorf("todo(jon-whit): come up with a better error")
+			return
 		}
 
 		for {
@@ -51,7 +65,8 @@ func (lws *lookupWatchServiceServer) WatchAccessibleResources(req *v1alpha1.Watc
 				return
 			}
 			if err != nil {
-				// handle error
+				errCh <- fmt.Errorf("todo(jon-whit): come up with a better error")
+				return
 			}
 
 			updates := watchResponse.GetUpdates()
@@ -65,9 +80,7 @@ func (lws *lookupWatchServiceServer) WatchAccessibleResources(req *v1alpha1.Watc
 			for _, update := range updates {
 
 				operation := update.GetOperation()
-
-				// todo: optimize this by adding support for an operation filter in the Watch API
-				if operation != v1.RelationshipUpdate_OPERATION_CREATE && operation != v1.RelationshipUpdate_OPERATION_DELETE {
+				if operation == v1.RelationshipUpdate_OPERATION_UNSPECIFIED {
 					continue
 				}
 
@@ -83,7 +96,7 @@ func (lws *lookupWatchServiceServer) WatchAccessibleResources(req *v1alpha1.Watc
 					_ = subjects
 
 					go func() {
-						// resourceStream, err := ReachableResources(&v1alpha1.ReachResourcesRequest{
+						// resourceStream, err := v1alpha1.ReachableResources(context.TODO(), &v1alpha1.ReachResourcesRequest{
 						// 	StartingResource: update.GetRelationship().GetResource(),
 						// 	TargetObjectType: req.GetResourceObjectType(),
 						// })
@@ -105,7 +118,7 @@ func (lws *lookupWatchServiceServer) WatchAccessibleResources(req *v1alpha1.Watc
 					}()
 
 					go func() {
-						// subjectStream, err := LookupSubjects(&v1alpha1.LookupSubjectsRequest{
+						// subjectStream, err := v1alpha1.LookupSubjects(context.TODO(), &v1alpha1.LookupSubjectsRequest{
 						// 	Resource:          update.GetRelationship().GetResource(),
 						// 	TargetSubjectType: req.GetSubjectObjectType(),
 						// })
@@ -135,7 +148,8 @@ func (lws *lookupWatchServiceServer) WatchAccessibleResources(req *v1alpha1.Watc
 								Permission: req.GetPermission(),
 							})
 							if err != nil {
-								// handle error
+								errCh <- fmt.Errorf("todo(jon-whit): come up with a better error")
+								return
 							}
 
 							var updatedPermissionship v1alpha1.PermissionUpdate_Permissionship
@@ -149,14 +163,11 @@ func (lws *lookupWatchServiceServer) WatchAccessibleResources(req *v1alpha1.Watc
 								updatedPermissionship = v1alpha1.PermissionUpdate_PERMISSIONSHIP_UNSPECIFIED
 							}
 
-							// todo: verify the safety of this concurrent append
+							// todo(jon-whit): verify the safety of this concurrent append
 							permissionUpdates = append(permissionUpdates, &v1alpha1.PermissionUpdate{
-								Subject: &v1.SubjectReference{},
-								Resource: &v1.ObjectReference{
-									ObjectType: "",
-									ObjectId:   "",
-								},
-								Relation:          "",
+								Subject:           subject,
+								Resource:          resource,
+								Relation:          "todo(jon-whit): rename this to permission?",
 								UpdatedPermission: updatedPermissionship,
 							})
 						}
@@ -172,11 +183,22 @@ func (lws *lookupWatchServiceServer) WatchAccessibleResources(req *v1alpha1.Watc
 				ChangesThrough: revision,
 			})
 			if err != nil {
-				// handle error
+				errCh <- fmt.Errorf("todo(jon-whit): come up with a better error")
+				return
 			}
 		}
 	}()
 
-	<-done
-	return nil
+	select {
+	case <-ctx.Done():
+		if err := ctx.Err(); err != nil {
+			// todo(jon-whit): handle ctx error better
+			return err
+		}
+		return nil
+	case <-done:
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }
