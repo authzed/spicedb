@@ -1,4 +1,4 @@
-package cmd
+package root
 
 import (
 	"fmt"
@@ -8,12 +8,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func RegisterRootFlags(cmd *cobra.Command) {
+func RegisterFlags(cmd *cobra.Command) {
 	cobrautil.RegisterZeroLogFlags(cmd.PersistentFlags(), "log")
 	cobrautil.RegisterOpenTelemetryFlags(cmd.PersistentFlags(), "otel", cmd.Use)
 }
 
-func NewRootCmd() *cobra.Command {
+func NewCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "spicedb",
 		Short: "A modern permissions database",
