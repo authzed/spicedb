@@ -2,8 +2,15 @@ package main
 
 import (
 	"context"
+<<<<<<< HEAD
 	"fmt"
 	"net"
+=======
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+>>>>>>> 9bc9ea16c7321d2f3b00b24803a54e3ca9f19173
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,15 +22,21 @@ import (
 	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+<<<<<<< HEAD
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
+=======
+>>>>>>> 9bc9ea16c7321d2f3b00b24803a54e3ca9f19173
 	"github.com/fatih/color"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
+<<<<<<< HEAD
 	"github.com/rs/zerolog"
+=======
+>>>>>>> 9bc9ea16c7321d2f3b00b24803a54e3ca9f19173
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
