@@ -1,4 +1,4 @@
-package devsvc
+package serve
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 	defaults "github.com/authzed/spicedb/pkg/cmd"
 )
 
-func RegisterFlags(cmd *cobra.Command) {
+func RegisterDevtoolsFlags(cmd *cobra.Command) {
 	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "grpc", "gRPC", ":50051", true)
 	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
 	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "http", "download", ":8443", false)
@@ -42,7 +42,7 @@ func RegisterFlags(cmd *cobra.Command) {
 	cmd.Flags().String("s3-region", "auto", "s3 region for s3 share store")
 }
 
-func NewCommand(programName string) *cobra.Command {
+func NewDevtoolsCommand(programName string) *cobra.Command {
 	return &cobra.Command{
 		Use:     "serve-devtools",
 		Short:   "runs the developer tools service",
