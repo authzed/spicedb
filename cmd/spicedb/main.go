@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/balancer"
 
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
+	"github.com/authzed/spicedb/pkg/cmd/devsvc"
 	"github.com/authzed/spicedb/pkg/cmd/root"
 	"github.com/authzed/spicedb/pkg/cmd/version"
 )
@@ -55,10 +56,13 @@ func main() {
 	version.RegisterVersionFlags(versionCmd)
 	rootCmd.AddCommand(versionCmd)
 
+	devSvcCmd := devsvc.NewCommand(rootCmd.Use)
+	devsvc.RegisterFlags(devSvcCmd)
+	rootCmd.AddCommand(devSvcCmd)
+
 	registerServeCmd(rootCmd)
 	registerMigrateCmd(rootCmd)
 	registerHeadCmd(rootCmd)
-	registerDeveloperServiceCmd(rootCmd)
 	registerTestserverCmd(rootCmd)
 
 	_ = rootCmd.Execute()
