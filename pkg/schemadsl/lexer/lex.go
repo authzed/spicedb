@@ -6,6 +6,7 @@ package lexer
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -27,16 +28,47 @@ func createLexer(source input.InputSource, input string) *Lexer {
 
 // run runs the state machine for the lexer.
 func (l *Lexer) run() {
-	for l.state = lexSource; l.state != nil; {
-		l.state = l.state(l)
+	defer func() {
+		close(l.tokens)
+	}()
+	l.withLock(func() {
+		l.state = lexSource
+	})
+	var state stateFn
+	for {
+		l.withRLock(func() {
+			state = l.state
+		})
+		if state == nil {
+			break
+		}
+		next := state(l)
+		l.withLock(func() {
+			l.state = next
+		})
 	}
-	close(l.tokens)
 }
 
 // Close stops the lexer from running.
 func (l *Lexer) Close() {
-	l.state = nil
 	close(l.closed)
+	l.withLock(func() {
+		l.state = nil
+	})
+}
+
+// withLock runs f protected by l's lock
+func (l *Lexer) withLock(f func()) {
+	l.Lock()
+	defer l.Unlock()
+	f()
+}
+
+// withRLock runs f protected by l's read lock
+func (l *Lexer) withRLock(f func()) {
+	l.RLock()
+	defer l.RUnlock()
+	f()
 }
 
 // Lexeme represents a token returned from scanning the contents of a file.
@@ -51,6 +83,7 @@ type stateFn func(*Lexer) stateFn
 
 // Lexer holds the state of the scanner.
 type Lexer struct {
+	sync.RWMutex
 	source                 input.InputSource  // the name of the input; used only for error reports
 	input                  string             // the string being scanned
 	state                  stateFn            // the next lexing function to enter
