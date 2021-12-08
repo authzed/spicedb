@@ -80,7 +80,7 @@ type GraphDatastore interface {
 	// from a subject relation onward from the datastore.
 	ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision Revision) ReverseTupleQuery
 
-	// ReverseQueryTuplesFromSubjectNamespace creates a builder for reading
+	// ReverseQueryTuplesFromSubjectNamespace creates a builder for reading
 	// tuples from a subject namespace onward from the datastore.
 	ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision Revision) ReverseTupleQuery
 

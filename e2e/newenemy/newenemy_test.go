@@ -139,7 +139,9 @@ func TestNoNewEnemy(t *testing.T) {
 
 	samplestddev := stddev / math.Sqrt(float64(sampleSize))
 	// how many iterations do we need to get > 3sigma from the mean?
-	iterations := int(math.Ceil(3*stddev*samplestddev + mean))
+	// cap max_iterations to control test runtime
+	const max_iterations = 100
+	iterations := int(math.Min(max_iterations, math.Ceil(3*stddev*samplestddev+mean)))
 
 	t.Logf("check spicedb is protected after %d attempts", iterations)
 	// *6 to cover the worst case where all requests are handled by the slow node
