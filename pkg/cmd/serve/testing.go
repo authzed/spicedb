@@ -33,7 +33,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	defaults "github.com/authzed/spicedb/pkg/cmd"
+	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -55,7 +55,7 @@ func NewTestingCommand(programName string) *cobra.Command {
 		Use:     "serve-testing",
 		Short:   "test server with an in-memory datastore",
 		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
-		PreRunE: defaults.DefaultPreRunE(programName),
+		PreRunE: cmdutil.DefaultPreRunE(programName),
 		Run:     runTestServer,
 	}
 }

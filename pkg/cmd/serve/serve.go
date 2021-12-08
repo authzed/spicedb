@@ -29,13 +29,13 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	defaults "github.com/authzed/spicedb/pkg/cmd"
+	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-func RegisterServeFlags(cmd *cobra.Command, dsConfig *defaults.DatastoreConfig) {
+func RegisterServeFlags(cmd *cobra.Command, dsConfig *cmdutil.DatastoreConfig) {
 	// Flags for the gRPC API server
 	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "grpc", "gRPC", ":50051", true)
 	cmd.Flags().String("grpc-preshared-key", "", "preshared key to require for authenticated requests")
@@ -45,7 +45,7 @@ func RegisterServeFlags(cmd *cobra.Command, dsConfig *defaults.DatastoreConfig) 
 	}
 
 	// Flags for the datastore
-	defaults.RegisterDatastoreFlags(cmd, dsConfig)
+	cmdutil.RegisterDatastoreFlags(cmd, dsConfig)
 	cmd.Flags().Bool("datastore-readonly", false, "set the service to read-only mode")
 	cmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
 	cmd.Flags().Bool("datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
@@ -80,12 +80,12 @@ func RegisterServeFlags(cmd *cobra.Command, dsConfig *defaults.DatastoreConfig) 
 	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
 }
 
-func NewServeCommand(programName string, dsConfig *defaults.DatastoreConfig) *cobra.Command {
+func NewServeCommand(programName string, dsConfig *cmdutil.DatastoreConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:     "serve",
 		Short:   "serve the permissions database",
 		Long:    "A database that stores, computes, and validates application permissions",
-		PreRunE: defaults.DefaultPreRunE(programName),
+		PreRunE: cmdutil.DefaultPreRunE(programName),
 		Run: func(cmd *cobra.Command, args []string) {
 			serveRun(cmd, args, dsConfig)
 		},
@@ -100,13 +100,13 @@ func NewServeCommand(programName string, dsConfig *defaults.DatastoreConfig) *co
 	}
 }
 
-func serveRun(cmd *cobra.Command, args []string, datastoreOpts *defaults.DatastoreConfig) {
+func serveRun(cmd *cobra.Command, args []string, datastoreOpts *cmdutil.DatastoreConfig) {
 	token := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
 	if len(token) < 1 {
 		log.Fatal().Msg("a preshared key must be provided via --grpc-preshared-key to authenticate API requests")
 	}
 
-	ds, err := defaults.NewDatastore(datastoreOpts.ToOption())
+	ds, err := cmdutil.NewDatastore(datastoreOpts.ToOption())
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to init datastore")
 	}
@@ -256,7 +256,7 @@ func serveRun(cmd *cobra.Command, args []string, datastoreOpts *defaults.Datasto
 
 	// Start the metrics endpoint.
 	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
-	metricsSrv.Handler = defaults.MetricsHandler()
+	metricsSrv.Handler = cmdutil.MetricsHandler()
 	go func() {
 		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
