@@ -36,7 +36,7 @@ func main() {
 	))
 
 	// Create a root command
-	rootCmd := root.NewCommand()
+	rootCmd := root.NewCommand("spicedb")
 	root.RegisterFlags(rootCmd)
 
 	// Add a version command

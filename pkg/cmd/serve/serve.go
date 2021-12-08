@@ -2,13 +2,11 @@ package serve
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/fatih/color"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
@@ -89,14 +87,7 @@ func NewServeCommand(programName string, dsConfig *cmdutil.DatastoreConfig) *cob
 		Run: func(cmd *cobra.Command, args []string) {
 			serveRun(cmd, args, dsConfig)
 		},
-		Example: fmt.Sprintf(`	%s:
-		spicedb serve --grpc-preshared-key "somerandomkeyhere"
-
-	%s:
-		spicedb serve --grpc-preshared-key "realkeyhere" --grpc-tls-cert-path path/to/tls/cert --grpc-tls-key-path path/to/tls/key \
-			--http-tls-cert-path path/to/tls/cert --http-tls-key-path path/to/tls/key \
-			--datastore-engine postgres --datastore-conn-uri "postgres-connection-string-here"
-`, color.YellowString("No TLS and in-memory"), color.GreenString("TLS and a real datastore")),
+		Example: cmdutil.ServeExample(programName),
 	}
 }
 
