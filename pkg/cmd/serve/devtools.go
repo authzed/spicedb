@@ -1,4 +1,4 @@
-package main
+package serve
 
 import (
 	"context"
@@ -25,34 +25,35 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
+	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 )
 
-func registerDeveloperServiceCmd(rootCmd *cobra.Command) {
-	developerServiceCmd := &cobra.Command{
+func RegisterDevtoolsFlags(cmd *cobra.Command) {
+	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "grpc", "gRPC", ":50051", true)
+	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
+	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "http", "download", ":8443", false)
+
+	cmd.Flags().String("share-store", "inmemory", "kind of share store to use")
+	cmd.Flags().String("share-store-salt", "", "salt for share store hashing")
+	cmd.Flags().String("s3-access-key", "", "s3 access key for s3 share store")
+	cmd.Flags().String("s3-secret-key", "", "s3 secret key for s3 share store")
+	cmd.Flags().String("s3-bucket", "", "s3 bucket name for s3 share store")
+	cmd.Flags().String("s3-endpoint", "", "s3 endpoint for s3 share store")
+	cmd.Flags().String("s3-region", "auto", "s3 region for s3 share store")
+}
+
+func NewDevtoolsCommand(programName string) *cobra.Command {
+	return &cobra.Command{
 		Use:     "serve-devtools",
 		Short:   "runs the developer tools service",
 		Long:    "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
-		PreRunE: defaultPreRunE,
-		Run:     developerServiceRun,
+		PreRunE: cmdutil.DefaultPreRunE(programName),
+		Run:     runfunc,
 		Args:    cobra.ExactArgs(0),
 	}
-
-	cobrautil.RegisterGrpcServerFlags(developerServiceCmd.Flags(), "grpc", "gRPC", ":50051", true)
-	cobrautil.RegisterHttpServerFlags(developerServiceCmd.Flags(), "metrics", "metrics", ":9090", true)
-	cobrautil.RegisterHttpServerFlags(developerServiceCmd.Flags(), "http", "download", ":8443", false)
-
-	developerServiceCmd.Flags().String("share-store", "inmemory", "kind of share store to use")
-	developerServiceCmd.Flags().String("share-store-salt", "", "salt for share store hashing")
-	developerServiceCmd.Flags().String("s3-access-key", "", "s3 access key for s3 share store")
-	developerServiceCmd.Flags().String("s3-secret-key", "", "s3 secret key for s3 share store")
-	developerServiceCmd.Flags().String("s3-bucket", "", "s3 bucket name for s3 share store")
-	developerServiceCmd.Flags().String("s3-endpoint", "", "s3 endpoint for s3 share store")
-	developerServiceCmd.Flags().String("s3-region", "auto", "s3 region for s3 share store")
-
-	rootCmd.AddCommand(developerServiceCmd)
 }
 
-func developerServiceRun(cmd *cobra.Command, args []string) {
+func runfunc(cmd *cobra.Command, args []string) {
 	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "grpc", grpc.ChainUnaryInterceptor(
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 		otelgrpc.UnaryServerInterceptor(),
@@ -77,7 +78,7 @@ func developerServiceRun(cmd *cobra.Command, args []string) {
 
 	// Start the metrics endpoint.
 	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
-	metricsSrv.Handler = metricsHandler()
+	metricsSrv.Handler = cmdutil.MetricsHandler()
 	go func() {
 		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")

@@ -10,6 +10,7 @@
   - "internal/services/v1alpha1/**/*"
 "area/cli":
   - "cmd/**/*"
+  - "pkg/cmd/**/*"
 "area/dashboard":
   - "internal/dashboard/**/*"
 "area/datastore":

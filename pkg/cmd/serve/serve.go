@@ -1,4 +1,4 @@
-package main
+package serve
 
 import (
 	"context"
@@ -29,21 +29,65 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	cmdlib "github.com/authzed/spicedb/pkg/cmd"
+	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-func registerServeCmd(rootCmd *cobra.Command) {
-	var datastoreOptions cmdlib.DatastoreConfig
-	serveCmd := &cobra.Command{
+func RegisterServeFlags(cmd *cobra.Command, dsConfig *cmdutil.DatastoreConfig) {
+	// Flags for the gRPC API server
+	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "grpc", "gRPC", ":50051", true)
+	cmd.Flags().String("grpc-preshared-key", "", "preshared key to require for authenticated requests")
+	cmd.Flags().Duration("grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
+	if err := cmd.MarkFlagRequired("grpc-preshared-key"); err != nil {
+		panic("failed to mark flag as required: " + err.Error())
+	}
+
+	// Flags for the datastore
+	cmdutil.RegisterDatastoreFlags(cmd, dsConfig)
+	cmd.Flags().Bool("datastore-readonly", false, "set the service to read-only mode")
+	cmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
+	cmd.Flags().Bool("datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
+
+	cmd.Flags().Bool("datastore-request-hedging", true, "enable request hedging")
+	cmd.Flags().Duration("datastore-request-hedging-initial-slow-value", 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
+	cmd.Flags().Uint64("datastore-request-hedging-max-requests", 1_000_000, "maximum number of historical requests to consider")
+	cmd.Flags().Float64("datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
+
+	// Flags for the namespace manager
+	cmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
+
+	// Flags for parsing and validating schemas.
+	cmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
+
+	// Flags for HTTP gateway
+	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "http", "http", ":8443", false)
+
+	// Flags for configuring the dispatch server
+	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "dispatch-cluster", "dispatch", ":50053", false)
+
+	// Flags for configuring dispatch requests
+	cmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
+	cmd.Flags().String("dispatch-upstream-addr", "", "upstream grpc address to dispatch to")
+	cmd.Flags().String("dispatch-upstream-ca-path", "", "local path to the TLS CA used when connecting to the dispatch cluster")
+
+	// Flags for configuring API behavior
+	cmd.Flags().Bool("disable-v1-schema-api", false, "disables the V1 schema API")
+
+	// Flags for misc services
+	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "dashboard", "dashboard", ":8080", true)
+	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
+}
+
+func NewServeCommand(programName string, dsConfig *cmdutil.DatastoreConfig) *cobra.Command {
+	return &cobra.Command{
 		Use:     "serve",
 		Short:   "serve the permissions database",
 		Long:    "A database that stores, computes, and validates application permissions",
-		PreRunE: defaultPreRunE,
+		PreRunE: cmdutil.DefaultPreRunE(programName),
 		Run: func(cmd *cobra.Command, args []string) {
-			serveRun(cmd, args, datastoreOptions)
+			serveRun(cmd, args, dsConfig)
 		},
 		Example: fmt.Sprintf(`	%s:
 		spicedb serve --grpc-preshared-key "somerandomkeyhere"
@@ -54,62 +98,15 @@ func registerServeCmd(rootCmd *cobra.Command) {
 			--datastore-engine postgres --datastore-conn-uri "postgres-connection-string-here"
 `, color.YellowString("No TLS and in-memory"), color.GreenString("TLS and a real datastore")),
 	}
-
-	// Flags for the gRPC API server
-	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags(), "grpc", "gRPC", ":50051", true)
-	serveCmd.Flags().String("grpc-preshared-key", "", "preshared key to require for authenticated requests")
-	serveCmd.Flags().Duration("grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
-	if err := serveCmd.MarkFlagRequired("grpc-preshared-key"); err != nil {
-		panic("failed to mark flag as required: " + err.Error())
-	}
-
-	// Flags for the datastore
-	cmdlib.RegisterDatastoreFlags(serveCmd, &datastoreOptions)
-	serveCmd.Flags().Bool("datastore-readonly", false, "set the service to read-only mode")
-	serveCmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
-	serveCmd.Flags().Bool("datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
-
-	serveCmd.Flags().Bool("datastore-request-hedging", true, "enable request hedging")
-	serveCmd.Flags().Duration("datastore-request-hedging-initial-slow-value", 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
-	serveCmd.Flags().Uint64("datastore-request-hedging-max-requests", 1_000_000, "maximum number of historical requests to consider")
-	serveCmd.Flags().Float64("datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
-
-	// Flags for the namespace manager
-	serveCmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
-
-	// Flags for parsing and validating schemas.
-	serveCmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
-
-	// Flags for HTTP gateway
-	cobrautil.RegisterHttpServerFlags(serveCmd.Flags(), "http", "http", ":8443", false)
-
-	// Flags for configuring the dispatch server
-	cobrautil.RegisterGrpcServerFlags(serveCmd.Flags(), "dispatch-cluster", "dispatch", ":50053", false)
-
-	// Flags for configuring dispatch requests
-	serveCmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
-	serveCmd.Flags().String("dispatch-upstream-addr", "", "upstream grpc address to dispatch to")
-	serveCmd.Flags().String("dispatch-upstream-ca-path", "", "local path to the TLS CA used when connecting to the dispatch cluster")
-
-	// Flags for configuring API behavior
-	serveCmd.Flags().Bool("disable-v1-schema-api", false, "disables the V1 schema API")
-
-	// Flags for misc services
-	cobrautil.RegisterHttpServerFlags(serveCmd.Flags(), "dashboard", "dashboard", ":8080", true)
-	cobrautil.RegisterHttpServerFlags(serveCmd.Flags(), "metrics", "metrics", ":9090", true)
-
-	// Required flags.
-
-	rootCmd.AddCommand(serveCmd)
 }
 
-func serveRun(cmd *cobra.Command, args []string, datastoreOpts cmdlib.DatastoreConfig) {
+func serveRun(cmd *cobra.Command, args []string, datastoreOpts *cmdutil.DatastoreConfig) {
 	token := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
 	if len(token) < 1 {
 		log.Fatal().Msg("a preshared key must be provided via --grpc-preshared-key to authenticate API requests")
 	}
 
-	ds, err := cmdlib.NewDatastore(datastoreOpts.ToOption())
+	ds, err := cmdutil.NewDatastore(datastoreOpts.ToOption())
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to init datastore")
 	}
@@ -259,7 +256,7 @@ func serveRun(cmd *cobra.Command, args []string, datastoreOpts cmdlib.DatastoreC
 
 	// Start the metrics endpoint.
 	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
-	metricsSrv.Handler = metricsHandler()
+	metricsSrv.Handler = cmdutil.MetricsHandler()
 	go func() {
 		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")

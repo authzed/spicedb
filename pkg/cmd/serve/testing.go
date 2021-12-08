@@ -1,4 +1,4 @@
-package main
+package serve
 
 import (
 	"context"
@@ -33,6 +33,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -43,20 +44,20 @@ const (
 	revisionFuzzingDuration = 10 * time.Millisecond
 )
 
-func registerTestserverCmd(rootCmd *cobra.Command) {
-	testserveCmd := &cobra.Command{
+func RegisterTestingFlags(cmd *cobra.Command) {
+	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "grpc", "gRPC", ":50051", true)
+	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "readonly-grpc", "read-only gRPC", ":50052", true)
+	cmd.Flags().StringSlice("load-configs", []string{}, "configuration yaml files to load")
+}
+
+func NewTestingCommand(programName string) *cobra.Command {
+	return &cobra.Command{
 		Use:     "serve-testing",
 		Short:   "test server with an in-memory datastore",
 		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
-		PreRunE: defaultPreRunE,
+		PreRunE: cmdutil.DefaultPreRunE(programName),
 		Run:     runTestServer,
 	}
-
-	cobrautil.RegisterGrpcServerFlags(testserveCmd.Flags(), "grpc", "gRPC", ":50051", true)
-	cobrautil.RegisterGrpcServerFlags(testserveCmd.Flags(), "readonly-grpc", "read-only gRPC", ":50052", true)
-	testserveCmd.Flags().StringSlice("load-configs", []string{}, "configuration yaml files to load")
-
-	rootCmd.AddCommand(testserveCmd)
 }
 
 func runTestServer(cmd *cobra.Command, args []string) {
