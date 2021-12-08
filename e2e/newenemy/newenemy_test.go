@@ -144,12 +144,9 @@ func TestNoNewEnemy(t *testing.T) {
 	iterations := int(math.Min(max_iterations, math.Ceil(3*stddev*samplestddev+mean)))
 
 	t.Logf("check spicedb is protected after %d attempts", iterations)
-	// *6 to cover the worst case where all requests are handled by the slow node
-	checkCtx, checkCancel := context.WithTimeout(ctx, time.Duration(iterations)*(networkDelay+timeDelay)*6)
-	protected, _ := checkNoNewEnemy(checkCtx, t, protectedSpiceDb, iterations)
+	protected, _ := checkNoNewEnemy(ctx, t, protectedSpiceDb, iterations)
 	require.NotNil(protected, "unable to determine if spicedb is protected within the time limit")
 	require.True(*protected, "protection is enabled, but newenemy detected")
-	checkCancel()
 }
 
 // checkNoNewEnemy returns true if the service is protected, false if it is vulnerable, and nil if we couldn't determine
