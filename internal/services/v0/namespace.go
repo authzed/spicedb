@@ -45,9 +45,14 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		return nil, rewriteNamespaceError(ctx, err)
 	}
 
+	readRevision, err := nss.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewriteNamespaceError(ctx, err)
+	}
+
 	for _, config := range req.Configs {
 		// Validate the type system for the updated namespace.
-		ts, terr := namespace.BuildNamespaceTypeSystemWithFallback(config, nsm, req.Configs)
+		ts, terr := namespace.BuildNamespaceTypeSystemWithFallback(config, nsm, req.Configs, readRevision)
 		if terr != nil {
 			return nil, rewriteNamespaceError(ctx, terr)
 		}
@@ -61,7 +66,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		//
 		// NOTE: We use the datastore here to read the namespace, rather than the namespace manager,
 		// to ensure there is no caching being used.
-		existing, _, err := nss.ds.ReadNamespace(ctx, config.Name)
+		existing, _, err := nss.ds.ReadNamespace(ctx, config.Name, readRevision)
 		if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
@@ -128,7 +133,12 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 }
 
 func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) (*v0.ReadConfigResponse, error) {
-	found, version, err := nss.ds.ReadNamespace(ctx, req.Namespace)
+	readRevision, err := nss.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewriteNamespaceError(ctx, err)
+	}
+
+	found, _, err := nss.ds.ReadNamespace(ctx, req.Namespace, readRevision)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
@@ -136,7 +146,7 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 	return &v0.ReadConfigResponse{
 		Namespace: req.Namespace,
 		Config:    found,
-		Revision:  zookie.NewFromRevision(version),
+		Revision:  zookie.NewFromRevision(readRevision),
 	}, nil
 }
 
@@ -149,7 +159,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 	// Ensure that all the specified namespaces can be deleted.
 	for _, nsName := range req.Namespaces {
 		// Ensure the namespace exists.
-		_, _, err := nss.ds.ReadNamespace(ctx, nsName)
+		_, _, err := nss.ds.ReadNamespace(ctx, nsName, syncRevision)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}

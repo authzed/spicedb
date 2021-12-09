@@ -66,8 +66,13 @@ func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispat
 }
 
 func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.WriteResponse, error) {
+	atRevision, err := as.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewriteACLError(ctx, err)
+	}
+
 	for _, mutation := range req.Updates {
-		err := validateTupleWrite(ctx, mutation.Tuple, as.nsm)
+		err := validateTupleWrite(ctx, mutation.Tuple, as.nsm, atRevision)
 		if err != nil {
 			return nil, rewriteACLError(ctx, err)
 		}
@@ -97,6 +102,24 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 }
 
 func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadResponse, error) {
+	var atRevision decimal.Decimal
+	if req.AtRevision != nil {
+		// Read should attempt to use the exact revision requested
+		decoded, err := zookie.DecodeRevision(req.AtRevision)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "bad request revision: %s", err)
+		}
+
+		atRevision = decoded
+	} else {
+		// No revision provided, we'll pick one
+		var err error
+		atRevision, err = as.ds.Revision(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to pick request revision: %s", err)
+		}
+	}
+
 	for _, tuplesetFilter := range req.Tuplesets {
 		checkedRelation := false
 		for _, filter := range tuplesetFilter.Filters {
@@ -120,6 +143,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 					tuplesetFilter.Namespace,
 					tuplesetFilter.Relation,
 					false, // Disallow ellipsis
+					atRevision,
 				); err != nil {
 					return nil, rewriteACLError(ctx, err)
 				}
@@ -146,27 +170,10 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 				tuplesetFilter.Namespace,
 				datastore.Ellipsis,
 				true, // Allow ellipsis
+				atRevision,
 			); err != nil {
 				return nil, rewriteACLError(ctx, err)
 			}
-		}
-	}
-
-	var atRevision decimal.Decimal
-	if req.AtRevision != nil {
-		// Read should attempt to use the exact revision requested
-		decoded, err := zookie.DecodeRevision(req.AtRevision)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "bad request revision: %s", err)
-		}
-
-		atRevision = decoded
-	} else {
-		// No revision provided, we'll pick one
-		var err error
-		atRevision, err = as.ds.Revision(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to pick request revision: %s", err)
 		}
 	}
 
@@ -248,12 +255,12 @@ func (as *aclServer) commonCheck(
 	start *v0.ObjectAndRelation,
 	goal *v0.ObjectAndRelation,
 ) (*v0.CheckResponse, error) {
-	err := as.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, start.Relation, false)
+	err := as.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, start.Relation, false, atRevision)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	err = as.nsm.CheckNamespaceAndRelation(ctx, goal.Namespace, goal.Relation, true)
+	err = as.nsm.CheckNamespaceAndRelation(ctx, goal.Namespace, goal.Relation, true, atRevision)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -290,12 +297,12 @@ func (as *aclServer) commonCheck(
 }
 
 func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.ExpandResponse, error) {
-	err := as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false)
+	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false, atRevision)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -320,17 +327,17 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 }
 
 func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.LookupResponse, error) {
-	err := as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true)
-	if err != nil {
-		return nil, rewriteACLError(ctx, err)
-	}
-
-	err = as.nsm.CheckNamespaceAndRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, false)
-	if err != nil {
-		return nil, rewriteACLError(ctx, err)
-	}
-
 	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
+	if err != nil {
+		return nil, rewriteACLError(ctx, err)
+	}
+
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true, atRevision)
+	if err != nil {
+		return nil, rewriteACLError(ctx, err)
+	}
+
+	err = as.nsm.CheckNamespaceAndRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, false, atRevision)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}

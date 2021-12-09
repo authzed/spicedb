@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/namespace"
 )
@@ -15,12 +16,18 @@ type invalidRelationError struct {
 	onr     *v0.ObjectAndRelation
 }
 
-func validateTupleWrite(ctx context.Context, tpl *v0.RelationTuple, nsm namespace.Manager) error {
+func validateTupleWrite(
+	ctx context.Context,
+	tpl *v0.RelationTuple,
+	nsm namespace.Manager,
+	revision decimal.Decimal,
+) error {
 	if err := nsm.CheckNamespaceAndRelation(
 		ctx,
 		tpl.ObjectAndRelation.Namespace,
 		tpl.ObjectAndRelation.Relation,
 		false, // Disallow ellipsis
+		revision,
 	); err != nil {
 		return err
 	}
@@ -30,11 +37,12 @@ func validateTupleWrite(ctx context.Context, tpl *v0.RelationTuple, nsm namespac
 		tpl.User.GetUserset().Namespace,
 		tpl.User.GetUserset().Relation,
 		true, // Allow Ellipsis
+		revision,
 	); err != nil {
 		return err
 	}
 
-	_, ts, _, err := nsm.ReadNamespaceAndTypes(ctx, tpl.ObjectAndRelation.Namespace)
+	_, ts, err := nsm.ReadNamespaceAndTypes(ctx, tpl.ObjectAndRelation.Namespace, revision)
 	if err != nil {
 		return err
 	}

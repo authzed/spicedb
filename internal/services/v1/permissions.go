@@ -17,7 +17,7 @@ import (
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	atRevision, checkedAt := consistency.MustRevisionFromContext(ctx)
 
-	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false)
+	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, atRevision)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -25,7 +25,9 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	err = ps.nsm.CheckNamespaceAndRelation(ctx,
 		req.Subject.Object.ObjectType,
 		normalizeSubjectRelation(req.Subject),
-		true)
+		true,
+		atRevision,
+	)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -70,7 +72,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
 	atRevision, expandedAt := consistency.MustRevisionFromContext(ctx)
 
-	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false)
+	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, atRevision)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -252,13 +254,18 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	ctx := resp.Context()
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
 
-	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Subject.Object.ObjectType,
-		normalizeSubjectRelation(req.Subject), true)
+	err := ps.nsm.CheckNamespaceAndRelation(
+		ctx,
+		req.Subject.Object.ObjectType,
+		normalizeSubjectRelation(req.Subject),
+		true,
+		atRevision,
+	)
 	if err != nil {
 		return rewritePermissionsError(ctx, err)
 	}
 
-	err = ps.nsm.CheckNamespaceAndRelation(ctx, req.ResourceObjectType, req.Permission, false)
+	err = ps.nsm.CheckNamespaceAndRelation(ctx, req.ResourceObjectType, req.Permission, false, atRevision)
 	if err != nil {
 		return rewritePermissionsError(ctx, err)
 	}

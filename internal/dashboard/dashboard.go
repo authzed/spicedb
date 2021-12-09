@@ -131,7 +131,14 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 			userFound := false
 			resourceFound := false
 
-			nsDefs, err := ds.ListNamespaces(r.Context())
+			syncRevision, err := ds.SyncRevision(r.Context())
+			if err != nil {
+				log.Ctx(r.Context()).Error().Err(err).Msg("Got error when computing datastore revision")
+				fmt.Fprintf(w, "Internal Error")
+				return
+			}
+
+			nsDefs, err := ds.ListNamespaces(r.Context(), syncRevision)
 			if err != nil {
 				log.Ctx(r.Context()).Error().AnErr("datastore-error", err).Msg("Got error when trying to load namespaces")
 				fmt.Fprintf(w, "Internal Error")

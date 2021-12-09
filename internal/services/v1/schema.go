@@ -40,7 +40,12 @@ type schemaServer struct {
 }
 
 func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
-	nsDefs, err := ss.ds.ListNamespaces(ctx)
+	readRevision, err := ss.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewritePermissionsError(ctx, err)
+	}
+
+	nsDefs, err := ss.ds.ListNamespaces(ctx, readRevision)
 	if err != nil {
 		return nil, rewriteSchemaError(ctx, err)
 	}
@@ -62,13 +67,19 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 
 func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaRequest) (*v1.WriteSchemaResponse, error) {
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
+
+	readRevision, err := ss.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewritePermissionsError(ctx, err)
+	}
+
 	inputSchema := compiler.InputSchema{
 		Source:       input.InputSource("schema"),
 		SchemaString: in.GetSchema(),
 	}
 
 	// Build a map of existing definitions to determine those being removed, if any.
-	existingDefs, err := ss.ds.ListNamespaces(ctx)
+	existingDefs, err := ss.ds.ListNamespaces(ctx, readRevision)
 	if err != nil {
 		return nil, rewriteSchemaError(ctx, err)
 	}
@@ -98,7 +109,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 			return nil, rewriteSchemaError(ctx, err)
 		}
 
-		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef); err != nil {
+		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef, readRevision); err != nil {
 			return nil, rewriteSchemaError(ctx, err)
 		}
 

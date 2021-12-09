@@ -9,6 +9,7 @@ import (
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -61,14 +62,14 @@ type permissionServer struct {
 	defaultDepth uint32
 }
 
-func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string) error {
+func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string, revision decimal.Decimal) error {
 	relationToTest := stringz.DefaultEmpty(optionalRelation, datastore.Ellipsis)
 	allowEllipsis := optionalRelation == ""
-	return ps.nsm.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis)
+	return ps.nsm.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, revision)
 }
 
-func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter) error {
-	if err := ps.checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation); err != nil {
+func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter, revision decimal.Decimal) error {
+	if err := ps.checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, revision); err != nil {
 		return err
 	}
 
@@ -77,7 +78,7 @@ func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v
 		if subjectFilter.OptionalRelation != nil {
 			subjectRelation = subjectFilter.OptionalRelation.Relation
 		}
-		if err := ps.checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation); err != nil {
+		if err := ps.checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, revision); err != nil {
 			return err
 		}
 	}
@@ -90,7 +91,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
 
-	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter); err != nil {
+	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, atRevision); err != nil {
 		return rewritePermissionsError(ctx, err)
 	}
 
@@ -146,8 +147,13 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 }
 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
+	readRevision, err := ps.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewritePermissionsError(ctx, err)
+	}
+
 	for _, precond := range req.OptionalPreconditions {
-		if err := ps.checkFilterNamespaces(ctx, precond.Filter); err != nil {
+		if err := ps.checkFilterNamespaces(ctx, precond.Filter, readRevision); err != nil {
 			return nil, rewritePermissionsError(ctx, err)
 		}
 	}
@@ -158,6 +164,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			update.Relationship.Resource.ObjectType,
 			update.Relationship.Relation,
 			false,
+			readRevision,
 		); err != nil {
 			return nil, rewritePermissionsError(ctx, err)
 		}
@@ -167,11 +174,12 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			update.Relationship.Subject.Object.ObjectType,
 			stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
 			true,
+			readRevision,
 		); err != nil {
 			return nil, rewritePermissionsError(ctx, err)
 		}
 
-		_, ts, _, err := ps.nsm.ReadNamespaceAndTypes(ctx, update.Relationship.Resource.ObjectType)
+		_, ts, err := ps.nsm.ReadNamespaceAndTypes(ctx, update.Relationship.Resource.ObjectType, readRevision)
 		if err != nil {
 			return nil, err
 		}
@@ -214,7 +222,12 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 }
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
-	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter); err != nil {
+	readRevision, err := ps.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewritePermissionsError(ctx, err)
+	}
+
+	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, readRevision); err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
 

@@ -35,17 +35,6 @@ func NewWatchServer(ds datastore.Datastore, nsm namespace.Manager) v0.WatchServi
 }
 
 func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchServer) error {
-	namespaceMap := make(map[string]struct{})
-	for _, ns := range req.Namespaces {
-		err := ws.nsm.CheckNamespaceAndRelation(stream.Context(), ns, datastore.Ellipsis, true)
-		if err != nil {
-			return status.Errorf(codes.FailedPrecondition, "invalid namespace: %s", err)
-		}
-
-		namespaceMap[ns] = struct{}{}
-	}
-	filter := namespaceFilter{namespaces: namespaceMap}
-
 	var afterRevision decimal.Decimal
 	if req.StartRevision != nil && req.StartRevision.Token != "" {
 		decodedRevision, err := zookie.DecodeRevision(req.StartRevision)
@@ -61,6 +50,17 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
 	}
+
+	namespaceMap := make(map[string]struct{})
+	for _, ns := range req.Namespaces {
+		err := ws.nsm.CheckNamespaceAndRelation(stream.Context(), ns, datastore.Ellipsis, true, afterRevision)
+		if err != nil {
+			return status.Errorf(codes.FailedPrecondition, "invalid namespace: %s", err)
+		}
+
+		namespaceMap[ns] = struct{}{}
+	}
+	filter := namespaceFilter{namespaces: namespaceMap}
 
 	updates, errchan := ws.ds.Watch(stream.Context(), afterRevision)
 	for {
