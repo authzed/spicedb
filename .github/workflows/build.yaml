@@ -41,7 +41,7 @@ jobs:
       - name: "Build"
         run: "go build ./cmd/..."
       - name: "Test"
-        run: "go test ./..."
+        run: "go test -race ./..."
       - name: "Full Datastore Integration Tests"
         run: "go test -tags ci ./..."
 
