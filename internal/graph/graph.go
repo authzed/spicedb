@@ -59,7 +59,7 @@ type ExpandReducer func(
 type ReduceableLookupFunc func(ctx context.Context, resultChan chan<- LookupResult)
 
 // LookupReducer is a type for the functions which combine lookup results.
-type LookupReducer func(ctx context.Context, parentReq *v1.DispatchLookupRequest, limit uint32, requests []ReduceableLookupFunc) LookupResult
+type LookupReducer func(ctx context.Context, parentReq ValidatedLookupRequest, limit uint32, requests []ReduceableLookupFunc) LookupResult
 
 func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 	return &v1.ResolverMeta{

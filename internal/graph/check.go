@@ -32,8 +32,15 @@ func onrEqual(lhs, rhs *v0.ObjectAndRelation) bool {
 	return lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation && lhs.Namespace == rhs.Namespace
 }
 
+// ValidatedCheckRequest represents a request after it has been validated and parsed for internal
+// consumption.
+type ValidatedCheckRequest struct {
+	*v1.DispatchCheckRequest
+	Revision decimal.Decimal
+}
+
 // Check performs a check request with the provided request and context
-func (cc *ConcurrentChecker) Check(ctx context.Context, req *v1.DispatchCheckRequest, relation *v0.Relation) (*v1.DispatchCheckResponse, error) {
+func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *v0.Relation) (*v1.DispatchCheckResponse, error) {
 	var directFunc ReduceableCheckFunc
 
 	if onrEqual(req.Subject, req.ObjectAndRelation) {
@@ -50,28 +57,22 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req *v1.DispatchCheckReq
 	return resolved.Resp, resolved.Err
 }
 
-func (cc *ConcurrentChecker) dispatch(req *v1.DispatchCheckRequest) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) dispatch(req ValidatedCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("dispatch", req).Send()
-		result, err := cc.d.DispatchCheck(ctx, req)
+		result, err := cc.d.DispatchCheck(ctx, req.DispatchCheckRequest)
 		resultChan <- CheckResult{result, err}
 	}
 }
 
-func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCheckRequest) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
-		if err != nil {
-			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
-			return
-		}
-
 		log.Ctx(ctx).Trace().Object("direct", req).Send()
 		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
 			ResourceType:             req.ObjectAndRelation.Namespace,
 			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
 			OptionalResourceRelation: req.ObjectAndRelation.Relation,
-		}, requestRevision).Execute(ctx)
+		}, req.Revision).Execute(ctx)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return
@@ -87,11 +88,14 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 			}
 			if tplUserset.Relation != Ellipsis {
 				// We need to recursively call check here, potentially changing namespaces
-				requestsToDispatch = append(requestsToDispatch, cc.dispatch(&v1.DispatchCheckRequest{
-					ObjectAndRelation: tplUserset,
-					Subject:           req.Subject,
+				requestsToDispatch = append(requestsToDispatch, cc.dispatch(ValidatedCheckRequest{
+					&v1.DispatchCheckRequest{
+						ObjectAndRelation: tplUserset,
+						Subject:           req.Subject,
 
-					Metadata: decrementDepth(req.Metadata),
+						Metadata: decrementDepth(req.Metadata),
+					},
+					req.Revision,
 				}))
 			}
 		}
@@ -103,7 +107,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req *v1.DispatchCh
 	}
 }
 
-func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, req *v1.DispatchCheckRequest, usr *v0.UsersetRewrite) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, req ValidatedCheckRequest, usr *v0.UsersetRewrite) ReduceableCheckFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *v0.UsersetRewrite_Union:
 		return cc.checkSetOperation(ctx, req, rw.Union, any)
@@ -116,7 +120,7 @@ func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, req *v1.Di
 	}
 }
 
-func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req *v1.DispatchCheckRequest, so *v0.SetOperation, reducer Reducer) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req ValidatedCheckRequest, so *v0.SetOperation, reducer Reducer) ReduceableCheckFunc {
 	var requests []ReduceableCheckFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
@@ -136,7 +140,7 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req *v1.Disp
 	}
 }
 
-func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req *v1.DispatchCheckRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req ValidatedCheckRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableCheckFunc {
 	var start *v0.ObjectAndRelation
 	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if tpl == nil {
@@ -164,7 +168,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req *v1.D
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	err := cc.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true)
+	err := cc.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, req.Revision)
 	if err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
 			return notMember()
@@ -173,27 +177,24 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req *v1.D
 		return checkError(err)
 	}
 
-	return cc.dispatch(&v1.DispatchCheckRequest{
-		ObjectAndRelation: targetOnr,
-		Subject:           req.Subject,
-		Metadata:          decrementDepth(req.Metadata),
+	return cc.dispatch(ValidatedCheckRequest{
+		&v1.DispatchCheckRequest{
+			ObjectAndRelation: targetOnr,
+			Subject:           req.Subject,
+			Metadata:          decrementDepth(req.Metadata),
+		},
+		req.Revision,
 	})
 }
 
-func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req *v1.DispatchCheckRequest, ttu *v0.TupleToUserset) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req ValidatedCheckRequest, ttu *v0.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
-		if err != nil {
-			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
-			return
-		}
-
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
 		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
 			ResourceType:             req.ObjectAndRelation.Namespace,
 			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
 			OptionalResourceRelation: ttu.Tupleset.Relation,
-		}, requestRevision).Execute(ctx)
+		}, req.Revision).Execute(ctx)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return
