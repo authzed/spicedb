@@ -47,15 +47,15 @@ type Datastore interface {
 	// returning the version of the namespace that was created.
 	WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (Revision, error)
 
-	// ReadNamespace reads a namespace definition and version and returns it if
-	// found.
-	ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, Revision, error)
+	// ReadNamespace reads a namespace definition and version and returns it, and the revision at
+	// which it was created or last written, if found.
+	ReadNamespace(ctx context.Context, nsName string, revision Revision) (ns *v0.NamespaceDefinition, lastWritten Revision, err error)
 
 	// DeleteNamespace deletes a namespace and any associated tuples.
 	DeleteNamespace(ctx context.Context, nsName string) (Revision, error)
 
 	// ListNamespaces lists all namespaces defined.
-	ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error)
+	ListNamespaces(ctx context.Context, revision Revision) ([]*v0.NamespaceDefinition, error)
 
 	// IsReady returns whether the datastore is ready to accept data. Datastores that require
 	// database schema creation will return false until the migrations have been run to create

@@ -82,14 +82,18 @@ func (vd validatingDatastore) WriteNamespace(ctx context.Context, newConfig *v0.
 	return vd.delegate.WriteNamespace(ctx, newConfig)
 }
 
-func (vd validatingDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
-	read, rev, err := vd.delegate.ReadNamespace(ctx, nsName)
+func (vd validatingDatastore) ReadNamespace(
+	ctx context.Context,
+	nsName string,
+	revision datastore.Revision,
+) (*v0.NamespaceDefinition, datastore.Revision, error) {
+	read, createdAt, err := vd.delegate.ReadNamespace(ctx, nsName, revision)
 	if err != nil {
-		return read, rev, err
+		return read, createdAt, err
 	}
 
 	err = read.Validate()
-	return read, rev, err
+	return read, createdAt, err
 }
 
 func (vd validatingDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
@@ -110,7 +114,7 @@ func (vd validatingDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectName
 			nil,
 			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
 			nil,
-			fmt.Errorf("Empty subject namespace given to ReverseQueryTuplesFromSubjectNamespace"),
+			fmt.Errorf("empty subject namespace given to ReverseQueryTuplesFromSubjectNamespace"),
 		}
 	}
 
@@ -128,7 +132,7 @@ func (vd validatingDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNames
 			nil,
 			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
 			nil,
-			fmt.Errorf("Empty subject namespace given to ReverseQueryTuplesFromSubjectRelation"),
+			fmt.Errorf("empty subject namespace given to ReverseQueryTuplesFromSubjectRelation"),
 		}
 	}
 
@@ -137,7 +141,7 @@ func (vd validatingDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNames
 			nil,
 			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
 			nil,
-			fmt.Errorf("Empty subject relation given to ReverseQueryTuplesFromSubjectRelation"),
+			fmt.Errorf("empty subject relation given to ReverseQueryTuplesFromSubjectRelation"),
 		}
 	}
 
@@ -148,8 +152,11 @@ func (vd validatingDatastore) CheckRevision(ctx context.Context, revision datast
 	return vd.delegate.CheckRevision(ctx, revision)
 }
 
-func (vd validatingDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
-	read, err := vd.delegate.ListNamespaces(ctx)
+func (vd validatingDatastore) ListNamespaces(
+	ctx context.Context,
+	revision datastore.Revision,
+) ([]*v0.NamespaceDefinition, error) {
+	read, err := vd.delegate.ListNamespaces(ctx, revision)
 	if err != nil {
 		return read, err
 	}
@@ -207,7 +214,7 @@ func (vd validatingTupleQuery) WithObjectRelation(namespace string, relation str
 		return validatingTupleQuery{
 			wrapped:        nil,
 			wrappedReverse: vd.wrappedReverse,
-			foundErr:       fmt.Errorf("Empty namespace given to WithObjectRelation"),
+			foundErr:       fmt.Errorf("empty namespace given to WithObjectRelation"),
 		}
 	}
 
@@ -215,7 +222,7 @@ func (vd validatingTupleQuery) WithObjectRelation(namespace string, relation str
 		return validatingTupleQuery{
 			wrapped:        nil,
 			wrappedReverse: vd.wrappedReverse,
-			foundErr:       fmt.Errorf("Empty relation given to WithObjectRelation"),
+			foundErr:       fmt.Errorf("empty relation given to WithObjectRelation"),
 		}
 	}
 
