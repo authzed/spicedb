@@ -42,12 +42,12 @@ func TestDatastoreRequestHedging(t *testing.T) {
 	}{
 		{
 			"ReadNamespace",
-			[]interface{}{mock.Anything, nsKnown},
+			[]interface{}{mock.Anything, nsKnown, datastore.NoRevision},
 			[]interface{}{&v0.NamespaceDefinition{}, revisionKnown, errKnown},
 			[]interface{}{&v0.NamespaceDefinition{}, anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
-				_, rev, err := proxy.ReadNamespace(context.Background(), nsKnown)
+				_, rev, err := proxy.ReadNamespace(context.Background(), nsKnown, datastore.NoRevision)
 				require.ErrorIs(errKnown, err)
 				if expectFirst {
 					require.Equal(revisionKnown, rev)

@@ -203,13 +203,13 @@ func (hp hedgingProxy) SyncRevision(ctx context.Context) (rev datastore.Revision
 	return
 }
 
-func (hp hedgingProxy) ReadNamespace(ctx context.Context, nsName string) (ns *v0.NamespaceDefinition, rev datastore.Revision, err error) {
+func (hp hedgingProxy) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (ns *v0.NamespaceDefinition, createdAt datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegatedNs, delegatedRev, delegatedErr := hp.delegate.ReadNamespace(ctx, nsName)
+		delegatedNs, delegatedRev, delegatedErr := hp.delegate.ReadNamespace(ctx, nsName, revision)
 		once.Do(func() {
 			ns = delegatedNs
-			rev = delegatedRev
+			createdAt = delegatedRev
 			err = delegatedErr
 		})
 		responseReady <- struct{}{}
@@ -280,8 +280,8 @@ func (hp hedgingProxy) CheckRevision(ctx context.Context, revision datastore.Rev
 	return hp.delegate.CheckRevision(ctx, revision)
 }
 
-func (hp hedgingProxy) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
-	return hp.delegate.ListNamespaces(ctx)
+func (hp hedgingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+	return hp.delegate.ListNamespaces(ctx, revision)
 }
 
 type hedgingTupleQuery struct {

@@ -53,8 +53,8 @@ func (rd roDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Namespac
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
-	return rd.delegate.ReadNamespace(ctx, nsName)
+func (rd roDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*v0.NamespaceDefinition, datastore.Revision, error) {
+	return rd.delegate.ReadNamespace(ctx, nsName, revision)
 }
 
 func (rd roDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
@@ -81,6 +81,6 @@ func (rd roDatastore) CheckRevision(ctx context.Context, revision datastore.Revi
 	return rd.delegate.CheckRevision(ctx, revision)
 }
 
-func (rd roDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
-	return rd.delegate.ListNamespaces(ctx)
+func (rd roDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+	return rd.delegate.ListNamespaces(ctx, revision)
 }

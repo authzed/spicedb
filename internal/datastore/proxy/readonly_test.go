@@ -129,9 +129,9 @@ func TestReadNamespacePassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	delegate.On("ReadNamespace", "test").Return(&v0.NamespaceDefinition{}, expectedRevision, nil).Times(1)
+	delegate.On("ReadNamespace", "test", expectedRevision).Return(&v0.NamespaceDefinition{}, expectedRevision, nil).Times(1)
 
-	ns, revision, err := ds.ReadNamespace(ctx, "test")
+	ns, revision, err := ds.ReadNamespace(ctx, "test", expectedRevision)
 	require.Equal(&v0.NamespaceDefinition{}, ns)
 	require.Equal(expectedRevision, revision)
 	require.NoError(err)
@@ -197,9 +197,9 @@ func TestListNamespacesPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	delegate.On("ListNamespaces").Return([]*v0.NamespaceDefinition{}, nil).Times(1)
+	delegate.On("ListNamespaces", expectedRevision).Return([]*v0.NamespaceDefinition{}, nil).Times(1)
 
-	nsDefs, err := ds.ListNamespaces(ctx)
+	nsDefs, err := ds.ListNamespaces(ctx, expectedRevision)
 	require.Equal([]*v0.NamespaceDefinition{}, nsDefs)
 	require.NoError(err)
 	delegate.AssertExpectations(t)
@@ -237,8 +237,8 @@ func (dm *delegateMock) WriteNamespace(ctx context.Context, newConfig *v0.Namesp
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
-	args := dm.Called(nsName)
+func (dm *delegateMock) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*v0.NamespaceDefinition, datastore.Revision, error) {
+	args := dm.Called(nsName, revision)
 	return args.Get(0).(*v0.NamespaceDefinition), args.Get(1).(datastore.Revision), args.Error(2)
 }
 
@@ -271,8 +271,8 @@ func (dm *delegateMock) CheckRevision(ctx context.Context, revision datastore.Re
 	return args.Error(0)
 }
 
-func (dm *delegateMock) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
-	args := dm.Called()
+func (dm *delegateMock) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+	args := dm.Called(revision)
 	return args.Get(0).([]*v0.NamespaceDefinition), args.Error(1)
 }
 
