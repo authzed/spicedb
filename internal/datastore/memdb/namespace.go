@@ -7,6 +7,7 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/hashicorp/go-memdb"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -18,7 +19,10 @@ const (
 	errUnableToDeleteConfig = "unable to delete namespace config: %w"
 )
 
-func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (mds *memdbDatastore) WriteNamespace(
+	ctx context.Context,
+	newConfig *v0.NamespaceDefinition,
+) (datastore.Revision, error) {
 	db := mds.db
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
@@ -70,7 +74,11 @@ func (mds *memdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 }
 
 // ReadNamespace reads a namespace definition and version and returns it if found.
-func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
+func (mds *memdbDatastore) ReadNamespace(
+	ctx context.Context,
+	nsName string,
+	revision datastore.Revision,
+) (*v0.NamespaceDefinition, datastore.Revision, error) {
 	db := mds.db
 	if db == nil {
 		return nil, datastore.NoRevision, fmt.Errorf("memdb closed")
@@ -80,11 +88,13 @@ func (mds *memdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v
 	defer txn.Abort()
 
 	time.Sleep(mds.simulatedLatency)
-	foundRaw, err := txn.First(tableNamespace, indexLive, nsName, deletedTransactionID)
+	foundIter, err := txn.Get(tableNamespace, indexID, nsName)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
+	foundFiltered := memdb.NewFilterIterator(foundIter, filterToLiveObjects(revision))
+	foundRaw := foundFiltered.Next()
 	if foundRaw == nil {
 		return nil, datastore.NoRevision, datastore.NewNamespaceNotFoundErr(nsName)
 	}
@@ -150,7 +160,10 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	return revisionFromVersion(writeTxnID), nil
 }
 
-func (mds *memdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
+func (mds *memdbDatastore) ListNamespaces(
+	ctx context.Context,
+	revision datastore.Revision,
+) ([]*v0.NamespaceDefinition, error) {
 	db := mds.db
 	if db == nil {
 		return nil, fmt.Errorf("memdb closed")
@@ -161,10 +174,12 @@ func (mds *memdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceD
 	txn := db.Txn(false)
 	defer txn.Abort()
 
-	it, err := txn.Get(tableNamespace, indexDeletedTxn, deletedTransactionID)
+	aliveAndDead, err := txn.LowerBound(tableNamespace, indexID)
 	if err != nil {
-		return nsDefs, err
+		return nil, fmt.Errorf(errUnableToReadConfig, err)
 	}
+
+	it := memdb.NewFilterIterator(aliveAndDead, filterToLiveObjects(revision))
 
 	for {
 		foundRaw := it.Next()

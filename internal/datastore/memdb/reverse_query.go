@@ -99,13 +99,7 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 
-	filteredIterator := memdb.NewFilterIterator(bestIterator, func(tupleRaw interface{}) bool {
-		tuple := tupleRaw.(*relationship)
-		if uint64(mtq.revision.IntPart()) < tuple.createdTxn || uint64(mtq.revision.IntPart()) >= tuple.deletedTxn {
-			return true
-		}
-		return false
-	})
+	filteredIterator := memdb.NewFilterIterator(bestIterator, filterToLiveObjects(mtq.revision))
 
 	iter := &memdbTupleIterator{
 		txn:   txn,
