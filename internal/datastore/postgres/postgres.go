@@ -552,3 +552,11 @@ func revisionFromTransaction(txID uint64) datastore.Revision {
 func transactionFromRevision(revision datastore.Revision) uint64 {
 	return uint64(revision.IntPart())
 }
+
+func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {
+	return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+		Where(sq.Or{
+			sq.Eq{colDeletedTxn: liveDeletedTxnID},
+			sq.Gt{colDeletedTxn: revision},
+		})
+}

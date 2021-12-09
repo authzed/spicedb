@@ -28,13 +28,8 @@ var schema = common.SchemaInformation{
 }
 
 func (pgd *pgDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	initialQuery := queryTuples.
-		Where(sq.Eq{colNamespace: filter.ResourceType}).
-		Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
-		Where(sq.Or{
-			sq.Eq{colDeletedTxn: liveDeletedTxnID},
-			sq.Gt{colDeletedTxn: revision},
-		})
+	initialQuery := filterToLivingObjects(queryTuples, revision).
+		Where(sq.Eq{colNamespace: filter.ResourceType})
 
 	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
 
