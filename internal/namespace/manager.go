@@ -16,7 +16,7 @@ type Manager interface {
 	//
 	// Returns ErrNamespaceNotFound if the namespace cannot be found.
 	// Returns the direct downstream error for all other unknown error.
-	ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, decimal.Decimal, error)
+	ReadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*v0.NamespaceDefinition, error)
 
 	// CheckNamespaceAndRelation checks that the specified namespace and relation exist in the
 	// datastore.
@@ -24,10 +24,10 @@ type Manager interface {
 	// Returns ErrNamespaceNotFound if the namespace cannot be found.
 	// Returns ErrRelationNotFound if the relation was not found in the namespace.
 	// Returns the direct downstream error for all other unknown error.
-	CheckNamespaceAndRelation(ctx context.Context, namespace, relation string, allowEllipsis bool) error
+	CheckNamespaceAndRelation(ctx context.Context, namespace, relation string, allowEllipsis bool, revision decimal.Decimal) error
 
 	// ReadNamespaceAndTypes reads a namespace definition, version, and type system and returns it if found.
-	ReadNamespaceAndTypes(ctx context.Context, nsName string) (*v0.NamespaceDefinition, *NamespaceTypeSystem, decimal.Decimal, error)
+	ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*v0.NamespaceDefinition, *NamespaceTypeSystem, error)
 
 	// Closes the namespace manager, disposing of any resources.
 	//
