@@ -64,7 +64,11 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Name
 	return hlcNow, nil
 }
 
-func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
+func (cds *crdbDatastore) ReadNamespace(
+	ctx context.Context,
+	nsName string,
+	revision datastore.Revision,
+) (*v0.NamespaceDefinition, datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
@@ -72,6 +76,10 @@ func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 	defer tx.Rollback(ctx)
+
+	if err := cds.prepareTransaction(ctx, tx, revision); err != nil {
+		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
+	}
 
 	config, timestamp, err := loadNamespace(ctx, tx, nsName)
 	if err != nil {
@@ -87,10 +95,10 @@ func (cds *crdbDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0
 func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	var timestamp time.Time
+	var hlcNow decimal.Decimal
 	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var err error
-		_, timestamp, err = loadNamespace(ctx, tx, nsName)
+		_, timestamp, err := loadNamespace(ctx, tx, nsName)
 		if err != nil {
 			return err
 		}
@@ -111,14 +119,14 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 		}
 
 		deleteTupleSQL, deleteTupleArgs, err := queryDeleteTuples.
+			Suffix(queryReturningTimestamp).
 			Where(sq.Eq{colNamespace: nsName}).
 			ToSql()
 		if err != nil {
 			return err
 		}
 
-		_, err = tx.Exec(ctx, deleteTupleSQL, deleteTupleArgs...)
-		return err
+		return tx.QueryRow(ctx, deleteTupleSQL, deleteTupleArgs...).Scan(&hlcNow)
 	}); err != nil {
 		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return datastore.NoRevision, err
@@ -126,7 +134,7 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	return revisionFromTimestamp(timestamp), nil
+	return hlcNow, nil
 }
 
 func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*v0.NamespaceDefinition, time.Time, error) {
@@ -155,7 +163,7 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*v0.Namespace
 	return loaded, timestamp, nil
 }
 
-func (cds *crdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
+func (cds *crdbDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := cds.conn.Begin(ctx)
@@ -163,6 +171,10 @@ func (cds *crdbDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDe
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 	defer tx.Rollback(ctx)
+
+	if err := cds.prepareTransaction(ctx, tx, revision); err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
 
 	query := queryReadNamespace
 
