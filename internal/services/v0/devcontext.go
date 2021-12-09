@@ -118,17 +118,20 @@ func newDevContext(ctx context.Context, requestContext *v0.RequestContext, ds da
 }
 
 func (dc *DevContext) dispose() {
-	datastore := dc.Datastore
-	if datastore != nil {
-		err := dc.NamespaceManager.Close()
-		if err != nil {
-			log.Ctx(dc.Ctx).Err(err).Msg("error when disposing of namespace manager in devcontext")
-		}
+	if err := dc.Dispatcher.Close(); err != nil {
+		log.Ctx(dc.Ctx).Err(err).Msg("error when disposing of dispatcher in devcontext")
+	}
+	if dc.Datastore == nil {
+		return
+	}
+	err := dc.NamespaceManager.Close()
+	if err != nil {
+		log.Ctx(dc.Ctx).Err(err).Msg("error when disposing of namespace manager in devcontext")
+	}
 
-		err = datastore.Close()
-		if err != nil {
-			log.Ctx(dc.Ctx).Err(err).Msg("error when disposing of datastore in devcontext")
-		}
+	err = dc.Datastore.Close()
+	if err != nil {
+		log.Ctx(dc.Ctx).Err(err).Msg("error when disposing of datastore in devcontext")
 	}
 }
 
