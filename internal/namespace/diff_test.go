@@ -126,7 +126,7 @@ func TestNamespaceDiff(t *testing.T) {
 				ns.Relation("somerel", ns.Union(
 					ns.This(),
 					ns.ComputedUserset("owner"),
-				), ns.RelationReference("foo", "bar")),
+				), ns.AllowedRelation("foo", "bar")),
 			),
 			[]Delta{
 				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
@@ -142,7 +142,7 @@ func TestNamespaceDiff(t *testing.T) {
 				ns.Relation("somerel", ns.Union(
 					ns.This(),
 					ns.ComputedUserset("owner"),
-				), ns.RelationReference("foo", "bar")),
+				), ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
@@ -165,14 +165,14 @@ func TestNamespaceDiff(t *testing.T) {
 				ns.Relation("somerel", ns.Union(
 					ns.This(),
 					ns.ComputedUserset("owner"),
-				), ns.RelationReference("foo", "bar")),
+				), ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
 					ns.This(),
 					ns.ComputedUserset("owner"),
-				), ns.RelationReference("foo", "bar")),
+				), ns.AllowedRelation("foo", "bar")),
 			),
 			[]Delta{},
 		},
@@ -183,14 +183,14 @@ func TestNamespaceDiff(t *testing.T) {
 				ns.Relation("somerel", ns.Union(
 					ns.This(),
 					ns.ComputedUserset("owner"),
-				), ns.RelationReference("foo", "bar")),
+				), ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
 					ns.This(),
 					ns.ComputedUserset("owner"),
-				), ns.RelationReference("foo2", "bar")),
+				), ns.AllowedRelation("foo2", "bar")),
 			),
 			[]Delta{
 				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &v0.RelationReference{
@@ -200,6 +200,52 @@ func TestNamespaceDiff(t *testing.T) {
 				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
 					Namespace: "foo2",
 					Relation:  "bar",
+				}},
+			},
+		},
+		{
+			"wildcard type added and removed",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", ns.Union(
+					ns.This(),
+					ns.ComputedUserset("owner"),
+				), ns.AllowedPublicNamespace("foo")),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", ns.Union(
+					ns.This(),
+					ns.ComputedUserset("owner"),
+				), ns.AllowedPublicNamespace("foo2")),
+			),
+			[]Delta{
+				{Type: RelationDirectWildcardTypeRemoved, RelationName: "somerel", WildcardType: "foo"},
+				{Type: RelationDirectWildcardTypeAdded, RelationName: "somerel", WildcardType: "foo2"},
+			},
+		},
+
+		{
+			"wildcard type changed",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", ns.Union(
+					ns.This(),
+					ns.ComputedUserset("owner"),
+				), ns.AllowedPublicNamespace("foo")),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", ns.Union(
+					ns.This(),
+					ns.ComputedUserset("owner"),
+				), ns.AllowedRelation("foo", "something")),
+			),
+			[]Delta{
+				{Type: RelationDirectWildcardTypeRemoved, RelationName: "somerel", WildcardType: "foo"},
+				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
+					Namespace: "foo",
+					Relation:  "something",
 				}},
 			},
 		},

@@ -37,6 +37,14 @@ const (
 	// RelationDirectTypeRemoved indicates that an allowed direct relation type has been removed from
 	// the relation.
 	RelationDirectTypeRemoved DeltaType = "relation-direct-type-removed"
+
+	// RelationDirectWildcardTypeAdded indicates that an allowed relation wildcard type has been added to
+	// the relation.
+	RelationDirectWildcardTypeAdded DeltaType = "relation-direct-type-added"
+
+	// RelationDirectWildcardTypeRemoved indicates that an allowed relation wildcard type has been removed from
+	// the relation.
+	RelationDirectWildcardTypeRemoved DeltaType = "relation-direct-type-removed"
 )
 
 // NamespaceDiff holds the diff between two namespaces.
@@ -60,6 +68,9 @@ type Delta struct {
 
 	// DirectType is the direct relation type added or removed, if any.
 	DirectType *v0.RelationReference
+
+	// WildcardType is the wildcard type added or removed, if any.
+	WildcardType string
 }
 
 // DiffNamespaces performs a diff between two namespace definitions. One or both of the definitions
@@ -167,41 +178,77 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 		updatedAllowedRels := tuple.NewONRSet()
 
 		for _, existingAllowed := range existingTypeInfo.AllowedDirectRelations {
-			existingAllowedRels.Add(&v0.ObjectAndRelation{
-				Namespace: existingAllowed.Namespace,
-				Relation:  existingAllowed.Relation,
-				ObjectId:  "",
-			})
+			if existingAllowed.GetRelation() != "" {
+				existingAllowedRels.Add(&v0.ObjectAndRelation{
+					Namespace: existingAllowed.Namespace,
+					Relation:  existingAllowed.GetRelation(),
+					ObjectId:  "",
+				})
+			}
+
+			if existingAllowed.GetPublicWildcard() != nil {
+				existingAllowedRels.Add(&v0.ObjectAndRelation{
+					Namespace: existingAllowed.Namespace,
+					Relation:  "-",
+					ObjectId:  tuple.PublicWildcard,
+				})
+			}
 		}
 
 		for _, updatedAllowed := range updatedTypeInfo.AllowedDirectRelations {
-			updatedAllowedRels.Add(&v0.ObjectAndRelation{
-				Namespace: updatedAllowed.Namespace,
-				Relation:  updatedAllowed.Relation,
-				ObjectId:  "",
-			})
+			if updatedAllowed.GetRelation() != "" {
+				updatedAllowedRels.Add(&v0.ObjectAndRelation{
+					Namespace: updatedAllowed.Namespace,
+					Relation:  updatedAllowed.GetRelation(),
+					ObjectId:  "",
+				})
+			}
+
+			if updatedAllowed.GetPublicWildcard() != nil {
+				updatedAllowedRels.Add(&v0.ObjectAndRelation{
+					Namespace: updatedAllowed.Namespace,
+					Relation:  "-",
+					ObjectId:  tuple.PublicWildcard,
+				})
+			}
 		}
 
 		for _, removed := range existingAllowedRels.Subtract(updatedAllowedRels).AsSlice() {
-			deltas = append(deltas, Delta{
-				Type:         RelationDirectTypeRemoved,
-				RelationName: shared,
-				DirectType: &v0.RelationReference{
-					Namespace: removed.Namespace,
-					Relation:  removed.Relation,
-				},
-			})
+			if removed.ObjectId == tuple.PublicWildcard {
+				deltas = append(deltas, Delta{
+					Type:         RelationDirectWildcardTypeRemoved,
+					RelationName: shared,
+					WildcardType: removed.Namespace,
+				})
+			} else {
+				deltas = append(deltas, Delta{
+					Type:         RelationDirectTypeRemoved,
+					RelationName: shared,
+					DirectType: &v0.RelationReference{
+						Namespace: removed.Namespace,
+						Relation:  removed.Relation,
+					},
+				})
+			}
 		}
 
 		for _, added := range updatedAllowedRels.Subtract(existingAllowedRels).AsSlice() {
-			deltas = append(deltas, Delta{
-				Type:         RelationDirectTypeAdded,
-				RelationName: shared,
-				DirectType: &v0.RelationReference{
-					Namespace: added.Namespace,
-					Relation:  added.Relation,
-				},
-			})
+			if added.ObjectId == tuple.PublicWildcard {
+				deltas = append(deltas, Delta{
+					Type:         RelationDirectWildcardTypeAdded,
+					RelationName: shared,
+					WildcardType: added.Namespace,
+				})
+			} else {
+				deltas = append(deltas, Delta{
+					Type:         RelationDirectTypeAdded,
+					RelationName: shared,
+					DirectType: &v0.RelationReference{
+						Namespace: added.Namespace,
+						Relation:  added.Relation,
+					},
+				})
+			}
 		}
 	}
 

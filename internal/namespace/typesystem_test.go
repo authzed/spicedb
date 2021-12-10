@@ -84,7 +84,7 @@ func TestTypeSystem(t *testing.T) {
 				ns.Relation("owner", nil),
 				ns.Relation("editor", ns.Union(
 					ns.ComputedUserset("owner"),
-				), ns.RelationReference("document", "owner")),
+				), ns.AllowedRelation("document", "owner")),
 			),
 			[]*v0.NamespaceDefinition{},
 			"direct relations are not allowed under relation `editor`",
@@ -93,7 +93,7 @@ func TestTypeSystem(t *testing.T) {
 			"relation in relation types has invalid namespace",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil, ns.RelationReference("someinvalidns", "...")),
+				ns.Relation("owner", nil, ns.AllowedRelation("someinvalidns", "...")),
 				ns.Relation("editor", ns.Union(
 					ns.This(),
 					ns.ComputedUserset("owner"),
@@ -113,7 +113,7 @@ func TestTypeSystem(t *testing.T) {
 			"relation in relation types has invalid relation",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil, ns.RelationReference("anotherns", "foobar")),
+				ns.Relation("owner", nil, ns.AllowedRelation("anotherns", "foobar")),
 				ns.Relation("editor", ns.Union(
 					ns.This(),
 					ns.ComputedUserset("owner"),
@@ -137,35 +137,64 @@ func TestTypeSystem(t *testing.T) {
 			"full type check",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil, ns.RelationReference("user", "...")),
+				ns.Relation("owner", nil, ns.AllowedRelation("user", "...")),
 				ns.Relation("can_comment",
 					nil,
-					ns.RelationReference("user", "..."),
-					ns.RelationReference("folder", "can_comment"),
+					ns.AllowedRelation("user", "..."),
+					ns.AllowedRelation("folder", "can_comment"),
 				),
 				ns.Relation("editor",
 					ns.Union(
 						ns.ComputedUserset("owner"),
 						ns.This(),
 					),
-					ns.RelationReference("user", "..."),
+					ns.AllowedRelation("user", "..."),
 				),
-				ns.Relation("parent", nil, ns.RelationReference("folder", "...")),
+				ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
 				ns.Relation("viewer", ns.Union(
 					ns.This(),
 					ns.ComputedUserset("editor"),
 					ns.TupleToUserset("parent", "viewer"),
-				), ns.RelationReference("user", "...")),
+				), ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
 			),
 			[]*v0.NamespaceDefinition{
 				ns.Namespace("user"),
 				ns.Namespace(
 					"folder",
-					ns.Relation("can_comment", nil, ns.RelationReference("user", "...")),
-					ns.Relation("parent", nil, ns.RelationReference("folder", "...")),
+					ns.Relation("can_comment", nil, ns.AllowedRelation("user", "...")),
+					ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
 				),
 			},
 			"",
+		},
+		{
+			"transitive wildcard type check",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelation("group", "member")),
+			),
+			[]*v0.NamespaceDefinition{
+				ns.Namespace("user"),
+				ns.Namespace(
+					"group",
+					ns.Relation("member", nil, ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
+				),
+			},
+			"for relation `viewer`: relation/permission `group#member` includes wildcard (public) type `user`: wildcard relations cannot be transitively included",
+		},
+		{
+			"ttu wildcard type check",
+			ns.Namespace(
+				"folder",
+				ns.Relation("parent", nil, ns.AllowedRelation("folder", "..."), ns.AllowedPublicNamespace("folder")),
+				ns.Relation("viewer", ns.Union(
+					ns.TupleToUserset("parent", "viewer"),
+				)),
+			),
+			[]*v0.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			"for arrow under relation `viewer`: relation `folder#parent` includes wildcard (public) type `folder`: wildcard relations cannot be used on the left side of arrows",
 		},
 	}
 

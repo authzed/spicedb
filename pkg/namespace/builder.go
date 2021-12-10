@@ -22,7 +22,7 @@ func NamespaceWithComment(name string, comment string, relations ...*v0.Relation
 }
 
 // Relation creates a relation definition with an optional rewrite definition.
-func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ...*v0.RelationReference) *v0.Relation {
+func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ...*v0.AllowedRelation) *v0.Relation {
 	var typeInfo *v0.TypeInformation
 	if len(allowedDirectRelations) > 0 {
 		typeInfo = &v0.TypeInformation{
@@ -57,10 +57,30 @@ func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ..
 }
 
 // RelationWithComment creates a relation definition with an optional rewrite definition.
-func RelationWithComment(name string, comment string, rewrite *v0.UsersetRewrite, allowedDirectRelations ...*v0.RelationReference) *v0.Relation {
+func RelationWithComment(name string, comment string, rewrite *v0.UsersetRewrite, allowedDirectRelations ...*v0.AllowedRelation) *v0.Relation {
 	rel := Relation(name, rewrite, allowedDirectRelations...)
 	rel.Metadata, _ = AddComment(rel.Metadata, comment)
 	return rel
+}
+
+// AllowedRelation creates a relation reference to an allowed relation.
+func AllowedRelation(namespaceName string, relationName string) *v0.AllowedRelation {
+	return &v0.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &v0.AllowedRelation_Relation{
+			Relation: relationName,
+		},
+	}
+}
+
+// AllowedPublicNamespace creates a relation reference to an allowed public namespace.
+func AllowedPublicNamespace(namespaceName string) *v0.AllowedRelation {
+	return &v0.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &v0.AllowedRelation_PublicWildcard_{
+			PublicWildcard: &v0.AllowedRelation_PublicWildcard{},
+		},
+	}
 }
 
 // RelationReference creates a relation reference.
