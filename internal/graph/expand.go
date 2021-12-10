@@ -34,8 +34,15 @@ type ConcurrentExpander struct {
 	nsm namespace.Manager
 }
 
+// ValidatedExpandRequest represents a request after it has been validated and parsed for internal
+// consumption.
+type ValidatedExpandRequest struct {
+	*v1.DispatchExpandRequest
+	Revision decimal.Decimal
+}
+
 // Expand performs an expand request with the provided request and context.
-func (ce *ConcurrentExpander) Expand(ctx context.Context, req *v1.DispatchExpandRequest, relation *v0.Relation) (*v1.DispatchExpandResponse, error) {
+func (ce *ConcurrentExpander) Expand(ctx context.Context, req ValidatedExpandRequest, relation *v0.Relation) (*v1.DispatchExpandResponse, error) {
 	log.Ctx(ctx).Trace().Object("expand", req).Send()
 
 	var directFunc ReduceableExpandFunc
@@ -52,23 +59,17 @@ func (ce *ConcurrentExpander) Expand(ctx context.Context, req *v1.DispatchExpand
 
 func (ce *ConcurrentExpander) expandDirect(
 	ctx context.Context,
-	req *v1.DispatchExpandRequest,
+	req ValidatedExpandRequest,
 	startBehavior startInclusion,
 ) ReduceableExpandFunc {
 
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
-		if err != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
-			return
-		}
-
 		it, err := ce.ds.QueryTuples(datastore.TupleQueryResourceFilter{
 			ResourceType:             req.ObjectAndRelation.Namespace,
 			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
 			OptionalResourceRelation: req.ObjectAndRelation.Relation,
-		}, requestRevision).Execute(ctx)
+		}, req.Revision).Execute(ctx)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return
@@ -116,10 +117,13 @@ func (ce *ConcurrentExpander) expandDirect(
 		// found terminals together.
 		var requestsToDispatch []ReduceableExpandFunc
 		for _, nonTerminalUser := range foundNonTerminalUsersets {
-			requestsToDispatch = append(requestsToDispatch, ce.dispatch(&v1.DispatchExpandRequest{
-				ObjectAndRelation: nonTerminalUser.GetUserset(),
-				Metadata:          decrementDepth(req.Metadata),
-				ExpansionMode:     req.ExpansionMode,
+			requestsToDispatch = append(requestsToDispatch, ce.dispatch(ValidatedExpandRequest{
+				&v1.DispatchExpandRequest{
+					ObjectAndRelation: nonTerminalUser.GetUserset(),
+					Metadata:          decrementDepth(req.Metadata),
+					ExpansionMode:     req.ExpansionMode,
+				},
+				req.Revision,
 			}))
 		}
 
@@ -142,7 +146,7 @@ func (ce *ConcurrentExpander) expandDirect(
 	}
 }
 
-func (ce *ConcurrentExpander) expandUsersetRewrite(ctx context.Context, req *v1.DispatchExpandRequest, usr *v0.UsersetRewrite) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandUsersetRewrite(ctx context.Context, req ValidatedExpandRequest, usr *v0.UsersetRewrite) ReduceableExpandFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *v0.UsersetRewrite_Union:
 		log.Ctx(ctx).Trace().Msg("union")
@@ -158,7 +162,7 @@ func (ce *ConcurrentExpander) expandUsersetRewrite(ctx context.Context, req *v1.
 	}
 }
 
-func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req *v1.DispatchExpandRequest, so *v0.SetOperation, reducer ExpandReducer) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req ValidatedExpandRequest, so *v0.SetOperation, reducer ExpandReducer) ReduceableExpandFunc {
 	var requests []ReduceableExpandFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
@@ -177,15 +181,15 @@ func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req *v1.Di
 	}
 }
 
-func (ce *ConcurrentExpander) dispatch(req *v1.DispatchExpandRequest) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) dispatch(req ValidatedExpandRequest) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		log.Ctx(ctx).Trace().Object("dispatch expand", req).Send()
-		result, err := ce.d.DispatchExpand(ctx, req)
+		result, err := ce.d.DispatchExpand(ctx, req.DispatchExpandRequest)
 		resultChan <- ExpandResult{result, err}
 	}
 }
 
-func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req *v1.DispatchExpandRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req ValidatedExpandRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Str("relation", cu.Relation).Msg("computed userset")
 	var start *v0.ObjectAndRelation
 	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
@@ -204,7 +208,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req *v1
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	err := ce.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true)
+	err := ce.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, req.Revision)
 	if err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
 			return emptyExpansion(req.ObjectAndRelation)
@@ -213,30 +217,28 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req *v1
 		return expandError(err)
 	}
 
-	return ce.dispatch(&v1.DispatchExpandRequest{
-		ObjectAndRelation: &v0.ObjectAndRelation{
-			Namespace: start.Namespace,
-			ObjectId:  start.ObjectId,
-			Relation:  cu.Relation,
+	return ce.dispatch(ValidatedExpandRequest{
+
+		&v1.DispatchExpandRequest{
+			ObjectAndRelation: &v0.ObjectAndRelation{
+				Namespace: start.Namespace,
+				ObjectId:  start.ObjectId,
+				Relation:  cu.Relation,
+			},
+			Metadata:      decrementDepth(req.Metadata),
+			ExpansionMode: req.ExpansionMode,
 		},
-		Metadata:      decrementDepth(req.Metadata),
-		ExpansionMode: req.ExpansionMode,
+		req.Revision,
 	})
 }
 
-func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req *v1.DispatchExpandRequest, ttu *v0.TupleToUserset) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req ValidatedExpandRequest, ttu *v0.TupleToUserset) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		requestRevision, err := decimal.NewFromString(req.Metadata.AtRevision)
-		if err != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
-			return
-		}
-
 		it, err := ce.ds.QueryTuples(datastore.TupleQueryResourceFilter{
 			ResourceType:             req.ObjectAndRelation.Namespace,
 			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
 			OptionalResourceRelation: ttu.Tupleset.Relation,
-		}, requestRevision).Execute(ctx)
+		}, req.Revision).Execute(ctx)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return

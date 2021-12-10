@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/shopspring/decimal"
 
 	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/graph"
@@ -32,7 +33,7 @@ type LookupNamespace func(ctx context.Context, name string) (*v0.NamespaceDefini
 
 // BuildNamespaceTypeSystemWithFallback constructs a type system view of a namespace definition, with automatic lookup
 // via the additional defs first, and then the namespace manager as a fallback.
-func BuildNamespaceTypeSystemWithFallback(nsDef *v0.NamespaceDefinition, manager Manager, additionalDefs []*v0.NamespaceDefinition) (*NamespaceTypeSystem, error) {
+func BuildNamespaceTypeSystemWithFallback(nsDef *v0.NamespaceDefinition, manager Manager, additionalDefs []*v0.NamespaceDefinition, revision decimal.Decimal) (*NamespaceTypeSystem, error) {
 	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, namespaceName string) (*v0.NamespaceDefinition, error) {
 		// NOTE: Order is important here: We always check the new definitions before the existing
 		// ones.
@@ -45,16 +46,16 @@ func BuildNamespaceTypeSystemWithFallback(nsDef *v0.NamespaceDefinition, manager
 		}
 
 		// Otherwise, check already defined namespaces.
-		otherNamespaceDef, _, err := manager.ReadNamespace(ctx, namespaceName)
+		otherNamespaceDef, err := manager.ReadNamespace(ctx, namespaceName, revision)
 		return otherNamespaceDef, err
 	})
 }
 
 // BuildNamespaceTypeSystemForManager constructs a type system view of a namespace definition, with automatic lookup
 // via the namespace manager.
-func BuildNamespaceTypeSystemForManager(nsDef *v0.NamespaceDefinition, manager Manager) (*NamespaceTypeSystem, error) {
+func BuildNamespaceTypeSystemForManager(nsDef *v0.NamespaceDefinition, manager Manager, revision decimal.Decimal) (*NamespaceTypeSystem, error) {
 	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*v0.NamespaceDefinition, error) {
-		nsDef, _, err := manager.ReadNamespace(ctx, nsName)
+		nsDef, err := manager.ReadNamespace(ctx, nsName, revision)
 		return nsDef, err
 	})
 }

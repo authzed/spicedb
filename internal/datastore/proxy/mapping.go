@@ -150,13 +150,13 @@ func (mp mappingProxy) WriteNamespace(ctx context.Context, newConfig *v0.Namespa
 	})
 }
 
-func (mp mappingProxy) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
+func (mp mappingProxy) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*v0.NamespaceDefinition, datastore.Revision, error) {
 	storedNamespaceName, err := mp.mapper.Encode(nsName)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errTranslation, err)
 	}
 
-	ns, rev, err := mp.delegate.ReadNamespace(ctx, storedNamespaceName)
+	ns, rev, err := mp.delegate.ReadNamespace(ctx, storedNamespaceName, revision)
 	if err != nil {
 		return ns, rev, err
 	}
@@ -216,8 +216,8 @@ func (mp mappingProxy) CheckRevision(ctx context.Context, revision datastore.Rev
 	return mp.delegate.CheckRevision(ctx, revision)
 }
 
-func (mp mappingProxy) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
-	nsDefs, err := mp.delegate.ListNamespaces(ctx)
+func (mp mappingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+	nsDefs, err := mp.delegate.ListNamespaces(ctx, revision)
 	if err != nil {
 		return nil, err
 	}

@@ -26,6 +26,7 @@ const (
 	tableNamespace    = "namespaceConfig"
 
 	indexID                     = "id"
+	indexUnique                 = "unique"
 	indexTimestamp              = "timestamp"
 	indexLive                   = "live"
 	indexNamespace              = "namespace"
@@ -47,12 +48,27 @@ const (
 	errUnableToInstantiateTuplestore = "unable to instantiate datastore: %w"
 )
 
+type hasLifetime interface {
+	getCreatedTxn() uint64
+	getDeletedTxn() uint64
+}
+
 type namespace struct {
 	name        string
 	configBytes []byte
 	createdTxn  uint64
 	deletedTxn  uint64
 }
+
+func (ns namespace) getCreatedTxn() uint64 {
+	return ns.createdTxn
+}
+
+func (ns namespace) getDeletedTxn() uint64 {
+	return ns.deletedTxn
+}
+
+var _ hasLifetime = &namespace{}
 
 type transaction struct {
 	id        uint64
@@ -70,6 +86,16 @@ type relationship struct {
 	deletedTxn       uint64
 }
 
+func (r relationship) getCreatedTxn() uint64 {
+	return r.createdTxn
+}
+
+func (r relationship) getDeletedTxn() uint64 {
+	return r.deletedTxn
+}
+
+var _ hasLifetime = &relationship{}
+
 func tupleEntryFromRelationship(r *v1.Relationship, created, deleted uint64) *relationship {
 	return &relationship{
 		namespace:        r.Resource.ObjectType,
@@ -83,49 +109,49 @@ func tupleEntryFromRelationship(r *v1.Relationship, created, deleted uint64) *re
 	}
 }
 
-func (t relationship) Relationship() *v1.Relationship {
+func (r relationship) Relationship() *v1.Relationship {
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
-			ObjectType: t.namespace,
-			ObjectId:   t.resourceID,
+			ObjectType: r.namespace,
+			ObjectId:   r.resourceID,
 		},
-		Relation: t.relation,
+		Relation: r.relation,
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
-				ObjectType: t.subjectNamespace,
-				ObjectId:   t.subjectObjectID,
+				ObjectType: r.subjectNamespace,
+				ObjectId:   r.subjectObjectID,
 			},
-			OptionalRelation: stringz.Default(t.subjectRelation, "", datastore.Ellipsis),
+			OptionalRelation: stringz.Default(r.subjectRelation, "", datastore.Ellipsis),
 		},
 	}
 }
 
-func (t relationship) RelationTuple() *v0.RelationTuple {
+func (r relationship) RelationTuple() *v0.RelationTuple {
 	return &v0.RelationTuple{
 		ObjectAndRelation: &v0.ObjectAndRelation{
-			Namespace: t.namespace,
-			ObjectId:  t.resourceID,
-			Relation:  t.relation,
+			Namespace: r.namespace,
+			ObjectId:  r.resourceID,
+			Relation:  r.relation,
 		},
 		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
-			Namespace: t.subjectNamespace,
-			ObjectId:  t.subjectObjectID,
-			Relation:  t.subjectRelation,
+			Namespace: r.subjectNamespace,
+			ObjectId:  r.subjectObjectID,
+			Relation:  r.subjectRelation,
 		}}},
 	}
 }
 
-func (t relationship) String() string {
+func (r relationship) String() string {
 	return fmt.Sprintf(
 		"%s:%s#%s@%s:%s#%s[%d-%d)",
-		t.namespace,
-		t.resourceID,
-		t.relation,
-		t.subjectNamespace,
-		t.subjectObjectID,
-		t.subjectRelation,
-		t.createdTxn,
-		t.deletedTxn,
+		r.namespace,
+		r.resourceID,
+		r.relation,
+		r.subjectNamespace,
+		r.subjectObjectID,
+		r.subjectRelation,
+		r.createdTxn,
+		r.deletedTxn,
 	)
 }
 
@@ -136,6 +162,15 @@ var schema = &memdb.DBSchema{
 			Indexes: map[string]*memdb.IndexSchema{
 				indexID: {
 					Name:   indexID,
+					Unique: true,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "name"},
+						},
+					},
+				},
+				indexUnique: {
+					Name:   indexUnique,
 					Unique: true,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
@@ -405,4 +440,13 @@ func createNewTransaction(txn *memdb.Txn) (uint64, error) {
 	}
 
 	return newTransactionID, nil
+}
+
+// filterToLiveObjects creates a memdb.FilterFunc which returns true for the items to remove,
+// which is opposite of most filter implementations.
+func filterToLiveObjects(revision datastore.Revision) memdb.FilterFunc {
+	return func(hasLifetimeRaw interface{}) bool {
+		obj := hasLifetimeRaw.(hasLifetime)
+		return uint64(revision.IntPart()) < obj.getCreatedTxn() || uint64(revision.IntPart()) >= obj.getDeletedTxn()
+	}
 }

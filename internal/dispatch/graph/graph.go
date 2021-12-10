@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -59,9 +60,9 @@ type localDispatcher struct {
 	nsm namespace.Manager
 }
 
-func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string) (*v0.Relation, error) {
+func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string, revision decimal.Decimal) (*v0.Relation, error) {
 	// Load namespace and relation from the datastore
-	ns, _, err := ld.nsm.ReadNamespace(ctx, nsName)
+	ns, err := ld.nsm.ReadNamespace(ctx, nsName, revision)
 	if err != nil {
 		return nil, rewriteError(err)
 	}
@@ -110,12 +111,22 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation)
+	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	return ld.checker.Check(ctx, req, relation)
+	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation, revision)
+	if err != nil {
+		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+	}
+
+	validatedReq := graph.ValidatedCheckRequest{
+		DispatchCheckRequest: req,
+		Revision:             revision,
+	}
+
+	return ld.checker.Check(ctx, validatedReq, relation)
 }
 
 // DispatchExpand implements dispatch.Expand interface
@@ -130,12 +141,22 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation)
+	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	return ld.expander.Expand(ctx, req, relation)
+	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation, revision)
+	if err != nil {
+		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
+	}
+
+	validatedReq := graph.ValidatedExpandRequest{
+		DispatchExpandRequest: req,
+		Revision:              revision,
+	}
+
+	return ld.expander.Expand(ctx, validatedReq, relation)
 }
 
 // DispatchLookup implements dispatch.Lookup interface
@@ -152,11 +173,21 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
 
+	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+	if err != nil {
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
+	}
+
 	if req.Limit <= 0 {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*v0.ObjectAndRelation{}}, nil
 	}
 
-	return ld.lookupHandler.Lookup(ctx, req)
+	validatedReq := graph.ValidatedLookupRequest{
+		DispatchLookupRequest: req,
+		Revision:              revision,
+	}
+
+	return ld.lookupHandler.Lookup(ctx, validatedReq)
 }
 
 func (ld *localDispatcher) Close() error {

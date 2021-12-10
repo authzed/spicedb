@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -178,12 +179,14 @@ func TestTypeSystem(t *testing.T) {
 			nsm, err := NewCachingNamespaceManager(ds, 0*time.Second, nil)
 			require.NoError(err)
 
+			var lastRevision decimal.Decimal
 			for _, otherNS := range tc.otherNamespaces {
-				_, err := ds.WriteNamespace(context.Background(), otherNS)
+				var err error
+				lastRevision, err = ds.WriteNamespace(context.Background(), otherNS)
 				require.NoError(err)
 			}
 
-			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm)
+			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
 			require.NoError(err)
 
 			terr := ts.Validate(context.Background())

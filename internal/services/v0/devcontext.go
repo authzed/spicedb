@@ -72,7 +72,9 @@ func newDevContext(ctx context.Context, requestContext *v0.RequestContext, ds da
 		return &DevContext{Ctx: ctx, NamespaceManager: nsm, RequestErrors: []*v0.DeveloperError{devError}}, false, nil
 	}
 
-	requestErrors, err := loadNamespaces(ctx, namespaces, nsm, ds)
+	var currentRevision decimal.Decimal
+	var requestErrors []*v0.DeveloperError
+	requestErrors, currentRevision, err = loadNamespaces(ctx, namespaces, nsm, ds)
 	if err != nil {
 		return &DevContext{Ctx: ctx, NamespaceManager: nsm}, false, err
 	}
@@ -82,7 +84,7 @@ func newDevContext(ctx context.Context, requestContext *v0.RequestContext, ds da
 	}
 
 	if len(requestContext.LegacyNsConfigs) > 0 {
-		requestErrors, err := loadNamespaces(ctx, requestContext.LegacyNsConfigs, nsm, ds)
+		requestErrors, currentRevision, err = loadNamespaces(ctx, requestContext.LegacyNsConfigs, nsm, ds)
 		if err != nil {
 			return &DevContext{Ctx: ctx, NamespaceManager: nsm}, false, err
 		}
@@ -92,7 +94,7 @@ func newDevContext(ctx context.Context, requestContext *v0.RequestContext, ds da
 		}
 	}
 
-	revision, requestErrors, err := loadTuples(ctx, requestContext.Relationships, nsm, ds)
+	revision, requestErrors, err := loadTuples(ctx, requestContext.Relationships, nsm, ds, currentRevision)
 	if err != nil {
 		return &DevContext{Ctx: ctx, NamespaceManager: nsm, Namespaces: namespaces}, false, err
 	}
@@ -162,7 +164,7 @@ func compile(schema string) ([]*v0.NamespaceDefinition, *v0.DeveloperError, erro
 	return namespaces, nil, nil
 }
 
-func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.Manager, ds datastore.Datastore) (decimal.Decimal, []*v0.DeveloperError, error) {
+func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.Manager, ds datastore.Datastore, revision decimal.Decimal) (decimal.Decimal, []*v0.DeveloperError, error) {
 	var errors []*v0.DeveloperError
 	var updates []*v1.RelationshipUpdate
 	for _, tpl := range tuples {
@@ -177,7 +179,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 			continue
 		}
 
-		err := validateTupleWrite(ctx, tpl, nsm)
+		err := validateTupleWrite(ctx, tpl, nsm, revision)
 		if err != nil {
 			verrs, wireErr := rewriteGraphError(ctx, v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl), err)
 			if wireErr == nil {
@@ -198,19 +200,26 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 	return revision, errors, err
 }
 
-func loadNamespaces(ctx context.Context, namespaces []*v0.NamespaceDefinition, nsm namespace.Manager, ds datastore.Datastore) ([]*v0.DeveloperError, error) {
+func loadNamespaces(
+	ctx context.Context,
+	namespaces []*v0.NamespaceDefinition,
+	nsm namespace.Manager,
+	ds datastore.Datastore,
+) ([]*v0.DeveloperError, decimal.Decimal, error) {
 	var errors []*v0.DeveloperError
+	var lastRevision decimal.Decimal
 	for _, nsDef := range namespaces {
 		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(nsDef, namespaces)
 		if terr != nil {
-			return errors, terr
+			return errors, lastRevision, terr
 		}
 
 		tverr := ts.Validate(ctx)
 		if tverr == nil {
-			_, err := ds.WriteNamespace(ctx, nsDef)
+			var err error
+			lastRevision, err = ds.WriteNamespace(ctx, nsDef)
 			if err != nil {
-				return errors, err
+				return errors, lastRevision, err
 			}
 			continue
 		}
@@ -223,5 +232,5 @@ func loadNamespaces(ctx context.Context, namespaces []*v0.NamespaceDefinition, n
 		})
 	}
 
-	return errors, nil
+	return errors, lastRevision, nil
 }

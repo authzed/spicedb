@@ -55,8 +55,8 @@ func (md *MockedDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (md *MockedDatastore) ReadNamespace(ctx context.Context, nsName string) (*v0.NamespaceDefinition, datastore.Revision, error) {
-	args := md.Called(ctx, nsName)
+func (md *MockedDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*v0.NamespaceDefinition, datastore.Revision, error) {
+	args := md.Called(ctx, nsName, revision)
 	return args.Get(0).(*v0.NamespaceDefinition), args.Get(1).(datastore.Revision), args.Error(2)
 }
 
@@ -90,8 +90,8 @@ func (md *MockedDatastore) CheckRevision(ctx context.Context, revision datastore
 	return args.Error(0)
 }
 
-func (md *MockedDatastore) ListNamespaces(ctx context.Context) ([]*v0.NamespaceDefinition, error) {
-	args := md.Called(ctx)
+func (md *MockedDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+	args := md.Called(ctx, revision)
 	return args.Get(0).([]*v0.NamespaceDefinition), args.Error(1)
 }
 

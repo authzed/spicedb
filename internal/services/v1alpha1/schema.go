@@ -59,21 +59,26 @@ func NewSchemaServer(ds datastore.Datastore, prefixRequired PrefixRequiredOption
 }
 
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
+	syncRevision, err := ss.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
+	}
+
 	var objectDefs []string
-	revisions := make(map[string]datastore.Revision, len(in.GetObjectDefinitionsNames()))
+	createdRevisions := make(map[string]datastore.Revision, len(in.GetObjectDefinitionsNames()))
 	for _, objectDefName := range in.GetObjectDefinitionsNames() {
-		found, revision, err := ss.ds.ReadNamespace(ctx, objectDefName)
+		found, createdAt, err := ss.ds.ReadNamespace(ctx, objectDefName, syncRevision)
 		if err != nil {
 			return nil, rewriteError(ctx, err)
 		}
 
-		revisions[objectDefName] = revision
+		createdRevisions[objectDefName] = createdAt
 
 		objectDef, _ := generator.GenerateSource(found)
 		objectDefs = append(objectDefs, objectDef)
 	}
 
-	computedRevision, err := nspkg.ComputeV1Alpha1Revision(revisions)
+	computedRevision, err := nspkg.ComputeV1Alpha1Revision(createdRevisions)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
@@ -107,10 +112,15 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		return nil, rewriteError(ctx, err)
 	}
 
+	syncRevision, err := ss.ds.SyncRevision(ctx)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
+	}
+
 	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
 
 	for _, nsdef := range nsdefs {
-		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsdef, nsm, nsdefs)
+		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsdef, nsm, nsdefs, syncRevision)
 		if err != nil {
 			return nil, rewriteError(ctx, err)
 		}
@@ -119,7 +129,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			return nil, rewriteError(ctx, err)
 		}
 
-		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef); err != nil {
+		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef, syncRevision); err != nil {
 			return nil, rewriteError(ctx, err)
 		}
 	}
@@ -134,7 +144,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		}
 
 		for nsName, existingRevision := range decoded {
-			_, revision, err := ss.ds.ReadNamespace(ctx, nsName)
+			_, createdAt, err := ss.ds.ReadNamespace(ctx, nsName, syncRevision)
 			if err != nil {
 				var nsNotFoundError sharederrors.UnknownNamespaceError
 				if errors.As(err, &nsNotFoundError) {
@@ -146,7 +156,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 				return nil, rewriteError(ctx, err)
 			}
 
-			if !revision.Equal(existingRevision) {
+			if !createdAt.Equal(existingRevision) {
 				return nil, rewriteError(ctx, &writeSchemaPreconditionFailure{
 					errors.New("current schema differs from the revision specified"),
 				})

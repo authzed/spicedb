@@ -152,15 +152,14 @@ func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator
 			return !found
 		}
 
-		if uint64(mtq.revision.IntPart()) < tuple.createdTxn || uint64(mtq.revision.IntPart()) >= tuple.deletedTxn {
-			return true
-		}
 		return false
 	})
 
+	filteredAlive := memdb.NewFilterIterator(filteredIterator, filterToLiveObjects(mtq.revision))
+
 	iter := &memdbTupleIterator{
 		txn:   txn,
-		it:    filteredIterator,
+		it:    filteredAlive,
 		limit: mtq.limit,
 	}
 
