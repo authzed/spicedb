@@ -435,6 +435,13 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 			codes.InvalidArgument,
 			"user:someuser is not allowed",
 		},
+		{
+			"bad write wildcard object",
+			nil,
+			[]*v1.Relationship{rel("document", "*", "parent", "user", "someuser", "")},
+			codes.InvalidArgument,
+			"alphanumeric",
+		},
 	}
 
 	for _, delta := range testTimedeltas {
