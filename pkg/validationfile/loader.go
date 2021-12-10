@@ -27,6 +27,9 @@ type FullyParsedValidationFile struct {
 	// Tuples are the relation tuples defined in the validation file, either directly
 	// or in the relationships block.
 	Tuples []*v0.RelationTuple
+
+	// ParsedFiles are the underlying parsed validation files.
+	ParsedFiles []ValidationFile
 }
 
 // PopulateFromFiles populates the given datastore with the namespaces and tuples found in
@@ -35,6 +38,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 	var revision decimal.Decimal
 	nsDefs := []*v0.NamespaceDefinition{}
 	tuples := []*v0.RelationTuple{}
+	files := []ValidationFile{}
 
 	for _, filePath := range filePaths {
 		fileContents, err := os.ReadFile(filePath)
@@ -46,6 +50,8 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 		if err != nil {
 			return nil, decimal.Zero, fmt.Errorf("Error when parsing config file %s: %w", filePath, err)
 		}
+
+		files = append(files, parsed)
 
 		// Parse the schema, if any.
 		if parsed.Schema != "" {
@@ -145,5 +151,5 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 		revision = wrevision
 	}
 
-	return &FullyParsedValidationFile{nsDefs, tuples}, revision, nil
+	return &FullyParsedValidationFile{nsDefs, tuples, files}, revision, nil
 }

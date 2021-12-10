@@ -15,8 +15,8 @@ import (
 // ValidationFile represents the contents of a YAML validation file, as
 // exported by the playground.
 //
-// NOTE: This struct does not contain the `assertions` or `validation` blocks produced
-// by the playground, as they are currently unused in Go-side code.
+// NOTE: This struct does not contain the  `validation` block produced
+// by the playground, as it is currently unused in Go-side code.
 //
 // Parsing for those blocks' *contents* can be found in this module, since they are parsed
 // by the developer API.
@@ -35,6 +35,9 @@ type ValidationFile struct {
 	// ValidationTuples are the validation tuples, in tuple string syntax. Optional if Relationships
 	// are specified.
 	ValidationTuples []string `yaml:"validation_tuples"`
+
+	// Assertions are the (optional) assertions for the validation file.
+	Assertions SimpleAssertions `yaml:"assertions"`
 }
 
 // ErrorWithSource is an error that includes the source text and position information.
@@ -197,6 +200,15 @@ func (vs ValidationString) ONRS() ([]*v0.ObjectAndRelation, *ErrorWithSource) {
 		onrs = append(onrs, found)
 	}
 	return onrs, nil
+}
+
+// SimpleAssertions is a parsed assertions block.
+type SimpleAssertions struct {
+	// AssertTrue is the set of relationships to assert true.
+	AssertTrue []string `yaml:"assertTrue"`
+
+	// AssertFalse is the set of relationships to assert false.
+	AssertFalse []string `yaml:"assertFalse"`
 }
 
 // Assertion is an unparsed assertion.

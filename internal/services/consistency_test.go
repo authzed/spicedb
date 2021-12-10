@@ -111,6 +111,7 @@ func TestConsistency(t *testing.T) {
 							for _, tester := range testers {
 								t.Run(tester.Name(), func(t *testing.T) {
 									runConsistencyTests(t, tester, dispatcher, fullyResolved, tuplesPerNamespace, revision)
+									runAssertions(t, tester, dispatcher, fullyResolved, revision)
 								})
 							}
 						})
@@ -118,6 +119,32 @@ func TestConsistency(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func runAssertions(t *testing.T,
+	tester serviceTester,
+	dispatch dispatch.Dispatcher,
+	fullyResolved *validationfile.FullyParsedValidationFile,
+	revision decimal.Decimal) {
+	for _, parsedFile := range fullyResolved.ParsedFiles {
+		for _, assertTrueRel := range parsedFile.Assertions.AssertTrue {
+			rel := tuple.Parse(assertTrueRel)
+			require.NotNil(t, rel)
+
+			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
+			require.NoError(t, err)
+			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.String(rel))
+		}
+
+		for _, assertFalseRel := range parsedFile.Assertions.AssertFalse {
+			rel := tuple.Parse(assertFalseRel)
+			require.NotNil(t, rel)
+
+			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
+			require.NoError(t, err)
+			require.False(t, result, "Assertion `%s` returned true; false expected", tuple.String(rel))
+		}
 	}
 }
 

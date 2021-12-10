@@ -77,3 +77,9 @@ relationships: |
   test/team:support_engineers#parent@test/organization:authzed#...
   test/team:emea_support_engineers#direct_member@test/user:iona#...
   test/team:emea_support_engineers#parent@test/team:support_engineers#...
+assertions:
+  assertTrue:
+    - "test/repository:authzed_go#read@test/user:jake#..."
+    - "test/repository:authzed_go#read@test/user:jimmy#..."
+  assertFalse:
+    - "test/repository:authzed_go#admin@test/user:jake#..."
