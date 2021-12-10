@@ -70,12 +70,12 @@ func (sg *sourceGenerator) emitRelation(relation *v0.Relation) {
 		if relation.TypeInformation == nil || relation.TypeInformation.AllowedDirectRelations == nil || len(relation.TypeInformation.AllowedDirectRelations) == 0 {
 			sg.appendIssue("missing allowed types")
 		} else {
-			for index, relationRef := range relation.TypeInformation.AllowedDirectRelations {
+			for index, allowedRelation := range relation.TypeInformation.AllowedDirectRelations {
 				if index > 0 {
 					sg.append(" | ")
 				}
 
-				sg.emitRelationReference(relationRef)
+				sg.emitAllowedRelation(allowedRelation)
 			}
 		}
 	}
@@ -88,11 +88,14 @@ func (sg *sourceGenerator) emitRelation(relation *v0.Relation) {
 	sg.appendLine()
 }
 
-func (sg *sourceGenerator) emitRelationReference(relationReference *v0.RelationReference) {
-	sg.append(relationReference.Namespace)
-	if relationReference.Relation != Ellipsis {
+func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *v0.AllowedRelation) {
+	sg.append(allowedRelation.Namespace)
+	if allowedRelation.GetRelation() != "" && allowedRelation.GetRelation() != Ellipsis {
 		sg.append("#")
-		sg.append(relationReference.Relation)
+		sg.append(allowedRelation.GetRelation())
+	}
+	if allowedRelation.GetPublicWildcard() != nil {
+		sg.append(":*")
 	}
 }
 

@@ -142,7 +142,7 @@ func (p *sourceParser) consumeRelation() AstNode {
 }
 
 // consumeTypeReference consumes a reference to a type or types of relations.
-// ```somerel | anotherrel```
+// ```sometype | anothertype | anothertype:* ```
 func (p *sourceParser) consumeTypeReference() AstNode {
 	refNode := p.startNode(dslshape.NodeTypeTypeReference)
 	defer p.finishNode()
@@ -168,6 +168,17 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 	}
 
 	specificNode.Decorate(dslshape.NodeSpecificReferencePredicateType, typeName)
+
+	// Check for a wildcard
+	if _, ok := p.tryConsume(lexer.TokenTypeColon); ok {
+		_, ok := p.consume(lexer.TokenTypeStar)
+		if !ok {
+			return specificNode
+		}
+
+		specificNode.Decorate(dslshape.NodeSpecificReferencePredicateWildcard, "true")
+		return specificNode
+	}
 
 	// Check for a relation specified.
 	if _, ok := p.tryConsume(lexer.TokenTypeHash); !ok {

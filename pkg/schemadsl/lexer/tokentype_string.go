@@ -33,11 +33,12 @@ func _() {
 	_ = x[TokenTypeRightArrow-22]
 	_ = x[TokenTypeHash-23]
 	_ = x[TokenTypeEllipsis-24]
+	_ = x[TokenTypeStar-25]
 }
 
-const _TokenType_name = "TokenTypeErrorTokenTypeSyntheticSemicolonTokenTypeEOFTokenTypeWhitespaceTokenTypeSinglelineCommentTokenTypeMultilineCommentTokenTypeNewlineTokenTypeKeywordTokenTypeIdentifierTokenTypeNumberTokenTypeLeftBraceTokenTypeRightBraceTokenTypeLeftParenTokenTypeRightParenTokenTypePipeTokenTypePlusTokenTypeMinusTokenTypeAndTokenTypeDivTokenTypeEqualsTokenTypeColonTokenTypeSemicolonTokenTypeRightArrowTokenTypeHashTokenTypeEllipsis"
+const _TokenType_name = "TokenTypeErrorTokenTypeSyntheticSemicolonTokenTypeEOFTokenTypeWhitespaceTokenTypeSinglelineCommentTokenTypeMultilineCommentTokenTypeNewlineTokenTypeKeywordTokenTypeIdentifierTokenTypeNumberTokenTypeLeftBraceTokenTypeRightBraceTokenTypeLeftParenTokenTypeRightParenTokenTypePipeTokenTypePlusTokenTypeMinusTokenTypeAndTokenTypeDivTokenTypeEqualsTokenTypeColonTokenTypeSemicolonTokenTypeRightArrowTokenTypeHashTokenTypeEllipsisTokenTypeStar"
 
-var _TokenType_index = [...]uint16{0, 14, 41, 53, 72, 98, 123, 139, 155, 174, 189, 207, 226, 244, 263, 276, 289, 303, 315, 327, 342, 356, 374, 393, 406, 423}
+var _TokenType_index = [...]uint16{0, 14, 41, 53, 72, 98, 123, 139, 155, 174, 189, 207, 226, 244, 263, 276, 289, 303, 315, 327, 342, 356, 374, 393, 406, 423, 436}
 
 func (i TokenType) String() string {
 	if i < 0 || i >= TokenType(len(_TokenType_index)-1) {
