@@ -144,6 +144,7 @@ func TestEditCheck(t *testing.T) {
 			nil,
 			[]*v0.EditCheckResult{
 				{
+					Relationship: tuple.MustParse("somenamespace:someobj#anotherrel@user:foo"),
 					Error: &v0.DeveloperError{
 						Message: "relation/permission `anotherrel` not found under definition `somenamespace`",
 						Kind:    v0.DeveloperError_UNKNOWN_RELATION,
@@ -180,6 +181,35 @@ func TestEditCheck(t *testing.T) {
 				},
 			},
 		},
+		/* TODO(evan): Uncomment once dispatch for wildcard is supported.
+		{
+			"valid wildcard checks",
+			`
+				definition user {}
+				definition somenamespace {
+					relation somerel: user | user:*
+				}
+			`,
+			[]*v0.RelationTuple{
+				tuple.MustParse("somenamespace:someobj#somerel@user:*"),
+			},
+			[]*v0.RelationTuple{
+				tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
+				tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser"),
+			},
+			nil,
+			[]*v0.EditCheckResult{
+				{
+					Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
+					IsMember:     true,
+				},
+				{
+					Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser"),
+					IsMember:     true,
+				},
+			},
+		},
+		*/
 	}
 
 	for _, tc := range tests {
@@ -203,6 +233,7 @@ func TestEditCheck(t *testing.T) {
 				require.Equal(tc.expectedResults, resp.CheckResults)
 			} else {
 				require.Equal(0, len(resp.RequestErrors), "Found error(s): %v", resp.RequestErrors)
+				require.Equal(tc.expectedResults, resp.CheckResults)
 			}
 		})
 	}
@@ -580,6 +611,37 @@ assertFalse:
 			},
 			``,
 		},
+		/* TODO(evan): Uncomment once dispatch for wildcard is supported.
+		   		{
+		   			"wildcard relationship",
+		   			`
+		   			definition user {}
+		   			definition document {
+		   				relation writer: user
+		   				relation viewer: user | user:*
+		   				permission view = viewer + writer
+		   			}
+		   			`,
+		   			[]*v0.RelationTuple{
+		   				tuple.MustParse("document:somedoc#writer@user:jimmy"),
+		   				tuple.MustParse("document:somedoc#viewer@user:*"),
+		   			},
+		   			`"document:somedoc#view":
+		   - "[user:*] is <document:somedoc#viewer>"
+		   - "[user:jimmy] is <document:somedoc#viewer/document:somedoc#writer>"`,
+		   			`assertTrue:
+		   - document:somedoc#writer@user:jimmy
+		   - document:somedoc#viewer@user:jimmy
+		   - document:somedoc#viewer@user:somegal
+		   assertFalse:
+		   - document:somedoc#writer@user:somegal
+		   `,
+		   			nil,
+		   			`document:somedoc#view:
+		   - '[user:*] is <document:somedoc#viewer>'
+		   - '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
+		   `,
+		   		},*/
 	}
 
 	for _, tc := range tests {

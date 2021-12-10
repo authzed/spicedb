@@ -153,6 +153,16 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	}
 
 	for _, update := range req.Updates {
+		err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId)
+		if err != nil {
+			return nil, rewritePermissionsError(ctx, err)
+		}
+
+		err = tuple.ValidateSubjectID(update.Relationship.Subject.Object.ObjectId)
+		if err != nil {
+			return nil, rewritePermissionsError(ctx, err)
+		}
+
 		if err := ps.nsm.CheckNamespaceAndRelation(
 			ctx,
 			update.Relationship.Resource.ObjectType,
@@ -161,6 +171,16 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			readRevision,
 		); err != nil {
 			return nil, rewritePermissionsError(ctx, err)
+		}
+
+		// Ensure wildcard writes have no subject relation.
+		if update.Relationship.Subject.Object.ObjectId == tuple.PublicWildcard {
+			if update.Relationship.Subject.OptionalRelation != "" {
+				return nil, status.Errorf(
+					codes.InvalidArgument,
+					"wildcard (public) relationships require an empty subject relation",
+				)
+			}
 		}
 
 		if err := ps.nsm.CheckNamespaceAndRelation(
@@ -186,22 +206,40 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			)
 		}
 
-		isAllowed, err := ts.IsAllowedDirectRelation(
-			update.Relationship.Relation,
-			update.Relationship.Subject.Object.ObjectType,
-			stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
-		)
-		if err != nil {
-			return nil, err
-		}
+		if update.Relationship.Subject.Object.ObjectId == tuple.PublicWildcard {
+			isAllowed, err := ts.IsAllowedPublicNamespace(
+				update.Relationship.Relation,
+				update.Relationship.Subject.Object.ObjectType)
+			if err != nil {
+				return nil, err
+			}
 
-		if isAllowed == namespace.DirectRelationNotValid {
-			return nil, status.Errorf(
-				codes.InvalidArgument,
-				"subject %s is not allowed for the resource %s",
-				tuple.StringSubjectRef(update.Relationship.Subject),
-				tuple.StringObjectRef(update.Relationship.Resource),
+			if isAllowed != namespace.PublicSubjectAllowed {
+				return nil, status.Errorf(
+					codes.InvalidArgument,
+					"wildcard (public) subjects of type %s are not allowed on %v",
+					update.Relationship.Subject.Object.ObjectType,
+					tuple.StringObjectRef(update.Relationship.Resource),
+				)
+			}
+		} else {
+			isAllowed, err := ts.IsAllowedDirectRelation(
+				update.Relationship.Relation,
+				update.Relationship.Subject.Object.ObjectType,
+				stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
 			)
+			if err != nil {
+				return nil, err
+			}
+
+			if isAllowed == namespace.DirectRelationNotValid {
+				return nil, status.Errorf(
+					codes.InvalidArgument,
+					"subject %s is not allowed for the resource %s",
+					tuple.StringSubjectRef(update.Relationship.Subject),
+					tuple.StringObjectRef(update.Relationship.Resource),
+				)
+			}
 		}
 	}
 

@@ -442,6 +442,20 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 			codes.InvalidArgument,
 			"alphanumeric",
 		},
+		{
+			"disallowed wildcard relation",
+			nil,
+			[]*v1.Relationship{rel("document", "somedoc", "parent", "user", "*", "somerelation")},
+			codes.InvalidArgument,
+			"empty subject relation",
+		},
+		{
+			"disallowed wildcard subject",
+			nil,
+			[]*v1.Relationship{rel("document", "somedoc", "parent", "user", "*", "")},
+			codes.InvalidArgument,
+			"wildcard",
+		},
 	}
 
 	for _, delta := range testTimedeltas {

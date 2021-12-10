@@ -515,6 +515,13 @@ func TestCheck(t *testing.T) {
 				{ONR("user", "", "..."), false},
 			},
 		},
+		{
+			ONR("document", "*", "fakerelation"),
+			codes.InvalidArgument,
+			[]checkTest{
+				{ONR("user", "aasdasd", "..."), false},
+			},
+		},
 	}
 
 	for _, delta := range testTimedeltas {
