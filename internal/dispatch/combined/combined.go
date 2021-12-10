@@ -108,5 +108,5 @@ func NewDispatcher(nsm namespace.Manager, ds datastore.Datastore, srv *grpc.Serv
 
 	dispatchSvc.RegisterGrpcServices(srv, cachingClusterDispatch)
 
-	return cachingClusterDispatch, nil
+	return cachingRedispatch, nil
 }
