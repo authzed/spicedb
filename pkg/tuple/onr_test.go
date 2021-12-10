@@ -16,6 +16,10 @@ var onrTestCases = []struct {
 		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "testrel"),
 	},
 	{
+		serialized:   "tenant/testns:*#testrel",
+		objectFormat: nil,
+	},
+	{
 		serialized:   "tenant/testns:testobj#...",
 		objectFormat: nil,
 	},
@@ -65,6 +69,10 @@ var subjectOnrTestCases = []struct {
 	{
 		serialized:   "tenant/testns:testobj#...",
 		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "..."),
+	},
+	{
+		serialized:   "tenant/testns:*#...",
+		objectFormat: ObjectAndRelation("tenant/testns", "*", "..."),
 	},
 	{
 		serialized:   "tenant/testns:testobj",
