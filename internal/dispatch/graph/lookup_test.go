@@ -126,7 +126,7 @@ func TestSimpleLookup(t *testing.T) {
 			require.NoError(err)
 			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
-			require.Equal(tc.expectedDispatchCount, int(lookupResult.Metadata.DispatchCount))
+			require.LessOrEqual(int(lookupResult.Metadata.DispatchCount), tc.expectedDispatchCount)
 			require.Equal(0, int(lookupResult.Metadata.CachedDispatchCount))
 			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired))
 
@@ -151,7 +151,7 @@ func TestSimpleLookup(t *testing.T) {
 			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
 			require.Equal(0, int(lookupResult.Metadata.DispatchCount))
-			require.Equal(tc.expectedDispatchCount, int(lookupResult.Metadata.CachedDispatchCount))
+			require.LessOrEqual(int(lookupResult.Metadata.CachedDispatchCount), tc.expectedDispatchCount)
 			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired))
 		})
 	}
