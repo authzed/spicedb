@@ -25,11 +25,6 @@ type cachingManager struct {
 	c          *ristretto.Cache
 }
 
-type cacheEntry struct {
-	definition *v0.NamespaceDefinition
-	expiration time.Time
-}
-
 func cacheKey(nsName string, revision decimal.Decimal) string {
 	return fmt.Sprintf("%s@%s", nsName, revision)
 }
@@ -75,14 +70,9 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string, revi
 	defer span.End()
 
 	// Check the cache.
-	now := time.Now()
 	value, found := nsc.c.Get(cacheKey(nsName, revision))
 	if found {
-		foundEntry := value.(cacheEntry)
-		if foundEntry.expiration.After(now) {
-			span.AddEvent("Returning namespace from cache")
-			return foundEntry.definition, nil
-		}
+		return value.(*v0.NamespaceDefinition), nil
 	}
 
 	// We couldn't use the cached entry, load one
@@ -98,11 +88,7 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string, revi
 	loaded = namespace.FilterUserDefinedMetadata(loaded)
 
 	// Save it to the cache
-	newEntry := cacheEntry{
-		definition: loaded,
-		expiration: now.Add(nsc.expiration),
-	}
-	nsc.c.Set(cacheKey(nsName, revision), newEntry, int64(proto.Size(loaded)))
+	nsc.c.Set(cacheKey(nsName, revision), loaded, int64(proto.Size(loaded)))
 
 	span.AddEvent("Saved to cache")
 
