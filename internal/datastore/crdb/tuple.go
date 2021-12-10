@@ -127,6 +127,10 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 	defer span.End()
 	var nowRevision datastore.Revision
 
+	if err := common.ValidateUpdatesToWrite(mutations); err != nil {
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
+	}
+
 	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		keySet := newKeySet()
 		if err := cds.checkPreconditions(ctx, tx, keySet, preconditions); err != nil {
