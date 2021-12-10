@@ -75,6 +75,10 @@ github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj
 github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/authzed/authzed-go v0.3.1-0.20211130221323-9d59da6e55da h1:dcjIyi2Om9CDAmEKiwQZsF7bV0x4PXuJeoN11BbbXXI=
 github.com/authzed/authzed-go v0.3.1-0.20211130221323-9d59da6e55da/go.mod h1:bsUniBRroq4l5WZMYLO+T9osQa/P2qMwZ+Af8zoJK8Y=
+github.com/authzed/authzed-go v0.3.1-0.20211209213733-6dfdd048c960 h1:C8e4cBlOetPhqNCMgE4fhBb+wzhQLziHfHJgzRFZd3s=
+github.com/authzed/authzed-go v0.3.1-0.20211209213733-6dfdd048c960/go.mod h1:bsUniBRroq4l5WZMYLO+T9osQa/P2qMwZ+Af8zoJK8Y=
+github.com/authzed/authzed-go v0.3.1-0.20211210193835-3ada8db7bc94 h1:4la5GstRfU268cich5RwPe7+Smkz/4BUcHDGSOH8yhY=
+github.com/authzed/authzed-go v0.3.1-0.20211210193835-3ada8db7bc94/go.mod h1:bsUniBRroq4l5WZMYLO+T9osQa/P2qMwZ+Af8zoJK8Y=
 github.com/authzed/grpcutil v0.0.0-20210913124023-cad23ae5a9e8/go.mod h1:HwO/KbRU3fWXEYHE96kvXnwxzi97tkXD1hfi5UaZ71Y=
 github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6 h1:izP/rEris51ZmomXb5J0ShyJKqsxTfVKDRnJz0QGbgg=
 github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6/go.mod h1:rqjY3zyK/YP7NID9+B2BdIRRkvnK+cdf9/qya/zaFZE=
