@@ -94,7 +94,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 			lines := strings.Split(relationships, "\n")
 			for index, line := range lines {
 				trimmed := strings.TrimSpace(line)
-				if len(trimmed) == 0 {
+				if len(trimmed) == 0 || strings.HasPrefix(trimmed, "//") {
 					continue
 				}
 
