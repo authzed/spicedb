@@ -56,6 +56,7 @@ func (o *DatastoreConfig) ToOption() Option {
 		to.URI = o.URI
 		to.GCWindow = o.GCWindow
 		to.RevisionQuantization = o.RevisionQuantization
+		to.MaxLifetime = o.MaxLifetime
 		to.MaxIdleTime = o.MaxIdleTime
 		to.MaxOpenConns = o.MaxOpenConns
 		to.MinOpenConns = o.MinOpenConns
