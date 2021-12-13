@@ -44,6 +44,7 @@ var lexerTests = []lexerTest{
 
 	{"hash", "#", []Lexeme{{TokenTypeHash, 0, "#"}, tEOF}},
 	{"ellipsis", "...", []Lexeme{{TokenTypeEllipsis, 0, "..."}, tEOF}},
+	{"at", "@", []Lexeme{{TokenTypeAt, 0, "@"}, tEOF}},
 
 	{"relation reference", "foo#...", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo"},
@@ -108,6 +109,44 @@ var lexerTests = []lexerTest{
 		{TokenTypeIdentifier, 0, "foo"},
 		{TokenTypeRightArrow, 0, "->"},
 		{TokenTypeIdentifier, 0, "bar"},
+		{TokenTypeRightParen, 0, ")"},
+		{TokenTypeSyntheticSemicolon, 0, "\n"},
+		tEOF,
+	}},
+
+	{"decorator", "@decname\n", []Lexeme{
+		{TokenTypeAt, 0, "@"},
+		{TokenTypeIdentifier, 0, "decname"},
+		{TokenTypeSyntheticSemicolon, 0, "\n"},
+		tEOF,
+	}},
+
+	{"decorator with options", "@decname(opt1, opt2)\n", []Lexeme{
+		{TokenTypeAt, 0, "@"},
+		{TokenTypeIdentifier, 0, "decname"},
+		{TokenTypeLeftParen, 0, "("},
+		{TokenTypeIdentifier, 0, "opt1"},
+		{TokenTypeComma, 0, ","},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "opt2"},
+		{TokenTypeRightParen, 0, ")"},
+		{TokenTypeSyntheticSemicolon, 0, "\n"},
+		tEOF,
+	}},
+
+	{"decorator with nested options", "@decname(opt1, (opt2a, opt2b))\n", []Lexeme{
+		{TokenTypeAt, 0, "@"},
+		{TokenTypeIdentifier, 0, "decname"},
+		{TokenTypeLeftParen, 0, "("},
+		{TokenTypeIdentifier, 0, "opt1"},
+		{TokenTypeComma, 0, ","},
+		tWhitespace,
+		{TokenTypeLeftParen, 0, "("},
+		{TokenTypeIdentifier, 0, "opt2a"},
+		{TokenTypeComma, 0, ","},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "opt2b"},
+		{TokenTypeRightParen, 0, ")"},
 		{TokenTypeRightParen, 0, ")"},
 		{TokenTypeSyntheticSemicolon, 0, "\n"},
 		tEOF,

@@ -49,6 +49,8 @@ const (
 	TokenTypeRightArrow // ->
 	TokenTypeHash       // #
 	TokenTypeEllipsis   // ...
+	TokenTypeAt         // @
+	TokenTypeComma      // ,
 )
 
 // keywords contains the full set of keywords supported.
@@ -108,6 +110,12 @@ Loop:
 
 		case r == '#':
 			l.emit(TokenTypeHash)
+
+		case r == '@':
+			l.emit(TokenTypeAt)
+
+		case r == ',':
+			l.emit(TokenTypeComma)
 
 		case r == '.':
 			if l.acceptString("..") {

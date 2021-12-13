@@ -88,21 +88,38 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		return defNode
 	}
 
-	// Relations and permissions.
+	// Relations, permissions, and decorators
 	for {
 		// }
 		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
 			break
 		}
 
+		// @decorator(...)
+		decoratorNode, hasDecorator := p.tryConsumeDecorator()
+		if hasDecorator {
+			if ok := p.consumeStatementTerminator(); !ok {
+				break
+			}
+		}
+		decorate := func(node AstNode) {
+			if !hasDecorator {
+				return
+			}
+			node.Connect(dslshape.NodePredicateDecorator, decoratorNode)
+		}
+
 		// relation ...
 		// permission ...
 		switch {
 		case p.isKeyword("relation"):
-			defNode.Connect(dslshape.NodePredicateChild, p.consumeRelation())
-
+			relNode := p.consumeRelation()
+			defNode.Connect(dslshape.NodePredicateChild, relNode)
+			decorate(relNode)
 		case p.isKeyword("permission"):
-			defNode.Connect(dslshape.NodePredicateChild, p.consumePermission())
+			permNode := p.consumePermission()
+			defNode.Connect(dslshape.NodePredicateChild, permNode)
+			decorate(permNode)
 		}
 
 		ok := p.consumeStatementTerminator()
@@ -227,6 +244,60 @@ func (p *sourceParser) consumePermission() AstNode {
 
 	permNode.Connect(dslshape.NodePermissionPredicateComputeExpression, p.consumeComputeExpression())
 	return permNode
+}
+
+// consumeDecorator consumes a decorator
+// ```@decoratorName(opt1,(opt2))```
+func (p *sourceParser) tryConsumeDecorator() (AstNode, bool) {
+	decNode := p.startNode(dslshape.NodeTypeDecorator)
+	defer p.finishNode()
+
+	if _, ok := p.tryConsume(lexer.TokenTypeAt); !ok {
+		return nil, false
+	}
+	decoratorName, ok := p.consumeIdentifier()
+	if !ok {
+		return nil, false
+	}
+	decNode.Decorate(dslshape.NodeDecoratorName, decoratorName)
+	if p.isToken(lexer.TokenTypeLeftParen) {
+		decNode.Connect(dslshape.NodeDecoratorOptions, p.consumeDecoratorOptions())
+	}
+	return decNode, true
+}
+
+// consumeDecoratorOptions consumes a decorator's options (or sub-options)
+// ```(opt1,(opt2, opt3))```
+func (p *sourceParser) consumeDecoratorOptions() AstNode {
+	optNode := p.startNode(dslshape.NodeTypeDecoratorOptions)
+	defer p.finishNode()
+
+	p.consume(lexer.TokenTypeLeftParen)
+
+OPTS:
+	for {
+		switch {
+		case p.isToken(lexer.TokenTypeLeftParen):
+			optNode.Connect(dslshape.NodeDecoratorOptions, p.consumeDecoratorOptions())
+		case p.isToken(lexer.TokenTypeIdentifier):
+			optValue, ok := p.consumeIdentifier()
+			if !ok {
+				return p.createErrorNode("Expected options for decorator")
+			}
+			optValueNode := p.startNode(dslshape.NodeTypeDecoratorOptions)
+			optValueNode.Decorate(dslshape.NodeDecoratorOptionValue, optValue)
+			p.finishNode()
+			optNode.Connect(dslshape.NodeDecoratorOptions, optValueNode)
+		case p.isToken(lexer.TokenTypeComma):
+			p.consume(lexer.TokenTypeComma)
+		case p.isToken(lexer.TokenTypeRightParen):
+			break OPTS
+		}
+	}
+
+	p.consume(lexer.TokenTypeRightParen)
+
+	return optNode
 }
 
 // ComputeExpressionOperators defines the binary operators in precedence order.
