@@ -45,6 +45,9 @@ This is a rough outline of what a contributor's workflow looks like:
 - Push changes to your branch
 - Submit a pull request
 - Respond to feedback from project maintainers
+- Rebase to squash related and fixup commits
+- Get LGTM from reviewer(s)
+- Merge with a merge commit
 
 Creating new issues is one of the best ways to contribute.
 You have no obligation to offer a solution or code to fix an issue that you open.
