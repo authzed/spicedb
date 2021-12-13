@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
@@ -66,9 +67,15 @@ func (cc *ConcurrentChecker) dispatch(req ValidatedCheckRequest) ReduceableCheck
 	}
 }
 
+func onrEqualOrPublic(tpl, target *v0.ObjectAndRelation) bool {
+	return onrEqual(tpl, target) || (tpl.Namespace == target.Namespace && tpl.ObjectId == tuple.PublicWildcard)
+}
+
 func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("direct", req).Send()
+
+		// TODO(jschorr): Use type information to further optimize this query.
 		it, err := cc.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
@@ -83,7 +90,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 		var requestsToDispatch []ReduceableCheckFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 			tplUserset := tpl.User.GetUserset()
-			if onrEqual(tplUserset, req.Subject) {
+			if onrEqualOrPublic(tplUserset, req.Subject) {
 				resultChan <- checkResult(v1.DispatchCheckResponse_MEMBER, emptyMetadata)
 				return
 			}

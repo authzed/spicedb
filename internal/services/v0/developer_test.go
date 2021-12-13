@@ -181,7 +181,6 @@ func TestEditCheck(t *testing.T) {
 				},
 			},
 		},
-		/* TODO(evan): Uncomment once dispatch for wildcard is supported.
 		{
 			"valid wildcard checks",
 			`
@@ -209,7 +208,6 @@ func TestEditCheck(t *testing.T) {
 				},
 			},
 		},
-		*/
 	}
 
 	for _, tc := range tests {
@@ -611,10 +609,9 @@ assertFalse:
 			},
 			``,
 		},
-		/* TODO(evan): Uncomment once dispatch for wildcard is supported.
-		   		{
-		   			"wildcard relationship",
-		   			`
+		{
+			"wildcard relationship",
+			`
 		   			definition user {}
 		   			definition document {
 		   				relation writer: user
@@ -622,26 +619,25 @@ assertFalse:
 		   				permission view = viewer + writer
 		   			}
 		   			`,
-		   			[]*v0.RelationTuple{
-		   				tuple.MustParse("document:somedoc#writer@user:jimmy"),
-		   				tuple.MustParse("document:somedoc#viewer@user:*"),
-		   			},
-		   			`"document:somedoc#view":
-		   - "[user:*] is <document:somedoc#viewer>"
-		   - "[user:jimmy] is <document:somedoc#viewer/document:somedoc#writer>"`,
-		   			`assertTrue:
-		   - document:somedoc#writer@user:jimmy
-		   - document:somedoc#viewer@user:jimmy
-		   - document:somedoc#viewer@user:somegal
-		   assertFalse:
-		   - document:somedoc#writer@user:somegal
-		   `,
-		   			nil,
-		   			`document:somedoc#view:
-		   - '[user:*] is <document:somedoc#viewer>'
-		   - '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
-		   `,
-		   		},*/
+			[]*v0.RelationTuple{
+				tuple.MustParse("document:somedoc#writer@user:jimmy"),
+				tuple.MustParse("document:somedoc#viewer@user:*"),
+			},
+			`"document:somedoc#view":
+- "[user:*] is <document:somedoc#viewer>"
+- "[user:jimmy] is <document:somedoc#viewer/document:somedoc#writer>"`,
+			`assertTrue:
+- document:somedoc#writer@user:jimmy
+- document:somedoc#viewer@user:jimmy
+- document:somedoc#viewer@user:somegal
+assertFalse:
+- document:somedoc#writer@user:somegal`,
+			nil,
+			`document:somedoc#view:
+- '[user:*] is <document:somedoc#viewer>'
+- '[user:jimmy] is <document:somedoc#writer>'
+`,
+		},
 	}
 
 	for _, tc := range tests {

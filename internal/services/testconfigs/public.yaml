@@ -21,11 +21,14 @@ assertions:
     - "test/resource:first#editor@test/user:editordude"
     - "test/resource:first#view@test/user:somegal"
     - "test/resource:first#view@test/user:editordude"
-  # TODO(evan): Uncomment once wildcard dispatch is in
-  #  - "test/resource:first#view@test/user:anotheruser"
-  #  - "test/resource:first#view@test/user:aseconduser"
-  #  - "test/resource:first#view@test/user:athirduser"
+    - "test/resource:first#view@test/user:anotheruser"
+    - "test/resource:first#view@test/user:aseconduser"
+    - "test/resource:first#view@test/user:athirduser"
   assertFalse:
+    - "test/resource:second#view@test/user:editordude"
+    - "test/resource:second#view@test/user:anotheruser"
+    - "test/resource:second#view@test/user:aseconduser"
+    - "test/resource:second#view@test/user:athirduser"
     - "test/resource:first#editor@test/user:somegal"
     - "test/resource:first#editor@test/user:anotheruser"
     - "test/resource:first#editor@test/anotherkindofuser:editordude"
