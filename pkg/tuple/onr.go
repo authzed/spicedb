@@ -68,6 +68,15 @@ func ParseONR(onr string) *v0.ObjectAndRelation {
 	}
 }
 
+// StringRR converts a RR object to a string.
+func StringRR(rr *v0.RelationReference) string {
+	if rr == nil {
+		return ""
+	}
+
+	return fmt.Sprintf("%s#%s", rr.Namespace, rr.Relation)
+}
+
 // StringONR converts an ONR object to a string.
 func StringONR(onr *v0.ObjectAndRelation) string {
 	if onr == nil {

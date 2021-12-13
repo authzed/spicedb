@@ -109,7 +109,7 @@ func BuildNamespaceTypeSystem(nsDef *v0.NamespaceDefinition, lookupNamespace Loo
 		lookupNamespace:    lookupNamespace,
 		nsDef:              nsDef,
 		relationMap:        relationMap,
-		wildcardCheckCache: map[string]*v0.AllowedRelation{},
+		wildcardCheckCache: map[string]*WildcardTypeReference{},
 	}, nil
 }
 
@@ -118,7 +118,7 @@ type NamespaceTypeSystem struct {
 	lookupNamespace    LookupNamespace
 	nsDef              *v0.NamespaceDefinition
 	relationMap        map[string]*v0.Relation
-	wildcardCheckCache map[string]*v0.AllowedRelation
+	wildcardCheckCache map[string]*WildcardTypeReference
 }
 
 // HasTypeInformation returns true if the relation with the given name exists and has type
@@ -232,13 +232,22 @@ func (nts *NamespaceTypeSystem) AllowedSubjectRelations(sourceRelationName strin
 	return filtered, nil
 }
 
+// WildcardTypeReference represents a relation that references a wildcard type.
+type WildcardTypeReference struct {
+	// ReferencingRelation is the relation referencing the wildcard type.
+	ReferencingRelation *v0.RelationReference
+
+	// WildcardType is the wildcard type referenced.
+	WildcardType *v0.AllowedRelation
+}
+
 // ReferencesWildcardType returns true if the relation references a wildcard type, either directly or via
 // another relation.
-func (nts *NamespaceTypeSystem) ReferencesWildcardType(ctx context.Context, relationName string) (*v0.AllowedRelation, error) {
+func (nts *NamespaceTypeSystem) ReferencesWildcardType(ctx context.Context, relationName string) (*WildcardTypeReference, error) {
 	return nts.referencesWildcardType(ctx, relationName, map[string]bool{})
 }
 
-func (nts *NamespaceTypeSystem) referencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*v0.AllowedRelation, error) {
+func (nts *NamespaceTypeSystem) referencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
 	cached, isCached := nts.wildcardCheckCache[relationName]
 	if isCached {
 		return cached, nil
@@ -253,7 +262,7 @@ func (nts *NamespaceTypeSystem) referencesWildcardType(ctx context.Context, rela
 	return computed, nil
 }
 
-func (nts *NamespaceTypeSystem) computeReferencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*v0.AllowedRelation, error) {
+func (nts *NamespaceTypeSystem) computeReferencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
 	relString := fmt.Sprintf("%s#%s", nts.nsDef.Name, relationName)
 	_, ok := encountered[relString]
 	if ok {
@@ -268,12 +277,26 @@ func (nts *NamespaceTypeSystem) computeReferencesWildcardType(ctx context.Contex
 
 	for _, allowedRelation := range allowedRels {
 		if allowedRelation.GetPublicWildcard() != nil {
-			return allowedRelation, nil
+			return &WildcardTypeReference{
+				ReferencingRelation: &v0.RelationReference{
+					Namespace: nts.nsDef.Name,
+					Relation:  relationName,
+				},
+				WildcardType: allowedRelation,
+			}, nil
 		}
 
 		if allowedRelation.GetRelation() != tuple.Ellipsis {
 			if allowedRelation.GetNamespace() == nts.nsDef.Name {
-				return nts.referencesWildcardType(ctx, allowedRelation.GetRelation(), encountered)
+				found, err := nts.referencesWildcardType(ctx, allowedRelation.GetRelation(), encountered)
+				if err != nil {
+					return nil, err
+				}
+
+				if found != nil {
+					return found, nil
+				}
+				continue
 			}
 
 			subjectTS, err := nts.typeSystemForNamespace(ctx, allowedRelation.GetNamespace())
@@ -281,7 +304,14 @@ func (nts *NamespaceTypeSystem) computeReferencesWildcardType(ctx context.Contex
 				return nil, err
 			}
 
-			return subjectTS.referencesWildcardType(ctx, allowedRelation.GetRelation(), encountered)
+			found, err := subjectTS.referencesWildcardType(ctx, allowedRelation.GetRelation(), encountered)
+			if err != nil {
+				return nil, err
+			}
+
+			if found != nil {
+				return found, nil
+			}
 		}
 	}
 
@@ -323,13 +353,13 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
-				wildcardType, err := nts.ReferencesWildcardType(ctx, relationName)
+				referencedWildcard, err := nts.ReferencesWildcardType(ctx, relationName)
 				if err != nil {
 					return err
 				}
 
-				if wildcardType != nil {
-					return fmt.Errorf("for arrow under relation `%s`: relation `%s#%s` includes wildcard (public) type `%s`: wildcard relations cannot be used on the left side of arrows", relation.Name, nts.nsDef.Name, relationName, wildcardType.GetNamespace())
+				if referencedWildcard != nil {
+					return fmt.Errorf("for arrow under relation `%s`: relation `%s#%s` includes wildcard (public) type `%s` via relation `%s`: wildcard relations cannot be used on the left side of arrows", relation.Name, nts.nsDef.Name, relationName, referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
 				}
 			}
 			return nil
@@ -384,13 +414,13 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 					}
 
 					// Ensure the relation doesn't itself import wildcard.
-					wildcardType, err := subjectTS.ReferencesWildcardType(ctx, allowedRelation.GetRelation())
+					referencedWildcard, err := subjectTS.ReferencesWildcardType(ctx, allowedRelation.GetRelation())
 					if err != nil {
 						return err
 					}
 
-					if wildcardType != nil {
-						return fmt.Errorf("for relation `%s`: relation/permission `%s#%s` includes wildcard (public) type `%s`: wildcard relations cannot be transitively included", relation.Name, allowedRelation.GetNamespace(), allowedRelation.GetRelation(), wildcardType.GetNamespace())
+					if referencedWildcard != nil {
+						return fmt.Errorf("for relation `%s`: relation/permission `%s#%s` includes wildcard (public) type `%s` via relation `%s`: wildcard relations cannot be transitively included", relation.Name, allowedRelation.GetNamespace(), allowedRelation.GetRelation(), referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
 					}
 				}
 			}
