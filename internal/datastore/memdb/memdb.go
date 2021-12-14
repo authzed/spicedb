@@ -103,7 +103,7 @@ func tupleEntryFromRelationship(r *v1.Relationship, created, deleted uint64) *re
 		relation:         r.Relation,
 		subjectNamespace: r.Subject.Object.ObjectType,
 		subjectObjectID:  r.Subject.Object.ObjectId,
-		subjectRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, "..."),
+		subjectRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
 		createdTxn:       created,
 		deletedTxn:       deleted,
 	}

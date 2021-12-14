@@ -40,7 +40,7 @@ func ParseSubjectONR(subjectOnr string) *v0.ObjectAndRelation {
 		return nil
 	}
 
-	relation := "..."
+	relation := ellipsis
 	subjectRelIndex := stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectRel")
 	if len(groups[subjectRelIndex]) > 0 {
 		relation = groups[subjectRelIndex]

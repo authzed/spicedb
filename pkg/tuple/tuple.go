@@ -157,7 +157,7 @@ func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 				ObjectType: tpl.User.GetUserset().Namespace,
 				ObjectId:   tpl.User.GetUserset().ObjectId,
 			},
-			OptionalRelation: stringz.Default(tpl.User.GetUserset().Relation, "", "..."),
+			OptionalRelation: stringz.Default(tpl.User.GetUserset().Relation, "", ellipsis),
 		},
 	}
 }
@@ -271,7 +271,7 @@ func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
 		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
 			Namespace: r.Subject.Object.ObjectType,
 			ObjectId:  r.Subject.Object.ObjectId,
-			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, "..."),
+			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, ellipsis),
 		}}},
 	}
 }
