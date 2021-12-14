@@ -5,8 +5,9 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/shopspring/decimal"
+
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
 // Ellipsis is a special relation that is assumed to be valid on the right

@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"time"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/internal/datastore"
