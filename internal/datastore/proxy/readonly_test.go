@@ -71,9 +71,9 @@ func TestRevisionPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	delegate.On("Revision").Return(expectedRevision, nil).Times(1)
+	delegate.On("OptimizedRevision").Return(expectedRevision, nil).Times(1)
 
-	revision, err := ds.Revision(ctx)
+	revision, err := ds.OptimizedRevision(ctx)
 	require.NoError(err)
 	require.Equal(expectedRevision, revision)
 	delegate.AssertExpectations(t)
@@ -217,7 +217,7 @@ func (dm *delegateMock) DeleteRelationships(ctx context.Context, _ []*v1.Precond
 	panic("shouldn't ever call delete relationships method on delegate")
 }
 
-func (dm *delegateMock) Revision(ctx context.Context) (datastore.Revision, error) {
+func (dm *delegateMock) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	args := dm.Called()
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }

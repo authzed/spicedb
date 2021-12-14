@@ -57,13 +57,13 @@ func TestDatastoreRequestHedging(t *testing.T) {
 			},
 		},
 		{
-			"Revision",
+			"OptimizedRevision",
 			[]interface{}{mock.Anything},
 			[]interface{}{revisionKnown, errKnown},
 			[]interface{}{anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
-				rev, err := proxy.Revision(context.Background())
+				rev, err := proxy.OptimizedRevision(context.Background())
 				require.ErrorIs(errKnown, err)
 				if expectFirst {
 					require.Equal(revisionKnown, rev)

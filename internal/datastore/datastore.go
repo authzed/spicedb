@@ -31,8 +31,9 @@ type Datastore interface {
 	// filter if all preconditions are met.
 	DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (Revision, error)
 
-	// Revision gets the currently replicated revision for this datastore.
-	Revision(ctx context.Context) (Revision, error)
+	// OptimizedRevision gets a revision that will likely already be replicated
+	// and will likely be shared amongst many queries.
+	OptimizedRevision(ctx context.Context) (Revision, error)
 
 	// SyncRevision gets a revision that is guaranteed to be at least as fresh as
 	// right now.

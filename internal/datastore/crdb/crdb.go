@@ -181,8 +181,8 @@ func (cds *crdbDatastore) Close() error {
 	return nil
 }
 
-func (cds *crdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "Revision")
+func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()
 
 	localNow := time.Now()

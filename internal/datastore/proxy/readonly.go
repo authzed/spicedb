@@ -37,8 +37,8 @@ func (rd roDatastore) WriteTuples(ctx context.Context, _ []*v1.Precondition, _ [
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
-	return rd.delegate.Revision(ctx)
+func (rd roDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	return rd.delegate.OptimizedRevision(ctx)
 }
 
 func (rd roDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {

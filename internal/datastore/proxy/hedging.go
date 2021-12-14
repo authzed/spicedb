@@ -171,10 +171,10 @@ func newHedgingProxyWithTimeSource(
 	}
 }
 
-func (hp hedgingProxy) Revision(ctx context.Context) (rev datastore.Revision, err error) {
+func (hp hedgingProxy) OptimizedRevision(ctx context.Context) (rev datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegatedRev, delegatedErr := hp.delegate.Revision(ctx)
+		delegatedRev, delegatedErr := hp.delegate.OptimizedRevision(ctx)
 		once.Do(func() {
 			rev = delegatedRev
 			err = delegatedErr

@@ -35,7 +35,7 @@ func (md *MockedDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (md *MockedDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
+func (md *MockedDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	args := md.Called(ctx)
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }

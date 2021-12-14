@@ -237,7 +237,7 @@ func (mds *memdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision
 	return datastore.NoRevision, nil
 }
 
-func (mds *memdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
+func (mds *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	db := mds.db
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")

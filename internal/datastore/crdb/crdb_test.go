@@ -107,7 +107,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 
 			// Revisions should be at least the follower read delay amount in the past
 			for start := time.Now(); time.Since(start) < 50*time.Millisecond; {
-				testRevision, err := ds.Revision(ctx)
+				testRevision, err := ds.OptimizedRevision(ctx)
 				nowRevision, err := ds.SyncRevision(ctx)
 				require.NoError(err)
 

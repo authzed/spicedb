@@ -33,7 +33,7 @@ func RevisionFuzzingTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			ctx := context.Background()
-			veryFirstRevision, err := ds.Revision(ctx)
+			veryFirstRevision, err := ds.OptimizedRevision(ctx)
 			require.NoError(err)
 			require.True(veryFirstRevision.GreaterThan(decimal.Zero))
 
@@ -57,7 +57,7 @@ func RevisionFuzzingTest(t *testing.T, tester DatastoreTester) {
 
 			foundLowerRevision := false
 			for start := time.Now(); time.Since(start) < 20*time.Millisecond; {
-				testRevision, err := ds.Revision(ctx)
+				testRevision, err := ds.OptimizedRevision(ctx)
 				require.NoError(err)
 				if testRevision.LessThan(nowRevision) {
 					foundLowerRevision = true
@@ -72,7 +72,7 @@ func RevisionFuzzingTest(t *testing.T, tester DatastoreTester) {
 
 			// Now we should ONLY get revisions later than the now revision
 			for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
-				testRevision, err := ds.Revision(ctx)
+				testRevision, err := ds.OptimizedRevision(ctx)
 				require.NoError(err)
 				require.True(testRevision.GreaterThanOrEqual(nowRevision))
 			}

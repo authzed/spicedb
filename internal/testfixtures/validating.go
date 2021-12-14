@@ -62,8 +62,8 @@ func (vd validatingDatastore) WriteTuples(ctx context.Context, preconditions []*
 	return vd.delegate.WriteTuples(ctx, preconditions, mutations)
 }
 
-func (vd validatingDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
-	return vd.delegate.Revision(ctx)
+func (vd validatingDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	return vd.delegate.OptimizedRevision(ctx)
 }
 
 func (vd validatingDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {

@@ -84,8 +84,8 @@ func (mp mappingProxy) DeleteRelationships(ctx context.Context, preconditions []
 	return mp.delegate.DeleteRelationships(ctx, translatedPreconditions, translatedFilter)
 }
 
-func (mp mappingProxy) Revision(ctx context.Context) (datastore.Revision, error) {
-	return mp.delegate.Revision(ctx)
+func (mp mappingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	return mp.delegate.OptimizedRevision(ctx)
 }
 
 func (mp mappingProxy) SyncRevision(ctx context.Context) (datastore.Revision, error) {
