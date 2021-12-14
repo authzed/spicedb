@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	sq "github.com/Masterminds/squirrel"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
-	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/options"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -35,34 +36,44 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (cds *crdbDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	initialQuery := queryTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
+func (cds *crdbDatastore) QueryTuples(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	opts ...options.QueryOptionsOption,
+) (iter datastore.TupleIterator, err error) {
+	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
+		FilterToResourceType(filter.ResourceType)
 
-	if filter.OptionalResourceID != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colObjectID: filter.OptionalResourceID})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(filter.OptionalResourceID))
+	if filter.OptionalResourceId != "" {
+		qBuilder = qBuilder.FilterToResourceID(filter.OptionalResourceId)
 	}
 
-	if filter.OptionalResourceRelation != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colRelation: filter.OptionalResourceRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(filter.OptionalResourceRelation))
+	if filter.OptionalRelation != "" {
+		qBuilder = qBuilder.FilterToRelation(filter.OptionalRelation)
 	}
 
-	baseSize := len(filter.ResourceType) + len(filter.OptionalResourceID) + len(filter.OptionalResourceRelation)
+	if filter.OptionalSubjectFilter != nil {
+		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
+	}
 
-	return common.TupleQuery{
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+
+	ctq := common.TupleQuerySplitter{
 		Conn:                      cds.conn,
-		Schema:                    schema,
 		PrepareTransaction:        cds.prepareTransaction,
-		InitialQuery:              initialQuery,
-		InitialQuerySizeEstimate:  baseSize,
-		Revision:                  revision,
-		Tracer:                    tracer,
-		TracerAttributes:          tracerAttributes,
 		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
-		DebugName:                 "QueryTuples",
+
+		FilteredQueryBuilder: qBuilder,
+		Revision:             revision,
+		Limit:                queryOpts.Limit,
+		Usersets:             queryOpts.Usersets,
+
+		Tracer:    tracer,
+		DebugName: "QueryTuples",
 	}
+
+	return ctq.SplitAndExecute(ctx)
 }
 
 func (cds *crdbDatastore) prepareTransaction(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error {
@@ -71,28 +82,48 @@ func (cds *crdbDatastore) prepareTransaction(ctx context.Context, tx pgx.Tx, rev
 	return err
 }
 
-func (cds *crdbDatastore) reverseQueryBase(revision datastore.Revision) common.TupleQuery {
-	return common.TupleQuery{
-		Conn:                      cds.conn,
-		Schema:                    schema,
-		PrepareTransaction:        cds.prepareTransaction,
-		InitialQuery:              queryTuples,
-		Revision:                  revision,
-		Tracer:                    tracer,
-		TracerAttributes:          []attribute.KeyValue{},
-		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
-		DebugName:                 "ReverseQueryTuples",
+func (cds *crdbDatastore) reverseQueryBase(qBuilder common.SchemaQueryFilterer, revision datastore.Revision) common.ReverseTupleQuery {
+	return common.ReverseTupleQuery{
+		TupleQuerySplitter: common.TupleQuerySplitter{
+			Conn:                      cds.conn,
+			PrepareTransaction:        cds.prepareTransaction,
+			SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
+
+			FilteredQueryBuilder: qBuilder,
+			Revision:             revision,
+			Limit:                nil,
+			Usersets:             nil,
+
+			Tracer:    tracer,
+			DebugName: "ReverseQueryTuples",
+		},
 	}
 }
 
 func (cds *crdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return cds.reverseQueryBase(revision).ReverseQueryTuplesFromSubject(subject)
+	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
+		FilterToSubjectFilter(tuple.UsersetToSubjectFilter(subject))
+
+	return cds.reverseQueryBase(qBuilder, revision)
 }
 
 func (cds *crdbDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return cds.reverseQueryBase(revision).ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation)
+	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
+		FilterToSubjectFilter(&v1.SubjectFilter{
+			SubjectType: subjectNamespace,
+			OptionalRelation: &v1.SubjectFilter_RelationFilter{
+				Relation: subjectRelation,
+			},
+		})
+
+	return cds.reverseQueryBase(qBuilder, revision)
 }
 
 func (cds *crdbDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return cds.reverseQueryBase(revision).ReverseQueryTuplesFromSubjectNamespace(subjectNamespace)
+	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
+		FilterToSubjectFilter(&v1.SubjectFilter{
+			SubjectType: subjectNamespace,
+		})
+
+	return cds.reverseQueryBase(qBuilder, revision)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
 func TestRWOperationErrors(t *testing.T) {
@@ -143,11 +144,13 @@ func TestQueryTuplesPassthrough(t *testing.T) {
 
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
+	ctx := context.Background()
 
-	delegate.On("QueryTuples", datastore.TupleQueryResourceFilter{ResourceType: "test"}, expectedRevision).Return().Times(1)
+	delegate.On("QueryTuples", &v1.RelationshipFilter{ResourceType: "test"}, expectedRevision).Return().Times(1)
 
-	query := ds.QueryTuples(datastore.TupleQueryResourceFilter{ResourceType: "test"}, expectedRevision)
-	require.Nil(query)
+	iter, err := ds.QueryTuples(ctx, &v1.RelationshipFilter{ResourceType: "test"}, expectedRevision)
+	require.Nil(iter)
+	require.NoError(err)
 	delegate.AssertExpectations(t)
 }
 
@@ -246,9 +249,20 @@ func (dm *delegateMock) DeleteNamespace(ctx context.Context, nsName string) (dat
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	dm.Called(filter, revision)
-	return nil
+func (dm *delegateMock) QueryTuples(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	options ...options.QueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	args := make([]interface{}, 0, len(options)+2)
+	args = append(args, filter, revision)
+	for _, option := range options {
+		args = append(args, option)
+	}
+
+	dm.Called(args...)
+	return nil, nil
 }
 
 func (dm *delegateMock) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {

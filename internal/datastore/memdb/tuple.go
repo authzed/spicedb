@@ -171,19 +171,6 @@ func (mds *memdbDatastore) delete(ctx context.Context, txn *memdb.Txn, filter *v
 	return newTxnID, nil
 }
 
-func (mds *memdbDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	return &memdbTupleQuery{
-		db:               mds.db,
-		revision:         revision,
-		simulatedLatency: mds.simulatedLatency,
-		resourceFilter: &v1.RelationshipFilter{
-			ResourceType:       filter.ResourceType,
-			OptionalResourceId: filter.OptionalResourceID,
-			OptionalRelation:   filter.OptionalResourceRelation,
-		},
-	}
-}
-
 func (mds *memdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
 	return &memdbReverseTupleQuery{
 		db:               mds.db,

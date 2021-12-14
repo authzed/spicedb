@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
 var hedgeableCount = promauto.NewCounter(prometheus.CounterOpts{
@@ -120,10 +121,11 @@ func newHedger(
 type hedgingProxy struct {
 	delegate datastore.Datastore
 
-	revisionHedger      hedger
-	headRevisionHedger  hedger
-	readNamespaceHedger hedger
-	queryTuplesHedger   hedger
+	revisionHedger          hedger
+	headRevisionHedger      hedger
+	readNamespaceHedger     hedger
+	queryTuplesHedger       hedger
+	directQueryTuplesHedger hedger
 }
 
 // NewHedgingProxy creates a proxy which performs request hedging on read operations
@@ -164,6 +166,7 @@ func newHedgingProxyWithTimeSource(
 
 	return hedgingProxy{
 		delegate,
+		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
@@ -248,11 +251,25 @@ func (hp hedgingProxy) DeleteNamespace(ctx context.Context, nsName string) (data
 	return hp.delegate.DeleteNamespace(ctx, nsName)
 }
 
-func (hp hedgingProxy) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	return hedgingTupleQuery{
-		hp.delegate.QueryTuples(filter, revision),
-		hp.queryTuplesHedger,
+func (hp hedgingProxy) QueryTuples(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	options ...options.QueryOptionsOption,
+) (iter datastore.TupleIterator, err error) {
+	var once sync.Once
+	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
+		delegatedIter, delegatedErr := hp.delegate.QueryTuples(ctx, filter, revision, options...)
+		once.Do(func() {
+			iter = delegatedIter
+			err = delegatedErr
+		})
+		responseReady <- struct{}{}
 	}
+
+	hp.directQueryTuplesHedger(ctx, subreq)
+
+	return
 }
 
 func (hp hedgingProxy) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
@@ -284,11 +301,6 @@ func (hp hedgingProxy) ListNamespaces(ctx context.Context, revision datastore.Re
 	return hp.delegate.ListNamespaces(ctx, revision)
 }
 
-type hedgingTupleQuery struct {
-	delegate          datastore.TupleQuery
-	queryTuplesHedger hedger
-}
-
 type tupleExecutor func(ctx context.Context) (datastore.TupleIterator, error)
 
 func executeQuery(ctx context.Context, exec tupleExecutor, queryHedger hedger) (delegateIterator datastore.TupleIterator, err error) {
@@ -315,27 +327,6 @@ func executeQuery(ctx context.Context, exec tupleExecutor, queryHedger hedger) (
 	return
 }
 
-func (htq hedgingTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
-	return executeQuery(ctx, htq.delegate.Execute, htq.queryTuplesHedger)
-}
-
-func (htq hedgingTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	return hedgingCommonTupleQuery{
-		htq.delegate.Limit(limit),
-		htq.queryTuplesHedger,
-	}
-}
-
-func (htq hedgingTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
-	htq.delegate = htq.delegate.WithSubjectFilter(filter)
-	return htq
-}
-
-func (htq hedgingTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	htq.delegate = htq.delegate.WithUsersets(usersets)
-	return htq
-}
-
 type hedgingReverseTupleQuery struct {
 	delegate          datastore.ReverseTupleQuery
 	queryTuplesHedger hedger
@@ -345,28 +336,12 @@ func (hrtq hedgingReverseTupleQuery) Execute(ctx context.Context) (delegateItera
 	return executeQuery(ctx, hrtq.delegate.Execute, hrtq.queryTuplesHedger)
 }
 
-func (hrtq hedgingReverseTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	return hedgingCommonTupleQuery{
-		hrtq.delegate.Limit(limit),
-		hrtq.queryTuplesHedger,
-	}
+func (hrtq hedgingReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
+	hrtq.delegate = hrtq.delegate.Limit(limit)
+	return hrtq
 }
 
 func (hrtq hedgingReverseTupleQuery) WithObjectRelation(namespace string, relation string) datastore.ReverseTupleQuery {
 	hrtq.delegate = hrtq.delegate.WithObjectRelation(namespace, relation)
 	return hrtq
-}
-
-type hedgingCommonTupleQuery struct {
-	delegate          datastore.CommonTupleQuery
-	queryTuplesHedger hedger
-}
-
-func (hctq hedgingCommonTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	hctq.delegate = hctq.delegate.Limit(limit)
-	return hctq
-}
-
-func (hctq hedgingCommonTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
-	return executeQuery(ctx, hctq.delegate.Execute, hctq.queryTuplesHedger)
 }

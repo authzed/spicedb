@@ -8,6 +8,7 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/benbjohnson/clock"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
@@ -28,6 +29,8 @@ var (
 	nsKnown              = "namespace_name"
 	revisionKnown        = decimal.NewFromInt(1)
 	anotherRevisionKnown = decimal.NewFromInt(2)
+
+	emptyIterator = datastore.NewSliceTupleIterator(nil)
 )
 
 type testFunc func(t *testing.T, proxy datastore.Datastore, expectFirst bool)
@@ -58,7 +61,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		},
 		{
 			"OptimizedRevision",
-			[]interface{}{mock.Anything},
+			[]interface{}{mock.Anything, mock.Anything},
 			[]interface{}{revisionKnown, errKnown},
 			[]interface{}{anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
@@ -85,6 +88,21 @@ func TestDatastoreRequestHedging(t *testing.T) {
 					require.Equal(revisionKnown, rev)
 				} else {
 					require.Equal(anotherRevisionKnown, rev)
+				}
+			},
+		},
+		{
+			"QueryTuples",
+			[]interface{}{mock.Anything, mock.Anything},
+			[]interface{}{emptyIterator, errKnown},
+			[]interface{}{emptyIterator, errAnotherKnown},
+			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
+				require := require.New(t)
+				_, err := proxy.QueryTuples(context.Background(), &v1.RelationshipFilter{}, datastore.NoRevision)
+				if expectFirst {
+					require.ErrorIs(errKnown, err)
+				} else {
+					require.ErrorIs(errAnotherKnown, err)
 				}
 			},
 		},
@@ -197,17 +215,6 @@ func runQueryTest(t *testing.T, delegate isMock, mockTime *clock.Mock, exec tupl
 	delegate.AssertExpectations(t)
 }
 
-func TestTupleQueryRequestHedging(t *testing.T) {
-	delegate := &test.MockedTupleQuery{}
-	mockTime := clock.NewMock()
-	proxy := &hedgingTupleQuery{
-		delegate,
-		newHedger(mockTime, slowQueryTime, maxSampleCount, quantile),
-	}
-
-	runQueryTest(t, delegate, mockTime, proxy.Execute)
-}
-
 func TestReverseTupleQueryRequestHedging(t *testing.T) {
 	delegate := &test.MockedReverseTupleQuery{}
 	mockTime := clock.NewMock()
@@ -219,23 +226,12 @@ func TestReverseTupleQueryRequestHedging(t *testing.T) {
 	runQueryTest(t, delegate, mockTime, proxy.Execute)
 }
 
-func TestCommonTupleQueryRequestHedging(t *testing.T) {
-	delegate := &test.MockedCommonTupleQuery{}
-	mockTime := clock.NewMock()
-	proxy := &hedgingCommonTupleQuery{
-		delegate,
-		newHedger(mockTime, slowQueryTime, maxSampleCount, quantile),
-	}
-
-	runQueryTest(t, delegate, mockTime, proxy.Execute)
-}
-
 func TestDigestRollover(t *testing.T) {
 	require := require.New(t)
 
-	delegate := &test.MockedCommonTupleQuery{}
+	delegate := &test.MockedReverseTupleQuery{}
 	mockTime := clock.NewMock()
-	proxy := &hedgingCommonTupleQuery{
+	proxy := &hedgingReverseTupleQuery{
 		delegate,
 		newHedger(mockTime, slowQueryTime, 100, 0.9999999999),
 	}
@@ -322,17 +318,12 @@ func TestDatastoreE2E(t *testing.T) {
 	require := require.New(t)
 
 	delegateDatastore := &test.MockedDatastore{}
-	delegateQuery := &test.MockedTupleQuery{}
+	delegateQuery := &test.MockedReverseTupleQuery{}
 	mockTime := clock.NewMock()
 
 	proxy := newHedgingProxyWithTimeSource(
 		delegateDatastore, slowQueryTime, maxSampleCount, quantile, mockTime,
 	)
-
-	delegateDatastore.
-		On("QueryTuples", mock.Anything, mock.Anything).
-		Return(delegateQuery).
-		Once()
 
 	expectedTuples := []*v0.RelationTuple{
 		{
@@ -352,21 +343,22 @@ func TestDatastoreE2E(t *testing.T) {
 			},
 		},
 	}
-	delegateQuery.
-		On("Execute", mock.Anything).
+
+	delegateDatastore.
+		On("QueryTuples", mock.Anything, mock.Anything, mock.Anything).
 		Return(datastore.NewSliceTupleIterator(expectedTuples), nil).
 		WaitUntil(mockTime.After(2 * slowQueryTime)).
 		Once()
-	delegateQuery.
-		On("Execute", mock.Anything).
+	delegateDatastore.
+		On("QueryTuples", mock.Anything, mock.Anything, mock.Anything).
 		Return(datastore.NewSliceTupleIterator(expectedTuples), nil).
 		Once()
 
 	autoAdvance(mockTime, slowQueryTime/2, 2*slowQueryTime)
 
-	it, err := proxy.QueryTuples(datastore.TupleQueryResourceFilter{
+	it, err := proxy.QueryTuples(context.Background(), &v1.RelationshipFilter{
 		ResourceType: "test",
-	}, revisionKnown).Execute(context.Background())
+	}, revisionKnown)
 	require.NoError(err)
 
 	only := it.Next()

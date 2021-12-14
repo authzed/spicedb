@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
 // MockedDatastore is a mock implementation of the datastore.
@@ -65,9 +66,20 @@ func (md *MockedDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (md *MockedDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	args := md.Called(filter, revision)
-	return args.Get(0).(datastore.TupleQuery)
+func (md *MockedDatastore) QueryTuples(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	options ...options.QueryOptionsOption,
+) (iter datastore.TupleIterator, err error) {
+	callArgs := make([]interface{}, 0, len(options)+2)
+	callArgs = append(callArgs, filter, revision)
+	for _, option := range options {
+		callArgs = append(callArgs, option)
+	}
+
+	args := md.Called(callArgs...)
+	return args.Get(0).(datastore.TupleIterator), args.Error(1)
 }
 
 func (md *MockedDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
@@ -95,39 +107,9 @@ func (md *MockedDatastore) ListNamespaces(ctx context.Context, revision datastor
 	return args.Get(0).([]*v0.NamespaceDefinition), args.Error(1)
 }
 
-// MockedCommonTupleQuery is a mock implementation of the common tuple query.
-type MockedCommonTupleQuery struct {
-	mock.Mock
-}
-
-func (mctq *MockedCommonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	args := mctq.Called(ctx)
-	return args.Get(0).(datastore.TupleIterator), args.Error(1)
-}
-
-func (mctq *MockedCommonTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	args := mctq.Called(limit)
-	return args.Get(0).(datastore.CommonTupleQuery)
-}
-
-// MockedTupleQuery is a mock implementation of the tuple query.
-type MockedTupleQuery struct {
-	MockedCommonTupleQuery
-}
-
-func (mtq *MockedTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
-	args := mtq.Called(filter)
-	return args.Get(0).(datastore.TupleQuery)
-}
-
-func (mtq *MockedTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	args := mtq.Called(usersets)
-	return args.Get(0).(datastore.TupleQuery)
-}
-
 // MockedReverseTupleQuery is a mock implementation of the reverse tuple query.
 type MockedReverseTupleQuery struct {
-	MockedCommonTupleQuery
+	mock.Mock
 }
 
 func (mrtq *MockedReverseTupleQuery) WithObjectRelation(namespace string, relation string) datastore.ReverseTupleQuery {
@@ -135,9 +117,17 @@ func (mrtq *MockedReverseTupleQuery) WithObjectRelation(namespace string, relati
 	return args.Get(0).(datastore.ReverseTupleQuery)
 }
 
+func (mrtq *MockedReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
+	args := mrtq.Called(ctx)
+	return args.Get(0).(datastore.TupleIterator), args.Error(1)
+}
+
+func (mrtq *MockedReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
+	args := mrtq.Called(limit)
+	return args.Get(0).(datastore.ReverseTupleQuery)
+}
+
 var (
 	_ datastore.Datastore         = &MockedDatastore{}
-	_ datastore.TupleQuery        = &MockedTupleQuery{}
 	_ datastore.ReverseTupleQuery = &MockedReverseTupleQuery{}
-	_ datastore.CommonTupleQuery  = &MockedCommonTupleQuery{}
 )

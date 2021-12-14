@@ -5,11 +5,13 @@ import (
 	"errors"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/namespace"
 )
 
@@ -20,18 +22,27 @@ func EnsureNoRelationshipsExist(ctx context.Context, ds datastore.Datastore, nam
 		return err
 	}
 
-	if err := errorIfTupleIteratorReturnsTuples(
+	qy, qyErr := ds.QueryTuples(
 		ctx,
-		ds.QueryTuples(datastore.TupleQueryResourceFilter{ResourceType: namespaceName}, headRevision),
+		&v1.RelationshipFilter{ResourceType: namespaceName},
+		headRevision,
+		options.WithLimit(options.LimitOne),
+	)
+	if err := ErrorIfTupleIteratorReturnsTuples(
+		ctx,
+		qy,
+		qyErr,
 		"cannot delete Object Definition `%s`, as a Relationship exists under it",
 		namespaceName,
 	); err != nil {
 		return err
 	}
 
-	if err := errorIfTupleIteratorReturnsTuples(
+	qy, qyErr = ds.ReverseQueryTuplesFromSubjectNamespace(namespaceName, headRevision).Limit(1).Execute(ctx)
+	if err := ErrorIfTupleIteratorReturnsTuples(
 		ctx,
-		ds.ReverseQueryTuplesFromSubjectNamespace(namespaceName, headRevision),
+		qy,
+		qyErr,
 		"cannot delete Object Definition `%s`, as a Relationship references it",
 		namespaceName,
 	); err != nil {
@@ -66,31 +77,39 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
 		case namespace.RemovedRelation:
-			err = errorIfTupleIteratorReturnsTuples(
+			qy, qyErr := ds.QueryTuples(ctx, &v1.RelationshipFilter{
+				ResourceType:     nsdef.Name,
+				OptionalRelation: delta.RelationName,
+			}, headRevision)
+
+			err = ErrorIfTupleIteratorReturnsTuples(
 				ctx,
-				ds.QueryTuples(datastore.TupleQueryResourceFilter{
-					ResourceType:             nsdef.Name,
-					OptionalResourceRelation: delta.RelationName,
-				}, headRevision),
+				qy,
+				qyErr,
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship exists under it", delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
 			}
 
 			// Also check for right sides of tuples.
-			err = errorIfTupleIteratorReturnsTuples(
+			qy, qyErr = ds.ReverseQueryTuplesFromSubjectRelation(nsdef.Name, delta.RelationName, headRevision).Limit(1).Execute(ctx)
+			err = ErrorIfTupleIteratorReturnsTuples(
 				ctx,
-				ds.ReverseQueryTuplesFromSubjectRelation(nsdef.Name, delta.RelationName, headRevision),
+				qy,
+				qyErr,
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship references it", delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
 			}
 
 		case namespace.RelationDirectTypeRemoved:
-			err = errorIfTupleIteratorReturnsTuples(
+			qy, qyErr := ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, headRevision).
+				WithObjectRelation(nsdef.Name, delta.RelationName).Limit(1).Execute(ctx)
+
+			err = ErrorIfTupleIteratorReturnsTuples(
 				ctx,
-				ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, headRevision).
-					WithObjectRelation(nsdef.Name, delta.RelationName),
+				qy,
+				qyErr,
 				"cannot remove allowed direct Relation `%s#%s` from Relation `%s` in Object Definition `%s`, as a Relationship exists with it",
 				delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, nsdef.Name)
 			if err != nil {
@@ -101,10 +120,11 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 	return nil
 }
 
-func errorIfTupleIteratorReturnsTuples(ctx context.Context, query datastore.CommonTupleQuery, message string, args ...interface{}) error {
-	qy, err := query.Limit(1).Execute(ctx)
-	if err != nil {
-		return err
+// ErrorIfTupleIteratorReturnsTuples takes a tuple iterator and any error that was generated
+// when the original iterator was created, and returns an error if iterator contains any tuples.
+func ErrorIfTupleIteratorReturnsTuples(ctx context.Context, qy datastore.TupleIterator, qyErr error, message string, args ...interface{}) error {
+	if qyErr != nil {
+		return qyErr
 	}
 	defer qy.Close()
 

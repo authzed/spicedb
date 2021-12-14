@@ -175,14 +175,45 @@ func MustToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 // ToFilter converts a RelationTuple into a RelationshipFilter.
 func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 	return &v1.RelationshipFilter{
-		ResourceType:       tpl.ObjectAndRelation.Namespace,
-		OptionalResourceId: tpl.ObjectAndRelation.ObjectId,
-		OptionalRelation:   tpl.ObjectAndRelation.Relation,
+		ResourceType:          tpl.ObjectAndRelation.Namespace,
+		OptionalResourceId:    tpl.ObjectAndRelation.ObjectId,
+		OptionalRelation:      tpl.ObjectAndRelation.Relation,
+		OptionalSubjectFilter: UsersetToSubjectFilter(tpl.User.GetUserset()),
+	}
+}
+
+// UsersetToSubjectFilter converts a userset to the equivalent exact SubjectFilter.
+func UsersetToSubjectFilter(userset *v0.ObjectAndRelation) *v1.SubjectFilter {
+	return &v1.SubjectFilter{
+		SubjectType:       userset.Namespace,
+		OptionalSubjectId: userset.ObjectId,
+		OptionalRelation: &v1.SubjectFilter_RelationFilter{
+			Relation: stringz.Default(userset.Relation, "", ellipsis),
+		},
+	}
+}
+
+// MustRelToFilter converts a Relationship into a RelationshipFilter. Will panic if
+// the Relationship does not validate.
+func MustRelToFilter(rel *v1.Relationship) *v1.RelationshipFilter {
+	if err := rel.Validate(); err != nil {
+		panic(fmt.Sprintf("invalid tuple: %#v %s", rel, err))
+	}
+
+	return RelToFilter(rel)
+}
+
+// RelToFilter converts a Relationship into a RelationshipFilter.
+func RelToFilter(rel *v1.Relationship) *v1.RelationshipFilter {
+	return &v1.RelationshipFilter{
+		ResourceType:       rel.Resource.ObjectType,
+		OptionalResourceId: rel.Resource.ObjectId,
+		OptionalRelation:   rel.Relation,
 		OptionalSubjectFilter: &v1.SubjectFilter{
-			SubjectType:       tpl.User.GetUserset().Namespace,
-			OptionalSubjectId: tpl.User.GetUserset().ObjectId,
+			SubjectType:       rel.Subject.Object.ObjectType,
+			OptionalSubjectId: rel.Subject.Object.ObjectId,
 			OptionalRelation: &v1.SubjectFilter_RelationFilter{
-				Relation: stringz.Default(tpl.User.GetUserset().Relation, "", "..."),
+				Relation: rel.Subject.OptionalRelation,
 			},
 		},
 	}

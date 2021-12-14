@@ -50,7 +50,7 @@ var (
 )
 
 // DefaultSplitAtEstimatedQuerySize is the default allowed estimated query size before the
-// TupleQuery will split the query into multiple calls.
+// TupleQuerySplitter will split the query into multiple calls.
 //
 // In Postgres, it appears to be 1GB: https://dba.stackexchange.com/questions/131399/is-there-a-maximum-length-constraint-for-a-postgres-query
 // In CockroachDB, the maximum is 16MiB: https://www.cockroachlabs.com/docs/stable/known-limitations.html#size-limits-on-statement-input-from-sql-clients
@@ -69,120 +69,137 @@ type SchemaInformation struct {
 	ColUsersetRelation  string
 }
 
+// SchemaQueryFilterer wraps a SchemaInformation and SelectBuilder to give an opinionated
+// way to build query objects.
+type SchemaQueryFilterer struct {
+	schema               SchemaInformation
+	queryBuilder         sq.SelectBuilder
+	currentEstimatedSize int
+	tracerAttributes     []attribute.KeyValue
+}
+
+// NewSchemaQueryFilterer creates a new SchemaQueryFilterer object.
+func NewSchemaQueryFilterer(schema SchemaInformation, initialQuery sq.SelectBuilder) SchemaQueryFilterer {
+	return SchemaQueryFilterer{
+		schema:       schema,
+		queryBuilder: initialQuery,
+	}
+}
+
+// FilterToResourceType returns a new SchemaQueryFilterer that is limited to resources of the
+// specified type.
+func (sqf SchemaQueryFilterer) FilterToResourceType(resourceType string) SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColNamespace: resourceType})
+	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjNamespaceNameKey.String(resourceType))
+	sqf.currentEstimatedSize += len(resourceType)
+	return sqf
+}
+
+// FilterToResourceID returns a new SchemaQueryFilterer that is limited to resources with the
+// specified ID.
+func (sqf SchemaQueryFilterer) FilterToResourceID(objectID string) SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColObjectID: objectID})
+	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjIDKey.String(objectID))
+	sqf.currentEstimatedSize += len(objectID)
+	return sqf
+}
+
+// FilterToRelation returns a new SchemaQueryFilterer that is limited to resources with the
+// specified relation.
+func (sqf SchemaQueryFilterer) FilterToRelation(relation string) SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColRelation: relation})
+	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjRelationNameKey.String(relation))
+	sqf.currentEstimatedSize += len(relation)
+	return sqf
+}
+
+// FilterToSubjectFilter returns a new SchemaQueryFilterer that is limited to resources with
+// subjects that match the specified filter.
+func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetNamespace: filter.SubjectType})
+	sqf.tracerAttributes = append(sqf.tracerAttributes, SubNamespaceNameKey.String(filter.SubjectType))
+
+	if filter.OptionalSubjectId != "" {
+		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetObjectID: filter.OptionalSubjectId})
+		sqf.tracerAttributes = append(sqf.tracerAttributes, SubObjectIDKey.String(filter.OptionalSubjectId))
+	}
+
+	sqf.currentEstimatedSize += len(filter.SubjectType) + len(filter.OptionalSubjectId)
+
+	if filter.OptionalRelation != nil {
+		dsRelationName := stringz.DefaultEmpty(filter.OptionalRelation.Relation, datastore.Ellipsis)
+
+		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetRelation: dsRelationName})
+		sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(dsRelationName))
+		sqf.currentEstimatedSize += len(dsRelationName)
+	}
+
+	return sqf
+}
+
+// FilterToUsersets returns a new SchemaQueryFilterer that is limited to resources with subjects
+// in the specified list of usersets.
+func (sqf SchemaQueryFilterer) FilterToUsersets(usersets []*v0.ObjectAndRelation) SchemaQueryFilterer {
+	if len(usersets) == 0 {
+		panic("Got empty usersets filter")
+	}
+
+	orClause := sq.Or{}
+	for _, userset := range usersets {
+		orClause = append(orClause, sq.Eq{
+			sqf.schema.ColUsersetNamespace: userset.Namespace,
+			sqf.schema.ColUsersetObjectID:  userset.ObjectId,
+			sqf.schema.ColUsersetRelation:  userset.Relation,
+		})
+		sqf.currentEstimatedSize += len(userset.Namespace) + len(userset.ObjectId) + len(userset.Relation)
+	}
+
+	sqf.queryBuilder = sqf.queryBuilder.Where(orClause)
+
+	return sqf
+}
+
+// Limit returns a new SchemaQueryFilterer which is limited to the specified number of results.
+func (sqf SchemaQueryFilterer) Limit(limit uint64) SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Limit(limit)
+	sqf.tracerAttributes = append(sqf.tracerAttributes, limitKey.Int64(int64(limit)))
+	return sqf
+}
+
 // TransactionPreparer is a function provided by the datastore to prepare the transaction before
 // the tuple query is run.
 type TransactionPreparer func(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error
 
-// TupleQuery is a tuple query builder and runner shared by SQL implementations of the
-// datastore.
-type TupleQuery struct {
-	Conn               *pgxpool.Pool
-	Schema             SchemaInformation
-	PrepareTransaction TransactionPreparer
-
-	InitialQuery             sq.SelectBuilder
-	InitialQuerySizeEstimate int
-	Revision                 datastore.Revision
-
-	Tracer           trace.Tracer
-	TracerAttributes []attribute.KeyValue
-
-	DebugName                 string
+// TupleQuerySplitter is a tuple query runner shared by SQL implementations of the datastore.
+type TupleQuerySplitter struct {
+	Conn                      *pgxpool.Pool
+	PrepareTransaction        TransactionPreparer
 	SplitAtEstimatedQuerySize units.Base2Bytes
 
-	limit         *uint64
-	usersetFilter *v1.SubjectFilter
-	usersets      *[]*v0.ObjectAndRelation
+	FilteredQueryBuilder SchemaQueryFilterer
+	Revision             datastore.Revision
+	Limit                *uint64
+	Usersets             []*v0.ObjectAndRelation
+
+	DebugName string
+	Tracer    trace.Tracer
 }
 
-// Limit implements the datastore.CommonTupleQuery interface
-func (ctq TupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	if ctq.limit != nil {
-		panic("Called Limit twice")
-	}
-
-	ctq.TracerAttributes = append(ctq.TracerAttributes, limitKey.Int64(int64(limit)))
-	ctq.limit = &limit
-	return ctq
-}
-
-// WithUsersets implements the datastore.TupleQuery interface
-func (ctq TupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	if len(usersets) == 0 {
-		panic("cannot send nil or empty usersets into query")
-	}
-
-	if ctq.usersetFilter != nil {
-		panic("cannot call WithUsersets after WithSubjectFilter")
-	}
-
-	if ctq.usersets != nil {
-		panic("called WithUsersets twice")
-	}
-
-	ctq.usersets = &usersets
-	return ctq
-}
-
-// WithSubjectFilter implements the datastore.TupleQuery interface
-func (ctq TupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
-	if filter == nil {
-		panic("cannot call WithSubjectFilter with a nil filter")
-	}
-
-	if ctq.usersets != nil {
-		panic("cannot call WithSubjectFilter after WithUsersets")
-	}
-
-	if ctq.usersetFilter != nil {
-		panic("called WithSubjectFilter twice")
-	}
-
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(filter.SubjectType))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubObjectIDKey.String(filter.OptionalSubjectId))
-	if filter.OptionalRelation != nil {
-		ctq.TracerAttributes = append(ctq.TracerAttributes, SubRelationNameKey.String(filter.OptionalRelation.Relation))
-	}
-	ctq.usersetFilter = filter
-	return ctq
-}
-
-// Execute implements the datastore.CommonTupleQuery interface
-func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	// Build the query/queries to execute.
-	query := ctq.InitialQuery
-	baseEstimatedDataSize := ctq.InitialQuerySizeEstimate
-
-	// Add the userset filters to the query.
-	if filter := ctq.usersetFilter; filter != nil {
-		query = query.Where(sq.Eq{ctq.Schema.ColUsersetNamespace: filter.SubjectType})
-		baseEstimatedDataSize += len(filter.SubjectType)
-
-		if filter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{ctq.Schema.ColUsersetObjectID: filter.OptionalSubjectId})
-			baseEstimatedDataSize += len(filter.OptionalSubjectId)
-		}
-
-		if filter.OptionalRelation != nil {
-			normalizedRelation := stringz.DefaultEmpty(filter.OptionalRelation.Relation, datastore.Ellipsis)
-			query = query.Where(sq.Eq{ctq.Schema.ColUsersetRelation: normalizedRelation})
-			baseEstimatedDataSize += len(normalizedRelation)
-		}
-	}
-
+// SplitAndExecute executes one or more SQL queries based on the data bound to the
+// TupleQuerySplitter instance.
+func (ctq TupleQuerySplitter) SplitAndExecute(ctx context.Context) (datastore.TupleIterator, error) {
 	// Determine split points for the query based on the usersets, if any.
-	queries := []sq.SelectBuilder{}
-	if ctq.usersets != nil {
+	queries := []SchemaQueryFilterer{}
+	if len(ctq.Usersets) > 0 {
 		splitIndexes := []int{}
-		usersets := *ctq.usersets
 
-		currentEstimatedDataSize := baseEstimatedDataSize
+		currentEstimatedDataSize := ctq.FilteredQueryBuilder.currentEstimatedSize
 		currentUsersetCount := 0
 
-		for index, userset := range usersets {
+		for index, userset := range ctq.Usersets {
 			estimatedUsersetSize := len(userset.Namespace) + len(userset.ObjectId) + len(userset.Relation)
 			if currentUsersetCount > 0 && estimatedUsersetSize+currentEstimatedDataSize >= int(ctq.SplitAtEstimatedQuerySize) {
-				currentEstimatedDataSize = baseEstimatedDataSize
+				currentEstimatedDataSize = ctq.FilteredQueryBuilder.currentEstimatedSize
 				splitIndexes = append(splitIndexes, index)
 			}
 
@@ -190,32 +207,15 @@ func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, err
 			currentEstimatedDataSize += estimatedUsersetSize
 		}
 
-		addQueryWithUsersets := func(usersets []*v0.ObjectAndRelation) {
-			orClause := sq.Or{}
-			if len(usersets) == 0 {
-				panic("Got empty sub usersets")
-			}
-
-			for _, userset := range usersets {
-				orClause = append(orClause, sq.Eq{
-					ctq.Schema.ColUsersetNamespace: userset.Namespace,
-					ctq.Schema.ColUsersetObjectID:  userset.ObjectId,
-					ctq.Schema.ColUsersetRelation:  userset.Relation,
-				})
-			}
-
-			queries = append(queries, query.Where(orClause))
-		}
-
 		startIndex := 0
 		for _, splitIndex := range splitIndexes {
-			addQueryWithUsersets(usersets[startIndex:splitIndex])
+			queries = append(queries, ctq.FilteredQueryBuilder.FilterToUsersets(ctq.Usersets[startIndex:splitIndex]))
 			startIndex = splitIndex
 		}
 
-		addQueryWithUsersets(usersets[startIndex:])
+		queries = append(queries, ctq.FilteredQueryBuilder.FilterToUsersets(ctq.Usersets[startIndex:]))
 	} else {
-		queries = append(queries, query)
+		queries = append(queries, ctq.FilteredQueryBuilder)
 	}
 
 	// Execute each query.
@@ -227,8 +227,8 @@ func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, err
 	var tuples []*v0.RelationTuple
 	for index, query := range queries {
 		var newLimit uint64
-		if ctq.limit != nil {
-			newLimit = *ctq.limit - uint64(len(tuples))
+		if ctq.Limit != nil {
+			newLimit = *ctq.Limit - uint64(len(tuples))
 			if newLimit <= 0 {
 				break
 			}
@@ -236,7 +236,7 @@ func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, err
 			query = query.Limit(newLimit)
 		}
 
-		foundTuples, err := ctq.executeQuery(ctx, query, index, newLimit)
+		foundTuples, err := ctq.executeSingleQuery(ctx, query, index, newLimit)
 		if err != nil {
 			return nil, err
 		}
@@ -248,16 +248,16 @@ func (ctq TupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, err
 	return iter, nil
 }
 
-func (ctq TupleQuery) executeQuery(ctx context.Context, query sq.SelectBuilder, index int, limit uint64) ([]*v0.RelationTuple, error) {
+func (ctq TupleQuerySplitter) executeSingleQuery(ctx context.Context, query SchemaQueryFilterer, index int, limit uint64) ([]*v0.RelationTuple, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	name := fmt.Sprintf("Query-%d", index)
 	ctx, span := ctq.Tracer.Start(ctx, name)
 	defer span.End()
 
-	span.SetAttributes(ctq.TracerAttributes...)
+	span.SetAttributes(query.tracerAttributes...)
 
-	sql, args, err := query.ToSql()
+	sql, args, err := query.queryBuilder.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
@@ -326,59 +326,25 @@ func (ctq TupleQuery) executeQuery(ctx context.Context, query sq.SelectBuilder, 
 	return tuples, nil
 }
 
-// ReverseQueryTuplesFromSubjectRelation constructs a ReverseTupleQuery from this tuple query.
-func (ctq TupleQuery) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string) datastore.ReverseTupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(subjectNamespace))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubRelationNameKey.String(subjectRelation))
-
-	ctq.InitialQuery = ctq.InitialQuery.Where(sq.Eq{
-		ctq.Schema.ColUsersetNamespace: subjectNamespace,
-		ctq.Schema.ColUsersetRelation:  subjectRelation,
-	})
-	return ReverseTupleQuery{ctq}
-}
-
-// ReverseQueryTuplesFromSubject constructs a ReverseTupleQuery from this tuple query.
-func (ctq TupleQuery) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation) datastore.ReverseTupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(subject.Namespace))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubObjectIDKey.String(subject.ObjectId))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubRelationNameKey.String(subject.Relation))
-
-	ctq.InitialQuery = ctq.InitialQuery.Where(sq.Eq{
-		ctq.Schema.ColUsersetNamespace: subject.Namespace,
-		ctq.Schema.ColUsersetObjectID:  subject.ObjectId,
-		ctq.Schema.ColUsersetRelation:  subject.Relation,
-	})
-
-	return ReverseTupleQuery{ctq}
-}
-
-// ReverseQueryTuplesFromSubjectNamespace constructs a ReverseTupleQuery from this tuple query.
-func (ctq TupleQuery) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string) datastore.ReverseTupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, SubNamespaceNameKey.String(subjectNamespace))
-
-	ctq.InitialQuery = ctq.InitialQuery.Where(sq.Eq{
-		ctq.Schema.ColUsersetNamespace: subjectNamespace,
-	})
-
-	return ReverseTupleQuery{ctq}
-}
-
-// ReverseTupleQuery is a common reverse tuple query implementation for SQL datastore implementations.
+// ReverseTupleQuery adapts a TupleQuerySplitter to the datastore.ReverseTupleQuery interface.
 type ReverseTupleQuery struct {
-	TupleQuery
+	TupleQuerySplitter
 }
 
-// WithObjectRelation implements the datastore ReverseTupleQuery interface.
-func (ctq ReverseTupleQuery) WithObjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
-	ctq.TracerAttributes = append(ctq.TracerAttributes, ObjNamespaceNameKey.String(namespaceName))
-	ctq.TracerAttributes = append(ctq.TracerAttributes, ObjRelationNameKey.String(relationName))
-
-	ctq.InitialQuery = ctq.InitialQuery.
-		Where(sq.Eq{
-			ctq.Schema.ColNamespace: namespaceName,
-			ctq.Schema.ColRelation:  relationName,
-		})
-
-	return ctq
+func (rtq ReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
+	return rtq.SplitAndExecute(ctx)
 }
+
+func (rtq ReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
+	rtq.FilteredQueryBuilder = rtq.FilteredQueryBuilder.Limit(limit)
+	return rtq
+}
+
+func (rtq ReverseTupleQuery) WithObjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
+	rtq.FilteredQueryBuilder = rtq.FilteredQueryBuilder.
+		FilterToResourceType(namespaceName).
+		FilterToRelation(relationName)
+	return rtq
+}
+
+var _ datastore.ReverseTupleQuery = ReverseTupleQuery{}

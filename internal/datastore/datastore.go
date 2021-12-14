@@ -5,6 +5,7 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/shopspring/decimal"
 )
 
@@ -70,8 +71,13 @@ type Datastore interface {
 // GraphDatastore is a subset of the datastore interface that is passed to
 // graph resolvers.
 type GraphDatastore interface {
-	// QueryTuples creates a builder for reading tuples from the datastore.
-	QueryTuples(filter TupleQueryResourceFilter, revision Revision) TupleQuery
+	// QueryTuples reads relationships starting from the resource side.
+	QueryTuples(
+		ctx context.Context,
+		filter *v1.RelationshipFilter,
+		revision Revision,
+		options ...options.QueryOptionsOption,
+	) (TupleIterator, error)
 
 	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from
 	// subject onward from the datastore.
@@ -90,44 +96,17 @@ type GraphDatastore interface {
 	CheckRevision(ctx context.Context, revision Revision) error
 }
 
-// TupleQueryResourceFilter are the baseline fields used to filter results when
-// querying a datastore for tuples.
-//
-// OptionalFields are ignored when their value is the empty string.
-type TupleQueryResourceFilter struct {
-	ResourceType             string
-	OptionalResourceID       string
-	OptionalResourceRelation string
-}
-
-// CommonTupleQuery is the common interface shared between TupleQuery and
-// ReverseTupleQuery.
-type CommonTupleQuery interface {
+// ReverseTupleQuery is a builder for constructing reverse tuple queries.
+type ReverseTupleQuery interface {
 	// Execute runs the tuple query and returns a result iterator.
 	Execute(ctx context.Context) (TupleIterator, error)
 
 	// Limit sets a limit on the query.
-	Limit(limit uint64) CommonTupleQuery
-}
-
-// ReverseTupleQuery is a builder for constructing reverse tuple queries.
-type ReverseTupleQuery interface {
-	CommonTupleQuery
+	Limit(limit uint64) ReverseTupleQuery
 
 	// WithObjectRelation filters to tuples with the given object relation on the
 	// left hand side.
 	WithObjectRelation(namespace string, relation string) ReverseTupleQuery
-}
-
-// TupleQuery is a builder for constructing tuple queries.
-type TupleQuery interface {
-	CommonTupleQuery
-
-	// WithSubjectFilter adds a subject filter to the query.
-	WithSubjectFilter(*v1.SubjectFilter) TupleQuery
-
-	// WithUsersets adds multiple userset filters to the query.
-	WithUsersets(usersets []*v0.ObjectAndRelation) TupleQuery
 }
 
 // TupleIterator is an iterator over matched tuples.

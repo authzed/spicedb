@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
@@ -68,11 +69,11 @@ func (cc *ConcurrentChecker) dispatch(req ValidatedCheckRequest) ReduceableCheck
 func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("direct", req).Send()
-		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
-			ResourceType:             req.ObjectAndRelation.Namespace,
-			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
-			OptionalResourceRelation: req.ObjectAndRelation.Relation,
-		}, req.Revision).Execute(ctx)
+		it, err := cc.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+			ResourceType:       req.ObjectAndRelation.Namespace,
+			OptionalResourceId: req.ObjectAndRelation.ObjectId,
+			OptionalRelation:   req.ObjectAndRelation.Relation,
+		}, req.Revision)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return
@@ -190,11 +191,11 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req ValidatedCheckRequest, ttu *v0.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
-		it, err := cc.ds.QueryTuples(datastore.TupleQueryResourceFilter{
-			ResourceType:             req.ObjectAndRelation.Namespace,
-			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
-			OptionalResourceRelation: ttu.Tupleset.Relation,
-		}, req.Revision).Execute(ctx)
+		it, err := cc.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+			ResourceType:       req.ObjectAndRelation.Namespace,
+			OptionalResourceId: req.ObjectAndRelation.ObjectId,
+			OptionalRelation:   ttu.Tupleset.Relation,
+		}, req.Revision)
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return

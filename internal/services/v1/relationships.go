@@ -95,16 +95,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		return rewritePermissionsError(ctx, err)
 	}
 
-	queryBuilder := ps.ds.QueryTuples(datastore.TupleQueryResourceFilter{
-		ResourceType:             req.RelationshipFilter.ResourceType,
-		OptionalResourceID:       req.RelationshipFilter.OptionalResourceId,
-		OptionalResourceRelation: req.RelationshipFilter.OptionalRelation,
-	}, atRevision)
-	if req.RelationshipFilter.OptionalSubjectFilter != nil {
-		queryBuilder = queryBuilder.WithSubjectFilter(req.RelationshipFilter.OptionalSubjectFilter)
-	}
-
-	tupleIterator, err := queryBuilder.Execute(ctx)
+	tupleIterator, err := ps.ds.QueryTuples(ctx, req.RelationshipFilter, atRevision)
 	if err != nil {
 		return rewritePermissionsError(ctx, err)
 	}

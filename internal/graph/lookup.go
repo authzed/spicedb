@@ -5,10 +5,12 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
@@ -260,10 +262,17 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 			// For each inferred object found, check for the target ONR.
 			objects := tuple.NewONRSet()
 			if len(result.Resp.ResolvedOnrs) > 0 {
-				it, err := cl.ds.QueryTuples(datastore.TupleQueryResourceFilter{
-					ResourceType:             req.ObjectRelation.Namespace,
-					OptionalResourceRelation: req.ObjectRelation.Relation,
-				}, req.Revision).WithUsersets(result.Resp.ResolvedOnrs).Limit(uint64(req.Limit)).Execute(ctx)
+				limit := uint64(req.Limit)
+				it, err := cl.ds.QueryTuples(
+					ctx,
+					&v1_proto.RelationshipFilter{
+						ResourceType:     req.ObjectRelation.Namespace,
+						OptionalRelation: req.ObjectRelation.Relation,
+					},
+					req.Revision,
+					options.SetUsersets(result.Resp.ResolvedOnrs),
+					options.WithLimit(&limit),
+				)
 				if err != nil {
 					resultChan <- lookupResultError(req, err, emptyMetadata)
 					return
@@ -442,10 +451,17 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req Valid
 			// Perform the tupleset lookup.
 			objects := tuple.NewONRSet()
 			if len(usersets) > 0 {
-				it, err := cl.ds.QueryTuples(datastore.TupleQueryResourceFilter{
-					ResourceType:             req.ObjectRelation.Namespace,
-					OptionalResourceRelation: ttu.Tupleset.Relation,
-				}, req.Revision).WithUsersets(usersets).Limit(uint64(req.Limit)).Execute(ctx)
+				limit := uint64(req.Limit)
+				it, err := cl.ds.QueryTuples(
+					ctx,
+					&v1_proto.RelationshipFilter{
+						ResourceType:     req.ObjectRelation.Namespace,
+						OptionalRelation: ttu.Tupleset.Relation,
+					},
+					req.Revision,
+					options.SetUsersets(usersets),
+					options.WithLimit(&limit),
+				)
 				if err != nil {
 					resultChan <- lookupResultError(req, err, result.Resp.Metadata)
 					return

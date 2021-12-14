@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -89,63 +90,74 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				// Check that we can find the tuple a number of ways
 				rq := ds.ReverseQueryTuplesFromSubject(tupleToFind.User.GetUserset(), lastRevision)
 
-				queries := []datastore.CommonTupleQuery{
-					ds.QueryTuples(datastore.TupleQueryResourceFilter{
-						ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
-						OptionalResourceID: tupleToFind.ObjectAndRelation.ObjectId,
-					}, lastRevision),
-					ds.QueryTuples(datastore.TupleQueryResourceFilter{
-						ResourceType: tupleToFind.ObjectAndRelation.Namespace,
-					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
-					ds.QueryTuples(datastore.TupleQueryResourceFilter{
-						ResourceType:             tupleToFind.ObjectAndRelation.Namespace,
-						OptionalResourceID:       tupleToFind.ObjectAndRelation.ObjectId,
-						OptionalResourceRelation: tupleToFind.ObjectAndRelation.Relation,
-					}, lastRevision),
-					ds.QueryTuples(datastore.TupleQueryResourceFilter{
-						ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
-						OptionalResourceID: tupleToFind.ObjectAndRelation.ObjectId,
-					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
-					ds.QueryTuples(datastore.TupleQueryResourceFilter{
-						ResourceType:             tupleToFind.ObjectAndRelation.Namespace,
-						OptionalResourceRelation: tupleToFind.ObjectAndRelation.Relation,
-					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}),
-					ds.QueryTuples(datastore.TupleQueryResourceFilter{
-						ResourceType:             tupleToFind.ObjectAndRelation.Namespace,
-						OptionalResourceRelation: tupleToFind.ObjectAndRelation.Relation,
-					}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{tupleToFind.User.GetUserset()}).Limit(1),
+				iter, err := ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+					OptionalResourceId: tupleToFind.ObjectAndRelation.ObjectId,
+				}, lastRevision)
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-					rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation),
-					rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation).Limit(1),
-				}
-				for _, query := range queries {
-					iter, err := query.Execute(ctx)
-					require.NoError(err)
-					tRequire.VerifyIteratorResults(iter, tupleToFind)
-				}
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType: tupleToFind.ObjectAndRelation.Namespace,
+				}, lastRevision, options.WithUsersets(tupleToFind.User.GetUserset()))
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, tupleToFind)
+
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+					OptionalResourceId: tupleToFind.ObjectAndRelation.ObjectId,
+					OptionalRelation:   tupleToFind.ObjectAndRelation.Relation,
+				}, lastRevision)
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, tupleToFind)
+
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+					OptionalResourceId: tupleToFind.ObjectAndRelation.ObjectId,
+				}, lastRevision, options.WithUsersets(tupleToFind.User.GetUserset()))
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, tupleToFind)
+
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:     tupleToFind.ObjectAndRelation.Namespace,
+					OptionalRelation: tupleToFind.ObjectAndRelation.Relation,
+				}, lastRevision, options.WithUsersets(tupleToFind.User.GetUserset()))
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, tupleToFind)
+
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:     tupleToFind.ObjectAndRelation.Namespace,
+					OptionalRelation: tupleToFind.ObjectAndRelation.Relation,
+				}, lastRevision, options.WithUsersets(tupleToFind.User.GetUserset()), options.WithLimit(options.LimitOne))
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, tupleToFind)
+
+				iter, err = rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation).Execute(ctx)
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, tupleToFind)
+
+				iter, err = rq.WithObjectRelation(tupleToFind.ObjectAndRelation.Namespace, tupleToFind.ObjectAndRelation.Relation).Limit(1).Execute(ctx)
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, tupleToFind)
 			}
 
 			// Check a query that returns a number of tuples
-			query := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			iter, err := ds.QueryTuples(ctx, &v1.RelationshipFilter{
 				ResourceType: testResourceNamespace,
 			}, lastRevision)
-			iter, err := query.Execute(ctx)
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			// Filter it down to a single tuple with a userset
-			newQuery := query.WithSubjectFilter(&v1.SubjectFilter{
-				SubjectType:       testUserNamespace,
-				OptionalSubjectId: "user0",
-			})
-			iter, err = newQuery.Execute(ctx)
+			iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+				ResourceType: testResourceNamespace,
+				OptionalSubjectFilter: &v1.SubjectFilter{
+					SubjectType:       testUserNamespace,
+					OptionalSubjectId: "user0",
+				},
+			}, lastRevision)
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples[0])
-
-			// Verify the original query object is unchanged
-			iter, err = query.Execute(ctx)
-			require.NoError(err)
-			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			// Check for larger reverse queries.
 			rq := ds.ReverseQueryTuplesFromSubjectRelation(testUserNamespace, ellipsis, lastRevision)
@@ -162,40 +174,36 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Check that we can find the group of tuples too
-			queries := []datastore.TupleQuery{
-				ds.QueryTuples(datastore.TupleQueryResourceFilter{
-					ResourceType: testTuples[0].ObjectAndRelation.Namespace,
-				}, lastRevision),
-				ds.QueryTuples(datastore.TupleQueryResourceFilter{
-					ResourceType:             testTuples[0].ObjectAndRelation.Namespace,
-					OptionalResourceRelation: testTuples[0].ObjectAndRelation.Relation,
-				}, lastRevision),
-			}
-			for _, query := range queries {
-				iter, err := query.Execute(ctx)
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter, testTuples...)
-			}
+			iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+				ResourceType: testTuples[0].ObjectAndRelation.Namespace,
+			}, lastRevision)
+			require.NoError(err)
+			tRequire.VerifyIteratorResults(iter, testTuples...)
+
+			iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+				ResourceType:     testTuples[0].ObjectAndRelation.Namespace,
+				OptionalRelation: testTuples[0].ObjectAndRelation.Relation,
+			}, lastRevision)
+			require.NoError(err)
+			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			// Try some bad queries
-			badQueries := []datastore.TupleQuery{
-				ds.QueryTuples(datastore.TupleQueryResourceFilter{
-					ResourceType:       testTuples[0].ObjectAndRelation.Namespace,
-					OptionalResourceID: "fakeobjectid",
-				}, lastRevision),
-				ds.QueryTuples(datastore.TupleQueryResourceFilter{
-					ResourceType: testTuples[0].ObjectAndRelation.Namespace,
-				}, lastRevision).WithUsersets([]*v0.ObjectAndRelation{{
-					Namespace: "test/user",
-					ObjectId:  "fakeuser",
-					Relation:  ellipsis,
-				}}),
-			}
-			for _, badQuery := range badQueries {
-				iter, err := badQuery.Execute(ctx)
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter)
-			}
+			iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+				ResourceType:       testTuples[0].ObjectAndRelation.Namespace,
+				OptionalResourceId: "fakeobectid",
+			}, lastRevision)
+			require.NoError(err)
+			tRequire.VerifyIteratorResults(iter)
+
+			iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+				ResourceType: testTuples[0].ObjectAndRelation.Namespace,
+			}, lastRevision, options.WithUsersets(&v0.ObjectAndRelation{
+				Namespace: "test/user",
+				ObjectId:  "fakeuser",
+				Relation:  ellipsis,
+			}))
+			require.NoError(err)
+			tRequire.VerifyIteratorResults(iter)
 
 			// Delete the first tuple
 			deletedAt, err := ds.WriteTuples(
@@ -224,9 +232,9 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Verify that it does not show up at the new revision
 			tRequire.NoTupleExists(ctx, testTuples[0], deletedAt)
-			alreadyDeletedIter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			alreadyDeletedIter, err := ds.QueryTuples(ctx, &v1.RelationshipFilter{
 				ResourceType: testTuples[0].ObjectAndRelation.Namespace,
-			}, deletedAt).Execute(ctx)
+			}, deletedAt)
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(alreadyDeletedIter, testTuples[1:]...)
 
@@ -569,9 +577,9 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 				}
 
 				// Query for the tuples as a single query.
-				iter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+				iter, err := ds.QueryTuples(ctx, &v1.RelationshipFilter{
 					ResourceType: testResourceNamespace,
-				}, lastRevision).WithUsersets(usersets).Execute(ctx)
+				}, lastRevision, options.SetUsersets(usersets))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, testTuples...)
 			})
