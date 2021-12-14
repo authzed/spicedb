@@ -50,7 +50,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			lowestRevision, err := ds.SyncRevision(ctx)
+			lowestRevision, err := ds.HeadRevision(ctx)
 			require.NoError(err)
 
 			changes, errchan := ds.Watch(ctx, lowestRevision)

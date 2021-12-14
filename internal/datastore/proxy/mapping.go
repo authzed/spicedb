@@ -88,8 +88,8 @@ func (mp mappingProxy) OptimizedRevision(ctx context.Context) (datastore.Revisio
 	return mp.delegate.OptimizedRevision(ctx)
 }
 
-func (mp mappingProxy) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	return mp.delegate.SyncRevision(ctx)
+func (mp mappingProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	return mp.delegate.HeadRevision(ctx)
 }
 
 func (mp mappingProxy) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {

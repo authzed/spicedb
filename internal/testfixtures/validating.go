@@ -66,8 +66,8 @@ func (vd validatingDatastore) OptimizedRevision(ctx context.Context) (datastore.
 	return vd.delegate.OptimizedRevision(ctx)
 }
 
-func (vd validatingDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	return vd.delegate.SyncRevision(ctx)
+func (vd validatingDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	return vd.delegate.HeadRevision(ctx)
 }
 
 func (vd validatingDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {

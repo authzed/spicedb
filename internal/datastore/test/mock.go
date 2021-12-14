@@ -40,7 +40,7 @@ func (md *MockedDatastore) OptimizedRevision(ctx context.Context) (datastore.Rev
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (md *MockedDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
+func (md *MockedDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	args := md.Called(ctx)
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }

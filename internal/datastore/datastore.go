@@ -35,9 +35,9 @@ type Datastore interface {
 	// and will likely be shared amongst many queries.
 	OptimizedRevision(ctx context.Context) (Revision, error)
 
-	// SyncRevision gets a revision that is guaranteed to be at least as fresh as
+	// HeadRevision gets a revision that is guaranteed to be at least as fresh as
 	// right now.
-	SyncRevision(ctx context.Context) (Revision, error)
+	HeadRevision(ctx context.Context) (Revision, error)
 
 	// Watch notifies the caller about all changes to tuples.
 	//

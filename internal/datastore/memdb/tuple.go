@@ -217,7 +217,7 @@ func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespa
 	}
 }
 
-func (mds *memdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
+func (mds *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	db := mds.db
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
@@ -262,7 +262,7 @@ func (mds *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Rev
 	if len(candidates) > 0 {
 		return candidates[rand.Intn(len(candidates))], nil
 	}
-	return mds.SyncRevision(ctx)
+	return mds.HeadRevision(ctx)
 }
 
 func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

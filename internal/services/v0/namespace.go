@@ -45,7 +45,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		return nil, rewriteNamespaceError(ctx, err)
 	}
 
-	readRevision, err := nss.ds.SyncRevision(ctx)
+	readRevision, err := nss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
@@ -76,7 +76,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 
-		syncRevision, err := nss.ds.SyncRevision(ctx)
+		headRevision, err := nss.ds.HeadRevision(ctx)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
@@ -89,7 +89,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 					nss.ds.QueryTuples(datastore.TupleQueryResourceFilter{
 						ResourceType:             config.Name,
 						OptionalResourceRelation: delta.RelationName,
-					}, syncRevision),
+					}, headRevision),
 					"cannot delete relation `%s` in definition `%s`, as a relationship exists under it", delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(ctx, err)
@@ -98,7 +98,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 				// Also check for right sides of tuples.
 				err = errorIfTupleIteratorReturnsTuples(
 					ctx,
-					nss.ds.ReverseQueryTuplesFromSubjectRelation(config.Name, delta.RelationName, syncRevision),
+					nss.ds.ReverseQueryTuplesFromSubjectRelation(config.Name, delta.RelationName, headRevision),
 					"cannot delete relation `%s` in definition `%s`, as a relationship references it", delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(ctx, err)
@@ -107,7 +107,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			case namespace.RelationDirectTypeRemoved:
 				err = errorIfTupleIteratorReturnsTuples(
 					ctx,
-					nss.ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, syncRevision).
+					nss.ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, headRevision).
 						WithObjectRelation(config.Name, delta.RelationName),
 					"cannot remove allowed relation/permission `%s#%s` from relation `%s` in definition `%s`, as a relationship exists with it",
 					delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name)
@@ -133,7 +133,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 }
 
 func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) (*v0.ReadConfigResponse, error) {
-	readRevision, err := nss.ds.SyncRevision(ctx)
+	readRevision, err := nss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
@@ -151,7 +151,7 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 }
 
 func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsRequest) (*v0.DeleteConfigsResponse, error) {
-	syncRevision, err := nss.ds.SyncRevision(ctx)
+	headRevision, err := nss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
@@ -159,7 +159,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 	// Ensure that all the specified namespaces can be deleted.
 	for _, nsName := range req.Namespaces {
 		// Ensure the namespace exists.
-		_, _, err := nss.ds.ReadNamespace(ctx, nsName, syncRevision)
+		_, _, err := nss.ds.ReadNamespace(ctx, nsName, headRevision)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
@@ -169,7 +169,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 			ctx,
 			nss.ds.QueryTuples(datastore.TupleQueryResourceFilter{
 				ResourceType: nsName,
-			}, syncRevision),
+			}, headRevision),
 			"cannot delete definition `%s`, as a relationship exists under it", nsName)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
@@ -178,7 +178,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 		// Also check for right sides of relationships.
 		err = errorIfTupleIteratorReturnsTuples(
 			ctx,
-			nss.ds.ReverseQueryTuplesFromSubjectNamespace(nsName, syncRevision),
+			nss.ds.ReverseQueryTuplesFromSubjectNamespace(nsName, headRevision),
 			"cannot delete definition `%s`, as a relationship references it", nsName)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
@@ -193,7 +193,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 	}
 
 	return &v0.DeleteConfigsResponse{
-		Revision: zookie.NewFromRevision(syncRevision),
+		Revision: zookie.NewFromRevision(headRevision),
 	}, nil
 }
 

@@ -40,7 +40,7 @@ type schemaServer struct {
 }
 
 func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
-	readRevision, err := ss.ds.SyncRevision(ctx)
+	readRevision, err := ss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -68,7 +68,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaRequest) (*v1.WriteSchemaResponse, error) {
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 
-	readRevision, err := ss.ds.SyncRevision(ctx)
+	readRevision, err := ss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}

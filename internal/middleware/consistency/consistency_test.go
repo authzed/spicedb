@@ -58,7 +58,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
-	databaseRev, err := ds.SyncRevision(context.Background())
+	databaseRev, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 
 	updated, err := AddRevisionToContext(context.Background(), &v1.ReadRelationshipsRequest{
@@ -78,7 +78,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
-	databaseRev, err := ds.SyncRevision(context.Background())
+	databaseRev, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 
 	updated, err := AddRevisionToContext(context.Background(), &v1.ReadRelationshipsRequest{
@@ -98,7 +98,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
-	databaseRev, err := ds.SyncRevision(context.Background())
+	databaseRev, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 
 	updated, err := AddRevisionToContext(context.Background(), &v1.ReadRelationshipsRequest{

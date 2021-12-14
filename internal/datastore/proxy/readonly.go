@@ -41,8 +41,8 @@ func (rd roDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision
 	return rd.delegate.OptimizedRevision(ctx)
 }
 
-func (rd roDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	return rd.delegate.SyncRevision(ctx)
+func (rd roDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	return rd.delegate.HeadRevision(ctx)
 }
 
 func (rd roDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {

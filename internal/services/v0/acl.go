@@ -67,7 +67,7 @@ func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispat
 }
 
 func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.WriteResponse, error) {
-	atRevision, err := as.ds.SyncRevision(ctx)
+	atRevision, err := as.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -242,7 +242,7 @@ func (as *aclServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.Check
 }
 
 func (as *aclServer) ContentChangeCheck(ctx context.Context, req *v0.ContentChangeCheckRequest) (*v0.CheckResponse, error) {
-	atRevision, err := as.ds.SyncRevision(ctx)
+	atRevision, err := as.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}

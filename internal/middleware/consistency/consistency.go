@@ -70,7 +70,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 
 	case consistency.GetFullyConsistent():
 		// Fully Consistent: Use the datastore's synchronized revision.
-		databaseRev, err := ds.SyncRevision(ctx)
+		databaseRev, err := ds.HeadRevision(ctx)
 		if err != nil {
 			return nil, rewriteDatastoreError(ctx, err)
 		}

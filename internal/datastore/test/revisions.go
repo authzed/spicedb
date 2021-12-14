@@ -51,7 +51,7 @@ func RevisionFuzzingTest(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Get the new now revision
-			nowRevision, err := ds.SyncRevision(ctx)
+			nowRevision, err := ds.HeadRevision(ctx)
 			require.NoError(err)
 			require.True(nowRevision.GreaterThan(datastore.NoRevision))
 

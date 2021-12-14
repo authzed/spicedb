@@ -105,7 +105,7 @@ func serveRun(cmd *cobra.Command, args []string, datastoreOpts *cmdutil.Datastor
 	bootstrapFilePaths := cobrautil.MustGetStringSlice(cmd, "datastore-bootstrap-files")
 	if len(bootstrapFilePaths) > 0 {
 		bootstrapOverwrite := cobrautil.MustGetBool(cmd, "datastore-bootstrap-overwrite")
-		revision, err := ds.SyncRevision(context.Background())
+		revision, err := ds.HeadRevision(context.Background())
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to determine datastore state before applying bootstrap data")
 		}

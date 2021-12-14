@@ -121,7 +121,7 @@ type hedgingProxy struct {
 	delegate datastore.Datastore
 
 	revisionHedger      hedger
-	syncRevisionHedger  hedger
+	headRevisionHedger  hedger
 	readNamespaceHedger hedger
 	queryTuplesHedger   hedger
 }
@@ -187,10 +187,10 @@ func (hp hedgingProxy) OptimizedRevision(ctx context.Context) (rev datastore.Rev
 	return
 }
 
-func (hp hedgingProxy) SyncRevision(ctx context.Context) (rev datastore.Revision, err error) {
+func (hp hedgingProxy) HeadRevision(ctx context.Context) (rev datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegatedRev, delegatedErr := hp.delegate.SyncRevision(ctx)
+		delegatedRev, delegatedErr := hp.delegate.HeadRevision(ctx)
 		once.Do(func() {
 			rev = delegatedRev
 			err = delegatedErr
@@ -198,7 +198,7 @@ func (hp hedgingProxy) SyncRevision(ctx context.Context) (rev datastore.Revision
 		responseReady <- struct{}{}
 	}
 
-	hp.syncRevisionHedger(ctx, subreq)
+	hp.headRevisionHedger(ctx, subreq)
 
 	return
 }

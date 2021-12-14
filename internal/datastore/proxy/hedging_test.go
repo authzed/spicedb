@@ -73,13 +73,13 @@ func TestDatastoreRequestHedging(t *testing.T) {
 			},
 		},
 		{
-			"SyncRevision",
+			"HeadRevision",
 			[]interface{}{mock.Anything},
 			[]interface{}{revisionKnown, errKnown},
 			[]interface{}{anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
-				rev, err := proxy.SyncRevision(context.Background())
+				rev, err := proxy.HeadRevision(context.Background())
 				require.ErrorIs(errKnown, err)
 				if expectFirst {
 					require.Equal(revisionKnown, rev)
@@ -389,7 +389,7 @@ func TestContextCancellation(t *testing.T) {
 	)
 
 	delegate.
-		On("SyncRevision", mock.Anything).
+		On("HeadRevision", mock.Anything).
 		Return(decimal.Zero, errKnown).
 		WaitUntil(mockTime.After(500 * time.Microsecond)).
 		Once()
@@ -402,7 +402,7 @@ func TestContextCancellation(t *testing.T) {
 
 	autoAdvance(mockTime, 150*time.Microsecond, 1*time.Millisecond)
 
-	_, err := proxy.SyncRevision(ctx)
+	_, err := proxy.HeadRevision(ctx)
 
 	require.Error(err)
 }

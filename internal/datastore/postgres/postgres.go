@@ -388,8 +388,8 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
-func (pgd *pgDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "SyncRevision")
+func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
 	revision, err := pgd.loadRevision(ctx)

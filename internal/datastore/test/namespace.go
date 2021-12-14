@@ -36,7 +36,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 
 	ctx := context.Background()
 
-	startRevision, err := ds.SyncRevision(ctx)
+	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 	require.True(startRevision.GreaterThanOrEqual(datastore.NoRevision))
 
@@ -136,7 +136,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 		require.NotEqual(testfixtures.DocumentNS.Name, ns.Name, "deleted namespace '%s' should not be in namespace list", ns.Name)
 	}
 
-	deletedRevision, err := ds.SyncRevision(ctx)
+	deletedRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
 	iter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{

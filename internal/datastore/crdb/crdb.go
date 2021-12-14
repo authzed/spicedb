@@ -193,7 +193,7 @@ func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revi
 
 	log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Msg("computing new revision")
 
-	nowHLC, err := cds.SyncRevision(ctx)
+	nowHLC, err := cds.HeadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
@@ -218,8 +218,8 @@ func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revi
 	return cds.lastQuantizedRevision, nil
 }
 
-func (cds *crdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "SyncRevision")
+func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "HeadRevision")
 	defer span.End()
 
 	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
@@ -241,7 +241,7 @@ func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.
 	defer span.End()
 
 	// Make sure the system time indicated is within the software GC window
-	now, err := cds.SyncRevision(ctx)
+	now, err := cds.HeadRevision(ctx)
 	if err != nil {
 		return err
 	}

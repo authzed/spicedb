@@ -15,14 +15,14 @@ import (
 
 // EnsureNoRelationshipsExist ensures that no relationships exist within the namespace with the given name.
 func EnsureNoRelationshipsExist(ctx context.Context, ds datastore.Datastore, namespaceName string) error {
-	syncRevision, err := ds.SyncRevision(ctx)
+	headRevision, err := ds.HeadRevision(ctx)
 	if err != nil {
 		return err
 	}
 
 	if err := errorIfTupleIteratorReturnsTuples(
 		ctx,
-		ds.QueryTuples(datastore.TupleQueryResourceFilter{ResourceType: namespaceName}, syncRevision),
+		ds.QueryTuples(datastore.TupleQueryResourceFilter{ResourceType: namespaceName}, headRevision),
 		"cannot delete Object Definition `%s`, as a Relationship exists under it",
 		namespaceName,
 	); err != nil {
@@ -31,7 +31,7 @@ func EnsureNoRelationshipsExist(ctx context.Context, ds datastore.Datastore, nam
 
 	if err := errorIfTupleIteratorReturnsTuples(
 		ctx,
-		ds.ReverseQueryTuplesFromSubjectNamespace(namespaceName, syncRevision),
+		ds.ReverseQueryTuplesFromSubjectNamespace(namespaceName, headRevision),
 		"cannot delete Object Definition `%s`, as a Relationship references it",
 		namespaceName,
 	); err != nil {
@@ -58,7 +58,7 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 		return err
 	}
 
-	syncRevision, err := ds.SyncRevision(ctx)
+	headRevision, err := ds.HeadRevision(ctx)
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 				ds.QueryTuples(datastore.TupleQueryResourceFilter{
 					ResourceType:             nsdef.Name,
 					OptionalResourceRelation: delta.RelationName,
-				}, syncRevision),
+				}, headRevision),
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship exists under it", delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
@@ -80,7 +80,7 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 			// Also check for right sides of tuples.
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
-				ds.ReverseQueryTuplesFromSubjectRelation(nsdef.Name, delta.RelationName, syncRevision),
+				ds.ReverseQueryTuplesFromSubjectRelation(nsdef.Name, delta.RelationName, headRevision),
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship references it", delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
@@ -89,7 +89,7 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 		case namespace.RelationDirectTypeRemoved:
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
-				ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, syncRevision).
+				ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, headRevision).
 					WithObjectRelation(nsdef.Name, delta.RelationName),
 				"cannot remove allowed direct Relation `%s#%s` from Relation `%s` in Object Definition `%s`, as a Relationship exists with it",
 				delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, nsdef.Name)

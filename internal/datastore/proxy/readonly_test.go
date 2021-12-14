@@ -79,16 +79,16 @@ func TestRevisionPassthrough(t *testing.T) {
 	delegate.AssertExpectations(t)
 }
 
-func TestSyncRevisionPassthrough(t *testing.T) {
+func TestHeadRevisionPassthrough(t *testing.T) {
 	require := require.New(t)
 
 	delegate := &delegateMock{}
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	delegate.On("SyncRevision").Return(expectedRevision, nil).Times(1)
+	delegate.On("HeadRevision").Return(expectedRevision, nil).Times(1)
 
-	revision, err := ds.SyncRevision(ctx)
+	revision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 	require.Equal(expectedRevision, revision)
 	delegate.AssertExpectations(t)
@@ -222,7 +222,7 @@ func (dm *delegateMock) OptimizedRevision(ctx context.Context) (datastore.Revisi
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (dm *delegateMock) SyncRevision(ctx context.Context) (datastore.Revision, error) {
+func (dm *delegateMock) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	args := dm.Called()
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
