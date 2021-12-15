@@ -121,11 +121,10 @@ func newHedger(
 type hedgingProxy struct {
 	delegate datastore.Datastore
 
-	revisionHedger          hedger
-	headRevisionHedger      hedger
-	readNamespaceHedger     hedger
-	queryTuplesHedger       hedger
-	directQueryTuplesHedger hedger
+	revisionHedger      hedger
+	headRevisionHedger  hedger
+	readNamespaceHedger hedger
+	queryTuplesHedger   hedger
 }
 
 // NewHedgingProxy creates a proxy which performs request hedging on read operations
@@ -157,7 +156,7 @@ func newHedgingProxyWithTimeSource(
 	}
 
 	if maxSampleCount < minMaxRequestsThreshold {
-		panic(fmt.Sprintf("maxSampleCount must be >%d", minMaxRequestsThreshold))
+		panic(fmt.Sprintf("maxSampleCount must be >=%d", minMaxRequestsThreshold))
 	}
 
 	if hedgingQuantile <= 0.0 || hedgingQuantile >= 1.0 {
@@ -166,7 +165,6 @@ func newHedgingProxyWithTimeSource(
 
 	return hedgingProxy{
 		delegate,
-		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
@@ -267,30 +265,30 @@ func (hp hedgingProxy) QueryTuples(
 		responseReady <- struct{}{}
 	}
 
-	hp.directQueryTuplesHedger(ctx, subreq)
+	hp.queryTuplesHedger(ctx, subreq)
 
 	return
 }
 
-func (hp hedgingProxy) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return hedgingReverseTupleQuery{
-		hp.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
-		hp.queryTuplesHedger,
+func (hp hedgingProxy) ReverseQueryTuples(
+	ctx context.Context,
+	subjectFilter *v1.SubjectFilter,
+	revision datastore.Revision,
+	opts ...options.ReverseQueryOptionsOption,
+) (iter datastore.TupleIterator, err error) {
+	var once sync.Once
+	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
+		delegatedIter, delegatedErr := hp.delegate.ReverseQueryTuples(ctx, subjectFilter, revision, opts...)
+		once.Do(func() {
+			iter = delegatedIter
+			err = delegatedErr
+		})
+		responseReady <- struct{}{}
 	}
-}
 
-func (hp hedgingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return hedgingReverseTupleQuery{
-		hp.delegate.ReverseQueryTuplesFromSubject(subject, revision),
-		hp.queryTuplesHedger,
-	}
-}
+	hp.queryTuplesHedger(ctx, subreq)
 
-func (hp hedgingProxy) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return hedgingReverseTupleQuery{
-		hp.delegate.ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation, revision),
-		hp.queryTuplesHedger,
-	}
+	return
 }
 
 func (hp hedgingProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
@@ -299,49 +297,4 @@ func (hp hedgingProxy) CheckRevision(ctx context.Context, revision datastore.Rev
 
 func (hp hedgingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
 	return hp.delegate.ListNamespaces(ctx, revision)
-}
-
-type tupleExecutor func(ctx context.Context) (datastore.TupleIterator, error)
-
-func executeQuery(ctx context.Context, exec tupleExecutor, queryHedger hedger) (delegateIterator datastore.TupleIterator, err error) {
-	var once sync.Once
-	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		tempIterator, tempErr := exec(ctx)
-		resultsUsed := false
-		once.Do(func() {
-			delegateIterator = tempIterator
-			err = tempErr
-			resultsUsed = true
-		})
-		// close the unused iterator
-		// only the first call to once.Do will run the function, so whichever
-		// hedged request is slower will have resultsUsed = false
-		if !resultsUsed && tempErr == nil {
-			tempIterator.Close()
-		}
-		responseReady <- struct{}{}
-	}
-
-	queryHedger(ctx, subreq)
-
-	return
-}
-
-type hedgingReverseTupleQuery struct {
-	delegate          datastore.ReverseTupleQuery
-	queryTuplesHedger hedger
-}
-
-func (hrtq hedgingReverseTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
-	return executeQuery(ctx, hrtq.delegate.Execute, hrtq.queryTuplesHedger)
-}
-
-func (hrtq hedgingReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
-	hrtq.delegate = hrtq.delegate.Limit(limit)
-	return hrtq
-}
-
-func (hrtq hedgingReverseTupleQuery) WithObjectRelation(namespace string, relation string) datastore.ReverseTupleQuery {
-	hrtq.delegate = hrtq.delegate.WithObjectRelation(namespace, relation)
-	return hrtq
 }

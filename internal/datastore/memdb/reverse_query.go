@@ -8,90 +8,53 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
+	"github.com/jzelinskie/stringz"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
-type memdbReverseTupleQuery struct {
-	db       *memdb.MemDB
-	revision datastore.Revision
-
-	objNamespaceName string
-	objRelationName  string
-
-	subNamespaceName string
-	subRelationName  string
-	subObjectID      string
-
-	limit *uint64
-
-	simulatedLatency time.Duration
-}
-
-func (mtq memdbReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
-	mtq.limit = &limit
-	return mtq
-}
-
-func (mtq memdbReverseTupleQuery) WithObjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
-	mtq.objNamespaceName = namespaceName
-	mtq.objRelationName = relationName
-	return mtq
-}
-
-func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	db := mtq.db
+func (mds *memdbDatastore) ReverseQueryTuples(
+	ctx context.Context,
+	subjectFilter *v1.SubjectFilter,
+	revision datastore.Revision,
+	opts ...options.ReverseQueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	db := mds.db
 	if db == nil {
 		return nil, fmt.Errorf("memdb closed")
 	}
 
 	txn := db.Txn(false)
 
-	time.Sleep(mtq.simulatedLatency)
+	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+
+	time.Sleep(mds.simulatedLatency)
 
 	var err error
 	var bestIterator memdb.ResultIterator
-	if mtq.objNamespaceName != "" {
-		if mtq.subObjectID != "" {
-			bestIterator, err = txn.Get(
-				tableRelationship,
-				indexRelationAndSubject,
-				mtq.subNamespaceName,
-				mtq.subObjectID,
-				mtq.subRelationName,
-				mtq.objNamespaceName,
-				mtq.objRelationName,
-			)
-		} else {
-			bestIterator, err = txn.Get(
-				tableRelationship,
-				indexRelationAndRelation,
-				mtq.subNamespaceName,
-				mtq.subRelationName,
-				mtq.objNamespaceName,
-				mtq.objRelationName,
-			)
-		}
-	} else if mtq.subObjectID != "" {
+	if queryOpts.ResRelation != nil {
 		bestIterator, err = txn.Get(
 			tableRelationship,
-			indexSubject,
-			mtq.subNamespaceName,
-			mtq.subObjectID,
-			mtq.subRelationName,
+			indexSubjectAndResourceRelation,
+			subjectFilter.SubjectType,
+			queryOpts.ResRelation.Namespace,
+			queryOpts.ResRelation.Relation,
 		)
-	} else if mtq.subRelationName != "" {
+	} else if subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalRelation != nil {
 		bestIterator, err = txn.Get(
 			tableRelationship,
-			indexSubjectRelation,
-			mtq.subNamespaceName,
-			mtq.subRelationName,
+			indexFullSubject,
+			subjectFilter.SubjectType,
+			subjectFilter.OptionalSubjectId,
+			stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis),
 		)
 	} else {
 		bestIterator, err = txn.Get(
 			tableRelationship,
 			indexSubjectNamespace,
-			mtq.subNamespaceName,
+			subjectFilter.SubjectType,
 		)
 	}
 
@@ -100,12 +63,26 @@ func (mtq memdbReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleI
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 
-	filteredIterator := memdb.NewFilterIterator(bestIterator, filterToLiveObjects(mtq.revision))
+	filterObjectType, filterRelation := "", ""
+	if queryOpts.ResRelation != nil {
+		filterObjectType = queryOpts.ResRelation.Namespace
+		filterRelation = queryOpts.ResRelation.Relation
+	}
+
+	matchingRelationshipsFilterFunc := filterFuncForFilters(
+		filterObjectType,
+		"",
+		filterRelation,
+		subjectFilter,
+		nil,
+	)
+	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
+	filteredAlive := memdb.NewFilterIterator(filteredIterator, filterToLiveObjects(revision))
 
 	iter := &memdbTupleIterator{
 		txn:   txn,
-		it:    filteredIterator,
-		limit: mtq.limit,
+		it:    filteredAlive,
+		limit: queryOpts.ReverseLimit,
 	}
 
 	runtime.SetFinalizer(iter, func(iter *memdbTupleIterator) {

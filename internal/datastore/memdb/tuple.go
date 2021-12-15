@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
@@ -169,39 +168,6 @@ func (mds *memdbDatastore) delete(ctx context.Context, txn *memdb.Txn, filter *v
 	}
 
 	return newTxnID, nil
-}
-
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return &memdbReverseTupleQuery{
-		db:               mds.db,
-		revision:         revision,
-		simulatedLatency: mds.simulatedLatency,
-
-		subNamespaceName: subject.Namespace,
-		subObjectID:      subject.ObjectId,
-		subRelationName:  subject.Relation,
-	}
-}
-
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return &memdbReverseTupleQuery{
-		db:               mds.db,
-		revision:         revision,
-		simulatedLatency: mds.simulatedLatency,
-
-		subNamespaceName: subjectNamespace,
-		subRelationName:  subjectRelation,
-	}
-}
-
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return &memdbReverseTupleQuery{
-		db:               mds.db,
-		revision:         revision,
-		simulatedLatency: mds.simulatedLatency,
-
-		subNamespaceName: subjectNamespace,
-	}
 }
 
 func (mds *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {

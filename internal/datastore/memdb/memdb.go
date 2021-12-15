@@ -25,21 +25,19 @@ const (
 	tableTransaction  = "transaction"
 	tableNamespace    = "namespaceConfig"
 
-	indexID                     = "id"
-	indexUnique                 = "unique"
-	indexTimestamp              = "timestamp"
-	indexLive                   = "live"
-	indexNamespace              = "namespace"
-	indexNamespaceAndResourceID = "namespaceAndResourceID"
-	indexNamespaceAndRelation   = "namespaceAndRelation"
-	indexNamespaceAndSubjectID  = "namespaceAndSubjectID"
-	indexRelationAndSubject     = "relationAndSubject"
-	indexRelationAndRelation    = "relationAndRelation"
-	indexSubjectNamespace       = "subjectNamespace"
-	indexSubjectRelation        = "subjectRelation"
-	indexSubject                = "subject"
-	indexCreatedTxn             = "createdTxn"
-	indexDeletedTxn             = "deletedTxn"
+	indexID                         = "id"
+	indexUnique                     = "unique"
+	indexTimestamp                  = "timestamp"
+	indexLive                       = "live"
+	indexNamespace                  = "namespace"
+	indexNamespaceAndResourceID     = "namespaceAndResourceID"
+	indexNamespaceAndRelation       = "namespaceAndRelation"
+	indexNamespaceAndSubjectID      = "namespaceAndSubjectID"
+	indexSubjectNamespace           = "subjectNamespace"
+	indexFullSubject                = "subject"
+	indexSubjectAndResourceRelation = "subjectAndResourceRelation"
+	indexCreatedTxn                 = "createdTxn"
+	indexDeletedTxn                 = "deletedTxn"
 
 	defaultWatchBufferLength = 128
 
@@ -280,40 +278,6 @@ var schema = &memdb.DBSchema{
 						},
 					},
 				},
-				indexRelationAndSubject: {
-					Name:   indexRelationAndSubject,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "subjectNamespace"},
-							&memdb.StringFieldIndex{Field: "subjectObjectID"},
-							&memdb.StringFieldIndex{Field: "subjectRelation"},
-							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "relation"},
-						},
-					},
-				},
-				indexSubjectRelation: {
-					Name:   indexSubjectRelation,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "subjectNamespace"},
-							&memdb.StringFieldIndex{Field: "subjectRelation"},
-						},
-					},
-				},
-				indexSubject: {
-					Name:   indexSubject,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "subjectNamespace"},
-							&memdb.StringFieldIndex{Field: "subjectObjectID"},
-							&memdb.StringFieldIndex{Field: "subjectRelation"},
-						},
-					},
-				},
 				indexSubjectNamespace: {
 					Name:   indexSubjectNamespace,
 					Unique: false,
@@ -323,13 +287,23 @@ var schema = &memdb.DBSchema{
 						},
 					},
 				},
-				indexRelationAndRelation: {
-					Name:   indexRelationAndRelation,
+				indexFullSubject: {
+					Name:   indexFullSubject,
 					Unique: false,
 					Indexer: &memdb.CompoundIndex{
 						Indexes: []memdb.Indexer{
 							&memdb.StringFieldIndex{Field: "subjectNamespace"},
+							&memdb.StringFieldIndex{Field: "subjectObjectID"},
 							&memdb.StringFieldIndex{Field: "subjectRelation"},
+						},
+					},
+				},
+				indexSubjectAndResourceRelation: {
+					Name:   indexSubjectAndResourceRelation,
+					Unique: false,
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "subjectNamespace"},
 							&memdb.StringFieldIndex{Field: "namespace"},
 							&memdb.StringFieldIndex{Field: "relation"},
 						},

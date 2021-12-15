@@ -3,13 +3,11 @@ package postgres
 import (
 	"context"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var queryTuples = psql.Select(
@@ -70,48 +68,36 @@ func (pgd *pgDatastore) QueryTuples(
 	return ctq.SplitAndExecute(ctx)
 }
 
-func (pgd *pgDatastore) reverseQueryBase(qBuilder common.SchemaQueryFilterer, revision datastore.Revision) common.ReverseTupleQuery {
-	return common.ReverseTupleQuery{
-		TupleQuerySplitter: common.TupleQuerySplitter{
-			Conn:                      pgd.dbpool,
-			PrepareTransaction:        nil,
-			SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
+func (pgd *pgDatastore) ReverseQueryTuples(
+	ctx context.Context,
+	subjectFilter *v1.SubjectFilter,
+	revision datastore.Revision,
+	opts ...options.ReverseQueryOptionsOption,
+) (iter datastore.TupleIterator, err error) {
+	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(queryTuples, revision)).
+		FilterToSubjectFilter(subjectFilter)
 
-			FilteredQueryBuilder: qBuilder,
-			Revision:             revision,
-			Limit:                nil,
-			Usersets:             nil,
+	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 
-			Tracer:    tracer,
-			DebugName: "ReverseQueryTuples",
-		},
+	if queryOpts.ResRelation != nil {
+		qBuilder = qBuilder.
+			FilterToResourceType(queryOpts.ResRelation.Namespace).
+			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
-}
 
-func (pgd *pgDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(queryTuples, revision)).
-		FilterToSubjectFilter(tuple.UsersetToSubjectFilter(subject))
+	ctq := common.TupleQuerySplitter{
+		Conn:                      pgd.dbpool,
+		PrepareTransaction:        nil,
+		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
 
-	return pgd.reverseQueryBase(qBuilder, revision)
-}
+		FilteredQueryBuilder: qBuilder,
+		Revision:             revision,
+		Limit:                queryOpts.ReverseLimit,
+		Usersets:             nil,
 
-func (pgd *pgDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(queryTuples, revision)).
-		FilterToSubjectFilter(&v1.SubjectFilter{
-			SubjectType: subjectNamespace,
-			OptionalRelation: &v1.SubjectFilter_RelationFilter{
-				Relation: subjectRelation,
-			},
-		})
+		Tracer:    tracer,
+		DebugName: "ReverseQueryTuples",
+	}
 
-	return pgd.reverseQueryBase(qBuilder, revision)
-}
-
-func (pgd *pgDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(queryTuples, revision)).
-		FilterToSubjectFilter(&v1.SubjectFilter{
-			SubjectType: subjectNamespace,
-		})
-
-	return pgd.reverseQueryBase(qBuilder, revision)
+	return ctq.SplitAndExecute(ctx)
 }

@@ -104,7 +104,12 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 				}
 
 				// Also check for right sides of tuples.
-				qy, qyErr = nss.ds.ReverseQueryTuplesFromSubjectRelation(config.Name, delta.RelationName, headRevision).Limit(1).Execute(ctx)
+				qy, qyErr = nss.ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
+					SubjectType: config.Name,
+					OptionalRelation: &v1.SubjectFilter_RelationFilter{
+						Relation: delta.RelationName,
+					},
+				}, headRevision, options.WithReverseLimit(options.LimitOne))
 				err = shared.ErrorIfTupleIteratorReturnsTuples(
 					ctx,
 					qy,
@@ -115,8 +120,21 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 				}
 
 			case namespace.RelationDirectTypeRemoved:
-				qy, qyErr := nss.ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, headRevision).
-					WithObjectRelation(config.Name, delta.RelationName).Limit(1).Execute(ctx)
+				qy, qyErr := nss.ds.ReverseQueryTuples(
+					ctx,
+					&v1.SubjectFilter{
+						SubjectType: delta.DirectType.Namespace,
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: delta.DirectType.Relation,
+						},
+					},
+					headRevision,
+					options.WithResRelation(&options.ResourceRelation{
+						Namespace: config.Name,
+						Relation:  delta.RelationName,
+					}),
+					options.WithReverseLimit(options.LimitOne),
+				)
 				err = shared.ErrorIfTupleIteratorReturnsTuples(
 					ctx,
 					qy,
@@ -195,7 +213,9 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 		}
 
 		// Also check for right sides of relationships.
-		qy, qyErr = nss.ds.ReverseQueryTuplesFromSubjectNamespace(nsName, headRevision).Limit(1).Execute(ctx)
+		qy, qyErr = nss.ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
+			SubjectType: nsName,
+		}, headRevision, options.WithReverseLimit(options.LimitOne))
 		err = shared.ErrorIfTupleIteratorReturnsTuples(
 			ctx,
 			qy,

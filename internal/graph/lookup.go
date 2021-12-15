@@ -175,9 +175,15 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 	if isDirectAllowed == namespace.DirectRelationValid {
 		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
 			objects := tuple.NewONRSet()
-			it, err := cl.ds.ReverseQueryTuplesFromSubject(req.Subject, req.Revision).
-				WithObjectRelation(req.ObjectRelation.Namespace, req.ObjectRelation.Relation).
-				Execute(ctx)
+			it, err := cl.ds.ReverseQueryTuples(
+				ctx,
+				tuple.UsersetToSubjectFilter(req.Subject),
+				req.Revision,
+				options.WithResRelation(&options.ResourceRelation{
+					Namespace: req.ObjectRelation.Namespace,
+					Relation:  req.ObjectRelation.Relation,
+				}),
+			)
 			if err != nil {
 				resultChan <- lookupResultError(req, err, emptyMetadata)
 				return

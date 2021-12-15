@@ -80,34 +80,17 @@ type GraphDatastore interface {
 		options ...options.QueryOptionsOption,
 	) (TupleIterator, error)
 
-	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from
-	// subject onward from the datastore.
-	ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision Revision) ReverseTupleQuery
-
-	// ReverseQueryTuplesFromSubjectRelation creates a builder for reading tuples
-	// from a subject relation onward from the datastore.
-	ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision Revision) ReverseTupleQuery
-
-	// ReverseQueryTuplesFromSubjectNamespace creates a builder for reading
-	// tuples from a subject namespace onward from the datastore.
-	ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision Revision) ReverseTupleQuery
+	// ReverseQueryRelationships reads relationships starting from the subject.
+	ReverseQueryTuples(
+		ctx context.Context,
+		subjectFilter *v1.SubjectFilter,
+		revision Revision,
+		options ...options.ReverseQueryOptionsOption,
+	) (TupleIterator, error)
 
 	// CheckRevision checks the specified revision to make sure it's valid and
 	// hasn't been garbage collected.
 	CheckRevision(ctx context.Context, revision Revision) error
-}
-
-// ReverseTupleQuery is a builder for constructing reverse tuple queries.
-type ReverseTupleQuery interface {
-	// Execute runs the tuple query and returns a result iterator.
-	Execute(ctx context.Context) (TupleIterator, error)
-
-	// Limit sets a limit on the query.
-	Limit(limit uint64) ReverseTupleQuery
-
-	// WithObjectRelation filters to tuples with the given object relation on the
-	// left hand side.
-	WithObjectRelation(namespace string, relation string) ReverseTupleQuery
 }
 
 // TupleIterator is an iterator over matched tuples.

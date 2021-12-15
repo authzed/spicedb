@@ -325,26 +325,3 @@ func (ctq TupleQuerySplitter) executeSingleQuery(ctx context.Context, query Sche
 	span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 	return tuples, nil
 }
-
-// ReverseTupleQuery adapts a TupleQuerySplitter to the datastore.ReverseTupleQuery interface.
-type ReverseTupleQuery struct {
-	TupleQuerySplitter
-}
-
-func (rtq ReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	return rtq.SplitAndExecute(ctx)
-}
-
-func (rtq ReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
-	rtq.FilteredQueryBuilder = rtq.FilteredQueryBuilder.Limit(limit)
-	return rtq
-}
-
-func (rtq ReverseTupleQuery) WithObjectRelation(namespaceName string, relationName string) datastore.ReverseTupleQuery {
-	rtq.FilteredQueryBuilder = rtq.FilteredQueryBuilder.
-		FilterToResourceType(namespaceName).
-		FilterToRelation(relationName)
-	return rtq
-}
-
-var _ datastore.ReverseTupleQuery = ReverseTupleQuery{}

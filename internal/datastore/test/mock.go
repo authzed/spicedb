@@ -82,19 +82,20 @@ func (md *MockedDatastore) QueryTuples(
 	return args.Get(0).(datastore.TupleIterator), args.Error(1)
 }
 
-func (md *MockedDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	args := md.Called(subjectNamespace, revision)
-	return args.Get(0).(datastore.ReverseTupleQuery)
-}
+func (md *MockedDatastore) ReverseQueryTuples(
+	ctx context.Context,
+	subjectFilter *v1.SubjectFilter,
+	revision datastore.Revision,
+	options ...options.ReverseQueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	callArgs := make([]interface{}, 0, len(options)+2)
+	callArgs = append(callArgs, subjectFilter, revision)
+	for _, option := range options {
+		callArgs = append(callArgs, option)
+	}
 
-func (md *MockedDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	args := md.Called(subject, revision)
-	return args.Get(0).(datastore.ReverseTupleQuery)
-}
-
-func (md *MockedDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	args := md.Called(subjectNamespace, subjectRelation, revision)
-	return args.Get(0).(datastore.ReverseTupleQuery)
+	args := md.Called(callArgs...)
+	return args.Get(0).(datastore.TupleIterator), args.Error(1)
 }
 
 func (md *MockedDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
@@ -107,27 +108,4 @@ func (md *MockedDatastore) ListNamespaces(ctx context.Context, revision datastor
 	return args.Get(0).([]*v0.NamespaceDefinition), args.Error(1)
 }
 
-// MockedReverseTupleQuery is a mock implementation of the reverse tuple query.
-type MockedReverseTupleQuery struct {
-	mock.Mock
-}
-
-func (mrtq *MockedReverseTupleQuery) WithObjectRelation(namespace string, relation string) datastore.ReverseTupleQuery {
-	args := mrtq.Called(namespace, relation)
-	return args.Get(0).(datastore.ReverseTupleQuery)
-}
-
-func (mrtq *MockedReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	args := mrtq.Called(ctx)
-	return args.Get(0).(datastore.TupleIterator), args.Error(1)
-}
-
-func (mrtq *MockedReverseTupleQuery) Limit(limit uint64) datastore.ReverseTupleQuery {
-	args := mrtq.Called(limit)
-	return args.Get(0).(datastore.ReverseTupleQuery)
-}
-
-var (
-	_ datastore.Datastore         = &MockedDatastore{}
-	_ datastore.ReverseTupleQuery = &MockedReverseTupleQuery{}
-)
+var _ datastore.Datastore = &MockedDatastore{}

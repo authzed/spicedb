@@ -71,16 +71,13 @@ func (rd roDatastore) QueryTuples(
 	return rd.delegate.QueryTuples(ctx, filter, revision, options...)
 }
 
-func (rd roDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return rd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision)
-}
-
-func (rd roDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return rd.delegate.ReverseQueryTuplesFromSubject(subject, revision)
-}
-
-func (rd roDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return rd.delegate.ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation, revision)
+func (rd roDatastore) ReverseQueryTuples(
+	ctx context.Context,
+	subjectFilter *v1.SubjectFilter,
+	revision datastore.Revision,
+	options ...options.ReverseQueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	return rd.delegate.ReverseQueryTuples(ctx, subjectFilter, revision, options...)
 }
 
 func (rd roDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

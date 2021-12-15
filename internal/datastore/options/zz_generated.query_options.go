@@ -42,3 +42,36 @@ func SetUsersets(usersets []*v0.ObjectAndRelation) QueryOptionsOption {
 		q.Usersets = usersets
 	}
 }
+
+type ReverseQueryOptionsOption func(r *ReverseQueryOptions)
+
+// NewReverseQueryOptionsWithOptions creates a new ReverseQueryOptions with the passed in options set
+func NewReverseQueryOptionsWithOptions(opts ...ReverseQueryOptionsOption) *ReverseQueryOptions {
+	r := &ReverseQueryOptions{}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
+}
+
+// ReverseQueryOptionsWithOptions configures an existing ReverseQueryOptions with the passed in options set
+func ReverseQueryOptionsWithOptions(r *ReverseQueryOptions, opts ...ReverseQueryOptionsOption) *ReverseQueryOptions {
+	for _, o := range opts {
+		o(r)
+	}
+	return r
+}
+
+// WithReverseLimit returns an option that can set ReverseLimit on a ReverseQueryOptions
+func WithReverseLimit(reverseLimit *uint64) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.ReverseLimit = reverseLimit
+	}
+}
+
+// WithResRelation returns an option that can set ResRelation on a ReverseQueryOptions
+func WithResRelation(resRelation *ResourceRelation) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.ResRelation = resRelation
+	}
+}

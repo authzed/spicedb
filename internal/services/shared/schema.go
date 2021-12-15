@@ -38,7 +38,9 @@ func EnsureNoRelationshipsExist(ctx context.Context, ds datastore.Datastore, nam
 		return err
 	}
 
-	qy, qyErr = ds.ReverseQueryTuplesFromSubjectNamespace(namespaceName, headRevision).Limit(1).Execute(ctx)
+	qy, qyErr = ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
+		SubjectType: namespaceName,
+	}, headRevision, options.WithReverseLimit(options.LimitOne))
 	if err := ErrorIfTupleIteratorReturnsTuples(
 		ctx,
 		qy,
@@ -92,7 +94,12 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 			}
 
 			// Also check for right sides of tuples.
-			qy, qyErr = ds.ReverseQueryTuplesFromSubjectRelation(nsdef.Name, delta.RelationName, headRevision).Limit(1).Execute(ctx)
+			qy, qyErr = ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
+				SubjectType: nsdef.Name,
+				OptionalRelation: &v1.SubjectFilter_RelationFilter{
+					Relation: delta.RelationName,
+				},
+			}, headRevision, options.WithReverseLimit(options.LimitOne))
 			err = ErrorIfTupleIteratorReturnsTuples(
 				ctx,
 				qy,
@@ -103,9 +110,21 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 			}
 
 		case namespace.RelationDirectTypeRemoved:
-			qy, qyErr := ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, headRevision).
-				WithObjectRelation(nsdef.Name, delta.RelationName).Limit(1).Execute(ctx)
-
+			qy, qyErr := ds.ReverseQueryTuples(
+				ctx,
+				&v1.SubjectFilter{
+					SubjectType: delta.DirectType.Namespace,
+					OptionalRelation: &v1.SubjectFilter_RelationFilter{
+						Relation: delta.DirectType.Relation,
+					},
+				},
+				headRevision,
+				options.WithResRelation(&options.ResourceRelation{
+					Namespace: nsdef.Name,
+					Relation:  delta.RelationName,
+				}),
+				options.WithReverseLimit(options.LimitOne),
+			)
 			err = ErrorIfTupleIteratorReturnsTuples(
 				ctx,
 				qy,
