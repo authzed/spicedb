@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
 )

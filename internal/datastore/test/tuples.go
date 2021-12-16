@@ -87,6 +87,8 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			require.Error(err)
 
 			for _, tupleToFind := range testTuples {
+				tupleUserset := tupleToFind.User.GetUserset()
+
 				// Check that we can find the tuple a number of ways
 				iter, err := ds.QueryTuples(ctx, &v1.RelationshipFilter{
 					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
@@ -97,7 +99,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
 					ResourceType: tupleToFind.ObjectAndRelation.Namespace,
-				}, lastRevision, options.WithUsersets(tupleToFind.User.GetUserset()))
+				}, lastRevision, options.WithUsersets(tupleUserset))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
@@ -112,27 +114,27 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
 					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
 					OptionalResourceId: tupleToFind.ObjectAndRelation.ObjectId,
-				}, lastRevision, options.WithUsersets(tupleToFind.User.GetUserset()))
+				}, lastRevision, options.WithUsersets(tupleUserset))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
 				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
 					ResourceType:     tupleToFind.ObjectAndRelation.Namespace,
 					OptionalRelation: tupleToFind.ObjectAndRelation.Relation,
-				}, lastRevision, options.WithUsersets(tupleToFind.User.GetUserset()))
+				}, lastRevision, options.WithUsersets(tupleUserset))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
 				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
 					ResourceType:     tupleToFind.ObjectAndRelation.Namespace,
 					OptionalRelation: tupleToFind.ObjectAndRelation.Relation,
-				}, lastRevision, options.WithUsersets(tupleToFind.User.GetUserset()), options.WithLimit(options.LimitOne))
+				}, lastRevision, options.WithUsersets(tupleUserset), options.WithLimit(options.LimitOne))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
 				iter, err = ds.ReverseQueryTuples(
 					ctx,
-					tuple.UsersetToSubjectFilter(tupleToFind.User.GetUserset()),
+					tuple.UsersetToSubjectFilter(tupleUserset),
 					lastRevision,
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: tupleToFind.ObjectAndRelation.Namespace,
@@ -144,7 +146,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 				iter, err = ds.ReverseQueryTuples(
 					ctx,
-					tuple.UsersetToSubjectFilter(tupleToFind.User.GetUserset()),
+					tuple.UsersetToSubjectFilter(tupleUserset),
 					lastRevision,
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: tupleToFind.ObjectAndRelation.Namespace,
@@ -154,6 +156,70 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				)
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
+
+				// Check that we fail to find the tuple with the wrong filters
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+					OptionalResourceId: tupleToFind.ObjectAndRelation.ObjectId,
+					OptionalRelation:   "fake",
+				}, lastRevision)
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter)
+
+				incorrectUserset := &v0.ObjectAndRelation{
+					Namespace: tupleUserset.Namespace,
+					ObjectId:  tupleUserset.ObjectId,
+					Relation:  "fake",
+				}
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType: tupleToFind.ObjectAndRelation.Namespace,
+				}, lastRevision, options.WithUsersets(incorrectUserset))
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter)
+
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+					OptionalResourceId: tupleToFind.ObjectAndRelation.ObjectId,
+					OptionalRelation:   tupleToFind.ObjectAndRelation.Relation,
+				}, lastRevision, options.WithUsersets(incorrectUserset))
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter)
+
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+					OptionalResourceId: tupleToFind.ObjectAndRelation.ObjectId,
+					OptionalRelation:   "fake",
+				}, lastRevision, options.WithUsersets(tupleUserset))
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter)
+
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+					OptionalResourceId: "fake",
+					OptionalRelation:   tupleToFind.ObjectAndRelation.Relation,
+				}, lastRevision, options.WithUsersets(tupleUserset))
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter)
+
+				iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
+					ResourceType:       tupleToFind.ObjectAndRelation.Namespace,
+					OptionalResourceId: "fake",
+					OptionalRelation:   tupleToFind.ObjectAndRelation.Relation,
+				}, lastRevision, options.WithUsersets(tupleUserset), options.WithLimit(options.LimitOne))
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter)
+
+				iter, err = ds.ReverseQueryTuples(
+					ctx,
+					tuple.UsersetToSubjectFilter(incorrectUserset),
+					lastRevision,
+					options.WithResRelation(&options.ResourceRelation{
+						Namespace: tupleToFind.ObjectAndRelation.Namespace,
+						Relation:  tupleToFind.ObjectAndRelation.Relation,
+					}),
+				)
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter)
 			}
 
 			// Check a query that returns a number of tuples
