@@ -9,6 +9,7 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/dgraph-io/ristretto"
 	"github.com/shopspring/decimal"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -20,9 +21,10 @@ const (
 )
 
 type cachingManager struct {
-	delegate   datastore.Datastore
-	expiration time.Duration
-	c          *ristretto.Cache
+	delegate    datastore.Datastore
+	expiration  time.Duration
+	c           *ristretto.Cache
+	readNsGroup singleflight.Group
 }
 
 func cacheKey(nsName string, revision decimal.Decimal) string {
@@ -47,14 +49,14 @@ func NewCachingNamespaceManager(
 		return nil, fmt.Errorf(errInitialization, err)
 	}
 
-	return cachingManager{
+	return &cachingManager{
 		delegate:   delegate,
 		expiration: expiration,
 		c:          cache,
 	}, nil
 }
 
-func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*v0.NamespaceDefinition, *NamespaceTypeSystem, error) {
+func (nsc *cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*v0.NamespaceDefinition, *NamespaceTypeSystem, error) {
 	nsDef, err := nsc.ReadNamespace(ctx, nsName, revision)
 	if err != nil {
 		return nsDef, nil, err
@@ -65,18 +67,34 @@ func (nsc cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName stri
 	return nsDef, ts, terr
 }
 
-func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*v0.NamespaceDefinition, error) {
+func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*v0.NamespaceDefinition, error) {
 	ctx, span := tracer.Start(ctx, "ReadNamespace")
 	defer span.End()
 
 	// Check the cache.
-	value, found := nsc.c.Get(cacheKey(nsName, revision))
+	nsRevisionKey := cacheKey(nsName, revision)
+	value, found := nsc.c.Get(nsRevisionKey)
 	if found {
 		return value.(*v0.NamespaceDefinition), nil
 	}
 
 	// We couldn't use the cached entry, load one
-	loaded, _, err := nsc.delegate.ReadNamespace(ctx, nsName, revision)
+	loadedRaw, err, _ := nsc.readNsGroup.Do(nsRevisionKey, func() (interface{}, error) {
+		span.AddEvent("Read namespace from delegate (datastore)")
+		loaded, _, err := nsc.delegate.ReadNamespace(ctx, nsName, revision)
+		if err != nil {
+			return nil, err
+		}
+
+		// Remove user-defined metadata.
+		loaded = namespace.FilterUserDefinedMetadata(loaded)
+
+		// Save it to the cache
+		nsc.c.Set(cacheKey(nsName, revision), loaded, int64(proto.Size(loaded)))
+		span.AddEvent("Saved to cache")
+
+		return loaded, err
+	})
 	if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 		return nil, NewNamespaceNotFoundErr(nsName)
 	}
@@ -84,18 +102,10 @@ func (nsc cachingManager) ReadNamespace(ctx context.Context, nsName string, revi
 		return nil, err
 	}
 
-	// Remove user-defined metadata.
-	loaded = namespace.FilterUserDefinedMetadata(loaded)
-
-	// Save it to the cache
-	nsc.c.Set(cacheKey(nsName, revision), loaded, int64(proto.Size(loaded)))
-
-	span.AddEvent("Saved to cache")
-
-	return loaded, nil
+	return loadedRaw.(*v0.NamespaceDefinition), nil
 }
 
-func (nsc cachingManager) CheckNamespaceAndRelation(ctx context.Context, namespace, relation string, allowEllipsis bool, revision decimal.Decimal) error {
+func (nsc *cachingManager) CheckNamespaceAndRelation(ctx context.Context, namespace, relation string, allowEllipsis bool, revision decimal.Decimal) error {
 	config, err := nsc.ReadNamespace(ctx, namespace, revision)
 	if err != nil {
 		return err
@@ -114,7 +124,7 @@ func (nsc cachingManager) CheckNamespaceAndRelation(ctx context.Context, namespa
 	return NewRelationNotFoundErr(namespace, relation)
 }
 
-func (nsc cachingManager) Close() error {
+func (nsc *cachingManager) Close() error {
 	nsc.c.Close()
 	return nil
 }
