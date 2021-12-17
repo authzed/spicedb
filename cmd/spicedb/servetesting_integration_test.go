@@ -17,9 +17,13 @@ import (
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestTestServer(t *testing.T) {
+	require := require.New(t)
+
 	tester, err := newTester(t,
 		&dockertest.RunOptions{
 			Repository:   "authzed/spicedb",
@@ -28,15 +32,15 @@ func TestTestServer(t *testing.T) {
 			ExposedPorts: []string{"50051/tcp", "50052/tcp"},
 		},
 	)
-	require.NoError(t, err)
+	require.NoError(err)
 	defer tester.cleanup()
 
 	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), grpc.WithInsecure())
-	require.NoError(t, err)
+	require.NoError(err)
 	defer conn.Close()
 
 	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithInsecure())
-	require.NoError(t, err)
+	require.NoError(err)
 	defer roConn.Close()
 
 	v0client := v0.NewACLServiceClient(conn)
@@ -67,7 +71,7 @@ func TestTestServer(t *testing.T) {
 			},
 		},
 	})
-	require.Equal(t, "rpc error: code = Unavailable desc = service read-only", err.Error())
+	require.Equal("rpc error: code = Unavailable desc = service read-only", err.Error())
 
 	// Write a simple relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
@@ -78,7 +82,7 @@ func TestTestServer(t *testing.T) {
 			},
 		},
 	})
-	require.NoError(t, err)
+	require.NoError(err)
 
 	// Ensure the check succeeds.
 	checkReq := &v1.CheckPermissionRequest{
@@ -99,22 +103,24 @@ func TestTestServer(t *testing.T) {
 	}
 
 	v1Resp, err := v1client.CheckPermission(context.Background(), checkReq)
-	require.NoError(t, err)
-	require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
+	require.NoError(err)
+	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
 
 	// Ensure check against readonly works as well.
 	v1Resp, err = rov1client.CheckPermission(context.Background(), checkReq)
-	require.NoError(t, err)
-	require.Equal(t, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
+	require.NoError(err)
+	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
 
 	// Try a call with a different auth header and ensure it fails.
 	authedConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithInsecure(), grpcutil.WithInsecureBearerToken("someothertoken"))
-	require.NoError(t, err)
+	require.NoError(err)
 	defer authedConn.Close()
 
 	authedv1client := v1.NewPermissionsServiceClient(authedConn)
-	v1Resp, err = authedv1client.CheckPermission(context.Background(), checkReq)
-	require.Equal(t, "rpc error: code = FailedPrecondition desc = failed precondition: object definition `resource` not found", err.Error())
+	_, err = authedv1client.CheckPermission(context.Background(), checkReq)
+	s, ok := status.FromError(err)
+	require.True(ok)
+	require.Equal(codes.FailedPrecondition, s.Code())
 }
 
 type spicedbHandle struct {
