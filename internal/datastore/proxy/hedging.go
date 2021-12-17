@@ -255,19 +255,9 @@ func (hp hedgingProxy) QueryTuples(
 	revision datastore.Revision,
 	options ...options.QueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	var once sync.Once
-	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegatedIter, delegatedErr := hp.delegate.QueryTuples(ctx, filter, revision, options...)
-		once.Do(func() {
-			iter = delegatedIter
-			err = delegatedErr
-		})
-		responseReady <- struct{}{}
-	}
-
-	hp.queryTuplesHedger(ctx, subreq)
-
-	return
+	return hp.executeQuery(ctx, func(c context.Context) (datastore.TupleIterator, error) {
+		return hp.delegate.QueryTuples(ctx, filter, revision, options...)
+	})
 }
 
 func (hp hedgingProxy) ReverseQueryTuples(
@@ -276,13 +266,30 @@ func (hp hedgingProxy) ReverseQueryTuples(
 	revision datastore.Revision,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
+	return hp.executeQuery(ctx, func(c context.Context) (datastore.TupleIterator, error) {
+		return hp.delegate.ReverseQueryTuples(ctx, subjectFilter, revision, opts...)
+	})
+}
+
+func (hp hedgingProxy) executeQuery(
+	ctx context.Context,
+	exec func(context.Context) (datastore.TupleIterator, error),
+) (delegateIterator datastore.TupleIterator, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegatedIter, delegatedErr := hp.delegate.ReverseQueryTuples(ctx, subjectFilter, revision, opts...)
+		tempIterator, tempErr := exec(ctx)
+		resultsUsed := false
 		once.Do(func() {
-			iter = delegatedIter
-			err = delegatedErr
+			delegateIterator = tempIterator
+			err = tempErr
+			resultsUsed = true
 		})
+		// close the unused iterator
+		// only the first call to once.Do will run the function, so whichever
+		// hedged request is slower will have resultsUsed = false
+		if !resultsUsed && tempErr == nil {
+			tempIterator.Close()
+		}
 		responseReady <- struct{}{}
 	}
 
