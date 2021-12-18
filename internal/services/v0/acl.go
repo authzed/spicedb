@@ -11,6 +11,7 @@ import (
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -255,13 +256,27 @@ func (as *aclServer) commonCheck(
 	start *v0.ObjectAndRelation,
 	goal *v0.ObjectAndRelation,
 ) (*v0.CheckResponse, error) {
-	err := as.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, start.Relation, false, atRevision)
-	if err != nil {
-		return nil, rewriteACLError(ctx, err)
-	}
-
-	err = as.nsm.CheckNamespaceAndRelation(ctx, goal.Namespace, goal.Relation, true, atRevision)
-	if err != nil {
+	// Perform our preflight checks in parallel
+	errG, checksCtx := errgroup.WithContext(ctx)
+	errG.Go(func() error {
+		return as.nsm.CheckNamespaceAndRelation(
+			checksCtx,
+			start.Namespace,
+			start.Relation,
+			false,
+			atRevision,
+		)
+	})
+	errG.Go(func() error {
+		return as.nsm.CheckNamespaceAndRelation(
+			checksCtx,
+			goal.Namespace,
+			goal.Relation,
+			true,
+			atRevision,
+		)
+	})
+	if err := errG.Wait(); err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
 
