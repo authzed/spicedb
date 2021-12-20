@@ -178,7 +178,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			if update.Relationship.Subject.OptionalRelation != "" {
 				return nil, status.Errorf(
 					codes.InvalidArgument,
-					"wildcard (public) relationships require an empty subject relation",
+					"wildcardrelationships require an empty subject relation",
 				)
 			}
 		}
@@ -217,7 +217,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			if isAllowed != namespace.PublicSubjectAllowed {
 				return nil, status.Errorf(
 					codes.InvalidArgument,
-					"wildcard (public) subjects of type %s are not allowed on %v",
+					"wildcardsubjects of type %s are not allowed on %v",
 					update.Relationship.Subject.Object.ObjectType,
 					tuple.StringObjectRef(update.Relationship.Resource),
 				)

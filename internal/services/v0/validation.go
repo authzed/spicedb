@@ -48,7 +48,7 @@ func validateTupleWrite(
 	if tpl.User.GetUserset().ObjectId == tuple.PublicWildcard {
 		if tpl.User.GetUserset().Relation != tuple.Ellipsis {
 			return invalidRelationError{
-				error:   fmt.Errorf("wildcard (public) relationships require a subject relation of `...` on %v", tpl.ObjectAndRelation),
+				error:   fmt.Errorf("wildcard relationships require a subject relation of `...` on %v", tpl.ObjectAndRelation),
 				subject: tpl.User,
 				onr:     tpl.ObjectAndRelation,
 			}
@@ -88,7 +88,7 @@ func validateTupleWrite(
 
 		if isAllowed != namespace.PublicSubjectAllowed {
 			return invalidRelationError{
-				error:   fmt.Errorf("wildcard (public) subjects of type %s are not allowed on %v", tpl.User.GetUserset().Namespace, tpl.ObjectAndRelation),
+				error:   fmt.Errorf("wildcard subjects of type %s are not allowed on %v", tpl.User.GetUserset().Namespace, tpl.ObjectAndRelation),
 				subject: tpl.User,
 				onr:     tpl.ObjectAndRelation,
 			}

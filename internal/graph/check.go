@@ -67,7 +67,7 @@ func (cc *ConcurrentChecker) dispatch(req ValidatedCheckRequest) ReduceableCheck
 	}
 }
 
-func onrEqualOrPublic(tpl, target *v0.ObjectAndRelation) bool {
+func onrEqualOrWildcard(tpl, target *v0.ObjectAndRelation) bool {
 	return onrEqual(tpl, target) || (tpl.Namespace == target.Namespace && tpl.ObjectId == tuple.PublicWildcard)
 }
 
@@ -90,7 +90,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 		var requestsToDispatch []ReduceableCheckFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 			tplUserset := tpl.User.GetUserset()
-			if onrEqualOrPublic(tplUserset, req.Subject) {
+			if onrEqualOrWildcard(tplUserset, req.Subject) {
 				resultChan <- checkResult(v1.DispatchCheckResponse_MEMBER, emptyMetadata)
 				return
 			}

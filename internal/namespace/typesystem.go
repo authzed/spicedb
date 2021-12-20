@@ -359,7 +359,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 				}
 
 				if referencedWildcard != nil {
-					return fmt.Errorf("for arrow under relation `%s`: relation `%s#%s` includes wildcard (public) type `%s` via relation `%s`: wildcard relations cannot be used on the left side of arrows", relation.Name, nts.nsDef.Name, relationName, referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
+					return fmt.Errorf("for arrow under relation `%s`: relation `%s#%s` includes wildcardtype `%s` via relation `%s`: wildcard relations cannot be used on the left side of arrows", relation.Name, nts.nsDef.Name, relationName, referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
 				}
 			}
 			return nil
@@ -420,7 +420,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 					}
 
 					if referencedWildcard != nil {
-						return fmt.Errorf("for relation `%s`: relation/permission `%s#%s` includes wildcard (public) type `%s` via relation `%s`: wildcard relations cannot be transitively included", relation.Name, allowedRelation.GetNamespace(), allowedRelation.GetRelation(), referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
+						return fmt.Errorf("for relation `%s`: relation/permission `%s#%s` includes wildcardtype `%s` via relation `%s`: wildcard relations cannot be transitively included", relation.Name, allowedRelation.GetNamespace(), allowedRelation.GetRelation(), referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
 					}
 				}
 			}
