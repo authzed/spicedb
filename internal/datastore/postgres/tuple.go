@@ -98,10 +98,6 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Pre
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
 
-	if err := common.ValidateUpdatesToWrite(mutations); err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
-	}
-
 	tx, err := pgd.dbpool.Begin(ctx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)

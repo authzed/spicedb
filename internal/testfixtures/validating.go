@@ -8,6 +8,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
@@ -53,8 +54,13 @@ func (vd validatingDatastore) WriteTuples(ctx context.Context, preconditions []*
 		}
 	}
 
+	err := common.ValidateUpdatesToWrite(mutations)
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+
 	for _, mutation := range mutations {
-		err := mutation.Validate()
+		err = mutation.Validate()
 		if err != nil {
 			return datastore.NoRevision, err
 		}
