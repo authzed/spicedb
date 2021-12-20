@@ -443,13 +443,6 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 			"alphanumeric",
 		},
 		{
-			"disallowed wildcard relation",
-			nil,
-			[]*v1.Relationship{rel("document", "somedoc", "parent", "user", "*", "somerelation")},
-			codes.InvalidArgument,
-			"empty subject relation",
-		},
-		{
 			"disallowed wildcard subject",
 			nil,
 			[]*v1.Relationship{rel("document", "somedoc", "parent", "user", "*", "")},

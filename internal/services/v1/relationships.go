@@ -173,16 +173,6 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			return nil, rewritePermissionsError(ctx, err)
 		}
 
-		// Ensure wildcard writes have no subject relation.
-		if update.Relationship.Subject.Object.ObjectId == tuple.PublicWildcard {
-			if update.Relationship.Subject.OptionalRelation != "" {
-				return nil, status.Errorf(
-					codes.InvalidArgument,
-					"wildcardrelationships require an empty subject relation",
-				)
-			}
-		}
-
 		if err := ps.nsm.CheckNamespaceAndRelation(
 			ctx,
 			update.Relationship.Subject.Object.ObjectType,
