@@ -10,32 +10,40 @@ import (
 )
 
 const (
-	ellipsis = "..."
+	// Ellipsis is the Ellipsis relation in v0 style subjects.
+	Ellipsis = "..."
+
+	// PublicWildcard is the wildcard value for subject object IDs that indicates public access
+	// for the subject type.
+	PublicWildcard = "*"
 )
 
 const (
 	namespaceNameExpr = "([a-z][a-z0-9_]{2,61}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]"
-	objectIDExpr      = "[a-zA-Z0-9_][a-zA-Z0-9/_-]{0,127}"
+	resourceIDExpr    = "[a-zA-Z0-9_][a-zA-Z0-9/_-]{0,127}"
+	subjectIDExpr     = "([a-zA-Z0-9_][a-zA-Z0-9/_-]{0,127})|\\*"
 	relationExpr      = "[a-z][a-z0-9_]{2,62}[a-z0-9]"
 )
 
 var onrExpr = fmt.Sprintf(
 	`(?P<resourceType>(%s)):(?P<resourceID>%s)#(?P<resourceRel>%s)`,
 	namespaceNameExpr,
-	objectIDExpr,
+	resourceIDExpr,
 	relationExpr,
 )
 
 var subjectExpr = fmt.Sprintf(
 	`(?P<subjectType>(%s)):(?P<subjectID>%s)(#(?P<subjectRel>%s|\.\.\.))?`,
 	namespaceNameExpr,
-	objectIDExpr,
+	subjectIDExpr,
 	relationExpr,
 )
 
 var (
-	onrRegex     = regexp.MustCompile(fmt.Sprintf("^%s$", onrExpr))
-	subjectRegex = regexp.MustCompile(fmt.Sprintf("^%s$", subjectExpr))
+	onrRegex        = regexp.MustCompile(fmt.Sprintf("^%s$", onrExpr))
+	subjectRegex    = regexp.MustCompile(fmt.Sprintf("^%s$", subjectExpr))
+	resourceIDRegex = regexp.MustCompile(fmt.Sprintf("^%s$", resourceIDExpr))
+	subjectIDRegex  = regexp.MustCompile(fmt.Sprintf("^%s$", subjectIDExpr))
 )
 
 var parserRegex = regexp.MustCompile(
@@ -45,6 +53,24 @@ var parserRegex = regexp.MustCompile(
 		subjectExpr,
 	),
 )
+
+// ValidateResourceID ensures that the given resource ID is valid. Returns an error if not.
+func ValidateResourceID(objectID string) error {
+	if !resourceIDRegex.MatchString(objectID) {
+		return fmt.Errorf("invalid resource id; must be alphanumeric and between 1 and 127 characters")
+	}
+
+	return nil
+}
+
+// ValidateSubjectID ensures that the given object ID (under a subject reference) is valid. Returns an error if not.
+func ValidateSubjectID(subjectID string) error {
+	if !subjectIDRegex.MatchString(subjectID) {
+		return fmt.Errorf("invalid subject id; must be alphanumeric and between 1 and 127 characters or a star for public")
+	}
+
+	return nil
+}
 
 // String converts a tuple to a string. If the tuple is nil or empty, returns empty string.
 func String(tpl *v0.RelationTuple) string {
@@ -78,14 +104,14 @@ func RelString(tpl *v1.Relationship) string {
 // Parse unmarshals the string form of a Tuple and returns nil if there is a
 // failure.
 //
-// This function treats both missing and ellipsis relations equally.
+// This function treats both missing and Ellipsis relations equally.
 func Parse(tpl string) *v0.RelationTuple {
 	groups := parserRegex.FindStringSubmatch(tpl)
 	if len(groups) == 0 {
 		return nil
 	}
 
-	subjectRelation := ellipsis
+	subjectRelation := Ellipsis
 	subjectRelIndex := stringz.SliceIndex(parserRegex.SubexpNames(), "subjectRel")
 	if len(groups[subjectRelIndex]) > 0 {
 		subjectRelation = groups[subjectRelIndex]
@@ -157,7 +183,7 @@ func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 				ObjectType: tpl.User.GetUserset().Namespace,
 				ObjectId:   tpl.User.GetUserset().ObjectId,
 			},
-			OptionalRelation: stringz.Default(tpl.User.GetUserset().Relation, "", ellipsis),
+			OptionalRelation: stringz.Default(tpl.User.GetUserset().Relation, "", Ellipsis),
 		},
 	}
 }
@@ -188,7 +214,7 @@ func UsersetToSubjectFilter(userset *v0.ObjectAndRelation) *v1.SubjectFilter {
 		SubjectType:       userset.Namespace,
 		OptionalSubjectId: userset.ObjectId,
 		OptionalRelation: &v1.SubjectFilter_RelationFilter{
-			Relation: stringz.Default(userset.Relation, "", ellipsis),
+			Relation: stringz.Default(userset.Relation, "", Ellipsis),
 		},
 	}
 }
@@ -271,7 +297,7 @@ func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
 		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
 			Namespace: r.Subject.Object.ObjectType,
 			ObjectId:  r.Subject.Object.ObjectId,
-			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, ellipsis),
+			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, Ellipsis),
 		}}},
 	}
 }

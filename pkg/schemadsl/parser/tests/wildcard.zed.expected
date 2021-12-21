@@ -1,0 +1,76 @@
+NodeTypeFile
+  end-rune = 156
+  input-source = wildcard test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 17
+      input-source = wildcard test
+      start-rune = 0
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 156
+      input-source = wildcard test
+      start-rune = 20
+      child-node =>
+        NodeTypeRelation
+          end-rune = 89
+          input-source = wildcard test
+          relation-name = viewer
+          start-rune = 46
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 89
+              input-source = wildcard test
+              start-rune = 63
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 66
+                  input-source = wildcard test
+                  start-rune = 63
+                  type-name = user
+                NodeTypeSpecificTypeReference
+                  end-rune = 75
+                  input-source = wildcard test
+                  start-rune = 70
+                  type-name = user
+                  type-wildcard = true
+                NodeTypeSpecificTypeReference
+                  end-rune = 89
+                  input-source = wildcard test
+                  start-rune = 79
+                  type-name = anothertype
+        NodeTypeRelation
+          end-rune = 125
+          input-source = wildcard test
+          relation-name = another
+          start-rune = 95
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 125
+              input-source = wildcard test
+              start-rune = 113
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 116
+                  input-source = wildcard test
+                  start-rune = 113
+                  type-name = user
+                NodeTypeSpecificTypeReference
+                  end-rune = 125
+                  input-source = wildcard test
+                  start-rune = 120
+                  type-name = user
+                  type-wildcard = true
+        NodeTypePermission
+          end-rune = 154
+          input-source = wildcard test
+          relation-name = view
+          start-rune = 131
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 154
+              identifier-value = viewer
+              input-source = wildcard test
+              start-rune = 149

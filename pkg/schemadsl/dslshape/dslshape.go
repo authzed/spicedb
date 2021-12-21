@@ -98,6 +98,9 @@ const (
 	// A relation under a type reference.
 	NodeSpecificReferencePredicateRelation = "relation-name"
 
+	// A wildcard under a type reference.
+	NodeSpecificReferencePredicateWildcard = "type-wildcard"
+
 	//
 	// NodeTypePermission
 	//

@@ -64,7 +64,7 @@ func TestCompile(t *testing.T) {
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foos", nil,
-						namespace.RelationReference("sometenant/bars", "..."),
+						namespace.AllowedRelation("sometenant/bars", "..."),
 					),
 				),
 			},
@@ -79,7 +79,22 @@ func TestCompile(t *testing.T) {
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foos", nil,
-						namespace.RelationReference("sometenant/bars", "mehs"),
+						namespace.AllowedRelation("sometenant/bars", "mehs"),
+					),
+				),
+			},
+		},
+		{
+			"wildcard relation",
+			&someTenant,
+			`definition simple {
+				relation foos: bars:*
+			}`,
+			"",
+			[]*v0.NamespaceDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.Relation("foos", nil,
+						namespace.AllowedPublicNamespace("sometenant/bars"),
 					),
 				),
 			},
@@ -94,7 +109,7 @@ func TestCompile(t *testing.T) {
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foos", nil,
-						namespace.RelationReference("anothertenant/bars", "mehs"),
+						namespace.AllowedRelation("anothertenant/bars", "mehs"),
 					),
 				),
 			},
@@ -110,11 +125,11 @@ func TestCompile(t *testing.T) {
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
 					namespace.Relation("foos", nil,
-						namespace.RelationReference("sometenant/bars", "mehs"),
+						namespace.AllowedRelation("sometenant/bars", "mehs"),
 					),
 					namespace.Relation("hello", nil,
-						namespace.RelationReference("sometenant/there", "..."),
-						namespace.RelationReference("sometenant/world", "..."),
+						namespace.AllowedRelation("sometenant/there", "..."),
+						namespace.AllowedRelation("sometenant/world", "..."),
 					),
 				),
 			},
@@ -423,7 +438,7 @@ func TestCompile(t *testing.T) {
 					namespace.Relation(
 						"somerel",
 						nil,
-						namespace.RelationReference("some_tenant/bars", "..."),
+						namespace.AllowedRelation("some_tenant/bars", "..."),
 					),
 				),
 			},

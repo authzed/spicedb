@@ -106,6 +106,8 @@ func TestParser(t *testing.T) {
 		{"indented comments test", "indentedcomments"},
 		{"parens test", "parens"},
 		{"multiple parens test", "multiparen"},
+		{"wildcard test", "wildcard"},
+		{"broken wildcard test", "brokenwildcard"},
 	}
 
 	for _, test := range parserTests {

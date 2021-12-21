@@ -116,6 +116,15 @@ var testCases = []struct {
 		),
 		relFormat: rel("foos", "bar", "bazzy", "groo", "grar", ""),
 	},
+	{
+		input:          "tenant/testns:testobj#testrel@tenant/user:*#...",
+		expectedOutput: "tenant/testns:testobj#testrel@tenant/user:*",
+		tupleFormat: makeTuple(
+			ObjectAndRelation("tenant/testns", "testobj", "testrel"),
+			ObjectAndRelation("tenant/user", "*", "..."),
+		),
+		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "*", ""),
+	},
 }
 
 func TestSerialize(t *testing.T) {
@@ -176,6 +185,18 @@ func TestConvert(t *testing.T) {
 
 			serialized := String(backToTpl)
 			require.Equal(tc.expectedOutput, serialized)
+		})
+	}
+}
+
+func TestValidate(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run("validate/"+tc.input, func(t *testing.T) {
+			parsed := ParseRel(tc.input)
+			if parsed != nil {
+				require.NoError(t, ValidateResourceID(parsed.Resource.ObjectId))
+				require.NoError(t, ValidateSubjectID(parsed.Subject.Object.ObjectId))
+			}
 		})
 	}
 }

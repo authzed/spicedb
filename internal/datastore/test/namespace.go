@@ -18,12 +18,12 @@ import (
 
 var (
 	testNamespace = ns.Namespace("test/test",
-		ns.Relation("editor", nil, ns.RelationReference(testUserNS.Name, "...")),
+		ns.Relation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
 	)
 
 	updatedNamespace = ns.Namespace(testNamespace.Name,
-		ns.Relation("reader", nil, ns.RelationReference(testUserNS.Name, "...")),
-		ns.Relation("editor", nil, ns.RelationReference(testUserNS.Name, "...")),
+		ns.Relation("reader", nil, ns.AllowedRelation(testUserNS.Name, "...")),
+		ns.Relation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
 	)
 )
 

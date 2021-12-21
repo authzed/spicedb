@@ -206,9 +206,9 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 		})
 	}
 
-	// Dispatch to any allowed direct relation types that don't match the target ONR, collect
+	// Dispatch to any allowed subject relation types that don't match the target ONR, collect
 	// the found object IDs, and then search for those.
-	allowedDirect, err := typeSystem.AllowedDirectRelations(req.ObjectRelation.Relation)
+	allowedDirect, err := typeSystem.AllowedSubjectRelations(req.ObjectRelation.Relation)
 	if err != nil {
 		return returnResult(lookupResultError(req, err, emptyMetadata))
 	}
@@ -220,19 +220,19 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 
 	var excludedDirect []*v0.RelationReference
 	for _, allowedDirectType := range allowedDirect {
-		if allowedDirectType.Relation == Ellipsis {
+		if allowedDirectType.GetRelation() == Ellipsis {
 			continue
 		}
 
 		if allowedDirectType.Namespace == req.ObjectRelation.Namespace &&
-			allowedDirectType.Relation == req.ObjectRelation.Relation {
+			allowedDirectType.GetRelation() == req.ObjectRelation.Relation {
 			continue
 		}
 
 		// Prevent recursive inferred lookups, which can cause an infinite loop.
 		rr := &v0.RelationReference{
 			Namespace: allowedDirectType.Namespace,
-			Relation:  allowedDirectType.Relation,
+			Relation:  allowedDirectType.GetRelation(),
 		}
 		if checkStackContains(directStack, rr) {
 			excludedDirect = append(excludedDirect, rr)
@@ -249,7 +249,7 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 					Subject: req.Subject,
 					ObjectRelation: &v0.RelationReference{
 						Namespace: allowedDirectType.Namespace,
-						Relation:  allowedDirectType.Relation,
+						Relation:  allowedDirectType.GetRelation(),
 					},
 					Limit:       noLimit, // Since this is an inferred lookup, we can't limit.
 					Metadata:    decrementDepth(req.Metadata),
@@ -365,7 +365,7 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req Valid
 		return returnResult(result)
 	}
 
-	tuplesetDirectRelations, err := typeSystem.AllowedDirectRelations(ttu.Tupleset.Relation)
+	tuplesetDirectRelations, err := typeSystem.AllowedSubjectRelations(ttu.Tupleset.Relation)
 	if err != nil {
 		return returnResult(lookupResultError(req, err, emptyMetadata))
 	}

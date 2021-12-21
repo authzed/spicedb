@@ -39,6 +39,7 @@ var lexerTests = []lexerTest{
 	{"right paren", ")", []Lexeme{{TokenTypeRightParen, 0, ")"}, tEOF}},
 
 	{"semicolon", ";", []Lexeme{{TokenTypeSemicolon, 0, ";"}, tEOF}},
+	{"star", "*", []Lexeme{{TokenTypeStar, 0, "*"}, tEOF}},
 
 	{"right arrow", "->", []Lexeme{{TokenTypeRightArrow, 0, "->"}, tEOF}},
 
@@ -61,6 +62,13 @@ var lexerTests = []lexerTest{
 		{TokenTypeIdentifier, 0, "foo"},
 		{TokenTypeDiv, 0, "/"},
 		{TokenTypeIdentifier, 0, "bar"},
+		tEOF,
+	}},
+
+	{"type star", "foo:*", []Lexeme{
+		{TokenTypeIdentifier, 0, "foo"},
+		{TokenTypeColon, 0, ":"},
+		{TokenTypeStar, 0, "*"},
 		tEOF,
 	}},
 
@@ -100,6 +108,20 @@ var lexerTests = []lexerTest{
 		tWhitespace,
 		{TokenTypeIdentifier, 0, "organization"},
 		{TokenTypeSemicolon, 0, ";"},
+		tEOF,
+	}},
+
+	{"relation", "/* foo */relation parent: namespace:*\n", []Lexeme{
+		{TokenTypeMultilineComment, 0, "/* foo */"},
+		{TokenTypeKeyword, 0, "relation"},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "parent"},
+		{TokenTypeColon, 0, ":"},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "namespace"},
+		{TokenTypeColon, 0, ":"},
+		{TokenTypeStar, 0, "*"},
+		{TokenTypeSyntheticSemicolon, 0, "\n"},
 		tEOF,
 	}},
 

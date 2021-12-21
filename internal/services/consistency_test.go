@@ -111,6 +111,7 @@ func TestConsistency(t *testing.T) {
 							for _, tester := range testers {
 								t.Run(tester.Name(), func(t *testing.T) {
 									runConsistencyTests(t, tester, dispatcher, fullyResolved, tuplesPerNamespace, revision)
+									runAssertions(t, tester, dispatcher, fullyResolved, revision)
 								})
 							}
 						})
@@ -118,6 +119,32 @@ func TestConsistency(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func runAssertions(t *testing.T,
+	tester serviceTester,
+	dispatch dispatch.Dispatcher,
+	fullyResolved *validationfile.FullyParsedValidationFile,
+	revision decimal.Decimal) {
+	for _, parsedFile := range fullyResolved.ParsedFiles {
+		for _, assertTrueRel := range parsedFile.Assertions.AssertTrue {
+			rel := tuple.Parse(assertTrueRel)
+			require.NotNil(t, rel)
+
+			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
+			require.NoError(t, err)
+			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.String(rel))
+		}
+
+		for _, assertFalseRel := range parsedFile.Assertions.AssertFalse {
+			rel := tuple.Parse(assertFalseRel)
+			require.NotNil(t, rel)
+
+			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
+			require.NoError(t, err)
+			require.False(t, result, "Assertion `%s` returned true; false expected", tuple.String(rel))
+		}
 	}
 }
 
@@ -224,6 +251,7 @@ func runConsistencyTests(t *testing.T,
 
 	// Collect the set of accessible objects for each namespace and subject.
 	accessibilitySet := newAccessibilitySet()
+
 	for _, nsDef := range fullyResolved.NamespaceDefinitions {
 		for _, relation := range nsDef.Relation {
 			for _, subject := range subjects.AsSlice() {
@@ -239,9 +267,20 @@ func runConsistencyTests(t *testing.T,
 						Relation:  relation.Name,
 						ObjectId:  objectIDStr,
 					}
-					isMember, err := tester.Check(context.Background(), onr, subject, revision)
+					hasPermission, err := tester.Check(context.Background(), onr, subject, revision)
 					require.NoError(t, err)
-					accessibilitySet.Set(onr, subject, isMember)
+
+					// If a member, check if due to a wildcard only.
+					if hasPermission && accessibleViaWildcardOnly(t, dispatch, onr, subject, revision) {
+						accessibilitySet.Set(onr, subject, isMemberViaWildcard)
+						continue
+					}
+
+					if hasPermission {
+						accessibilitySet.Set(onr, subject, isMember)
+					} else {
+						accessibilitySet.Set(onr, subject, isNotMember)
+					}
 				}
 			}
 		}
@@ -274,6 +313,26 @@ func runConsistencyTests(t *testing.T,
 	validateDeveloper(t, dev, vctx)
 }
 
+func accessibleViaWildcardOnly(t *testing.T, dispatch dispatch.Dispatcher, onr *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, revision decimal.Decimal) bool {
+	resp, err := dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+		ObjectAndRelation: onr,
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 100,
+		},
+		ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
+	})
+	require.NoError(t, err)
+
+	subjectsFound := graphpkg.Simplify(resp.TreeNode)
+	subjectsFoundSet := tuple.NewONRSet()
+	for _, subjectUser := range subjectsFound {
+		subjectsFoundSet.Add(subjectUser.GetUserset())
+	}
+
+	return !subjectsFoundSet.Has(subject)
+}
+
 type validationContext struct {
 	fullyResolved *validationfile.FullyParsedValidationFile
 
@@ -304,7 +363,7 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 	// Build the Expected Relations (inputs only).
 	expectedMap := map[string]interface{}{}
 	for _, result := range vctx.accessibilitySet.results {
-		if result.isMember {
+		if result.isMember == isMember {
 			expectedMap[tuple.StringONR(result.object)] = []string{}
 		}
 	}
@@ -334,7 +393,7 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 			subjectONR, err := validationStr.Subject()
 			require.Nil(t, err)
 			require.True(t,
-				vctx.accessibilitySet.IsMember(onr, subjectONR),
+				vctx.accessibilitySet.GetIsMember(onr, subjectONR) == isMember,
 				"Generated expected relations returned inaccessible member %s for %s",
 				tuple.StringONR(subjectONR),
 				tuple.StringONR(onr))
@@ -346,7 +405,7 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 	var falseAssertions []string
 
 	for _, result := range vctx.accessibilitySet.results {
-		if result.isMember {
+		if result.isMember == isMember || result.isMember == isMemberViaWildcard {
 			trueAssertions = append(trueAssertions, fmt.Sprintf("%s@%s", tuple.StringONR(result.object), tuple.StringONR(result.subject)))
 		} else {
 			falseAssertions = append(falseAssertions, fmt.Sprintf("%s@%s", tuple.StringONR(result.object), tuple.StringONR(result.subject)))
@@ -418,8 +477,8 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					vrequire.Equal(len(checkRelationships), len(resp.CheckResults))
 					vrequire.Equal(0, len(resp.RequestErrors), "Got unexpected request error from edit check")
 					for _, result := range resp.CheckResults {
-						expectedMember := vctx.accessibilitySet.IsMember(result.Relationship.ObjectAndRelation, subject)
-						vrequire.Equal(expectedMember, result.IsMember, "Found unexpected membership difference for %s", tuple.String(result.Relationship))
+						expectedMember := vctx.accessibilitySet.GetIsMember(result.Relationship.ObjectAndRelation, subject)
+						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard, result.IsMember, "Found unexpected membership difference for %s. Expected %v, Found: %v", tuple.String(result.Relationship), expectedMember, result.IsMember)
 					}
 				})
 			}
@@ -607,10 +666,18 @@ func contains(s []string, e string) bool {
 	return false
 }
 
+type isMemberStatus int
+
+const (
+	isNotMember         isMemberStatus = 0
+	isMember            isMemberStatus = 1
+	isMemberViaWildcard isMemberStatus = 2
+)
+
 type checkResult struct {
 	object   *v0.ObjectAndRelation
 	subject  *v0.ObjectAndRelation
-	isMember bool
+	isMember isMemberStatus
 }
 
 // TODO(jschorr): optimize the accessibility set if the consistency tests ever become slow enough
@@ -625,11 +692,11 @@ func newAccessibilitySet() *accessibilitySet {
 	}
 }
 
-func (rs *accessibilitySet) Set(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, isMember bool) {
+func (rs *accessibilitySet) Set(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, isMember isMemberStatus) {
 	rs.results = append(rs.results, checkResult{object: object, subject: subject, isMember: isMember})
 }
 
-func (rs *accessibilitySet) IsMember(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation) bool {
+func (rs *accessibilitySet) GetIsMember(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation) isMemberStatus {
 	objectStr := tuple.StringONR(object)
 	subjectStr := tuple.StringONR(subject)
 
@@ -642,11 +709,13 @@ func (rs *accessibilitySet) IsMember(object *v0.ObjectAndRelation, subject *v0.O
 	panic("Missing matching result")
 }
 
+// AccessibleObjectIDs returns the set of object IDs accessible for the given subject from the given relation on the namespace,
+// *not* including those accessible solely via wildcard.
 func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationName string, subject *v0.ObjectAndRelation) []string {
 	var accessibleObjectIDs []string
 	subjectStr := tuple.StringONR(subject)
 	for _, result := range rs.results {
-		if !result.isMember {
+		if result.isMember != isMember {
 			continue
 		}
 
@@ -657,10 +726,12 @@ func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationNa
 	return accessibleObjectIDs
 }
 
+// AccessibleTerminalSubjects returns the set of terminal subjects with accessible for the given object on the given relation on the namespace,
+// *not* including those accessible solely via wildcard.
 func (rs *accessibilitySet) AccessibleTerminalSubjects(namespaceName string, relationName string, objectIDStr string) *tuple.ONRSet {
 	accessibleSubjects := tuple.NewONRSet()
 	for _, result := range rs.results {
-		if !result.isMember {
+		if result.isMember != isMember {
 			continue
 		}
 

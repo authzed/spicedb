@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
+	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
@@ -40,11 +41,13 @@ func NewPermissionsServer(ds datastore.Datastore,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: grpcmw.ChainUnaryServer(
 				grpcvalidate.UnaryServerInterceptor(),
+				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
 				consistency.UnaryServerInterceptor(ds),
 			),
 			Stream: grpcmw.ChainStreamServer(
 				grpcvalidate.StreamServerInterceptor(),
+				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				consistency.StreamServerInterceptor(ds),
 			),
@@ -150,6 +153,16 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	}
 
 	for _, update := range req.Updates {
+		err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId)
+		if err != nil {
+			return nil, rewritePermissionsError(ctx, err)
+		}
+
+		err = tuple.ValidateSubjectID(update.Relationship.Subject.Object.ObjectId)
+		if err != nil {
+			return nil, rewritePermissionsError(ctx, err)
+		}
+
 		if err := ps.nsm.CheckNamespaceAndRelation(
 			ctx,
 			update.Relationship.Resource.ObjectType,
@@ -183,22 +196,40 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			)
 		}
 
-		isAllowed, err := ts.IsAllowedDirectRelation(
-			update.Relationship.Relation,
-			update.Relationship.Subject.Object.ObjectType,
-			stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
-		)
-		if err != nil {
-			return nil, err
-		}
+		if update.Relationship.Subject.Object.ObjectId == tuple.PublicWildcard {
+			isAllowed, err := ts.IsAllowedPublicNamespace(
+				update.Relationship.Relation,
+				update.Relationship.Subject.Object.ObjectType)
+			if err != nil {
+				return nil, err
+			}
 
-		if isAllowed == namespace.DirectRelationNotValid {
-			return nil, status.Errorf(
-				codes.InvalidArgument,
-				"subject %s is not allowed for the resource %s",
-				tuple.StringSubjectRef(update.Relationship.Subject),
-				tuple.StringObjectRef(update.Relationship.Resource),
+			if isAllowed != namespace.PublicSubjectAllowed {
+				return nil, status.Errorf(
+					codes.InvalidArgument,
+					"wildcardsubjects of type %s are not allowed on %v",
+					update.Relationship.Subject.Object.ObjectType,
+					tuple.StringObjectRef(update.Relationship.Resource),
+				)
+			}
+		} else {
+			isAllowed, err := ts.IsAllowedDirectRelation(
+				update.Relationship.Relation,
+				update.Relationship.Subject.Object.ObjectType,
+				stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
 			)
+			if err != nil {
+				return nil, err
+			}
+
+			if isAllowed == namespace.DirectRelationNotValid {
+				return nil, status.Errorf(
+					codes.InvalidArgument,
+					"subject %s is not allowed for the resource %s",
+					tuple.StringSubjectRef(update.Relationship.Subject),
+					tuple.StringObjectRef(update.Relationship.Resource),
+				)
+			}
 		}
 	}
 

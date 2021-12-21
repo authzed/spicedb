@@ -1,0 +1,27 @@
+---
+schema: >-
+  definition test/user {}
+
+  definition test/resource {
+    relation viewer: test/user | test/user:*
+    relation granted: test/user
+
+    permission view = viewer
+    permission special_viewer = viewer & granted
+  }
+relationships: |
+  test/resource:first#viewer@test/user:*
+  test/resource:first#granted@test/user:somegal
+assertions:
+  assertTrue:
+    - "test/resource:first#view@test/user:editordude"
+    - "test/resource:first#view@test/user:anotheruser"
+    - "test/resource:first#view@test/user:aseconduser"
+    - "test/resource:first#view@test/user:athirduser"
+    - "test/resource:first#view@test/user:somegal"
+    - "test/resource:first#special_viewer@test/user:somegal"
+  assertFalse:
+    - "test/resource:first#special_viewer@test/user:editordude"
+    - "test/resource:first#special_viewer@test/user:anotheruser"
+    - "test/resource:first#special_viewer@test/user:aseconduser"
+    - "test/resource:first#special_viewer@test/user:athirduser"

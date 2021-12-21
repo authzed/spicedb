@@ -40,7 +40,7 @@ func ParseSubjectONR(subjectOnr string) *v0.ObjectAndRelation {
 		return nil
 	}
 
-	relation := ellipsis
+	relation := Ellipsis
 	subjectRelIndex := stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectRel")
 	if len(groups[subjectRelIndex]) > 0 {
 		relation = groups[subjectRelIndex]
@@ -68,13 +68,22 @@ func ParseONR(onr string) *v0.ObjectAndRelation {
 	}
 }
 
+// StringRR converts a RR object to a string.
+func StringRR(rr *v0.RelationReference) string {
+	if rr == nil {
+		return ""
+	}
+
+	return fmt.Sprintf("%s#%s", rr.Namespace, rr.Relation)
+}
+
 // StringONR converts an ONR object to a string.
 func StringONR(onr *v0.ObjectAndRelation) string {
 	if onr == nil {
 		return ""
 	}
 
-	if onr.Relation == ellipsis {
+	if onr.Relation == Ellipsis {
 		return fmt.Sprintf(formatImplicitSubjectRel, onr.Namespace, onr.ObjectId)
 	}
 

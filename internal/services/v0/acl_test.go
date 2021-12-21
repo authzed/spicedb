@@ -417,6 +417,18 @@ func TestInvalidWriteArguments(t *testing.T) {
 			[]string{"document:newdoc#parent@user:someuser"},
 			codes.InvalidArgument,
 		},
+		{
+			"invalid object",
+			nil,
+			[]string{"document:*#parent@user:someuser#..."},
+			codes.InvalidArgument,
+		},
+		{
+			"wildcard userset not allowed",
+			nil,
+			[]string{"document:somedoc#parent@user:*#..."},
+			codes.InvalidArgument,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -501,6 +513,13 @@ func TestCheck(t *testing.T) {
 			codes.InvalidArgument,
 			[]checkTest{
 				{ONR("user", "", "..."), false},
+			},
+		},
+		{
+			ONR("document", "*", "fakerelation"),
+			codes.InvalidArgument,
+			[]checkTest{
+				{ONR("user", "aasdasd", "..."), false},
 			},
 		},
 	}

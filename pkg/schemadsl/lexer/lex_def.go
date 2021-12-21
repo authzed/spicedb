@@ -49,6 +49,7 @@ const (
 	TokenTypeRightArrow // ->
 	TokenTypeHash       // #
 	TokenTypeEllipsis   // ...
+	TokenTypeStar       // *
 )
 
 // keywords contains the full set of keywords supported.
@@ -66,6 +67,8 @@ var syntheticPredecessors = map[TokenType]bool{
 
 	TokenTypeRightBrace: true,
 	TokenTypeRightParen: true,
+
+	TokenTypeStar: true,
 }
 
 // lexerEntrypoint scans until EOFRUNE
@@ -108,6 +111,9 @@ Loop:
 
 		case r == '#':
 			l.emit(TokenTypeHash)
+
+		case r == '*':
+			l.emit(TokenTypeStar)
 
 		case r == '.':
 			if l.acceptString("..") {

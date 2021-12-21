@@ -29,10 +29,7 @@ func TestGenerator(t *testing.T) {
 		{
 			"simple relation",
 			namespace.Namespace("foos/test",
-				namespace.Relation("somerel", nil, &v0.RelationReference{
-					Namespace: "foos/bars",
-					Relation:  "hiya",
-				}),
+				namespace.Relation("somerel", nil, namespace.AllowedRelation("foos/bars", "hiya")),
 			),
 			`definition foos/test {
 	relation somerel: foos/bars#hiya
@@ -76,10 +73,7 @@ func TestGenerator(t *testing.T) {
 				namespace.Relation("somerel", namespace.Union(
 					namespace.This(),
 					namespace.ComputedUserset("anotherrel"),
-				), &v0.RelationReference{
-					Namespace: "foos/bars",
-					Relation:  "hiya",
-				}),
+				), namespace.AllowedRelation("foos/bars", "hiya")),
 			),
 			`definition foos/test {
 	relation somerel: foos/bars#hiya = /* _this unsupported here. Please rewrite into a relation and permission */ + anotherrel
@@ -103,20 +97,11 @@ func TestGenerator(t *testing.T) {
 * Some comment goes here
 */`,
 				namespace.Relation("owner", nil,
-					&v0.RelationReference{
-						Namespace: "foos/user",
-						Relation:  "...",
-					},
+					namespace.AllowedRelation("foos/user", "..."),
 				),
 				namespace.RelationWithComment("reader", "//foobar", nil,
-					&v0.RelationReference{
-						Namespace: "foos/user",
-						Relation:  "...",
-					},
-					&v0.RelationReference{
-						Namespace: "foos/group",
-						Relation:  "member",
-					},
+					namespace.AllowedRelation("foos/user", "..."),
+					namespace.AllowedRelation("foos/group", "member"),
 				),
 				namespace.Relation("read", namespace.Union(
 					namespace.ComputedUserset("reader"),
@@ -231,7 +216,7 @@ definition foos/test {
 /** the document */
 definition foos/document {
 	/** some super long comment goes here and therefore should be made into a multiline comment */
-	relation reader: foos/user
+	relation reader: foos/user | foos/user:*
 
 	/** multiline
 comment */
@@ -248,7 +233,7 @@ definition foos/document {
 	/**
 	 * some super long comment goes here and therefore should be made into a multiline comment
 	 */
-	relation reader: foos/user
+	relation reader: foos/user | foos/user:*
 
 	/**
 	 * multiline

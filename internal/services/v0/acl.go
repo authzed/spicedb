@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
@@ -50,6 +51,7 @@ var errInvalidZookie = errors.New("invalid revision requested")
 func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
 	middleware := []grpc.UnaryServerInterceptor{
 		usagemetrics.UnaryServerInterceptor(),
+		handwrittenvalidation.UnaryServerInterceptor,
 	}
 
 	middleware = append(middleware, grpcutil.DefaultUnaryMiddleware...)
