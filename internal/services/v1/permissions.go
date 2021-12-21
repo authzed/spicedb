@@ -160,7 +160,7 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 					Userset: &v0.ObjectAndRelation{
 						Namespace: subj.Object.ObjectType,
 						ObjectId:  subj.Object.ObjectId,
-						Relation:  stringz.DefaultEmpty(subj.OptionalRelation, "..."),
+						Relation:  stringz.DefaultEmpty(subj.OptionalRelation, graph.Ellipsis),
 					},
 				},
 			})

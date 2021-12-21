@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
@@ -65,11 +66,11 @@ func (ce *ConcurrentExpander) expandDirect(
 
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		it, err := ce.ds.QueryTuples(datastore.TupleQueryResourceFilter{
-			ResourceType:             req.ObjectAndRelation.Namespace,
-			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
-			OptionalResourceRelation: req.ObjectAndRelation.Relation,
-		}, req.Revision).Execute(ctx)
+		it, err := ce.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+			ResourceType:       req.ObjectAndRelation.Namespace,
+			OptionalResourceId: req.ObjectAndRelation.ObjectId,
+			OptionalRelation:   req.ObjectAndRelation.Relation,
+		}, req.Revision)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return
@@ -234,11 +235,11 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 
 func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req ValidatedExpandRequest, ttu *v0.TupleToUserset) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		it, err := ce.ds.QueryTuples(datastore.TupleQueryResourceFilter{
-			ResourceType:             req.ObjectAndRelation.Namespace,
-			OptionalResourceID:       req.ObjectAndRelation.ObjectId,
-			OptionalResourceRelation: ttu.Tupleset.Relation,
-		}, req.Revision).Execute(ctx)
+		it, err := ce.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+			ResourceType:       req.ObjectAndRelation.Namespace,
+			OptionalResourceId: req.ObjectAndRelation.ObjectId,
+			OptionalRelation:   ttu.Tupleset.Relation,
+		}, req.Revision)
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return

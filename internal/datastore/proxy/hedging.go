@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
 var hedgeableCount = promauto.NewCounter(prometheus.CounterOpts{
@@ -121,7 +122,7 @@ type hedgingProxy struct {
 	delegate datastore.Datastore
 
 	revisionHedger      hedger
-	syncRevisionHedger  hedger
+	headRevisionHedger  hedger
 	readNamespaceHedger hedger
 	queryTuplesHedger   hedger
 }
@@ -155,7 +156,7 @@ func newHedgingProxyWithTimeSource(
 	}
 
 	if maxSampleCount < minMaxRequestsThreshold {
-		panic(fmt.Sprintf("maxSampleCount must be >%d", minMaxRequestsThreshold))
+		panic(fmt.Sprintf("maxSampleCount must be >=%d", minMaxRequestsThreshold))
 	}
 
 	if hedgingQuantile <= 0.0 || hedgingQuantile >= 1.0 {
@@ -171,10 +172,10 @@ func newHedgingProxyWithTimeSource(
 	}
 }
 
-func (hp hedgingProxy) Revision(ctx context.Context) (rev datastore.Revision, err error) {
+func (hp hedgingProxy) OptimizedRevision(ctx context.Context) (rev datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegatedRev, delegatedErr := hp.delegate.Revision(ctx)
+		delegatedRev, delegatedErr := hp.delegate.OptimizedRevision(ctx)
 		once.Do(func() {
 			rev = delegatedRev
 			err = delegatedErr
@@ -187,10 +188,10 @@ func (hp hedgingProxy) Revision(ctx context.Context) (rev datastore.Revision, er
 	return
 }
 
-func (hp hedgingProxy) SyncRevision(ctx context.Context) (rev datastore.Revision, err error) {
+func (hp hedgingProxy) HeadRevision(ctx context.Context) (rev datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegatedRev, delegatedErr := hp.delegate.SyncRevision(ctx)
+		delegatedRev, delegatedErr := hp.delegate.HeadRevision(ctx)
 		once.Do(func() {
 			rev = delegatedRev
 			err = delegatedErr
@@ -198,7 +199,7 @@ func (hp hedgingProxy) SyncRevision(ctx context.Context) (rev datastore.Revision
 		responseReady <- struct{}{}
 	}
 
-	hp.syncRevisionHedger(ctx, subreq)
+	hp.headRevisionHedger(ctx, subreq)
 
 	return
 }
@@ -248,50 +249,32 @@ func (hp hedgingProxy) DeleteNamespace(ctx context.Context, nsName string) (data
 	return hp.delegate.DeleteNamespace(ctx, nsName)
 }
 
-func (hp hedgingProxy) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	return hedgingTupleQuery{
-		hp.delegate.QueryTuples(filter, revision),
-		hp.queryTuplesHedger,
-	}
+func (hp hedgingProxy) QueryTuples(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	options ...options.QueryOptionsOption,
+) (iter datastore.TupleIterator, err error) {
+	return hp.executeQuery(ctx, func(c context.Context) (datastore.TupleIterator, error) {
+		return hp.delegate.QueryTuples(ctx, filter, revision, options...)
+	})
 }
 
-func (hp hedgingProxy) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return hedgingReverseTupleQuery{
-		hp.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
-		hp.queryTuplesHedger,
-	}
+func (hp hedgingProxy) ReverseQueryTuples(
+	ctx context.Context,
+	subjectFilter *v1.SubjectFilter,
+	revision datastore.Revision,
+	opts ...options.ReverseQueryOptionsOption,
+) (iter datastore.TupleIterator, err error) {
+	return hp.executeQuery(ctx, func(c context.Context) (datastore.TupleIterator, error) {
+		return hp.delegate.ReverseQueryTuples(ctx, subjectFilter, revision, opts...)
+	})
 }
 
-func (hp hedgingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return hedgingReverseTupleQuery{
-		hp.delegate.ReverseQueryTuplesFromSubject(subject, revision),
-		hp.queryTuplesHedger,
-	}
-}
-
-func (hp hedgingProxy) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return hedgingReverseTupleQuery{
-		hp.delegate.ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation, revision),
-		hp.queryTuplesHedger,
-	}
-}
-
-func (hp hedgingProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	return hp.delegate.CheckRevision(ctx, revision)
-}
-
-func (hp hedgingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
-	return hp.delegate.ListNamespaces(ctx, revision)
-}
-
-type hedgingTupleQuery struct {
-	delegate          datastore.TupleQuery
-	queryTuplesHedger hedger
-}
-
-type tupleExecutor func(ctx context.Context) (datastore.TupleIterator, error)
-
-func executeQuery(ctx context.Context, exec tupleExecutor, queryHedger hedger) (delegateIterator datastore.TupleIterator, err error) {
+func (hp hedgingProxy) executeQuery(
+	ctx context.Context,
+	exec func(context.Context) (datastore.TupleIterator, error),
+) (delegateIterator datastore.TupleIterator, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
 		tempIterator, tempErr := exec(ctx)
@@ -310,63 +293,15 @@ func executeQuery(ctx context.Context, exec tupleExecutor, queryHedger hedger) (
 		responseReady <- struct{}{}
 	}
 
-	queryHedger(ctx, subreq)
+	hp.queryTuplesHedger(ctx, subreq)
 
 	return
 }
 
-func (htq hedgingTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
-	return executeQuery(ctx, htq.delegate.Execute, htq.queryTuplesHedger)
+func (hp hedgingProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	return hp.delegate.CheckRevision(ctx, revision)
 }
 
-func (htq hedgingTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	return hedgingCommonTupleQuery{
-		htq.delegate.Limit(limit),
-		htq.queryTuplesHedger,
-	}
-}
-
-func (htq hedgingTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
-	htq.delegate = htq.delegate.WithSubjectFilter(filter)
-	return htq
-}
-
-func (htq hedgingTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	htq.delegate = htq.delegate.WithUsersets(usersets)
-	return htq
-}
-
-type hedgingReverseTupleQuery struct {
-	delegate          datastore.ReverseTupleQuery
-	queryTuplesHedger hedger
-}
-
-func (hrtq hedgingReverseTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
-	return executeQuery(ctx, hrtq.delegate.Execute, hrtq.queryTuplesHedger)
-}
-
-func (hrtq hedgingReverseTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	return hedgingCommonTupleQuery{
-		hrtq.delegate.Limit(limit),
-		hrtq.queryTuplesHedger,
-	}
-}
-
-func (hrtq hedgingReverseTupleQuery) WithObjectRelation(namespace string, relation string) datastore.ReverseTupleQuery {
-	hrtq.delegate = hrtq.delegate.WithObjectRelation(namespace, relation)
-	return hrtq
-}
-
-type hedgingCommonTupleQuery struct {
-	delegate          datastore.CommonTupleQuery
-	queryTuplesHedger hedger
-}
-
-func (hctq hedgingCommonTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	hctq.delegate = hctq.delegate.Limit(limit)
-	return hctq
-}
-
-func (hctq hedgingCommonTupleQuery) Execute(ctx context.Context) (delegateIterator datastore.TupleIterator, err error) {
-	return executeQuery(ctx, hctq.delegate.Execute, hctq.queryTuplesHedger)
+func (hp hedgingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+	return hp.delegate.ListNamespaces(ctx, revision)
 }

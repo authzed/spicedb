@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
@@ -171,53 +170,7 @@ func (mds *memdbDatastore) delete(ctx context.Context, txn *memdb.Txn, filter *v
 	return newTxnID, nil
 }
 
-func (mds *memdbDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	return &memdbTupleQuery{
-		db:               mds.db,
-		revision:         revision,
-		simulatedLatency: mds.simulatedLatency,
-		resourceFilter: &v1.RelationshipFilter{
-			ResourceType:       filter.ResourceType,
-			OptionalResourceId: filter.OptionalResourceID,
-			OptionalRelation:   filter.OptionalResourceRelation,
-		},
-	}
-}
-
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return &memdbReverseTupleQuery{
-		db:               mds.db,
-		revision:         revision,
-		simulatedLatency: mds.simulatedLatency,
-
-		subNamespaceName: subject.Namespace,
-		subObjectID:      subject.ObjectId,
-		subRelationName:  subject.Relation,
-	}
-}
-
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return &memdbReverseTupleQuery{
-		db:               mds.db,
-		revision:         revision,
-		simulatedLatency: mds.simulatedLatency,
-
-		subNamespaceName: subjectNamespace,
-		subRelationName:  subjectRelation,
-	}
-}
-
-func (mds *memdbDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return &memdbReverseTupleQuery{
-		db:               mds.db,
-		revision:         revision,
-		simulatedLatency: mds.simulatedLatency,
-
-		subNamespaceName: subjectNamespace,
-	}
-}
-
-func (mds *memdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
+func (mds *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	db := mds.db
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
@@ -237,7 +190,7 @@ func (mds *memdbDatastore) SyncRevision(ctx context.Context) (datastore.Revision
 	return datastore.NoRevision, nil
 }
 
-func (mds *memdbDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
+func (mds *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	db := mds.db
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
@@ -262,7 +215,7 @@ func (mds *memdbDatastore) Revision(ctx context.Context) (datastore.Revision, er
 	if len(candidates) > 0 {
 		return candidates[rand.Intn(len(candidates))], nil
 	}
-	return mds.SyncRevision(ctx)
+	return mds.HeadRevision(ctx)
 }
 
 func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

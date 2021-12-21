@@ -8,6 +8,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -84,12 +85,12 @@ func (mp mappingProxy) DeleteRelationships(ctx context.Context, preconditions []
 	return mp.delegate.DeleteRelationships(ctx, translatedPreconditions, translatedFilter)
 }
 
-func (mp mappingProxy) Revision(ctx context.Context) (datastore.Revision, error) {
-	return mp.delegate.Revision(ctx)
+func (mp mappingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	return mp.delegate.OptimizedRevision(ctx)
 }
 
-func (mp mappingProxy) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	return mp.delegate.SyncRevision(ctx)
+func (mp mappingProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	return mp.delegate.HeadRevision(ctx)
 }
 
 func (mp mappingProxy) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
@@ -179,37 +180,94 @@ func (mp mappingProxy) DeleteNamespace(ctx context.Context, nsName string) (data
 	return mp.delegate.DeleteNamespace(ctx, storedNamespaceName)
 }
 
-func (mp mappingProxy) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	var err error
+func (mp mappingProxy) QueryTuples(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	opts ...options.QueryOptionsOption,
+) (datastore.TupleIterator, error) {
 	resourceType, err := mp.mapper.Encode(filter.ResourceType)
-	return mappingTupleQuery{
-		mp.delegate.QueryTuples(datastore.TupleQueryResourceFilter{
-			ResourceType:             resourceType,
-			OptionalResourceID:       filter.OptionalResourceID,
-			OptionalResourceRelation: filter.OptionalResourceRelation,
-		}, revision),
-		mp.mapper,
-		err,
+	if err != nil {
+		return nil, fmt.Errorf(errTranslation, err)
 	}
-}
 
-func (mp mappingProxy) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	translatedONR, err := translateONR(subject, mp.mapper.Encode)
-	return mappingReverseTupleQuery{mp.delegate.ReverseQueryTuplesFromSubject(translatedONR, revision), mp.mapper, err}
-}
+	var subFilter *v1.SubjectFilter
+	if filter.OptionalSubjectFilter != nil {
+		subResourceType, err := mp.mapper.Encode(filter.OptionalSubjectFilter.SubjectType)
+		if err != nil {
+			return nil, fmt.Errorf(errTranslation, err)
+		}
 
-func (mp mappingProxy) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	translatedNamespace, err := mp.mapper.Encode(subjectNamespace)
-	return mappingReverseTupleQuery{mp.delegate.ReverseQueryTuplesFromSubjectNamespace(translatedNamespace, revision), mp.mapper, err}
-}
-
-func (mp mappingProxy) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	translatedNamespace, err := mp.mapper.Encode(subjectNamespace)
-	return mappingReverseTupleQuery{
-		mp.delegate.ReverseQueryTuplesFromSubjectRelation(translatedNamespace, subjectRelation, revision),
-		mp.mapper,
-		err,
+		subFilter = &v1.SubjectFilter{
+			SubjectType:       subResourceType,
+			OptionalSubjectId: filter.OptionalSubjectFilter.OptionalSubjectId,
+			OptionalRelation:  filter.OptionalSubjectFilter.OptionalRelation,
+		}
 	}
+
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+	translatedUsersets := make([]*v0.ObjectAndRelation, 0, len(queryOpts.Usersets))
+	for _, userset := range queryOpts.Usersets {
+		translatedUserset, err := translateONR(userset, mp.mapper.Encode)
+		if err != nil {
+			return nil, fmt.Errorf(errTranslation, err)
+		}
+		translatedUsersets = append(translatedUsersets, translatedUserset)
+	}
+
+	rawIter, err := mp.delegate.QueryTuples(ctx, &v1.RelationshipFilter{
+		ResourceType:          resourceType,
+		OptionalResourceId:    filter.OptionalResourceId,
+		OptionalRelation:      filter.OptionalRelation,
+		OptionalSubjectFilter: subFilter,
+	}, revision, options.WithLimit(queryOpts.Limit), options.SetUsersets(translatedUsersets))
+	if err != nil {
+		return nil, err
+	}
+
+	return &mappingTupleIterator{rawIter, mp.mapper, nil}, nil
+}
+
+func (mp mappingProxy) ReverseQueryTuples(
+	ctx context.Context,
+	filter *v1.SubjectFilter,
+	revision datastore.Revision,
+	opts ...options.ReverseQueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	subjectType, err := mp.mapper.Encode(filter.SubjectType)
+	if err != nil {
+		return nil, fmt.Errorf(errTranslation, err)
+	}
+
+	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+
+	translatedOptions := []options.ReverseQueryOptionsOption{
+		options.WithReverseLimit(queryOpts.ReverseLimit),
+	}
+	if queryOpts.ResRelation != nil {
+		translatedResourceType, err := mp.mapper.Encode(queryOpts.ResRelation.Namespace)
+		if err != nil {
+			return nil, fmt.Errorf(errTranslation, err)
+		}
+
+		translatedOptions = append(translatedOptions, options.WithResRelation(
+			&options.ResourceRelation{
+				Namespace: translatedResourceType,
+				Relation:  queryOpts.ResRelation.Relation,
+			},
+		))
+	}
+
+	rawIter, err := mp.delegate.ReverseQueryTuples(ctx, &v1.SubjectFilter{
+		SubjectType:       subjectType,
+		OptionalSubjectId: filter.OptionalSubjectId,
+		OptionalRelation:  filter.OptionalRelation,
+	}, revision, translatedOptions...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mappingTupleIterator{rawIter, mp.mapper, nil}, nil
 }
 
 func (mp mappingProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
@@ -261,110 +319,6 @@ func (mti *mappingTupleIterator) Err() error {
 
 func (mti *mappingTupleIterator) Close() {
 	mti.delegate.Close()
-}
-
-type mappingTupleQuery struct {
-	delegate datastore.TupleQuery
-	mapper   namespace.Mapper
-	err      error
-}
-
-func (mtq mappingTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	if mtq.err != nil {
-		return nil, mtq.err
-	}
-
-	delegateIterator, err := mtq.delegate.Execute(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &mappingTupleIterator{delegateIterator, mtq.mapper, nil}, nil
-}
-
-func (mtq mappingTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	return mappingCommonTupleQuery{
-		mtq.delegate.Limit(limit),
-		mtq.mapper,
-		mtq.err,
-	}
-}
-
-func (mtq mappingTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
-	if mtq.err != nil {
-		return mtq
-	}
-
-	translatedFilter, err := translateSubjectFilter(filter, mtq.mapper.Encode)
-	if err != nil {
-		mtq.err = err
-		return mtq
-	}
-
-	mtq.delegate = mtq.delegate.WithSubjectFilter(translatedFilter)
-	return mtq
-}
-
-func (mtq mappingTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	if mtq.err != nil {
-		return mtq
-	}
-
-	translatedUsersets := make([]*v0.ObjectAndRelation, 0, len(usersets))
-	for _, userset := range usersets {
-		translated, err := translateONR(userset, mtq.mapper.Encode)
-		if err != nil {
-			mtq.err = err
-			return mtq
-		}
-
-		translatedUsersets = append(translatedUsersets, translated)
-	}
-
-	mtq.delegate = mtq.delegate.WithUsersets(translatedUsersets)
-	return mtq
-}
-
-type mappingReverseTupleQuery struct {
-	delegate datastore.ReverseTupleQuery
-	mapper   namespace.Mapper
-	err      error
-}
-
-func (mrtq mappingReverseTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	if mrtq.err != nil {
-		return nil, mrtq.err
-	}
-
-	delegateIterator, err := mrtq.delegate.Execute(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &mappingTupleIterator{delegateIterator, mrtq.mapper, nil}, nil
-}
-
-func (mrtq mappingReverseTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	return mappingCommonTupleQuery{
-		mrtq.delegate.Limit(limit),
-		mrtq.mapper,
-		mrtq.err,
-	}
-}
-
-func (mrtq mappingReverseTupleQuery) WithObjectRelation(namespace string, relation string) datastore.ReverseTupleQuery {
-	if mrtq.err != nil {
-		return mrtq
-	}
-
-	translatedNamespace, err := mrtq.mapper.Encode(namespace)
-	if err != nil {
-		mrtq.err = err
-		return mrtq
-	}
-
-	mrtq.delegate = mrtq.delegate.WithObjectRelation(translatedNamespace, relation)
-	return mrtq
 }
 
 // MapperFunc is used to translate ObjectTypes into another form before
@@ -482,28 +436,4 @@ func translateSubjectFilter(in *v1.SubjectFilter, mapper MapperFunc) (*v1.Subjec
 		OptionalSubjectId: in.OptionalSubjectId,
 		OptionalRelation:  in.OptionalRelation,
 	}, nil
-}
-
-type mappingCommonTupleQuery struct {
-	delegate datastore.CommonTupleQuery
-	mapper   namespace.Mapper
-	err      error
-}
-
-func (mctq mappingCommonTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	mctq.delegate = mctq.delegate.Limit(limit)
-	return mctq
-}
-
-func (mctq mappingCommonTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	if mctq.err != nil {
-		return nil, mctq.err
-	}
-
-	delegateIterator, err := mctq.delegate.Execute(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &mappingTupleIterator{delegateIterator, mctq.mapper, nil}, nil
 }

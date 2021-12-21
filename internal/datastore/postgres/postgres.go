@@ -388,8 +388,8 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
-func (pgd *pgDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "SyncRevision")
+func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
 	revision, err := pgd.loadRevision(ctx)
@@ -400,8 +400,8 @@ func (pgd *pgDatastore) SyncRevision(ctx context.Context) (datastore.Revision, e
 	return revisionFromTransaction(revision), nil
 }
 
-func (pgd *pgDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "Revision")
+func (pgd *pgDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()
 
 	lower, upper, err := pgd.computeRevisionRange(ctx, -1*pgd.revisionFuzzingTimedelta)

@@ -492,9 +492,9 @@ func BenchmarkPostgresQuery(b *testing.B) {
 		require := require.New(b)
 
 		for i := 0; i < b.N; i++ {
-			iter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			iter, err := ds.QueryTuples(context.Background(), &v1.RelationshipFilter{
 				ResourceType: testfixtures.DocumentNS.Name,
-			}, revision).Execute(context.Background())
+			}, revision)
 			require.NoError(err)
 
 			defer iter.Close()

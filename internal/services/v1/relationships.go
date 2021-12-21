@@ -95,16 +95,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		return rewritePermissionsError(ctx, err)
 	}
 
-	queryBuilder := ps.ds.QueryTuples(datastore.TupleQueryResourceFilter{
-		ResourceType:             req.RelationshipFilter.ResourceType,
-		OptionalResourceID:       req.RelationshipFilter.OptionalResourceId,
-		OptionalResourceRelation: req.RelationshipFilter.OptionalRelation,
-	}, atRevision)
-	if req.RelationshipFilter.OptionalSubjectFilter != nil {
-		queryBuilder = queryBuilder.WithSubjectFilter(req.RelationshipFilter.OptionalSubjectFilter)
-	}
-
-	tupleIterator, err := queryBuilder.Execute(ctx)
+	tupleIterator, err := ps.ds.QueryTuples(ctx, req.RelationshipFilter, atRevision)
 	if err != nil {
 		return rewritePermissionsError(ctx, err)
 	}
@@ -147,7 +138,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 }
 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
-	readRevision, err := ps.ds.SyncRevision(ctx)
+	readRevision, err := ps.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -222,7 +213,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 }
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
-	readRevision, err := ps.ds.SyncRevision(ctx)
+	readRevision, err := ps.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}

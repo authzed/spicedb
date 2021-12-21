@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -36,7 +37,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 
 	ctx := context.Background()
 
-	startRevision, err := ds.SyncRevision(ctx)
+	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 	require.True(startRevision.GreaterThanOrEqual(datastore.NoRevision))
 
@@ -136,12 +137,12 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 		require.NotEqual(testfixtures.DocumentNS.Name, ns.Name, "deleted namespace '%s' should not be in namespace list", ns.Name)
 	}
 
-	deletedRevision, err := ds.SyncRevision(ctx)
+	deletedRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	iter, err := ds.QueryTuples(datastore.TupleQueryResourceFilter{
+	iter, err := ds.QueryTuples(ctx, &v1.RelationshipFilter{
 		ResourceType: testfixtures.DocumentNS.Name,
-	}, deletedRevision).Execute(ctx)
+	}, deletedRevision)
 	require.NoError(err)
 	tRequire.VerifyIteratorResults(iter)
 

@@ -2,12 +2,13 @@ package testfixtures
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
 type validatingDatastore struct {
@@ -62,12 +63,12 @@ func (vd validatingDatastore) WriteTuples(ctx context.Context, preconditions []*
 	return vd.delegate.WriteTuples(ctx, preconditions, mutations)
 }
 
-func (vd validatingDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
-	return vd.delegate.Revision(ctx)
+func (vd validatingDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	return vd.delegate.OptimizedRevision(ctx)
 }
 
-func (vd validatingDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	return vd.delegate.SyncRevision(ctx)
+func (vd validatingDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	return vd.delegate.HeadRevision(ctx)
 }
 
 func (vd validatingDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
@@ -100,52 +101,45 @@ func (vd validatingDatastore) DeleteNamespace(ctx context.Context, nsName string
 	return vd.delegate.DeleteNamespace(ctx, nsName)
 }
 
-func (vd validatingDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	var err error
-	if filter.ResourceType == "" {
-		err = fmt.Errorf("missing required resource type")
+func (vd validatingDatastore) QueryTuples(ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	opts ...options.QueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	if err := filter.Validate(); err != nil {
+		return nil, err
 	}
-	return validatingTupleQuery{vd.delegate.QueryTuples(filter, revision), nil, nil, err}
-}
 
-func (vd validatingDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	if subjectNamespace == "" {
-		return validatingTupleQuery{
-			nil,
-			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
-			nil,
-			fmt.Errorf("empty subject namespace given to ReverseQueryTuplesFromSubjectNamespace"),
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+	for _, sub := range queryOpts.Usersets {
+		if err := sub.Validate(); err != nil {
+			return nil, err
 		}
 	}
 
-	return validatingTupleQuery{nil, vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision), nil, nil}
+	return vd.delegate.QueryTuples(ctx, filter, revision, opts...)
 }
 
-func (vd validatingDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	err := subject.Validate()
-	return validatingTupleQuery{nil, vd.delegate.ReverseQueryTuplesFromSubject(subject, revision), nil, err}
-}
+func (vd validatingDatastore) ReverseQueryTuples(ctx context.Context,
+	subjectFilter *v1.SubjectFilter,
+	revision datastore.Revision,
+	opts ...options.ReverseQueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	if err := subjectFilter.Validate(); err != nil {
+		return nil, err
+	}
 
-func (vd validatingDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	if subjectNamespace == "" {
-		return validatingTupleQuery{
-			nil,
-			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
-			nil,
-			fmt.Errorf("empty subject namespace given to ReverseQueryTuplesFromSubjectRelation"),
+	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+	if queryOpts.ResRelation != nil {
+		if queryOpts.ResRelation.Namespace == "" {
+			return nil, errors.New("resource relation on reverse query missing namespace")
+		}
+		if queryOpts.ResRelation.Relation == "" {
+			return nil, errors.New("resource relation on reverse query missing relation")
 		}
 	}
 
-	if subjectRelation == "" {
-		return validatingTupleQuery{
-			nil,
-			vd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision),
-			nil,
-			fmt.Errorf("empty subject relation given to ReverseQueryTuplesFromSubjectRelation"),
-		}
-	}
-
-	return validatingTupleQuery{nil, vd.delegate.ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation, revision), nil, nil}
+	return vd.delegate.ReverseQueryTuples(ctx, subjectFilter, revision, opts...)
 }
 
 func (vd validatingDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
@@ -169,90 +163,4 @@ func (vd validatingDatastore) ListNamespaces(
 	}
 
 	return read, err
-}
-
-type validatingTupleQuery struct {
-	wrapped        datastore.TupleQuery
-	wrappedReverse datastore.ReverseTupleQuery
-	wrappedCommon  datastore.CommonTupleQuery
-	foundErr       error
-}
-
-func (vd validatingTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
-	if vd.foundErr != nil {
-		return vd
-	}
-
-	err := filter.Validate()
-	return validatingTupleQuery{
-		wrapped:  vd.wrapped.WithSubjectFilter(filter),
-		foundErr: err,
-	}
-}
-
-func (vd validatingTupleQuery) WithUsersets(usersets []*v0.ObjectAndRelation) datastore.TupleQuery {
-	if vd.foundErr != nil {
-		return vd
-	}
-
-	var err error
-	for _, userset := range usersets {
-		err := userset.Validate()
-		if err != nil {
-			break
-		}
-	}
-
-	return validatingTupleQuery{
-		wrapped:  vd.wrapped.WithUsersets(usersets),
-		foundErr: err,
-	}
-}
-
-func (vd validatingTupleQuery) WithObjectRelation(namespace string, relation string) datastore.ReverseTupleQuery {
-	if namespace == "" {
-		return validatingTupleQuery{
-			wrapped:        nil,
-			wrappedReverse: vd.wrappedReverse,
-			foundErr:       fmt.Errorf("empty namespace given to WithObjectRelation"),
-		}
-	}
-
-	if relation == "" {
-		return validatingTupleQuery{
-			wrapped:        nil,
-			wrappedReverse: vd.wrappedReverse,
-			foundErr:       fmt.Errorf("empty relation given to WithObjectRelation"),
-		}
-	}
-
-	return validatingTupleQuery{
-		wrapped:        nil,
-		wrappedReverse: vd.wrappedReverse.WithObjectRelation(namespace, relation),
-		foundErr:       vd.foundErr,
-	}
-}
-
-func (vd validatingTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	return validatingTupleQuery{
-		wrapped:       nil,
-		wrappedCommon: vd.wrapped.Limit(limit),
-		foundErr:      vd.foundErr,
-	}
-}
-
-func (vd validatingTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	if vd.foundErr != nil {
-		return nil, vd.foundErr
-	}
-
-	if vd.wrapped != nil {
-		return vd.wrapped.Execute(ctx)
-	}
-
-	if vd.wrappedReverse != nil {
-		return vd.wrappedReverse.Execute(ctx)
-	}
-
-	return vd.wrappedCommon.Execute(ctx)
 }

@@ -59,7 +59,7 @@ func NewSchemaServer(ds datastore.Datastore, prefixRequired PrefixRequiredOption
 }
 
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
-	syncRevision, err := ss.ds.SyncRevision(ctx)
+	headRevision, err := ss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
@@ -67,7 +67,7 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 	var objectDefs []string
 	createdRevisions := make(map[string]datastore.Revision, len(in.GetObjectDefinitionsNames()))
 	for _, objectDefName := range in.GetObjectDefinitionsNames() {
-		found, createdAt, err := ss.ds.ReadNamespace(ctx, objectDefName, syncRevision)
+		found, createdAt, err := ss.ds.ReadNamespace(ctx, objectDefName, headRevision)
 		if err != nil {
 			return nil, rewriteError(ctx, err)
 		}
@@ -112,7 +112,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		return nil, rewriteError(ctx, err)
 	}
 
-	syncRevision, err := ss.ds.SyncRevision(ctx)
+	headRevision, err := ss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
@@ -120,7 +120,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
 
 	for _, nsdef := range nsdefs {
-		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsdef, nsm, nsdefs, syncRevision)
+		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsdef, nsm, nsdefs, headRevision)
 		if err != nil {
 			return nil, rewriteError(ctx, err)
 		}
@@ -129,7 +129,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			return nil, rewriteError(ctx, err)
 		}
 
-		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef, syncRevision); err != nil {
+		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef, headRevision); err != nil {
 			return nil, rewriteError(ctx, err)
 		}
 	}
@@ -144,7 +144,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		}
 
 		for nsName, existingRevision := range decoded {
-			_, createdAt, err := ss.ds.ReadNamespace(ctx, nsName, syncRevision)
+			_, createdAt, err := ss.ds.ReadNamespace(ctx, nsName, headRevision)
 			if err != nil {
 				var nsNotFoundError sharederrors.UnknownNamespaceError
 				if errors.As(err, &nsNotFoundError) {

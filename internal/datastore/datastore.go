@@ -6,6 +6,8 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
+
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
 // Ellipsis is a special relation that is assumed to be valid on the right
@@ -31,12 +33,13 @@ type Datastore interface {
 	// filter if all preconditions are met.
 	DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (Revision, error)
 
-	// Revision gets the currently replicated revision for this datastore.
-	Revision(ctx context.Context) (Revision, error)
+	// OptimizedRevision gets a revision that will likely already be replicated
+	// and will likely be shared amongst many queries.
+	OptimizedRevision(ctx context.Context) (Revision, error)
 
-	// SyncRevision gets a revision that is guaranteed to be at least as fresh as
+	// HeadRevision gets a revision that is guaranteed to be at least as fresh as
 	// right now.
-	SyncRevision(ctx context.Context) (Revision, error)
+	HeadRevision(ctx context.Context) (Revision, error)
 
 	// Watch notifies the caller about all changes to tuples.
 	//
@@ -69,64 +72,25 @@ type Datastore interface {
 // GraphDatastore is a subset of the datastore interface that is passed to
 // graph resolvers.
 type GraphDatastore interface {
-	// QueryTuples creates a builder for reading tuples from the datastore.
-	QueryTuples(filter TupleQueryResourceFilter, revision Revision) TupleQuery
+	// QueryTuples reads relationships starting from the resource side.
+	QueryTuples(
+		ctx context.Context,
+		filter *v1.RelationshipFilter,
+		revision Revision,
+		options ...options.QueryOptionsOption,
+	) (TupleIterator, error)
 
-	// ReverseQueryTuplesFromSubject creates a builder for reading tuples from
-	// subject onward from the datastore.
-	ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision Revision) ReverseTupleQuery
-
-	// ReverseQueryTuplesFromSubjectRelation creates a builder for reading tuples
-	// from a subject relation onward from the datastore.
-	ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision Revision) ReverseTupleQuery
-
-	// ReverseQueryTuplesFromSubjectNamespace creates a builder for reading
-	// tuples from a subject namespace onward from the datastore.
-	ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision Revision) ReverseTupleQuery
+	// ReverseQueryRelationships reads relationships starting from the subject.
+	ReverseQueryTuples(
+		ctx context.Context,
+		subjectFilter *v1.SubjectFilter,
+		revision Revision,
+		options ...options.ReverseQueryOptionsOption,
+	) (TupleIterator, error)
 
 	// CheckRevision checks the specified revision to make sure it's valid and
 	// hasn't been garbage collected.
 	CheckRevision(ctx context.Context, revision Revision) error
-}
-
-// TupleQueryResourceFilter are the baseline fields used to filter results when
-// querying a datastore for tuples.
-//
-// OptionalFields are ignored when their value is the empty string.
-type TupleQueryResourceFilter struct {
-	ResourceType             string
-	OptionalResourceID       string
-	OptionalResourceRelation string
-}
-
-// CommonTupleQuery is the common interface shared between TupleQuery and
-// ReverseTupleQuery.
-type CommonTupleQuery interface {
-	// Execute runs the tuple query and returns a result iterator.
-	Execute(ctx context.Context) (TupleIterator, error)
-
-	// Limit sets a limit on the query.
-	Limit(limit uint64) CommonTupleQuery
-}
-
-// ReverseTupleQuery is a builder for constructing reverse tuple queries.
-type ReverseTupleQuery interface {
-	CommonTupleQuery
-
-	// WithObjectRelation filters to tuples with the given object relation on the
-	// left hand side.
-	WithObjectRelation(namespace string, relation string) ReverseTupleQuery
-}
-
-// TupleQuery is a builder for constructing tuple queries.
-type TupleQuery interface {
-	CommonTupleQuery
-
-	// WithSubjectFilter adds a subject filter to the query.
-	WithSubjectFilter(*v1.SubjectFilter) TupleQuery
-
-	// WithUsersets adds multiple userset filters to the query.
-	WithUsersets(usersets []*v0.ObjectAndRelation) TupleQuery
 }
 
 // TupleIterator is an iterator over matched tuples.

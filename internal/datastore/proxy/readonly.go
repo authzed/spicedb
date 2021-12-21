@@ -7,6 +7,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
 var errReadOnly = datastore.NewReadonlyErr()
@@ -37,12 +38,12 @@ func (rd roDatastore) WriteTuples(ctx context.Context, _ []*v1.Precondition, _ [
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) Revision(ctx context.Context) (datastore.Revision, error) {
-	return rd.delegate.Revision(ctx)
+func (rd roDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	return rd.delegate.OptimizedRevision(ctx)
 }
 
-func (rd roDatastore) SyncRevision(ctx context.Context) (datastore.Revision, error) {
-	return rd.delegate.SyncRevision(ctx)
+func (rd roDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	return rd.delegate.HeadRevision(ctx)
 }
 
 func (rd roDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
@@ -61,20 +62,22 @@ func (rd roDatastore) DeleteNamespace(ctx context.Context, nsName string) (datas
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	return rd.delegate.QueryTuples(filter, revision)
+func (rd roDatastore) QueryTuples(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	options ...options.QueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	return rd.delegate.QueryTuples(ctx, filter, revision, options...)
 }
 
-func (rd roDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return rd.delegate.ReverseQueryTuplesFromSubjectNamespace(subjectNamespace, revision)
-}
-
-func (rd roDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return rd.delegate.ReverseQueryTuplesFromSubject(subject, revision)
-}
-
-func (rd roDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return rd.delegate.ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation, revision)
+func (rd roDatastore) ReverseQueryTuples(
+	ctx context.Context,
+	subjectFilter *v1.SubjectFilter,
+	revision datastore.Revision,
+	options ...options.ReverseQueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	return rd.delegate.ReverseQueryTuples(ctx, subjectFilter, revision, options...)
 }
 
 func (rd roDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

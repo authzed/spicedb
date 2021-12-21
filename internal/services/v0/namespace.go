@@ -3,10 +3,10 @@ package v0
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
@@ -45,7 +46,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		return nil, rewriteNamespaceError(ctx, err)
 	}
 
-	readRevision, err := nss.ds.SyncRevision(ctx)
+	readRevision, err := nss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
@@ -76,7 +77,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 
-		syncRevision, err := nss.ds.SyncRevision(ctx)
+		headRevision, err := nss.ds.HeadRevision(ctx)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
@@ -84,31 +85,60 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		for _, delta := range diff.Deltas() {
 			switch delta.Type {
 			case namespace.RemovedRelation:
-				err = errorIfTupleIteratorReturnsTuples(
+				qy, qyErr := nss.ds.QueryTuples(
 					ctx,
-					nss.ds.QueryTuples(datastore.TupleQueryResourceFilter{
-						ResourceType:             config.Name,
-						OptionalResourceRelation: delta.RelationName,
-					}, syncRevision),
+					&v1.RelationshipFilter{
+						ResourceType:     config.Name,
+						OptionalRelation: delta.RelationName,
+					},
+					headRevision,
+					options.WithLimit(options.LimitOne),
+				)
+				err = shared.ErrorIfTupleIteratorReturnsTuples(
+					ctx,
+					qy,
+					qyErr,
 					"cannot delete relation `%s` in definition `%s`, as a relationship exists under it", delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(ctx, err)
 				}
 
 				// Also check for right sides of tuples.
-				err = errorIfTupleIteratorReturnsTuples(
+				qy, qyErr = nss.ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
+					SubjectType: config.Name,
+					OptionalRelation: &v1.SubjectFilter_RelationFilter{
+						Relation: delta.RelationName,
+					},
+				}, headRevision, options.WithReverseLimit(options.LimitOne))
+				err = shared.ErrorIfTupleIteratorReturnsTuples(
 					ctx,
-					nss.ds.ReverseQueryTuplesFromSubjectRelation(config.Name, delta.RelationName, syncRevision),
+					qy,
+					qyErr,
 					"cannot delete relation `%s` in definition `%s`, as a relationship references it", delta.RelationName, config.Name)
 				if err != nil {
 					return nil, rewriteNamespaceError(ctx, err)
 				}
 
 			case namespace.RelationDirectTypeRemoved:
-				err = errorIfTupleIteratorReturnsTuples(
+				qy, qyErr := nss.ds.ReverseQueryTuples(
 					ctx,
-					nss.ds.ReverseQueryTuplesFromSubjectRelation(delta.DirectType.Namespace, delta.DirectType.Relation, syncRevision).
-						WithObjectRelation(config.Name, delta.RelationName),
+					&v1.SubjectFilter{
+						SubjectType: delta.DirectType.Namespace,
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: delta.DirectType.Relation,
+						},
+					},
+					headRevision,
+					options.WithResRelation(&options.ResourceRelation{
+						Namespace: config.Name,
+						Relation:  delta.RelationName,
+					}),
+					options.WithReverseLimit(options.LimitOne),
+				)
+				err = shared.ErrorIfTupleIteratorReturnsTuples(
+					ctx,
+					qy,
+					qyErr,
 					"cannot remove allowed relation/permission `%s#%s` from relation `%s` in definition `%s`, as a relationship exists with it",
 					delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, config.Name)
 				if err != nil {
@@ -133,7 +163,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 }
 
 func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) (*v0.ReadConfigResponse, error) {
-	readRevision, err := nss.ds.SyncRevision(ctx)
+	readRevision, err := nss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
@@ -151,7 +181,7 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 }
 
 func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsRequest) (*v0.DeleteConfigsResponse, error) {
-	syncRevision, err := nss.ds.SyncRevision(ctx)
+	headRevision, err := nss.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
@@ -159,26 +189,37 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 	// Ensure that all the specified namespaces can be deleted.
 	for _, nsName := range req.Namespaces {
 		// Ensure the namespace exists.
-		_, _, err := nss.ds.ReadNamespace(ctx, nsName, syncRevision)
+		_, _, err := nss.ds.ReadNamespace(ctx, nsName, headRevision)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 
 		// Check for relationships under the namespace.
-		err = errorIfTupleIteratorReturnsTuples(
+		qy, qyErr := nss.ds.QueryTuples(
 			ctx,
-			nss.ds.QueryTuples(datastore.TupleQueryResourceFilter{
+			&v1.RelationshipFilter{
 				ResourceType: nsName,
-			}, syncRevision),
+			},
+			headRevision,
+			options.WithLimit(options.LimitOne),
+		)
+		err = shared.ErrorIfTupleIteratorReturnsTuples(
+			ctx,
+			qy,
+			qyErr,
 			"cannot delete definition `%s`, as a relationship exists under it", nsName)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 
 		// Also check for right sides of relationships.
-		err = errorIfTupleIteratorReturnsTuples(
+		qy, qyErr = nss.ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
+			SubjectType: nsName,
+		}, headRevision, options.WithReverseLimit(options.LimitOne))
+		err = shared.ErrorIfTupleIteratorReturnsTuples(
 			ctx,
-			nss.ds.ReverseQueryTuplesFromSubjectNamespace(nsName, syncRevision),
+			qy,
+			qyErr,
 			"cannot delete definition `%s`, as a relationship references it", nsName)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
@@ -193,26 +234,8 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 	}
 
 	return &v0.DeleteConfigsResponse{
-		Revision: zookie.NewFromRevision(syncRevision),
+		Revision: zookie.NewFromRevision(headRevision),
 	}, nil
-}
-
-func errorIfTupleIteratorReturnsTuples(ctx context.Context, query datastore.CommonTupleQuery, message string, args ...interface{}) error {
-	qy, err := query.Limit(1).Execute(ctx)
-	if err != nil {
-		return err
-	}
-	defer qy.Close()
-
-	rt := qy.Next()
-	if rt != nil {
-		if qy.Err() != nil {
-			return qy.Err()
-		}
-
-		return status.Errorf(codes.InvalidArgument, fmt.Sprintf(message, args...))
-	}
-	return nil
 }
 
 func rewriteNamespaceError(ctx context.Context, err error) error {

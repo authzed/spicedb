@@ -62,7 +62,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 	switch {
 	case consistency == nil || consistency.GetMinimizeLatency():
 		// Minimize Latency: Use the datastore's current revision, whatever it may be.
-		databaseRev, err := ds.Revision(ctx)
+		databaseRev, err := ds.OptimizedRevision(ctx)
 		if err != nil {
 			return nil, rewriteDatastoreError(ctx, err)
 		}
@@ -70,7 +70,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 
 	case consistency.GetFullyConsistent():
 		// Fully Consistent: Use the datastore's synchronized revision.
-		databaseRev, err := ds.SyncRevision(ctx)
+		databaseRev, err := ds.HeadRevision(ctx)
 		if err != nil {
 			return nil, rewriteDatastoreError(ctx, err)
 		}
@@ -155,7 +155,7 @@ func (s *recvWrapper) RecvMsg(m interface{}) error {
 
 func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.Datastore) (decimal.Decimal, error) {
 	// Calculate a revision as we see fit
-	databaseRev, err := ds.Revision(ctx)
+	databaseRev, err := ds.OptimizedRevision(ctx)
 	if err != nil {
 		return decimal.Zero, err
 	}

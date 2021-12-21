@@ -77,7 +77,7 @@ func (cds *crdbDatastore) ReadNamespace(
 	}
 	defer tx.Rollback(ctx)
 
-	if err := cds.prepareTransaction(ctx, tx, revision); err != nil {
+	if err := prepareTransaction(ctx, tx, revision); err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
@@ -172,7 +172,7 @@ func (cds *crdbDatastore) ListNamespaces(ctx context.Context, revision datastore
 	}
 	defer tx.Rollback(ctx)
 
-	if err := cds.prepareTransaction(ctx, tx, revision); err != nil {
+	if err := prepareTransaction(ctx, tx, revision); err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 

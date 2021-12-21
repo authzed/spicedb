@@ -1,12 +1,13 @@
 package postgres
 
 import (
-	sq "github.com/Masterminds/squirrel"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"go.opentelemetry.io/otel/attribute"
+	"context"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
 var queryTuples = psql.Select(
@@ -27,65 +28,76 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (pgd *pgDatastore) QueryTuples(filter datastore.TupleQueryResourceFilter, revision datastore.Revision) datastore.TupleQuery {
-	initialQuery := filterToLivingObjects(queryTuples, revision).
-		Where(sq.Eq{colNamespace: filter.ResourceType})
+func (pgd *pgDatastore) QueryTuples(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	opts ...options.QueryOptionsOption,
+) (iter datastore.TupleIterator, err error) {
+	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(queryTuples, revision)).
+		FilterToResourceType(filter.ResourceType)
 
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
-
-	if filter.OptionalResourceID != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colObjectID: filter.OptionalResourceID})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(filter.OptionalResourceID))
+	if filter.OptionalResourceId != "" {
+		qBuilder = qBuilder.FilterToResourceID(filter.OptionalResourceId)
 	}
 
-	if filter.OptionalResourceRelation != "" {
-		initialQuery = initialQuery.Where(sq.Eq{colRelation: filter.OptionalResourceRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(filter.OptionalResourceRelation))
+	if filter.OptionalRelation != "" {
+		qBuilder = qBuilder.FilterToRelation(filter.OptionalRelation)
 	}
 
-	baseSize := len(filter.ResourceType) + len(filter.OptionalResourceID) + len(filter.OptionalResourceRelation)
+	if filter.OptionalSubjectFilter != nil {
+		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
+	}
 
-	return common.TupleQuery{
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+
+	ctq := common.TupleQuerySplitter{
 		Conn:                      pgd.dbpool,
-		Schema:                    schema,
 		PrepareTransaction:        nil,
-		InitialQuery:              initialQuery,
-		InitialQuerySizeEstimate:  baseSize,
-		Revision:                  revision,
-		Tracer:                    tracer,
-		TracerAttributes:          tracerAttributes,
-		DebugName:                 "QueryTuples",
 		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
+
+		FilteredQueryBuilder: qBuilder,
+		Revision:             revision,
+		Limit:                queryOpts.Limit,
+		Usersets:             queryOpts.Usersets,
+
+		Tracer:    tracer,
+		DebugName: "QueryTuples",
 	}
+
+	return ctq.SplitAndExecute(ctx)
 }
 
-func (pgd *pgDatastore) reverseQueryBase(revision datastore.Revision) common.TupleQuery {
-	return common.TupleQuery{
-		Conn:               pgd.dbpool,
-		Schema:             schema,
-		PrepareTransaction: nil,
-		InitialQuery: queryTuples.
-			Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
-			Where(sq.Or{
-				sq.Eq{colDeletedTxn: liveDeletedTxnID},
-				sq.Gt{colDeletedTxn: revision},
-			}),
-		Revision:                  revision,
-		Tracer:                    tracer,
-		TracerAttributes:          []attribute.KeyValue{},
-		DebugName:                 "ReverseQueryTuples",
+func (pgd *pgDatastore) ReverseQueryTuples(
+	ctx context.Context,
+	subjectFilter *v1.SubjectFilter,
+	revision datastore.Revision,
+	opts ...options.ReverseQueryOptionsOption,
+) (iter datastore.TupleIterator, err error) {
+	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(queryTuples, revision)).
+		FilterToSubjectFilter(subjectFilter)
+
+	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
+
+	if queryOpts.ResRelation != nil {
+		qBuilder = qBuilder.
+			FilterToResourceType(queryOpts.ResRelation.Namespace).
+			FilterToRelation(queryOpts.ResRelation.Relation)
+	}
+
+	ctq := common.TupleQuerySplitter{
+		Conn:                      pgd.dbpool,
+		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
+
+		FilteredQueryBuilder: qBuilder,
+		Revision:             revision,
+		Limit:                queryOpts.ReverseLimit,
+		Usersets:             nil,
+
+		Tracer:    tracer,
+		DebugName: "ReverseQueryTuples",
 	}
-}
 
-func (pgd *pgDatastore) ReverseQueryTuplesFromSubject(subject *v0.ObjectAndRelation, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return pgd.reverseQueryBase(revision).ReverseQueryTuplesFromSubject(subject)
-}
-
-func (pgd *pgDatastore) ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return pgd.reverseQueryBase(revision).ReverseQueryTuplesFromSubjectRelation(subjectNamespace, subjectRelation)
-}
-
-func (pgd *pgDatastore) ReverseQueryTuplesFromSubjectNamespace(subjectNamespace string, revision datastore.Revision) datastore.ReverseTupleQuery {
-	return pgd.reverseQueryBase(revision).ReverseQueryTuplesFromSubjectNamespace(subjectNamespace)
+	return ctq.SplitAndExecute(ctx)
 }

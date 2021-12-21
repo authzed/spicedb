@@ -139,13 +139,7 @@ type TupleChecker struct {
 
 func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) datastore.TupleIterator {
 	filter := tuple.MustToFilter(tpl)
-	iter, err := tc.DS.QueryTuples(datastore.TupleQueryResourceFilter{
-		ResourceType:             filter.ResourceType,
-		OptionalResourceID:       filter.OptionalResourceId,
-		OptionalResourceRelation: filter.OptionalRelation,
-	}, rev).
-		WithSubjectFilter(filter.OptionalSubjectFilter).
-		Execute(ctx)
+	iter, err := tc.DS.QueryTuples(ctx, filter, rev)
 	tc.Require.NoError(err)
 	return iter
 }

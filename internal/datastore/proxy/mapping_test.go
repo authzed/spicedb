@@ -2,16 +2,20 @@ package proxy
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/fatih/structs"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
@@ -79,4 +83,39 @@ func TestMappingDatastoreProxyPassthrough(t *testing.T) {
 	test.All(t, mappingTest{func() namespace.Mapper {
 		return namespace.PassthroughMapper
 	}})
+}
+
+func TestAllOptionsFieldsHandled(t *testing.T) {
+	// The intention of this test is to fail as a warning that a new options field
+	// was added and needs to be handled by the mapper, possibly by passing through,
+	// and possibly by encoding/reversing the contents.
+	require := require.New(t)
+
+	t.Run("QueryOptions", func(t *testing.T) {
+		queryOptsExpected := map[string]reflect.Kind{
+			"Limit":    reflect.Ptr,
+			"Usersets": reflect.Slice,
+		}
+
+		queryOptsFound := make(map[string]reflect.Kind)
+		for _, field := range structs.Fields(options.QueryOptions{}) {
+			queryOptsFound[field.Name()] = field.Kind()
+		}
+
+		require.Equal(queryOptsExpected, queryOptsFound)
+	})
+
+	t.Run("ReverseQueryOptions", func(t *testing.T) {
+		queryOptsExpected := map[string]reflect.Kind{
+			"ReverseLimit": reflect.Ptr,
+			"ResRelation":  reflect.Ptr,
+		}
+
+		queryOptsFound := make(map[string]reflect.Kind)
+		for _, field := range structs.Fields(options.ReverseQueryOptions{}) {
+			queryOptsFound[field.Name()] = field.Kind()
+		}
+
+		require.Equal(queryOptsExpected, queryOptsFound)
+	})
 }

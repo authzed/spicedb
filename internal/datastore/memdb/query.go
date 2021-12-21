@@ -12,58 +12,8 @@ import (
 	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/options"
 )
-
-type memdbTupleQuery struct {
-	db       *memdb.MemDB
-	revision datastore.Revision
-
-	resourceFilter        *v1.RelationshipFilter
-	optionalSubjectFilter *v1.SubjectFilter
-	subjectsFilter        []*v0.ObjectAndRelation
-	limit                 *uint64
-
-	simulatedLatency time.Duration
-}
-
-func (mtq memdbTupleQuery) Limit(limit uint64) datastore.CommonTupleQuery {
-	mtq.limit = &limit
-	return mtq
-}
-
-func (mtq memdbTupleQuery) WithSubjectFilter(filter *v1.SubjectFilter) datastore.TupleQuery {
-	if filter == nil {
-		panic("cannot call WithSubjectFilter with a nil filter")
-	}
-
-	if mtq.optionalSubjectFilter != nil {
-		panic("cannot call WithSubjectFilter after WithUsersets")
-	}
-
-	if mtq.subjectsFilter != nil {
-		panic("called WithSubjectFilter twice")
-	}
-
-	mtq.optionalSubjectFilter = filter
-	return mtq
-}
-
-func (mtq memdbTupleQuery) WithUsersets(subjects []*v0.ObjectAndRelation) datastore.TupleQuery {
-	if mtq.optionalSubjectFilter != nil {
-		panic("cannot call WithUsersets after WithSubjectFilter")
-	}
-
-	if mtq.subjectsFilter != nil {
-		panic("called WithUsersets twice")
-	}
-
-	if len(subjects) == 0 {
-		panic("Given nil or empty subjects")
-	}
-
-	mtq.subjectsFilter = subjects
-	return mtq
-}
 
 func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.ResultIterator, error) {
 	switch {
@@ -94,73 +44,43 @@ func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.Res
 	return txn.Get(tableRelationship, indexNamespace, filter.ResourceType)
 }
 
-func (mtq memdbTupleQuery) Execute(ctx context.Context) (datastore.TupleIterator, error) {
-	db := mtq.db
+func (mds *memdbDatastore) QueryTuples(
+	ctx context.Context,
+	filter *v1.RelationshipFilter,
+	revision datastore.Revision,
+	opts ...options.QueryOptionsOption,
+) (datastore.TupleIterator, error) {
+	db := mds.db
 	if db == nil {
 		return nil, fmt.Errorf("memdb closed")
 	}
 
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+
 	txn := db.Txn(false)
 
-	time.Sleep(mtq.simulatedLatency)
+	time.Sleep(mds.simulatedLatency)
 
-	relationshipFilter := &v1.RelationshipFilter{
-		ResourceType:          mtq.resourceFilter.ResourceType,
-		OptionalResourceId:    mtq.resourceFilter.OptionalResourceId,
-		OptionalRelation:      mtq.resourceFilter.OptionalRelation,
-		OptionalSubjectFilter: mtq.optionalSubjectFilter,
-	}
-
-	bestIterator, err := iteratorForFilter(txn, relationshipFilter)
+	bestIterator, err := iteratorForFilter(txn, filter)
 	if err != nil {
 		txn.Abort()
 		return nil, fmt.Errorf(errUnableToQueryTuples, err)
 	}
 
-	filteredIterator := memdb.NewFilterIterator(bestIterator, func(tupleRaw interface{}) bool {
-		tuple := tupleRaw.(*relationship)
-		filter := relationshipFilter
-
-		switch {
-		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.resourceID:
-			return true
-		case filter.OptionalRelation != "" && filter.OptionalRelation != tuple.relation:
-			return true
-		}
-
-		if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-			switch {
-			case subjectFilter.SubjectType != tuple.subjectNamespace:
-				return true
-			case subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalSubjectId != tuple.subjectObjectID:
-				return true
-			case subjectFilter.OptionalRelation != nil && stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
-				return true
-			}
-		}
-
-		if len(mtq.subjectsFilter) > 0 {
-			found := false
-			for _, filter := range mtq.subjectsFilter {
-				if filter.Namespace == tuple.subjectNamespace &&
-					filter.ObjectId == tuple.subjectObjectID &&
-					filter.Relation == tuple.subjectRelation {
-					found = true
-					break
-				}
-			}
-			return !found
-		}
-
-		return false
-	})
-
-	filteredAlive := memdb.NewFilterIterator(filteredIterator, filterToLiveObjects(mtq.revision))
+	matchingRelationshipsFilterFunc := filterFuncForFilters(
+		filter.ResourceType,
+		filter.OptionalResourceId,
+		filter.OptionalRelation,
+		filter.OptionalSubjectFilter,
+		queryOpts.Usersets,
+	)
+	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
+	filteredAlive := memdb.NewFilterIterator(filteredIterator, filterToLiveObjects(revision))
 
 	iter := &memdbTupleIterator{
 		txn:   txn,
 		it:    filteredAlive,
-		limit: mtq.limit,
+		limit: queryOpts.Limit,
 	}
 
 	runtime.SetFinalizer(iter, func(iter *memdbTupleIterator) {
@@ -177,6 +97,49 @@ type memdbTupleIterator struct {
 	it    memdb.ResultIterator
 	limit *uint64
 	count uint64
+}
+
+func filterFuncForFilters(optionalObjectType, optionalObjectID, optionalRelation string,
+	optionalSubjectFilter *v1.SubjectFilter, usersets []*v0.ObjectAndRelation) memdb.FilterFunc {
+
+	return func(tupleRaw interface{}) bool {
+		tuple := tupleRaw.(*relationship)
+
+		switch {
+		case optionalObjectType != "" && optionalObjectType != tuple.namespace:
+			return true
+		case optionalObjectID != "" && optionalObjectID != tuple.resourceID:
+			return true
+		case optionalRelation != "" && optionalRelation != tuple.relation:
+			return true
+		}
+
+		if optionalSubjectFilter != nil {
+			switch {
+			case optionalSubjectFilter.SubjectType != tuple.subjectNamespace:
+				return true
+			case optionalSubjectFilter.OptionalSubjectId != "" && optionalSubjectFilter.OptionalSubjectId != tuple.subjectObjectID:
+				return true
+			case optionalSubjectFilter.OptionalRelation != nil && stringz.DefaultEmpty(optionalSubjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
+				return true
+			}
+		}
+
+		if len(usersets) > 0 {
+			found := false
+			for _, filter := range usersets {
+				if filter.Namespace == tuple.subjectNamespace &&
+					filter.ObjectId == tuple.subjectObjectID &&
+					filter.Relation == tuple.subjectRelation {
+					found = true
+					break
+				}
+			}
+			return !found
+		}
+
+		return false
+	}
 }
 
 func (mti *memdbTupleIterator) Next() *v0.RelationTuple {

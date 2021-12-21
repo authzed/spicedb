@@ -67,7 +67,7 @@ func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispat
 }
 
 func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.WriteResponse, error) {
-	atRevision, err := as.ds.SyncRevision(ctx)
+	atRevision, err := as.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -115,7 +115,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 	} else {
 		// No revision provided, we'll pick one
 		var err error
-		atRevision, err = as.ds.Revision(ctx)
+		atRevision, err = as.ds.OptimizedRevision(ctx)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to pick request revision: %s", err)
 		}
@@ -186,29 +186,23 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 	var allTuplesetResults []*v0.ReadResponse_Tupleset
 
 	for _, tuplesetFilter := range req.Tuplesets {
-		queryFilter := datastore.TupleQueryResourceFilter{
+		queryFilter := &v1_api.RelationshipFilter{
 			ResourceType: tuplesetFilter.Namespace,
 		}
-		var filterUserset *v0.ObjectAndRelation
 		for _, filter := range tuplesetFilter.Filters {
 			switch filter {
 			case v0.RelationTupleFilter_OBJECT_ID:
-				queryFilter.OptionalResourceID = tuplesetFilter.ObjectId
+				queryFilter.OptionalResourceId = tuplesetFilter.ObjectId
 			case v0.RelationTupleFilter_RELATION:
-				queryFilter.OptionalResourceRelation = tuplesetFilter.Relation
+				queryFilter.OptionalRelation = tuplesetFilter.Relation
 			case v0.RelationTupleFilter_USERSET:
-				filterUserset = tuplesetFilter.Userset
+				queryFilter.OptionalSubjectFilter = tuple.UsersetToSubjectFilter(tuplesetFilter.Userset)
 			default:
 				return nil, status.Errorf(codes.InvalidArgument, "unknown tupleset filter type: %s", filter)
 			}
 		}
 
-		query := as.ds.QueryTuples(queryFilter, atRevision)
-		if filterUserset != nil {
-			query = query.WithUsersets([]*v0.ObjectAndRelation{filterUserset})
-		}
-
-		tupleIterator, err := query.Execute(ctx)
+		tupleIterator, err := as.ds.QueryTuples(ctx, queryFilter, atRevision)
 		if err != nil {
 			return nil, rewriteACLError(ctx, err)
 		}
@@ -242,7 +236,7 @@ func (as *aclServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.Check
 }
 
 func (as *aclServer) ContentChangeCheck(ctx context.Context, req *v0.ContentChangeCheckRequest) (*v0.CheckResponse, error) {
-	atRevision, err := as.ds.SyncRevision(ctx)
+	atRevision, err := as.ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -400,7 +394,7 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 
 func (as *aclServer) pickBestRevision(ctx context.Context, requested *v0.Zookie) (decimal.Decimal, error) {
 	// Calculate a revision as we see fit
-	databaseRev, err := as.ds.Revision(ctx)
+	databaseRev, err := as.ds.OptimizedRevision(ctx)
 	if err != nil {
 		return decimal.Zero, err
 	}
