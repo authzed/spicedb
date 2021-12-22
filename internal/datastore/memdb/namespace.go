@@ -23,7 +23,9 @@ func (mds *memdbDatastore) WriteNamespace(
 	ctx context.Context,
 	newConfig *v0.NamespaceDefinition,
 ) (datastore.Revision, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
@@ -79,7 +81,9 @@ func (mds *memdbDatastore) ReadNamespace(
 	nsName string,
 	revision datastore.Revision,
 ) (*v0.NamespaceDefinition, datastore.Revision, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return nil, datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
@@ -110,7 +114,9 @@ func (mds *memdbDatastore) ReadNamespace(
 }
 
 func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
@@ -164,7 +170,9 @@ func (mds *memdbDatastore) ListNamespaces(
 	ctx context.Context,
 	revision datastore.Revision,
 ) ([]*v0.NamespaceDefinition, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return nil, fmt.Errorf("memdb closed")
 	}

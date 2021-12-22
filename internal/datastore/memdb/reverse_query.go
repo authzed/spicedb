@@ -20,7 +20,9 @@ func (mds *memdbDatastore) ReverseQueryTuples(
 	revision datastore.Revision,
 	opts ...options.ReverseQueryOptionsOption,
 ) (datastore.TupleIterator, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return nil, fmt.Errorf("memdb closed")
 	}

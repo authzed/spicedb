@@ -46,7 +46,9 @@ func (mds *memdbDatastore) checkPrecondition(txn *memdb.Txn, preconditions []*v1
 }
 
 func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
@@ -123,7 +125,9 @@ func (mds *memdbDatastore) write(ctx context.Context, txn *memdb.Txn, mutations 
 }
 
 func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
@@ -171,7 +175,9 @@ func (mds *memdbDatastore) delete(ctx context.Context, txn *memdb.Txn, filter *v
 }
 
 func (mds *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
@@ -191,7 +197,9 @@ func (mds *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 }
 
 func (mds *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return datastore.NoRevision, fmt.Errorf("memdb closed")
 	}
@@ -219,7 +227,9 @@ func (mds *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Rev
 }
 
 func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return fmt.Errorf("memdb closed")
 	}
