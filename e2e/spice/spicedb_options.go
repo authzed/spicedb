@@ -3,105 +3,112 @@ package spice
 
 import "context"
 
-type SpiceDbOption func(s *Node)
+type NodeOption func(n *Node)
 
-// NewSpiceDbWithOptions creates a new Node with the passed in options set
-func NewSpiceDbWithOptions(opts ...SpiceDbOption) *Node {
-	s := &Node{}
+// NewNodeWithOptions creates a new Node with the passed in options set
+func NewNodeWithOptions(opts ...NodeOption) *Node {
+	n := &Node{}
 	for _, o := range opts {
-		o(s)
+		o(n)
 	}
-	return s
+	return n
 }
 
-// SpiceDbWithOptions configures an existing Node with the passed in options set
-func SpiceDbWithOptions(s *Node, opts ...SpiceDbOption) *Node {
+// NodeWithOptions configures an existing Node with the passed in options set
+func NodeWithOptions(n *Node, opts ...NodeOption) *Node {
 	for _, o := range opts {
-		o(s)
+		o(n)
 	}
-	return s
+	return n
 }
 
-// WithId returns an option that can set ID on a Node
-func WithId(id string) SpiceDbOption {
-	return func(s *Node) {
-		s.ID = id
+// WithID returns an option that can set ID on a Node
+func WithID(iD string) NodeOption {
+	return func(n *Node) {
+		n.ID = iD
 	}
 }
 
 // WithPresharedKey returns an option that can set PresharedKey on a Node
-func WithPresharedKey(presharedKey string) SpiceDbOption {
-	return func(s *Node) {
-		s.PresharedKey = presharedKey
+func WithPresharedKey(presharedKey string) NodeOption {
+	return func(n *Node) {
+		n.PresharedKey = presharedKey
 	}
 }
 
 // WithDatastore returns an option that can set Datastore on a Node
-func WithDatastore(datastore string) SpiceDbOption {
-	return func(s *Node) {
-		s.Datastore = datastore
+func WithDatastore(datastore string) NodeOption {
+	return func(n *Node) {
+		n.Datastore = datastore
 	}
 }
 
 // WithDbName returns an option that can set DbName on a Node
-func WithDbName(dbName string) SpiceDbOption {
-	return func(s *Node) {
-		s.DbName = dbName
+func WithDbName(dbName string) NodeOption {
+	return func(n *Node) {
+		n.DbName = dbName
 	}
 }
 
-// WithUri returns an option that can set URI on a Node
-func WithUri(uri string) SpiceDbOption {
-	return func(s *Node) {
-		s.URI = uri
+// WithURI returns an option that can set URI on a Node
+func WithURI(uRI string) NodeOption {
+	return func(n *Node) {
+		n.URI = uRI
 	}
 }
 
 // WithGrpcPort returns an option that can set GrpcPort on a Node
-func WithGrpcPort(grpcPort int) SpiceDbOption {
-	return func(s *Node) {
-		s.GrpcPort = grpcPort
-	}
-}
-
-// WithDispatchPort returns an option that can set DispatchPort on a Node
-func WithDispatchPort(dispatchPort int) SpiceDbOption {
-	return func(s *Node) {
-		s.DispatchPort = dispatchPort
+func WithGrpcPort(grpcPort int) NodeOption {
+	return func(n *Node) {
+		n.GrpcPort = grpcPort
 	}
 }
 
 // WithHttpPort returns an option that can set HttpPort on a Node
-func WithHttpPort(httpPort int) SpiceDbOption {
-	return func(s *Node) {
-		s.HttpPort = httpPort
+func WithHttpPort(httpPort int) NodeOption {
+	return func(n *Node) {
+		n.HttpPort = httpPort
+	}
+}
+
+// WithDispatchPort returns an option that can set DispatchPort on a Node
+func WithDispatchPort(dispatchPort int) NodeOption {
+	return func(n *Node) {
+		n.DispatchPort = dispatchPort
 	}
 }
 
 // WithMetricsPort returns an option that can set MetricsPort on a Node
-func WithMetricsPort(metricsPort int) SpiceDbOption {
-	return func(s *Node) {
-		s.MetricsPort = metricsPort
+func WithMetricsPort(metricsPort int) NodeOption {
+	return func(n *Node) {
+		n.MetricsPort = metricsPort
 	}
 }
 
 // WithDashboardPort returns an option that can set DashboardPort on a Node
-func WithDashboardPort(dashboardPort int) SpiceDbOption {
-	return func(s *Node) {
-		s.DashboardPort = dashboardPort
+func WithDashboardPort(dashboardPort int) NodeOption {
+	return func(n *Node) {
+		n.DashboardPort = dashboardPort
+	}
+}
+
+// WithHedgingEnabled returns an option that can set HedgingEnabled on a Node
+func WithHedgingEnabled(hedgingEnabled bool) NodeOption {
+	return func(n *Node) {
+		n.HedgingEnabled = hedgingEnabled
 	}
 }
 
 // WithPid returns an option that can set Pid on a Node
-func WithPid(pid int) SpiceDbOption {
-	return func(s *Node) {
-		s.Pid = pid
+func WithPid(pid int) NodeOption {
+	return func(n *Node) {
+		n.Pid = pid
 	}
 }
 
 // WithCancel returns an option that can set Cancel on a Node
-func WithCancel(cancel context.CancelFunc) SpiceDbOption {
-	return func(s *Node) {
-		s.Cancel = cancel
+func WithCancel(cancel context.CancelFunc) NodeOption {
+	return func(n *Node) {
+		n.Cancel = cancel
 	}
 }
