@@ -2,9 +2,6 @@ package serve
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -85,13 +82,17 @@ func NewServeCommand(programName string, dsConfig *cmdutil.DatastoreConfig) *cob
 		Long:    "A database that stores, computes, and validates application permissions",
 		PreRunE: cmdutil.DefaultPreRunE(programName),
 		Run: func(cmd *cobra.Command, args []string) {
-			serveRun(cmd, args, dsConfig)
+			signalctx := cmdutil.SignalContextWithGracePeriod(
+				context.Background(),
+				cobrautil.MustGetDuration(cmd, "grpc-shutdown-grace-period"),
+			)
+			serveRun(signalctx, cmd, args, dsConfig)
 		},
 		Example: cmdutil.ServeExample(programName),
 	}
 }
 
-func serveRun(cmd *cobra.Command, args []string, datastoreOpts *cmdutil.DatastoreConfig) {
+func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreOpts *cmdutil.DatastoreConfig) {
 	token := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
 	if len(token) < 1 {
 		log.Fatal().Msg("a preshared key must be provided via --grpc-preshared-key to authenticate API requests")
@@ -273,26 +274,7 @@ func serveRun(cmd *cobra.Command, args []string, datastoreOpts *cmdutil.Datastor
 		}
 	}()
 
-	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	gracePeriod := cobrautil.MustGetDuration(cmd, "grpc-shutdown-grace-period")
-
-	<-signalctx.Done()
-	log.Info().Msg("received interrupt")
-
-	if gracePeriod > 0 {
-		interruptGrace, _ := signal.NotifyContext(context.Background(), os.Interrupt)
-		graceTimer := time.NewTimer(gracePeriod)
-
-		log.Info().Stringer("timeout", gracePeriod).Msg("starting shutdown grace period")
-
-		select {
-		case <-graceTimer.C:
-		case <-interruptGrace.Done():
-			log.Warn().Msg("interrupted shutdown grace period")
-		}
-	}
-
-	log.Info().Msg("shutting down")
+	<-ctx.Done()
 	grpcServer.GracefulStop()
 	dispatchGrpcServer.GracefulStop()
 
