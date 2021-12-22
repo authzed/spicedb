@@ -142,7 +142,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 
 			delegate.
 				On(tc.methodName, tc.arguments...).
-				WaitUntil(mockTime.After(2 * slowQueryTime)).
+				WaitUntil(mockTime.After(3 * slowQueryTime)).
 				Return(tc.firstCallResults...).
 				Once()
 			delegate.
@@ -150,7 +150,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 				Return(tc.secondCallResults...).
 				Once()
 
-			done := autoAdvance(mockTime, slowQueryTime, 3*slowQueryTime)
+			done := autoAdvance(mockTime, slowQueryTime, 5*slowQueryTime)
 
 			tc.f(t, proxy, false)
 			delegate.AssertExpectations(t)
@@ -159,16 +159,16 @@ func TestDatastoreRequestHedging(t *testing.T) {
 
 			delegate.
 				On(tc.methodName, tc.arguments...).
-				WaitUntil(mockTime.After(2 * slowQueryTime)).
+				WaitUntil(mockTime.After(3 * slowQueryTime)).
 				Return(tc.firstCallResults...).
 				Once()
 			delegate.
 				On(tc.methodName, tc.arguments...).
-				WaitUntil(mockTime.After(3 * slowQueryTime)).
+				WaitUntil(mockTime.After(4 * slowQueryTime)).
 				Return(tc.secondCallResults...).
 				Once()
 
-			autoAdvance(mockTime, slowQueryTime, 4*slowQueryTime)
+			autoAdvance(mockTime, slowQueryTime, 8*slowQueryTime)
 
 			tc.f(t, proxy, true)
 			delegate.AssertExpectations(t)
