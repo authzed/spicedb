@@ -213,7 +213,9 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 		return returnResult(lookupResultError(req, err, emptyMetadata))
 	}
 
-	directStack := append(req.DirectStack, &v0.RelationReference{
+	directStack := make([]*v0.RelationReference, 0, len(req.DirectStack)+1)
+	directStack = append(directStack, req.DirectStack...)
+	directStack = append(directStack, &v0.RelationReference{
 		Namespace: req.ObjectRelation.Namespace,
 		Relation:  req.ObjectRelation.Relation,
 	})

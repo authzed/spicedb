@@ -50,7 +50,9 @@ func (mds *memdbDatastore) QueryTuples(
 	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
 ) (datastore.TupleIterator, error) {
+	mds.RLock()
 	db := mds.db
+	mds.RUnlock()
 	if db == nil {
 		return nil, fmt.Errorf("memdb closed")
 	}

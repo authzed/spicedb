@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -325,6 +326,7 @@ var schema = &memdb.DBSchema{
 }
 
 type memdbDatastore struct {
+	sync.RWMutex
 	db                       *memdb.MemDB
 	watchBufferLength        uint16
 	revisionFuzzingTimedelta time.Duration
@@ -388,7 +390,9 @@ func revisionFromVersion(version uint64) datastore.Revision {
 }
 
 func (mds *memdbDatastore) Close() error {
+	mds.Lock()
 	mds.db = nil
+	mds.Unlock()
 	return nil
 }
 

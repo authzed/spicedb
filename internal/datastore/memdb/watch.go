@@ -64,7 +64,13 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 }
 
 func (mds *memdbDatastore) loadChanges(ctx context.Context, currentTxn uint64) ([]*datastore.RevisionChanges, uint64, <-chan struct{}, error) {
-	loadNewTxn := mds.db.Txn(false)
+	mds.RLock()
+	db := mds.db
+	mds.RUnlock()
+	if db == nil {
+		return nil, 0, nil, fmt.Errorf("memdb closed")
+	}
+	loadNewTxn := db.Txn(false)
 	defer loadNewTxn.Abort()
 
 	it, err := loadNewTxn.LowerBound(tableTransaction, indexID, currentTxn+1)
