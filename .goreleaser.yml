@@ -96,6 +96,7 @@ checksum:
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 changelog:
+  use: "github-native"
   sort: "asc"
 release:
   draft: true
