@@ -25,7 +25,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxLifetime = c.MaxLifetime
 		to.MaxOpenConns = c.MaxOpenConns
 		to.MinOpenConns = c.MinOpenConns
-		to.SplitQuerySize = c.SplitQuerySize
+		to.SplitQueryCount = c.SplitQueryCount
 		to.ReadOnly = c.ReadOnly
 		to.BootstrapFiles = c.BootstrapFiles
 		to.BootstrapOverwrite = c.BootstrapOverwrite
@@ -107,10 +107,10 @@ func WithMinOpenConns(minOpenConns int) ConfigOption {
 	}
 }
 
-// WithSplitQuerySize returns an option that can set SplitQuerySize on a Config
-func WithSplitQuerySize(splitQuerySize string) ConfigOption {
+// WithSplitQueryCount returns an option that can set SplitQueryCount on a Config
+func WithSplitQueryCount(splitQueryCount uint16) ConfigOption {
 	return func(c *Config) {
-		c.SplitQuerySize = splitQuerySize
+		c.SplitQueryCount = splitQueryCount
 	}
 }
 

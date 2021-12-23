@@ -11,7 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/alecthomas/units"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
@@ -24,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 )
 
@@ -166,17 +166,22 @@ func NewPostgresDatastore(
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
+	querySplitter := common.TupleQuerySplitter{
+		Executor:         common.NewPGXExecutor(dbpool, nil),
+		UsersetBatchSize: int(config.splitAtUsersetCount),
+	}
+
 	datastore := &pgDatastore{
-		dburl:                     url,
-		dbpool:                    dbpool,
-		watchBufferLength:         config.watchBufferLength,
-		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
-		gcWindowInverted:          -1 * config.gcWindow,
-		gcInterval:                config.gcInterval,
-		gcMaxOperationTime:        config.gcMaxOperationTime,
-		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
-		gcCtx:                     gcCtx,
-		cancelGc:                  cancelGc,
+		dburl:                    url,
+		dbpool:                   dbpool,
+		watchBufferLength:        config.watchBufferLength,
+		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
+		gcWindowInverted:         -1 * config.gcWindow,
+		gcInterval:               config.gcInterval,
+		gcMaxOperationTime:       config.gcMaxOperationTime,
+		querySplitter:            querySplitter,
+		gcCtx:                    gcCtx,
+		cancelGc:                 cancelGc,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -191,14 +196,14 @@ func NewPostgresDatastore(
 }
 
 type pgDatastore struct {
-	dburl                     string
-	dbpool                    *pgxpool.Pool
-	watchBufferLength         uint16
-	revisionFuzzingTimedelta  time.Duration
-	gcWindowInverted          time.Duration
-	gcInterval                time.Duration
-	gcMaxOperationTime        time.Duration
-	splitAtEstimatedQuerySize units.Base2Bytes
+	dburl                    string
+	dbpool                   *pgxpool.Pool
+	watchBufferLength        uint16
+	revisionFuzzingTimedelta time.Duration
+	gcWindowInverted         time.Duration
+	gcInterval               time.Duration
+	gcMaxOperationTime       time.Duration
+	querySplitter            common.TupleQuerySplitter
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context

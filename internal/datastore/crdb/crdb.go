@@ -8,7 +8,6 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/alecthomas/units"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -17,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 )
 
@@ -87,12 +87,12 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	gcWindowNanos := config.gcWindow.Nanoseconds()
 	clusterTTLNanos, err := readClusterTTLNanos(conn)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
+	gcWindowNanos := config.gcWindow.Nanoseconds()
 	if clusterTTLNanos < gcWindowNanos {
 		return nil, fmt.Errorf(
 			errUnableToInstantiate,
@@ -124,36 +124,40 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
-	followerReadDelayNanos := config.followerReadDelay.Nanoseconds()
+	querySplitter := common.TupleQuerySplitter{
+		Executor:         common.NewPGXExecutor(conn, prepareTransaction),
+		UsersetBatchSize: int(config.splitAtUsersetCount),
+	}
 
-	return &crdbDatastore{
-		dburl:                     url,
-		conn:                      conn,
-		watchBufferLength:         config.watchBufferLength,
-		quantizationNanos:         config.revisionQuantization.Nanoseconds(),
-		maxRevisionStaleness:      maxRevisionStaleness,
-		gcWindowNanos:             gcWindowNanos,
-		followerReadDelayNanos:    followerReadDelayNanos,
-		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
-		execute:                   executeWithMaxRetries(config.maxRetries),
-		overlapKeyer:              keyer,
-	}, nil
+	ds := &crdbDatastore{
+		&common.RemoteClockRevisions{
+			QuantizationNanos:      config.revisionQuantization.Nanoseconds(),
+			GCWindowNanos:          gcWindowNanos,
+			FollowerReadDelayNanos: config.followerReadDelay.Nanoseconds(),
+			MaxRevisionStaleness:   maxRevisionStaleness,
+		},
+		url,
+		conn,
+		config.watchBufferLength,
+		querySplitter,
+		executeWithMaxRetries(config.maxRetries),
+		keyer,
+	}
+
+	ds.RemoteClockRevisions.NowFunc = ds.HeadRevision
+
+	return ds, nil
 }
 
 type crdbDatastore struct {
-	dburl                     string
-	conn                      *pgxpool.Pool
-	watchBufferLength         uint16
-	quantizationNanos         int64
-	maxRevisionStaleness      time.Duration
-	gcWindowNanos             int64
-	followerReadDelayNanos    int64
-	splitAtEstimatedQuerySize units.Base2Bytes
-	execute                   executeTxRetryFunc
-	overlapKeyer              overlapKeyer
+	*common.RemoteClockRevisions
 
-	lastQuantizedRevision decimal.Decimal
-	revisionValidThrough  time.Time
+	dburl             string
+	conn              *pgxpool.Pool
+	watchBufferLength uint16
+	querySplitter     common.TupleQuerySplitter
+	execute           executeTxRetryFunc
+	overlapKeyer      overlapKeyer
 }
 
 func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
@@ -185,43 +189,6 @@ func (cds *crdbDatastore) Close() error {
 	return nil
 }
 
-func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "OptimizedRevision")
-	defer span.End()
-
-	localNow := time.Now()
-	if localNow.Before(cds.revisionValidThrough) {
-		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Msg("returning cached revision")
-		return cds.lastQuantizedRevision, nil
-	}
-
-	log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Msg("computing new revision")
-
-	nowHLC, err := cds.HeadRevision(ctx)
-	if err != nil {
-		return datastore.NoRevision, err
-	}
-
-	// Round the revision down to the nearest quantization
-	// Apply a delay to enable follower reads: https://www.cockroachlabs.com/docs/stable/follower-reads.html
-	crdbNow := nowHLC.IntPart() - cds.followerReadDelayNanos
-	quantized := crdbNow
-	if cds.quantizationNanos > 0 {
-		quantized -= (crdbNow % cds.quantizationNanos)
-	}
-	log.Ctx(ctx).Debug().Int64("readSkew", cds.followerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
-
-	validForNanos := (quantized + cds.quantizationNanos) - crdbNow
-
-	cds.revisionValidThrough = localNow.
-		Add(time.Duration(validForNanos) * time.Nanosecond).
-		Add(cds.maxRevisionStaleness)
-	log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", cds.revisionValidThrough).Int64("validForNanos", validForNanos).Msg("setting valid through")
-	cds.lastQuantizedRevision = decimal.NewFromInt(quantized)
-
-	return cds.lastQuantizedRevision, nil
-}
-
 func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "HeadRevision")
 	defer span.End()
@@ -238,34 +205,6 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 	}
 
 	return hlcNow, nil
-}
-
-func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	ctx, span := tracer.Start(ctx, "CheckRevision")
-	defer span.End()
-
-	// Make sure the system time indicated is within the software GC window
-	now, err := cds.HeadRevision(ctx)
-	if err != nil {
-		return err
-	}
-
-	nowNanos := now.IntPart()
-	revisionNanos := revision.IntPart()
-
-	staleRevision := revisionNanos < (nowNanos - cds.gcWindowNanos)
-	if staleRevision {
-		log.Ctx(ctx).Debug().Stringer("now", now).Stringer("revision", revision).Msg("stale revision")
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
-	}
-
-	futureRevision := revisionNanos > nowNanos
-	if futureRevision {
-		log.Ctx(ctx).Debug().Stringer("now", now).Stringer("revision", revision).Msg("future revision")
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
-	}
-
-	return nil
 }
 
 func (cds *crdbDatastore) AddOverlapKey(keySet map[string]struct{}, namespace string) {

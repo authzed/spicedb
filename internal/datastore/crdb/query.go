@@ -55,23 +55,7 @@ func (cds *crdbDatastore) QueryTuples(
 		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
 	}
 
-	queryOpts := options.NewQueryOptionsWithOptions(opts...)
-
-	ctq := common.TupleQuerySplitter{
-		Conn:                      cds.conn,
-		PrepareTransaction:        prepareTransaction,
-		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
-
-		FilteredQueryBuilder: qBuilder,
-		Revision:             revision,
-		Limit:                queryOpts.Limit,
-		Usersets:             queryOpts.Usersets,
-
-		Tracer:    tracer,
-		DebugName: "QueryTuples",
-	}
-
-	return ctq.SplitAndExecute(ctx)
+	return cds.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, revision, opts...)
 }
 
 func (cds *crdbDatastore) ReverseQueryTuples(
@@ -91,21 +75,12 @@ func (cds *crdbDatastore) ReverseQueryTuples(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	ctq := common.TupleQuerySplitter{
-		Conn:                      cds.conn,
-		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
-
-		FilteredQueryBuilder: qBuilder,
-		Revision:             revision,
-		Limit:                queryOpts.ReverseLimit,
-		Usersets:             nil,
-
-		Tracer:    tracer,
-		DebugName: "ReverseQueryTuples",
-	}
-
-	return ctq.SplitAndExecute(ctx)
+	return cds.querySplitter.SplitAndExecuteQuery(
+		ctx,
+		qBuilder,
+		revision,
+		options.WithLimit(queryOpts.ReverseLimit),
+	)
 }
 
 func prepareTransaction(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error {
