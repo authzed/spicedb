@@ -72,6 +72,6 @@ func (apd *AlembicPostgresDriver) WriteVersion(version, replaced string) error {
 }
 
 // Dispose disposes the driver.
-func (apd *AlembicPostgresDriver) Dispose() {
-	apd.db.Close()
+func (apd *AlembicPostgresDriver) Close() error {
+	return apd.db.Close()
 }

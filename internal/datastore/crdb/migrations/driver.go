@@ -81,6 +81,6 @@ func (apd *CRDBDriver) WriteVersion(version, replaced string) error {
 }
 
 // Dispose disposes the driver.
-func (apd *CRDBDriver) Dispose() {
-	apd.db.Close(context.Background())
+func (apd *CRDBDriver) Close() error {
+	return apd.db.Close(context.Background())
 }

@@ -383,7 +383,7 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer currentRevision.Dispose()
+	defer currentRevision.Close()
 
 	version, err := currentRevision.Version()
 	if err != nil {
