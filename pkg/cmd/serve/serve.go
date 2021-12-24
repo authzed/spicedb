@@ -2,6 +2,7 @@ package serve
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -81,21 +82,21 @@ func NewServeCommand(programName string, dsConfig *cmdutil.DatastoreConfig) *cob
 		Short:   "serve the permissions database",
 		Long:    "A database that stores, computes, and validates application permissions",
 		PreRunE: cmdutil.DefaultPreRunE(programName),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			signalctx := cmdutil.SignalContextWithGracePeriod(
 				context.Background(),
 				cobrautil.MustGetDuration(cmd, "grpc-shutdown-grace-period"),
 			)
-			serveRun(signalctx, cmd, args, dsConfig)
+			return serveRun(signalctx, cmd, args, dsConfig)
 		},
 		Example: cmdutil.ServeExample(programName),
 	}
 }
 
-func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreOpts *cmdutil.DatastoreConfig) {
+func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreOpts *cmdutil.DatastoreConfig) error {
 	token := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
 	if len(token) < 1 {
-		log.Fatal().Msg("a preshared key must be provided via --grpc-preshared-key to authenticate API requests")
+		return errors.New("a preshared key must be provided via --grpc-preshared-key to authenticate API requests")
 	}
 
 	ds, err := cmdutil.NewDatastore(datastoreOpts.ToOption())
@@ -122,7 +123,7 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 				log.Fatal().Err(err).Msg("failed to load bootstrap files")
 			}
 		} else {
-			log.Fatal().Err(err).Msg("cannot apply bootstrap data: schema or tuples already exist in the datastore. Delete existing data or set the flag --datastore-bootstrap-overwrite=true")
+			return errors.New("cannot apply bootstrap data: schema or tuples already exist in the datastore. Delete existing data or set the flag --datastore-bootstrap-overwrite=true")
 		}
 	}
 
@@ -301,4 +302,6 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 	if err := dashboardSrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down dashboard")
 	}
+
+	return nil
 }
