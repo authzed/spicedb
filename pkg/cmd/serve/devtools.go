@@ -48,12 +48,12 @@ func NewDevtoolsCommand(programName string) *cobra.Command {
 		Short:   "runs the developer tools service",
 		Long:    "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
 		PreRunE: cmdutil.DefaultPreRunE(programName),
-		Run:     runfunc,
+		RunE:    runfunc,
 		Args:    cobra.ExactArgs(0),
 	}
 }
 
-func runfunc(cmd *cobra.Command, args []string) {
+func runfunc(cmd *cobra.Command, args []string) error {
 	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "grpc", grpc.ChainUnaryInterceptor(
 		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
 		otelgrpc.UnaryServerInterceptor(),
@@ -100,6 +100,8 @@ func runfunc(cmd *cobra.Command, args []string) {
 	if err := metricsSrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
 	}
+
+	return nil
 }
 
 func shareStoreFromCmd(cmd *cobra.Command) (v0svc.ShareStore, error) {
