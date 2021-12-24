@@ -25,12 +25,12 @@ func NewMigrateCommand(programName string) *cobra.Command {
 		Short:   "execute datastore schema migrations",
 		Long:    fmt.Sprintf("Executes datastore schema migrations for the datastore.\nThe special value \"%s\" can be used to migrate to the latest revision.", color.YellowString(migrate.Head)),
 		PreRunE: cmdutil.DefaultPreRunE(programName),
-		Run:     migrateRun,
+		RunE:    migrateRun,
 		Args:    cobra.ExactArgs(1),
 	}
 }
 
-func migrateRun(cmd *cobra.Command, args []string) {
+func migrateRun(cmd *cobra.Command, args []string) error {
 	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
 	dbURL := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
 
@@ -64,8 +64,10 @@ func migrateRun(cmd *cobra.Command, args []string) {
 			log.Fatal().Err(err).Msg("unable to complete requested migrations")
 		}
 	} else {
-		log.Fatal().Str("datastore-engine", datastoreEngine).Msg("cannot migrate datastore engine type")
+		return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 	}
+
+	return nil
 }
 
 func RegisterHeadFlags(cmd *cobra.Command) {
@@ -77,12 +79,12 @@ func NewHeadCommand(programName string) *cobra.Command {
 		Use:     "head",
 		Short:   "compute the head database migration revision",
 		PreRunE: cmdutil.DefaultPreRunE(programName),
-		Run:     headRevisionRun,
+		RunE:    headRevisionRun,
 		Args:    cobra.ExactArgs(0),
 	}
 }
 
-func headRevisionRun(cmd *cobra.Command, args []string) {
+func headRevisionRun(cmd *cobra.Command, args []string) error {
 	var (
 		engine       = cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
 		headRevision string
@@ -95,11 +97,12 @@ func headRevisionRun(cmd *cobra.Command, args []string) {
 	case "postgres":
 		headRevision, err = migrations.DatabaseMigrations.HeadRevision()
 	default:
-		log.Fatal().Str("engine", engine).Msg("cannot migrate datastore engine type")
+		return fmt.Errorf("cannot migrate datastore engine type: %s", engine)
 	}
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to compute head revision")
 	}
 
 	fmt.Println(headRevision)
+	return nil
 }

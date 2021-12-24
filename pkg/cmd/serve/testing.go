@@ -56,11 +56,11 @@ func NewTestingCommand(programName string) *cobra.Command {
 		Short:   "test server with an in-memory datastore",
 		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
 		PreRunE: cmdutil.DefaultPreRunE(programName),
-		Run:     runTestServer,
+		RunE:    runTestServer,
 	}
 }
 
-func runTestServer(cmd *cobra.Command, args []string) {
+func runTestServer(cmd *cobra.Command, args []string) error {
 	configFilePaths := cobrautil.MustGetStringSliceExpanded(cmd, "load-configs")
 
 	backendMiddleware := &perTokenBackendMiddleware{
@@ -107,6 +107,8 @@ func runTestServer(cmd *cobra.Command, args []string) {
 	log.Info().Msg("received interrupt")
 	grpcServer.GracefulStop()
 	readonlyServer.GracefulStop()
+
+	return nil
 }
 
 type dummyBackend struct {
