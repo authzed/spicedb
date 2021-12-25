@@ -102,8 +102,8 @@ type memdbTupleIterator struct {
 }
 
 func filterFuncForFilters(optionalObjectType, optionalObjectID, optionalRelation string,
-	optionalSubjectFilter *v1.SubjectFilter, usersets []*v0.ObjectAndRelation) memdb.FilterFunc {
-
+	optionalSubjectFilter *v1.SubjectFilter, usersets []*v0.ObjectAndRelation,
+) memdb.FilterFunc {
 	return func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*relationship)
 

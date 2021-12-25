@@ -63,7 +63,6 @@ func (ce *ConcurrentExpander) expandDirect(
 	req ValidatedExpandRequest,
 	startBehavior startInclusion,
 ) ReduceableExpandFunc {
-
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		it, err := ce.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
@@ -219,7 +218,6 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	}
 
 	return ce.dispatch(ValidatedExpandRequest{
-
 		&v1.DispatchExpandRequest{
 			ObjectAndRelation: &v0.ObjectAndRelation{
 				Namespace: start.Namespace,

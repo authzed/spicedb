@@ -153,8 +153,8 @@ func runCrossVersionTests(t *testing.T,
 	dispatch dispatch.Dispatcher,
 	fullyResolved *validationfile.FullyParsedValidationFile,
 	tuplesPerNamespace *slicemultimap.MultiMap,
-	revision decimal.Decimal) {
-
+	revision decimal.Decimal,
+) {
 	for _, nsDef := range fullyResolved.NamespaceDefinitions {
 		for _, relation := range nsDef.Relation {
 			verifyCrossVersion(t, "read", testers, func(tester serviceTester) (interface{}, error) {

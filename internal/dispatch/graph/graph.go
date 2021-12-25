@@ -44,7 +44,6 @@ func NewDispatcher(
 	nsm namespace.Manager,
 	ds datastore.Datastore,
 ) dispatch.Dispatcher {
-
 	checker := graph.NewConcurrentChecker(redispatcher, ds, nsm)
 	expander := graph.NewConcurrentExpander(redispatcher, ds, nsm)
 	lookupHandler := graph.NewConcurrentLookup(redispatcher, ds, nsm)

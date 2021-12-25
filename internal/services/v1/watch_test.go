@@ -186,7 +186,6 @@ func newWatchServicer(
 	require *require.Assertions,
 	ds datastore.Datastore,
 ) (v1.WatchServiceClient, func()) {
-
 	lis := bufconn.Listen(1024 * 1024)
 	s := testfixtures.NewTestServer()
 

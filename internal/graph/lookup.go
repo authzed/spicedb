@@ -525,7 +525,6 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req Valid
 
 func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req ValidatedLookupRequest, cu *v0.ComputedUserset) ReduceableLookupFunc {
 	result := lookupOne(ctx, req, cl.dispatch(ValidatedLookupRequest{
-
 		&v1.DispatchLookupRequest{
 			Subject: req.Subject,
 			ObjectRelation: &v0.RelationReference{
