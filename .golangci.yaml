@@ -28,9 +28,6 @@ linters:
     - "varcheck"
 issues:
   exclude-rules:
-    - path: "internal/dispatch"
-      linters:
-        - "revive"
     - path: "internal/namespace"
       linters:
         - "revive"

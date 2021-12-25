@@ -20,7 +20,7 @@ const (
 	prometheusNamespace = "spicedb"
 )
 
-type CachingDispatcher struct {
+type Dispatcher struct {
 	d dispatch.Dispatcher
 	c *ristretto.Cache
 
@@ -48,7 +48,7 @@ var (
 func NewCachingDispatcher(
 	cacheConfig *ristretto.Config,
 	prometheusSubsystem string,
-) (*CachingDispatcher, error) {
+) (*Dispatcher, error) {
 	if cacheConfig == nil {
 		cacheConfig = &ristretto.Config{
 			NumCounters: 1e4,     // number of keys to track frequency of (10k).
@@ -128,7 +128,7 @@ func NewCachingDispatcher(
 		}
 	}
 
-	return &CachingDispatcher{fakeDelegate{}, cache, checkTotalCounter, checkFromCacheCounter, lookupTotalCounter, lookupFromCacheCounter}, nil
+	return &Dispatcher{fakeDelegate{}, cache, checkTotalCounter, checkFromCacheCounter, lookupTotalCounter, lookupFromCacheCounter}, nil
 }
 
 func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint64) error {
@@ -142,12 +142,12 @@ func registerMetricsFunc(name string, subsystem string, metricsFunc func() uint6
 }
 
 // SetDelegate sets the internal delegate to the specific dispatcher instance.
-func (cd *CachingDispatcher) SetDelegate(delegate dispatch.Dispatcher) {
+func (cd *Dispatcher) SetDelegate(delegate dispatch.Dispatcher) {
 	cd.d = delegate
 }
 
 // DispatchCheck implements dispatch.Check interface
-func (cd *CachingDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
 	requestKey := dispatch.CheckRequestToKey(req)
 
@@ -177,13 +177,13 @@ func (cd *CachingDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 }
 
 // DispatchExpand implements dispatch.Expand interface and does not do any caching yet.
-func (cd *CachingDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+func (cd *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	resp, err := cd.d.DispatchExpand(ctx, req)
 	return resp, err
 }
 
 // DispatchLookup implements dispatch.Lookup interface and does not do any caching yet.
-func (cd *CachingDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	cd.lookupTotalCounter.Inc()
 
 	requestKey := dispatch.LookupRequestToKey(req)
@@ -224,7 +224,7 @@ func (cd *CachingDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	return computed, err
 }
 
-func (cd *CachingDispatcher) Close() error {
+func (cd *Dispatcher) Close() error {
 	cache := cd.c
 	if cache != nil {
 		cache.Close()
