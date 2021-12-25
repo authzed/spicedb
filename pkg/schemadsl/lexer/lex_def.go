@@ -9,7 +9,7 @@ import (
 )
 
 // Lex creates a new scanner for the input string.
-func Lex(source input.InputSource, input string) *Lexer {
+func Lex(source input.Source, input string) *Lexer {
 	return createLexer(source, input)
 }
 
@@ -207,10 +207,10 @@ func lexIdentifierOrKeyword(l *Lexer) stateFn {
 		l.next()
 	}
 
-	_, is_keyword := keywords[l.value()]
+	_, isKeyword := keywords[l.value()]
 
 	switch {
-	case is_keyword:
+	case isKeyword:
 		l.emit(TokenTypeKeyword)
 
 	default:

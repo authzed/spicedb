@@ -97,7 +97,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	}
 
 	inputSchema := compiler.InputSchema{
-		Source:       input.InputSource("schema"),
+		Source:       input.Source("schema"),
 		SchemaString: in.GetSchema(),
 	}
 

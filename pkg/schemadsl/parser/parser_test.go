@@ -51,7 +51,7 @@ func (pt *parserTest) writeTree(value string) {
 	}
 }
 
-func createAstNode(source input.InputSource, kind dslshape.NodeType) AstNode {
+func createAstNode(source input.Source, kind dslshape.NodeType) AstNode {
 	return &testNode{
 		nodeType:   kind,
 		properties: make(map[string]interface{}),
@@ -112,7 +112,7 @@ func TestParser(t *testing.T) {
 
 	for _, test := range parserTests {
 		t.Run(test.name, func(t *testing.T) {
-			root := Parse(createAstNode, input.InputSource(test.name), test.input())
+			root := Parse(createAstNode, input.Source(test.name), test.input())
 			parseTree := getParseTree((root).(*testNode), 0)
 			assert := assert.New(t)
 

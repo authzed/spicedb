@@ -10,7 +10,7 @@ import (
 )
 
 // Parse parses the given Schema DSL source into a parse tree.
-func Parse(builder NodeBuilder, source input.InputSource, input string) AstNode {
+func Parse(builder NodeBuilder, source input.Source, input string) AstNode {
 	lx := lexer.Lex(source, input)
 	parser := buildParser(lx, builder, source, input)
 	defer parser.close()

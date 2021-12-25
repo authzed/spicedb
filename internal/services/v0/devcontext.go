@@ -139,7 +139,7 @@ func compile(schema string) ([]*v0.NamespaceDefinition, *v0.DeveloperError, erro
 	empty := ""
 	namespaces, err := compiler.Compile([]compiler.InputSchema{
 		{
-			Source:       input.InputSource("schema"),
+			Source:       input.Source("schema"),
 			SchemaString: schema,
 		},
 	}, &empty)

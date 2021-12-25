@@ -148,7 +148,7 @@ func TestLexer(t *testing.T) {
 }
 
 func performLex(t *lexerTest) (tokens []Lexeme) {
-	l := Lex(input.InputSource(t.name), t.input)
+	l := Lex(input.Source(t.name), t.input)
 	for {
 		token := l.nextToken()
 		tokens = append(tokens, token)

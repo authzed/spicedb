@@ -55,12 +55,6 @@ issues:
     - path: "pkg/namespace"
       linters:
         - "revive"
-    - path: "pkg/schemadsl"
-      linters:
-        - "revive"
-    - path: "pkg/validation"
-      linters:
-        - "revive"
     - text: "tx.Rollback()"
       linters:
         - "errcheck"

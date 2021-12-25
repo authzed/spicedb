@@ -24,7 +24,7 @@ type AstNode interface {
 }
 
 // NodeBuilder is a function for building AST nodes.
-type NodeBuilder func(source input.InputSource, kind dslshape.NodeType) AstNode
+type NodeBuilder func(source input.Source, kind dslshape.NodeType) AstNode
 
 // tryParserFn is a function that attempts to build an AST node.
 type tryParserFn func() (AstNode, bool)
@@ -45,7 +45,7 @@ type commentedLexeme struct {
 
 // sourceParser holds the state of the parser.
 type sourceParser struct {
-	source        input.InputSource    // the name of the input; used only for error reports
+	source        input.Source         // the name of the input; used only for error reports
 	lex           *lexer.PeekableLexer // a reference to the lexer used for tokenization
 	builder       NodeBuilder          // the builder function for creating AstNode instances
 	nodes         *nodeStack           // the stack of the current nodes
@@ -54,7 +54,7 @@ type sourceParser struct {
 }
 
 // buildParser returns a new sourceParser instance.
-func buildParser(lx *lexer.Lexer, builder NodeBuilder, source input.InputSource, input string) *sourceParser {
+func buildParser(lx *lexer.Lexer, builder NodeBuilder, source input.Source, input string) *sourceParser {
 	l := lexer.NewPeekableLexer(lx)
 	return &sourceParser{
 		source:        source,
