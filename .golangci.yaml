@@ -31,9 +31,6 @@ issues:
     - path: "internal/dispatch"
       linters:
         - "revive"
-    - path: "internal/graph"
-      linters:
-        - "revive"
     - path: "internal/namespace"
       linters:
         - "revive"
