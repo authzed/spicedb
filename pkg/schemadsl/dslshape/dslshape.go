@@ -1,4 +1,4 @@
-//go:generate stringer -type=NodeType -output zz_generated.nodetype_string.go
+//go:generate go run golang.org/x/tools/cmd/stringer -type=NodeType -output zz_generated.nodetype_string.go
 
 // Package dslshape defines the types representing the structure of schema DSL.
 package dslshape

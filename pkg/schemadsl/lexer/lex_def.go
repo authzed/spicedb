@@ -1,4 +1,4 @@
-//go:generate stringer -type=TokenType
+//go:generate go run golang.org/x/tools/cmd/stringer -type=TokenType
 
 package lexer
 

@@ -15,17 +15,12 @@ jobs:
       - uses: "actions/setup-go@v2"
         with:
           go-version: "^1.17"
-      - name: "Install linting tools"
-        run: |
-          # This is done before checking out, as to not modify go.mod
-          go install mvdan.cc/gofumpt@v0.2.1
-          go install golang.org/x/tools/cmd/stringer@latest
       - uses: "actions/checkout@v2"
       - name: "Go Mod Tidy"
         run: "go mod tidy && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
       - name: "Formatting (gofumpt)"
         run: |
-          GOFUMPT_OUTPUT="$(find . -iname '*.go' -type f | grep -v pb.validate.go | grep -v pb.go | xargs gofumpt -d)"
+          GOFUMPT_OUTPUT="$(find . -iname '*.go' -type f | grep -v pb.validate.go | grep -v pb.go | xargs go run mvdan.cc/gofumpt -d)"
           if [ -n "$GOFUMPT_OUTPUT" ]; then
             echo "All the following files are not correctly formatted"
             echo "${GOFUMPT_OUTPUT}"
