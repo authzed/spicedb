@@ -46,9 +46,6 @@ issues:
     - path: "pkg/graph"
       linters:
         - "revive"
-    - path: "pkg/membership"
-      linters:
-        - "revive"
     - path: "pkg/namespace"
       linters:
         - "revive"

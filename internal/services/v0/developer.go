@@ -313,7 +313,7 @@ func runAssertions(ctx context.Context, devContext *DevContext, assertions []val
 	return failures, nil
 }
 
-func generateValidation(membershipSet *membership.MembershipSet) (string, error) {
+func generateValidation(membershipSet *membership.Set) (string, error) {
 	validationMap := validationfile.ValidationMap{}
 	subjectsByONR := membershipSet.SubjectsByONR()
 
@@ -350,7 +350,7 @@ func generateValidation(membershipSet *membership.MembershipSet) (string, error)
 	return validationMap.AsYAML()
 }
 
-func runValidation(ctx context.Context, devContext *DevContext, validation validationfile.ValidationMap) (*membership.MembershipSet, []*v0.DeveloperError, error) {
+func runValidation(ctx context.Context, devContext *DevContext, validation validationfile.ValidationMap) (*membership.Set, []*v0.DeveloperError, error) {
 	var failures []*v0.DeveloperError
 	membershipSet := membership.NewMembershipSet()
 

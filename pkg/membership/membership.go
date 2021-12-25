@@ -8,15 +8,15 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// MembershipSet represents the set of membership for one or more ONRs, based on expansion
+// Set represents the set of membership for one or more ONRs, based on expansion
 // trees.
-type MembershipSet struct {
+type Set struct {
 	// objectsAndRelations is a map from an ONR (as a string) to the subjects found for that ONR.
 	objectsAndRelations map[string]FoundSubjects
 }
 
 // SubjectsByONR returns a map from ONR (as a string) to the FoundSubjects for that ONR.
-func (ms *MembershipSet) SubjectsByONR() map[string]FoundSubjects {
+func (ms *Set) SubjectsByONR() map[string]FoundSubjects {
 	return ms.objectsAndRelations
 }
 
@@ -67,8 +67,8 @@ func (fs FoundSubject) Relationships() []*v0.ObjectAndRelation {
 //
 // NOTE: This is designed solely for the developer API and should *not* be used in any performance
 // sensitive code.
-func NewMembershipSet() *MembershipSet {
-	return &MembershipSet{
+func NewMembershipSet() *Set {
+	return &Set{
 		objectsAndRelations: map[string]FoundSubjects{},
 	}
 }
@@ -76,7 +76,7 @@ func NewMembershipSet() *MembershipSet {
 // AddExpansion adds the expansion of an ONR to the membership set. Returns false if the ONR was already added.
 //
 // NOTE: The expansion tree *should* be the fully recursive expansion.
-func (ms *MembershipSet) AddExpansion(onr *v0.ObjectAndRelation, expansion *v0.RelationTupleTreeNode) (FoundSubjects, bool, error) {
+func (ms *Set) AddExpansion(onr *v0.ObjectAndRelation, expansion *v0.RelationTupleTreeNode) (FoundSubjects, bool, error) {
 	onrString := tuple.StringONR(onr)
 	existing, ok := ms.objectsAndRelations[onrString]
 	if ok {
