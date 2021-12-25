@@ -31,9 +31,6 @@ issues:
     - path: "internal/namespace"
       linters:
         - "revive"
-    - path: "internal/testfixtures"
-      linters:
-        - "revive"
     - path: "pkg/namespace"
       linters:
         - "revive"

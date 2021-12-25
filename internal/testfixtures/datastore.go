@@ -149,7 +149,7 @@ func (tc TupleChecker) VerifyIteratorCount(iter datastore.TupleIterator, count i
 
 	foundCount := 0
 	for found := iter.Next(); found != nil; found = iter.Next() {
-		foundCount += 1
+		foundCount++
 	}
 	tc.Require.NoError(iter.Err())
 	tc.Require.Equal(count, foundCount)
