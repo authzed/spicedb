@@ -43,9 +43,6 @@ issues:
     - path: "pkg/consistent"
       linters:
         - "revive"
-    - path: "pkg/graph"
-      linters:
-        - "revive"
     - path: "pkg/namespace"
       linters:
         - "revive"
