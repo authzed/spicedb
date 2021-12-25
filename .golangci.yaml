@@ -40,9 +40,6 @@ issues:
     - path: "internal/testfixtures"
       linters:
         - "revive"
-    - path: "pkg/consistent"
-      linters:
-        - "revive"
     - path: "pkg/namespace"
       linters:
         - "revive"
