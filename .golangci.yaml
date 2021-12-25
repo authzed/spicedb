@@ -49,9 +49,6 @@ issues:
     - path: "pkg/membership"
       linters:
         - "revive"
-    - path: "pkg/migrate"
-      linters:
-        - "revive"
     - path: "pkg/namespace"
       linters:
         - "revive"
