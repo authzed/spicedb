@@ -19,6 +19,7 @@ linters:
     - "errname"
     - "errorlint"
     - "gofumpt"
+    - "goprintffuncname"
     - "goimports"
     - "gosimple"
     - "govet"

@@ -34,7 +34,7 @@ func (p *sourceParser) consumeTopLevel() AstNode {
 	p.consumeToken()
 
 	if p.currentToken.Kind == lexer.TokenTypeError {
-		p.emitError("%s", p.currentToken.Value)
+		p.emitErrorf("%s", p.currentToken.Value)
 		return rootNode
 	}
 
@@ -59,7 +59,7 @@ Loop:
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeDefinition())
 
 		default:
-			p.emitError("Unexpected token at root level: %v", p.currentToken.Kind)
+			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
 			break Loop
 		}
 	}
@@ -254,7 +254,7 @@ func (p *sourceParser) consumeComputeExpression() AstNode {
 	binaryParser := p.buildBinaryOperatorExpressionFnTree(ComputeExpressionOperators)
 	found, ok := binaryParser()
 	if !ok {
-		return p.createErrorNode("Expected compute expression for permission")
+		return p.createErrorNodef("Expected compute expression for permission")
 	}
 	return found
 }
