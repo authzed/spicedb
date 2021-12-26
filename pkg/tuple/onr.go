@@ -92,7 +92,7 @@ func StringONR(onr *v0.ObjectAndRelation) string {
 
 // StringsONRs converts ONR objects to a string slice, sorted.
 func StringsONRs(onrs []*v0.ObjectAndRelation) []string {
-	var onrstrings []string
+	onrstrings := make([]string, 0, len(onrs))
 	for _, onr := range onrs {
 		onrstrings = append(onrstrings, StringONR(onr))
 	}

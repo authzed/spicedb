@@ -147,7 +147,7 @@ func (m *Manager) HeadRevision() (string, error) {
 		delete(candidates, eliminateReplaces.replaces)
 	}
 
-	var allHeads []string
+	allHeads := make([]string, 0, len(candidates))
 	for headRevision := range candidates {
 		allHeads = append(allHeads, headRevision)
 	}

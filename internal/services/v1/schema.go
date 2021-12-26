@@ -54,7 +54,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 		return nil, status.Errorf(codes.NotFound, "No schema has been defined; please call WriteSchema to start")
 	}
 
-	var objectDefs []string
+	objectDefs := make([]string, 0, len(nsDefs))
 	for _, nsDef := range nsDefs {
 		objectDef, _ := generator.GenerateSource(nsDef)
 		objectDefs = append(objectDefs, objectDef)
@@ -131,7 +131,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	}
 
 	// Write the new namespaces.
-	var names []string
+	names := make([]string, 0, len(nsdefs))
 	for _, nsdef := range nsdefs {
 		if _, err := ss.ds.WriteNamespace(ctx, nsdef); err != nil {
 			return nil, rewriteSchemaError(ctx, err)
@@ -141,7 +141,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	}
 
 	// Delete the removed namespaces.
-	var removedNames []string
+	removedNames := make([]string, 0, len(existingDefMap))
 	for nsdefName, removed := range existingDefMap {
 		if !removed {
 			continue

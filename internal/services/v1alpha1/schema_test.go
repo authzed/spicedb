@@ -179,7 +179,7 @@ func upgrade(t *testing.T, nsdefs []*v0.NamespaceDefinition) (*v1alpha1.ReadSche
 	})
 	require.NoError(t, err)
 
-	var nsdefNames []string
+	nsdefNames := make([]string, 0, len(nsdefs))
 	for _, nsdef := range nsdefs {
 		nsdefNames = append(nsdefNames, nsdef.Name)
 	}

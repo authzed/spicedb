@@ -64,7 +64,7 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 		return nil, rewriteError(ctx, err)
 	}
 
-	var objectDefs []string
+	objectDefs := make([]string, 0, len(in.GetObjectDefinitionsNames()))
 	createdRevisions := make(map[string]datastore.Revision, len(in.GetObjectDefinitionsNames()))
 	for _, objectDefName := range in.GetObjectDefinitionsNames() {
 		found, createdAt, err := ss.ds.ReadNamespace(ctx, objectDefName, headRevision)
@@ -166,7 +166,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		log.Trace().Interface("namespace definitions", nsdefs).Msg("checked schema revision")
 	}
 
-	var names []string
+	names := make([]string, 0, len(nsdefs))
 	revisions := make(map[string]datastore.Revision, len(nsdefs))
 	for _, nsdef := range nsdefs {
 		revision, err := ss.ds.WriteNamespace(ctx, nsdef)

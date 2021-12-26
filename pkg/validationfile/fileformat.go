@@ -252,7 +252,7 @@ type ParsedAssertion struct {
 // AssertTrueRelationships returns the relationships for which to assert
 // existence.
 func (a Assertions) AssertTrueRelationships() ([]ParsedAssertion, *ErrorWithSource) {
-	var relationships []ParsedAssertion
+	relationships := make([]ParsedAssertion, 0, len(a.AssertTrue))
 	for _, assertion := range a.AssertTrue {
 		trimmed := strings.TrimSpace(assertion.relationshipString)
 		parsed := tuple.Parse(trimmed)
@@ -276,7 +276,7 @@ func (a Assertions) AssertTrueRelationships() ([]ParsedAssertion, *ErrorWithSour
 // AssertFalseRelationships returns the relationships for which to assert
 // non-existence.
 func (a Assertions) AssertFalseRelationships() ([]ParsedAssertion, *ErrorWithSource) {
-	var relationships []ParsedAssertion
+	relationships := make([]ParsedAssertion, 0, len(a.AssertFalse))
 	for _, assertion := range a.AssertFalse {
 		trimmed := strings.TrimSpace(assertion.relationshipString)
 		parsed := tuple.Parse(trimmed)

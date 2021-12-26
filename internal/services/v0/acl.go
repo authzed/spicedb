@@ -185,8 +185,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	var allTuplesetResults []*v0.ReadResponse_Tupleset
-
+	allTuplesetResults := make([]*v0.ReadResponse_Tupleset, 0, len(req.Tuplesets))
 	for _, tuplesetFilter := range req.Tuplesets {
 		queryFilter := &v1_api.RelationshipFilter{
 			ResourceType: tuplesetFilter.Namespace,
@@ -376,7 +375,7 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	var resolvedObjectIDs []string
+	resolvedObjectIDs := make([]string, 0, len(resp.ResolvedOnrs))
 	for _, found := range resp.ResolvedOnrs {
 		if found.Namespace != req.ObjectRelation.Namespace {
 			return nil, rewriteACLError(

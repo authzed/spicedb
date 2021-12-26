@@ -152,7 +152,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 	defer devContext.dispose()
 
 	// Run the checks and store their output.
-	var results []*v0.EditCheckResult
+	results := make([]*v0.EditCheckResult, 0, len(req.CheckRelationships))
 	for _, checkTpl := range req.CheckRelationships {
 		cr, err := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ObjectAndRelation: checkTpl.ObjectAndRelation,
@@ -317,7 +317,7 @@ func generateValidation(membershipSet *membership.Set) (string, error) {
 	validationMap := validationfile.ValidationMap{}
 	subjectsByONR := membershipSet.SubjectsByONR()
 
-	var onrStrings []string
+	onrStrings := make([]string, 0, len(subjectsByONR))
 	for onrString := range subjectsByONR {
 		onrStrings = append(onrStrings, onrString)
 	}
@@ -409,7 +409,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 }
 
 func wrapRelationships(onrStrings []string) []string {
-	var wrapped []string
+	wrapped := make([]string, 0, len(onrStrings))
 	for _, str := range onrStrings {
 		wrapped = append(wrapped, fmt.Sprintf("<%s>", str))
 	}
