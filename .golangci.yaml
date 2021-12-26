@@ -39,6 +39,7 @@ linters:
     - "staticcheck"
     - "structcheck"
     - "stylecheck"
+    - "tenv"
     - "typecheck"
     - "unused"
     - "varcheck"
