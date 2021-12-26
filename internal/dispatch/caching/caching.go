@@ -225,8 +225,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 }
 
 func (cd *Dispatcher) Close() error {
-	cache := cd.c
-	if cache != nil {
+	if cache := cd.c; cache != nil {
 		cache.Close()
 	}
 

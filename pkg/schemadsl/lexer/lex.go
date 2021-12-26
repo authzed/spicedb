@@ -184,8 +184,7 @@ func (l *Lexer) peekValue(value string) bool {
 
 // accept consumes the next rune if it's from the valid set.
 func (l *Lexer) accept(valid string) bool {
-	nextRune := l.next()
-	if strings.ContainsRune(valid, nextRune) {
+	if nextRune := l.next(); strings.ContainsRune(valid, nextRune) {
 		return true
 	}
 	l.backup()

@@ -27,6 +27,7 @@ linters:
     - "gosec"
     - "gosimple"
     - "govet"
+    - "ifshort"
     - "ineffassign"
     - "revive"
     - "rowserrcheck"
