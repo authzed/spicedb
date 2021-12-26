@@ -30,7 +30,6 @@ type extractMetadata struct {
 func (r *extractMetadata) ServerReporter(ctx context.Context, _ interceptors.CallMeta) (interceptors.Reporter, context.Context) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
-
 		fields := []string{}
 		logContext := log.With()
 		for _, field := range r.fields {

@@ -316,7 +316,6 @@ func (p *sourceParser) tryConsumeBaseExpression() (AstNode, bool) {
 		// Identifier.
 	case p.isToken(lexer.TokenTypeIdentifier):
 		return p.tryConsumeIdentifierLiteral()
-
 	}
 
 	return nil, false

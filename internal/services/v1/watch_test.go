@@ -131,7 +131,6 @@ func TestWatch(t *testing.T) {
 			require.NoError(err)
 
 			if tc.expectedCode == codes.OK {
-
 				updatesChan := make(chan []*v1.RelationshipUpdate, len(tc.mutations))
 
 				go func() {

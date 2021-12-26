@@ -45,6 +45,7 @@ linters:
     - "unused"
     - "varcheck"
     - "wastedassign"
+    - "whitespace"
 issues:
   exclude-rules:
     - path: "internal/namespace"

@@ -318,7 +318,6 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		if err != nil {
 			return err
 		}
-
 	}
 	return nil
 }
