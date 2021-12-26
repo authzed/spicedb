@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgconn"
@@ -49,7 +50,8 @@ func (apd *CRDBDriver) Version() (string, error) {
 	var loaded string
 
 	if err := apd.db.QueryRow(context.Background(), queryLoadVersion).Scan(&loaded); err != nil {
-		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == postgresMissingTableErrorCode {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == postgresMissingTableErrorCode {
 			return "", nil
 		}
 		return "", fmt.Errorf("unable to load alembic revision: %w", err)

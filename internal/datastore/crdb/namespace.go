@@ -148,7 +148,7 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*v0.Namespace
 	var config []byte
 	var timestamp time.Time
 	if err := tx.QueryRow(ctx, sql, args...).Scan(&config, &timestamp); err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			err = datastore.NewNamespaceNotFoundErr(nsName)
 		}
 		return nil, time.Time{}, err

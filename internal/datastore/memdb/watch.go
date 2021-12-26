@@ -2,6 +2,7 @@ package memdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -15,11 +16,11 @@ const errWatchError = "watch error: %w"
 
 func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
-	errors := make(chan error, 1)
+	errs := make(chan error, 1)
 
 	go func() {
 		defer close(updates)
-		defer close(errors)
+		defer close(errs)
 
 		currentTxn := uint64(afterRevision.IntPart())
 
@@ -29,7 +30,7 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 			var err error
 			stagedUpdates, currentTxn, watchChan, err = mds.loadChanges(ctx, currentTxn)
 			if err != nil {
-				errors <- err
+				errs <- err
 				return
 			}
 
@@ -38,7 +39,7 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 				select {
 				case updates <- changeToWrite:
 				default:
-					errors <- datastore.NewWatchDisconnectedErr()
+					errs <- datastore.NewWatchDisconnectedErr()
 					return
 				}
 			}
@@ -49,18 +50,18 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 
 			err = ws.WatchCtx(ctx)
 			if err != nil {
-				switch err {
-				case context.Canceled:
-					errors <- datastore.NewWatchCanceledErr()
+				switch {
+				case errors.Is(err, context.Canceled):
+					errs <- datastore.NewWatchCanceledErr()
 				default:
-					errors <- fmt.Errorf(errWatchError, err)
+					errs <- fmt.Errorf(errWatchError, err)
 				}
 				return
 			}
 		}
 	}()
 
-	return updates, errors
+	return updates, errs
 }
 
 func (mds *memdbDatastore) loadChanges(ctx context.Context, currentTxn uint64) ([]*datastore.RevisionChanges, uint64, <-chan struct{}, error) {

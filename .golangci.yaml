@@ -12,8 +12,12 @@ linters-settings:
       - "github.com/jackc/pgx"
 linters:
   enable:
+    - "bidichk"
+    - "bodyclose"
     - "deadcode"
     - "errcheck"
+    - "errname"
+    - "errorlint"
     - "gofumpt"
     - "goimports"
     - "gosimple"

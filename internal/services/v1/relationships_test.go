@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -221,7 +222,7 @@ func TestReadRelationships(t *testing.T) {
 
 						for {
 							rel, err := stream.Recv()
-							if err == io.EOF {
+							if errors.Is(err, io.EOF) {
 								break
 							}
 
@@ -817,7 +818,7 @@ func readAll(require *require.Assertions, client v1.PermissionsServiceClient, to
 
 		for {
 			rel, err := stream.Recv()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			require.NoError(err)

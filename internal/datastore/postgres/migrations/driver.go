@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
@@ -40,7 +41,8 @@ func (apd *AlembicPostgresDriver) Version() (string, error) {
 	var loaded string
 
 	if err := apd.db.QueryRowx("SELECT version_num from alembic_version").Scan(&loaded); err != nil {
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == postgresMissingTableErrorCode {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == postgresMissingTableErrorCode {
 			return "", nil
 		}
 		return "", fmt.Errorf("unable to load alembic revision: %w", err)

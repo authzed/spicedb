@@ -193,7 +193,7 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, baseQuery s
 	var version datastore.Revision
 	err = tx.QueryRow(ctx, sql, args...).Scan(&config, &version)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			err = datastore.NewNamespaceNotFoundErr(namespace)
 		}
 		return nil, datastore.NoRevision, err

@@ -2,6 +2,7 @@ package serve
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -339,7 +340,7 @@ func copyStream(in grpc.ClientStream, out grpc.ServerStream) error {
 		// It appears that it doesn't matter what kind of proto this actually is
 		message := &v1.CheckPermissionResponse{}
 		err := in.RecvMsg(message)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 

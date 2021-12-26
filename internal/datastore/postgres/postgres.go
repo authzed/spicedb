@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	dbsql "database/sql"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -405,11 +406,11 @@ func (pgd *pgDatastore) OptimizedRevision(ctx context.Context) (datastore.Revisi
 	defer span.End()
 
 	lower, upper, err := pgd.computeRevisionRange(ctx, -1*pgd.revisionFuzzingTimedelta)
-	if err != nil && err != pgx.ErrNoRows {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		revision, err := pgd.loadRevision(ctx)
 		if err != nil {
 			return datastore.NoRevision, err
@@ -442,7 +443,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 		return nil
 	}
 
-	if err != pgx.ErrNoRows {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
@@ -456,7 +457,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 	err = pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
 	).Scan(&highest)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 	if err != nil {
@@ -484,7 +485,7 @@ func (pgd *pgDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	var revision uint64
 	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), sql, args...).Scan(&revision)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, nil
 		}
 		return 0, fmt.Errorf(errRevision, err)

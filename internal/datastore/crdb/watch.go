@@ -3,6 +3,7 @@ package crdb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -16,22 +17,22 @@ const queryChangefeed = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '
 
 func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, cds.watchBufferLength)
-	errors := make(chan error, 1)
+	errs := make(chan error, 1)
 
 	interpolated := fmt.Sprintf(queryChangefeed, tableTuple, afterRevision)
 
 	go func() {
 		defer close(updates)
-		defer close(errors)
+		defer close(errs)
 
 		pendingChanges := make(map[string]*datastore.RevisionChanges)
 
 		changes, err := cds.conn.Query(ctx, interpolated)
 		if err != nil {
-			if ctx.Err() == context.Canceled {
-				errors <- datastore.NewWatchCanceledErr()
+			if errors.Is(ctx.Err(), context.Canceled) {
+				errs <- datastore.NewWatchCanceledErr()
 			} else {
-				errors <- err
+				errs <- err
 			}
 			return
 		}
@@ -46,10 +47,10 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 			var primaryKeyValuesJSON []byte
 
 			if err := changes.Scan(&unused, &primaryKeyValuesJSON, &changeJSON); err != nil {
-				if ctx.Err() == context.Canceled {
-					errors <- datastore.NewWatchCanceledErr()
+				if errors.Is(ctx.Err(), context.Canceled) {
+					errs <- datastore.NewWatchCanceledErr()
 				} else {
-					errors <- err
+					errs <- err
 				}
 				return
 			}
@@ -60,7 +61,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				After    interface{}
 			}
 			if err := json.Unmarshal(changeJSON, &changeDetails); err != nil {
-				errors <- err
+				errs <- err
 				return
 			}
 
@@ -68,7 +69,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				// This entry indicates that we are ready to potentially emit some changes
 				resolved, err := decimal.NewFromString(changeDetails.Resolved)
 				if err != nil {
-					errors <- err
+					errs <- err
 					return
 				}
 
@@ -89,7 +90,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 					select {
 					case updates <- change:
 					default:
-						errors <- datastore.NewWatchDisconnectedErr()
+						errs <- datastore.NewWatchDisconnectedErr()
 						return
 					}
 				}
@@ -99,13 +100,13 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 			var pkValues [6]string
 			if err := json.Unmarshal(primaryKeyValuesJSON, &pkValues); err != nil {
-				errors <- err
+				errs <- err
 				return
 			}
 
 			revision, err := decimal.NewFromString(changeDetails.Updated)
 			if err != nil {
-				errors <- fmt.Errorf("malformed update timestamp: %w", err)
+				errs <- fmt.Errorf("malformed update timestamp: %w", err)
 				return
 			}
 
@@ -144,13 +145,13 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 			pending.Changes = append(pending.Changes, oneChange)
 		}
 		if changes.Err() != nil {
-			if ctx.Err() == context.Canceled {
-				errors <- datastore.NewWatchCanceledErr()
+			if errors.Is(ctx.Err(), context.Canceled) {
+				errs <- datastore.NewWatchCanceledErr()
 			} else {
-				errors <- changes.Err()
+				errs <- changes.Err()
 			}
 			return
 		}
 	}()
-	return updates, errors
+	return updates, errs
 }

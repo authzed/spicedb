@@ -421,7 +421,7 @@ func rewriteACLError(ctx context.Context, err error) error {
 	var relNotFoundError sharederrors.UnknownRelationError
 
 	switch {
-	case err == errInvalidZookie:
+	case errors.Is(err, errInvalidZookie):
 		return status.Errorf(codes.InvalidArgument, "invalid argument: %s", err)
 
 	case errors.As(err, &nsNotFoundError):
@@ -448,8 +448,8 @@ func rewriteACLError(ctx context.Context, err error) error {
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 
 	default:
-		if _, ok := err.(invalidRelationError); ok {
-			return status.Errorf(codes.InvalidArgument, "%s", err.Error())
+		if errors.As(err, &invalidRelationError{}) {
+			return status.Errorf(codes.InvalidArgument, "%s", err)
 		}
 
 		log.Ctx(ctx).Err(err)
