@@ -10,6 +10,9 @@ linters-settings:
     packages:
       - "github.com/jmoiron/sqlx"
       - "github.com/jackc/pgx"
+  gosec:
+    excludes:
+      - "G404" # Allow the usage of math/rand
 linters:
   enable:
     - "bidichk"
@@ -19,8 +22,9 @@ linters:
     - "errname"
     - "errorlint"
     - "gofumpt"
-    - "goprintffuncname"
     - "goimports"
+    - "goprintffuncname"
+    - "gosec"
     - "gosimple"
     - "govet"
     - "ineffassign"

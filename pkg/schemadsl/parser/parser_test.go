@@ -45,7 +45,7 @@ func (pt *parserTest) tree() string {
 }
 
 func (pt *parserTest) writeTree(value string) {
-	err := ioutil.WriteFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename), []byte(value), 0o644)
+	err := ioutil.WriteFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename), []byte(value), 0o600)
 	if err != nil {
 		panic(err)
 	}
