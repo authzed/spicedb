@@ -125,7 +125,7 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 
 	switch t := tree.TreeType.(type) {
 	case *v1.PermissionRelationshipTree_Intermediate:
-		operation := v0.SetOperationUserset_INVALID
+		var operation v0.SetOperationUserset_Operation
 		switch t.Intermediate.Operation {
 		case v1.AlgebraicSubjectSet_OPERATION_EXCLUSION:
 			operation = v0.SetOperationUserset_EXCLUSION
@@ -134,7 +134,7 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 		case v1.AlgebraicSubjectSet_OPERATION_UNION:
 			operation = v0.SetOperationUserset_UNION
 		default:
-			panic("Unknown set operation")
+			panic("unknown set operation")
 		}
 
 		children := []*v0.RelationTupleTreeNode{}
@@ -174,15 +174,14 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 		}
 
 	default:
-		panic("Unknown type of expansion tree node")
+		panic("unknown type of expansion tree node")
 	}
 }
 
 func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelationshipTree {
 	switch t := node.NodeType.(type) {
 	case *v0.RelationTupleTreeNode_IntermediateNode:
-		operation := v1.AlgebraicSubjectSet_OPERATION_UNSPECIFIED
-
+		var operation v1.AlgebraicSubjectSet_Operation
 		switch t.IntermediateNode.Operation {
 		case v0.SetOperationUserset_EXCLUSION:
 			operation = v1.AlgebraicSubjectSet_OPERATION_EXCLUSION
@@ -191,7 +190,7 @@ func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelati
 		case v0.SetOperationUserset_UNION:
 			operation = v1.AlgebraicSubjectSet_OPERATION_UNION
 		default:
-			panic("Unknown set operation")
+			panic("unknown set operation")
 		}
 
 		var children []*v1.PermissionRelationshipTree
@@ -256,7 +255,7 @@ func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelati
 		}
 
 	default:
-		panic("Unknown type of expansion tree node")
+		panic("unknown type of expansion tree node")
 	}
 }
 

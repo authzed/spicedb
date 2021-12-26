@@ -44,6 +44,7 @@ linters:
     - "unconvert"
     - "unused"
     - "varcheck"
+    - "wastedassign"
 issues:
   exclude-rules:
     - path: "internal/namespace"
