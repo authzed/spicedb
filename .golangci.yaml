@@ -28,6 +28,7 @@ linters:
     - "gosimple"
     - "govet"
     - "ifshort"
+    - "importas"
     - "ineffassign"
     - "revive"
     - "rowserrcheck"
