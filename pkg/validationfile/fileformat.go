@@ -18,29 +18,32 @@ import (
 // NOTE: This struct does not contain the  `validation` block produced
 // by the playground, as it is currently unused in Go-side code.
 //
-// Parsing for those blocks' *contents* can be found in this module, since they are parsed
-// by the developer API.
+// Parsing for those blocks' *contents* can be found in this module, since they
+// are parsed by the developer API.
 type ValidationFile struct {
-	// Schema is the defined schema, in DSL format. Optional if at least one NamespaceConfig is specified.
+	// Schema is the defined schema, in DSL format. Optional if at least one
+	// NamespaceConfig is specified.
 	Schema string `yaml:"schema"`
 
-	// Relationships are the validation relationships, as a single string of newline separated tuple
-	// string syntax. Optional if ValidationTuples is specified.
+	// Relationships are the validation relationships, as a single string of
+	// newline separated tuple string syntax.
+	// Optional if ValidationTuples is specified.
 	Relationships string `yaml:"relationships"`
 
-	// NamespaceConfigs are the namespace configuration protos, in text format. Optional if Schema
-	// is specified.
+	// NamespaceConfigs are the namespace configuration protos, in text format.
+	// Optional if Schema is specified.
 	NamespaceConfigs []string `yaml:"namespace_configs"`
 
-	// ValidationTuples are the validation tuples, in tuple string syntax. Optional if Relationships
-	// are specified.
+	// ValidationTuples are the validation tuples, in tuple string syntax.
+	// Optional if Relationships are specified.
 	ValidationTuples []string `yaml:"validation_tuples"`
 
 	// Assertions are the (optional) assertions for the validation file.
 	Assertions SimpleAssertions `yaml:"assertions"`
 }
 
-// ErrorWithSource is an error that includes the source text and position information.
+// ErrorWithSource is an error that includes the source text and position
+// information.
 type ErrorWithSource struct {
 	error
 
@@ -50,7 +53,8 @@ type ErrorWithSource struct {
 	// LineNumber is the (1-indexed) line number of the error, or 0 if unknown.
 	LineNumber uint32
 
-	// ColumnPosition is the (1-indexed) column position of the error, or 0 if unknown.
+	// ColumnPosition is the (1-indexed) column position of the error, or 0 if
+	// unknown.
 	ColumnPosition uint32
 }
 
@@ -70,7 +74,8 @@ func ParseValidationBlock(contents []byte) (ValidationMap, error) {
 	return block, err
 }
 
-// ParseAssertionsBlock attempts to parse the given contents as a YAML assertions block.
+// ParseAssertionsBlock attempts to parse the given contents as a YAML
+// assertions block.
 func ParseAssertionsBlock(contents []byte) (Assertions, error) {
 	var node yamlv3.Node
 	err := yamlv3.Unmarshal(contents, &node)
@@ -119,8 +124,8 @@ func ParseAssertionsBlock(contents []byte) (Assertions, error) {
 	return parsed, nil
 }
 
-// ValidationMap is a map from an Object Relation (as a Relationship) to the validation strings containing
-// the Subjects for that Object Relation.
+// ValidationMap is a map from an Object Relation (as a Relationship) to the
+// validation strings containing the Subjects for that Object Relation.
 type ValidationMap map[ObjectRelationString][]ValidationString
 
 // AsYAML returns the ValidationMap in its YAML form.
@@ -129,11 +134,12 @@ func (vm ValidationMap) AsYAML() (string, error) {
 	return string(data), err
 }
 
-// ObjectRelationString represents an ONR defined as a string in the key for the ValidationMap.
+// ObjectRelationString represents an ONR defined as a string in the key for
+// the ValidationMap.
 type ObjectRelationString string
 
-// ONR returns the ObjectAndRelation parsed from this string, if valid, or an error on failure
-// to parse.
+// ONR returns the ObjectAndRelation parsed from this string, if valid, or an
+// error on failure to parse.
 func (ors ObjectRelationString) ONR() (*v0.ObjectAndRelation, *ErrorWithSource) {
 	parsed := tuple.ParseONR(string(ors))
 	if parsed == nil {
@@ -147,8 +153,8 @@ var (
 	vsObjectAndRelationRegex = regexp.MustCompile(`(.*?)<(?P<onr_str>[^\>]+)>(.*?)`)
 )
 
-// ValidationString holds a validation string containing a Subject and one or more Relations to
-// the parent Object.
+// ValidationString holds a validation string containing a Subject and one or
+// more Relations to the parent Object.
 // Example: `[tenant/user:someuser#...] is <tenant/document:example#viewer>`
 type ValidationString string
 
@@ -162,7 +168,8 @@ func (vs ValidationString) SubjectString() (string, bool) {
 	return result[2], true
 }
 
-// Subject returns the subject contained in the ValidationString, if any. If none, returns nil.
+// Subject returns the subject contained in the ValidationString, if any. If
+// none, returns nil.
 func (vs ValidationString) Subject() (*v0.ObjectAndRelation, *ErrorWithSource) {
 	subjectStr, ok := vs.SubjectString()
 	if !ok {
@@ -229,17 +236,21 @@ type Assertions struct {
 
 // ParsedAssertion contains information about a parsed assertion relationship.
 type ParsedAssertion struct {
-	// Relationship is the parsed relationship on which the assertion is being run.
+	// Relationship is the parsed relationship on which the assertion is being
+	// run.
 	Relationship *v0.RelationTuple
 
-	// LineNumber is the (1-indexed) line number of the assertion in the parent YAML.
+	// LineNumber is the (1-indexed) line number of the assertion in the parent
+	// YAML.
 	LineNumber uint32
 
-	// ColumnPosition is the (1-indexed) column position of the assertion in the parent YAML.
+	// ColumnPosition is the (1-indexed) column position of the assertion in the
+	// parent YAML.
 	ColumnPosition uint32
 }
 
-// AssertTrueRelationships returns the relationships for which to assert existance.
+// AssertTrueRelationships returns the relationships for which to assert
+// existence.
 func (a Assertions) AssertTrueRelationships() ([]ParsedAssertion, *ErrorWithSource) {
 	var relationships []ParsedAssertion
 	for _, assertion := range a.AssertTrue {
@@ -262,7 +273,8 @@ func (a Assertions) AssertTrueRelationships() ([]ParsedAssertion, *ErrorWithSour
 	return relationships, nil
 }
 
-// AssertFalseRelationships returns the relationships for which to assert non-existance.
+// AssertFalseRelationships returns the relationships for which to assert
+// non-existence.
 func (a Assertions) AssertFalseRelationships() ([]ParsedAssertion, *ErrorWithSource) {
 	var relationships []ParsedAssertion
 	for _, assertion := range a.AssertFalse {

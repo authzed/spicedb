@@ -322,7 +322,9 @@ func (p *sourceParser) tryConsumeBaseExpression() (AstNode, bool) {
 	return nil, false
 }
 
-// tryConsumeIdentifierLiteral attempts to consume an identifer as a literal expression.
+// tryConsumeIdentifierLiteral attempts to consume an identifier as a literal
+// expression.
+//
 /// ```foo```
 func (p *sourceParser) tryConsumeIdentifierLiteral() (AstNode, bool) {
 	if !p.isToken(lexer.TokenTypeIdentifier) {

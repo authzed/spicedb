@@ -41,7 +41,7 @@ const rootTemplate = `
 	<body>
 		{{if .IsReady }}
 		{{if .IsEmpty}}
-			<h1>Definining the permissions schema</h1>
+			<h1>Defining the permissions schema</h1>
 			<p>
 				To begin making API requests to SpiceDB, you'll first need to load in a <a href="https://docs.authzed.com/reference/schema-lang" target="_blank" rel="noopener">Schema</a>
 				that defines the permissions system.

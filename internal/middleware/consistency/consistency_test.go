@@ -167,6 +167,6 @@ func (s *ConsistencyTestSuite) TestValidPasses_ServerStream() {
 		if errors.Is(err, io.EOF) {
 			break
 		}
-		assert.NoError(s.T(), err, "no error on messages sent occured")
+		assert.NoError(s.T(), err, "no error on messages sent occurred")
 	}
 }
