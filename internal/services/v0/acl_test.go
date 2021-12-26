@@ -25,7 +25,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/testfixtures"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	g "github.com/authzed/spicedb/pkg/graph"
 	ns "github.com/authzed/spicedb/pkg/namespace"
@@ -876,7 +875,7 @@ func newACLServicer(
 
 	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
 	lis := bufconn.Listen(1024 * 1024)
-	s := testfixtures.NewTestServer()
+	s := tf.NewTestServer()
 	v0.RegisterACLServiceServer(s, NewACLServer(ds, ns, dispatch, 50))
 	go func() {
 		if err := s.Serve(lis); err != nil {

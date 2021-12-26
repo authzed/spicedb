@@ -73,7 +73,7 @@ func inclusiveComparator(a, b interface{}) int {
 func (spm SourcePositionMapper) RunePositionToLineAndCol(runePosition int) (int, int, error) {
 	ls, found := spm.rangeTree.Get(inclusiveRange{runePosition, runePosition})
 	if !found {
-		return 0, 0, fmt.Errorf("Unknown rune position %v in source file", runePosition)
+		return 0, 0, fmt.Errorf("unknown rune position %v in source file", runePosition)
 	}
 
 	las := ls.(lineAndStart)
@@ -84,11 +84,11 @@ func (spm SourcePositionMapper) RunePositionToLineAndCol(runePosition int) (int,
 func (spm SourcePositionMapper) LineAndColToRunePosition(lineNumber int, colPosition int) (int, error) {
 	lineRuneInfo, hasLine := spm.lineMap[lineNumber]
 	if !hasLine {
-		return 0, fmt.Errorf("Unknown line %v in source file", lineNumber)
+		return 0, fmt.Errorf("unknown line %v in source file", lineNumber)
 	}
 
 	if colPosition > lineRuneInfo.end-lineRuneInfo.start {
-		return 0, fmt.Errorf("Column position %v not found on line %v in source file", colPosition, lineNumber)
+		return 0, fmt.Errorf("column position %v not found on line %v in source file", colPosition, lineNumber)
 	}
 
 	return lineRuneInfo.start + colPosition, nil

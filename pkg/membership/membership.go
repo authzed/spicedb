@@ -115,7 +115,7 @@ func populateFoundSubjects(foundSubjectsMap map[string]FoundSubject, rootONR *v0
 
 		case v0.SetOperationUserset_INTERSECTION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
-				return fmt.Errorf("Found intersection with no children")
+				return fmt.Errorf("found intersection with no children")
 			}
 
 			fsm := map[string]FoundSubject{}
@@ -139,7 +139,7 @@ func populateFoundSubjects(foundSubjectsMap map[string]FoundSubject, rootONR *v0
 
 		case v0.SetOperationUserset_EXCLUSION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
-				return fmt.Errorf("Found exclusion with no children")
+				return fmt.Errorf("found exclusion with no children")
 			}
 
 			fsm := map[string]FoundSubject{}

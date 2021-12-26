@@ -48,7 +48,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 
 		parsed, err := ParseValidationFile(fileContents)
 		if err != nil {
-			return nil, decimal.Zero, fmt.Errorf("Error when parsing config file %s: %w", filePath, err)
+			return nil, decimal.Zero, fmt.Errorf("error when parsing config file %s: %w", filePath, err)
 		}
 
 		files = append(files, parsed)
@@ -60,7 +60,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 				SchemaString: parsed.Schema,
 			}}, nil)
 			if err != nil {
-				return nil, decimal.Zero, fmt.Errorf("Error when parsing schema in config file %s: %w", filePath, err)
+				return nil, decimal.Zero, fmt.Errorf("error when parsing schema in config file %s: %w", filePath, err)
 			}
 
 			log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
@@ -69,7 +69,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 				log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
 				_, lnerr := ds.WriteNamespace(context.Background(), nsDef)
 				if lnerr != nil {
-					return nil, decimal.Zero, fmt.Errorf("Error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
+					return nil, decimal.Zero, fmt.Errorf("error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
 				}
 			}
 		}
@@ -80,14 +80,14 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 			nsDef := v0.NamespaceDefinition{}
 			nerr := prototext.Unmarshal([]byte(namespaceConfig), &nsDef)
 			if nerr != nil {
-				return nil, decimal.Zero, fmt.Errorf("Error when parsing namespace config #%v from file %s: %w", index, filePath, nerr)
+				return nil, decimal.Zero, fmt.Errorf("error when parsing namespace config #%v from file %s: %w", index, filePath, nerr)
 			}
 			nsDefs = append(nsDefs, &nsDef)
 
 			log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
 			_, lnerr := ds.WriteNamespace(context.Background(), &nsDef)
 			if lnerr != nil {
-				return nil, decimal.Zero, fmt.Errorf("Error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
+				return nil, decimal.Zero, fmt.Errorf("error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
 			}
 		}
 
@@ -106,7 +106,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 
 				tpl := tuple.Parse(trimmed)
 				if tpl == nil {
-					return nil, decimal.Zero, fmt.Errorf("Error parsing relationship #%v: %s", index, trimmed)
+					return nil, decimal.Zero, fmt.Errorf("error parsing relationship #%v: %s", index, trimmed)
 				}
 
 				_, ok := seenTuples[tuple.String(tpl)]
@@ -127,7 +127,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 		for index, validationTuple := range parsed.ValidationTuples {
 			tpl := tuple.Parse(validationTuple)
 			if tpl == nil {
-				return nil, decimal.Zero, fmt.Errorf("Error parsing validation tuple #%v: %s", index, validationTuple)
+				return nil, decimal.Zero, fmt.Errorf("error parsing validation tuple #%v: %s", index, validationTuple)
 			}
 
 			_, ok := seenTuples[tuple.String(tpl)]
@@ -145,7 +145,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 
 		wrevision, terr := ds.WriteTuples(context.Background(), nil, updates)
 		if terr != nil {
-			return nil, decimal.Zero, fmt.Errorf("Error when loading validation tuples from file %s: %w", filePath, terr)
+			return nil, decimal.Zero, fmt.Errorf("error when loading validation tuples from file %s: %w", filePath, terr)
 		}
 
 		revision = wrevision

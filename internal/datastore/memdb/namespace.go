@@ -46,7 +46,7 @@ func (mds *memdbDatastore) WriteNamespace(
 
 	if foundRaw != nil {
 		// Mark the old one as deleted
-		var toDelete namespace = *(foundRaw.(*namespace))
+		toDelete := *(foundRaw.(*namespace))
 		toDelete.deletedTxn = newVersion
 		if err := txn.Insert(tableNamespace, &toDelete); err != nil {
 			return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
@@ -144,7 +144,7 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	// Mark the namespace as deleted
 	time.Sleep(mds.simulatedLatency)
 
-	var markedDeleted namespace = *found
+	markedDeleted := *found
 	markedDeleted.deletedTxn = newChangelogID
 	err = txn.Insert(tableNamespace, &markedDeleted)
 	if err != nil {

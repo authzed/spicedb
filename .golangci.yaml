@@ -38,6 +38,7 @@ linters:
     - "rowserrcheck"
     - "staticcheck"
     - "structcheck"
+    - "stylecheck"
     - "typecheck"
     - "unused"
     - "varcheck"
