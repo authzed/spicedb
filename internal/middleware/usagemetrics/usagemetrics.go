@@ -20,7 +20,7 @@ var dispatchBuckets = []float64{1, 5, 10, 25, 50, 100, 250}
 var dispatchedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "services",
-	Name:      "dispatched_count_histogram",
+	Name:      "dispatched_count",
 	Help:      "dispatch count per api call distribution in seconds.",
 	Buckets:   dispatchBuckets,
 }, []string{"method"})
@@ -28,7 +28,7 @@ var dispatchedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts
 var cachedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "services",
-	Name:      "cached_count_histogram",
+	Name:      "cached_count",
 	Help:      "dispatches avoid by caching per api call in seconds.",
 	Buckets:   dispatchBuckets,
 }, []string{"method"})
@@ -36,14 +36,14 @@ var cachedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 var dispatchedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
 	Subsystem: "services",
-	Name:      "dispatched_counter",
+	Name:      "dispatched_total",
 	Help:      "dispatch counts.",
 }, []string{"method"})
 
 var cachedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
 	Subsystem: "services",
-	Name:      "cached_counter",
+	Name:      "cached_total",
 	Help:      "dispatches avoid by caching.",
 }, []string{"method"})
 

@@ -32,6 +32,8 @@ linters:
     - "ineffassign"
     - "makezero"
     - "prealloc"
+    - "predeclared"
+    - "promlinter"
     - "revive"
     - "rowserrcheck"
     - "staticcheck"
