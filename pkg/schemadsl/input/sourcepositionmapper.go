@@ -31,9 +31,9 @@ func CreateSourcePositionMapper(contents []byte) SourcePositionMapper {
 
 	currentStart := int(0)
 	for index, line := range lines {
-		lineEnd := currentStart + int(len(line))
-		rangeTree.Put(inclusiveRange{currentStart, lineEnd}, lineAndStart{int(index), currentStart})
-		lineMap[int(index)] = inclusiveRange{currentStart, lineEnd}
+		lineEnd := currentStart + len(line)
+		rangeTree.Put(inclusiveRange{currentStart, lineEnd}, lineAndStart{index, currentStart})
+		lineMap[index] = inclusiveRange{currentStart, lineEnd}
 		currentStart = lineEnd + 1
 	}
 

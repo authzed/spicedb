@@ -41,6 +41,7 @@ linters:
     - "stylecheck"
     - "tenv"
     - "typecheck"
+    - "unconvert"
     - "unused"
     - "varcheck"
 issues:

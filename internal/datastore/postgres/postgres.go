@@ -260,7 +260,7 @@ func (pgd *pgDatastore) getNow(ctx context.Context) (time.Time, error) {
 func (pgd *pgDatastore) collectGarbage() error {
 	startTime := time.Now()
 	defer func() {
-		gcDurationHistogram.Observe(float64(time.Since(startTime).Seconds()))
+		gcDurationHistogram.Observe(time.Since(startTime).Seconds())
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), pgd.gcMaxOperationTime)
