@@ -117,7 +117,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		return nil, rewriteError(ctx, err)
 	}
 
-	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
 
 	for _, nsdef := range nsdefs {
 		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsdef, nsm, nsdefs, headRevision)
@@ -133,7 +133,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			return nil, rewriteError(ctx, err)
 		}
 	}
-	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("validated namespace definitions")
 
 	// If a precondition was given, decode it, and verify that none of the namespaces specified
 	// have changed in any way.
@@ -163,7 +163,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			}
 		}
 
-		log.Trace().Interface("namespace definitions", nsdefs).Msg("checked schema revision")
+		log.Trace().Interface("namespaceDefinitions", nsdefs).Msg("checked schema revision")
 	}
 
 	names := make([]string, 0, len(nsdefs))
@@ -183,7 +183,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		return nil, rewriteError(ctx, err)
 	}
 
-	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Str("computed revision", computedRevision).Msg("wrote namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Str("computedRevision", computedRevision).Msg("wrote namespace definitions")
 
 	return &v1alpha1.WriteSchemaResponse{
 		ObjectDefinitionsNames:      names,

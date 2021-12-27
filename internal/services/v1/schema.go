@@ -95,7 +95,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	if err != nil {
 		return nil, rewriteSchemaError(ctx, err)
 	}
-	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
 
 	// For each definition, perform a diff and ensure the changes will not result in any
 	// relationships left without associated schema.
@@ -115,7 +115,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 		existingDefMap[nsdef.Name] = false
 	}
-	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("validated namespace definitions")
 
 	// Ensure that deleting namespaces will not result in any relationships left without associated
 	// schema.
@@ -152,7 +152,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		removedNames = append(removedNames, nsdefName)
 	}
 
-	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Strs("added/changed", names).Strs("removed", removedNames).Msg("wrote namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Strs("addedOrChanged", names).Strs("removed", removedNames).Msg("wrote namespace definitions")
 
 	return &v1.WriteSchemaResponse{}, nil
 }

@@ -143,7 +143,7 @@ func shareStoreFromCmd(cmd *cobra.Command) (v0svc.ShareStore, error) {
 			return nil, fmt.Errorf("failed to create S3 share store: %w", err)
 		}
 
-		event = event.Str("endpoint", endpoint).Str("region", region).Str("bucket-name", bucketName).Str("access-key", accessKey)
+		event = event.Str("endpoint", endpoint).Str("region", region).Str("bucketName", bucketName).Str("accessKey", accessKey)
 
 	default:
 		return nil, errors.New("unknown share store")

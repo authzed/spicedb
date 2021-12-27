@@ -183,7 +183,7 @@ func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req Valida
 
 func (ce *ConcurrentExpander) dispatch(req ValidatedExpandRequest) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		log.Ctx(ctx).Trace().Object("dispatch expand", req).Send()
+		log.Ctx(ctx).Trace().Object("dispatchExpand", req).Send()
 		result, err := ce.d.DispatchExpand(ctx, req.DispatchExpandRequest)
 		resultChan <- ExpandResult{result, err}
 	}

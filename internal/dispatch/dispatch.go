@@ -55,7 +55,7 @@ type HasMetadata interface {
 func CheckDepth(ctx context.Context, req HasMetadata) error {
 	metadata := req.GetMetadata()
 	if metadata == nil {
-		log.Ctx(ctx).Warn().Object("req", req).Msg("request missing metadata")
+		log.Ctx(ctx).Warn().Object("request", req).Msg("request missing metadata")
 		return fmt.Errorf("request missing metadata")
 	}
 

@@ -190,7 +190,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupResultEntry)
 		if req.Metadata.DepthRemaining >= cachedResult.response.Metadata.DepthRequired {
-			log.Trace().Object("using cached lookup", req).Int("result count", len(cachedResult.response.ResolvedOnrs)).Send()
+			log.Trace().Object("cachedLookup", req).Int("resultCount", len(cachedResult.response.ResolvedOnrs)).Send()
 			cd.lookupFromCacheCounter.Inc()
 			return cachedResult.response, nil
 		}
@@ -200,7 +200,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 
 	// We only want to cache the result if there was no error and nothing was excluded.
 	if err == nil && len(computed.Metadata.LookupExcludedDirect) == 0 && len(computed.Metadata.LookupExcludedTtu) == 0 {
-		log.Trace().Object("caching lookup", req).Int("result count", len(computed.ResolvedOnrs)).Send()
+		log.Trace().Object("cachingLookup", req).Int("resultCount", len(computed.ResolvedOnrs)).Send()
 
 		adjustedComputed := proto.Clone(computed).(*v1.DispatchLookupResponse)
 		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
