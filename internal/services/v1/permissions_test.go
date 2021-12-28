@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -416,7 +417,7 @@ func TestLookupResources(t *testing.T) {
 						var resolvedObjectIds []string
 						for {
 							resp, err := lookupClient.Recv()
-							if err == io.EOF {
+							if errors.Is(err, io.EOF) {
 								break
 							}
 

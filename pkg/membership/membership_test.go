@@ -79,16 +79,15 @@ func TestMembershipSetIntersection(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection :=
-		graph.Intersection(ONR("folder", "company", "viewer"),
-			graph.Leaf(_this,
-				tuple.User(ONR("user", "legal", "...")),
-			),
-			graph.Leaf(_this,
-				tuple.User(ONR("user", "owner", "...")),
-				tuple.User(ONR("user", "legal", "...")),
-			),
-		)
+	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "legal", "...")),
+		),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "owner", "...")),
+			tuple.User(ONR("user", "legal", "...")),
+		),
+	)
 
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
 	require.True(ok)
@@ -100,16 +99,15 @@ func TestMembershipSetExclusion(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection :=
-		graph.Exclusion(ONR("folder", "company", "viewer"),
-			graph.Leaf(_this,
-				tuple.User(ONR("user", "owner", "...")),
-				tuple.User(ONR("user", "legal", "...")),
-			),
-			graph.Leaf(_this,
-				tuple.User(ONR("user", "legal", "...")),
-			),
-		)
+	intersection := graph.Exclusion(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "owner", "...")),
+			tuple.User(ONR("user", "legal", "...")),
+		),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "legal", "...")),
+		),
+	)
 
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
 	require.True(ok)

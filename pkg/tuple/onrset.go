@@ -37,8 +37,7 @@ func (ons *ONRSet) Has(onr *v0.ObjectAndRelation) bool {
 // Add adds the given ONR to the set. Returns true if the object was not in the set before this
 // call and false otherwise.
 func (ons *ONRSet) Add(onr *v0.ObjectAndRelation) bool {
-	_, ok := ons.onrs[StringONR(onr)]
-	if ok {
+	if _, ok := ons.onrs[StringONR(onr)]; ok {
 		return false
 	}
 

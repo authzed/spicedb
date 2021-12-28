@@ -279,7 +279,7 @@ func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions
 		}
 
 		if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
-			if err == pgx.ErrNoRows {
+			if errors.Is(err, pgx.ErrNoRows) {
 				// CRDB doesn't return the cluster_logical_timestamp if no rows were deleted
 				// so we have to read it manually in the same transaction.
 				nowRevision, err = readCRDBNow(ctx, tx)

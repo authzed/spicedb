@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sort"
 
@@ -203,7 +204,7 @@ func (v1st v1ServiceTester) Read(ctx context.Context, namespaceName string, atRe
 	var tuples []*v0.RelationTuple
 	for {
 		resp, err := readResp.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
@@ -256,7 +257,7 @@ func (v1st v1ServiceTester) Lookup(ctx context.Context, resourceRelation *v0.Rel
 	var objectIds []string
 	for {
 		resp, err := lookupResp.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 

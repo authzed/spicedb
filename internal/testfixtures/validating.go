@@ -38,8 +38,7 @@ func (vd validatingDatastore) DeleteRelationships(ctx context.Context, precondit
 		}
 	}
 
-	err := filter.Validate()
-	if err != nil {
+	if err := filter.Validate(); err != nil {
 		return datastore.NoRevision, err
 	}
 
@@ -82,8 +81,7 @@ func (vd validatingDatastore) Watch(ctx context.Context, afterRevision datastore
 }
 
 func (vd validatingDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
-	err := newConfig.Validate()
-	if err != nil {
+	if err := newConfig.Validate(); err != nil {
 		return datastore.NoRevision, err
 	}
 	return vd.delegate.WriteNamespace(ctx, newConfig)

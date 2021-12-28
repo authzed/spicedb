@@ -23,7 +23,6 @@ func validateTupleWrite(
 	nsm namespace.Manager,
 	revision decimal.Decimal,
 ) error {
-
 	err := tuple.ValidateResourceID(tpl.ObjectAndRelation.ObjectId)
 	if err != nil {
 		return err

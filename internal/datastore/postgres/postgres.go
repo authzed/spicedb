@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	dbsql "database/sql"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -259,7 +260,7 @@ func (pgd *pgDatastore) getNow(ctx context.Context) (time.Time, error) {
 func (pgd *pgDatastore) collectGarbage() error {
 	startTime := time.Now()
 	defer func() {
-		gcDurationHistogram.Observe(float64(time.Since(startTime).Seconds()))
+		gcDurationHistogram.Observe(time.Since(startTime).Seconds())
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), pgd.gcMaxOperationTime)
@@ -313,7 +314,7 @@ func (pgd *pgDatastore) collectGarbageBefore(ctx context.Context, before time.Ti
 		return 0, 0, err
 	}
 
-	log.Ctx(ctx).Trace().Uint64("highest_transaction_id", highest).Msg("retrieved transaction ID for GC")
+	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Msg("retrieved transaction ID for GC")
 
 	return pgd.collectGarbageForTransaction(ctx, highest)
 }
@@ -325,7 +326,7 @@ func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highes
 		return 0, 0, err
 	}
 
-	log.Ctx(ctx).Trace().Uint64("highest_transaction_id", highest).Int64("relationships_deleted", relCount).Msg("deleted stale relationships")
+	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
 	gcRelationshipsClearedGauge.Set(float64(relCount))
 
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
@@ -335,7 +336,7 @@ func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highes
 		return relCount, 0, err
 	}
 
-	log.Ctx(ctx).Trace().Uint64("highest_transaction_id", highest).Int64("transactions_deleted", transactionCount).Msg("deleted stale transactions")
+	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("transactionsDeleted", transactionCount).Msg("deleted stale transactions")
 	gcTransactionsClearedGauge.Set(float64(transactionCount))
 	return relCount, transactionCount, nil
 }
@@ -405,11 +406,11 @@ func (pgd *pgDatastore) OptimizedRevision(ctx context.Context) (datastore.Revisi
 	defer span.End()
 
 	lower, upper, err := pgd.computeRevisionRange(ctx, -1*pgd.revisionFuzzingTimedelta)
-	if err != nil && err != pgx.ErrNoRows {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		revision, err := pgd.loadRevision(ctx)
 		if err != nil {
 			return datastore.NoRevision, err
@@ -442,7 +443,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 		return nil
 	}
 
-	if err != pgx.ErrNoRows {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
@@ -456,7 +457,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 	err = pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
 	).Scan(&highest)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 	if err != nil {
@@ -484,7 +485,7 @@ func (pgd *pgDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	var revision uint64
 	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), sql, args...).Scan(&revision)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, nil
 		}
 		return 0, fmt.Errorf(errRevision, err)

@@ -16,63 +16,63 @@ type sourceGenerator struct {
 
 // ensureBlankLineOrNewScope ensures that there is a blank line or new scope at the tail of the buffer. If not,
 // a new line is added.
-func (sf *sourceGenerator) ensureBlankLineOrNewScope() {
-	if !sf.hasBlankline && !sf.hasNewScope {
-		sf.appendLine()
+func (sg *sourceGenerator) ensureBlankLineOrNewScope() {
+	if !sg.hasBlankline && !sg.hasNewScope {
+		sg.appendLine()
 	}
 }
 
 // indent increases the current indentation.
-func (sf *sourceGenerator) indent() {
-	sf.indentationLevel = sf.indentationLevel + 1
+func (sg *sourceGenerator) indent() {
+	sg.indentationLevel = sg.indentationLevel + 1
 }
 
 // dedent decreases the current indentation.
-func (sf *sourceGenerator) dedent() {
-	sf.indentationLevel = sf.indentationLevel - 1
+func (sg *sourceGenerator) dedent() {
+	sg.indentationLevel = sg.indentationLevel - 1
 }
 
 // appendIssue adds an issue found in generation.
-func (sf *sourceGenerator) appendIssue(description string) {
-	sf.append("/* ")
-	sf.append(description)
-	sf.append(" */")
-	sf.hasIssue = true
+func (sg *sourceGenerator) appendIssue(description string) {
+	sg.append("/* ")
+	sg.append(description)
+	sg.append(" */")
+	sg.hasIssue = true
 }
 
 // append adds the given value to the buffer, indenting as necessary.
-func (sf *sourceGenerator) append(value string) {
+func (sg *sourceGenerator) append(value string) {
 	for _, currentRune := range value {
 		if currentRune == '\n' {
-			if sf.hasNewline {
-				sf.hasBlankline = true
+			if sg.hasNewline {
+				sg.hasBlankline = true
 			}
 
-			sf.buf.WriteRune('\n')
-			sf.hasNewline = true
-			sf.existingLineLength = 0
+			sg.buf.WriteRune('\n')
+			sg.hasNewline = true
+			sg.existingLineLength = 0
 			continue
 		}
 
-		sf.hasBlankline = false
-		sf.hasNewScope = false
+		sg.hasBlankline = false
+		sg.hasNewScope = false
 
-		if sf.hasNewline {
-			sf.buf.WriteString(strings.Repeat("\t", sf.indentationLevel))
-			sf.hasNewline = false
-			sf.existingLineLength += sf.indentationLevel
+		if sg.hasNewline {
+			sg.buf.WriteString(strings.Repeat("\t", sg.indentationLevel))
+			sg.hasNewline = false
+			sg.existingLineLength += sg.indentationLevel
 		}
 
-		sf.existingLineLength++
-		sf.buf.WriteRune(currentRune)
+		sg.existingLineLength++
+		sg.buf.WriteRune(currentRune)
 	}
 }
 
 // appendLine adds a newline.
-func (sf *sourceGenerator) appendLine() {
-	sf.append("\n")
+func (sg *sourceGenerator) appendLine() {
+	sg.append("\n")
 }
 
-func (sf *sourceGenerator) markNewScope() {
-	sf.hasNewScope = true
+func (sg *sourceGenerator) markNewScope() {
+	sg.hasNewScope = true
 }

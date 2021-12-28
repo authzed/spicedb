@@ -10,55 +10,48 @@ linters-settings:
     packages:
       - "github.com/jmoiron/sqlx"
       - "github.com/jackc/pgx"
+  gosec:
+    excludes:
+      - "G404" # Allow the usage of math/rand
 linters:
   enable:
+    - "bidichk"
+    - "bodyclose"
     - "deadcode"
     - "errcheck"
+    - "errname"
+    - "errorlint"
     - "gofumpt"
     - "goimports"
+    - "goprintffuncname"
+    - "gosec"
     - "gosimple"
     - "govet"
+    - "ifshort"
+    - "importas"
     - "ineffassign"
+    - "makezero"
+    - "prealloc"
+    - "predeclared"
+    - "promlinter"
     - "revive"
     - "rowserrcheck"
     - "staticcheck"
     - "structcheck"
+    - "stylecheck"
+    - "tenv"
     - "typecheck"
+    - "unconvert"
     - "unused"
     - "varcheck"
+    - "wastedassign"
+    - "whitespace"
 issues:
   exclude-rules:
-    - path: "internal/dispatch"
-      linters:
-        - "revive"
-    - path: "internal/graph"
-      linters:
-        - "revive"
     - path: "internal/namespace"
       linters:
         - "revive"
-    - path: "internal/testfixtures"
-      linters:
-        - "revive"
-    - path: "pkg/consistent"
-      linters:
-        - "revive"
-    - path: "pkg/graph"
-      linters:
-        - "revive"
-    - path: "pkg/membership"
-      linters:
-        - "revive"
-    - path: "pkg/migrate"
-      linters:
-        - "revive"
     - path: "pkg/namespace"
-      linters:
-        - "revive"
-    - path: "pkg/schemadsl"
-      linters:
-        - "revive"
-    - path: "pkg/validation"
       linters:
         - "revive"
     - text: "tx.Rollback()"

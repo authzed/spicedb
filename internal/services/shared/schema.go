@@ -147,8 +147,7 @@ func ErrorIfTupleIteratorReturnsTuples(ctx context.Context, qy datastore.TupleIt
 	}
 	defer qy.Close()
 
-	rt := qy.Next()
-	if rt != nil {
+	if rt := qy.Next(); rt != nil {
 		if qy.Err() != nil {
 			return qy.Err()
 		}

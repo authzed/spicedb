@@ -485,7 +485,7 @@ func TestCompile(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 			defs, err := Compile([]InputSchema{
-				{input.InputSource(test.name), test.input},
+				{input.Source(test.name), test.input},
 			}, test.implicitTenant)
 
 			if test.expectedError != "" {

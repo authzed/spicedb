@@ -14,7 +14,7 @@ import (
 // InputSchema defines the input for a Compile.
 type InputSchema struct {
 	// Source is the source of the schema being compiled.
-	Source input.InputSource
+	Source input.Source
 
 	// Schema is the contents being compiled.
 	SchemaString string
@@ -24,7 +24,7 @@ type InputSchema struct {
 type ErrorWithContext struct {
 	error
 	SourceRange input.SourceRange
-	Source      input.InputSource
+	Source      input.Source
 }
 
 type errorWithNode struct {
@@ -96,7 +96,7 @@ func toContextError(errMessage string, node *dslNode, mapper input.PositionMappe
 	return ErrorWithContext{
 		error:       fmt.Errorf("parse error in %s: %s", formattedRange, errMessage),
 		SourceRange: sourceRange,
-		Source:      input.InputSource(source),
+		Source:      input.Source(source),
 	}
 }
 

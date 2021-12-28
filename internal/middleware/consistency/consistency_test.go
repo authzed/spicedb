@@ -2,6 +2,7 @@ package consistency
 
 import (
 	"context"
+	"errors"
 	"io"
 	"testing"
 
@@ -163,9 +164,9 @@ func (s *ConsistencyTestSuite) TestValidPasses_ServerStream() {
 	require.NoError(err)
 	for {
 		_, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
-		assert.NoError(s.T(), err, "no error on messages sent occured")
+		assert.NoError(s.T(), err, "no error on messages sent occurred")
 	}
 }

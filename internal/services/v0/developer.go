@@ -152,7 +152,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 	defer devContext.dispose()
 
 	// Run the checks and store their output.
-	var results []*v0.EditCheckResult
+	results := make([]*v0.EditCheckResult, 0, len(req.CheckRelationships))
 	for _, checkTpl := range req.CheckRelationships {
 		cr, err := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ObjectAndRelation: checkTpl.ObjectAndRelation,
@@ -313,11 +313,11 @@ func runAssertions(ctx context.Context, devContext *DevContext, assertions []val
 	return failures, nil
 }
 
-func generateValidation(membershipSet *membership.MembershipSet) (string, error) {
+func generateValidation(membershipSet *membership.Set) (string, error) {
 	validationMap := validationfile.ValidationMap{}
 	subjectsByONR := membershipSet.SubjectsByONR()
 
-	var onrStrings []string
+	onrStrings := make([]string, 0, len(subjectsByONR))
 	for onrString := range subjectsByONR {
 		onrStrings = append(onrStrings, onrString)
 	}
@@ -350,7 +350,7 @@ func generateValidation(membershipSet *membership.MembershipSet) (string, error)
 	return validationMap.AsYAML()
 }
 
-func runValidation(ctx context.Context, devContext *DevContext, validation validationfile.ValidationMap) (*membership.MembershipSet, []*v0.DeveloperError, error) {
+func runValidation(ctx context.Context, devContext *DevContext, validation validationfile.ValidationMap) (*membership.Set, []*v0.DeveloperError, error) {
 	var failures []*v0.DeveloperError
 	membershipSet := membership.NewMembershipSet()
 
@@ -409,7 +409,7 @@ func runValidation(ctx context.Context, devContext *DevContext, validation valid
 }
 
 func wrapRelationships(onrStrings []string) []string {
-	var wrapped []string
+	wrapped := make([]string, 0, len(onrStrings))
 	for _, str := range onrStrings {
 		wrapped = append(wrapped, fmt.Sprintf("<%s>", str))
 	}

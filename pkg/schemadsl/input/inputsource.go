@@ -16,31 +16,31 @@ type Position struct {
 	ColumnPosition int
 }
 
-// InputSource represents the path of a source file.
-type InputSource string
+// Source represents the path of a source file.
+type Source string
 
 // RangeForRunePosition returns a source range over this source file.
-func (is InputSource) RangeForRunePosition(runePosition int, mapper PositionMapper) SourceRange {
+func (is Source) RangeForRunePosition(runePosition int, mapper PositionMapper) SourceRange {
 	return is.RangeForRunePositions(runePosition, runePosition, mapper)
 }
 
 // PositionForRunePosition returns a source position over this source file.
-func (is InputSource) PositionForRunePosition(runePosition int, mapper PositionMapper) SourcePosition {
+func (is Source) PositionForRunePosition(runePosition int, mapper PositionMapper) SourcePosition {
 	return runeIndexedPosition{is, mapper, runePosition}
 }
 
 // PositionFromLineAndColumn returns a source position at the given line and column in this source file.
-func (is InputSource) PositionFromLineAndColumn(lineNumber int, columnPosition int, mapper PositionMapper) SourcePosition {
+func (is Source) PositionFromLineAndColumn(lineNumber int, columnPosition int, mapper PositionMapper) SourcePosition {
 	return lcIndexedPosition{is, mapper, Position{lineNumber, columnPosition}}
 }
 
 // RangeForRunePositions returns a source range over this source file.
-func (is InputSource) RangeForRunePositions(startRune int, endRune int, mapper PositionMapper) SourceRange {
+func (is Source) RangeForRunePositions(startRune int, endRune int, mapper PositionMapper) SourceRange {
 	return sourceRange{is, runeIndexedPosition{is, mapper, startRune}, runeIndexedPosition{is, mapper, endRune}}
 }
 
 // RangeForLineAndColPositions returns a source range over this source file.
-func (is InputSource) RangeForLineAndColPositions(start Position, end Position, mapper PositionMapper) SourceRange {
+func (is Source) RangeForLineAndColPositions(start Position, end Position, mapper PositionMapper) SourceRange {
 	return sourceRange{is, lcIndexedPosition{is, mapper, start}, lcIndexedPosition{is, mapper, end}}
 }
 
@@ -49,20 +49,20 @@ func (is InputSource) RangeForLineAndColPositions(start Position, end Position, 
 type PositionMapper interface {
 	// RunePositionToLineAndCol converts the given 0-indexed rune position under the given source file
 	// into a 0-indexed line number and column position.
-	RunePositionToLineAndCol(runePosition int, path InputSource) (int, int, error)
+	RunePositionToLineAndCol(runePosition int, path Source) (int, int, error)
 
 	// LineAndColToRunePosition converts the given 0-indexed line number and column position under the
 	// given source file into a 0-indexed rune position.
-	LineAndColToRunePosition(lineNumber int, colPosition int, path InputSource) (int, error)
+	LineAndColToRunePosition(lineNumber int, colPosition int, path Source) (int, error)
 
 	// TextForLine returns the text for the specified line number.
-	TextForLine(lineNumber int, path InputSource) (string, error)
+	TextForLine(lineNumber int, path Source) (string, error)
 }
 
 // SourceRange represents a range inside a source file.
 type SourceRange interface {
 	// Source is the input source for this range.
-	Source() InputSource
+	Source() Source
 
 	// Start is the starting position of the source range.
 	Start() SourcePosition
@@ -84,7 +84,7 @@ type SourceRange interface {
 // SourcePosition represents a single position in a source file.
 type SourcePosition interface {
 	// Source is the input source for this position.
-	Source() InputSource
+	Source() Source
 
 	// RunePosition returns the 0-indexed rune position in the source file.
 	RunePosition() (int, error)
@@ -101,12 +101,12 @@ type SourcePosition interface {
 
 // sourceRange implements the SourceRange interface.
 type sourceRange struct {
-	source InputSource
+	source Source
 	start  SourcePosition
 	end    SourcePosition
 }
 
-func (sr sourceRange) Source() InputSource {
+func (sr sourceRange) Source() Source {
 	return sr.source
 }
 
@@ -151,12 +151,12 @@ func (sr sourceRange) String() string {
 
 // runeIndexedPosition implements the SourcePosition interface over a rune position.
 type runeIndexedPosition struct {
-	source       InputSource
+	source       Source
 	mapper       PositionMapper
 	runePosition int
 }
 
-func (ris runeIndexedPosition) Source() InputSource {
+func (ris runeIndexedPosition) Source() Source {
 	return ris.source
 }
 
@@ -189,12 +189,12 @@ func (ris runeIndexedPosition) LineText() (string, error) {
 
 // lcIndexedPosition implements the SourcePosition interface over a line and colu,n position.
 type lcIndexedPosition struct {
-	source     InputSource
+	source     Source
 	mapper     PositionMapper
 	lcPosition Position
 }
 
-func (lcip lcIndexedPosition) Source() InputSource {
+func (lcip lcIndexedPosition) Source() Source {
 	return lcip.source
 }
 

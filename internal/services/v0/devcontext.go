@@ -139,7 +139,7 @@ func compile(schema string) ([]*v0.NamespaceDefinition, *v0.DeveloperError, erro
 	empty := ""
 	namespaces, err := compiler.Compile([]compiler.InputSchema{
 		{
-			Source:       input.InputSource("schema"),
+			Source:       input.Source("schema"),
 			SchemaString: schema,
 		},
 	}, &empty)
@@ -168,8 +168,8 @@ func compile(schema string) ([]*v0.NamespaceDefinition, *v0.DeveloperError, erro
 }
 
 func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.Manager, ds datastore.Datastore, revision decimal.Decimal) (decimal.Decimal, []*v0.DeveloperError, error) {
-	var errors []*v0.DeveloperError
-	var updates []*v1.RelationshipUpdate
+	errors := make([]*v0.DeveloperError, 0, len(tuples))
+	updates := make([]*v1.RelationshipUpdate, 0, len(tuples))
 	for _, tpl := range tuples {
 		verr := tpl.Validate()
 		if verr != nil {
@@ -209,7 +209,7 @@ func loadNamespaces(
 	nsm namespace.Manager,
 	ds datastore.Datastore,
 ) ([]*v0.DeveloperError, decimal.Decimal, error) {
-	var errors []*v0.DeveloperError
+	errors := make([]*v0.DeveloperError, 0, len(namespaces))
 	var lastRevision decimal.Decimal
 	for _, nsDef := range namespaces {
 		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(nsDef, namespaces)

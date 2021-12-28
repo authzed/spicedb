@@ -18,7 +18,7 @@ func TestMetadata(t *testing.T) {
 	})
 	require.Nil(err)
 
-	marshalled_kind, err := anypb.New(&iv1.RelationMetadata{
+	marshalledKind, err := anypb.New(&iv1.RelationMetadata{
 		Kind: iv1.RelationMetadata_PERMISSION,
 	})
 	require.Nil(err)
@@ -30,7 +30,7 @@ func TestMetadata(t *testing.T) {
 				Name: "somerelation",
 				Metadata: &v0.Metadata{
 					MetadataMessage: []*anypb.Any{
-						marshalled_kind, marshalled,
+						marshalledKind, marshalled,
 					},
 				},
 			},

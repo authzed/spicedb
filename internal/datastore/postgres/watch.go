@@ -29,11 +29,11 @@ var queryChanged = psql.Select(
 
 func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, pgd.watchBufferLength)
-	errors := make(chan error, 1)
+	errs := make(chan error, 1)
 
 	go func() {
 		defer close(updates)
-		defer close(errors)
+		defer close(errs)
 
 		currentTxn := transactionFromRevision(afterRevision)
 
@@ -42,10 +42,10 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 			var err error
 			stagedUpdates, currentTxn, err = pgd.loadChanges(ctx, currentTxn)
 			if err != nil {
-				if ctx.Err() == context.Canceled {
-					errors <- datastore.NewWatchCanceledErr()
+				if errors.Is(ctx.Err(), context.Canceled) {
+					errs <- datastore.NewWatchCanceledErr()
 				} else {
-					errors <- err
+					errs <- err
 				}
 				return
 			}
@@ -55,7 +55,7 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 				select {
 				case updates <- changeToWrite:
 				default:
-					errors <- datastore.NewWatchDisconnectedErr()
+					errs <- datastore.NewWatchDisconnectedErr()
 					return
 				}
 			}
@@ -68,21 +68,20 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 				case <-sleep.C:
 					break
 				case <-ctx.Done():
-					errors <- datastore.NewWatchCanceledErr()
+					errs <- datastore.NewWatchCanceledErr()
 					return
 				}
 			}
 		}
 	}()
 
-	return updates, errors
+	return updates, errs
 }
 
 func (pgd *pgDatastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
 ) (changes []*datastore.RevisionChanges, newRevision uint64, err error) {
-
 	newRevision, err = pgd.loadRevision(ctx)
 	if err != nil {
 		return

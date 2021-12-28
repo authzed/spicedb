@@ -24,7 +24,7 @@ type AstNode interface {
 }
 
 // NodeBuilder is a function for building AST nodes.
-type NodeBuilder func(source input.InputSource, kind dslshape.NodeType) AstNode
+type NodeBuilder func(source input.Source, kind dslshape.NodeType) AstNode
 
 // tryParserFn is a function that attempts to build an AST node.
 type tryParserFn func() (AstNode, bool)
@@ -45,7 +45,7 @@ type commentedLexeme struct {
 
 // sourceParser holds the state of the parser.
 type sourceParser struct {
-	source        input.InputSource    // the name of the input; used only for error reports
+	source        input.Source         // the name of the input; used only for error reports
 	lex           *lexer.PeekableLexer // a reference to the lexer used for tokenization
 	builder       NodeBuilder          // the builder function for creating AstNode instances
 	nodes         *nodeStack           // the stack of the current nodes
@@ -54,7 +54,7 @@ type sourceParser struct {
 }
 
 // buildParser returns a new sourceParser instance.
-func buildParser(lx *lexer.Lexer, builder NodeBuilder, source input.InputSource, input string) *sourceParser {
+func buildParser(lx *lexer.Lexer, builder NodeBuilder, source input.Source, input string) *sourceParser {
 	l := lexer.NewPeekableLexer(lx)
 	return &sourceParser{
 		source:        source,
@@ -75,8 +75,8 @@ func (p *sourceParser) createNode(kind dslshape.NodeType) AstNode {
 	return p.builder(p.source, kind)
 }
 
-// createErrorNode creates a new error node and returns it.
-func (p *sourceParser) createErrorNode(format string, args ...interface{}) AstNode {
+// createErrorNodef creates a new error node and returns it.
+func (p *sourceParser) createErrorNodef(format string, args ...interface{}) AstNode {
 	message := fmt.Sprintf(format, args...)
 	node := p.startNode(dslshape.NodeTypeError).Decorate(dslshape.NodePredicateErrorMessage, message)
 	p.finishNode()
@@ -167,17 +167,17 @@ func (p *sourceParser) isKeyword(keyword string) bool {
 	return p.isToken(lexer.TokenTypeKeyword) && p.currentToken.Value == keyword
 }
 
-// emitError creates a new error node and attachs it as a child of the current
+// emitErrorf creates a new error node and attachs it as a child of the current
 // node.
-func (p *sourceParser) emitError(format string, args ...interface{}) {
-	errorNode := p.createErrorNode(format, args...)
+func (p *sourceParser) emitErrorf(format string, args ...interface{}) {
+	errorNode := p.createErrorNodef(format, args...)
 	p.currentNode().Connect(dslshape.NodePredicateChild, errorNode)
 }
 
 // consumeKeyword consumes an expected keyword token or adds an error node.
 func (p *sourceParser) consumeKeyword(keyword string) bool {
 	if !p.tryConsumeKeyword(keyword) {
-		p.emitError("Expected keyword %s, found token %v", keyword, p.currentToken.Kind)
+		p.emitErrorf("Expected keyword %s, found token %v", keyword, p.currentToken.Kind)
 		return false
 	}
 	return true
@@ -197,7 +197,7 @@ func (p *sourceParser) tryConsumeKeyword(keyword string) bool {
 func (p *sourceParser) consumeIdentifier() (string, bool) {
 	token, ok := p.tryConsume(lexer.TokenTypeIdentifier)
 	if !ok {
-		p.emitError("Expected identifier, found token %v", p.currentToken.Kind)
+		p.emitErrorf("Expected identifier, found token %v", p.currentToken.Kind)
 		return "", false
 	}
 	return token.Value, true
@@ -208,7 +208,7 @@ func (p *sourceParser) consumeIdentifier() (string, bool) {
 func (p *sourceParser) consume(types ...lexer.TokenType) (lexer.Lexeme, bool) {
 	token, ok := p.tryConsume(types...)
 	if !ok {
-		p.emitError("Expected one of: %v, found: %v", types, p.currentToken.Kind)
+		p.emitErrorf("Expected one of: %v, found: %v", types, p.currentToken.Kind)
 	}
 	return token, ok
 }
@@ -282,7 +282,7 @@ func (p *sourceParser) performLeftRecursiveParsing(subTryExprFn tryParserFn, rig
 		// Consume the right hand expression and build an expression node (if applicable).
 		exprNode, ok := rightNodeBuilder(currentLeftNode, operatorToken.Lexeme)
 		if !ok {
-			p.emitError("Expected right hand expression, found: %v", p.currentToken.Kind)
+			p.emitErrorf("Expected right hand expression, found: %v", p.currentToken.Kind)
 			return currentLeftNode, true
 		}
 
@@ -308,7 +308,7 @@ func (p *sourceParser) consumeStatementTerminator() bool {
 		return true
 	}
 
-	p.emitError("Expected end of statement or definition, found: %s", p.currentToken.Kind)
+	p.emitErrorf("Expected end of statement or definition, found: %s", p.currentToken.Kind)
 	return false
 }
 

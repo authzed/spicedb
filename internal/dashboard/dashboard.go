@@ -41,7 +41,7 @@ const rootTemplate = `
 	<body>
 		{{if .IsReady }}
 		{{if .IsEmpty}}
-			<h1>Definining the permissions schema</h1>
+			<h1>Defining the permissions schema</h1>
 			<p>
 				To begin making API requests to SpiceDB, you'll first need to load in a <a href="https://docs.authzed.com/reference/schema-lang" target="_blank" rel="noopener">Schema</a>
 				that defines the permissions system.
@@ -111,14 +111,14 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tmpl, err := template.New("root").Parse(rootTemplate)
 		if err != nil {
-			log.Ctx(r.Context()).Error().AnErr("template-error", err).Msg("Got error when parsing template")
+			log.Ctx(r.Context()).Error().AnErr("templateError", err).Msg("Got error when parsing template")
 			fmt.Fprintf(w, "Internal Error")
 			return
 		}
 
 		isReady, err := ds.IsReady(r.Context())
 		if err != nil {
-			log.Ctx(r.Context()).Error().AnErr("template-error", err).Msg("Got error when checking database")
+			log.Ctx(r.Context()).Error().AnErr("templateError", err).Msg("Got error when checking database")
 			fmt.Fprintf(w, "Internal Error")
 			return
 		}
@@ -140,7 +140,7 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 
 			nsDefs, err := ds.ListNamespaces(r.Context(), headRevision)
 			if err != nil {
-				log.Ctx(r.Context()).Error().AnErr("datastore-error", err).Msg("Got error when trying to load namespaces")
+				log.Ctx(r.Context()).Error().AnErr("datastoreError", err).Msg("Got error when trying to load namespaces")
 				fmt.Fprintf(w, "Internal Error")
 				return
 			}
@@ -179,7 +179,7 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 			HasSampleSchema: hasSampleSchema,
 		})
 		if err != nil {
-			log.Ctx(r.Context()).Error().AnErr("template-error", err).Msg("Got error when executing template")
+			log.Ctx(r.Context()).Error().AnErr("templateError", err).Msg("Got error when executing template")
 			fmt.Fprintf(w, "Internal Error")
 			return
 		}

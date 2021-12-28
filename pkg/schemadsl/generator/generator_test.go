@@ -253,7 +253,7 @@ definition foos/document {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
 			defs, err := compiler.Compile([]compiler.InputSchema{{
-				Source:       input.InputSource(test.name),
+				Source:       input.Source(test.name),
 				SchemaString: test.input,
 			}}, nil)
 			require.NoError(err)

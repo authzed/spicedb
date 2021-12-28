@@ -264,8 +264,7 @@ func (nts *NamespaceTypeSystem) referencesWildcardType(ctx context.Context, rela
 
 func (nts *NamespaceTypeSystem) computeReferencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
 	relString := fmt.Sprintf("%s#%s", nts.nsDef.Name, relationName)
-	_, ok := encountered[relString]
-	if ok {
+	if _, ok := encountered[relString]; ok {
 		return nil, nil
 	}
 	encountered[relString] = true

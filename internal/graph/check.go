@@ -143,7 +143,7 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req Validate
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
-		log.Ctx(ctx).Trace().Object("set operation", req).Stringer("operation", so).Send()
+		log.Ctx(ctx).Trace().Object("setOperation", req).Stringer("operation", so).Send()
 		resultChan <- reducer(ctx, requests)
 	}
 }
@@ -296,7 +296,7 @@ func any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	for i := 0; i < len(requests); i++ {
 		select {
 		case result := <-resultChan:
-			log.Ctx(ctx).Trace().Object("any result", result.Resp).Send()
+			log.Ctx(ctx).Trace().Object("anyResult", result.Resp).Send()
 			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
 
 			if result.Err == nil && result.Resp.Membership == v1.DispatchCheckResponse_MEMBER {
@@ -306,7 +306,7 @@ func any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 				return checkResultError(result.Err, result.Resp.Metadata)
 			}
 		case <-ctx.Done():
-			log.Ctx(ctx).Trace().Msg("any canceled")
+			log.Ctx(ctx).Trace().Msg("anyCanceled")
 			return checkResultError(NewRequestCanceledErr(), responseMetadata)
 		}
 	}

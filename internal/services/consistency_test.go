@@ -29,6 +29,7 @@ import (
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	graphpkg "github.com/authzed/spicedb/pkg/graph"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
@@ -153,8 +154,8 @@ func runCrossVersionTests(t *testing.T,
 	dispatch dispatch.Dispatcher,
 	fullyResolved *validationfile.FullyParsedValidationFile,
 	tuplesPerNamespace *slicemultimap.MultiMap,
-	revision decimal.Decimal) {
-
+	revision decimal.Decimal,
+) {
 	for _, nsDef := range fullyResolved.NamespaceDefinitions {
 		for _, relation := range nsDef.Relation {
 			verifyCrossVersion(t, "read", testers, func(tester serviceTester) (interface{}, error) {
@@ -200,7 +201,7 @@ func verifyCrossVersion(t *testing.T, name string, testers []serviceTester, runA
 			if result == nil {
 				result = value
 			} else {
-				require.Equal(t, result, value, "Found mismatch between versions")
+				testutil.RequireEqualEmptyNil(t, result, value, "found mismatch between versions")
 			}
 		}
 	})

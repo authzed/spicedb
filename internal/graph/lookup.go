@@ -340,7 +340,7 @@ func (cl *ConcurrentLookup) processSetOperation(ctx context.Context, req Validat
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		log.Ctx(ctx).Trace().Object("set operation", req).Stringer("operation", so).Send()
+		log.Ctx(ctx).Trace().Object("setOperation", req).Stringer("operation", so).Send()
 		resultChan <- reducer(ctx, req, req.Limit, requests)
 	}
 }
@@ -525,7 +525,6 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req Valid
 
 func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req ValidatedLookupRequest, cu *v0.ComputedUserset) ReduceableLookupFunc {
 	result := lookupOne(ctx, req, cl.dispatch(ValidatedLookupRequest{
-
 		&v1.DispatchLookupRequest{
 			Subject: req.Subject,
 			ObjectRelation: &v0.RelationReference{
@@ -574,7 +573,7 @@ func (cl *ConcurrentLookup) lookupComputed(ctx context.Context, req ValidatedLoo
 
 func (cl *ConcurrentLookup) dispatch(req ValidatedLookupRequest) ReduceableLookupFunc {
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
-		log.Ctx(ctx).Trace().Object("dispatch lookup", req).Send()
+		log.Ctx(ctx).Trace().Object("dispatchLookup", req).Send()
 		result, err := cl.d.DispatchLookup(ctx, req.DispatchLookupRequest)
 		resultChan <- LookupResult{result, err}
 	}

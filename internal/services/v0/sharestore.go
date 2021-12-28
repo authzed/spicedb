@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -163,8 +164,8 @@ func (s3s *s3ShareStore) LookupSharedByReference(reference string) (SharedDataV2
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		aerr, ok := err.(awserr.Error)
-		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
+		var aerr awserr.Error
+		if errors.As(err, &aerr) && aerr.Code() == s3.ErrCodeNoSuchKey {
 			return SharedDataV2{}, LookupNotFound, nil
 		}
 		return SharedDataV2{}, LookupError, aerr

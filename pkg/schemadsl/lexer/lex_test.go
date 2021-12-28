@@ -139,6 +139,7 @@ var lexerTests = []lexerTest{
 func TestLexer(t *testing.T) {
 	for _, test := range lexerTests {
 		t.Run(test.name, func(t *testing.T) {
+			test := test // Close over test and not the pointer that is reused.
 			tokens := performLex(&test)
 			if !equal(tokens, test.tokens) {
 				t.Errorf("%s: got\n\t%+v\nexpected\n\t%v", test.name, tokens, test.tokens)
@@ -148,7 +149,7 @@ func TestLexer(t *testing.T) {
 }
 
 func performLex(t *lexerTest) (tokens []Lexeme) {
-	l := Lex(input.InputSource(t.name), t.input)
+	l := Lex(input.Source(t.name), t.input)
 	for {
 		token := l.nextToken()
 		tokens = append(tokens, token)

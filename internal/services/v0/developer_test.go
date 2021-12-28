@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -212,8 +213,6 @@ func TestEditCheck(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
-
 			store := NewInMemoryShareStore("flavored")
 			srv := NewDeveloperServer(store)
 
@@ -224,15 +223,14 @@ func TestEditCheck(t *testing.T) {
 				},
 				CheckRelationships: tc.checkRelationships,
 			})
-			require.NoError(err)
+			require.NoError(t, err)
 
 			if tc.expectedError != nil {
-				require.Equal(tc.expectedError, resp.RequestErrors[0])
-				require.Equal(tc.expectedResults, resp.CheckResults)
+				require.Equal(t, tc.expectedError, resp.RequestErrors[0])
 			} else {
-				require.Equal(0, len(resp.RequestErrors), "Found error(s): %v", resp.RequestErrors)
-				require.Equal(tc.expectedResults, resp.CheckResults)
+				require.Len(t, resp.RequestErrors, 0, "found error(s): %v", resp.RequestErrors)
 			}
+			testutil.RequireEqualEmptyNil(t, tc.expectedResults, resp.CheckResults)
 		})
 	}
 }

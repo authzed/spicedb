@@ -9,11 +9,11 @@ import (
 
 type positionMapper struct {
 	schemas         []InputSchema
-	mappersBySource map[input.InputSource]input.SourcePositionMapper
+	mappersBySource map[input.Source]input.SourcePositionMapper
 }
 
 func newPositionMapper(schemas []InputSchema) input.PositionMapper {
-	mappersBySource := map[input.InputSource]input.SourcePositionMapper{}
+	mappersBySource := map[input.Source]input.SourcePositionMapper{}
 	for _, schema := range schemas {
 		mappersBySource[schema.Source] = input.CreateSourcePositionMapper([]byte(schema.SchemaString))
 	}
@@ -24,17 +24,17 @@ func newPositionMapper(schemas []InputSchema) input.PositionMapper {
 	}
 }
 
-func (pm *positionMapper) RunePositionToLineAndCol(runePosition int, source input.InputSource) (int, int, error) {
+func (pm *positionMapper) RunePositionToLineAndCol(runePosition int, source input.Source) (int, int, error) {
 	sourceMapper := pm.mappersBySource[source]
 	return sourceMapper.RunePositionToLineAndCol(runePosition)
 }
 
-func (pm *positionMapper) LineAndColToRunePosition(lineNumber int, colPosition int, source input.InputSource) (int, error) {
+func (pm *positionMapper) LineAndColToRunePosition(lineNumber int, colPosition int, source input.Source) (int, error) {
 	sourceMapper := pm.mappersBySource[source]
 	return sourceMapper.LineAndColToRunePosition(lineNumber, colPosition)
 }
 
-func (pm *positionMapper) TextForLine(lineNumber int, source input.InputSource) (string, error) {
+func (pm *positionMapper) TextForLine(lineNumber int, source input.Source) (string, error) {
 	for _, schema := range pm.schemas {
 		if schema.Source == source {
 			lines := strings.Split(schema.SchemaString, "\n")

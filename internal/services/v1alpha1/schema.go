@@ -64,7 +64,7 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 		return nil, rewriteError(ctx, err)
 	}
 
-	var objectDefs []string
+	objectDefs := make([]string, 0, len(in.GetObjectDefinitionsNames()))
 	createdRevisions := make(map[string]datastore.Revision, len(in.GetObjectDefinitionsNames()))
 	for _, objectDefName := range in.GetObjectDefinitionsNames() {
 		found, createdAt, err := ss.ds.ReadNamespace(ctx, objectDefName, headRevision)
@@ -97,7 +97,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	}
 
 	inputSchema := compiler.InputSchema{
-		Source:       input.InputSource("schema"),
+		Source:       input.Source("schema"),
 		SchemaString: in.GetSchema(),
 	}
 
@@ -117,7 +117,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		return nil, rewriteError(ctx, err)
 	}
 
-	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("compiled namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
 
 	for _, nsdef := range nsdefs {
 		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsdef, nsm, nsdefs, headRevision)
@@ -133,7 +133,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			return nil, rewriteError(ctx, err)
 		}
 	}
-	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Msg("validated namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("validated namespace definitions")
 
 	// If a precondition was given, decode it, and verify that none of the namespaces specified
 	// have changed in any way.
@@ -163,10 +163,10 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			}
 		}
 
-		log.Trace().Interface("namespace definitions", nsdefs).Msg("checked schema revision")
+		log.Trace().Interface("namespaceDefinitions", nsdefs).Msg("checked schema revision")
 	}
 
-	var names []string
+	names := make([]string, 0, len(nsdefs))
 	revisions := make(map[string]datastore.Revision, len(nsdefs))
 	for _, nsdef := range nsdefs {
 		revision, err := ss.ds.WriteNamespace(ctx, nsdef)
@@ -183,7 +183,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		return nil, rewriteError(ctx, err)
 	}
 
-	log.Ctx(ctx).Trace().Interface("namespace definitions", nsdefs).Str("computed revision", computedRevision).Msg("wrote namespace definitions")
+	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Str("computedRevision", computedRevision).Msg("wrote namespace definitions")
 
 	return &v1alpha1.WriteSchemaResponse{
 		ObjectDefinitionsNames:      names,

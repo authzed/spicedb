@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -130,7 +131,6 @@ func TestWatch(t *testing.T) {
 			require.NoError(err)
 
 			if tc.expectedCode == codes.OK {
-
 				updatesChan := make(chan []*v1.RelationshipUpdate, len(tc.mutations))
 
 				go func() {
@@ -146,11 +146,11 @@ func TestWatch(t *testing.T) {
 							resp, err := stream.Recv()
 							if err != nil {
 								errStatus, ok := status.FromError(err)
-								if (ok && (errStatus.Code() == codes.Canceled || errStatus.Code() == codes.Unavailable)) || err == io.EOF {
+								if (ok && (errStatus.Code() == codes.Canceled || errStatus.Code() == codes.Unavailable)) || errors.Is(err, io.EOF) {
 									break
 								}
 
-								panic(fmt.Errorf("received a stream read error: %v", err))
+								panic(fmt.Errorf("received a stream read error: %w", err))
 							}
 
 							updatesChan <- resp.Updates
@@ -186,7 +186,6 @@ func newWatchServicer(
 	require *require.Assertions,
 	ds datastore.Datastore,
 ) (v1.WatchServiceClient, func()) {
-
 	lis := bufconn.Listen(1024 * 1024)
 	s := testfixtures.NewTestServer()
 

@@ -15,7 +15,7 @@ import (
 const EOFRUNE = -1
 
 // createLexer creates a new scanner for the input string.
-func createLexer(source input.InputSource, input string) *Lexer {
+func createLexer(source input.Source, input string) *Lexer {
 	l := &Lexer{
 		source: source,
 		input:  input,
@@ -84,7 +84,7 @@ type stateFn func(*Lexer) stateFn
 // Lexer holds the state of the scanner.
 type Lexer struct {
 	sync.RWMutex
-	source                 input.InputSource  // the name of the input; used only for error reports
+	source                 input.Source       // the name of the input; used only for error reports
 	input                  string             // the string being scanned
 	state                  stateFn            // the next lexing function to enter
 	pos                    input.BytePosition // current position in the input
@@ -184,8 +184,7 @@ func (l *Lexer) peekValue(value string) bool {
 
 // accept consumes the next rune if it's from the valid set.
 func (l *Lexer) accept(valid string) bool {
-	nextRune := l.next()
-	if strings.ContainsRune(valid, nextRune) {
+	if nextRune := l.next(); strings.ContainsRune(valid, nextRune) {
 		return true
 	}
 	l.backup()
