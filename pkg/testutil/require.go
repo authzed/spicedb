@@ -15,14 +15,16 @@ func RequireEqualEmptyNil(t *testing.T, expected, actual interface{}, msgAndArgs
 	expectedVal := reflect.ValueOf(expected)
 	actualVal := reflect.ValueOf(actual)
 
-	if hasLength(expectedVal) && hasLength(actualVal) && expectedVal.Len() == 0 && actualVal.Len() == 0 {
+	if expectedVal.Kind() == actualVal.Kind() &&
+		hasLength(expectedVal.Kind()) &&
+		expectedVal.Len() == 0 && actualVal.Len() == 0 {
 		return
 	}
 	require.Equal(t, expected, actual, msgAndArgs...)
 }
 
-func hasLength(v reflect.Value) bool {
-	switch v.Kind() {
+func hasLength(k reflect.Kind) bool {
+	switch k {
 	case reflect.Array, reflect.Slice, reflect.Map:
 		return true
 	}
