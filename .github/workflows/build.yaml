@@ -64,8 +64,6 @@ jobs:
         run: "go test -tags ci ./..."
 
   e2e:
-    # Explicitly disabling e2e testing
-    if: "false"
     name: "E2E"
     runs-on: "ubuntu-latest"
     steps:

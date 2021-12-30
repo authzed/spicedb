@@ -5,38 +5,38 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/authzed/grpcutil"
-	"github.com/authzed/spicedb/e2e"
 	"google.golang.org/grpc"
 
+	"github.com/authzed/spicedb/e2e"
 	"github.com/authzed/spicedb/e2e/cockroach"
 )
 
-//go:generate go run github.com/ecordell/optgen -output spicedb_options.go . SpiceDb
+//go:generate go run github.com/ecordell/optgen -output spicedb_options.go . Node
 
 // Node represents a single instance of spicedb started via exec
 type Node struct {
-	ID            string
-	PresharedKey  string
-	Datastore     string
-	DbName        string
-	URI           string
-	GrpcPort      int
-	HttpPort      int
-	DispatchPort  int
-	MetricsPort   int
-	DashboardPort int
-	Pid           int
-	Cancel        context.CancelFunc
-	client        e2e.Client
+	ID             string
+	PresharedKey   string
+	Datastore      string
+	DbName         string
+	URI            string
+	GrpcPort       int
+	HttpPort       int
+	DispatchPort   int
+	MetricsPort    int
+	DashboardPort  int
+	HedgingEnabled bool
+	Pid            int
+	Cancel         context.CancelFunc
+	client         e2e.Client
 }
 
 // WithTestDefaults sets the default values for Node
-func WithTestDefaults(opts ...SpiceDbOption) SpiceDbOption {
+func WithTestDefaults(opts ...NodeOption) NodeOption {
 	return func(s *Node) {
 		for _, o := range opts {
 			o(s)
@@ -76,6 +76,7 @@ func (s *Node) Start(ctx context.Context, logprefix string, args ...string) erro
 		"./spicedb",
 		"serve",
 		"--log-level=debug",
+		fmt.Sprintf("--datastore-request-hedging=%t", s.HedgingEnabled),
 		"--grpc-preshared-key=" + s.PresharedKey,
 		"--datastore-engine=" + s.Datastore,
 		"--datastore-conn-uri=" + s.URI,
@@ -132,11 +133,11 @@ type Cluster []*Node
 // NewClusterFromCockroachCluster creates a spicedb instance for every
 // cockroach instance, with each spicedb configured to talk to the corresponding
 // cockraoch node.
-func NewClusterFromCockroachCluster(c cockroach.Cluster, opts ...SpiceDbOption) Cluster {
+func NewClusterFromCockroachCluster(c cockroach.Cluster, opts ...NodeOption) Cluster {
 	ss := make([]*Node, 0, len(c))
 
 	// the prototypical node will be used to generate a set of nodes
-	proto := NewSpiceDbWithOptions(WithTestDefaults(opts...))
+	proto := NewNodeWithOptions(WithTestDefaults(opts...))
 
 	for i := 0; i < len(c); i++ {
 		ss = append(ss, &Node{
@@ -188,9 +189,9 @@ func (c *Cluster) Connect(ctx context.Context, out io.Writer) error {
 }
 
 // MigrateHead migrates a Datastore to the latest revision defined in spicedb
-func MigrateHead(ctx context.Context, datastore, uri string) error {
+func MigrateHead(ctx context.Context, out io.Writer, datastore, uri string) error {
 	for i := 0; i < 5; i++ {
-		if err := e2e.Run(ctx, os.Stdout, os.Stderr,
+		if err := e2e.Run(ctx, out, out,
 			"./spicedb",
 			"migrate", "head", "--datastore-engine="+datastore,
 			"--datastore-conn-uri="+uri,
