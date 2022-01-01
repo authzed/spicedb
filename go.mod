@@ -7,7 +7,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a
 	github.com/authzed/authzed-go v0.3.1-0.20211220220442-a36f72252b43
 	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
-	github.com/aws/aws-sdk-go v1.42.16
+	github.com/aws/aws-sdk-go v1.42.25
 	github.com/benbjohnson/clock v1.3.0
 	github.com/cespare/xxhash v1.1.0
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
@@ -63,7 +63,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.2.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
-	golang.org/x/net v0.0.0-20211104170005-ce137452f963 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 	golang.org/x/tools v0.1.8
