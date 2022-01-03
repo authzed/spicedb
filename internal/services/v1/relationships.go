@@ -207,7 +207,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			if isAllowed != namespace.PublicSubjectAllowed {
 				return nil, status.Errorf(
 					codes.InvalidArgument,
-					"wildcardsubjects of type %s are not allowed on %v",
+					"wildcard subjects of type %s are not allowed on %v",
 					update.Relationship.Subject.Object.ObjectType,
 					tuple.StringObjectRef(update.Relationship.Resource),
 				)

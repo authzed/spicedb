@@ -133,18 +133,36 @@ func runAssertions(t *testing.T,
 			rel := tuple.Parse(assertTrueRel)
 			require.NotNil(t, rel)
 
+			// Ensure the assertion passes Check.
 			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
 			require.NoError(t, err)
 			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.String(rel))
+
+			// Ensure the assertion passes Lookup.
+			resolvedObjectIds, err := tester.Lookup(context.Background(), &v0.RelationReference{
+				Namespace: rel.ObjectAndRelation.Namespace,
+				Relation:  rel.ObjectAndRelation.Relation,
+			}, rel.User.GetUserset(), revision)
+			require.NoError(t, err)
+			require.Contains(t, resolvedObjectIds, rel.ObjectAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ObjectAndRelation, rel)
 		}
 
 		for _, assertFalseRel := range parsedFile.Assertions.AssertFalse {
 			rel := tuple.Parse(assertFalseRel)
 			require.NotNil(t, rel)
 
+			// Ensure the assertion does not pass Check.
 			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
 			require.NoError(t, err)
 			require.False(t, result, "Assertion `%s` returned true; false expected", tuple.String(rel))
+
+			// Ensure the assertion does not pass Lookup.
+			resolvedObjectIds, err := tester.Lookup(context.Background(), &v0.RelationReference{
+				Namespace: rel.ObjectAndRelation.Namespace,
+				Relation:  rel.ObjectAndRelation.Relation,
+			}, rel.User.GetUserset(), revision)
+			require.NoError(t, err)
+			require.NotContains(t, resolvedObjectIds, rel.ObjectAndRelation.ObjectId, "Found unexpected object %s in lookup for false assertion %s", rel.ObjectAndRelation, rel)
 		}
 	}
 }
@@ -326,12 +344,7 @@ func accessibleViaWildcardOnly(t *testing.T, dispatch dispatch.Dispatcher, onr *
 	require.NoError(t, err)
 
 	subjectsFound := graphpkg.Simplify(resp.TreeNode)
-	subjectsFoundSet := tuple.NewONRSet()
-	for _, subjectUser := range subjectsFound {
-		subjectsFoundSet.Add(subjectUser.GetUserset())
-	}
-
-	return !subjectsFoundSet.Has(subject)
+	return !subjectsFound.Contains(subject)
 }
 
 type validationContext struct {
@@ -619,20 +632,13 @@ func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
 					})
 					vrequire.NoError(err)
 
-					subjectsFound := graphpkg.Simplify(resp.TreeNode)
-					subjectsFoundSet := tuple.NewONRSet()
-
-					for _, subjectUser := range subjectsFound {
-						subjectsFoundSet.Add(subjectUser.GetUserset())
-					}
+					subjectsFoundSet := graphpkg.Simplify(resp.TreeNode)
 
 					// Ensure all terminal subjects were found in the expansion.
-					vrequire.EqualValues(0, accessibleTerminalSubjects.Subtract(subjectsFoundSet).Length())
+					vrequire.EqualValues(0, len(accessibleTerminalSubjects.Exclude(subjectsFoundSet).ToSlice()), "Expected %s, Found: %s", accessibleTerminalSubjects.ToSlice(), subjectsFoundSet.ToSlice())
 
 					// Ensure every subject found matches Check.
-					for _, subjectUser := range subjectsFound {
-						subject := subjectUser.GetUserset()
-
+					for _, subject := range subjectsFoundSet.ToSlice() {
 						isMember, err := vctx.tester.Check(context.Background(),
 							&v0.ObjectAndRelation{
 								Namespace: nsDef.Name,
@@ -707,16 +713,15 @@ func (rs *accessibilitySet) GetIsMember(object *v0.ObjectAndRelation, subject *v
 		}
 	}
 
-	panic("Missing matching result")
+	panic(fmt.Sprintf("Missing matching result for %s %s", object, subject))
 }
 
-// AccessibleObjectIDs returns the set of object IDs accessible for the given subject from the given relation on the namespace,
-// *not* including those accessible solely via wildcard.
+// AccessibleObjectIDs returns the set of object IDs accessible for the given subject from the given relation on the namespace.
 func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationName string, subject *v0.ObjectAndRelation) []string {
 	var accessibleObjectIDs []string
 	subjectStr := tuple.StringONR(subject)
 	for _, result := range rs.results {
-		if result.isMember != isMember {
+		if result.isMember == isNotMember {
 			continue
 		}
 
@@ -727,12 +732,11 @@ func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationNa
 	return accessibleObjectIDs
 }
 
-// AccessibleTerminalSubjects returns the set of terminal subjects with accessible for the given object on the given relation on the namespace,
-// *not* including those accessible solely via wildcard.
-func (rs *accessibilitySet) AccessibleTerminalSubjects(namespaceName string, relationName string, objectIDStr string) *tuple.ONRSet {
-	accessibleSubjects := tuple.NewONRSet()
+// AccessibleTerminalSubjects returns the set of terminal subjects with accessible for the given object on the given relation on the namespace
+func (rs *accessibilitySet) AccessibleTerminalSubjects(namespaceName string, relationName string, objectIDStr string) graphpkg.SubjectSet {
+	accessibleSubjects := graphpkg.NewSubjectSet()
 	for _, result := range rs.results {
-		if result.isMember != isMember {
+		if result.isMember == isNotMember {
 			continue
 		}
 

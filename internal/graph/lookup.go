@@ -115,9 +115,7 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req ValidatedLoo
 		var requests []ReduceableLookupFunc
 		for _, obj := range toCheck.AsSlice() {
 			// If we've already found the target ONR, no further resolution is necessary.
-			if obj.Namespace == req.Subject.Namespace &&
-				obj.Relation == req.Subject.Relation &&
-				obj.ObjectId == req.Subject.ObjectId {
+			if onrEqualOrWildcard(obj, req.Subject) {
 				continue
 			}
 
@@ -178,6 +176,46 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 			it, err := cl.ds.ReverseQueryTuples(
 				ctx,
 				tuple.UsersetToSubjectFilter(req.Subject),
+				req.Revision,
+				options.WithResRelation(&options.ResourceRelation{
+					Namespace: req.ObjectRelation.Namespace,
+					Relation:  req.ObjectRelation.Relation,
+				}),
+			)
+			if err != nil {
+				resultChan <- lookupResultError(req, err, emptyMetadata)
+				return
+			}
+			defer it.Close()
+
+			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+				objects.Add(tpl.ObjectAndRelation)
+				if objects.Length() >= req.Limit {
+					break
+				}
+			}
+
+			if it.Err() != nil {
+				resultChan <- lookupResultError(req, it.Err(), emptyMetadata)
+				return
+			}
+
+			resultChan <- lookupResult(req, objects.AsSlice(), emptyMetadata)
+		})
+	}
+
+	// Dispatch a check for the subject wildcard, if allowed.
+	isWildcardAllowed, err := typeSystem.IsAllowedPublicNamespace(req.ObjectRelation.Relation, req.Subject.Namespace)
+	if isWildcardAllowed == namespace.PublicSubjectAllowed {
+		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
+			objects := tuple.NewONRSet()
+			it, err := cl.ds.ReverseQueryTuples(
+				ctx,
+				tuple.UsersetToSubjectFilter(&v0.ObjectAndRelation{
+					Namespace: req.Subject.Namespace,
+					ObjectId:  tuple.PublicWildcard,
+					Relation:  req.Subject.Relation,
+				}),
 				req.Revision,
 				options.WithResRelation(&options.ResourceRelation{
 					Namespace: req.ObjectRelation.Namespace,
