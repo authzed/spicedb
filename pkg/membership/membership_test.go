@@ -1,12 +1,14 @@
 package membership
 
 import (
+	"sort"
 	"testing"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/graph"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -54,7 +56,7 @@ var (
 	)
 )
 
-func TestMembershipSet(t *testing.T) {
+func TestMembershipSetBasic(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -62,20 +64,20 @@ func TestMembershipSet(t *testing.T) {
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "owner"), companyOwner)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fso, "user:owner")
+	verifySubjects(t, require, fso, "user:owner")
 
 	fse, ok, err := ms.AddExpansion(ONR("folder", "company", "editor"), companyEditor)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fse, "user:owner", "user:writer")
+	verifySubjects(t, require, fse, "user:owner", "user:writer")
 
 	fsv, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), companyViewerRecursive)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fsv, "folder:auditors#viewer", "user:auditor", "user:legal", "user:owner", "user:writer")
+	verifySubjects(t, require, fsv, "folder:auditors#viewer", "user:auditor", "user:legal", "user:owner", "user:writer")
 }
 
-func TestMembershipSetIntersection(t *testing.T) {
+func TestMembershipSetIntersectionBasic(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -92,7 +94,7 @@ func TestMembershipSetIntersection(t *testing.T) {
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fso, "user:legal")
+	verifySubjects(t, require, fso, "user:legal")
 }
 
 func TestMembershipSetExclusion(t *testing.T) {
@@ -112,17 +114,126 @@ func TestMembershipSetExclusion(t *testing.T) {
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(require, fso, "user:owner")
+	verifySubjects(t, require, fso, "user:owner")
 }
 
-func verifySubjects(require *require.Assertions, fs FoundSubjects, expected ...string) {
+func TestMembershipSetIntersectionWithOneWildcard(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Intersection(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "*", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "legal", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:legal")
+}
+
+func TestMembershipSetIntersectionWithAllWildcardLeft(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Intersection(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "*", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "*", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:owner", "user:*")
+}
+
+func TestMembershipSetIntersectionWithAllWildcardRight(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Intersection(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "*", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "*", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:owner", "user:*")
+}
+
+func TestMembershipSetExclusionWithLeftWildcard(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Exclusion(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "*", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "legal", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:owner", "user:*")
+}
+
+func TestMembershipSetExclusionWithRightWildcard(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Exclusion(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "legal", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "*", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso)
+}
+
+func verifySubjects(t *testing.T, require *require.Assertions, fs FoundSubjects, expected ...string) {
 	foundSubjects := []*v0.ObjectAndRelation{}
 	for _, found := range fs.ListFound() {
 		foundSubjects = append(foundSubjects, found.Subject())
 
 		_, ok := fs.LookupSubject(found.Subject())
-		require.True(ok)
+		require.True(ok, "Could not find expected subject %s", found.Subject())
 	}
 
-	require.Equal(expected, tuple.StringsONRs(foundSubjects))
+	found := tuple.StringsONRs(foundSubjects)
+	sort.Strings(expected)
+	sort.Strings(found)
+
+	testutil.RequireEqualEmptyNil(t, expected, found)
 }

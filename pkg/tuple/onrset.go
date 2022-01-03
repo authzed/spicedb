@@ -91,6 +91,18 @@ func (ons *ONRSet) With(onr *v0.ObjectAndRelation) *ONRSet {
 	return updated
 }
 
+// Union returns a copy of this ONR set with the other set's elements added in.
+func (ons *ONRSet) Union(otherSet *ONRSet) *ONRSet {
+	updated := NewONRSet()
+	for _, current := range ons.onrs {
+		updated.Add(current)
+	}
+	for _, current := range otherSet.onrs {
+		updated.Add(current)
+	}
+	return updated
+}
+
 // AsSlice returns the ONRs found in the set as a slice.
 func (ons *ONRSet) AsSlice() []*v0.ObjectAndRelation {
 	slice := make([]*v0.ObjectAndRelation, 0, len(ons.onrs))

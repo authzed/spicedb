@@ -5,6 +5,7 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 
+	//"github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -37,8 +38,7 @@ func (fs FoundSubjects) ListFound() []FoundSubject {
 
 // LookupSubject returns the FoundSubject for a matching subject, if any.
 func (fs FoundSubjects) LookupSubject(subject *v0.ObjectAndRelation) (FoundSubject, bool) {
-	onrString := tuple.StringONR(subject)
-	found, ok := fs.subjects[onrString]
+	found, ok := fs.subjects[toKey(subject)]
 	return found, ok
 }
 
@@ -83,156 +83,241 @@ func (ms *Set) AddExpansion(onr *v0.ObjectAndRelation, expansion *v0.RelationTup
 		return existing, false, nil
 	}
 
-	foundSubjectsMap := map[string]FoundSubject{}
-	err := populateFoundSubjects(foundSubjectsMap, onr, expansion)
+	tss, err := populateFoundSubjects(onr, expansion)
 	if err != nil {
 		return FoundSubjects{}, false, err
 	}
 
-	fs := FoundSubjects{
-		subjects: foundSubjectsMap,
-	}
+	fs := tss.toFoundSubjects()
 	ms.objectsAndRelations[onrString] = fs
 	return fs, true, nil
 }
 
-func populateFoundSubjects(foundSubjectsMap map[string]FoundSubject, rootONR *v0.ObjectAndRelation, treeNode *v0.RelationTupleTreeNode) error {
-	relationship := rootONR
+func populateFoundSubjects(rootONR *v0.ObjectAndRelation, treeNode *v0.RelationTupleTreeNode) (trackingSubjectSet, error) {
+	resource := rootONR
 	if treeNode.Expanded != nil {
-		relationship = treeNode.Expanded
+		resource = treeNode.Expanded
 	}
 
 	switch typed := treeNode.NodeType.(type) {
 	case *v0.RelationTupleTreeNode_IntermediateNode:
 		switch typed.IntermediateNode.Operation {
 		case v0.SetOperationUserset_UNION:
+			toReturn := newTrackingSubjectSet()
 			for _, child := range typed.IntermediateNode.ChildNodes {
-				err := populateFoundSubjects(foundSubjectsMap, rootONR, child)
+				tss, err := populateFoundSubjects(resource, child)
 				if err != nil {
-					return err
+					return nil, err
 				}
+
+				toReturn.addFrom(tss)
 			}
+			return toReturn, nil
 
 		case v0.SetOperationUserset_INTERSECTION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
-				return fmt.Errorf("found intersection with no children")
+				return nil, fmt.Errorf("Found intersection with no children")
 			}
 
-			fsm := map[string]FoundSubject{}
-			err := populateFoundSubjects(fsm, rootONR, typed.IntermediateNode.ChildNodes[0])
+			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.ChildNodes[0])
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			subjectset := newSubjectSet()
-			subjectset.union(fsm)
+			toReturn := newTrackingSubjectSet()
+			toReturn.addFrom(firstChildSet)
 
 			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
-				fsm := map[string]FoundSubject{}
-				if err := populateFoundSubjects(fsm, rootONR, child); err != nil {
-					return err
+				childSet, err := populateFoundSubjects(rootONR, child)
+				if err != nil {
+					return nil, err
 				}
-				subjectset.intersect(fsm)
+				toReturn = toReturn.intersect(childSet)
 			}
-
-			subjectset.populate(foundSubjectsMap)
+			return toReturn, nil
 
 		case v0.SetOperationUserset_EXCLUSION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
-				return fmt.Errorf("found exclusion with no children")
+				return nil, fmt.Errorf("Found exclusion with no children")
 			}
 
-			fsm := map[string]FoundSubject{}
-			err := populateFoundSubjects(fsm, rootONR, typed.IntermediateNode.ChildNodes[0])
+			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.ChildNodes[0])
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			subjectset := newSubjectSet()
-			subjectset.union(fsm)
+			toReturn := newTrackingSubjectSet()
+			toReturn.addFrom(firstChildSet)
 
 			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
-				fsm := map[string]FoundSubject{}
-				if err := populateFoundSubjects(fsm, rootONR, child); err != nil {
-					return err
+				childSet, err := populateFoundSubjects(rootONR, child)
+				if err != nil {
+					return nil, err
 				}
-				subjectset.exclude(fsm)
+				toReturn = toReturn.exclude(childSet)
 			}
 
-			subjectset.populate(foundSubjectsMap)
+			return toReturn, nil
 
 		default:
 			panic("unknown expand operation")
 		}
 
 	case *v0.RelationTupleTreeNode_LeafNode:
+		toReturn := newTrackingSubjectSet()
 		for _, user := range typed.LeafNode.Users {
-			subjectONRString := tuple.StringONR(user.GetUserset())
-			_, ok := foundSubjectsMap[subjectONRString]
-			if !ok {
-				foundSubjectsMap[subjectONRString] = FoundSubject{
-					subject:       user.GetUserset(),
-					relationships: tuple.NewONRSet(),
-				}
+			fs := FoundSubject{
+				subject:       user.GetUserset(),
+				relationships: tuple.NewONRSet(),
 			}
-
-			foundSubjectsMap[subjectONRString].relationships.Add(relationship)
+			toReturn.add(fs)
+			fs.relationships.Add(resource)
 		}
+		return toReturn, nil
+
 	default:
 		panic("unknown TreeNode type")
 	}
-
-	return nil
 }
 
-type subjectSet struct {
-	subjectsMap map[string]FoundSubject
+// TODO(jschorr): Combine with SubjectSet in graph package once we're on a Go version with
+// stable generics.
+func isWildcard(subject *v0.ObjectAndRelation) bool {
+	return subject.ObjectId == tuple.PublicWildcard
 }
 
-func newSubjectSet() *subjectSet {
-	return &subjectSet{
-		subjectsMap: map[string]FoundSubject{},
+type trackingSubjectSet map[string]FoundSubject
+
+func newTrackingSubjectSet(subjects ...FoundSubject) trackingSubjectSet {
+	var toReturn trackingSubjectSet = make(map[string]FoundSubject)
+	toReturn.add(subjects...)
+	return toReturn
+}
+
+func (tss trackingSubjectSet) addFrom(otherSet trackingSubjectSet) {
+	for _, value := range otherSet {
+		tss.add(value)
 	}
 }
 
-func (ss *subjectSet) populate(outgoingSubjectsMap map[string]FoundSubject) {
-	for key, fs := range ss.subjectsMap {
-		existing, ok := outgoingSubjectsMap[key]
+func (tss trackingSubjectSet) removeFrom(otherSet trackingSubjectSet) {
+	for _, otherSAR := range otherSet {
+		tss.remove(otherSAR.subject)
+	}
+}
+
+func (tss trackingSubjectSet) add(subjectsAndResources ...FoundSubject) {
+	for _, sar := range subjectsAndResources {
+		key := toKey(sar.subject)
+		existing, ok := tss[key]
 		if ok {
-			existing.relationships.UpdateFrom(fs.relationships)
+			tss[key] = FoundSubject{
+				subject:       sar.subject,
+				relationships: existing.relationships.Union(sar.relationships),
+			}
 		} else {
-			outgoingSubjectsMap[key] = fs
+			tss[key] = sar
 		}
 	}
 }
 
-func (ss *subjectSet) union(subjectsMap map[string]FoundSubject) {
-	for key, fs := range subjectsMap {
-		existing, ok := ss.subjectsMap[key]
-		if ok {
-			existing.relationships.UpdateFrom(fs.relationships)
-		} else {
-			ss.subjectsMap[key] = fs
+func (tss trackingSubjectSet) addWithResources(subjectsAndResources []FoundSubject, additionalResources *tuple.ONRSet) {
+	for _, sar := range subjectsAndResources {
+		tss.add(sar)
+
+		key := toKey(sar.subject)
+		entry := tss[key]
+		tss[key] = FoundSubject{
+			subject:       entry.subject,
+			relationships: entry.relationships.Union(additionalResources),
 		}
 	}
 }
 
-func (ss *subjectSet) intersect(subjectsMap map[string]FoundSubject) {
-	for key, fs := range ss.subjectsMap {
-		other, ok := subjectsMap[key]
-		if ok {
-			fs.relationships.UpdateFrom(other.relationships)
-		} else {
-			delete(ss.subjectsMap, key)
+func (tss trackingSubjectSet) get(subject *v0.ObjectAndRelation) (FoundSubject, bool) {
+	found, ok := tss[toKey(subject)]
+	return found, ok
+}
+
+func (tss trackingSubjectSet) remove(subjects ...*v0.ObjectAndRelation) {
+	for _, subject := range subjects {
+		delete(tss, toKey(subject))
+
+		// Delete any entries matching the wildcard, if applicable.
+		if isWildcard(subject) {
+			// remove any matching types.
+			for key := range tss {
+				current := fromKey(key)
+				if current.Namespace == subject.Namespace {
+					delete(tss, key)
+				}
+			}
 		}
 	}
 }
 
-func (ss *subjectSet) exclude(subjectsMap map[string]FoundSubject) {
-	for key := range ss.subjectsMap {
-		_, ok := subjectsMap[key]
-		if ok {
-			delete(ss.subjectsMap, key)
+func (tss trackingSubjectSet) withType(objectType string) []FoundSubject {
+	toReturn := make([]FoundSubject, 0, len(tss))
+	for _, current := range tss {
+		if current.subject.Namespace == objectType {
+			toReturn = append(toReturn, current)
 		}
 	}
+	return toReturn
+}
+
+func (tss trackingSubjectSet) exclude(otherSet trackingSubjectSet) trackingSubjectSet {
+	newSet := newTrackingSubjectSet()
+	newSet.addFrom(tss)
+	newSet.removeFrom(otherSet)
+	return newSet
+}
+
+func (tss trackingSubjectSet) intersect(otherSet trackingSubjectSet) trackingSubjectSet {
+	newSet := newTrackingSubjectSet()
+	for _, current := range tss {
+		// Add directly if shared by both.
+		other, ok := otherSet.get(current.subject)
+		if ok {
+			// NOTE: we add *both*, to ensure that we get the resources for both.
+			newSet.add(current)
+			newSet.add(other)
+		}
+
+		// If the current is a wildcard, Add any matching.
+		if isWildcard(current.subject) {
+			newSet.addWithResources(otherSet.withType(current.subject.Namespace), current.relationships)
+		}
+	}
+
+	for _, current := range otherSet {
+		// If the current is a wildcard, Add any matching.
+		if isWildcard(current.subject) {
+			newSet.addWithResources(tss.withType(current.subject.Namespace), current.relationships)
+		}
+	}
+
+	return newSet
+}
+
+func (tss trackingSubjectSet) toSlice() []FoundSubject {
+	toReturn := make([]FoundSubject, 0, len(tss))
+	for _, current := range tss {
+		toReturn = append(toReturn, current)
+	}
+	return toReturn
+}
+
+func (tss trackingSubjectSet) toFoundSubjects() FoundSubjects {
+	return FoundSubjects{tss}
+}
+
+func toKey(subject *v0.ObjectAndRelation) string {
+	return fmt.Sprintf("%s %s %s", subject.Namespace, subject.ObjectId, subject.Relation)
+}
+
+func fromKey(key string) *v0.ObjectAndRelation {
+	subject := &v0.ObjectAndRelation{}
+	fmt.Sscanf(key, "%s %s %s", &subject.Namespace, &subject.ObjectId, &subject.Relation)
+	return subject
 }
