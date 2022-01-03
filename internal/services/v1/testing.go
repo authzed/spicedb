@@ -8,6 +8,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -35,7 +36,7 @@ func RunForTesting(t *testing.T, ds datastore.Datastore, nsm namespace.Manager, 
 
 	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 		return lis.Dial()
-	}), grpc.WithInsecure())
+	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
 	return v1.NewPermissionsServiceClient(conn), v1.NewSchemaServiceClient(conn)

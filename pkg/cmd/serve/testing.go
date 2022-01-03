@@ -22,6 +22,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
@@ -228,7 +229,7 @@ func (ptbm *perTokenBackendMiddleware) createUpstream() (*upstream, error) {
 			grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 				return l.Dial()
 			}),
-			grpc.WithInsecure(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("error creating client for new upstream: %w", err)
