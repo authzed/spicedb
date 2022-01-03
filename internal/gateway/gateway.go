@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -37,7 +38,7 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
 	}
 	if upstreamTLSCertPath == "" {
-		opts = append(opts, grpc.WithInsecure())
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else {
 		opts = append(opts, grpcutil.WithCustomCerts(upstreamTLSCertPath, grpcutil.SkipVerifyCA))
 	}
