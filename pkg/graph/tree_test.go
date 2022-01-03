@@ -91,19 +91,93 @@ func TestSimplify(t *testing.T) {
 			),
 			[]*v0.ObjectAndRelation{},
 		},
+		{
+			"wildcard left side exclusion",
+			Exclusion(nil,
+				Leaf(nil,
+					tuple.User(ONR("user", "*", "...")),
+					tuple.User(ONR("user", "user2", "...")),
+				),
+				Leaf(nil, tuple.User(ONR("user", "user1", "..."))),
+			),
+			[]*v0.ObjectAndRelation{
+				ONR("user", "user2", "..."),
+				ONR("user", "*", "..."),
+			},
+		},
+		{
+			"wildcard right side exclusion",
+			Exclusion(nil,
+				Leaf(nil,
+					tuple.User(ONR("user", "user2", "...")),
+				),
+				Leaf(nil, tuple.User(ONR("user", "*", "..."))),
+			),
+			[]*v0.ObjectAndRelation{},
+		},
+		{
+			"wildcard both sides exclusion",
+			Exclusion(nil,
+				Leaf(nil,
+					tuple.User(ONR("user", "user2", "...")),
+					tuple.User(ONR("user", "*", "...")),
+				),
+				Leaf(nil, tuple.User(ONR("user", "*", "..."))),
+			),
+			[]*v0.ObjectAndRelation{},
+		},
+		{
+			"wildcard left side intersection",
+			Intersection(nil,
+				Leaf(nil,
+					tuple.User(ONR("user", "*", "...")),
+					tuple.User(ONR("user", "user2", "...")),
+				),
+				Leaf(nil, tuple.User(ONR("user", "user1", "..."))),
+			),
+			[]*v0.ObjectAndRelation{
+				ONR("user", "user1", "..."),
+			},
+		},
+		{
+			"wildcard right side intersection",
+			Intersection(nil,
+				Leaf(nil, tuple.User(ONR("user", "user1", "..."))),
+				Leaf(nil,
+					tuple.User(ONR("user", "*", "...")),
+					tuple.User(ONR("user", "user2", "...")),
+				),
+			),
+			[]*v0.ObjectAndRelation{
+				ONR("user", "user1", "..."),
+			},
+		},
+		{
+			"wildcard both sides intersection",
+			Intersection(nil,
+				Leaf(nil,
+					tuple.User(ONR("user", "*", "...")),
+					tuple.User(ONR("user", "user1", "..."))),
+				Leaf(nil,
+					tuple.User(ONR("user", "*", "...")),
+					tuple.User(ONR("user", "user2", "...")),
+				),
+			),
+			[]*v0.ObjectAndRelation{
+				ONR("user", "user1", "..."),
+				ONR("user", "*", "..."),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			var simplified UserSet = make(map[string]struct{})
-			simplified.Add(Simplify(tc.tree)...)
-
+			simplified := Simplify(tc.tree)
 			for _, onr := range tc.expected {
-				usr := tuple.User(onr)
-				require.True(simplified.Contains(usr))
-				simplified.Remove(usr)
+				require.True(simplified.Contains(onr), "missing expected subject %s", onr)
+				simplified.Remove(onr)
 			}
 
 			require.Len(simplified, 0)

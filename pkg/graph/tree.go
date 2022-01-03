@@ -4,78 +4,11 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func Simplify(node *v0.RelationTupleTreeNode) []*v0.User {
-	switch typed := node.NodeType.(type) {
-	case *v0.RelationTupleTreeNode_IntermediateNode:
-		switch typed.IntermediateNode.Operation {
-		case v0.SetOperationUserset_UNION:
-			return SimplifyUnion(typed.IntermediateNode.ChildNodes)
-		case v0.SetOperationUserset_INTERSECTION:
-			return SimplifyIntersection(typed.IntermediateNode.ChildNodes)
-		case v0.SetOperationUserset_EXCLUSION:
-			return SimplifyExclusion(typed.IntermediateNode.ChildNodes)
-		}
-	case *v0.RelationTupleTreeNode_LeafNode:
-		var toReturn UserSet = make(map[string]struct{})
-		for _, usr := range typed.LeafNode.Users {
-			toReturn.Add(usr)
-		}
-		return toReturn.ToSlice()
-	}
-	return nil
-}
-
-func SimplifyUnion(children []*v0.RelationTupleTreeNode) []*v0.User {
-	var toReturn UserSet = make(map[string]struct{})
-	for _, child := range children {
-		toReturn.Add(Simplify(child)...)
-	}
-	return toReturn.ToSlice()
-}
-
-func SimplifyIntersection(children []*v0.RelationTupleTreeNode) []*v0.User {
-	firstChildChildren := Simplify(children[0])
-
-	if len(children) == 1 {
-		return firstChildChildren
-	}
-
-	var inOthers UserSet = make(map[string]struct{})
-	inOthers.Add(SimplifyIntersection(children[1:])...)
-
-	maxChildren := len(firstChildChildren)
-	if len(inOthers) < maxChildren {
-		maxChildren = len(inOthers)
-	}
-
-	toReturn := make([]*v0.User, 0, maxChildren)
-	for _, child := range firstChildChildren {
-		if inOthers.Contains(child) {
-			toReturn = append(toReturn, child)
-		}
-	}
-
-	return toReturn
-}
-
-func SimplifyExclusion(children []*v0.RelationTupleTreeNode) []*v0.User {
-	firstChildChildren := Simplify(children[0])
-
-	if len(children) == 1 || len(firstChildChildren) == 0 {
-		return firstChildChildren
-	}
-
-	var toReturn UserSet = make(map[string]struct{})
-	toReturn.Add(firstChildChildren...)
-	for _, child := range children[1:] {
-		toReturn.Remove(Simplify(child)...)
-	}
-
-	return toReturn.ToSlice()
-}
-
+// Leaf constructs a RelationTupleTreeNode leaf.
 func Leaf(start *v0.ObjectAndRelation, children ...*v0.User) *v0.RelationTupleTreeNode {
 	return &v0.RelationTupleTreeNode{
 		NodeType: &v0.RelationTupleTreeNode_LeafNode{
@@ -103,53 +36,201 @@ func setResult(
 	}
 }
 
+// Union constructs a RelationTupleTreeNode union operation.
 func Union(start *v0.ObjectAndRelation, children ...*v0.RelationTupleTreeNode) *v0.RelationTupleTreeNode {
 	return setResult(v0.SetOperationUserset_UNION, start, children)
 }
 
+// Intersection constructs a RelationTupleTreeNode intersection operation.
 func Intersection(start *v0.ObjectAndRelation, children ...*v0.RelationTupleTreeNode) *v0.RelationTupleTreeNode {
 	return setResult(v0.SetOperationUserset_INTERSECTION, start, children)
 }
 
+// Exclusion constructs a RelationTupleTreeNode exclusion operation.
 func Exclusion(start *v0.ObjectAndRelation, children ...*v0.RelationTupleTreeNode) *v0.RelationTupleTreeNode {
 	return setResult(v0.SetOperationUserset_EXCLUSION, start, children)
 }
 
-type UserSet map[string]struct{}
+// Simplify simplifes a relation tuple tree node into the set of users that would pass a Check.
+func Simplify(node *v0.RelationTupleTreeNode) SubjectSet {
+	switch typed := node.NodeType.(type) {
+	case *v0.RelationTupleTreeNode_IntermediateNode:
+		switch typed.IntermediateNode.Operation {
+		case v0.SetOperationUserset_UNION:
+			return simplifyUnion(typed.IntermediateNode.ChildNodes)
+		case v0.SetOperationUserset_INTERSECTION:
+			return simplifyIntersection(typed.IntermediateNode.ChildNodes)
+		case v0.SetOperationUserset_EXCLUSION:
+			return simplifyExclusion(typed.IntermediateNode.ChildNodes)
+		}
+	case *v0.RelationTupleTreeNode_LeafNode:
+		toReturn := NewSubjectSet()
+		for _, usr := range typed.LeafNode.Users {
+			toReturn.Add(usr.GetUserset())
+		}
+		return toReturn
+	}
+	return nil
+}
 
-func (us UserSet) Add(users ...*v0.User) {
-	for _, usr := range users {
-		us[toKey(usr)] = struct{}{}
+func simplifyUnion(children []*v0.RelationTupleTreeNode) SubjectSet {
+	toReturn := NewSubjectSet()
+	for _, child := range children {
+		toReturn.AddFrom(Simplify(child))
+	}
+	return toReturn
+}
+
+func simplifyIntersection(children []*v0.RelationTupleTreeNode) SubjectSet {
+	firstChildChildren := Simplify(children[0])
+	if len(children) == 1 {
+		return firstChildChildren
+	}
+
+	return firstChildChildren.Intersect(simplifyIntersection(children[1:]))
+}
+
+func simplifyExclusion(children []*v0.RelationTupleTreeNode) SubjectSet {
+	firstChildChildren := Simplify(children[0])
+	if len(children) == 1 || len(firstChildChildren) == 0 {
+		return firstChildChildren
+	}
+
+	toReturn := NewSubjectSet()
+	toReturn.AddFrom(firstChildChildren)
+	for _, child := range children[1:] {
+		toReturn = toReturn.Exclude(Simplify(child))
+	}
+
+	return toReturn
+}
+
+func isWildcard(subject *v0.ObjectAndRelation) bool {
+	return subject.ObjectId == tuple.PublicWildcard
+}
+
+// SubjectSet is a set of subjects.
+type SubjectSet map[string]struct{}
+
+// NewSubjectSet returns a new subject set, optionally populated with the given subjects to start.
+func NewSubjectSet(subjects ...*v0.ObjectAndRelation) SubjectSet {
+	var toReturn SubjectSet = make(map[string]struct{})
+	toReturn.Add(subjects...)
+	return toReturn
+}
+
+// AddFrom adds the subjects found in the other set to this set.
+func (ss SubjectSet) AddFrom(otherSet SubjectSet) {
+	for subStr := range otherSet {
+		ss[subStr] = struct{}{}
 	}
 }
 
-func (us UserSet) Contains(usr *v0.User) bool {
-	_, ok := us[toKey(usr)]
+// RemoveFrom removes all the subjects found in the other set from this set. Handles wildcards
+// as well.
+func (ss SubjectSet) RemoveFrom(otherSet SubjectSet) {
+	for subStr := range otherSet {
+		ss.Remove(fromKey(subStr))
+	}
+}
+
+// Add adds the given subjects to the subject set.
+func (ss SubjectSet) Add(subjects ...*v0.ObjectAndRelation) {
+	for _, sub := range subjects {
+		ss[toKey(sub)] = struct{}{}
+	}
+}
+
+// Contains indicates whether the subject set contains the given user *directly*. Note that this
+// will *not* match wildcards (use Matches for that).
+func (ss SubjectSet) Contains(subject *v0.ObjectAndRelation) bool {
+	_, ok := ss[toKey(subject)]
 	return ok
 }
 
-func (us UserSet) Remove(users ...*v0.User) {
-	for _, usr := range users {
-		delete(us, toKey(usr))
+// Remove removes the given subject(s) from the set. If the subject is a wildcard, all matching
+// subjects will be removed.
+func (ss SubjectSet) Remove(subjects ...*v0.ObjectAndRelation) {
+	for _, subject := range subjects {
+		delete(ss, toKey(subject))
+
+		// Delete any entries matching the wildcard, if applicable.
+		if isWildcard(subject) {
+			// remove any matching types.
+			for key := range ss {
+				current := fromKey(key)
+				if current.Namespace == subject.Namespace {
+					delete(ss, key)
+				}
+			}
+		}
 	}
 }
 
-func (us UserSet) ToSlice() []*v0.User {
-	toReturn := make([]*v0.User, 0, len(us))
-	for key := range us {
+// WithType returns all subjects in the set with the given object type.
+func (ss SubjectSet) WithType(objectType string) []*v0.ObjectAndRelation {
+	toReturn := make([]*v0.ObjectAndRelation, 0, len(ss))
+	for key := range ss {
+		current := fromKey(key)
+		if current.Namespace == objectType {
+			toReturn = append(toReturn, current)
+		}
+	}
+	return toReturn
+}
+
+// Exclude excludes the members of the other set from this set, including handling of wildcards.
+func (ss SubjectSet) Exclude(otherSet SubjectSet) SubjectSet {
+	newSet := NewSubjectSet()
+	newSet.AddFrom(ss)
+	newSet.RemoveFrom(otherSet)
+	return newSet
+}
+
+// Intersect returns a new SubjectSet that is the intersection of this set with the other specified.
+// Handles wildcard subjects automatically.
+func (ss SubjectSet) Intersect(otherSet SubjectSet) SubjectSet {
+	newSet := NewSubjectSet()
+	for key := range ss {
+		current := fromKey(key)
+
+		// Add directly if shared by both.
+		if otherSet.Contains(current) {
+			newSet.Add(current)
+		}
+
+		// If the current is a wildcard, Add any matching.
+		if isWildcard(current) {
+			newSet.Add(otherSet.WithType(current.Namespace)...)
+		}
+	}
+
+	for key := range otherSet {
+		// If the current is a wildcard, Add any matching.
+		current := fromKey(key)
+		if isWildcard(current) {
+			newSet.Add(ss.WithType(current.Namespace)...)
+		}
+	}
+
+	return newSet
+}
+
+// ToSlice converts the SubjectSet into a slice of subjects.
+func (ss SubjectSet) ToSlice() []*v0.ObjectAndRelation {
+	toReturn := make([]*v0.ObjectAndRelation, 0, len(ss))
+	for key := range ss {
 		toReturn = append(toReturn, fromKey(key))
 	}
 	return toReturn
 }
 
-func toKey(usr *v0.User) string {
-	return fmt.Sprintf("%s %s %s", usr.GetUserset().Namespace, usr.GetUserset().ObjectId, usr.GetUserset().Relation)
+func toKey(subject *v0.ObjectAndRelation) string {
+	return fmt.Sprintf("%s %s %s", subject.Namespace, subject.ObjectId, subject.Relation)
 }
 
-func fromKey(key string) *v0.User {
-	userset := &v0.ObjectAndRelation{}
-	fmt.Sscanf(key, "%s %s %s", &userset.Namespace, &userset.ObjectId, &userset.Relation)
-	return &v0.User{
-		UserOneof: &v0.User_Userset{Userset: userset},
-	}
+func fromKey(key string) *v0.ObjectAndRelation {
+	subject := &v0.ObjectAndRelation{}
+	fmt.Sscanf(key, "%s %s %s", &subject.Namespace, &subject.ObjectId, &subject.Relation)
+	return subject
 }
