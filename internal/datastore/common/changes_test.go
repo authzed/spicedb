@@ -177,7 +177,7 @@ func TestChanges(t *testing.T) {
 			ch := NewChanges()
 			for _, step := range tc.script {
 				rel := tuple.MustParse(step.relationship)
-				ch.AddChange(ctx, step.revision, rel, step.op)
+				ch.AddChange(ctx, revisionFromTransactionID(step.revision), rel, step.op)
 			}
 
 			require.Equal(canonicalize(tc.expected), canonicalize(ch.AsRevisionChanges()))
@@ -310,4 +310,8 @@ func canonicalize(in []*datastore.RevisionChanges) []*datastore.RevisionChanges 
 	}
 
 	return out
+}
+
+func revisionFromTransactionID(txID uint64) datastore.Revision {
+	return decimal.NewFromInt(int64(txID))
 }

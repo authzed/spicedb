@@ -143,11 +143,11 @@ func (pgd *pgDatastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			stagedChanges.AddChange(ctx, createdTxn, tpl, v0.RelationTupleUpdate_TOUCH)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(createdTxn), tpl, v0.RelationTupleUpdate_TOUCH)
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			stagedChanges.AddChange(ctx, deletedTxn, tpl, v0.RelationTupleUpdate_DELETE)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(deletedTxn), tpl, v0.RelationTupleUpdate_DELETE)
 		}
 	}
 	if err = rows.Err(); err != nil {
