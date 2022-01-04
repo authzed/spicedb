@@ -433,6 +433,9 @@ func rewriteACLError(ctx context.Context, err error) error {
 	case errors.As(err, &graph.ErrRequestCanceled{}):
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)
 
+	case errors.As(err, &graph.ErrInvalidArgument{}):
+		return status.Errorf(codes.InvalidArgument, "%s", err)
+
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
 		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 

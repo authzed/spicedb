@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -46,6 +47,10 @@ const (
 // Lookup performs a lookup request with the provided request and context.
 func (cl *ConcurrentLookup) Lookup(ctx context.Context, req ValidatedLookupRequest) (*v1.DispatchLookupResponse, error) {
 	funcToResolve := cl.lookupInternal(ctx, req)
+	if req.Subject.ObjectId == tuple.PublicWildcard {
+		funcToResolve = returnResult(lookupResultError(req, NewErrInvalidArgument(errors.New("cannot perform lookup on wildcard")), emptyMetadata))
+	}
+
 	resolved := lookupOne(ctx, req, funcToResolve)
 
 	// Remove the resolved relation reference from the excluded direct list to mark that it was completely resolved.

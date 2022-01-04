@@ -24,6 +24,4 @@ assertions:
     - "test/resource:first#view@test/user:aseconduser"
     - "test/resource:first#view@test/user:athirduser"
     - "test/resource:first#view@test/user:somegal"
-    - "test/resource:first#view@test/user:*"
-    - "test/resource:second#view@test/user:*"
     - "test/resource:second#view@test/user:otherperson"

@@ -275,6 +275,9 @@ func rewritePermissionsError(ctx context.Context, err error) error {
 	case errors.As(err, &datastore.ErrPreconditionFailed{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
+	case errors.As(err, &graph.ErrInvalidArgument{}):
+		return status.Errorf(codes.InvalidArgument, "%s", err)
+
 	case errors.As(err, &graph.ErrRequestCanceled{}):
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)
 

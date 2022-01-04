@@ -101,7 +101,7 @@ func TestMembershipSetExclusion(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection := graph.Exclusion(ONR("folder", "company", "viewer"),
+	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
 			tuple.User(ONR("user", "owner", "...")),
 			tuple.User(ONR("user", "legal", "...")),
@@ -111,10 +111,81 @@ func TestMembershipSetExclusion(t *testing.T) {
 		),
 	)
 
-	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), exclusion)
 	require.True(ok)
 	require.NoError(err)
 	verifySubjects(t, require, fso, "user:owner")
+}
+
+func TestMembershipSetExclusionMultiple(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "owner", "...")),
+			tuple.User(ONR("user", "legal", "...")),
+			tuple.User(ONR("user", "third", "...")),
+		),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "legal", "...")),
+		),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "owner", "...")),
+		),
+	)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), exclusion)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:third")
+}
+
+func TestMembershipSetExclusionMultipleWithWildcard(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "owner", "...")),
+			tuple.User(ONR("user", "legal", "...")),
+		),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "legal", "...")),
+		),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "*", "...")),
+		),
+	)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), exclusion)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso)
+}
+
+func TestMembershipSetExclusionMultipleMiddle(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "owner", "...")),
+			tuple.User(ONR("user", "legal", "...")),
+			tuple.User(ONR("user", "third", "...")),
+		),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "another", "...")),
+		),
+		graph.Leaf(_this,
+			tuple.User(ONR("user", "owner", "...")),
+		),
+	)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), exclusion)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:third", "user:legal")
 }
 
 func TestMembershipSetIntersectionWithOneWildcard(t *testing.T) {
@@ -156,7 +227,7 @@ func TestMembershipSetIntersectionWithAllWildcardLeft(t *testing.T) {
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(t, require, fso, "user:owner", "user:*")
+	verifySubjects(t, require, fso, "user:*", "user:owner")
 }
 
 func TestMembershipSetIntersectionWithAllWildcardRight(t *testing.T) {
@@ -177,14 +248,14 @@ func TestMembershipSetIntersectionWithAllWildcardRight(t *testing.T) {
 	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(t, require, fso, "user:owner", "user:*")
+	verifySubjects(t, require, fso, "user:*", "user:owner")
 }
 
 func TestMembershipSetExclusionWithLeftWildcard(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection :=
+	exclusion :=
 		graph.Exclusion(ONR("folder", "company", "viewer"),
 			graph.Leaf(_this,
 				tuple.User(ONR("user", "owner", "...")),
@@ -195,21 +266,94 @@ func TestMembershipSetExclusionWithLeftWildcard(t *testing.T) {
 			),
 		)
 
-	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), exclusion)
 	require.True(ok)
 	require.NoError(err)
-	verifySubjects(t, require, fso, "user:owner", "user:*")
+	verifySubjects(t, require, fso, "user:*", "user:owner")
 }
 
 func TestMembershipSetExclusionWithRightWildcard(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()
 
-	intersection :=
+	exclusion :=
 		graph.Exclusion(ONR("folder", "company", "viewer"),
 			graph.Leaf(_this,
 				tuple.User(ONR("user", "owner", "...")),
 				tuple.User(ONR("user", "legal", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "*", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), exclusion)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso)
+}
+
+func TestMembershipSetIntersectionWithThreeWildcards(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Intersection(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "legal", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "*", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "*", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:owner", "user:legal")
+}
+
+func TestMembershipSetIntersectionWithOneBranchMissingWildcards(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Intersection(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "legal", "...")),
+				tuple.User(ONR("user", "*", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "*", "...")),
+			),
+		)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:owner")
+}
+
+func TestMembershipSetIntersectionWithTwoBranchesMissingWildcards(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection :=
+		graph.Intersection(ONR("folder", "company", "viewer"),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "owner", "...")),
+				tuple.User(ONR("user", "legal", "...")),
+			),
+			graph.Leaf(_this,
+				tuple.User(ONR("user", "another", "...")),
 			),
 			graph.Leaf(_this,
 				tuple.User(ONR("user", "*", "...")),
