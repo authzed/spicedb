@@ -44,6 +44,8 @@ var (
 func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
 	var hlcNow decimal.Decimal
 	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		keySet := newKeySet()
+		cds.AddOverlapKey(keySet, newConfig.Name)
 		serialized, err := proto.Marshal(newConfig)
 		if err != nil {
 			return err
@@ -54,7 +56,12 @@ func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Name
 		if err != nil {
 			return err
 		}
-		return cds.conn.QueryRow(
+		for k := range keySet {
+			if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
+				return err
+			}
+		}
+		return tx.QueryRow(
 			datastore.SeparateContextWithTracing(ctx), writeSQL, writeArgs...,
 		).Scan(&hlcNow)
 	}); err != nil {
