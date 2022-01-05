@@ -17,8 +17,6 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
-	"github.com/authzed/spicedb/pkg/zedtoken"
-	"github.com/authzed/spicedb/pkg/zookie"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/require"
@@ -27,6 +25,8 @@ import (
 	"github.com/authzed/spicedb/e2e/cockroach"
 	"github.com/authzed/spicedb/e2e/generator"
 	"github.com/authzed/spicedb/e2e/spice"
+	"github.com/authzed/spicedb/pkg/zedtoken"
+	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type SchemaData struct {
@@ -153,77 +153,102 @@ func TestNoNewEnemy(t *testing.T) {
 	t.Log("modifying time")
 	require.NoError(t, crdb.TimeDelay(ctx, e2e.MustFile(ctx, t, "timeattack-1.log"), 1, -150*time.Millisecond))
 
-	t.Run("protected from schema newenemy", func(t *testing.T) {
-		vulnerableFn := func(t *testing.T) int {
-			protected := true
-			var attempts int
-			for protected {
-				// cap attempts at 100, retry with a different prefix
-				protected, attempts = checkSchemaNoNewEnemy(ctx, t, schemaData, slowNodeId, crdb, vulnerableSpiceDb, 100)
-			}
-			require.False(t, protected)
-			t.Logf("determined spicedb vulnerable in %d attempts", attempts)
-			return attempts
-		}
-		protectedFn := func(t *testing.T, count int) {
-			t.Logf("check spicedb is protected after %d attempts", count)
-			protected := true
-			var attempts int
-			for protected {
-				protected, attempts = checkSchemaNoNewEnemy(ctx, t, schemaData, slowNodeId, crdb, protectedSpiceDb, count)
-				if attempts < count {
-					continue
-				}
-				require.True(t, protected, "protection is enabled, but newenemy detected")
-				require.Equal(t, count, attempts)
-				t.Logf("spicedb is protected after %d attempts", count)
-				return
-			}
-		}
-		statTest(t, 5, vulnerableFn, protectedFn)
-	})
-
-	t.Run("protected from data newenemy", func(t *testing.T) {
-		vulnerableFn := func(t *testing.T) int {
-			protected := true
-			var attempts int
-			for protected {
-				// cap attempts at 100, retry with a different prefix
-				protected, attempts = checkDataNoNewEnemy(ctx, t, schemaData, slowNodeId, crdb, vulnerableSpiceDb, 100)
-			}
-			require.False(t, protected)
-			t.Logf("determined spicedb vulnerable in %d attempts", attempts)
-			return attempts
-		}
-		protectedFn := func(t *testing.T, count int) {
-			t.Logf("check spicedb is protected after %d attempts", count)
-			protected := true
-			var attempts int
-			for protected {
-				protected, attempts = checkDataNoNewEnemy(ctx, t, schemaData, slowNodeId, crdb, protectedSpiceDb, count)
-				if attempts < count {
-					continue
-				}
-				require.True(t, protected, "protection is enabled, but newenemy detected")
-				require.Equal(t, count, attempts)
-				t.Logf("spicedb is protected after %d attempts", count)
-				return
-			}
-		}
-		statTest(t, 5, vulnerableFn, protectedFn)
-	})
+	tests := []struct {
+		name            string
+		vulnerableProbe probeFn
+		protectedProbe  probeFn
+		vulnerableMax   int
+		sampleSize      int
+	}{
+		{
+			name: "protected from schema newenemy",
+			vulnerableProbe: func(count int) (bool, int) {
+				return checkSchemaNoNewEnemy(ctx, t, schemaData, slowNodeId, crdb, vulnerableSpiceDb, count)
+			},
+			protectedProbe: func(count int) (bool, int) {
+				return checkSchemaNoNewEnemy(ctx, t, schemaData, slowNodeId, crdb, protectedSpiceDb, count)
+			},
+			vulnerableMax: 100,
+			sampleSize:    5,
+		},
+		{
+			name: "protected from data newenemy",
+			vulnerableProbe: func(count int) (bool, int) {
+				return checkDataNoNewEnemy(ctx, t, schemaData, slowNodeId, crdb, vulnerableSpiceDb, count)
+			},
+			protectedProbe: func(count int) (bool, int) {
+				return checkDataNoNewEnemy(ctx, t, schemaData, slowNodeId, crdb, protectedSpiceDb, count)
+			},
+			vulnerableMax: 100,
+			sampleSize:    5,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vulnerableFn, protectedFn := attemptFnsForProbeFns(100, tt.vulnerableProbe, tt.protectedProbe)
+			statTest(t, 5, vulnerableFn, protectedFn)
+		})
+	}
 }
+
+// probeFn tests a condition a maximum of n times, returning whether the
+// condition holds and how many times it was attempted. It is used as a building
+// block for attemptFn and protectedAttemptFn.
+type probeFn func(n int) (success bool, count int)
+
+// attemptFnsForProbeFns takes probeFns and turns them into "testFns" that are used
+// by stat tests
+func attemptFnsForProbeFns(vulnerableMax int, vulnerableProbe, protectedProbe probeFn) (vulnerableFn attemptFn, protectedFn protectedAttemptFn) {
+	vulnerableFn = func(t *testing.T) int {
+		protected := true
+		var attempts int
+		for protected {
+			// attempt vulnerableMax times before resetting
+			// this helps if the test gets stuck in a state with bad initial
+			// conditions, like a prefix that never lands on the right nodes
+			protected, attempts = vulnerableProbe(vulnerableMax)
+		}
+		require.False(t, protected)
+		t.Logf("determined spicedb vulnerable in %d attempts", attempts)
+		return attempts
+	}
+	protectedFn = func(t *testing.T, count int) {
+		t.Logf("check spicedb is protected after %d attempts", count)
+		protected := true
+		var attempts int
+		for protected {
+			protected, attempts = protectedProbe(count)
+			// if the number of attempts doesn't match the count, that means
+			// the test has requests a reset for some reason.
+			if attempts < count {
+				continue
+			}
+			require.True(t, protected, "protection is enabled, but newenemy detected")
+			require.Equal(t, count, attempts)
+			t.Logf("spicedb is protected after %d attempts", count)
+			return
+		}
+	}
+	return
+}
+
+// attemptFn runs a check and returns how many iterations it took to fail
+type attemptFn func(t *testing.T) int
+
+// protectedAttemptFn runs a check and fails the current test if it fails within
+// `count` iterations
+type protectedAttemptFn func(t *testing.T, count int)
 
 // statTest takes a testFn that is expected to fail the test, returning a sample
 // and a protectedTestFn that is expected to succeed even after a given number
 // of runs.
-func statTest(t *testing.T, sampleSize int, testFn func(t *testing.T) int, protectedTestFn func(t *testing.T, count int)) {
+func statTest(t *testing.T, sampleSize int, vulnerableFn attemptFn, protectedFn protectedAttemptFn) {
 	samples := make([]int, sampleSize)
 	for i := 0; i < sampleSize; i++ {
 		t.Logf("collecting sample %d", i)
-		samples[i] = testFn(t)
+		samples[i] = vulnerableFn(t)
 	}
-	protectedTestFn(t, iterationsForHighConfidence(samples))
+	protectedFn(t, iterationsForHighConfidence(samples))
 }
 
 // iterationsForHighConfidence returns how many iterations we need to get
