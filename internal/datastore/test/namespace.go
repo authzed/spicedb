@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	testNamespace = ns.Namespace("test/test",
+	testNamespace = ns.Namespace("foo/bar",
 		ns.Relation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
 	)
 

@@ -48,23 +48,23 @@ func TestCompile(t *testing.T) {
 		{
 			"empty def",
 			&someTenant,
-			`definition empty {}`,
+			`definition def {}`,
 			"",
 			[]*v0.NamespaceDefinition{
-				namespace.Namespace("sometenant/empty"),
+				namespace.Namespace("sometenant/def"),
 			},
 		},
 		{
 			"simple def",
 			&someTenant,
 			`definition simple {
-				relation foos: bars;
+				relation foo: bar;
 			}`,
 			"",
 			[]*v0.NamespaceDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos", nil,
-						namespace.AllowedRelation("sometenant/bars", "..."),
+					namespace.Relation("foo", nil,
+						namespace.AllowedRelation("sometenant/bar", "..."),
 					),
 				),
 			},
@@ -413,17 +413,17 @@ func TestCompile(t *testing.T) {
 		{
 			"invalid definition name",
 			nil,
-			`definition someTenant/foo {}`,
-			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/foo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
+			`definition someTenant/fo {}`,
+			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 			[]*v0.NamespaceDefinition{},
 		},
 		{
 			"invalid relation name",
 			nil,
 			`definition some_tenant/foos {
-				relation bar: some_tenant/foos
+				relation ab: some_tenant/foos
 			}`,
-			"parse error in `invalid relation name`, line 2, column 5: error in relation bar: invalid Relation.Name: value does not match regex pattern \"^[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
+			"parse error in `invalid relation name`, line 2, column 5: error in relation ab: invalid Relation.Name: value does not match regex pattern \"^[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 			[]*v0.NamespaceDefinition{},
 		},
 		{
