@@ -57,7 +57,7 @@ definition {{.}}/resource {
 
 const (
 	objIDRegex           = "[a-zA-Z0-9_][a-zA-Z0-9/_-]{0,127}"
-	namespacePrefixRegex = "[a-z][a-z0-9_]{2,62}[a-z0-9]"
+	namespacePrefixRegex = "[a-z][a-z0-9_]{1,62}[a-z0-9]"
 )
 
 var (

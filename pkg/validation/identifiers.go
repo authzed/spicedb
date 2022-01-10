@@ -6,7 +6,7 @@ import (
 	"regexp"
 )
 
-const identifier = "[a-z][a-z0-9_]{2,62}[a-z0-9]"
+const identifier = "[a-z][a-z0-9_]{1,62}[a-z0-9]"
 
 var (
 	// ObjectNameRegex is the regular expression used to validate the object IDs.
