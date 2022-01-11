@@ -211,6 +211,10 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 
 	// Dispatch a check for the subject wildcard, if allowed.
 	isWildcardAllowed, err := typeSystem.IsAllowedPublicNamespace(req.ObjectRelation.Relation, req.Subject.Namespace)
+	if err != nil {
+		return returnResult(lookupResultError(req, err, emptyMetadata))
+	}
+
 	if isWildcardAllowed == namespace.PublicSubjectAllowed {
 		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
 			objects := tuple.NewONRSet()

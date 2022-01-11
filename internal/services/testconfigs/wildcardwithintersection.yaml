@@ -16,9 +16,9 @@ relationships: |
   test/resource:second#viewer@test/user:*
 assertions:
   assertTrue:
-    - test/resource:first#view@test/user:somegal
-    - test/resource:second#view@test/user:editordude
-    - test/resource:second#view@test/user:seconduser
+    - "test/resource:first#view@test/user:somegal"
+    - "test/resource:second#view@test/user:editordude"
+    - "test/resource:second#view@test/user:seconduser"
   assertFalse:
     - "test/resource:first#view@test/user:editordude"
     - "test/resource:first#view@test/user:anotheruser"

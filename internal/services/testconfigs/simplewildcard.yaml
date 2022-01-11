@@ -10,7 +10,7 @@ relationships: |
   test/resource:first#viewer@test/user:concreteguy
 assertions:
   assertTrue:
-    - test/resource:first#viewer@test/user:concreteguy
-    - test/resource:first#viewer@test/user:anotheruser
-    - test/resource:first#viewer@test/user:aseconduser
-    - test/resource:first#viewer@test/user:athirduser
+    - "test/resource:first#viewer@test/user:concreteguy"
+    - "test/resource:first#viewer@test/user:anotheruser"
+    - "test/resource:first#viewer@test/user:aseconduser"
+    - "test/resource:first#viewer@test/user:athirduser"
