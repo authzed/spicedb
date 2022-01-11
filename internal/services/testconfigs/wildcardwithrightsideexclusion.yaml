@@ -3,7 +3,7 @@ schema: >-
   definition test/user {}
 
   definition test/resource {
-    relation viewer: test/user 
+    relation viewer: test/user
     relation banned: test/user | test/user:*
 
     permission view = viewer - banned
@@ -16,8 +16,8 @@ relationships: |
   test/resource:second#viewer@test/user:somegal
 assertions:
   assertTrue:
-    - test/resource:first#viewer@test/user:somegal
-    - test/resource:second#viewer@test/user:somegal
+    - "test/resource:first#viewer@test/user:somegal"
+    - "test/resource:second#viewer@test/user:somegal"
   assertFalse:
     - "test/resource:first#view@test/user:editordude"
     - "test/resource:first#view@test/user:anotheruser"

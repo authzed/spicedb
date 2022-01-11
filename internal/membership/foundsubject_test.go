@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
 func TestToValidationString(t *testing.T) {

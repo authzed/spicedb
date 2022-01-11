@@ -16,20 +16,20 @@ relationships: |
   test/resource:first#mustbehere@test/user:somegal
 assertions:
   assertTrue:
-    - test/resource:first#viewer@test/user:somegal
-    - test/resource:first#viewer@test/user:anotherperson
-    - test/resource:first#viewer@test/user:thirduser
-    - test/resource:first#viewer@test/user:bannedguy
+    - "test/resource:first#viewer@test/user:somegal"
+    - "test/resource:first#viewer@test/user:anotherperson"
+    - "test/resource:first#viewer@test/user:thirduser"
+    - "test/resource:first#viewer@test/user:bannedguy"
 
-    - test/resource:first#view@test/user:somegal
-    - test/resource:first#view@test/user:anotherperson
-    - test/resource:first#view@test/user:thirduser
+    - "test/resource:first#view@test/user:somegal"
+    - "test/resource:first#view@test/user:anotherperson"
+    - "test/resource:first#view@test/user:thirduser"
 
-    - test/resource:first#mustbehere@test/user:somegal
-    - test/resource:first#specialview@test/user:somegal
+    - "test/resource:first#mustbehere@test/user:somegal"
+    - "test/resource:first#specialview@test/user:somegal"
   assertFalse:
-    - test/resource:first#view@test/user:bannedguy
+    - "test/resource:first#view@test/user:bannedguy"
 
-    - test/resource:first#specialview@test/user:bannedguy
-    - test/resource:first#specialview@test/user:anotherperson
-    - test/resource:first#specialview@test/user:thirduser
+    - "test/resource:first#specialview@test/user:bannedguy"
+    - "test/resource:first#specialview@test/user:anotherperson"
+    - "test/resource:first#specialview@test/user:thirduser"

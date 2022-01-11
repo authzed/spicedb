@@ -78,7 +78,7 @@ func populateFoundSubjects(rootONR *v0.ObjectAndRelation, treeNode *v0.RelationT
 
 		case v0.SetOperationUserset_INTERSECTION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
-				return nil, fmt.Errorf("Found intersection with no children")
+				return nil, fmt.Errorf("found intersection with no children")
 			}
 
 			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.ChildNodes[0])
@@ -100,7 +100,7 @@ func populateFoundSubjects(rootONR *v0.ObjectAndRelation, treeNode *v0.RelationT
 
 		case v0.SetOperationUserset_EXCLUSION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
-				return nil, fmt.Errorf("Found exclusion with no children")
+				return nil, fmt.Errorf("found exclusion with no children")
 			}
 
 			firstChildSet, err := populateFoundSubjects(rootONR, typed.IntermediateNode.ChildNodes[0])
