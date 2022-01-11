@@ -207,7 +207,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			if isAllowed != namespace.PublicSubjectAllowed {
 				return nil, status.Errorf(
 					codes.InvalidArgument,
-					"wildcardsubjects of type %s are not allowed on %v",
+					"wildcard subjects of type %s are not allowed on %v",
 					update.Relationship.Subject.Object.ObjectType,
 					tuple.StringObjectRef(update.Relationship.Resource),
 				)
@@ -274,6 +274,9 @@ func rewritePermissionsError(ctx context.Context, err error) error {
 		fallthrough
 	case errors.As(err, &datastore.ErrPreconditionFailed{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
+
+	case errors.As(err, &graph.ErrInvalidArgument{}):
+		return status.Errorf(codes.InvalidArgument, "%s", err)
 
 	case errors.As(err, &graph.ErrRequestCanceled{}):
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)

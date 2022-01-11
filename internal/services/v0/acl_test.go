@@ -25,9 +25,9 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/membership"
 	"github.com/authzed/spicedb/internal/namespace"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
-	g "github.com/authzed/spicedb/pkg/graph"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
@@ -522,6 +522,13 @@ func TestCheck(t *testing.T) {
 				{ONR("user", "aasdasd", "..."), false},
 			},
 		},
+		{
+			ONR("document", "somedoc", "owner"),
+			codes.InvalidArgument,
+			[]checkTest{
+				{ONR("user", "*", "..."), false},
+			},
+		},
 	}
 
 	for _, delta := range testTimedeltas {
@@ -643,7 +650,9 @@ func TestExpand(t *testing.T) {
 						require.NotNil(expanded.Revision)
 						require.NotEmpty(expanded.Revision.Token)
 
-						require.Equal(tc.expandRelatedCount, len(g.Simplify(expanded.TreeNode)))
+						found, err := membership.AccessibleExpansionSubjects(expanded.TreeNode)
+						require.NoError(err)
+						require.Equal(tc.expandRelatedCount, len(found))
 
 						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
 						require.NoError(err)
@@ -772,6 +781,12 @@ func TestLookup(t *testing.T) {
 			ONR("invalidnamespace", "someuser", "..."),
 			[]string{},
 			codes.FailedPrecondition,
+		},
+		{
+			RR("document", "viewer_and_editor_derived"),
+			ONR("user", "*", "..."),
+			[]string{},
+			codes.InvalidArgument,
 		},
 	}
 

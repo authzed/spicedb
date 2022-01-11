@@ -636,6 +636,59 @@ assertFalse:
 - '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
+		{
+			"wildcard exclusion",
+			`
+		   			definition user {}
+		   			definition document {
+		   				relation banned: user
+		   				relation viewer: user | user:*
+		   				permission view = viewer - banned
+		   			}
+		   			`,
+			[]*v0.RelationTuple{
+				tuple.MustParse("document:somedoc#banned@user:jimmy"),
+				tuple.MustParse("document:somedoc#viewer@user:*"),
+			},
+			`"document:somedoc#view":
+- "[user:* - {user:jimmy}] is <document:somedoc#viewer>"`,
+			`assertTrue:
+- document:somedoc#view@user:somegal
+assertFalse:
+- document:somedoc#view@user:jimmy`,
+			nil,
+			`document:somedoc#view:
+- '[user:* - {user:jimmy}] is <document:somedoc#viewer>'
+`,
+		},
+		{
+			"wildcard exclusion under intersection",
+			`
+		   			definition user {}
+		   			definition document {
+		   				relation banned: user
+		   				relation viewer: user | user:*
+		   				relation other: user
+		   				permission view = (viewer - banned) & (viewer - other)
+		   			}
+		   			`,
+			[]*v0.RelationTuple{
+				tuple.MustParse("document:somedoc#other@user:sarah"),
+				tuple.MustParse("document:somedoc#banned@user:jimmy"),
+				tuple.MustParse("document:somedoc#viewer@user:*"),
+			},
+			`"document:somedoc#view":
+- "[user:* - {user:jimmy}] is <document:somedoc#viewer>"`,
+			`assertTrue:
+- document:somedoc#view@user:somegal
+assertFalse:
+- document:somedoc#view@user:jimmy
+- document:somedoc#view@user:sarah`,
+			nil,
+			`document:somedoc#view:
+- '[user:* - {user:jimmy, user:sarah}] is <document:somedoc#viewer>'
+`,
+		},
 	}
 
 	for _, tc := range tests {
