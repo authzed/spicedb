@@ -12,7 +12,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
+	dispatchv1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
@@ -59,6 +61,10 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 		objectDef, _ := generator.GenerateSource(nsDef)
 		objectDefs = append(objectDefs, objectDef)
 	}
+
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: uint32(len(nsDefs)),
+	})
 
 	return &v1.ReadSchemaResponse{
 		SchemaText: strings.Join(objectDefs, "\n\n"),
@@ -140,6 +146,10 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		names = append(names, nsdef.Name)
 	}
 
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: uint32(len(nsdefs)),
+	})
+
 	// Delete the removed namespaces.
 	removedNames := make([]string, 0, len(existingDefMap))
 	for nsdefName, removed := range existingDefMap {
@@ -151,6 +161,10 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		}
 		removedNames = append(removedNames, nsdefName)
 	}
+
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: uint32(len(nsdefs) + len(removedNames)),
+	})
 
 	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Strs("addedOrChanged", names).Strs("removed", removedNames).Msg("wrote namespace definitions")
 

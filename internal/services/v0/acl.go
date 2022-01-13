@@ -94,6 +94,11 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 		mutations = append(mutations, tuple.UpdateToRelationshipUpdate(mut))
 	}
 
+	usagemetrics.SetInContext(ctx, &v1.ResponseMeta{
+		// One request per precondition, and one request for the actual writing of tuples.
+		DispatchCount: uint32(len(preconditions)) + 1,
+	})
+
 	revision, err := as.ds.WriteTuples(ctx, preconditions, mutations)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
@@ -220,6 +225,10 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 
 		allTuplesetResults = append(allTuplesetResults, tuplesetResult)
 	}
+
+	usagemetrics.SetInContext(ctx, &v1.ResponseMeta{
+		DispatchCount: uint32(len(allTuplesetResults)),
+	})
 
 	return &v0.ReadResponse{
 		Tuplesets: allTuplesetResults,

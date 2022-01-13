@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
+	dispatchv1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
@@ -97,6 +98,10 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, atRevision); err != nil {
 		return rewritePermissionsError(ctx, err)
 	}
+
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: 1,
+	})
 
 	tupleIterator, err := ps.ds.QueryTuples(ctx, req.RelationshipFilter, atRevision)
 	if err != nil {
@@ -233,6 +238,11 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		}
 	}
 
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		// One request per precondition and one request for the actual writes.
+		DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
+	})
+
 	revision, err := ps.ds.WriteTuples(ctx, req.OptionalPreconditions, req.Updates)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
@@ -252,6 +262,11 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, readRevision); err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
+
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		// One request per precondition and one request for the actual delete.
+		DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
+	})
 
 	revision, err := ps.ds.DeleteRelationships(ctx, req.OptionalPreconditions, req.RelationshipFilter)
 	if err != nil {

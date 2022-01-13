@@ -16,7 +16,9 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
+	dispatchv1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/zookie"
@@ -148,6 +150,10 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		}
 	}
 
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: uint32(len(req.Configs)),
+	})
+
 	revision := decimal.Zero
 	for _, config := range req.Configs {
 		var err error
@@ -167,6 +173,10 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
+
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: 1,
+	})
 
 	found, _, err := nss.ds.ReadNamespace(ctx, req.Namespace, readRevision)
 	if err != nil {
@@ -225,6 +235,10 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 	}
+
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: uint32(len(req.Namespaces)),
+	})
 
 	// Delete all the namespaces specified.
 	for _, nsName := range req.Namespaces {
