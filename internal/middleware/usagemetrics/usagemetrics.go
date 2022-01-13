@@ -61,13 +61,15 @@ type serverReporter struct {
 	methodName string
 }
 
-func (r *serverReporter) PostCall(err error, rpcDuration time.Duration) {
+func (r *serverReporter) PostCall(_ error, _ time.Duration) {
 	responseMeta := FromContext(r.ctx)
-	if responseMeta != nil {
-		err := annotateAndReportForMetadata(r.ctx, r.methodName, responseMeta)
-		if err != nil {
-			log.Ctx(r.ctx).Err(err).Msg("could not report metadata")
-		}
+	if responseMeta == nil {
+		responseMeta = &dispatch.ResponseMeta{}
+	}
+
+	err := annotateAndReportForMetadata(r.ctx, r.methodName, responseMeta)
+	if err != nil {
+		log.Ctx(r.ctx).Err(err).Msg("could not report metadata")
 	}
 }
 
