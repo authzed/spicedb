@@ -604,7 +604,7 @@ func convertYamlError(source v0.DeveloperError_Source, err error) *v0.DeveloperE
 	if len(pieces) == 3 {
 		// We can safely ignore the error here because it will default to 0, which is the not found
 		// case.
-		lineNumber, _ = strconv.ParseUint(pieces[1], 10, 0)
+		lineNumber, _ = strconv.ParseUint(pieces[1], 10, 32)
 		msg = pieces[2]
 	}
 
