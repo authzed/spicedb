@@ -564,23 +564,24 @@ func convertSourceError(source v0.DeveloperError_Source, err *validationfile.Err
 var yamlLineRegex = regexp.MustCompile(`line ([0-9]+): (.+)`)
 
 func convertYamlError(source v0.DeveloperError_Source, err error) *v0.DeveloperError {
-	var lineNumber uint64
-	msg := err.Error()
-
-	pieces := yamlLineRegex.FindStringSubmatch(err.Error())
-	if len(pieces) == 3 {
-		// We can safely ignore the error here because it will default to 0, which is the not found
-		// case.
-		lineNumber, _ = strconv.ParseUint(pieces[1], 10, 0)
-		msg = pieces[2]
-	}
-
-	return &v0.DeveloperError{
-		Message: msg,
+	devErr := &v0.DeveloperError{
+		Message: err.Error(),
 		Kind:    v0.DeveloperError_PARSE_ERROR,
 		Source:  source,
-		Line:    uint32(lineNumber),
+		Line:    0,
 	}
+
+	pieces := yamlLineRegex.FindStringSubmatch(devErr.Message)
+	if len(pieces) == 3 {
+		lineNumber, parseErr := strconv.ParseUint(pieces[1], 10, 32)
+		if parseErr != nil {
+			lineNumber = 0
+		}
+		devErr.Line = uint32(lineNumber)
+		devErr.Message = pieces[2]
+	}
+
+	return devErr
 }
 
 func upgradeSchema(configs []string) (string, error) {
