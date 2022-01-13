@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -128,102 +129,121 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 		}
 	}
 
+	errG, groupCtx := errgroup.WithContext(ctx)
 	for _, tuplesetFilter := range req.Tuplesets {
-		checkedRelation := false
-		for _, filter := range tuplesetFilter.Filters {
-			switch filter {
-			case v0.RelationTupleFilter_OBJECT_ID:
-				if tuplesetFilter.ObjectId == "" {
-					return nil, status.Errorf(
+		tuplesetFilter := tuplesetFilter
+		errG.Go(func() error {
+			checkedRelation := false
+			for _, filter := range tuplesetFilter.Filters {
+				switch filter {
+				case v0.RelationTupleFilter_OBJECT_ID:
+					if tuplesetFilter.ObjectId == "" {
+						return status.Errorf(
+							codes.InvalidArgument,
+							"object ID filter specified but not object ID provided.",
+						)
+					}
+				case v0.RelationTupleFilter_RELATION:
+					if tuplesetFilter.Relation == "" {
+						return status.Errorf(
+							codes.InvalidArgument,
+							"relation filter specified but not relation provided.",
+						)
+					}
+					if err := as.nsm.CheckNamespaceAndRelation(
+						groupCtx,
+						tuplesetFilter.Namespace,
+						tuplesetFilter.Relation,
+						false, // Disallow ellipsis
+						atRevision,
+					); err != nil {
+						return err
+					}
+					checkedRelation = true
+				case v0.RelationTupleFilter_USERSET:
+					if tuplesetFilter.Userset == nil {
+						return status.Errorf(
+							codes.InvalidArgument,
+							"userset filter specified but not userset provided.",
+						)
+					}
+				default:
+					return status.Errorf(
 						codes.InvalidArgument,
-						"object ID filter specified but not object ID provided.",
+						"unknown tupleset filter type: %s",
+						filter,
 					)
 				}
-			case v0.RelationTupleFilter_RELATION:
-				if tuplesetFilter.Relation == "" {
-					return nil, status.Errorf(
-						codes.InvalidArgument,
-						"relation filter specified but not relation provided.",
-					)
-				}
+			}
+
+			if !checkedRelation {
 				if err := as.nsm.CheckNamespaceAndRelation(
-					ctx,
+					groupCtx,
 					tuplesetFilter.Namespace,
-					tuplesetFilter.Relation,
-					false, // Disallow ellipsis
+					datastore.Ellipsis,
+					true, // Allow ellipsis
 					atRevision,
 				); err != nil {
-					return nil, rewriteACLError(ctx, err)
+					return err
 				}
-				checkedRelation = true
-			case v0.RelationTupleFilter_USERSET:
-				if tuplesetFilter.Userset == nil {
-					return nil, status.Errorf(
-						codes.InvalidArgument,
-						"userset filter specified but not userset provided.",
-					)
-				}
-			default:
-				return nil, status.Errorf(
-					codes.InvalidArgument,
-					"unknown tupleset filter type: %s",
-					filter,
-				)
 			}
-		}
-
-		if !checkedRelation {
-			if err := as.nsm.CheckNamespaceAndRelation(
-				ctx,
-				tuplesetFilter.Namespace,
-				datastore.Ellipsis,
-				true, // Allow ellipsis
-				atRevision,
-			); err != nil {
-				return nil, rewriteACLError(ctx, err)
-			}
-		}
+			return nil
+		})
 	}
 
-	err := as.ds.CheckRevision(ctx, atRevision)
-	if err != nil {
+	errG.Go(func() error {
+		return as.ds.CheckRevision(groupCtx, atRevision)
+	})
+	if err := errG.Wait(); err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
 
+	queryG, queryCtx := errgroup.WithContext(ctx)
 	allTuplesetResults := make([]*v0.ReadResponse_Tupleset, 0, len(req.Tuplesets))
+	resultsMu := sync.Mutex{}
 	for _, tuplesetFilter := range req.Tuplesets {
-		queryFilter := &v1_api.RelationshipFilter{
-			ResourceType: tuplesetFilter.Namespace,
-		}
-		for _, filter := range tuplesetFilter.Filters {
-			switch filter {
-			case v0.RelationTupleFilter_OBJECT_ID:
-				queryFilter.OptionalResourceId = tuplesetFilter.ObjectId
-			case v0.RelationTupleFilter_RELATION:
-				queryFilter.OptionalRelation = tuplesetFilter.Relation
-			case v0.RelationTupleFilter_USERSET:
-				queryFilter.OptionalSubjectFilter = tuple.UsersetToSubjectFilter(tuplesetFilter.Userset)
-			default:
-				return nil, status.Errorf(codes.InvalidArgument, "unknown tupleset filter type: %s", filter)
+		tuplesetFilter := tuplesetFilter
+		queryG.Go(func() error {
+			queryFilter := &v1_api.RelationshipFilter{
+				ResourceType: tuplesetFilter.Namespace,
 			}
-		}
+			for _, filter := range tuplesetFilter.Filters {
+				switch filter {
+				case v0.RelationTupleFilter_OBJECT_ID:
+					queryFilter.OptionalResourceId = tuplesetFilter.ObjectId
+				case v0.RelationTupleFilter_RELATION:
+					queryFilter.OptionalRelation = tuplesetFilter.Relation
+				case v0.RelationTupleFilter_USERSET:
+					queryFilter.OptionalSubjectFilter = tuple.UsersetToSubjectFilter(tuplesetFilter.Userset)
+				default:
+					return status.Errorf(codes.InvalidArgument, "unknown tupleset filter type: %s", filter)
+				}
+			}
 
-		tupleIterator, err := as.ds.QueryTuples(ctx, queryFilter, atRevision)
-		if err != nil {
-			return nil, rewriteACLError(ctx, err)
-		}
+			tupleIterator, err := as.ds.QueryTuples(queryCtx, queryFilter, atRevision)
+			if err != nil {
+				return err
+			}
 
-		defer tupleIterator.Close()
+			defer tupleIterator.Close()
 
-		tuplesetResult := &v0.ReadResponse_Tupleset{}
-		for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
-			tuplesetResult.Tuples = append(tuplesetResult.Tuples, tuple)
-		}
-		if tupleIterator.Err() != nil {
-			return nil, status.Errorf(codes.Internal, "error when reading tuples: %s", err)
-		}
+			tuplesetResult := &v0.ReadResponse_Tupleset{}
+			for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
+				tuplesetResult.Tuples = append(tuplesetResult.Tuples, tuple)
+			}
+			if tupleIterator.Err() != nil {
+				return status.Errorf(codes.Internal, "error when reading tuples: %s", err)
+			}
 
-		allTuplesetResults = append(allTuplesetResults, tuplesetResult)
+			resultsMu.Lock()
+			defer resultsMu.Unlock()
+			allTuplesetResults = append(allTuplesetResults, tuplesetResult)
+
+			return nil
+		})
+	}
+	if err := queryG.Wait(); err != nil {
+		return nil, rewriteACLError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &v1.ResponseMeta{

@@ -10,6 +10,7 @@ import (
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -151,91 +152,104 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		return nil, rewritePermissionsError(ctx, err)
 	}
 
+	errG, groupCtx := errgroup.WithContext(ctx)
 	for _, precond := range req.OptionalPreconditions {
-		if err := ps.checkFilterNamespaces(ctx, precond.Filter, readRevision); err != nil {
-			return nil, rewritePermissionsError(ctx, err)
-		}
+		// Make a local copy of the loop var to prevent it from changing inside of the closure.
+		precond := precond
+		errG.Go(func() error {
+			return ps.checkFilterNamespaces(groupCtx, precond.Filter, readRevision)
+		})
 	}
 
 	for _, update := range req.Updates {
-		err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId)
-		if err != nil {
-			return nil, rewritePermissionsError(ctx, err)
-		}
-
-		err = tuple.ValidateSubjectID(update.Relationship.Subject.Object.ObjectId)
-		if err != nil {
-			return nil, rewritePermissionsError(ctx, err)
-		}
-
-		if err := ps.nsm.CheckNamespaceAndRelation(
-			ctx,
-			update.Relationship.Resource.ObjectType,
-			update.Relationship.Relation,
-			false,
-			readRevision,
-		); err != nil {
-			return nil, rewritePermissionsError(ctx, err)
-		}
-
-		if err := ps.nsm.CheckNamespaceAndRelation(
-			ctx,
-			update.Relationship.Subject.Object.ObjectType,
-			stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
-			true,
-			readRevision,
-		); err != nil {
-			return nil, rewritePermissionsError(ctx, err)
-		}
-
-		_, ts, err := ps.nsm.ReadNamespaceAndTypes(ctx, update.Relationship.Resource.ObjectType, readRevision)
-		if err != nil {
-			return nil, err
-		}
-
-		if ts.IsPermission(update.Relationship.Relation) {
-			return nil, status.Errorf(
-				codes.InvalidArgument,
-				"cannot write a relationship to permission %s",
-				update.Relationship.Relation,
-			)
-		}
-
-		if update.Relationship.Subject.Object.ObjectId == tuple.PublicWildcard {
-			isAllowed, err := ts.IsAllowedPublicNamespace(
-				update.Relationship.Relation,
-				update.Relationship.Subject.Object.ObjectType)
+		// Make a local copy of the loop var to prevent it from changing inside of the closure.
+		update := update
+		errG.Go(func() error {
+			err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
-			if isAllowed != namespace.PublicSubjectAllowed {
-				return nil, status.Errorf(
-					codes.InvalidArgument,
-					"wildcard subjects of type %s are not allowed on %v",
-					update.Relationship.Subject.Object.ObjectType,
-					tuple.StringObjectRef(update.Relationship.Resource),
-				)
+			err = tuple.ValidateSubjectID(update.Relationship.Subject.Object.ObjectId)
+			if err != nil {
+				return err
 			}
-		} else {
-			isAllowed, err := ts.IsAllowedDirectRelation(
+
+			if err := ps.nsm.CheckNamespaceAndRelation(
+				groupCtx,
+				update.Relationship.Resource.ObjectType,
 				update.Relationship.Relation,
+				false,
+				readRevision,
+			); err != nil {
+				return err
+			}
+
+			if err := ps.nsm.CheckNamespaceAndRelation(
+				groupCtx,
 				update.Relationship.Subject.Object.ObjectType,
 				stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
-			)
-			if err != nil {
-				return nil, err
+				true,
+				readRevision,
+			); err != nil {
+				return err
 			}
 
-			if isAllowed == namespace.DirectRelationNotValid {
-				return nil, status.Errorf(
+			_, ts, err := ps.nsm.ReadNamespaceAndTypes(groupCtx, update.Relationship.Resource.ObjectType, readRevision)
+			if err != nil {
+				return err
+			}
+
+			if ts.IsPermission(update.Relationship.Relation) {
+				return status.Errorf(
 					codes.InvalidArgument,
-					"subject %s is not allowed for the resource %s",
-					tuple.StringSubjectRef(update.Relationship.Subject),
-					tuple.StringObjectRef(update.Relationship.Resource),
+					"cannot write a relationship to permission %s",
+					update.Relationship.Relation,
 				)
 			}
-		}
+
+			if update.Relationship.Subject.Object.ObjectId == tuple.PublicWildcard {
+				isAllowed, err := ts.IsAllowedPublicNamespace(
+					update.Relationship.Relation,
+					update.Relationship.Subject.Object.ObjectType)
+				if err != nil {
+					return err
+				}
+
+				if isAllowed != namespace.PublicSubjectAllowed {
+					return status.Errorf(
+						codes.InvalidArgument,
+						"wildcard subjects of type %s are not allowed on %v",
+						update.Relationship.Subject.Object.ObjectType,
+						tuple.StringObjectRef(update.Relationship.Resource),
+					)
+				}
+			} else {
+				isAllowed, err := ts.IsAllowedDirectRelation(
+					update.Relationship.Relation,
+					update.Relationship.Subject.Object.ObjectType,
+					stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
+				)
+				if err != nil {
+					return err
+				}
+
+				if isAllowed == namespace.DirectRelationNotValid {
+					return status.Errorf(
+						codes.InvalidArgument,
+						"subject %s is not allowed for the resource %s",
+						tuple.StringSubjectRef(update.Relationship.Subject),
+						tuple.StringObjectRef(update.Relationship.Resource),
+					)
+				}
+			}
+
+			return nil
+		})
+	}
+
+	if err := errG.Wait(); err != nil {
+		return nil, rewritePermissionsError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
