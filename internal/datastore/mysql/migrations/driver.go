@@ -9,8 +9,10 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-const errUnableToInstantiate = "unable to instantiate MysqlDriver: %w"
-const mysqlMissingTableErrorNumber = 1146
+const (
+	errUnableToInstantiate       = "unable to instantiate MysqlDriver: %w"
+	mysqlMissingTableErrorNumber = 1146
+)
 
 type MysqlDriver struct {
 	db *sqlx.DB
