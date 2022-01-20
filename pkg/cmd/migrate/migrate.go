@@ -113,6 +113,8 @@ func headRevisionRun(cmd *cobra.Command, args []string) error {
 		headRevision, err = crdbmigrations.CRDBMigrations.HeadRevision()
 	case "postgres":
 		headRevision, err = migrations.DatabaseMigrations.HeadRevision()
+	case "mysql":
+		headRevision, err = mysqlMigrations.DatabaseMigrations.HeadRevision()
 	default:
 		return fmt.Errorf("cannot migrate datastore engine type: %s", engine)
 	}

@@ -1,7 +1,6 @@
 package migrations
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 
@@ -40,9 +39,6 @@ func (mysql *MysqlDriver) Version() (string, error) {
 	if err := mysql.db.QueryRowx("SELECT version_num FROM mysql_migration_version").Scan(&loaded); err != nil {
 		var mysqlError *sqlDriver.MySQLError
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
-			return "", nil
-		}
-		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
 		}
 		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
