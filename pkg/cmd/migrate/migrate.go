@@ -9,13 +9,15 @@ import (
 	"github.com/spf13/cobra"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
+	mysqlMigrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+
 	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 func RegisterMigrateFlags(cmd *cobra.Command) {
-	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb", "mysql")`)
 	cmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 }
 
@@ -63,6 +65,22 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to complete requested migrations")
 		}
+	} else if datastoreEngine == "mysql" {
+		log.Info().Msg("migrating mysql datastore")
+
+		targetRevision := args[0]
+
+		migrationDriver, err := mysqlMigrations.NewMysqlDriver(dbURL)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to create migration driver")
+		}
+
+		log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
+		err = mysqlMigrations.DatabaseMigrations.Run(migrationDriver, targetRevision, migrate.LiveRun)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to complete requested migrations")
+		}
+
 	} else {
 		return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 	}
