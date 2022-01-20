@@ -54,9 +54,9 @@ func (mysql *MysqlDriver) Version() (string, error) {
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
 func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
-	updateSql := "UPDATE mysql_migration_version SET version_num=? WHERE version_num=?;"
+	updateSQL := "UPDATE mysql_migration_version SET version_num=? WHERE version_num=?;"
 
-	result, err := mysql.db.Exec(updateSql, version, replaced)
+	result, err := mysql.db.Exec(updateSQL, version, replaced)
 	if err != nil {
 		return fmt.Errorf("unable to update version row: %w", err)
 	}
