@@ -149,9 +149,19 @@ func (ors ObjectRelationString) ONR() (*v0.ObjectAndRelation, *ErrorWithSource) 
 }
 
 var (
-	vsSubjectRegex           = regexp.MustCompile(`(.*?)\[(?P<user_str>.*)\](.*?)`)
-	vsObjectAndRelationRegex = regexp.MustCompile(`(.*?)<(?P<onr_str>[^\>]+)>(.*?)`)
+	vsSubjectRegex               = regexp.MustCompile(`(.*?)\[(?P<user_str>.*)\](.*?)`)
+	vsObjectAndRelationRegex     = regexp.MustCompile(`(.*?)<(?P<onr_str>[^\>]+)>(.*?)`)
+	vsSubjectWithExceptionsRegex = regexp.MustCompile(`^(.+)\s*-\s*\{([^\}]+)\}$`)
 )
+
+// SubjectWithExceptions returns the subject found in a validation string, along with any exceptions.
+type SubjectWithExceptions struct {
+	// Subject is the subject found.
+	Subject *v0.ObjectAndRelation
+
+	// Exceptions are those subjects removed from the subject, if it is a wildcard.
+	Exceptions []*v0.ObjectAndRelation
+}
 
 // ValidationString holds a validation string containing a Subject and one or
 // more Relations to the parent Object.
@@ -170,17 +180,44 @@ func (vs ValidationString) SubjectString() (string, bool) {
 
 // Subject returns the subject contained in the ValidationString, if any. If
 // none, returns nil.
-func (vs ValidationString) Subject() (*v0.ObjectAndRelation, *ErrorWithSource) {
+func (vs ValidationString) Subject() (*SubjectWithExceptions, *ErrorWithSource) {
 	subjectStr, ok := vs.SubjectString()
 	if !ok {
 		return nil, nil
+	}
+
+	subjectStr = strings.TrimSpace(subjectStr)
+	if strings.HasSuffix(subjectStr, "}") {
+		result := vsSubjectWithExceptionsRegex.FindStringSubmatch(subjectStr)
+		if len(result) != 3 {
+			return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", subjectStr), subjectStr, 0, 0}
+		}
+
+		subjectONR := tuple.ParseSubjectONR(strings.TrimSpace(result[1]))
+		if subjectONR == nil {
+			return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", result[1]), result[1], 0, 0}
+		}
+
+		exceptionsString := strings.TrimSpace(result[2])
+		exceptionsStringsSlice := strings.Split(exceptionsString, ",")
+		exceptions := make([]*v0.ObjectAndRelation, 0, len(exceptionsStringsSlice))
+		for _, exceptionString := range exceptionsStringsSlice {
+			exceptionONR := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
+			if exceptionONR == nil {
+				return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", exceptionString), exceptionString, 0, 0}
+			}
+
+			exceptions = append(exceptions, exceptionONR)
+		}
+
+		return &SubjectWithExceptions{subjectONR, exceptions}, nil
 	}
 
 	found := tuple.ParseSubjectONR(subjectStr)
 	if found == nil {
 		return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", subjectStr), subjectStr, 0, 0}
 	}
-	return found, nil
+	return &SubjectWithExceptions{found, nil}, nil
 }
 
 // ONRStrings returns the ONRs contained in the ValidationString, if any.

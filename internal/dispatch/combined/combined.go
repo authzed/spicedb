@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -87,7 +88,7 @@ func NewDispatcher(nsm namespace.Manager, ds datastore.Datastore, srv *grpc.Serv
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithBearerToken(opts.grpcPresharedKey))
 		} else {
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithInsecureBearerToken(opts.grpcPresharedKey))
-			opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithInsecure())
+			opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
 
 		conn, err := grpc.Dial(opts.upstreamAddr, opts.grpcDialOpts...)

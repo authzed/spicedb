@@ -16,9 +16,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 
+	"github.com/authzed/spicedb/internal/membership"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/membership"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -331,7 +331,7 @@ func generateValidation(membershipSet *membership.Set) (string, error) {
 		for _, fs := range foundSubjects.ListFound() {
 			strs = append(strs,
 				fmt.Sprintf("[%s] is %s",
-					tuple.StringONR(fs.Subject()),
+					fs.ToValidationString(),
 					strings.Join(wrapRelationships(tuple.StringsONRs(fs.Relationships())), "/"),
 				))
 		}
@@ -425,7 +425,7 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, va
 	// Verify that every referenced subject is found in the membership.
 	encounteredSubjects := map[string]struct{}{}
 	for _, validationString := range validationStrings {
-		subjectONR, err := validationString.Subject()
+		expectedSubject, err := validationString.Subject()
 		if err != nil {
 			failures = append(failures, &v0.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, %s", tuple.StringONR(onr), err.Error()),
@@ -436,10 +436,11 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, va
 			continue
 		}
 
-		if subjectONR == nil {
+		if expectedSubject == nil {
 			continue
 		}
 
+		subjectONR := expectedSubject.Subject
 		encounteredSubjects[tuple.StringONR(subjectONR)] = struct{}{}
 
 		expectedRelationships, err := validationString.ONRS()
@@ -481,6 +482,38 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, va
 				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(validationString),
 			})
+		}
+
+		// Verify exclusions are the same, if any.
+		foundExcludedSubjects, isWildcard := subject.ExcludedSubjectsFromWildcard()
+		expectedExcludedSubjects := expectedSubject.Exceptions
+		if isWildcard {
+			expectedExcludedONRStrings := tuple.StringsONRs(expectedExcludedSubjects)
+			foundExcludedONRStrings := tuple.StringsONRs(foundExcludedSubjects)
+			if !cmp.Equal(expectedExcludedONRStrings, foundExcludedONRStrings) {
+				failures = append(failures, &v0.DeveloperError{
+					Message: fmt.Sprintf("For object and permission/relation `%s`, found different excluded subjects for subject `%s`: Specified: `%s`, Computed: `%s`",
+						tuple.StringONR(onr),
+						tuple.StringONR(subjectONR),
+						strings.Join(wrapRelationships(expectedExcludedONRStrings), ", "),
+						strings.Join(wrapRelationships(foundExcludedONRStrings), ", "),
+					),
+					Source:  v0.DeveloperError_VALIDATION_YAML,
+					Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
+					Context: string(validationString),
+				})
+			}
+		} else {
+			if len(expectedExcludedSubjects) > 0 {
+				failures = append(failures, &v0.DeveloperError{
+					Message: fmt.Sprintf("For object and permission/relation `%s`, found unexpected excluded subjects",
+						tuple.StringONR(onr),
+					),
+					Source:  v0.DeveloperError_VALIDATION_YAML,
+					Kind:    v0.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
+					Context: string(validationString),
+				})
+			}
 		}
 	}
 
@@ -564,23 +597,24 @@ func convertSourceError(source v0.DeveloperError_Source, err *validationfile.Err
 var yamlLineRegex = regexp.MustCompile(`line ([0-9]+): (.+)`)
 
 func convertYamlError(source v0.DeveloperError_Source, err error) *v0.DeveloperError {
-	var lineNumber uint64
-	msg := err.Error()
-
-	pieces := yamlLineRegex.FindStringSubmatch(err.Error())
-	if len(pieces) == 3 {
-		// We can safely ignore the error here because it will default to 0, which is the not found
-		// case.
-		lineNumber, _ = strconv.ParseUint(pieces[1], 10, 0)
-		msg = pieces[2]
-	}
-
-	return &v0.DeveloperError{
-		Message: msg,
+	devErr := &v0.DeveloperError{
+		Message: err.Error(),
 		Kind:    v0.DeveloperError_PARSE_ERROR,
 		Source:  source,
-		Line:    uint32(lineNumber),
+		Line:    0,
 	}
+
+	pieces := yamlLineRegex.FindStringSubmatch(devErr.Message)
+	if len(pieces) == 3 {
+		lineNumber, parseErr := strconv.ParseUint(pieces[1], 10, 32)
+		if parseErr != nil {
+			lineNumber = 0
+		}
+		devErr.Line = uint32(lineNumber)
+		devErr.Message = pieces[2]
+	}
+
+	return devErr
 }
 
 func upgradeSchema(configs []string) (string, error) {

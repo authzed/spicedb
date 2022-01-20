@@ -13,6 +13,7 @@ on:
       - "go.sum"
       - "cmd/**"
       - "pkg/**"
+      - "e2e/**"
       - "internal/**"
       - "proto/**"
   pull_request:
@@ -27,6 +28,7 @@ on:
       - "go.sum"
       - "cmd/**"
       - "pkg/**"
+      - "e2e/**"
       - "internal/**"
       - "proto/**"
 jobs:
@@ -83,8 +85,8 @@ jobs:
           key: "cockroach-v21.1.7-chaosd-v1.0.2-2"
       - name: "Install cockroachdb and chaosd"
         if: "steps.cache-binaries.outputs.cache-hit != 'true'"
+        working-directory: "e2e/newenemy"
         run: |
-          pushd e2e/newenemy
           curl https://binaries.cockroachdb.com/cockroach-v21.1.7.linux-amd64.tgz | tar -xz && mv cockroach-v21.1.7.linux-amd64/cockroach ./cockroach
           curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.0.2-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.0.2-linux-amd64/chaosd ./chaosd
 
@@ -95,7 +97,6 @@ jobs:
           CGO_ENABLED=1 go build ./cmd/watchmaker/
           popd
           mv ./chaos-mesh/watchmaker ./watchmaker
-          popd
       - uses: "actions/cache@v2"
         with:
           path: |
@@ -105,10 +106,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: "Build SpiceDB"
-        working-directory: "e2e/newenemy"
         run: |
-          go get -d github.com/authzed/spicedb/cmd/spicedb/...
-          go build github.com/authzed/spicedb/cmd/spicedb/...
+          go get -d ./...
+          go build -o ./e2e/newenemy/spicedb ./cmd/spicedb/...
       - name: "Run e2e"
         working-directory: "e2e/newenemy"
         run: |

@@ -108,11 +108,11 @@ func TestEditCheck(t *testing.T) {
 		},
 		{
 			"invalid namespace name",
-			`definition foo {}`,
+			`definition fo {}`,
 			[]*v0.RelationTuple{},
 			[]*v0.RelationTuple{},
 			&v0.DeveloperError{
-				Message: "parse error in `schema`, line 1, column 1: error in object definition foo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{2,62}[a-z0-9]/)?[a-z][a-z0-9_]{2,62}[a-z0-9]$\"",
+				Message: "parse error in `schema`, line 1, column 1: error in object definition fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
 				Source:  v0.DeveloperError_SCHEMA,
 				Line:    1,
@@ -636,6 +636,59 @@ assertFalse:
 - '[user:jimmy] is <document:somedoc#writer>'
 `,
 		},
+		{
+			"wildcard exclusion",
+			`
+		   			definition user {}
+		   			definition document {
+		   				relation banned: user
+		   				relation viewer: user | user:*
+		   				permission view = viewer - banned
+		   			}
+		   			`,
+			[]*v0.RelationTuple{
+				tuple.MustParse("document:somedoc#banned@user:jimmy"),
+				tuple.MustParse("document:somedoc#viewer@user:*"),
+			},
+			`"document:somedoc#view":
+- "[user:* - {user:jimmy}] is <document:somedoc#viewer>"`,
+			`assertTrue:
+- document:somedoc#view@user:somegal
+assertFalse:
+- document:somedoc#view@user:jimmy`,
+			nil,
+			`document:somedoc#view:
+- '[user:* - {user:jimmy}] is <document:somedoc#viewer>'
+`,
+		},
+		{
+			"wildcard exclusion under intersection",
+			`
+		   			definition user {}
+		   			definition document {
+		   				relation banned: user
+		   				relation viewer: user | user:*
+		   				relation other: user
+		   				permission view = (viewer - banned) & (viewer - other)
+		   			}
+		   			`,
+			[]*v0.RelationTuple{
+				tuple.MustParse("document:somedoc#other@user:sarah"),
+				tuple.MustParse("document:somedoc#banned@user:jimmy"),
+				tuple.MustParse("document:somedoc#viewer@user:*"),
+			},
+			`"document:somedoc#view":
+- "[user:* - {user:jimmy}] is <document:somedoc#viewer>"`,
+			`assertTrue:
+- document:somedoc#view@user:somegal
+assertFalse:
+- document:somedoc#view@user:jimmy
+- document:somedoc#view@user:sarah`,
+			nil,
+			`document:somedoc#view:
+- '[user:* - {user:jimmy, user:sarah}] is <document:somedoc#viewer>'
+`,
+		},
 	}
 
 	for _, tc := range tests {
@@ -732,7 +785,7 @@ func TestDeveloperValidateONR(t *testing.T) {
 	require.NoError(err)
 	require.Equal(1, len(resp.RequestErrors))
 	require.Equal(&v0.DeveloperError{
-		Message: "invalid RelationTuple.ObjectAndRelation: embedded message failed validation | caused by: invalid ObjectAndRelation.Relation: value does not match regex pattern \"^(\\\\.\\\\.\\\\.|[a-z][a-z0-9_]{2,62}[a-z0-9])$\"",
+		Message: "invalid RelationTuple.ObjectAndRelation: embedded message failed validation | caused by: invalid ObjectAndRelation.Relation: value does not match regex pattern \"^(\\\\.\\\\.\\\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$\"",
 		Kind:    v0.DeveloperError_PARSE_ERROR,
 		Source:  v0.DeveloperError_RELATIONSHIP,
 		Context: `document:somedoc#writerIsNotValid@user:jimmy`,

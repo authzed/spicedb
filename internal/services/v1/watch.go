@@ -11,6 +11,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
+	dispatchv1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -35,6 +37,8 @@ func NewWatchServer(ds datastore.Datastore) v1.WatchServiceServer {
 }
 
 func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchServer) error {
+	ctx := stream.Context()
+
 	objectTypesMap := make(map[string]struct{})
 	for _, objectType := range req.GetOptionalObjectTypes() {
 		objectTypesMap[objectType] = struct{}{}
@@ -50,13 +54,17 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		afterRevision = decodedRevision
 	} else {
 		var err error
-		afterRevision, err = ws.ds.OptimizedRevision(stream.Context())
+		afterRevision, err = ws.ds.OptimizedRevision(ctx)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
 	}
 
-	updates, errchan := ws.ds.Watch(stream.Context(), afterRevision)
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: 1,
+	})
+
+	updates, errchan := ws.ds.Watch(ctx, afterRevision)
 	for {
 		select {
 		case update, ok := <-updates:

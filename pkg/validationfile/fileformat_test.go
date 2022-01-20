@@ -65,6 +65,18 @@ func TestValidationString(t *testing.T) {
 			"",
 			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
 		},
+		{
+			"subject with exclusions",
+			"[tenant/user:someuser#... - {test/user:1,test/user:2}] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
+			"tenant/user:someuser",
+			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
+		},
+		{
+			"subject with bad exclusions",
+			"[tenant/user:someuser#... - {te1,test/user:2}] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
+			"",
+			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -72,11 +84,13 @@ func TestValidationString(t *testing.T) {
 			require := require.New(t)
 			vs := ValidationString(tc.input)
 
-			subject, _ := vs.Subject()
+			subject, err := vs.Subject()
+
 			if tc.expectedSubject == "" {
 				require.Nil(subject)
 			} else {
-				require.Equal(tc.expectedSubject, tuple.StringONR(subject))
+				require.Nil(err)
+				require.Equal(tc.expectedSubject, tuple.StringONR(subject.Subject))
 			}
 
 			foundONRStrings := []string{}

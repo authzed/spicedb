@@ -45,7 +45,9 @@ type ValidatedCheckRequest struct {
 func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *v0.Relation) (*v1.DispatchCheckResponse, error) {
 	var directFunc ReduceableCheckFunc
 
-	if onrEqual(req.Subject, req.ObjectAndRelation) {
+	if req.Subject.ObjectId == tuple.PublicWildcard {
+		directFunc = checkError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")))
+	} else if onrEqual(req.Subject, req.ObjectAndRelation) {
 		// If we have found the goal's ONR, then we know that the ONR is a member.
 		directFunc = alwaysMember()
 	} else if relation.UsersetRewrite == nil {

@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	testNamespace = ns.Namespace("test/test",
+	testNamespace = ns.Namespace("foo/bar",
 		ns.Relation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
 	)
 
@@ -147,4 +147,22 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	tRequire.VerifyIteratorResults(iter)
 
 	tRequire.TupleExists(ctx, folderTpl, deletedRevision)
+}
+
+// EmptyNamespaceDeleteTest tests deleting an empty namespace in the datastore.
+func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	deletedRev, err := ds.DeleteNamespace(ctx, testfixtures.UserNS.Name)
+	require.NoError(err)
+	require.True(deletedRev.GreaterThan(revision))
+
+	_, _, err = ds.ReadNamespace(ctx, testfixtures.UserNS.Name, deletedRev)
+	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
 }

@@ -122,3 +122,15 @@ func NewRelationMissingTypeInfoErr(nsName string, relationName string) error {
 		relationName:  relationName,
 	}
 }
+
+// ErrInvalidArgument occurs when a request sent has an invalid argument.
+type ErrInvalidArgument struct {
+	error
+}
+
+// NewErrInvalidArgument constructs a request sent has an invalid argument.
+func NewErrInvalidArgument(baseErr error) error {
+	return ErrInvalidArgument{
+		error: baseErr,
+	}
+}

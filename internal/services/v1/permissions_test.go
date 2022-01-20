@@ -22,6 +22,7 @@ import (
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 
@@ -227,6 +228,13 @@ func TestCheckPermissions(t *testing.T) {
 			v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED,
 			codes.InvalidArgument,
 		},
+		{
+			obj("document", "something"),
+			"viewer",
+			sub("user", "*", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED,
+			codes.InvalidArgument,
+		},
 	}
 
 	for _, delta := range testTimedeltas {
@@ -389,6 +397,12 @@ func TestLookupResources(t *testing.T) {
 			[]string{},
 			codes.FailedPrecondition,
 		},
+		{
+			"document", "viewer_and_editor_derived",
+			sub("user", "*", ""),
+			[]string{},
+			codes.InvalidArgument,
+		},
 	}
 
 	for _, delta := range testTimedeltas {
@@ -539,7 +553,7 @@ func newPermissionsServicer(
 
 	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 		return lis.Dial()
-	}), grpc.WithInsecure())
+	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(err)
 
 	return v1.NewPermissionsServiceClient(conn), func() {
