@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

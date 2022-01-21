@@ -2,6 +2,7 @@ package caching
 
 import (
 	"context"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"testing"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

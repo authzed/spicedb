@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"regexp"
 	"sort"
 	"strconv"
@@ -17,7 +18,6 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/internal/membership"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"

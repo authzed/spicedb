@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"os"
 	"path"
 	"path/filepath"
@@ -25,7 +26,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/membership"
 	"github.com/authzed/spicedb/internal/namespace"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"

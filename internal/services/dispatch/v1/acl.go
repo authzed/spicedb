@@ -12,40 +12,40 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 type dispatchServer struct {
-	v1.UnimplementedDispatchServiceServer
+	dispatchv1.UnimplementedDispatchServiceServer
 
 	localDispatch dispatch.Dispatcher
 }
 
 // RegisterDispatchServer adds the Dispatch Server to a grpc service registrar
 // This is preferred over manually registering the service; it will add required middleware
-func RegisterDispatchServer(r grpc.ServiceRegistrar, s v1.DispatchServiceServer) *grpc.ServiceDesc {
-	r.RegisterService(grpcutil.WrapMethods(v1.DispatchService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
-	return &v1.DispatchService_ServiceDesc
+func RegisterDispatchServer(r grpc.ServiceRegistrar, s dispatchv1.DispatchServiceServer) *grpc.ServiceDesc {
+	r.RegisterService(grpcutil.WrapMethods(dispatchv1.DispatchService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
+	return &dispatchv1.DispatchService_ServiceDesc
 }
 
 // NewDispatchServer creates a server which can be called for internal dispatch.
-func NewDispatchServer(localDispatch dispatch.Dispatcher) v1.DispatchServiceServer {
+func NewDispatchServer(localDispatch dispatch.Dispatcher) dispatchv1.DispatchServiceServer {
 	return &dispatchServer{
 		localDispatch: localDispatch,
 	}
 }
 
-func (ds *dispatchServer) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (ds *dispatchServer) DispatchCheck(ctx context.Context, req *dispatchv1.DispatchCheckRequest) (*dispatchv1.DispatchCheckResponse, error) {
 	resp, err := ds.localDispatch.DispatchCheck(ctx, req)
 	return resp, rewriteGraphError(ctx, err)
 }
 
-func (ds *dispatchServer) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+func (ds *dispatchServer) DispatchExpand(ctx context.Context, req *dispatchv1.DispatchExpandRequest) (*dispatchv1.DispatchExpandResponse, error) {
 	resp, err := ds.localDispatch.DispatchExpand(ctx, req)
 	return resp, rewriteGraphError(ctx, err)
 }
 
-func (ds *dispatchServer) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+func (ds *dispatchServer) DispatchLookup(ctx context.Context, req *dispatchv1.DispatchLookupRequest) (*dispatchv1.DispatchLookupResponse, error) {
 	resp, err := ds.localDispatch.DispatchLookup(ctx, req)
 	return resp, rewriteGraphError(ctx, err)
 }

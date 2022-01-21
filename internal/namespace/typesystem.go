@@ -3,11 +3,11 @@ package namespace
 import (
 	"context"
 	"fmt"
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
 
-	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/graph"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"

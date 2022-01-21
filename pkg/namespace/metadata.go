@@ -2,15 +2,13 @@ package namespace
 
 import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-
-	// TODO: stop exposing private v0 types in package's API
-	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
 )
 
 // userDefinedMetadataTypeUrls are the type URLs of any user-defined metadata found
-// in the namespace proto. If placed here, FilterUserDefinedMetadata will remove the
+//  in the namespace proto. If placed here, FilterUserDefinedMetadata will remove the
 // metadata when called on the namespace.
 var userDefinedMetadataTypeUrls = map[string]struct{}{
 	"type.googleapis.com/impl.v1.DocComment": {},

@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 const (

@@ -2,12 +2,11 @@ package remote
 
 import (
 	"context"
-
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/balancer"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 type clusterClient interface {
