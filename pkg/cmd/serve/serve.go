@@ -59,6 +59,15 @@ func RegisterServeFlags(cmd *cobra.Command, dsConfig *cmdutil.DatastoreConfig) {
 
 	// Flags for HTTP gateway
 	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "http", "http", ":8443", false)
+	cmd.Flags().String("http-upstream-override-addr", "", "Override the upstream to point to a different gRPC server")
+	if err := cmd.Flags().MarkHidden("http-upstream-override-addr"); err != nil {
+		panic("failed to mark flag as hidden: " + err.Error())
+	}
+
+	cmd.Flags().String("http-upstream-override-tls-cert-path", "", "Override the upstream TLS certificate")
+	if err := cmd.Flags().MarkHidden("http-upstream-override-tls-cert-path"); err != nil {
+		panic("failed to mark flag as hidden: " + err.Error())
+	}
 
 	// Flags for configuring the dispatch server
 	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "dispatch-cluster", "dispatch", ":50053", false)
@@ -236,11 +245,19 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 	}()
 
 	// Start the REST gateway to serve HTTP/JSON.
-	gatewayHandler, err := gateway.NewHandler(
-		context.TODO(),
-		cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
-		cobrautil.MustGetStringExpanded(cmd, "grpc-tls-cert-path"),
-	)
+	upstream := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
+	if override := cobrautil.MustGetStringExpanded(cmd, "http-upstream-override-addr"); override != "" {
+		upstream = override
+		log.Info().Str("upstream", upstream).Msg("Overriding REST gateway upstream")
+	}
+
+	upstreamCertPath := cobrautil.MustGetStringExpanded(cmd, "grpc-tls-cert-path")
+	if tlsOverride := cobrautil.MustGetStringExpanded(cmd, "http-upstream-override-tls-cert-path"); tlsOverride != "" {
+		upstreamCertPath = tlsOverride
+		log.Info().Str("cert-path", upstreamCertPath).Msg("Overriding REST gateway upstream TLS")
+	}
+
+	gatewayHandler, err := gateway.NewHandler(context.TODO(), upstream, upstreamCertPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
