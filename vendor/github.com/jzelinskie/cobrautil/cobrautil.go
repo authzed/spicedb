@@ -19,15 +19,17 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -141,15 +143,15 @@ func ZeroLogRunE(flagPrefix string, prerunLevel zerolog.Level) CobraRunFunc {
 // OpenTelemetryPreRunE:
 // - "$PREFIX-provider"
 // - "$PREFIX-jaeger-endpoint"
-// - "$PREFIX-jaeger-service-name"
+// - "$PREFIX-service-name"
 func RegisterOpenTelemetryFlags(flags *pflag.FlagSet, flagPrefix, serviceName string) {
 	bi, _ := debug.ReadBuildInfo()
 	flagPrefix = stringz.DefaultEmpty(flagPrefix, "otel")
 	serviceName = stringz.DefaultEmpty(serviceName, bi.Main.Path)
 
-	flags.String(flagPrefix+"-provider", "none", `opentelemetry provider for tracing ("none", "jaeger, otlphttp")`)
+	flags.String(flagPrefix+"-provider", "none", `opentelemetry provider for tracing ("none", "jaeger, otlphttp2")`)
 	flags.String(flagPrefix+"-jaeger-endpoint", "http://jaeger:14268/api/traces", "jaeger collector endpoint")
-	flags.String(flagPrefix+"-jaeger-service-name", serviceName, "jaeger service name for trace data")
+	flags.String(flagPrefix+"-service-name", serviceName, "service name for trace data")
 }
 
 // OpenTelemetryRunE returns a Cobra run func that configures the
@@ -171,10 +173,10 @@ func OpenTelemetryRunE(flagPrefix string, prerunLevel zerolog.Level) CobraRunFun
 		case "jaeger":
 			return initJaegerTracer(
 				MustGetString(cmd, flagPrefix+"-jaeger-endpoint"),
-				MustGetString(cmd, flagPrefix+"-jaeger-service-name"),
+				MustGetString(cmd, flagPrefix+"-service-name"),
 			)
 		case "otlphttp":
-			return initOtlpHttpTracer("localhost:1234", "developer")
+			return initOtlpHttpTracer(MustGetString(cmd, flagPrefix+"-jaeger-endpoint"), MustGetString(cmd, flagPrefix+"-service-name"))
 		default:
 			return fmt.Errorf("unknown tracing provider: %s", provider)
 		}
@@ -208,18 +210,37 @@ func initJaegerTracer(endpoint, serviceName string) error {
 
 func initOtlpHttpTracer(endpoint, serviceName string) error {
 	ctx := context.Background()
-	client := otlptracehttp.NewClient()
+
+	client := otlptracegrpc.NewClient(
+		otlptracegrpc.WithEndpoint(endpoint),
+		otlptracegrpc.WithHeaders(map[string]string{"lightstep-access-token": "developer"}),
+		otlptracegrpc.WithCompressor(gzip.Name),
+		otlptracegrpc.WithInsecure(),
+	)
+	// client := otlptracehttp.NewClient(otlptracehttp.WithInsecure(),
+	// 	otlptracehttp.WithEndpoint(endpoint),
+	// 	otlptracehttp.WithURLPath("/traces/otlp/v0.6"),
+	// 	otlptracehttp.WithHeaders(map[string]string{"lightstep-access-token": "developer"}),
+	// )
 	exporter, err := otlptrace.New(ctx, client)
 	if err != nil {
 		return err
 	}
 
-	defaultResource := resource.NewSchemaless(semconv.ServiceNameKey.String(serviceName))
+	// defaultResource := resource.NewSchemaless(semconv.ServiceNameKey.String(serviceName))
+	attributes := []attribute.KeyValue{
+		semconv.ServiceNameKey.String(serviceName),
+	}
+	r, _ := resource.New(
+		context.Background(),
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(attributes...),
+	)
 
 	tp := trace.NewTracerProvider(
-		trace.WithResource(defaultResource),
+		trace.WithResource(r),
 		trace.WithSampler(trace.AlwaysSample()),
-		trace.WithBatcher(exporter),
+		trace.WithSpanProcessor(trace.NewBatchSpanProcessor(exporter)),
 	)
 	otel.SetTracerProvider(tp)
 
