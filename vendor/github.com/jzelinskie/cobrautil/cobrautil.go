@@ -142,15 +142,15 @@ func ZeroLogRunE(flagPrefix string, prerunLevel zerolog.Level) CobraRunFunc {
 // RegisterOpenTelemetryFlags adds the following flags for use with
 // OpenTelemetryPreRunE:
 // - "$PREFIX-provider"
-// - "$PREFIX-jaeger-endpoint"
+// - "$PREFIX-endpoint"
 // - "$PREFIX-service-name"
 func RegisterOpenTelemetryFlags(flags *pflag.FlagSet, flagPrefix, serviceName string) {
 	bi, _ := debug.ReadBuildInfo()
 	flagPrefix = stringz.DefaultEmpty(flagPrefix, "otel")
 	serviceName = stringz.DefaultEmpty(serviceName, bi.Main.Path)
 
-	flags.String(flagPrefix+"-provider", "none", `opentelemetry provider for tracing ("none", "jaeger, otlphttp2")`)
-	flags.String(flagPrefix+"-jaeger-endpoint", "http://jaeger:14268/api/traces", "jaeger collector endpoint")
+	flags.String(flagPrefix+"-provider", "none", `opentelemetry provider for tracing ("none", "jaeger, otlphttp")`)
+	flags.String(flagPrefix+"-endpoint", "http://jaeger:14268/api/traces", "collector endpoint")
 	flags.String(flagPrefix+"-service-name", serviceName, "service name for trace data")
 }
 
@@ -176,7 +176,7 @@ func OpenTelemetryRunE(flagPrefix string, prerunLevel zerolog.Level) CobraRunFun
 				MustGetString(cmd, flagPrefix+"-service-name"),
 			)
 		case "otlphttp":
-			return initOtlpHttpTracer(MustGetString(cmd, flagPrefix+"-jaeger-endpoint"), MustGetString(cmd, flagPrefix+"-service-name"))
+			return initOtlpHttpTracer(MustGetString(cmd, flagPrefix+"-endpoint"), MustGetString(cmd, flagPrefix+"-service-name"))
 		default:
 			return fmt.Errorf("unknown tracing provider: %s", provider)
 		}
@@ -211,23 +211,19 @@ func initJaegerTracer(endpoint, serviceName string) error {
 func initOtlpHttpTracer(endpoint, serviceName string) error {
 	ctx := context.Background()
 
+	// TODO: this got messy needs a spring clean
+
 	client := otlptracegrpc.NewClient(
 		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithHeaders(map[string]string{"lightstep-access-token": "developer"}),
 		otlptracegrpc.WithCompressor(gzip.Name),
 		otlptracegrpc.WithInsecure(),
 	)
-	// client := otlptracehttp.NewClient(otlptracehttp.WithInsecure(),
-	// 	otlptracehttp.WithEndpoint(endpoint),
-	// 	otlptracehttp.WithURLPath("/traces/otlp/v0.6"),
-	// 	otlptracehttp.WithHeaders(map[string]string{"lightstep-access-token": "developer"}),
-	// )
 	exporter, err := otlptrace.New(ctx, client)
 	if err != nil {
 		return err
 	}
 
-	// defaultResource := resource.NewSchemaless(semconv.ServiceNameKey.String(serviceName))
 	attributes := []attribute.KeyValue{
 		semconv.ServiceNameKey.String(serviceName),
 	}
