@@ -1,0 +1,5 @@
+coverage.out
+/example/example.go
+
+# OS X
+.DS_Store

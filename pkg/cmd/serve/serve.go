@@ -58,7 +58,7 @@ func RegisterServeFlags(cmd *cobra.Command, dsConfig *cmdutil.DatastoreConfig) {
 	cmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
 	// Flags for HTTP gateway
-	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "http", "http", ":8443", false)
+	cobrautil.RegisterHTTPServerFlags(cmd.Flags(), "http", "http", ":8443", false)
 
 	// Flags for configuring the dispatch server
 	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "dispatch-cluster", "dispatch", ":50053", false)
@@ -72,8 +72,8 @@ func RegisterServeFlags(cmd *cobra.Command, dsConfig *cmdutil.DatastoreConfig) {
 	cmd.Flags().Bool("disable-v1-schema-api", false, "disables the V1 schema API")
 
 	// Flags for misc services
-	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "dashboard", "dashboard", ":8080", true)
-	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
+	cobrautil.RegisterHTTPServerFlags(cmd.Flags(), "dashboard", "dashboard", ":8080", true)
+	cobrautil.RegisterHTTPServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
 }
 
 func NewServeCommand(programName string, dsConfig *cmdutil.DatastoreConfig) *cobra.Command {
@@ -244,25 +244,25 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
-	gatewaySrv := cobrautil.HttpServerFromFlags(cmd, "http")
+	gatewaySrv := cobrautil.HTTPServerFromFlags(cmd, "http")
 	gatewaySrv.Handler = gatewayHandler
 	go func() {
-		if err := cobrautil.HttpListenFromFlags(cmd, "http", gatewaySrv, zerolog.InfoLevel); err != nil {
+		if err := cobrautil.HTTPListenFromFlags(cmd, "http", gatewaySrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving http")
 		}
 	}()
 
 	// Start the metrics endpoint.
-	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
+	metricsSrv := cobrautil.HTTPServerFromFlags(cmd, "metrics")
 	metricsSrv.Handler = cmdutil.MetricsHandler()
 	go func() {
-		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
+		if err := cobrautil.HTTPListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
 
 	// Start a dashboard.
-	dashboardSrv := cobrautil.HttpServerFromFlags(cmd, "dashboard")
+	dashboardSrv := cobrautil.HTTPServerFromFlags(cmd, "dashboard")
 	dashboardSrv.Handler = dashboard.NewHandler(
 		cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
 		cobrautil.MustGetStringExpanded(cmd, "grpc-tls-cert-path") != "" && cobrautil.MustGetStringExpanded(cmd, "grpc-tls-key-path") != "",
@@ -270,7 +270,7 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 		ds,
 	)
 	go func() {
-		if err := cobrautil.HttpListenFromFlags(cmd, "dashboard", dashboardSrv, zerolog.InfoLevel); err != nil {
+		if err := cobrautil.HTTPListenFromFlags(cmd, "dashboard", dashboardSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving dashboard")
 		}
 	}()
