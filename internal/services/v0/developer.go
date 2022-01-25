@@ -215,6 +215,15 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	// Parse the assertions YAML.
 	assertions, err := validationfile.ParseAssertionsBlock([]byte(req.AssertionsYaml))
 	if err != nil {
+		var serr validationfile.ErrorWithSource
+		if errors.As(err, &serr) {
+			return &v0.ValidateResponse{
+				RequestErrors: []*v0.DeveloperError{
+					convertSourceError(v0.DeveloperError_ASSERTION, &serr),
+				},
+			}, nil
+		}
+
 		return &v0.ValidateResponse{
 			RequestErrors: []*v0.DeveloperError{
 				convertYamlError(v0.DeveloperError_ASSERTION, err),
