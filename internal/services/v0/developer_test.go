@@ -286,6 +286,46 @@ func TestDeveloperValidate(t *testing.T) {
 			"",
 		},
 		{
+			"assertions yaml with garbage",
+			`definition somenamespace {}`,
+			[]*v0.RelationTuple{},
+			"",
+			`assertTrue:
+- document:firstdoc#view@user:tom
+- document:firstdoc#view@user:fred
+- document:seconddoc#view@user:tom
+assertFalse: garbage
+- document:seconddoc#view@user:fred`,
+			&v0.DeveloperError{
+				Message: "did not find expected key",
+				Kind:    v0.DeveloperError_PARSE_ERROR,
+				Source:  v0.DeveloperError_ASSERTION,
+				Line:    5,
+			},
+			"",
+		},
+		{
+			"assertions yaml with indented garbage",
+			`definition somenamespace {}`,
+			[]*v0.RelationTuple{},
+			"",
+			`assertTrue:
+  - document:firstdoc#view@user:tom
+  - document:firstdoc#view@user:fred
+  - document:seconddoc#view@user:tom
+assertFalse: garbage
+  - document:seconddoc#view@user:fred`,
+			&v0.DeveloperError{
+				Message: "unexpected key `garbage - document:seconddoc#view@user:fred` on line 5",
+				Kind:    v0.DeveloperError_PARSE_ERROR,
+				Source:  v0.DeveloperError_ASSERTION,
+				Line:    5,
+				Column:  14,
+				Context: "garbage - document:seconddoc#view@user:fred",
+			},
+			"",
+		},
+		{
 			"invalid assertions true yaml",
 			`definition somenamespace {}`,
 			[]*v0.RelationTuple{},
