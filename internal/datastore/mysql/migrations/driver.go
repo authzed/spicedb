@@ -17,8 +17,17 @@ type MysqlDriver struct {
 	db *sqlx.DB
 }
 
+// https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
+// URI: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
+
+/* scheme: The transport protocol to use. Use mysqlx for X Protocol connections and mysql for classic
+   MySQL protocol connections. If no protocol is specified, the server attempts to guess the protocol.
+   Connectors that support DNS SRV can use the mysqlx+srv scheme (see Connections Using DNS SRV Records). */
+// schema: The default database for the connection. If no database is specified, the connection has no default database.
+
 // NewMysqlDriver creates a new driver with active connections to the database specified.
 func NewMysqlDriver(url string) (*MysqlDriver, error) {
+	// TODO: we're currently using a DSN here, not a URI
 	dbConfig, err := sqlDriver.ParseDSN(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)

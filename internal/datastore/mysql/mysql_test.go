@@ -78,7 +78,6 @@ func TestMysqlMigration(t *testing.T) {
 	uniquePortion, err := secrets.TokenHex(4)
 	req.NoError(err)
 	dbName := testdbName + uniquePortion
-	time.Sleep(10 * time.Second) // TODO: remove sleep - `driver: bad connection error` if we wait less than 10 seconds
 	_, err = tester.db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbName))
 	req.NoError(err, "unable to create database")
 
@@ -113,6 +112,17 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		return nil
 	}); err != nil {
 		log.Fatalf("Could not connect to docker: %s", err)
+	}
+
+	if err = pool.Retry(func() error {
+		var err error
+		_, err = db.Exec("Select 1")
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		log.Fatalf("Could not validate mysql/docker connection readiness: %s", err)
 	}
 
 	cleanup := func() {
