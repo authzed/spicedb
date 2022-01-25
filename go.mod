@@ -44,6 +44,7 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/rs/cors v1.8.2
 	github.com/rs/zerolog v1.26.1
 	github.com/scylladb/go-set v1.0.2
 	github.com/sercand/kuberesolver/v3 v3.1.0

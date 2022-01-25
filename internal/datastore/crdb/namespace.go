@@ -9,7 +9,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/jackc/pgx/v4"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
@@ -110,19 +109,16 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 			return err
 		}
 		delSQL, delArgs, err := queryDeleteNamespace.
+			Suffix(queryReturningTimestamp).
 			Where(sq.Eq{colNamespace: nsName, colTimestamp: timestamp}).
 			ToSql()
 		if err != nil {
 			return err
 		}
 
-		deletedNSResult, err := tx.Exec(ctx, delSQL, delArgs...)
-		if err != nil {
-			return err
-		}
-		numDeleted := deletedNSResult.RowsAffected()
-		if numDeleted != 1 {
-			log.Ctx(ctx).Warn().Int64("numDeleted", numDeleted).Msg("deleted wrong number of namespaces")
+		serr := tx.QueryRow(ctx, delSQL, delArgs...).Scan(&hlcNow)
+		if serr != nil {
+			return serr
 		}
 
 		deleteTupleSQL, deleteTupleArgs, err := queryDeleteTuples.
@@ -133,7 +129,11 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 			return err
 		}
 
-		return tx.QueryRow(ctx, deleteTupleSQL, deleteTupleArgs...).Scan(&hlcNow)
+		rerr := tx.QueryRow(ctx, deleteTupleSQL, deleteTupleArgs...).Scan(&hlcNow)
+		if errors.Is(rerr, pgx.ErrNoRows) {
+			return nil
+		}
+		return rerr
 	}); err != nil {
 		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return datastore.NoRevision, err

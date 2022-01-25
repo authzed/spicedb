@@ -263,19 +263,21 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	ctx := resp.Context()
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
 
-	err := ps.nsm.CheckNamespaceAndRelation(
-		ctx,
-		req.Subject.Object.ObjectType,
-		normalizeSubjectRelation(req.Subject),
-		true,
-		atRevision,
-	)
-	if err != nil {
-		return rewritePermissionsError(ctx, err)
-	}
-
-	err = ps.nsm.CheckNamespaceAndRelation(ctx, req.ResourceObjectType, req.Permission, false, atRevision)
-	if err != nil {
+	// Perform our preflight checks in parallel
+	errG, checksCtx := errgroup.WithContext(ctx)
+	errG.Go(func() error {
+		return ps.nsm.CheckNamespaceAndRelation(
+			checksCtx,
+			req.Subject.Object.ObjectType,
+			normalizeSubjectRelation(req.Subject),
+			true,
+			atRevision,
+		)
+	})
+	errG.Go(func() error {
+		return ps.nsm.CheckNamespaceAndRelation(ctx, req.ResourceObjectType, req.Permission, false, atRevision)
+	})
+	if err := errG.Wait(); err != nil {
 		return rewritePermissionsError(ctx, err)
 	}
 
