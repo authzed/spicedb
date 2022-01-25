@@ -10,6 +10,7 @@ import (
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
+	"github.com/rs/cors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -66,6 +67,16 @@ func RegisterServeFlags(cmd *cobra.Command, dsConfig *cmdutil.DatastoreConfig) {
 
 	cmd.Flags().String("http-upstream-override-tls-cert-path", "", "Override the upstream TLS certificate")
 	if err := cmd.Flags().MarkHidden("http-upstream-override-tls-cert-path"); err != nil {
+		panic("failed to mark flag as hidden: " + err.Error())
+	}
+
+	cmd.Flags().Bool("http-cors-enabled", false, "DANGEROUS: Enable CORS on the http gateway")
+	if err := cmd.Flags().MarkHidden("http-cors-enabled"); err != nil {
+		panic("failed to mark flag as hidden: " + err.Error())
+	}
+
+	cmd.Flags().StringSlice("http-cors-allowed-origins", []string{"*"}, "Set CORS allowed origins for http gateway, defaults to all origins")
+	if err := cmd.Flags().MarkHidden("http-cors-allowed-origins"); err != nil {
 		panic("failed to mark flag as hidden: " + err.Error())
 	}
 
@@ -261,6 +272,18 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
+
+	if cobrautil.MustGetBool(cmd, "http-cors-enabled") {
+		origins := cobrautil.MustGetStringSlice(cmd, "http-cors-allowed-origins")
+		log.Info().Strs("origins", origins).Msg("Setting REST gateway CORS policy")
+		gatewayHandler = cors.New(cors.Options{
+			AllowedOrigins:   origins,
+			AllowCredentials: true,
+			AllowedHeaders:   []string{"Authorization", "Content-Type"},
+			Debug:            log.Debug().Enabled(),
+		}).Handler(gatewayHandler)
+	}
+
 	gatewaySrv := cobrautil.HttpServerFromFlags(cmd, "http")
 	gatewaySrv.Handler = gatewayHandler
 	go func() {
