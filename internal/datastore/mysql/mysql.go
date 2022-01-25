@@ -13,7 +13,7 @@ import (
 
 const errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
 
-func NewMysqlDatastsore(url string) (datastore.Datastore, error) {
+func NewMysqlDatastore(url string) (datastore.Datastore, error) {
 	return &mysqlDatastore{}, nil
 }
 
