@@ -21,9 +21,7 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-var (
-	testdbName = "spicedb_test"
-)
+var testdbName = "spicedb_test"
 
 type sqlTest struct {
 	db                        *sql.DB
@@ -70,6 +68,7 @@ func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBuf
 
 	return NewMysqlDatastore(connectStr)
 }
+
 func TestMysqlMigration(t *testing.T) {
 	req := require.New(t)
 	creds := "root:secret"
