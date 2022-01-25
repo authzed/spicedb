@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
@@ -21,18 +20,28 @@ type hasConsistency interface {
 	GetConsistency() *v1.Consistency
 }
 
-type ctxKeyType string
+type ctxKeyType struct{}
 
-var revisionKey ctxKeyType = "revision"
+var revisionKey ctxKeyType = struct{}{}
 
 var errInvalidZedToken = errors.New("invalid revision requested")
+
+type revisionHandle struct {
+	revision datastore.Revision
+}
+
+// ContextWithHandle adds a placeholder to a context that will later be
+// filled by the revision
+func ContextWithHandle(ctx context.Context) context.Context {
+	return context.WithValue(ctx, revisionKey, &revisionHandle{})
+}
 
 // RevisionFromContext reads the selected revision out of a context.Context and returns nil if it
 // does not exist.
 func RevisionFromContext(ctx context.Context) *decimal.Decimal {
 	if c := ctx.Value(revisionKey); c != nil {
-		revision := c.(decimal.Decimal)
-		return &revision
+		handle := c.(*revisionHandle)
+		return &handle.revision
 	}
 	return nil
 }
@@ -50,10 +59,15 @@ func MustRevisionFromContext(ctx context.Context) (decimal.Decimal, *v1.ZedToken
 
 // AddRevisionToContext adds a revision to the given context, based on the consistency block found
 // in the given request (if applicable).
-func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Datastore) (context.Context, error) {
+func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Datastore) error {
 	reqWithConsistency, ok := req.(hasConsistency)
 	if !ok {
-		return ctx, nil
+		return nil
+	}
+
+	handle := ctx.Value(revisionKey)
+	if handle == nil {
+		return nil
 	}
 
 	var revision decimal.Decimal
@@ -64,7 +78,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 		// Minimize Latency: Use the datastore's current revision, whatever it may be.
 		databaseRev, err := ds.OptimizedRevision(ctx)
 		if err != nil {
-			return nil, rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(ctx, err)
 		}
 		revision = databaseRev
 
@@ -72,7 +86,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 		// Fully Consistent: Use the datastore's synchronized revision.
 		databaseRev, err := ds.HeadRevision(ctx)
 		if err != nil {
-			return nil, rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(ctx, err)
 		}
 		revision = databaseRev
 
@@ -81,7 +95,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 		// ever is later.
 		picked, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), ds)
 		if err != nil {
-			return nil, rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(ctx, err)
 		}
 		revision = picked
 
@@ -89,29 +103,30 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 		// Exact snapshot: Use the revision as encoded in the zed token.
 		requestedRev, err := zedtoken.DecodeRevision(consistency.GetAtExactSnapshot())
 		if err != nil {
-			return nil, errInvalidZedToken
+			return errInvalidZedToken
 		}
 
 		err = ds.CheckRevision(ctx, requestedRev)
 		if err != nil {
-			return nil, rewriteDatastoreError(ctx, err)
+			return rewriteDatastoreError(ctx, err)
 		}
 
 		revision = requestedRev
 
 	default:
-		return nil, fmt.Errorf("missing handling of consistency case in %v", consistency)
+		return fmt.Errorf("missing handling of consistency case in %v", consistency)
 	}
 
-	return context.WithValue(ctx, revisionKey, revision), nil
+	handle.(*revisionHandle).revision = revision
+	return nil
 }
 
 // UnaryServerInterceptor returns a new unary server interceptor that performs per-request exchange of
 // the specified consistency configuration for the revision at which to perform the request.
 func UnaryServerInterceptor(ds datastore.Datastore) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		newCtx, err := AddRevisionToContext(ctx, req, ds)
-		if err != nil {
+		newCtx := ContextWithHandle(ctx)
+		if err := AddRevisionToContext(newCtx, req, ds); err != nil {
 			return nil, err
 		}
 
@@ -123,16 +138,15 @@ func UnaryServerInterceptor(ds datastore.Datastore) grpc.UnaryServerInterceptor 
 // the specified consistency configuration for the revision at which to perform the request.
 func StreamServerInterceptor(ds datastore.Datastore) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		wrapper := &recvWrapper{stream, ds, stream.Context(), stream.Context()}
+		wrapper := &recvWrapper{stream, ds, ContextWithHandle(stream.Context())}
 		return handler(srv, wrapper)
 	}
 }
 
 type recvWrapper struct {
 	grpc.ServerStream
-	ds         datastore.Datastore
-	initialCtx context.Context
-	ctx        context.Context
+	ds  datastore.Datastore
+	ctx context.Context
 }
 
 func (s *recvWrapper) Context() context.Context {
@@ -144,12 +158,10 @@ func (s *recvWrapper) RecvMsg(m interface{}) error {
 		return err
 	}
 
-	ctx, err := AddRevisionToContext(s.initialCtx, m, s.ds)
-	if err != nil {
+	if err := AddRevisionToContext(s.ctx, m, s.ds); err != nil {
 		return err
 	}
 
-	s.ctx = ctx
 	return nil
 }
 
