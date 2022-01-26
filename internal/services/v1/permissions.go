@@ -9,11 +9,10 @@ import (
 	"github.com/jzelinskie/stringz"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/authzed/spicedb/pkg/middleware/consistency"
-	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
+	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {

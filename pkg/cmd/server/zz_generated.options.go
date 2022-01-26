@@ -160,34 +160,6 @@ func WithMetricsAPI(metricsAPI util.HTTPServerConfig) ConfigOption {
 	}
 }
 
-// WithSharedUnaryMiddleware returns an option that can append SharedUnaryMiddlewares to Config.SharedUnaryMiddleware
-func WithSharedUnaryMiddleware(sharedUnaryMiddleware grpc.UnaryServerInterceptor) ConfigOption {
-	return func(c *Config) {
-		c.SharedUnaryMiddleware = append(c.SharedUnaryMiddleware, sharedUnaryMiddleware)
-	}
-}
-
-// SetSharedUnaryMiddleware returns an option that can set SharedUnaryMiddleware on a Config
-func SetSharedUnaryMiddleware(sharedUnaryMiddleware []grpc.UnaryServerInterceptor) ConfigOption {
-	return func(c *Config) {
-		c.SharedUnaryMiddleware = sharedUnaryMiddleware
-	}
-}
-
-// WithSharedStreamingMiddleware returns an option that can append SharedStreamingMiddlewares to Config.SharedStreamingMiddleware
-func WithSharedStreamingMiddleware(sharedStreamingMiddleware grpc.StreamServerInterceptor) ConfigOption {
-	return func(c *Config) {
-		c.SharedStreamingMiddleware = append(c.SharedStreamingMiddleware, sharedStreamingMiddleware)
-	}
-}
-
-// SetSharedStreamingMiddleware returns an option that can set SharedStreamingMiddleware on a Config
-func SetSharedStreamingMiddleware(sharedStreamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
-	return func(c *Config) {
-		c.SharedStreamingMiddleware = sharedStreamingMiddleware
-	}
-}
-
 // WithUnaryMiddleware returns an option that can append UnaryMiddlewares to Config.UnaryMiddleware
 func WithUnaryMiddleware(unaryMiddleware grpc.UnaryServerInterceptor) ConfigOption {
 	return func(c *Config) {

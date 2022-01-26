@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

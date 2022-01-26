@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -18,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 
-	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
+	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -20,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"

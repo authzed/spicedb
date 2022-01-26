@@ -3,11 +3,11 @@ package namespace
 import (
 	"testing"
 
-	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
-
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
+
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 func TestMetadata(t *testing.T) {

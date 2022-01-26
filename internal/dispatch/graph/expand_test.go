@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/go-cmp/cmp"
@@ -24,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/graph"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/dgraph-io/ristretto"
@@ -23,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

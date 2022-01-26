@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"
 	"github.com/google/go-cmp/cmp"
@@ -20,6 +18,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/membership"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"

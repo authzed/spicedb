@@ -5,8 +5,6 @@ package combined
 import (
 	"os"
 
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
@@ -18,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.

@@ -14,8 +14,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dashboard"
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/dispatch"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -62,15 +60,11 @@ type Config struct {
 	DashboardAPI util.HTTPServerConfig
 	MetricsAPI   util.HTTPServerConfig
 
-	// Shared middleware is standard middleware used for both grpc and dispatch
-	SharedUnaryMiddleware     []grpc.UnaryServerInterceptor
-	SharedStreamingMiddleware []grpc.StreamServerInterceptor
-
-	// Additional middleware for grpc
+	//  Middleware for grpc
 	UnaryMiddleware     []grpc.UnaryServerInterceptor
 	StreamingMiddleware []grpc.StreamServerInterceptor
 
-	// Additional middleware for dispatch
+	// Middleware for dispatch
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor
 }
@@ -110,8 +104,8 @@ func (c *Config) Complete() (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 	}
 
-	if len(c.SharedUnaryMiddleware) == 0 && len(c.SharedStreamingMiddleware) == 0 {
-		c.SharedUnaryMiddleware, c.SharedStreamingMiddleware = DefaultMiddleware(log.Logger, c.PresharedKey, dispatcher, ds)
+	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
+		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultMiddleware(log.Logger, c.PresharedKey, dispatcher, ds)
 	}
 
 	cachingClusterDispatch, err := combineddispatch.NewClusterDispatcher(dispatcher, nsm, ds)
@@ -122,8 +116,8 @@ func (c *Config) Complete() (RunnableServer, error) {
 		func(server *grpc.Server) {
 			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
 		},
-		grpc.ChainUnaryInterceptor(append(c.SharedUnaryMiddleware, c.DispatchUnaryMiddleware...)...),
-		grpc.ChainStreamInterceptor(append(c.SharedStreamingMiddleware, c.DispatchStreamingMiddleware...)...),
+		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
+		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
@@ -139,6 +133,9 @@ func (c *Config) Complete() (RunnableServer, error) {
 		v1SchemaServiceOption = services.V1SchemaServiceDisabled
 	}
 
+	if len(c.UnaryMiddleware) == 0 && len(c.StreamingMiddleware) == 0 {
+		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.PresharedKey, dispatcher, ds)
+	}
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
@@ -151,8 +148,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 				v1SchemaServiceOption,
 			)
 		},
-		grpc.ChainUnaryInterceptor(append(c.SharedUnaryMiddleware, c.UnaryMiddleware...)...),
-		grpc.ChainStreamInterceptor(append(c.SharedStreamingMiddleware, c.StreamingMiddleware...)...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
@@ -200,9 +195,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		gatewayServer:       gatewayServer,
 		metricsServer:       metricsServer,
 		dashboardServer:     dashboardServer,
-		ds:                  ds,
-		nsm:                 nsm,
-		dispatcher:          dispatcher,
 		unaryMiddleware:     c.UnaryMiddleware,
 		streamingMiddleware: c.StreamingMiddleware,
 	}, nil
@@ -211,8 +203,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 // RunnableServer is a spicedb service set ready to run
 type RunnableServer interface {
 	Run(ctx context.Context) error
-	Dispatcher() dispatch.Dispatcher
-	Datastore() datastore.Datastore
 	Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor)
 	SetMiddleware(unaryInterceptors []grpc.UnaryServerInterceptor, streamingInterceptors []grpc.StreamServerInterceptor) RunnableServer
 }
@@ -227,9 +217,6 @@ type completedServerConfig struct {
 	metricsServer      util.RunnableHTTPServer
 	dashboardServer    util.RunnableHTTPServer
 
-	ds                  datastore.Datastore
-	dispatcher          dispatch.Dispatcher
-	nsm                 namespace.Manager
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
 }
@@ -244,14 +231,6 @@ func (c *completedServerConfig) SetMiddleware(unaryInterceptors []grpc.UnaryServ
 	return c
 }
 
-func (c *completedServerConfig) Datastore() datastore.Datastore {
-	return c.ds
-}
-
-func (c *completedServerConfig) Dispatcher() dispatch.Dispatcher {
-	return c.dispatcher
-}
-
 func (c *completedServerConfig) Run(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -263,8 +242,9 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		}
 	}
 
-	g.Go(c.gRPCServer.Listen)
-	g.Go(stopOnCancel(c.gRPCServer.GracefulStop))
+	grpcServer := c.gRPCServer.WithOpts(grpc.ChainUnaryInterceptor(c.unaryMiddleware...), grpc.ChainStreamInterceptor(c.streamingMiddleware...))
+	g.Go(grpcServer.Listen)
+	g.Go(stopOnCancel(grpcServer.GracefulStop))
 
 	g.Go(c.dispatchGRPCServer.Listen)
 	g.Go(stopOnCancel(c.dispatchGRPCServer.GracefulStop))

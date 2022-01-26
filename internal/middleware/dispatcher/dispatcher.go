@@ -3,9 +3,8 @@ package dispatcher
 import (
 	"context"
 
-	"google.golang.org/grpc"
-
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
+	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 )

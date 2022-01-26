@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 
-	zedtoken "github.com/authzed/spicedb/pkg/proto/impl/v1"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
+
+	zedtoken "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 // Public facing errors

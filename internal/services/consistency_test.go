@@ -12,14 +12,12 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/jwangsadinata/go-multimap/slicemultimap"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -30,6 +28,7 @@ import (
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"

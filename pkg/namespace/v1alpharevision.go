@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"sort"
 
-	internal "github.com/authzed/spicedb/pkg/proto/impl/v1"
-
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
+
+	internal "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 const (

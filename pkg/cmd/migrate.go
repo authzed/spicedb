@@ -3,8 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/cmd/server"
-
 	"github.com/fatih/color"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/zerolog/log"
@@ -12,6 +10,7 @@ import (
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 

@@ -7,8 +7,6 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/authzed/spicedb/pkg/cmd/server"
-
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"
 	"github.com/aws/aws-sdk-go/aws"
@@ -27,6 +25,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 )
 
 func RegisterDevtoolsFlags(cmd *cobra.Command) {
