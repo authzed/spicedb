@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+
 	zedtoken "github.com/authzed/spicedb/pkg/proto/impl/v1"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"

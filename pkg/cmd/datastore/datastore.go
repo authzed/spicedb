@@ -19,7 +19,7 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-type engineBuilderFunc func(options DatastoreConfig) (datastore.Datastore, error)
+type engineBuilderFunc func(options Config) (datastore.Datastore, error)
 
 var builderForEngine = map[string]engineBuilderFunc{
 	"cockroachdb": newCRDBDatastore,
@@ -27,10 +27,8 @@ var builderForEngine = map[string]engineBuilderFunc{
 	"memory":      newMemoryDatstore,
 }
 
-type DatastoreOption func(*DatastoreConfig)
-
-//go:generate go run github.com/ecordell/optgen -output zz_generated.datastore_options.go . DatastoreConfig
-type DatastoreConfig struct {
+//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
+type Config struct {
 	Engine               string
 	URI                  string
 	GCWindow             time.Duration
@@ -66,8 +64,8 @@ type DatastoreConfig struct {
 	GCMaxOperationTime time.Duration
 }
 
-func (o *DatastoreConfig) ToOption() DatastoreOption {
-	return func(to *DatastoreConfig) {
+func (o *Config) ToOption() ConfigOption {
+	return func(to *Config) {
 		to.Engine = o.Engine
 		to.URI = o.URI
 		to.GCWindow = o.GCWindow
@@ -95,7 +93,7 @@ func (o *DatastoreConfig) ToOption() DatastoreOption {
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
-func RegisterDatastoreFlags(cmd *cobra.Command, opts *DatastoreConfig) {
+func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
@@ -122,8 +120,8 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *DatastoreConfig) {
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 }
 
-func DefaultDatastoreConfig() *DatastoreConfig {
-	return &DatastoreConfig{
+func DefaultDatastoreConfig() *Config {
+	return &Config{
 		GCWindow:             24 * time.Hour,
 		RevisionQuantization: 5 * time.Second,
 		MaxLifetime:          30 * time.Minute,
@@ -140,8 +138,8 @@ func DefaultDatastoreConfig() *DatastoreConfig {
 }
 
 // NewDatastore initializes a datastore given the options
-func NewDatastore(options ...DatastoreOption) (datastore.Datastore, error) {
-	var opts DatastoreConfig
+func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
+	var opts Config
 	for _, o := range options {
 		o(&opts)
 	}
@@ -200,7 +198,7 @@ func NewDatastore(options ...DatastoreOption) (datastore.Datastore, error) {
 	return ds, nil
 }
 
-func newCRDBDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
+func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse split query size: %w", err)
@@ -221,7 +219,7 @@ func newCRDBDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
 	)
 }
 
-func newPostgresDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
+func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse split query size: %w", err)
@@ -243,7 +241,7 @@ func newPostgresDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
 	)
 }
 
-func newMemoryDatstore(opts DatastoreConfig) (datastore.Datastore, error) {
+func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
 	return memdb.NewMemdbDatastore(0, opts.RevisionQuantization, opts.GCWindow, 0)
 }

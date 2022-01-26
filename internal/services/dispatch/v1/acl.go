@@ -12,7 +12,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
-	"github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 type dispatchServer struct {

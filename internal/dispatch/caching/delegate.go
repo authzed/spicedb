@@ -2,6 +2,7 @@ package caching
 
 import (
 	"context"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )

@@ -2,16 +2,17 @@ package usagemetrics
 
 import (
 	"context"
-	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"strconv"
 	"time"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
-	prometheus "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
+
+	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 var dispatchBuckets = []float64{1, 5, 10, 25, 50, 100, 250}

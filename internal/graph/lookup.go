@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"

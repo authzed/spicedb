@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/authzed/spicedb/pkg/cmd"
-	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 	"math/rand"
 	"time"
 
@@ -11,6 +9,8 @@ import (
 	"google.golang.org/grpc/balancer"
 
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
+	"github.com/authzed/spicedb/pkg/cmd"
+	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 )
 
 const (
@@ -51,7 +51,7 @@ func main() {
 	rootCmd.AddCommand(headCmd)
 
 	// Add server commands
-	var serverConfig cmdutil.ServerConfig
+	var serverConfig cmdutil.Config
 	serveCmd := cmd.NewServeCommand(rootCmd.Use, &serverConfig)
 	cmd.RegisterServeFlags(serveCmd, &serverConfig)
 	rootCmd.AddCommand(serveCmd)

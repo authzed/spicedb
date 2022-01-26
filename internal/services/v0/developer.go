@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"

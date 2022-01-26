@@ -13,7 +13,7 @@ import (
 
 const PresharedKeyFlag = "grpc-preshared-key"
 
-func RegisterServeFlags(cmd *cobra.Command, config *server.ServerConfig) {
+func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	// Flags for the gRPC API server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
 	cmd.Flags().StringVar(&config.PresharedKey, PresharedKeyFlag, "", "preshared key to require for authenticated requests")
@@ -66,7 +66,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.ServerConfig) {
 	util.RegisterHTTPServerFlags(cmd.Flags(), &config.MetricsAPI, "metrics", "metrics", ":9090", true)
 }
 
-func NewServeCommand(programName string, config *server.ServerConfig) *cobra.Command {
+func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 	return &cobra.Command{
 		Use:     "serve",
 		Short:   "serve the permissions database",

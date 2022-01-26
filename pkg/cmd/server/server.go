@@ -26,10 +26,8 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
-type ServerOption func(*ServerConfig)
-
-//go:generate go run github.com/ecordell/optgen -output zz_generated.server_options.go . ServerConfig
-type ServerConfig struct {
+//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
+type Config struct {
 	// API config
 	GRPCServer          util.GRPCServerConfig
 	PresharedKey        string
@@ -43,7 +41,7 @@ type ServerConfig struct {
 	HTTPGatewayCorsAllowedOrigins  []string
 
 	// Datastore
-	Datastore datastorecfg.DatastoreConfig
+	Datastore datastorecfg.Config
 
 	// Namespace cache
 	NamespaceCacheExpiration time.Duration
@@ -80,7 +78,7 @@ type ServerConfig struct {
 // Complete validates the config and fills out defaults.
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
-func (c *ServerConfig) Complete() (RunnableServer, error) {
+func (c *Config) Complete() (RunnableServer, error) {
 	if len(c.PresharedKey) < 1 {
 		return nil, fmt.Errorf("a preshared key must be provided to authenticate API requests")
 	}
@@ -98,14 +96,6 @@ func (c *ServerConfig) Complete() (RunnableServer, error) {
 	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
 		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
 	))
-
-	if len(c.UnaryMiddleware) == 0 && len(c.StreamingMiddleware) == 0 {
-		c.UnaryMiddleware, c.StreamingMiddleware = defaultMiddleware(log.Logger, c.PresharedKey)
-	}
-
-	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
-		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = defaultMiddleware(log.Logger, c.PresharedKey)
-	}
 
 	dispatcher, err := combineddispatch.NewDispatcher(nsm, ds,
 		combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
@@ -149,7 +139,6 @@ func (c *ServerConfig) Complete() (RunnableServer, error) {
 		v1SchemaServiceOption = services.V1SchemaServiceDisabled
 	}
 
-	// delay setting middleware until Run()
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
@@ -229,7 +218,7 @@ type RunnableServer interface {
 }
 
 // completedServerConfig holds the full configuration to run a spicedb server,
-// but is assumed have already been validated via `Complete()` on ServerConfig.
+// but is assumed have already been validated via `Complete()` on Config.
 // It offers limited options for mutation before Run() starts the services.
 type completedServerConfig struct {
 	gRPCServer         util.RunnableGRPCServer

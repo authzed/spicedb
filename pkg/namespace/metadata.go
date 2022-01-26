@@ -2,9 +2,10 @@ package namespace
 
 import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 // userDefinedMetadataTypeUrls are the type URLs of any user-defined metadata found

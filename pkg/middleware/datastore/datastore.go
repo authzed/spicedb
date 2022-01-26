@@ -16,10 +16,10 @@ func FromContext(ctx context.Context) datastore.Datastore {
 // MustFromContext reads the selected datastore out of a context.Context, computes a zedtoken
 // from it, and panics if it has not been set on the context.
 func MustFromContext(ctx context.Context) datastore.Datastore {
-	dispatcher := FromContext(ctx)
-	if dispatcher == nil {
+	datastore := FromContext(ctx)
+	if datastore == nil {
 		panic("datastore middleware did not inject datastore")
 	}
 
-	return dispatcher
+	return datastore
 }

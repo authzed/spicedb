@@ -3,8 +3,9 @@ package namespace
 import (
 	"encoding/base64"
 	"fmt"
-	internal "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"sort"
+
+	internal "github.com/authzed/spicedb/pkg/proto/impl/v1"
 
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"

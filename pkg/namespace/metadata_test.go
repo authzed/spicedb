@@ -1,8 +1,9 @@
 package namespace
 
 import (
-	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"testing"
+
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"

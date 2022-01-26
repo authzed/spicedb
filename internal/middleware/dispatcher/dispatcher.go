@@ -2,10 +2,12 @@ package dispatcher
 
 import (
 	"context"
+
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/dispatch"
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
+
+	"github.com/authzed/spicedb/internal/dispatch"
 )
 
 type ctxKeyType struct{}

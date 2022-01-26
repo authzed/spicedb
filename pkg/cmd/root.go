@@ -1,9 +1,10 @@
 package cmd
 
 import (
-	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/spf13/cobra"
+
+	"github.com/authzed/spicedb/pkg/cmd/server"
 )
 
 func RegisterRootFlags(cmd *cobra.Command) {

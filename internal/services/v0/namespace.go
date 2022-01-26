@@ -8,12 +8,13 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
-	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"

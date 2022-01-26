@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"errors"
+
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -18,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
+	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -45,13 +47,13 @@ func NewPermissionsServer(ds datastore.Datastore,
 				grpcvalidate.UnaryServerInterceptor(),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
-				consistency.UnaryServerInterceptor(ds),
+				consistencymw.UnaryServerInterceptor(ds),
 			),
 			Stream: grpcmw.ChainStreamServer(
 				grpcvalidate.StreamServerInterceptor(),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
-				consistency.StreamServerInterceptor(ds),
+				consistencymw.StreamServerInterceptor(ds),
 			),
 		},
 	}

@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"sync"
+
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"

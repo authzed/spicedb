@@ -2,6 +2,7 @@ package remote
 
 import (
 	"context"
+
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dispatch"
