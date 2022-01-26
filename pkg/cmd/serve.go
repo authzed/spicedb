@@ -1,4 +1,4 @@
-package serve
+package cmd
 
 import (
 	"context"
@@ -6,14 +6,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cmdutil "github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
 const PresharedKeyFlag = "grpc-preshared-key"
 
-func RegisterServeFlags(cmd *cobra.Command, config *cmdutil.ServerConfig) {
+func RegisterServeFlags(cmd *cobra.Command, config *server.ServerConfig) {
 	// Flags for the gRPC API server
-	cmdutil.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
+	util.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
 	cmd.Flags().StringVar(&config.PresharedKey, PresharedKeyFlag, "", "preshared key to require for authenticated requests")
 	cmd.Flags().DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
 	if err := cmd.MarkFlagRequired(PresharedKeyFlag); err != nil {
@@ -21,7 +23,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *cmdutil.ServerConfig) {
 	}
 
 	// Flags for the datastore
-	cmdutil.RegisterDatastoreFlags(cmd, &config.Datastore)
+	datastore.RegisterDatastoreFlags(cmd, &config.Datastore)
 
 	// Flags for the namespace manager
 	cmd.Flags().DurationVar(&config.NamespaceCacheExpiration, "ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
@@ -30,7 +32,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *cmdutil.ServerConfig) {
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
 	// Flags for HTTP gateway
-	cmdutil.RegisterHTTPServerFlags(cmd.Flags(), &config.HTTPGateway, "http", "http", ":8443", false)
+	util.RegisterHTTPServerFlags(cmd.Flags(), &config.HTTPGateway, "http", "http", ":8443", false)
 	cmd.Flags().StringVar(&config.HTTPGatewayUpstreamAddr, "http-upstream-override-addr", "", "Override the upstream to point to a different gRPC server")
 	if err := cmd.Flags().MarkHidden("http-upstream-override-addr"); err != nil {
 		panic("failed to mark flag as hidden: " + err.Error())
@@ -49,7 +51,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *cmdutil.ServerConfig) {
 	}
 
 	// Flags for configuring the dispatch server
-	cmdutil.RegisterGRPCServerFlags(cmd.Flags(), &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
+	util.RegisterGRPCServerFlags(cmd.Flags(), &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
 
 	// Flags for configuring dispatch requests
 	cmd.Flags().Uint32Var(&config.DispatchMaxDepth, "dispatch-max-depth", 50, "maximum recursion depth for nested calls")
@@ -60,27 +62,27 @@ func RegisterServeFlags(cmd *cobra.Command, config *cmdutil.ServerConfig) {
 	cmd.Flags().BoolVar(&config.DisableV1SchemaAPI, "disable-v1-schema-api", false, "disables the V1 schema API")
 
 	// Flags for misc services
-	cmdutil.RegisterHTTPServerFlags(cmd.Flags(), &config.DashboardAPI, "dashboard", "dashboard", ":8080", true)
-	cmdutil.RegisterHTTPServerFlags(cmd.Flags(), &config.MetricsAPI, "metrics", "metrics", ":9090", true)
+	util.RegisterHTTPServerFlags(cmd.Flags(), &config.DashboardAPI, "dashboard", "dashboard", ":8080", true)
+	util.RegisterHTTPServerFlags(cmd.Flags(), &config.MetricsAPI, "metrics", "metrics", ":9090", true)
 }
 
-func NewServeCommand(programName string, config *cmdutil.ServerConfig) *cobra.Command {
+func NewServeCommand(programName string, config *server.ServerConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:     "serve",
 		Short:   "serve the permissions database",
 		Long:    "A database that stores, computes, and validates application permissions",
-		PreRunE: cmdutil.DefaultPreRunE(programName),
+		PreRunE: server.DefaultPreRunE(programName),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			server, err := config.Complete()
 			if err != nil {
 				return err
 			}
-			signalctx := cmdutil.SignalContextWithGracePeriod(
+			signalctx := SignalContextWithGracePeriod(
 				context.Background(),
 				config.ShutdownGracePeriod,
 			)
 			return server.Run(signalctx)
 		},
-		Example: cmdutil.ServeExample(programName),
+		Example: server.ServeExample(programName),
 	}
 }

@@ -1,4 +1,4 @@
-package cmd
+package server
 
 import (
 	"context"
@@ -27,6 +27,8 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/cmd/util"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 )
@@ -36,19 +38,19 @@ type ServerOption func(*ServerConfig)
 //go:generate go run github.com/ecordell/optgen -output zz_generated.server_options.go . ServerConfig
 type ServerConfig struct {
 	// API config
-	GRPCServer          GRPCServerConfig
+	GRPCServer          util.GRPCServerConfig
 	PresharedKey        string
 	ShutdownGracePeriod time.Duration
 
 	// GRPC Gateway config
-	HTTPGateway                    HTTPServerConfig
+	HTTPGateway                    util.HTTPServerConfig
 	HTTPGatewayUpstreamAddr        string
 	HTTPGatewayUpstreamTLSCertPath string
 	HTTPGatewayCorsEnabled         bool
 	HTTPGatewayCorsAllowedOrigins  []string
 
 	// Datastore
-	Datastore DatastoreConfig
+	Datastore datastorecfg.DatastoreConfig
 
 	// Namespace cache
 	NamespaceCacheExpiration time.Duration
@@ -57,7 +59,7 @@ type ServerConfig struct {
 	SchemaPrefixesRequired bool
 
 	// Dispatch options
-	DispatchServer         GRPCServerConfig
+	DispatchServer         util.GRPCServerConfig
 	DispatchMaxDepth       uint32
 	DispatchUpstreamAddr   string
 	DispatchUpstreamCAPath string
@@ -66,8 +68,8 @@ type ServerConfig struct {
 	DisableV1SchemaAPI bool
 
 	// Additional Services
-	DashboardAPI HTTPServerConfig
-	MetricsAPI   HTTPServerConfig
+	DashboardAPI util.HTTPServerConfig
+	MetricsAPI   util.HTTPServerConfig
 
 	// Middleware
 	UnaryMiddleware             []grpc.UnaryServerInterceptor
@@ -84,7 +86,7 @@ func (c *ServerConfig) Complete() (RunnableServer, error) {
 		return nil, fmt.Errorf("a preshared key must be provided to authenticate API requests")
 	}
 
-	ds, err := NewDatastore(c.Datastore.ToOption())
+	ds, err := datastorecfg.NewDatastore(c.Datastore.ToOption())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create datastore: %w", err)
 	}
@@ -199,11 +201,11 @@ func (c *ServerConfig) Complete() (RunnableServer, error) {
 	}
 
 	return &completedServerConfig{
-		gRPCServer:          grpcServer.(*completedGRPCServer),
-		dispatchGRPCServer:  dispatchGrpcServer.(*completedGRPCServer),
-		gatewayServer:       gatewayServer.(*completedHTTPServer),
-		metricsServer:       metricsServer.(*completedHTTPServer),
-		dashboardServer:     dashboardServer.(*completedHTTPServer),
+		gRPCServer:          grpcServer,
+		dispatchGRPCServer:  dispatchGrpcServer,
+		gatewayServer:       gatewayServer,
+		metricsServer:       metricsServer,
+		dashboardServer:     dashboardServer,
 		ds:                  ds,
 		nsm:                 nsm,
 		dispatcher:          dispatcher,
@@ -225,11 +227,11 @@ type RunnableServer interface {
 // but is assumed have already been validated via `Complete()` on ServerConfig.
 // It offers limited options for mutation before Run() starts the services.
 type completedServerConfig struct {
-	gRPCServer         *completedGRPCServer
-	dispatchGRPCServer *completedGRPCServer
-	gatewayServer      *completedHTTPServer
-	metricsServer      *completedHTTPServer
-	dashboardServer    *completedHTTPServer
+	gRPCServer         util.RunnableGRPCServer
+	dispatchGRPCServer util.RunnableGRPCServer
+	gatewayServer      util.RunnableHTTPServer
+	metricsServer      util.RunnableHTTPServer
+	dashboardServer    util.RunnableHTTPServer
 
 	ds                  datastore.Datastore
 	dispatcher          dispatch.Dispatcher

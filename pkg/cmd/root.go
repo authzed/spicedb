@@ -1,22 +1,21 @@
-package root
+package cmd
 
 import (
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/spf13/cobra"
-
-	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 )
 
-func RegisterFlags(cmd *cobra.Command) {
+func RegisterRootFlags(cmd *cobra.Command) {
 	cobrautil.RegisterZeroLogFlags(cmd.PersistentFlags(), "log")
 	cobrautil.RegisterOpenTelemetryFlags(cmd.PersistentFlags(), "otel", cmd.Use)
 }
 
-func NewCommand(programName string) *cobra.Command {
+func NewRootCommand(programName string) *cobra.Command {
 	return &cobra.Command{
 		Use:     programName,
 		Short:   "A modern permissions database",
 		Long:    "A database that stores, computes, and validates application permissions",
-		Example: cmdutil.ServeExample(programName),
+		Example: server.ServeExample(programName),
 	}
 }

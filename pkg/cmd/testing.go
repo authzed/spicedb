@@ -1,9 +1,10 @@
-package serve
+package cmd
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"io"
 	"net"
 	"os"
@@ -37,7 +38,6 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -59,7 +59,7 @@ func NewTestingCommand(programName string) *cobra.Command {
 		Use:     "serve-testing",
 		Short:   "test server with an in-memory datastore",
 		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
-		PreRunE: cmdutil.DefaultPreRunE(programName),
+		PreRunE: server.DefaultPreRunE(programName),
 		RunE:    runTestServer,
 	}
 }

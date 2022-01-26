@@ -1,4 +1,4 @@
-package cmd
+package util
 
 import (
 	"errors"
@@ -15,8 +15,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 )
-
-type GRPCServerOption func(*ServerConfig)
 
 type GRPCServerConfig struct {
 	Address     string

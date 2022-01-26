@@ -1,7 +1,8 @@
-package migrate
+package cmd
 
 import (
 	"fmt"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 
 	"github.com/fatih/color"
 	"github.com/jzelinskie/cobrautil"
@@ -10,7 +11,6 @@ import (
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
-	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
@@ -24,7 +24,7 @@ func NewMigrateCommand(programName string) *cobra.Command {
 		Use:     "migrate [revision]",
 		Short:   "execute datastore schema migrations",
 		Long:    fmt.Sprintf("Executes datastore schema migrations for the datastore.\nThe special value \"%s\" can be used to migrate to the latest revision.", color.YellowString(migrate.Head)),
-		PreRunE: cmdutil.DefaultPreRunE(programName),
+		PreRunE: server.DefaultPreRunE(programName),
 		RunE:    migrateRun,
 		Args:    cobra.ExactArgs(1),
 	}
@@ -78,7 +78,7 @@ func NewHeadCommand(programName string) *cobra.Command {
 	return &cobra.Command{
 		Use:     "head",
 		Short:   "compute the head database migration revision",
-		PreRunE: cmdutil.DefaultPreRunE(programName),
+		PreRunE: server.DefaultPreRunE(programName),
 		RunE:    headRevisionRun,
 		Args:    cobra.ExactArgs(0),
 	}
