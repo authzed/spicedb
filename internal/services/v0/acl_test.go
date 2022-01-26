@@ -851,9 +851,26 @@ func TestLookupMissingTypeInformation(t *testing.T) {
 	client, stop, revision, ds := newACLServicer(require, time.Duration(0), memdb.DisableGC, 0)
 	defer stop()
 
+	lis := bufconn.Listen(1024 * 1024)
+	s := tf.NewTestServer(ds)
+	v0.RegisterNamespaceServiceServer(s, NewNamespaceServer(ds))
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			panic("failed to shutdown cleanly: " + err.Error())
+		}
+	}()
+	defer func() {
+		s.Stop()
+		lis.Close()
+	}()
+	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(err)
+	nsClient := v0.NewNamespaceServiceClient(conn)
+
 	// Write a namespace without any type information.
-	srv := NewNamespaceServer(ds)
-	_, err := srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+	_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 		Configs: []*v0.NamespaceDefinition{
 			ns.Namespace(
 				"typelessdoc",
@@ -891,7 +908,7 @@ func newACLServicer(
 
 	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
 	lis := bufconn.Listen(1024 * 1024)
-	s := tf.NewTestServer()
+	s := tf.NewTestServer(ds)
 	v0.RegisterACLServiceServer(s, NewACLServer(ds, ns, dispatch, 50))
 	go func() {
 		if err := s.Serve(lis); err != nil {

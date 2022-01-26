@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
@@ -61,10 +62,7 @@ func NewSchemaServer(ds datastore.Datastore, prefixRequired PrefixRequiredOption
 }
 
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
-	headRevision, err := ss.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewriteError(ctx, err)
-	}
+	headRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	numRequested := len(in.GetObjectDefinitionsNames())
 
@@ -120,10 +118,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		return nil, rewriteError(ctx, err)
 	}
 
-	headRevision, err := ss.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewriteError(ctx, err)
-	}
+	headRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
 

@@ -187,7 +187,7 @@ func newWatchServicer(
 	ds datastore.Datastore,
 ) (v1.WatchServiceClient, func()) {
 	lis := bufconn.Listen(1024 * 1024)
-	s := testfixtures.NewTestServer()
+	s := testfixtures.NewTestServer(ds)
 
 	v1.RegisterWatchServiceServer(s, NewWatchServer(ds))
 	go func() {

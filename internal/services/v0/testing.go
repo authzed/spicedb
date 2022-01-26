@@ -1,11 +1,11 @@
-package v1
+package v0
 
 import (
 	"context"
 	"net"
 	"testing"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -18,11 +18,11 @@ import (
 )
 
 // RunForTesting runs a real gRPC instance of the V1 API and returns a client for testing.
-func RunForTesting(t *testing.T, ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) (v1.PermissionsServiceClient, v1.SchemaServiceClient) {
+func RunForTesting(t *testing.T, ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) (v0.ACLServiceClient, v0.NamespaceServiceClient) {
 	lis := bufconn.Listen(1024 * 1024)
 	s := tf.NewTestServer(ds)
-	v1.RegisterPermissionsServiceServer(s, NewPermissionsServer(ds, nsm, dispatch, defaultDepth))
-	v1.RegisterSchemaServiceServer(s, NewSchemaServer(ds))
+	v0.RegisterACLServiceServer(s, NewACLServer(ds, nsm, dispatch, defaultDepth))
+	v0.RegisterNamespaceServiceServer(s, NewNamespaceServer(ds))
 
 	go func() {
 		if err := s.Serve(lis); err != nil {
@@ -39,5 +39,5 @@ func RunForTesting(t *testing.T, ds datastore.Datastore, nsm namespace.Manager, 
 	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
-	return v1.NewPermissionsServiceClient(conn), v1.NewSchemaServiceClient(conn)
+	return v0.NewACLServiceClient(conn), v0.NewNamespaceServiceClient(conn)
 }

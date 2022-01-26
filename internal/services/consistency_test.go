@@ -102,8 +102,10 @@ func TestConsistency(t *testing.T) {
 							defer dispatcher.Close()
 
 							v1permclient, _ := v1svc.RunForTesting(t, ds, ns, dispatcher, 50)
+							v0aclclient, _ := v0svc.RunForTesting(t, ds, ns, dispatcher, 50)
+
 							testers := []serviceTester{
-								v0ServiceTester{v0svc.NewACLServer(ds, ns, dispatcher, 50)},
+								v0ServiceTester{v0aclclient},
 								v1ServiceTester{v1permclient},
 							}
 

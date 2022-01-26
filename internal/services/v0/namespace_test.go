@@ -2,6 +2,7 @@ package v0
 
 import (
 	"context"
+	"net"
 	"testing"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -9,7 +10,10 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -25,19 +29,35 @@ func TestNamespace(t *testing.T) {
 	require.NoError(err)
 	defer ds.Close()
 
-	srv := NewNamespaceServer(ds)
+	lis := bufconn.Listen(1024 * 1024)
+	s := testfixtures.NewTestServer(ds)
+	v0.RegisterNamespaceServiceServer(s, NewNamespaceServer(ds))
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			panic("failed to shutdown cleanly: " + err.Error())
+		}
+	}()
+	defer func() {
+		s.Stop()
+		lis.Close()
+	}()
+	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(err)
+	nsClient := v0.NewNamespaceServiceClient(conn)
 
-	_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+	_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
 	})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 
-	_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+	_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 		Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS},
 	})
 	require.NoError(err)
 
-	readBack, err := srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+	readBack, err := nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
 	})
 	require.NoError(err)
@@ -47,7 +67,7 @@ func TestNamespace(t *testing.T) {
 		require.Fail("should have read back the same config")
 	}
 
-	_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+	_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: "fake",
 	})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
@@ -182,14 +202,30 @@ func TestNamespaceChanged(t *testing.T) {
 			require.NoError(err)
 			defer ds.Close()
 
-			srv := NewNamespaceServer(ds)
+			lis := bufconn.Listen(1024 * 1024)
+			s := testfixtures.NewTestServer(ds)
+			v0.RegisterNamespaceServiceServer(s, NewNamespaceServer(ds))
+			go func() {
+				if err := s.Serve(lis); err != nil {
+					panic("failed to shutdown cleanly: " + err.Error())
+				}
+			}()
+			defer func() {
+				s.Stop()
+				lis.Close()
+			}()
+			conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+				return lis.Dial()
+			}), grpc.WithTransportCredentials(insecure.NewCredentials()))
+			require.NoError(err)
+			nsClient := v0.NewNamespaceServiceClient(conn)
 
-			_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+			_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 				Namespace: testfixtures.DocumentNS.Name,
 			})
 			grpcutil.RequireStatus(t, codes.NotFound, err)
 
-			_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 				Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace},
 			})
 			require.NoError(err)
@@ -206,7 +242,7 @@ func TestNamespaceChanged(t *testing.T) {
 			_, err = ds.WriteTuples(context.Background(), nil, updates)
 			require.NoError(err)
 
-			_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 				Configs: []*v0.NamespaceDefinition{tc.updatedNamespace},
 			})
 
@@ -283,14 +319,30 @@ func TestDeleteNamespace(t *testing.T) {
 			require.NoError(err)
 			defer ds.Close()
 
-			srv := NewNamespaceServer(ds)
+			lis := bufconn.Listen(1024 * 1024)
+			s := testfixtures.NewTestServer(ds)
+			v0.RegisterNamespaceServiceServer(s, NewNamespaceServer(ds))
+			go func() {
+				if err := s.Serve(lis); err != nil {
+					panic("failed to shutdown cleanly: " + err.Error())
+				}
+			}()
+			defer func() {
+				s.Stop()
+				lis.Close()
+			}()
+			conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+				return lis.Dial()
+			}), grpc.WithTransportCredentials(insecure.NewCredentials()))
+			require.NoError(err)
+			nsClient := v0.NewNamespaceServiceClient(conn)
 
-			_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+			_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 				Namespace: testfixtures.DocumentNS.Name,
 			})
 			grpcutil.RequireStatus(t, codes.NotFound, err)
 
-			_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 				Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace},
 			})
 			require.NoError(err)
@@ -304,7 +356,7 @@ func TestDeleteNamespace(t *testing.T) {
 			_, err = ds.WriteTuples(context.Background(), nil, updates)
 			require.NoError(err)
 
-			_, err = srv.DeleteConfigs(context.Background(), &v0.DeleteConfigsRequest{
+			_, err = nsClient.DeleteConfigs(context.Background(), &v0.DeleteConfigsRequest{
 				Namespaces: tc.namespacesToDelete,
 			})
 
@@ -315,7 +367,7 @@ func TestDeleteNamespace(t *testing.T) {
 				require.Contains(err.Error(), tc.expectedError)
 
 				for _, nsName := range tc.namespacesToDelete {
-					_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+					_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 						Namespace: nsName,
 					})
 					require.NoError(err)
@@ -324,7 +376,7 @@ func TestDeleteNamespace(t *testing.T) {
 				require.Nil(err)
 
 				for _, nsName := range tc.namespacesToDelete {
-					_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+					_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 						Namespace: nsName,
 					})
 					grpcutil.RequireStatus(t, codes.NotFound, err)

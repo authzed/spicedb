@@ -543,7 +543,7 @@ func newPermissionsServicer(
 
 	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
 	lis := bufconn.Listen(1024 * 1024)
-	s := tf.NewTestServer()
+	s := tf.NewTestServer(ds)
 	v1.RegisterPermissionsServiceServer(s, NewPermissionsServer(ds, ns, dispatch, 50))
 	go func() {
 		if err := s.Serve(lis); err != nil {
