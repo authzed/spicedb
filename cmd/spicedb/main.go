@@ -54,9 +54,9 @@ func main() {
 	rootCmd.AddCommand(headCmd)
 
 	// Add server commands
-	var dsConfig cmdutil.DatastoreConfig
-	serveCmd := serve.NewServeCommand(rootCmd.Use, &dsConfig)
-	serve.RegisterServeFlags(serveCmd, &dsConfig)
+	var serverConfig cmdutil.ServerConfig
+	serveCmd := serve.NewServeCommand(rootCmd.Use, &serverConfig)
+	serve.RegisterServeFlags(serveCmd, &serverConfig)
 	rootCmd.AddCommand(serveCmd)
 
 	devtoolsCmd := serve.NewDevtoolsCommand(rootCmd.Use)

@@ -23,7 +23,7 @@ var builderForEngine = map[string]engineBuilderFunc{
 	"memory":      newMemoryDatstore,
 }
 
-type Option func(*DatastoreConfig)
+type DatastoreOption func(*DatastoreConfig)
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.datastore_options.go . DatastoreConfig
 type DatastoreConfig struct {
@@ -50,7 +50,7 @@ type DatastoreConfig struct {
 	GCMaxOperationTime time.Duration
 }
 
-func (o *DatastoreConfig) ToOption() Option {
+func (o *DatastoreConfig) ToOption() DatastoreOption {
 	return func(to *DatastoreConfig) {
 		to.Engine = o.Engine
 		to.URI = o.URI
@@ -92,8 +92,25 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *DatastoreConfig) {
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 }
 
+func DefaultDatastoreConfig() *DatastoreConfig {
+	return &DatastoreConfig{
+		GCWindow:             24 * time.Hour,
+		RevisionQuantization: 5 * time.Second,
+		MaxLifetime:          30 * time.Minute,
+		MaxIdleTime:          30 * time.Minute,
+		MaxOpenConns:         20,
+		MinOpenConns:         10,
+		SplitQuerySize:       common.DefaultSplitAtEstimatedQuerySize.String(),
+		MaxRetries:           50,
+		OverlapStrategy:      "prefix",
+		HealthCheckPeriod:    30 * time.Second,
+		GCInterval:           3 * time.Minute,
+		GCMaxOperationTime:   1 * time.Minute,
+	}
+}
+
 // NewDatastore initializes a datastore given the options
-func NewDatastore(options ...Option) (datastore.Datastore, error) {
+func NewDatastore(options ...DatastoreOption) (datastore.Datastore, error) {
 	var opts DatastoreConfig
 	for _, o := range options {
 		o(&opts)

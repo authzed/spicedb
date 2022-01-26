@@ -3,13 +3,10 @@ package serve
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
-	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -17,86 +14,81 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
-	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd"
-	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
-	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-func RegisterServeFlags(cmd *cobra.Command, dsConfig *cmdutil.DatastoreConfig) {
+const PresharedKeyFlag = "grpc-preshared-key"
+
+func RegisterServeFlags(cmd *cobra.Command, config *cmdutil.ServerConfig) {
 	// Flags for the gRPC API server
-	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "grpc", "gRPC", ":50051", true)
-	cmd.Flags().String("grpc-preshared-key", "", "preshared key to require for authenticated requests")
-	cmd.Flags().Duration("grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
-	if err := cmd.MarkFlagRequired("grpc-preshared-key"); err != nil {
+	cmdutil.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
+	cmd.Flags().StringVar(&config.PresharedKey, PresharedKeyFlag, "", "preshared key to require for authenticated requests")
+	cmd.Flags().DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
+	if err := cmd.MarkFlagRequired(PresharedKeyFlag); err != nil {
 		panic("failed to mark flag as required: " + err.Error())
 	}
 
 	// Flags for the datastore
-	cmdutil.RegisterDatastoreFlags(cmd, dsConfig)
-	cmd.Flags().Bool("datastore-readonly", false, "set the service to read-only mode")
-	cmd.Flags().StringSlice("datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
-	cmd.Flags().Bool("datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
+	cmdutil.RegisterDatastoreFlags(cmd, &config.Datastore)
+	cmd.Flags().BoolVar(&config.ReadOnly, "datastore-readonly", false, "set the service to read-only mode")
+	cmd.Flags().StringSliceVar(&config.BootstrapFiles, "datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
+	cmd.Flags().BoolVar(&config.BootstrapOverwrite, "datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
 
-	cmd.Flags().Bool("datastore-request-hedging", true, "enable request hedging")
-	cmd.Flags().Duration("datastore-request-hedging-initial-slow-value", 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
-	cmd.Flags().Uint64("datastore-request-hedging-max-requests", 1_000_000, "maximum number of historical requests to consider")
-	cmd.Flags().Float64("datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
+	cmd.Flags().BoolVar(&config.RequestHedgingEnabled, "datastore-request-hedging", true, "enable request hedging")
+	cmd.Flags().DurationVar(&config.RequestHedgingInitialSlowValue, "datastore-request-hedging-initial-slow-value", 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
+	cmd.Flags().Uint64Var(&config.RequestHedgingMaxRequests, "datastore-request-hedging-max-requests", 1_000_000, "maximum number of historical requests to consider")
+	cmd.Flags().Float64Var(&config.RequestHedgingQuantile, "datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
 
 	// Flags for the namespace manager
-	cmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
+	cmd.Flags().DurationVar(&config.NamespaceCacheExpiration, "ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 
 	// Flags for parsing and validating schemas.
-	cmd.Flags().Bool("schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
+	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
 	// Flags for HTTP gateway
-	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "http", "http", ":8443", false)
-	cmd.Flags().String("http-upstream-override-addr", "", "Override the upstream to point to a different gRPC server")
+	cmdutil.RegisterHTTPServerFlags(cmd.Flags(), &config.HTTPGateway, "http", "http", ":8443", false)
+	cmd.Flags().StringVar(&config.HTTPGatewayUpstreamAddr, "http-upstream-override-addr", "", "Override the upstream to point to a different gRPC server")
 	if err := cmd.Flags().MarkHidden("http-upstream-override-addr"); err != nil {
 		panic("failed to mark flag as hidden: " + err.Error())
 	}
-
-	cmd.Flags().String("http-upstream-override-tls-cert-path", "", "Override the upstream TLS certificate")
+	cmd.Flags().StringVar(&config.HTTPGatewayUpstreamTLSCertPath, "http-upstream-override-tls-cert-path", "", "Override the upstream TLS certificate")
 	if err := cmd.Flags().MarkHidden("http-upstream-override-tls-cert-path"); err != nil {
 		panic("failed to mark flag as hidden: " + err.Error())
 	}
-
-	cmd.Flags().Bool("http-cors-enabled", false, "DANGEROUS: Enable CORS on the http gateway")
+	cmd.Flags().BoolVar(&config.HTTPGatewayCorsEnabled, "http-cors-enabled", false, "DANGEROUS: Enable CORS on the http gateway")
 	if err := cmd.Flags().MarkHidden("http-cors-enabled"); err != nil {
 		panic("failed to mark flag as hidden: " + err.Error())
 	}
-
-	cmd.Flags().StringSlice("http-cors-allowed-origins", []string{"*"}, "Set CORS allowed origins for http gateway, defaults to all origins")
+	cmd.Flags().StringSliceVar(&config.HTTPGatewayCorsAllowedOrigins, "http-cors-allowed-origins", []string{"*"}, "Set CORS allowed origins for http gateway, defaults to all origins")
 	if err := cmd.Flags().MarkHidden("http-cors-allowed-origins"); err != nil {
 		panic("failed to mark flag as hidden: " + err.Error())
 	}
 
 	// Flags for configuring the dispatch server
-	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "dispatch-cluster", "dispatch", ":50053", false)
+	cmdutil.RegisterGRPCServerFlags(cmd.Flags(), &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
 
 	// Flags for configuring dispatch requests
-	cmd.Flags().Uint32("dispatch-max-depth", 50, "maximum recursion depth for nested calls")
-	cmd.Flags().String("dispatch-upstream-addr", "", "upstream grpc address to dispatch to")
-	cmd.Flags().String("dispatch-upstream-ca-path", "", "local path to the TLS CA used when connecting to the dispatch cluster")
+	cmd.Flags().Uint32Var(&config.DispatchMaxDepth, "dispatch-max-depth", 50, "maximum recursion depth for nested calls")
+	cmd.Flags().StringVar(&config.DispatchUpstreamAddr, "dispatch-upstream-addr", "", "upstream grpc address to dispatch to")
+	cmd.Flags().StringVar(&config.DispatchUpstreamCAPath, "dispatch-upstream-ca-path", "", "local path to the TLS CA used when connecting to the dispatch cluster")
 
 	// Flags for configuring API behavior
-	cmd.Flags().Bool("disable-v1-schema-api", false, "disables the V1 schema API")
+	cmd.Flags().BoolVar(&config.DisableV1SchemaAPI, "disable-v1-schema-api", false, "disables the V1 schema API")
 
 	// Flags for misc services
-	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "dashboard", "dashboard", ":8080", true)
-	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
+	cmdutil.RegisterHTTPServerFlags(cmd.Flags(), &config.DashboardAPI, "dashboard", "dashboard", ":8080", true)
+	cmdutil.RegisterHTTPServerFlags(cmd.Flags(), &config.MetricsAPI, "metrics", "metrics", ":9090", true)
 }
 
-func NewServeCommand(programName string, dsConfig *cmdutil.DatastoreConfig) *cobra.Command {
+func NewServeCommand(programName string, config *cmdutil.ServerConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:     "serve",
 		Short:   "serve the permissions database",
@@ -105,28 +97,25 @@ func NewServeCommand(programName string, dsConfig *cmdutil.DatastoreConfig) *cob
 		RunE: func(cmd *cobra.Command, args []string) error {
 			signalctx := cmdutil.SignalContextWithGracePeriod(
 				context.Background(),
-				cobrautil.MustGetDuration(cmd, "grpc-shutdown-grace-period"),
+				config.ShutdownGracePeriod,
 			)
-			return serveRun(signalctx, cmd, args, dsConfig)
+			return Serve(signalctx, config)
 		},
 		Example: cmdutil.ServeExample(programName),
 	}
 }
 
-func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreOpts *cmdutil.DatastoreConfig) error {
-	token := cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")
-	if len(token) < 1 {
-		return errors.New("a preshared key must be provided via --grpc-preshared-key to authenticate API requests")
+func Serve(ctx context.Context, config *cmdutil.ServerConfig) error {
+	if len(config.PresharedKey) < 1 {
+		return errors.New("a preshared key must be provided to authenticate API requests")
 	}
 
-	ds, err := cmdutil.NewDatastore(datastoreOpts.ToOption())
+	ds, err := cmdutil.NewDatastore(config.Datastore.ToOption())
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to init datastore")
 	}
 
-	bootstrapFilePaths := cobrautil.MustGetStringSlice(cmd, "datastore-bootstrap-files")
-	if len(bootstrapFilePaths) > 0 {
-		bootstrapOverwrite := cobrautil.MustGetBool(cmd, "datastore-bootstrap-overwrite")
+	if len(config.BootstrapFiles) > 0 {
 		revision, err := ds.HeadRevision(context.Background())
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to determine datastore state before applying bootstrap data")
@@ -136,9 +125,9 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to determine datastore state before applying bootstrap data")
 		}
-		if bootstrapOverwrite || len(nsDefs) == 0 {
+		if config.BootstrapOverwrite || len(nsDefs) == 0 {
 			log.Info().Msg("initializing datastore from bootstrap files")
-			_, _, err = validationfile.PopulateFromFiles(ds, bootstrapFilePaths)
+			_, _, err = validationfile.PopulateFromFiles(ds, config.BootstrapFiles)
 			if err != nil {
 				log.Fatal().Err(err).Msg("failed to load bootstrap files")
 			}
@@ -147,32 +136,27 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 		}
 	}
 
-	if cobrautil.MustGetBool(cmd, "datastore-request-hedging") {
-		initialSlowRequest := cobrautil.MustGetDuration(cmd, "datastore-request-hedging-initial-slow-value")
-		maxRequests := cobrautil.MustGetUint64(cmd, "datastore-request-hedging-max-requests")
-		hedgingQuantile := cobrautil.MustGetFloat64(cmd, "datastore-request-hedging-quantile")
-
+	if config.RequestHedgingEnabled {
 		log.Info().
-			Stringer("initialSlowRequest", initialSlowRequest).
-			Uint64("maxRequests", maxRequests).
-			Float64("hedgingQuantile", hedgingQuantile).
+			Stringer("initialSlowRequest", config.RequestHedgingInitialSlowValue).
+			Uint64("maxRequests", config.RequestHedgingMaxRequests).
+			Float64("hedgingQuantile", config.RequestHedgingQuantile).
 			Msg("request hedging enabled")
 
 		ds = proxy.NewHedgingProxy(
 			ds,
-			initialSlowRequest,
-			maxRequests,
-			hedgingQuantile,
+			config.RequestHedgingInitialSlowValue,
+			config.RequestHedgingMaxRequests,
+			config.RequestHedgingQuantile,
 		)
 	}
 
-	if cobrautil.MustGetBool(cmd, "datastore-readonly") {
+	if config.ReadOnly {
 		log.Warn().Msg("setting the service to read-only")
 		ds = proxy.NewReadonlyDatastore(ds)
 	}
 
-	nsCacheExpiration := cobrautil.MustGetDuration(cmd, "ns-cache-expiration")
-	nsm, err := namespace.NewCachingNamespaceManager(ds, nsCacheExpiration, nil)
+	nsm, err := namespace.NewCachingNamespaceManager(ds, config.NamespaceCacheExpiration, nil)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize namespace manager")
 	}
@@ -181,40 +165,23 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
 	))
 
-	middleware := grpc.ChainUnaryInterceptor(
-		requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
-		logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
-		otelgrpc.UnaryServerInterceptor(),
-		grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(token)),
-		grpcprom.UnaryServerInterceptor,
-		servicespecific.UnaryServerInterceptor,
-	)
+	if len(config.UnaryMiddleware) == 0 || len(config.StreamingMiddleware) == 0 {
+		config.UnaryMiddleware, config.StreamingMiddleware = cmdutil.DefaultMiddleware(log.Logger, config.PresharedKey)
+	}
 
-	streamMiddleware := grpc.ChainStreamInterceptor(
-		requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
-		logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-		grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
-		otelgrpc.StreamServerInterceptor(),
-		grpcauth.StreamServerInterceptor(auth.RequirePresharedKey(token)),
-		grpcprom.StreamServerInterceptor,
-		servicespecific.StreamServerInterceptor,
-	)
-
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "grpc", middleware, streamMiddleware)
+	grpcServer, err := config.GRPCServer.Server(grpc.ChainUnaryInterceptor(config.UnaryMiddleware...), grpc.ChainStreamInterceptor(config.StreamingMiddleware...))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create gRPC server")
 	}
-
-	dispatchGrpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "dispatch-cluster", middleware, streamMiddleware)
+	dispatchGrpcServer, err := config.DispatchServer.Server(grpc.ChainUnaryInterceptor(config.UnaryMiddleware...), grpc.ChainStreamInterceptor(config.StreamingMiddleware...))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create redispatch gRPC server")
 	}
 
 	redispatch, err := combineddispatch.NewDispatcher(nsm, ds, dispatchGrpcServer,
-		combineddispatch.UpstreamAddr(cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-addr")),
-		combineddispatch.UpstreamCAPath(cobrautil.MustGetStringExpanded(cmd, "dispatch-upstream-ca-path")),
-		combineddispatch.GrpcPresharedKey(cobrautil.MustGetStringExpanded(cmd, "grpc-preshared-key")),
+		combineddispatch.UpstreamAddr(config.DispatchUpstreamAddr),
+		combineddispatch.UpstreamCAPath(config.DispatchUpstreamCAPath),
+		combineddispatch.GrpcPresharedKey(config.PresharedKey),
 		combineddispatch.GrpcDialOpts(
 			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 			grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
@@ -225,12 +192,12 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 	}
 
 	prefixRequiredOption := v1alpha1svc.PrefixRequired
-	if !cobrautil.MustGetBool(cmd, "schema-prefixes-required") {
+	if !config.SchemaPrefixesRequired {
 		prefixRequiredOption = v1alpha1svc.PrefixNotRequired
 	}
 
 	v1SchemaServiceOption := services.V1SchemaServiceEnabled
-	if cobrautil.MustGetBool(cmd, "disable-v1-schema-api") {
+	if !config.DisableV1SchemaAPI {
 		v1SchemaServiceOption = services.V1SchemaServiceDisabled
 	}
 
@@ -239,78 +206,84 @@ func serveRun(ctx context.Context, cmd *cobra.Command, args []string, datastoreO
 		ds,
 		nsm,
 		redispatch,
-		cobrautil.MustGetUint32(cmd, "dispatch-max-depth"),
+		config.DispatchMaxDepth,
 		prefixRequiredOption,
 		v1SchemaServiceOption,
 	)
 	go func() {
-		if err := cobrautil.GrpcListenFromFlags(cmd, "grpc", grpcServer, zerolog.InfoLevel); err != nil {
+		if err := config.GRPCServer.Listen(grpcServer, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed to start gRPC server")
 		}
 	}()
 
 	go func() {
-		if err := cobrautil.GrpcListenFromFlags(cmd, "dispatch-cluster", dispatchGrpcServer, zerolog.InfoLevel); err != nil {
+		if err := config.DispatchServer.Listen(dispatchGrpcServer, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed to start gRPC server")
 		}
 	}()
 
+	var (
+		gatewaySrv   *http.Server
+		metricsSrv   *http.Server
+		dashboardSrv *http.Server
+	)
+
 	// Start the REST gateway to serve HTTP/JSON.
-	upstream := cobrautil.MustGetStringExpanded(cmd, "grpc-addr")
-	if override := cobrautil.MustGetStringExpanded(cmd, "http-upstream-override-addr"); override != "" {
-		upstream = override
-		log.Info().Str("upstream", upstream).Msg("Overriding REST gateway upstream")
+	if len(config.HTTPGatewayUpstreamAddr) == 0 {
+		config.HTTPGatewayUpstreamAddr = config.GRPCServer.Address
+	} else {
+		log.Info().Str("upstream", config.HTTPGatewayUpstreamAddr).Msg("Overriding REST gateway upstream")
 	}
 
-	upstreamCertPath := cobrautil.MustGetStringExpanded(cmd, "grpc-tls-cert-path")
-	if tlsOverride := cobrautil.MustGetStringExpanded(cmd, "http-upstream-override-tls-cert-path"); tlsOverride != "" {
-		upstreamCertPath = tlsOverride
-		log.Info().Str("cert-path", upstreamCertPath).Msg("Overriding REST gateway upstream TLS")
+	if len(config.HTTPGatewayUpstreamTLSCertPath) == 0 {
+		config.HTTPGatewayUpstreamTLSCertPath = config.GRPCServer.TLSCertPath
+	} else {
+		log.Info().Str("cert-path", config.HTTPGatewayUpstreamTLSCertPath).Msg("Overriding REST gateway upstream TLS")
 	}
 
-	gatewayHandler, err := gateway.NewHandler(context.TODO(), upstream, upstreamCertPath)
+	gatewayHandler, err := gateway.NewHandler(ctx, config.HTTPGatewayUpstreamAddr, config.HTTPGatewayUpstreamTLSCertPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
 
-	if cobrautil.MustGetBool(cmd, "http-cors-enabled") {
-		origins := cobrautil.MustGetStringSlice(cmd, "http-cors-allowed-origins")
-		log.Info().Strs("origins", origins).Msg("Setting REST gateway CORS policy")
+	if config.HTTPGatewayCorsEnabled {
+		log.Info().Strs("origins", config.HTTPGatewayCorsAllowedOrigins).Msg("Setting REST gateway CORS policy")
 		gatewayHandler = cors.New(cors.Options{
-			AllowedOrigins:   origins,
+			AllowedOrigins:   config.HTTPGatewayCorsAllowedOrigins,
 			AllowCredentials: true,
 			AllowedHeaders:   []string{"Authorization", "Content-Type"},
 			Debug:            log.Debug().Enabled(),
 		}).Handler(gatewayHandler)
 	}
 
-	gatewaySrv := cobrautil.HttpServerFromFlags(cmd, "http")
-	gatewaySrv.Handler = gatewayHandler
+	config.HTTPGateway.Handler = gatewayHandler
+
 	go func() {
-		if err := cobrautil.HttpListenFromFlags(cmd, "http", gatewaySrv, zerolog.InfoLevel); err != nil {
+		gatewaySrv, err = config.HTTPGateway.ListenAndServe(zerolog.InfoLevel)
+		if err != nil {
 			log.Fatal().Err(err).Msg("failed while serving http")
 		}
 	}()
 
 	// Start the metrics endpoint.
-	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
-	metricsSrv.Handler = cmdutil.MetricsHandler()
+	config.MetricsAPI.Handler = cmdutil.MetricsHandler()
 	go func() {
-		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
+		metricsSrv, err = config.MetricsAPI.ListenAndServe(zerolog.InfoLevel)
+		if err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
 
 	// Start a dashboard.
-	dashboardSrv := cobrautil.HttpServerFromFlags(cmd, "dashboard")
-	dashboardSrv.Handler = dashboard.NewHandler(
-		cobrautil.MustGetStringExpanded(cmd, "grpc-addr"),
-		cobrautil.MustGetStringExpanded(cmd, "grpc-tls-cert-path") != "" && cobrautil.MustGetStringExpanded(cmd, "grpc-tls-key-path") != "",
-		datastoreOpts.Engine,
+	config.DashboardAPI.Handler = dashboard.NewHandler(
+		config.GRPCServer.Address,
+		config.GRPCServer.TLSKeyPath != "" || config.GRPCServer.TLSCertPath != "",
+		config.Datastore.Engine,
 		ds,
 	)
 	go func() {
-		if err := cobrautil.HttpListenFromFlags(cmd, "dashboard", dashboardSrv, zerolog.InfoLevel); err != nil {
+		dashboardSrv, err = config.DashboardAPI.ListenAndServe(zerolog.InfoLevel)
+		if err != nil {
 			log.Fatal().Err(err).Msg("failed while serving dashboard")
 		}
 	}()
