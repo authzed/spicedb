@@ -2,12 +2,28 @@ package server
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/pprof"
+
 	"github.com/fatih/color"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
+	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
-	"net/http"
-	"net/http/pprof"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
+
+	"github.com/authzed/spicedb/internal/auth"
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/dispatch"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
+	"github.com/authzed/spicedb/internal/middleware/servicespecific"
+	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
+	"github.com/authzed/spicedb/pkg/middleware/requestid"
 )
 
 // ServeExample creates an example usage string with the provided program name.
@@ -47,4 +63,28 @@ func MetricsHandler() http.Handler {
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	return mux
+}
+
+func DefaultMiddleware(logger zerolog.Logger, presharedKey string, dispatcher dispatch.Dispatcher, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+	return []grpc.UnaryServerInterceptor{
+			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
+			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			otelgrpc.UnaryServerInterceptor(),
+			grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(presharedKey)),
+			grpcprom.UnaryServerInterceptor,
+			dispatchmw.UnaryServerInterceptor(dispatcher),
+			datastoremw.UnaryServerInterceptor(ds),
+			servicespecific.UnaryServerInterceptor,
+		}, []grpc.StreamServerInterceptor{
+			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
+			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			otelgrpc.StreamServerInterceptor(),
+			grpcauth.StreamServerInterceptor(auth.RequirePresharedKey(presharedKey)),
+			grpcprom.StreamServerInterceptor,
+			dispatchmw.StreamServerInterceptor(dispatcher),
+			datastoremw.StreamServerInterceptor(ds),
+			servicespecific.StreamServerInterceptor,
+		}
 }

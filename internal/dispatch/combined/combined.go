@@ -3,8 +3,9 @@
 package combined
 
 import (
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"os"
+
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog/log"
@@ -67,7 +68,7 @@ func NewDispatcher(nsm namespace.Manager, ds datastore.Datastore, options ...Opt
 	for _, fn := range options {
 		fn(&opts)
 	}
-	log.Debug().Interface("dispatchConfig", opts).Msg("configured combined dispatcher")
+	log.Debug().Str("upstream", opts.upstreamAddr).Msg("configured combined dispatcher")
 
 	cachingRedispatch, err := caching.NewCachingDispatcher(nil, "dispatch_client")
 	if err != nil {

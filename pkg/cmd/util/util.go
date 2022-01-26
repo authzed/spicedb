@@ -88,7 +88,6 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 }
 
 type RunnableGRPCServer interface {
-	WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer
 	Listen() error
 	GracefulStop()
 }
@@ -101,18 +100,6 @@ type completedGRPCServer struct {
 	prestopFunc       func()
 	stopFunc          func()
 	enabled           bool
-}
-
-// WithOpts adds to the options for running the server
-func (c *completedGRPCServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer {
-	c.opts = append(c.opts, opts...)
-	srv := grpc.NewServer(c.opts...)
-	c.svcRegistrationFn(srv)
-	c.listenFunc = func() error {
-		return srv.Serve(c.listener)
-	}
-	c.stopFunc = srv.GracefulStop
-	return c
 }
 
 // Listen runs a configured server

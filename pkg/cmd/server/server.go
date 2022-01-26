@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
-	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
@@ -16,21 +13,17 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
-	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
-	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
-	"github.com/authzed/spicedb/pkg/middleware/requestid"
 )
 
 type ServerOption func(*ServerConfig)
@@ -71,9 +64,15 @@ type ServerConfig struct {
 	DashboardAPI util.HTTPServerConfig
 	MetricsAPI   util.HTTPServerConfig
 
-	// Middleware
-	UnaryMiddleware             []grpc.UnaryServerInterceptor
-	StreamingMiddleware         []grpc.StreamServerInterceptor
+	// Shared middleware is standard middleware used for both grpc and dispatch
+	SharedUnaryMiddleware     []grpc.UnaryServerInterceptor
+	SharedStreamingMiddleware []grpc.StreamServerInterceptor
+
+	// Additional middleware for grpc
+	UnaryMiddleware     []grpc.UnaryServerInterceptor
+	StreamingMiddleware []grpc.StreamServerInterceptor
+
+	// Additional middleware for dispatch
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor
 }
@@ -121,6 +120,10 @@ func (c *ServerConfig) Complete() (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 	}
 
+	if len(c.SharedUnaryMiddleware) == 0 && len(c.SharedStreamingMiddleware) == 0 {
+		c.SharedUnaryMiddleware, c.SharedStreamingMiddleware = DefaultMiddleware(log.Logger, c.PresharedKey, dispatcher, ds)
+	}
+
 	cachingClusterDispatch, err := combineddispatch.NewClusterDispatcher(dispatcher, nsm, ds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
@@ -129,8 +132,8 @@ func (c *ServerConfig) Complete() (RunnableServer, error) {
 		func(server *grpc.Server) {
 			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
 		},
-		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
-		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
+		grpc.ChainUnaryInterceptor(append(c.SharedUnaryMiddleware, c.DispatchUnaryMiddleware...)...),
+		grpc.ChainStreamInterceptor(append(c.SharedStreamingMiddleware, c.DispatchStreamingMiddleware...)...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
@@ -159,6 +162,8 @@ func (c *ServerConfig) Complete() (RunnableServer, error) {
 				v1SchemaServiceOption,
 			)
 		},
+		grpc.ChainUnaryInterceptor(append(c.SharedUnaryMiddleware, c.UnaryMiddleware...)...),
+		grpc.ChainStreamInterceptor(append(c.SharedStreamingMiddleware, c.StreamingMiddleware...)...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
@@ -269,9 +274,8 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		}
 	}
 
-	grpcServer := c.gRPCServer.WithOpts(grpc.ChainUnaryInterceptor(c.unaryMiddleware...), grpc.ChainStreamInterceptor(c.streamingMiddleware...))
-	g.Go(grpcServer.Listen)
-	g.Go(stopOnCancel(grpcServer.GracefulStop))
+	g.Go(c.gRPCServer.Listen)
+	g.Go(stopOnCancel(c.gRPCServer.GracefulStop))
 
 	g.Go(c.dispatchGRPCServer.Listen)
 	g.Go(stopOnCancel(c.dispatchGRPCServer.GracefulStop))
@@ -290,24 +294,4 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func defaultMiddleware(logger zerolog.Logger, presharedKey string) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
-	return []grpc.UnaryServerInterceptor{
-			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
-			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger)),
-			otelgrpc.UnaryServerInterceptor(),
-			grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(presharedKey)),
-			grpcprom.UnaryServerInterceptor,
-			servicespecific.UnaryServerInterceptor,
-		}, []grpc.StreamServerInterceptor{
-			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
-			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger)),
-			otelgrpc.StreamServerInterceptor(),
-			grpcauth.StreamServerInterceptor(auth.RequirePresharedKey(presharedKey)),
-			grpcprom.StreamServerInterceptor,
-			servicespecific.StreamServerInterceptor,
-		}
 }
