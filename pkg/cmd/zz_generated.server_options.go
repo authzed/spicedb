@@ -60,62 +60,6 @@ func WithDatastore(datastore DatastoreConfig) ServerConfigOption {
 	}
 }
 
-// WithReadOnly returns an option that can set ReadOnly on a ServerConfig
-func WithReadOnly(readOnly bool) ServerConfigOption {
-	return func(s *ServerConfig) {
-		s.ReadOnly = readOnly
-	}
-}
-
-// WithBootstrapFiles returns an option that can append BootstrapFiless to ServerConfig.BootstrapFiles
-func WithBootstrapFiles(bootstrapFiles string) ServerConfigOption {
-	return func(s *ServerConfig) {
-		s.BootstrapFiles = append(s.BootstrapFiles, bootstrapFiles)
-	}
-}
-
-// SetBootstrapFiles returns an option that can set BootstrapFiles on a ServerConfig
-func SetBootstrapFiles(bootstrapFiles []string) ServerConfigOption {
-	return func(s *ServerConfig) {
-		s.BootstrapFiles = bootstrapFiles
-	}
-}
-
-// WithBootstrapOverwrite returns an option that can set BootstrapOverwrite on a ServerConfig
-func WithBootstrapOverwrite(bootstrapOverwrite bool) ServerConfigOption {
-	return func(s *ServerConfig) {
-		s.BootstrapOverwrite = bootstrapOverwrite
-	}
-}
-
-// WithRequestHedgingEnabled returns an option that can set RequestHedgingEnabled on a ServerConfig
-func WithRequestHedgingEnabled(requestHedgingEnabled bool) ServerConfigOption {
-	return func(s *ServerConfig) {
-		s.RequestHedgingEnabled = requestHedgingEnabled
-	}
-}
-
-// WithRequestHedgingInitialSlowValue returns an option that can set RequestHedgingInitialSlowValue on a ServerConfig
-func WithRequestHedgingInitialSlowValue(requestHedgingInitialSlowValue time.Duration) ServerConfigOption {
-	return func(s *ServerConfig) {
-		s.RequestHedgingInitialSlowValue = requestHedgingInitialSlowValue
-	}
-}
-
-// WithRequestHedgingMaxRequests returns an option that can set RequestHedgingMaxRequests on a ServerConfig
-func WithRequestHedgingMaxRequests(requestHedgingMaxRequests uint64) ServerConfigOption {
-	return func(s *ServerConfig) {
-		s.RequestHedgingMaxRequests = requestHedgingMaxRequests
-	}
-}
-
-// WithRequestHedgingQuantile returns an option that can set RequestHedgingQuantile on a ServerConfig
-func WithRequestHedgingQuantile(requestHedgingQuantile float64) ServerConfigOption {
-	return func(s *ServerConfig) {
-		s.RequestHedgingQuantile = requestHedgingQuantile
-	}
-}
-
 // WithNamespaceCacheExpiration returns an option that can set NamespaceCacheExpiration on a ServerConfig
 func WithNamespaceCacheExpiration(namespaceCacheExpiration time.Duration) ServerConfigOption {
 	return func(s *ServerConfig) {
@@ -204,5 +148,33 @@ func WithStreamingMiddleware(streamingMiddleware grpc.StreamServerInterceptor) S
 func SetStreamingMiddleware(streamingMiddleware []grpc.StreamServerInterceptor) ServerConfigOption {
 	return func(s *ServerConfig) {
 		s.StreamingMiddleware = streamingMiddleware
+	}
+}
+
+// WithDispatchUnaryMiddleware returns an option that can append DispatchUnaryMiddlewares to ServerConfig.DispatchUnaryMiddleware
+func WithDispatchUnaryMiddleware(dispatchUnaryMiddleware grpc.UnaryServerInterceptor) ServerConfigOption {
+	return func(s *ServerConfig) {
+		s.DispatchUnaryMiddleware = append(s.DispatchUnaryMiddleware, dispatchUnaryMiddleware)
+	}
+}
+
+// SetDispatchUnaryMiddleware returns an option that can set DispatchUnaryMiddleware on a ServerConfig
+func SetDispatchUnaryMiddleware(dispatchUnaryMiddleware []grpc.UnaryServerInterceptor) ServerConfigOption {
+	return func(s *ServerConfig) {
+		s.DispatchUnaryMiddleware = dispatchUnaryMiddleware
+	}
+}
+
+// WithDispatchStreamingMiddleware returns an option that can append DispatchStreamingMiddlewares to ServerConfig.DispatchStreamingMiddleware
+func WithDispatchStreamingMiddleware(dispatchStreamingMiddleware grpc.StreamServerInterceptor) ServerConfigOption {
+	return func(s *ServerConfig) {
+		s.DispatchStreamingMiddleware = append(s.DispatchStreamingMiddleware, dispatchStreamingMiddleware)
+	}
+}
+
+// SetDispatchStreamingMiddleware returns an option that can set DispatchStreamingMiddleware on a ServerConfig
+func SetDispatchStreamingMiddleware(dispatchStreamingMiddleware []grpc.StreamServerInterceptor) ServerConfigOption {
+	return func(s *ServerConfig) {
+		s.DispatchStreamingMiddleware = dispatchStreamingMiddleware
 	}
 }

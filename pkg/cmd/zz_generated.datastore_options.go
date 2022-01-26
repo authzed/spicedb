@@ -85,6 +85,62 @@ func WithSplitQuerySize(splitQuerySize string) DatastoreConfigOption {
 	}
 }
 
+// WithReadOnly returns an option that can set ReadOnly on a DatastoreConfig
+func WithReadOnly(readOnly bool) DatastoreConfigOption {
+	return func(d *DatastoreConfig) {
+		d.ReadOnly = readOnly
+	}
+}
+
+// WithBootstrapFiles returns an option that can append BootstrapFiless to DatastoreConfig.BootstrapFiles
+func WithBootstrapFiles(bootstrapFiles string) DatastoreConfigOption {
+	return func(d *DatastoreConfig) {
+		d.BootstrapFiles = append(d.BootstrapFiles, bootstrapFiles)
+	}
+}
+
+// SetBootstrapFiles returns an option that can set BootstrapFiles on a DatastoreConfig
+func SetBootstrapFiles(bootstrapFiles []string) DatastoreConfigOption {
+	return func(d *DatastoreConfig) {
+		d.BootstrapFiles = bootstrapFiles
+	}
+}
+
+// WithBootstrapOverwrite returns an option that can set BootstrapOverwrite on a DatastoreConfig
+func WithBootstrapOverwrite(bootstrapOverwrite bool) DatastoreConfigOption {
+	return func(d *DatastoreConfig) {
+		d.BootstrapOverwrite = bootstrapOverwrite
+	}
+}
+
+// WithRequestHedgingEnabled returns an option that can set RequestHedgingEnabled on a DatastoreConfig
+func WithRequestHedgingEnabled(requestHedgingEnabled bool) DatastoreConfigOption {
+	return func(d *DatastoreConfig) {
+		d.RequestHedgingEnabled = requestHedgingEnabled
+	}
+}
+
+// WithRequestHedgingInitialSlowValue returns an option that can set RequestHedgingInitialSlowValue on a DatastoreConfig
+func WithRequestHedgingInitialSlowValue(requestHedgingInitialSlowValue time.Duration) DatastoreConfigOption {
+	return func(d *DatastoreConfig) {
+		d.RequestHedgingInitialSlowValue = requestHedgingInitialSlowValue
+	}
+}
+
+// WithRequestHedgingMaxRequests returns an option that can set RequestHedgingMaxRequests on a DatastoreConfig
+func WithRequestHedgingMaxRequests(requestHedgingMaxRequests uint64) DatastoreConfigOption {
+	return func(d *DatastoreConfig) {
+		d.RequestHedgingMaxRequests = requestHedgingMaxRequests
+	}
+}
+
+// WithRequestHedgingQuantile returns an option that can set RequestHedgingQuantile on a DatastoreConfig
+func WithRequestHedgingQuantile(requestHedgingQuantile float64) DatastoreConfigOption {
+	return func(d *DatastoreConfig) {
+		d.RequestHedgingQuantile = requestHedgingQuantile
+	}
+}
+
 // WithFollowerReadDelay returns an option that can set FollowerReadDelay on a DatastoreConfig
 func WithFollowerReadDelay(followerReadDelay time.Duration) DatastoreConfigOption {
 	return func(d *DatastoreConfig) {

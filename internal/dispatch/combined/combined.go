@@ -17,7 +17,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
-	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -63,7 +62,7 @@ func GrpcDialOpts(opts ...grpc.DialOption) Option {
 
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
-func NewDispatcher(nsm namespace.Manager, ds datastore.Datastore, srv *grpc.Server, options ...Option) (dispatch.Dispatcher, error) {
+func NewDispatcher(nsm namespace.Manager, ds datastore.Datastore, options ...Option) (dispatch.Dispatcher, error) {
 	var opts optionState
 	for _, fn := range options {
 		fn(&opts)
@@ -100,14 +99,18 @@ func NewDispatcher(nsm namespace.Manager, ds datastore.Datastore, srv *grpc.Serv
 
 	cachingRedispatch.SetDelegate(redispatch)
 
+	return cachingRedispatch, nil
+}
+
+// NewClusterDispatcher takes a caching redispatcher (such as one created by
+// NewDispatcher) and returns a cluster dispatcher suitable for use as the
+// dispatcher for the dispatch grpc server.
+func NewClusterDispatcher(cachingRedispatch dispatch.Dispatcher, nsm namespace.Manager, ds datastore.Datastore) (dispatch.Dispatcher, error) {
 	clusterDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
 	cachingClusterDispatch, err := caching.NewCachingDispatcher(nil, "dispatch")
 	if err != nil {
 		return nil, err
 	}
 	cachingClusterDispatch.SetDelegate(clusterDispatch)
-
-	dispatchSvc.RegisterGrpcServices(srv, cachingClusterDispatch)
-
-	return cachingRedispatch, nil
+	return cachingClusterDispatch, nil
 }
