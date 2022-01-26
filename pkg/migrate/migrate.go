@@ -166,7 +166,7 @@ func collectMigrationsInRange(starting, through string, all map[string]migration
 	for lookingForRevision != starting {
 		foundMigration, ok := all[lookingForRevision]
 		if !ok {
-			return []migration{}, fmt.Errorf("unable to find migration for revision: %s in %v", lookingForRevision, all)
+			return []migration{}, fmt.Errorf("unable to find migration for revision: %s", lookingForRevision)
 		}
 
 		found = append([]migration{foundMigration}, found...)
