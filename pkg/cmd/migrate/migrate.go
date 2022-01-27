@@ -102,7 +102,7 @@ func datastoreManagerAndDriver(datastoreEngine, dbURL string) (*migrate.Manager,
 			return nil, nil, err
 		}
 
-		migrationManager = migrations.DatabaseMigrations
+		migrationManager = crdbmigrations.CRDBMigrations
 	} else if datastoreEngine == "postgres" {
 		migrationDriver, err = migrations.NewAlembicPostgresDriver(dbURL)
 		if err != nil {
