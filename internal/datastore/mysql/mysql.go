@@ -95,7 +95,7 @@ func (mds *mysqlDatastore) QueryTuples(
 	return nil, fmt.Errorf(errNotImplemented)
 }
 
-// ReverseQueryRelationships reads relationships starting from the subject.
+// ReverseQueryTuples reads relationships starting from the subject.
 func (mds *mysqlDatastore) ReverseQueryTuples(
 	ctx context.Context,
 	subjectFilter *v1.SubjectFilter,
