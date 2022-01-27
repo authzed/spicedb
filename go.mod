@@ -35,7 +35,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
-	github.com/jzelinskie/cobrautil v0.0.7
+	github.com/jzelinskie/cobrautil v0.0.8-0.20220127174036-203b4541e16c
 	github.com/jzelinskie/stringz v0.0.1
 	github.com/lib/pq v1.10.4
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
@@ -70,5 +70,3 @@ require (
 
 // TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged
 replace github.com/dgraph-io/ristretto => github.com/josephschorr/ristretto v0.1.1-0.20211227180020-ae4c2c35d79d
-
-replace github.com/jzelinskie/cobrautil => github.com/cjs/cobrautil v0.0.8-RC
