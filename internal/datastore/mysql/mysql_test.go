@@ -77,22 +77,17 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		var err error
 		db, err = sql.Open("mysql", fmt.Sprintf("%s@(localhost:%s)/mysql", creds, port))
 		if err != nil {
-			return err
+			return fmt.Errorf("couldn't connect to docker: %w", err)
 		}
-		return nil
-	}); err != nil {
-		log.Fatalf("Could not connect to docker: %s", err)
-	}
 
-	if err = pool.Retry(func() error {
-		var err error
 		_, err = db.Exec("Select 1")
 		if err != nil {
-			return err
+			return fmt.Errorf("couldn't validate docker/mysql readiness: %w", err)
 		}
+
 		return nil
 	}); err != nil {
-		log.Fatalf("Could not validate mysql/docker connection readiness: %s", err)
+		log.Fatalf("mysql database error: %v", err)
 	}
 
 	cleanup := func() {
