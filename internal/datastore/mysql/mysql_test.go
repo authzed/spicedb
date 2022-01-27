@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"testing"
-	"time"
 
 	"github.com/alecthomas/units"
 	"github.com/ory/dockertest/v3"
@@ -15,7 +14,6 @@ import (
 
 	migrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
@@ -35,38 +33,6 @@ var mysqlContainer = &dockertest.RunOptions{
 	Repository: "mysql",
 	Tag:        "5.6",
 	Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
-}
-
-func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	uniquePortion, err := secrets.TokenHex(4)
-	if err != nil {
-		return nil, err
-	}
-
-	newDBName := testdbName + uniquePortion
-	_, err = st.db.Exec(fmt.Sprintf("CREATE DATABASE " + newDBName))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create database: %w", err)
-	}
-
-	connectStr := fmt.Sprintf(
-		"%s@localhost:%s/%s?sslmode=disable",
-		st.creds,
-		st.port,
-		newDBName,
-	)
-
-	migrationDriver, err := migrations.NewMysqlDriver(connectStr)
-	if err != nil {
-		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
-	}
-
-	err = migrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
-	if err != nil {
-		return nil, fmt.Errorf("unable to migrate database: %w", err)
-	}
-
-	return NewMysqlDatastore(connectStr)
 }
 
 func TestMysqlMigration(t *testing.T) {
