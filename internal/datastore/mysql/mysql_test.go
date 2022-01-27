@@ -70,7 +70,7 @@ func sqlTestSetup(req *require.Assertions, containerOpts *dockertest.RunOptions,
 
 		return nil
 	}); err != nil {
-		req.NoError(err, fmt.Errorf("mysql database error: %v", err))
+		req.NoError(err, fmt.Errorf("mysql database error: %w", err))
 	}
 
 	uniquePortion, err := secrets.TokenHex(4)
