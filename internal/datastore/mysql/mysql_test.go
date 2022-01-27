@@ -36,6 +36,9 @@ func TestMysqlMigration(t *testing.T) {
 	sqlTester := sqlTestSetup(req, mysqlContainer, creds, 3306)
 	defer sqlTester.cleanup()
 
+	_, err := sqlTester.db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", sqlTester.dbName))
+	req.NoError(err, "unable to create database")
+
 	runTestMigrations(req, sqlTester)
 }
 
@@ -73,9 +76,6 @@ func sqlTestSetup(req *require.Assertions, containerOpts *dockertest.RunOptions,
 	uniquePortion, err := secrets.TokenHex(4)
 	req.NoError(err)
 	dbName := testDBName + uniquePortion
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbName))
-	req.NoError(err, "unable to create database")
-
 	connectStr := fmt.Sprintf("%s@(localhost:%s)/%s", creds, port, dbName)
 
 	cleanup := func() {
