@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"sync"
 
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
@@ -23,7 +25,6 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
@@ -82,20 +83,20 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 		}
 	}
 
-	preconditions := make([]*v1_api.Precondition, 0, len(req.WriteConditions))
+	preconditions := make([]*v1.Precondition, 0, len(req.WriteConditions))
 	for _, cond := range req.WriteConditions {
-		preconditions = append(preconditions, &v1_api.Precondition{
-			Operation: v1_api.Precondition_OPERATION_MUST_MATCH,
+		preconditions = append(preconditions, &v1.Precondition{
+			Operation: v1.Precondition_OPERATION_MUST_MATCH,
 			Filter:    tuple.MustToFilter(cond),
 		})
 	}
 
-	mutations := make([]*v1_api.RelationshipUpdate, 0, len(req.Updates))
+	mutations := make([]*v1.RelationshipUpdate, 0, len(req.Updates))
 	for _, mut := range req.Updates {
 		mutations = append(mutations, tuple.UpdateToRelationshipUpdate(mut))
 	}
 
-	usagemetrics.SetInContext(ctx, &v1.ResponseMeta{
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
 		// One request per precondition, and one request for the actual writing of tuples.
 		DispatchCount: uint32(len(preconditions)) + 1,
 	})
@@ -204,7 +205,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 	for _, tuplesetFilter := range req.Tuplesets {
 		tuplesetFilter := tuplesetFilter
 		queryG.Go(func() error {
-			queryFilter := &v1_api.RelationshipFilter{
+			queryFilter := &v1.RelationshipFilter{
 				ResourceType: tuplesetFilter.Namespace,
 			}
 			for _, filter := range tuplesetFilter.Filters {
@@ -246,7 +247,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	usagemetrics.SetInContext(ctx, &v1.ResponseMeta{
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
 		DispatchCount: uint32(len(allTuplesetResults)),
 	})
 
@@ -304,8 +305,8 @@ func (as *aclServer) commonCheck(
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	cr, err := as.dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		Metadata: &v1.ResolverMeta{
+	cr, err := as.dispatch.DispatchCheck(ctx, &dispatchv1.DispatchCheckRequest{
+		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
 		},
@@ -320,9 +321,9 @@ func (as *aclServer) commonCheck(
 
 	var membership v0.CheckResponse_Membership
 	switch cr.Membership {
-	case v1.DispatchCheckResponse_MEMBER:
+	case dispatchv1.DispatchCheckResponse_MEMBER:
 		membership = v0.CheckResponse_MEMBER
-	case v1.DispatchCheckResponse_NOT_MEMBER:
+	case dispatchv1.DispatchCheckResponse_NOT_MEMBER:
 		membership = v0.CheckResponse_NOT_MEMBER
 	default:
 		membership = v0.CheckResponse_UNKNOWN
@@ -346,13 +347,13 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	resp, err := as.dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
-		Metadata: &v1.ResolverMeta{
+	resp, err := as.dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
+		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
 		},
 		ObjectAndRelation: req.Userset,
-		ExpansionMode:     v1.DispatchExpandRequest_SHALLOW,
+		ExpansionMode:     dispatchv1.DispatchExpandRequest_SHALLOW,
 	})
 	usagemetrics.SetInContext(ctx, resp.Metadata)
 	if err != nil {
@@ -388,8 +389,8 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 		limit = lookupMaximumLimit
 	}
 
-	resp, err := as.dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
-		Metadata: &v1.ResolverMeta{
+	resp, err := as.dispatch.DispatchLookup(ctx, &dispatchv1.DispatchLookupRequest{
+		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
 		},
