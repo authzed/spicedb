@@ -48,8 +48,16 @@ func TestMysqlMigration(t *testing.T) {
 	migrationDriver, err := migrations.NewMysqlDriver(connectStr)
 	req.NoError(err, "unable to initialize migration engine")
 
+	version, err := migrationDriver.Version()
+	req.NoError(err)
+	req.Equal("", version)
+
 	err = migrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
 	req.NoError(err, "unable to migrate database")
+
+	version, err = migrationDriver.Version()
+	req.NoError(err)
+	req.Equal("initial", version)
 }
 
 func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint16) *sqlTest {
