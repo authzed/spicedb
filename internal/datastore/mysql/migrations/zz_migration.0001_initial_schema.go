@@ -1,6 +1,10 @@
 package migrations
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/rs/zerolog/log"
+)
 
 const createMysqlMigrationVersion = `CREATE TABLE mysql_migration_version (
 	version_num VARCHAR(255) NOT NULL PRIMARY KEY
@@ -13,7 +17,9 @@ func init() {
 		if err != nil {
 			return err
 		}
-		defer tx.Rollback()
+		defer func() {
+			log.Err(tx.Rollback())
+		}()
 
 		statements := []string{
 			createMysqlMigrationVersion,
