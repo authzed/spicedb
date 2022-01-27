@@ -20,7 +20,7 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-var testdbName = "spicedb_test"
+var testDBName = "spicedb_test"
 
 type sqlTest struct {
 	db                        *sql.DB
@@ -44,7 +44,7 @@ func TestMysqlMigration(t *testing.T) {
 
 	uniquePortion, err := secrets.TokenHex(4)
 	req.NoError(err)
-	dbName := testdbName + uniquePortion
+	dbName := testDBName + uniquePortion
 	_, err = tester.db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbName))
 	req.NoError(err, "unable to create database")
 
