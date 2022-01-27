@@ -1,5 +1,7 @@
 package migrations
 
+import "fmt"
+
 const createMysqlMigrationVersion = `CREATE TABLE mysql_migration_version (
 	version_num VARCHAR(255) NOT NULL PRIMARY KEY
 );`
@@ -21,7 +23,7 @@ func init() {
 		for _, stmt := range statements {
 			_, err := tx.Exec(stmt)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to run statement: %w", err)
 			}
 		}
 
