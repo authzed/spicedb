@@ -6,6 +6,7 @@ import (
 
 	sqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -36,6 +37,10 @@ func NewMysqlDriver(url string) (*MysqlDriver, error) {
 	db, err := sqlx.Connect("mysql", dbConfig.FormatDSN())
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+	err = sqlDriver.SetLogger(&log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
 	}
 	return &MysqlDriver{db}, nil
 }
