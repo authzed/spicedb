@@ -1,5 +1,20 @@
 # vim: syntax=dockerfile
-FROM gcr.io/distroless/base
+
+# Go version is pinned to 1.17.2
+# https://github.com/github/gh-base-image/blob/444ff62574fab3789890b0bd269f98cfedc009e8/.github/containers/gh-builder-bionic-bom.yaml#L116
+FROM ghcr.io/github/gh-base-image/gh-builder-bionic:20211101-165109-g444ff6257 as spicedb-builder
+
+ENV CGO_ENABLED=0
+WORKDIR /go/src/app
+
+# Prepare dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN go build ./cmd/spicedb/
+
+FROM ghcr.io/github/gh-base-image/gh-base-bionic:latest
 COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.6 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe
-COPY spicedb /usr/local/bin/spicedb
+COPY --from=spicedb-builder /go/src/app/spicedb /usr/local/bin/spicedb
 ENTRYPOINT ["spicedb"]
