@@ -9,13 +9,10 @@ import (
 	"log"
 	"testing"
 
-	"github.com/alecthomas/units"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
-
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
@@ -23,11 +20,9 @@ import (
 var testDBName = "spicedb_test"
 
 type sqlTest struct {
-	db                        *sql.DB
-	port                      string
-	creds                     string
-	splitAtEstimatedQuerySize units.Base2Bytes
-	cleanup                   func()
+	db      *sql.DB
+	port    string
+	cleanup func()
 }
 
 var mysqlContainer = &dockertest.RunOptions{
@@ -99,5 +94,5 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		}
 	}
 
-	return &sqlTest{db: db, port: port, cleanup: cleanup, creds: creds, splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize}
+	return &sqlTest{db: db, port: port, cleanup: cleanup}
 }
