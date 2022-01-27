@@ -1,6 +1,3 @@
-//go:build ci
-// +build ci
-
 package mysql
 
 import (
@@ -20,9 +17,11 @@ import (
 var testDBName = "spicedb_test"
 
 type sqlTest struct {
-	db      *sql.DB
-	port    string
-	cleanup func()
+	db         *sql.DB
+	port       string
+	dbName     string
+	connectStr string
+	cleanup    func()
 }
 
 var mysqlContainer = &dockertest.RunOptions{
@@ -34,33 +33,13 @@ var mysqlContainer = &dockertest.RunOptions{
 func TestMysqlMigration(t *testing.T) {
 	req := require.New(t)
 	creds := "root:secret"
-	tester := newTester(mysqlContainer, creds, 3306)
-	defer tester.cleanup()
+	sqlTester := sqlTestSetup(req, mysqlContainer, creds, 3306)
+	defer sqlTester.cleanup()
 
-	uniquePortion, err := secrets.TokenHex(4)
-	req.NoError(err)
-	dbName := testDBName + uniquePortion
-	_, err = tester.db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbName))
-	req.NoError(err, "unable to create database")
-
-	connectStr := fmt.Sprintf("%s@(localhost:%s)/%s", creds, tester.port, dbName)
-
-	migrationDriver, err := migrations.NewMysqlDriver(connectStr)
-	req.NoError(err, "unable to initialize migration engine")
-
-	version, err := migrationDriver.Version()
-	req.NoError(err)
-	req.Equal("", version)
-
-	err = migrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
-	req.NoError(err, "unable to migrate database")
-
-	version, err = migrationDriver.Version()
-	req.NoError(err)
-	req.Equal("initial", version)
+	runTestMigrations(req, sqlTester)
 }
 
-func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint16) *sqlTest {
+func sqlTestSetup(req *require.Assertions, containerOpts *dockertest.RunOptions, creds string, portNum uint16) *sqlTest {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		log.Fatalf("Could not connect to docker: %s", err)
@@ -80,6 +59,7 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 			return fmt.Errorf("couldn't connect to docker: %w", err)
 		}
 
+		// `Select 1` succeeding signals that the Database is ready
 		_, err = db.Exec("Select 1")
 		if err != nil {
 			return fmt.Errorf("couldn't validate docker/mysql readiness: %w", err)
@@ -87,8 +67,16 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 
 		return nil
 	}); err != nil {
-		log.Fatalf("mysql database error: %v", err)
+		req.NoError(err, fmt.Errorf("mysql database error: %v", err))
 	}
+
+	uniquePortion, err := secrets.TokenHex(4)
+	req.NoError(err)
+	dbName := testDBName + uniquePortion
+	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbName))
+	req.NoError(err, "unable to create database")
+
+	connectStr := fmt.Sprintf("%s@(localhost:%s)/%s", creds, port, dbName)
 
 	cleanup := func() {
 		// When you're done, kill and remove the container
@@ -97,5 +85,23 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		}
 	}
 
-	return &sqlTest{db: db, port: port, cleanup: cleanup}
+	return &sqlTest{db: db, port: port, dbName: dbName, connectStr: connectStr, cleanup: cleanup}
+}
+
+// Test that a migration can run successfully.
+// Pull out into a separate method, so it can be re-used in future tests as part of db setup.
+func runTestMigrations(req *require.Assertions, sqlTester *sqlTest) {
+	migrationDriver, err := migrations.NewMysqlDriver(sqlTester.connectStr)
+	req.NoError(err, "unable to initialize migration engine")
+
+	version, err := migrationDriver.Version()
+	req.NoError(err)
+	req.Equal("", version)
+
+	err = migrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	req.NoError(err, "unable to migrate database")
+
+	version, err = migrationDriver.Version()
+	req.NoError(err)
+	req.Equal("initial", version)
 }
