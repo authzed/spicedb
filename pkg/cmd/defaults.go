@@ -3,10 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/spf13/cobra"
-	"go.opentelemetry.io/contrib/propagators/ot"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -19,6 +15,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/propagators/ot"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // ServeExample creates an example usage string with the provided program name.
