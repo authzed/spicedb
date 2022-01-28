@@ -1,10 +1,10 @@
-#!/usr/bin/env -S buf generate -o internal/proto proto/internal --template
+#!/usr/bin/env -S buf generate -o pkg/proto proto/internal --template
 ---
 version: "v1"
 managed:
   enabled: true
   go_package_prefix:
-    default: "github.com/authzed/spicedb/internal/proto"
+    default: "github.com/authzed/spicedb/pkg/proto"
     except:
       - "buf.build/beta/protoc-gen-validate"
       - "buf.build/authzed/api"

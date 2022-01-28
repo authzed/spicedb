@@ -3,7 +3,7 @@ package namespace
 import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 
-	iv1 "github.com/authzed/spicedb/internal/proto/impl/v1"
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 // Namespace creates a namespace definition with one or more defined relations.

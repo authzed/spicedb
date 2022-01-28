@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
+	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/rs/zerolog/log"
@@ -12,11 +12,13 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -64,8 +66,10 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 		return nil, rewriteError(ctx, err)
 	}
 
-	objectDefs := make([]string, 0, len(in.GetObjectDefinitionsNames()))
-	createdRevisions := make(map[string]datastore.Revision, len(in.GetObjectDefinitionsNames()))
+	numRequested := len(in.GetObjectDefinitionsNames())
+
+	objectDefs := make([]string, 0, numRequested)
+	createdRevisions := make(map[string]datastore.Revision, numRequested)
 	for _, objectDefName := range in.GetObjectDefinitionsNames() {
 		found, createdAt, err := ss.ds.ReadNamespace(ctx, objectDefName, headRevision)
 		if err != nil {
@@ -77,6 +81,10 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 		objectDef, _ := generator.GenerateSource(found)
 		objectDefs = append(objectDefs, objectDef)
 	}
+
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: uint32(numRequested),
+	})
 
 	computedRevision, err := nspkg.ComputeV1Alpha1Revision(createdRevisions)
 	if err != nil {
@@ -177,6 +185,10 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		names = append(names, nsdef.Name)
 		revisions[nsdef.Name] = revision
 	}
+
+	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+		DispatchCount: uint32(len(nsdefs)),
+	})
 
 	computedRevision, err := nspkg.ComputeV1Alpha1Revision(revisions)
 	if err != nil {

@@ -1,4 +1,4 @@
-package serve
+package cmd
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
-	cmdutil "github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 )
 
 func RegisterDevtoolsFlags(cmd *cobra.Command) {
@@ -47,7 +47,7 @@ func NewDevtoolsCommand(programName string) *cobra.Command {
 		Use:     "serve-devtools",
 		Short:   "runs the developer tools service",
 		Long:    "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
-		PreRunE: cmdutil.DefaultPreRunE(programName),
+		PreRunE: server.DefaultPreRunE(programName),
 		RunE:    runfunc,
 		Args:    cobra.ExactArgs(0),
 	}
@@ -78,7 +78,7 @@ func runfunc(cmd *cobra.Command, args []string) error {
 
 	// Start the metrics endpoint.
 	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
-	metricsSrv.Handler = cmdutil.MetricsHandler()
+	metricsSrv.Handler = server.MetricsHandler()
 	go func() {
 		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
