@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
-	mysqlMigrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"
-	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	mysqlmigrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	psqlmigrations "github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -76,9 +76,9 @@ func headRevisionRun(cmd *cobra.Command, args []string) error {
 	case "cockroachdb":
 		headRevision, err = crdbmigrations.CRDBMigrations.HeadRevision()
 	case "postgres":
-		headRevision, err = migrations.DatabaseMigrations.HeadRevision()
+		headRevision, err = psqlmigrations.DatabaseMigrations.HeadRevision()
 	case "mysql":
-		headRevision, err = mysqlMigrations.DatabaseMigrations.HeadRevision()
+		headRevision, err = mysqlmigrations.DatabaseMigrations.HeadRevision()
 	default:
 		return fmt.Errorf("cannot migrate datastore engine type: %s", engine)
 	}
@@ -103,19 +103,19 @@ func datastoreManagerAndDriver(datastoreEngine, dbURL string) (*migrate.Manager,
 
 		migrationManager = crdbmigrations.CRDBMigrations
 	} else if datastoreEngine == "postgres" {
-		migrationDriver, err = migrations.NewAlembicPostgresDriver(dbURL)
+		migrationDriver, err = psqlmigrations.NewAlembicPostgresDriver(dbURL)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		migrationManager = migrations.DatabaseMigrations
+		migrationManager = psqlmigrations.DatabaseMigrations
 	} else if datastoreEngine == "mysql" {
-		migrationDriver, err = mysqlMigrations.NewMysqlDriver(dbURL)
+		migrationDriver, err = mysqlmigrations.NewMysqlDriver(dbURL)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		migrationManager = mysqlMigrations.DatabaseMigrations
+		migrationManager = mysqlmigrations.DatabaseMigrations
 	} else {
 		return nil, nil, fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 	}
