@@ -9,11 +9,8 @@ import (
 	"google.golang.org/grpc/balancer"
 
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
-	cmdutil "github.com/authzed/spicedb/pkg/cmd"
-	"github.com/authzed/spicedb/pkg/cmd/migrate"
-	"github.com/authzed/spicedb/pkg/cmd/root"
-	"github.com/authzed/spicedb/pkg/cmd/serve"
-	"github.com/authzed/spicedb/pkg/cmd/version"
+	"github.com/authzed/spicedb/pkg/cmd"
+	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 )
 
 const (
@@ -36,35 +33,35 @@ func main() {
 	))
 
 	// Create a root command
-	rootCmd := root.NewCommand("spicedb")
-	root.RegisterFlags(rootCmd)
+	rootCmd := cmd.NewRootCommand("spicedb")
+	cmd.RegisterRootFlags(rootCmd)
 
 	// Add a version command
-	versionCmd := version.NewCommand(rootCmd.Use)
-	version.RegisterVersionFlags(versionCmd)
+	versionCmd := cmd.NewRootCommand(rootCmd.Use)
+	cmd.RegisterVersionFlags(versionCmd)
 	rootCmd.AddCommand(versionCmd)
 
 	// Add migration commands
-	migrateCmd := migrate.NewMigrateCommand(rootCmd.Use)
-	migrate.RegisterMigrateFlags(migrateCmd)
+	migrateCmd := cmd.NewMigrateCommand(rootCmd.Use)
+	cmd.RegisterMigrateFlags(migrateCmd)
 	rootCmd.AddCommand(migrateCmd)
 
-	headCmd := migrate.NewHeadCommand(rootCmd.Use)
-	migrate.RegisterHeadFlags(headCmd)
+	headCmd := cmd.NewHeadCommand(rootCmd.Use)
+	cmd.RegisterHeadFlags(headCmd)
 	rootCmd.AddCommand(headCmd)
 
 	// Add server commands
-	var dsConfig cmdutil.DatastoreConfig
-	serveCmd := serve.NewServeCommand(rootCmd.Use, &dsConfig)
-	serve.RegisterServeFlags(serveCmd, &dsConfig)
+	var serverConfig cmdutil.Config
+	serveCmd := cmd.NewServeCommand(rootCmd.Use, &serverConfig)
+	cmd.RegisterServeFlags(serveCmd, &serverConfig)
 	rootCmd.AddCommand(serveCmd)
 
-	devtoolsCmd := serve.NewDevtoolsCommand(rootCmd.Use)
-	serve.RegisterDevtoolsFlags(devtoolsCmd)
+	devtoolsCmd := cmd.NewDevtoolsCommand(rootCmd.Use)
+	cmd.RegisterDevtoolsFlags(devtoolsCmd)
 	rootCmd.AddCommand(devtoolsCmd)
 
-	testingCmd := serve.NewTestingCommand(rootCmd.Use)
-	serve.RegisterTestingFlags(testingCmd)
+	testingCmd := cmd.NewTestingCommand(rootCmd.Use)
+	cmd.RegisterTestingFlags(testingCmd)
 	rootCmd.AddCommand(testingCmd)
 
 	_ = rootCmd.Execute()

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 const errMessage = "fake delegate should never be called, call SetDelegate on the parent dispatcher"

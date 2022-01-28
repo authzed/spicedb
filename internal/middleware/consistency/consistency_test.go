@@ -28,7 +28,8 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	databaseRev, err := ds.OptimizedRevision(context.Background())
 	require.NoError(err)
 
-	updated, err := AddRevisionToContext(context.Background(), &v1.ReadRelationshipsRequest{}, ds)
+	updated := ContextWithHandle(context.Background())
+	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, ds)
 	require.NoError(err)
 	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
 }
@@ -42,7 +43,8 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 	databaseRev, err := ds.OptimizedRevision(context.Background())
 	require.NoError(err)
 
-	updated, err := AddRevisionToContext(context.Background(), &v1.ReadRelationshipsRequest{
+	updated := ContextWithHandle(context.Background())
+	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_MinimizeLatency{
 				MinimizeLatency: true,
@@ -62,7 +64,8 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 	databaseRev, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 
-	updated, err := AddRevisionToContext(context.Background(), &v1.ReadRelationshipsRequest{
+	updated := ContextWithHandle(context.Background())
+	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_FullyConsistent{
 				FullyConsistent: true,
@@ -82,7 +85,8 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	databaseRev, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 
-	updated, err := AddRevisionToContext(context.Background(), &v1.ReadRelationshipsRequest{
+	updated := ContextWithHandle(context.Background())
+	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
 				AtLeastAsFresh: zedtoken.NewFromRevision(decimal.Zero),
@@ -102,7 +106,8 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	databaseRev, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 
-	updated, err := AddRevisionToContext(context.Background(), &v1.ReadRelationshipsRequest{
+	updated := ContextWithHandle(context.Background())
+	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
 				AtExactSnapshot: zedtoken.NewFromRevision(databaseRev),
@@ -119,7 +124,8 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
-	_, err = AddRevisionToContext(context.Background(), &v1.ReadRelationshipsRequest{
+	updated := ContextWithHandle(context.Background())
+	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
 				AtExactSnapshot: zedtoken.NewFromRevision(decimal.Zero),

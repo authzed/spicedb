@@ -1,20 +1,30 @@
-package cmd
+package server
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/fatih/color"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
+	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
+
+	"github.com/authzed/spicedb/internal/auth"
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/dispatch"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
+	"github.com/authzed/spicedb/internal/middleware/servicespecific"
+	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
+	"github.com/authzed/spicedb/pkg/middleware/requestid"
+
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/propagators/ot"
 	"go.opentelemetry.io/otel"
@@ -78,31 +88,26 @@ func MetricsHandler() http.Handler {
 	return mux
 }
 
-// SignalContextWithGracePeriod creates a new context that will be cancelled
-// when an interrupt/SIGTERM signal is received and the provided grace period
-// subsequently finishes.
-func SignalContextWithGracePeriod(ctx context.Context, gracePeriod time.Duration) context.Context {
-	newCtx, cancelfn := context.WithCancel(ctx)
-	go func() {
-		signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		<-signalctx.Done()
-		log.Info().Msg("received interrupt")
-
-		if gracePeriod > 0 {
-			interruptGrace, _ := signal.NotifyContext(context.Background(), os.Interrupt)
-			graceTimer := time.NewTimer(gracePeriod)
-
-			log.Info().Stringer("timeout", gracePeriod).Msg("starting shutdown grace period")
-
-			select {
-			case <-graceTimer.C:
-			case <-interruptGrace.Done():
-				log.Warn().Msg("interrupted shutdown grace period")
-			}
+func DefaultMiddleware(logger zerolog.Logger, presharedKey string, dispatcher dispatch.Dispatcher, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+	return []grpc.UnaryServerInterceptor{
+			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
+			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			otelgrpc.UnaryServerInterceptor(),
+			grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(presharedKey)),
+			grpcprom.UnaryServerInterceptor,
+			dispatchmw.UnaryServerInterceptor(dispatcher),
+			datastoremw.UnaryServerInterceptor(ds),
+			servicespecific.UnaryServerInterceptor,
+		}, []grpc.StreamServerInterceptor{
+			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
+			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			otelgrpc.StreamServerInterceptor(),
+			grpcauth.StreamServerInterceptor(auth.RequirePresharedKey(presharedKey)),
+			grpcprom.StreamServerInterceptor,
+			dispatchmw.StreamServerInterceptor(dispatcher),
+			datastoremw.StreamServerInterceptor(ds),
+			servicespecific.StreamServerInterceptor,
 		}
-		log.Info().Msg("shutting down")
-		cancelfn()
-	}()
-
-	return newCtx
 }

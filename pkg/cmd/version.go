@@ -1,4 +1,4 @@
-package version
+package cmd
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ func RegisterVersionFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("include-deps", false, "include versions of dependencies")
 }
 
-func NewCommand(programName string) *cobra.Command {
+func NewVersionCommand(programName string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "displays the version of spicedb",

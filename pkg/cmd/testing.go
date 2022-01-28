@@ -1,4 +1,4 @@
-package serve
+package cmd
 
 import (
 	"context"
@@ -13,9 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/authzed/spicedb/pkg/cmd/server"
+
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
+	"github.com/authzed/grpcutil"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/jzelinskie/cobrautil"
 	"github.com/rs/zerolog"
@@ -23,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
@@ -35,7 +39,6 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
-	cmdutil "github.com/authzed/spicedb/pkg/cmd"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -57,7 +60,7 @@ func NewTestingCommand(programName string) *cobra.Command {
 		Use:     "serve-testing",
 		Short:   "test server with an in-memory datastore",
 		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
-		PreRunE: cmdutil.DefaultPreRunE(programName),
+		PreRunE: server.DefaultPreRunE(programName),
 		RunE:    runTestServer,
 	}
 }
@@ -81,12 +84,20 @@ func runTestServer(cmd *cobra.Command, args []string) error {
 		backendMiddleware.StreamServerInterceptor(true),
 	))
 
+	healthSrv := grpcutil.NewAuthlessHealthServer()
+
 	for _, srv := range []*grpc.Server{grpcServer, readonlyServer} {
 		v0.RegisterACLServiceServer(srv, &dummyBackend{})
+		healthSrv.SetServicesHealthy(&v0.ACLService_ServiceDesc)
 		v0.RegisterNamespaceServiceServer(srv, &dummyBackend{})
+		healthSrv.SetServicesHealthy(&v0.NamespaceService_ServiceDesc)
 		v1alpha1.RegisterSchemaServiceServer(srv, &dummyBackend{})
+		healthSrv.SetServicesHealthy(&v1alpha1.SchemaService_ServiceDesc)
 		v1.RegisterSchemaServiceServer(srv, &v1DummyBackend{})
+		healthSrv.SetServicesHealthy(&v1.SchemaService_ServiceDesc)
 		v1.RegisterPermissionsServiceServer(srv, &v1DummyBackend{})
+		healthSrv.SetServicesHealthy(&v1.PermissionsService_ServiceDesc)
+		healthpb.RegisterHealthServer(srv, healthSrv)
 		reflection.Register(srv)
 	}
 
@@ -136,6 +147,7 @@ type upstream struct {
 
 var bypassServiceWhitelist = map[string]struct{}{
 	"/grpc.reflection.v1alpha.ServerReflection/": {},
+	"/grpc.health.v1.Health/":                    {},
 }
 
 func (ptbm *perTokenBackendMiddleware) methodForContextAndName(ctx context.Context, grpcMethodName string, forReadonly bool) (reflect.Value, error) {

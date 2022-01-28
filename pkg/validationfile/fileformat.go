@@ -76,19 +76,20 @@ func ParseValidationBlock(contents []byte) (ValidationMap, error) {
 
 // ParseAssertionsBlock attempts to parse the given contents as a YAML
 // assertions block.
-func ParseAssertionsBlock(contents []byte) (Assertions, error) {
+func ParseAssertionsBlock(contents []byte) (*Assertions, error) {
+	// Unmarshal to a node, so we can get line and col information.
 	var node yamlv3.Node
 	err := yamlv3.Unmarshal(contents, &node)
 	if err != nil {
-		return Assertions{}, err
+		return nil, err
 	}
 
 	if len(node.Content) == 0 {
-		return Assertions{}, nil
+		return &Assertions{}, nil
 	}
 
 	if node.Content[0].Kind != yamlv3.MappingNode {
-		return Assertions{}, fmt.Errorf("expected object at top level")
+		return nil, fmt.Errorf("expected object at top level")
 	}
 
 	mapping := node.Content[0]
@@ -97,7 +98,20 @@ func ParseAssertionsBlock(contents []byte) (Assertions, error) {
 	for _, child := range mapping.Content {
 		if child.Kind == yamlv3.ScalarNode {
 			key = child.Value
-			continue
+
+			switch key {
+			case "assertTrue":
+			case "assertFalse":
+				continue
+
+			default:
+				return nil, ErrorWithSource{
+					fmt.Errorf("unexpected key `%s` on line %d", key, child.Line),
+					key,
+					uint32(child.Line),
+					uint32(child.Column),
+				}
+			}
 		}
 
 		if child.Kind == yamlv3.SequenceNode {
@@ -115,13 +129,30 @@ func ParseAssertionsBlock(contents []byte) (Assertions, error) {
 
 					case "assertFalse":
 						parsed.AssertFalse = append(parsed.AssertFalse, assertion)
+
+					default:
+						return nil, ErrorWithSource{
+							fmt.Errorf("unexpected key `%s` on line %d", key, child.Line),
+							key,
+							uint32(child.Line),
+							uint32(child.Column),
+						}
 					}
+				} else {
+					return nil, fmt.Errorf("unexpected value on line `%d`", contentChild.Line)
 				}
 			}
 		}
 	}
 
-	return parsed, nil
+	// Unmarshal to a well-typed block, in case manual error checking missed something.
+	var simple SimpleAssertions
+	err = yamlv3.Unmarshal(contents, &simple)
+	if err != nil {
+		return nil, err
+	}
+
+	return &parsed, nil
 }
 
 // ValidationMap is a map from an Object Relation (as a Relationship) to the

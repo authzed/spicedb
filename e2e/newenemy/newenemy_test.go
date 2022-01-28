@@ -98,6 +98,9 @@ func initializeTestCRDBCluster(ctx context.Context, t testing.TB) cockroach.Clus
 	tlog := e2e.NewTLog(t)
 	crdbCluster.Init(ctx, tlog, tlog)
 	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
+		"SET CLUSTER SETTING kv.range.backpressure_range_size_multiplier=0;",
+	))
+	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
 		fmt.Sprintf(createDb, dbName),
 	))
 
