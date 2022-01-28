@@ -38,7 +38,7 @@ type sqlTest struct {
 
 var mysqlContainer = &dockertest.RunOptions{
 	Repository: "mysql",
-	Tag:        "5.6",
+	Tag:        "latest",
 	Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
 }
 
