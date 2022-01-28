@@ -18,10 +18,11 @@ import (
 
 // Node represents a single cockroachdb instance
 type Node struct {
-	Peers    []string
-	Addr     string
-	Httpaddr string
-	ID       string
+	Peers     []string
+	Addr      string
+	Httpaddr  string
+	ID        string
+	MaxOffset time.Duration
 	// only available after Start()
 	pid  int
 	conn *pgx.Conn
@@ -42,6 +43,7 @@ func (c *Node) Start(ctx context.Context) error {
 		"--listen-addr=" + c.Addr,
 		"--http-addr=" + c.Httpaddr,
 		"--join=" + strings.Join(c.Peers, ","),
+		"--max-offset=" + c.MaxOffset.String(),
 	}
 
 	c.pid, err = e2e.GoRun(ctx, logfile, logfile, cmd...)
@@ -112,9 +114,10 @@ func NewCluster(n int) Cluster {
 		addr := net.JoinHostPort("localhost", strconv.Itoa(port+i))
 		peers = append(peers, addr)
 		cs = append(cs, &Node{
-			ID:       strconv.Itoa(i + 1),
-			Addr:     addr,
-			Httpaddr: net.JoinHostPort("localhost", strconv.Itoa(http+i)),
+			ID:        strconv.Itoa(i + 1),
+			Addr:      addr,
+			Httpaddr:  net.JoinHostPort("localhost", strconv.Itoa(http+i)),
+			MaxOffset: 5 * time.Second,
 		})
 	}
 	for i := range cs {

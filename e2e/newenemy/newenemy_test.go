@@ -188,7 +188,7 @@ func TestNoNewEnemy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			vulnerableFn, protectedFn := attemptFnsForProbeFns(100, tt.vulnerableProbe, tt.protectedProbe)
+			vulnerableFn, protectedFn := attemptFnsForProbeFns(20, tt.vulnerableProbe, tt.protectedProbe)
 			statTest(t, 5, vulnerableFn, protectedFn)
 		})
 	}
@@ -302,7 +302,7 @@ func iterationsForHighConfidence(samples []int) (iterations int) {
 func checkDataNoNewEnemy(ctx context.Context, t testing.TB, schemaData []SchemaData, slowNodeId int, crdb cockroach.Cluster, spicedb spice.Cluster, maxAttempts int) (bool, int) {
 	prefix := prefixForNode(ctx, crdb[1].Conn(), schemaData, slowNodeId)
 	t.Log("filling with data to span multiple ranges for prefix", prefix)
-	fill(t, spicedb[0].Client().V0().ACL(), prefix, 4000, 1000)
+	fill(t, spicedb[0].Client().V0().ACL(), prefix, 500, 100)
 
 	for attempts := 1; attempts <= maxAttempts; attempts++ {
 		direct, exclude := generateTuple(prefix, objIdGenerator)
