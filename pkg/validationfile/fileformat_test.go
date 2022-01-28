@@ -153,3 +153,86 @@ func TestAssertions(t *testing.T) {
 		})
 	}
 }
+
+func TestParseAssertionsBlock(t *testing.T) {
+	type testCase struct {
+		name               string
+		input              string
+		expectedError      string
+		expectedAssertions Assertions
+	}
+
+	tests := []testCase{
+		{
+			"empty",
+			"",
+			"",
+			Assertions{},
+		},
+		{
+			"with one assertion",
+			`assertTrue:
+- document:foo#view@user:someone`,
+			"",
+			Assertions{
+				AssertTrue: []Assertion{
+					{
+						"document:foo#view@user:someone", 2, 3,
+					},
+				},
+			},
+		},
+		{
+			"with one assertion per section",
+			`assertTrue:
+- document:foo#view@user:someone
+assertFalse:
+- document:foo#write@user:someone`,
+			"",
+			Assertions{
+				AssertTrue: []Assertion{
+					{
+						"document:foo#view@user:someone", 2, 3,
+					},
+				},
+				AssertFalse: []Assertion{
+					{
+						"document:foo#write@user:someone", 4, 3,
+					},
+				},
+			},
+		},
+		{
+			"with invalid yaml",
+			`assertTrue: somethinginvalid
+- document:foo#view@user:someone`,
+			"yaml: line 1: did not find expected key",
+			Assertions{},
+		},
+		{
+			"with garbage",
+			`assertTrue:
+  - document:firstdoc#view@user:tom
+  - document:firstdoc#view@user:fred
+  - document:seconddoc#view@user:tom
+assertFalse: garbage
+  - document:seconddoc#view@user:fred`,
+			"unexpected key `garbage - document:seconddoc#view@user:fred` on line 5",
+			Assertions{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+			assertions, err := ParseAssertionsBlock([]byte(tc.input))
+			if tc.expectedError != "" {
+				require.Nil(assertions)
+				require.Equal(err.Error(), tc.expectedError)
+			} else {
+				require.NoError(err)
+				require.Equal(tc.expectedAssertions, *assertions)
+			}
+		})
+	}
+}

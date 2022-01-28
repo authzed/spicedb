@@ -1,7 +1,7 @@
 syntax = "proto3";
 package impl.v1;
 
-option go_package = "github.com/authzed/spicedb/internal/proto/impl/v1";
+option go_package = "github.com/authzed/spicedb/pkg/proto/impl/v1";
 
 message DecodedZookie {
   uint32 version = 1;

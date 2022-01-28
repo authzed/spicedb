@@ -1,6 +1,8 @@
-package cmd
+package datastore
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,9 +15,11 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-type engineBuilderFunc func(options DatastoreConfig) (datastore.Datastore, error)
+type engineBuilderFunc func(options Config) (datastore.Datastore, error)
 
 var builderForEngine = map[string]engineBuilderFunc{
 	"cockroachdb": newCRDBDatastore,
@@ -23,20 +27,30 @@ var builderForEngine = map[string]engineBuilderFunc{
 	"memory":      newMemoryDatstore,
 }
 
-type Option func(*DatastoreConfig)
-
-//go:generate go run github.com/ecordell/optgen -output zz_generated.datastore_options.go . DatastoreConfig
-type DatastoreConfig struct {
+//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
+type Config struct {
 	Engine               string
 	URI                  string
 	GCWindow             time.Duration
 	RevisionQuantization time.Duration
 
+	// Options
 	MaxIdleTime    time.Duration
 	MaxLifetime    time.Duration
 	MaxOpenConns   int
 	MinOpenConns   int
 	SplitQuerySize string
+	ReadOnly       bool
+
+	// Bootstrap
+	BootstrapFiles     []string
+	BootstrapOverwrite bool
+
+	// Hedging
+	RequestHedgingEnabled          bool
+	RequestHedgingInitialSlowValue time.Duration
+	RequestHedgingMaxRequests      uint64
+	RequestHedgingQuantile         float64
 
 	// CRDB
 	FollowerReadDelay time.Duration
@@ -50,8 +64,8 @@ type DatastoreConfig struct {
 	GCMaxOperationTime time.Duration
 }
 
-func (o *DatastoreConfig) ToOption() Option {
-	return func(to *DatastoreConfig) {
+func (o *Config) ToOption() ConfigOption {
+	return func(to *Config) {
 		to.Engine = o.Engine
 		to.URI = o.URI
 		to.GCWindow = o.GCWindow
@@ -61,6 +75,13 @@ func (o *DatastoreConfig) ToOption() Option {
 		to.MaxOpenConns = o.MaxOpenConns
 		to.MinOpenConns = o.MinOpenConns
 		to.SplitQuerySize = o.SplitQuerySize
+		to.ReadOnly = o.ReadOnly
+		to.BootstrapFiles = o.BootstrapFiles
+		to.BootstrapOverwrite = o.BootstrapOverwrite
+		to.RequestHedgingEnabled = o.RequestHedgingEnabled
+		to.RequestHedgingInitialSlowValue = o.RequestHedgingInitialSlowValue
+		to.RequestHedgingMaxRequests = o.RequestHedgingMaxRequests
+		to.RequestHedgingQuantile = o.RequestHedgingQuantile
 		to.FollowerReadDelay = o.FollowerReadDelay
 		to.MaxRetries = o.MaxRetries
 		to.OverlapKey = o.OverlapKey
@@ -72,7 +93,7 @@ func (o *DatastoreConfig) ToOption() Option {
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
-func RegisterDatastoreFlags(cmd *cobra.Command, opts *DatastoreConfig) {
+func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
@@ -84,6 +105,13 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *DatastoreConfig) {
 	cmd.Flags().DurationVar(&opts.GCInterval, "datastore-gc-interval", 3*time.Minute, "amount of time between passes of garbage collection (postgres driver only)")
 	cmd.Flags().DurationVar(&opts.GCMaxOperationTime, "datastore-gc-max-operation-time", 1*time.Minute, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
 	cmd.Flags().DurationVar(&opts.RevisionQuantization, "datastore-revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
+	cmd.Flags().BoolVar(&opts.ReadOnly, "datastore-readonly", false, "set the service to read-only mode")
+	cmd.Flags().StringSliceVar(&opts.BootstrapFiles, "datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
+	cmd.Flags().BoolVar(&opts.BootstrapOverwrite, "datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
+	cmd.Flags().BoolVar(&opts.RequestHedgingEnabled, "datastore-request-hedging", true, "enable request hedging")
+	cmd.Flags().DurationVar(&opts.RequestHedgingInitialSlowValue, "datastore-request-hedging-initial-slow-value", 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
+	cmd.Flags().Uint64Var(&opts.RequestHedgingMaxRequests, "datastore-request-hedging-max-requests", 1_000_000, "maximum number of historical requests to consider")
+	cmd.Flags().Float64Var(&opts.RequestHedgingQuantile, "datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	cmd.Flags().DurationVar(&opts.FollowerReadDelay, "datastore-follower-read-delay-duration", 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
 	cmd.Flags().StringVar(&opts.SplitQuerySize, "datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
@@ -92,9 +120,26 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *DatastoreConfig) {
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 }
 
+func DefaultDatastoreConfig() *Config {
+	return &Config{
+		GCWindow:             24 * time.Hour,
+		RevisionQuantization: 5 * time.Second,
+		MaxLifetime:          30 * time.Minute,
+		MaxIdleTime:          30 * time.Minute,
+		MaxOpenConns:         20,
+		MinOpenConns:         10,
+		SplitQuerySize:       common.DefaultSplitAtEstimatedQuerySize.String(),
+		MaxRetries:           50,
+		OverlapStrategy:      "prefix",
+		HealthCheckPeriod:    30 * time.Second,
+		GCInterval:           3 * time.Minute,
+		GCMaxOperationTime:   1 * time.Minute,
+	}
+}
+
 // NewDatastore initializes a datastore given the options
-func NewDatastore(options ...Option) (datastore.Datastore, error) {
-	var opts DatastoreConfig
+func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
+	var opts Config
 	for _, o := range options {
 		o(&opts)
 	}
@@ -105,10 +150,55 @@ func NewDatastore(options ...Option) (datastore.Datastore, error) {
 	}
 	log.Info().Msgf("using %s datastore engine", opts.Engine)
 
-	return dsBuilder(opts)
+	ds, err := dsBuilder(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(opts.BootstrapFiles) > 0 {
+		revision, err := ds.HeadRevision(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
+		}
+
+		nsDefs, err := ds.ListNamespaces(context.Background(), revision)
+		if err != nil {
+			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
+		}
+		if opts.BootstrapOverwrite || len(nsDefs) == 0 {
+			log.Info().Msg("initializing datastore from bootstrap files")
+			_, _, err = validationfile.PopulateFromFiles(ds, opts.BootstrapFiles)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
+			}
+		} else {
+			return nil, errors.New("cannot apply bootstrap data: schema or tuples already exist in the datastore. Delete existing data or set the flag --datastore-bootstrap-overwrite=true")
+		}
+	}
+
+	if opts.RequestHedgingEnabled {
+		log.Info().
+			Stringer("initialSlowRequest", opts.RequestHedgingInitialSlowValue).
+			Uint64("maxRequests", opts.RequestHedgingMaxRequests).
+			Float64("hedgingQuantile", opts.RequestHedgingQuantile).
+			Msg("request hedging enabled")
+
+		ds = proxy.NewHedgingProxy(
+			ds,
+			opts.RequestHedgingInitialSlowValue,
+			opts.RequestHedgingMaxRequests,
+			opts.RequestHedgingQuantile,
+		)
+	}
+
+	if opts.ReadOnly {
+		log.Warn().Msg("setting the datastore to read-only")
+		ds = proxy.NewReadonlyDatastore(ds)
+	}
+	return ds, nil
 }
 
-func newCRDBDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
+func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse split query size: %w", err)
@@ -129,7 +219,7 @@ func newCRDBDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
 	)
 }
 
-func newPostgresDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
+func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse split query size: %w", err)
@@ -151,7 +241,7 @@ func newPostgresDatastore(opts DatastoreConfig) (datastore.Datastore, error) {
 	)
 }
 
-func newMemoryDatstore(opts DatastoreConfig) (datastore.Datastore, error) {
+func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
 	return memdb.NewMemdbDatastore(0, opts.RevisionQuantization, opts.GCWindow, 0)
 }
