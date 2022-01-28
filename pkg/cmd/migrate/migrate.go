@@ -43,7 +43,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	}
 
 	log.Info().Msg(fmt.Sprintf("migrating %s datastore", datastoreEngine))
-	err = runDatastoreMigrations(migrationManager, migrationDriver, targetRevision)
+	err = runMigrations(migrationManager, migrationDriver, targetRevision)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to complete requested migrations")
 	}
@@ -123,7 +123,7 @@ func datastoreManagerAndDriver(datastoreEngine, dbURL string) (*migrate.Manager,
 	return migrationManager, migrationDriver, nil
 }
 
-func runDatastoreMigrations(migrationMananger *migrate.Manager, migrationDriver migrate.Driver, targetRevision string) error {
+func runMigrations(migrationMananger *migrate.Manager, migrationDriver migrate.Driver, targetRevision string) error {
 	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
 	err := migrationMananger.Run(migrationDriver, targetRevision, migrate.LiveRun)
 	if err != nil {
