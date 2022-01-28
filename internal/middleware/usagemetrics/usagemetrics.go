@@ -7,12 +7,12 @@ import (
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
-	prometheus "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
-	dispatch "github.com/authzed/spicedb/internal/proto/dispatch/v1"
+	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 var dispatchBuckets = []float64{1, 5, 10, 25, 50, 100, 250}
@@ -61,13 +61,15 @@ type serverReporter struct {
 	methodName string
 }
 
-func (r *serverReporter) PostCall(err error, rpcDuration time.Duration) {
+func (r *serverReporter) PostCall(_ error, _ time.Duration) {
 	responseMeta := FromContext(r.ctx)
-	if responseMeta != nil {
-		err := annotateAndReportForMetadata(r.ctx, r.methodName, responseMeta)
-		if err != nil {
-			log.Ctx(r.ctx).Err(err).Msg("could not report metadata")
-		}
+	if responseMeta == nil {
+		responseMeta = &dispatch.ResponseMeta{}
+	}
+
+	err := annotateAndReportForMetadata(r.ctx, r.methodName, responseMeta)
+	if err != nil {
+		log.Ctx(r.ctx).Err(err).Msg("could not report metadata")
 	}
 }
 

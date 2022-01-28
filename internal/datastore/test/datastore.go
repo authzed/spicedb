@@ -35,6 +35,7 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })
 	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })
+	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { EmptyNamespaceDeleteTest(t, tester) })
 	t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
 	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
 	t.Run("TestUsersets", func(t *testing.T) { UsersetsTest(t, tester) })

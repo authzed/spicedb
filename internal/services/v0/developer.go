@@ -17,8 +17,8 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/internal/membership"
-	v1 "github.com/authzed/spicedb/internal/proto/dispatch/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -215,6 +215,15 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	// Parse the assertions YAML.
 	assertions, err := validationfile.ParseAssertionsBlock([]byte(req.AssertionsYaml))
 	if err != nil {
+		var serr validationfile.ErrorWithSource
+		if errors.As(err, &serr) {
+			return &v0.ValidateResponse{
+				RequestErrors: []*v0.DeveloperError{
+					convertSourceError(v0.DeveloperError_ASSERTION, &serr),
+				},
+			}, nil
+		}
+
 		return &v0.ValidateResponse{
 			RequestErrors: []*v0.DeveloperError{
 				convertYamlError(v0.DeveloperError_ASSERTION, err),
@@ -597,23 +606,24 @@ func convertSourceError(source v0.DeveloperError_Source, err *validationfile.Err
 var yamlLineRegex = regexp.MustCompile(`line ([0-9]+): (.+)`)
 
 func convertYamlError(source v0.DeveloperError_Source, err error) *v0.DeveloperError {
-	var lineNumber uint64
-	msg := err.Error()
-
-	pieces := yamlLineRegex.FindStringSubmatch(err.Error())
-	if len(pieces) == 3 {
-		// We can safely ignore the error here because it will default to 0, which is the not found
-		// case.
-		lineNumber, _ = strconv.ParseUint(pieces[1], 10, 0)
-		msg = pieces[2]
-	}
-
-	return &v0.DeveloperError{
-		Message: msg,
+	devErr := &v0.DeveloperError{
+		Message: err.Error(),
 		Kind:    v0.DeveloperError_PARSE_ERROR,
 		Source:  source,
-		Line:    uint32(lineNumber),
+		Line:    0,
 	}
+
+	pieces := yamlLineRegex.FindStringSubmatch(devErr.Message)
+	if len(pieces) == 3 {
+		lineNumber, parseErr := strconv.ParseUint(pieces[1], 10, 32)
+		if parseErr != nil {
+			lineNumber = 0
+		}
+		devErr.Line = uint32(lineNumber)
+		devErr.Message = pieces[2]
+	}
+
+	return devErr
 }
 
 func upgradeSchema(configs []string) (string, error) {

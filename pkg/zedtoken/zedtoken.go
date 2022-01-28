@@ -10,7 +10,7 @@ import (
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
-	zedtoken "github.com/authzed/spicedb/internal/proto/impl/v1"
+	zedtoken "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 // Public facing errors

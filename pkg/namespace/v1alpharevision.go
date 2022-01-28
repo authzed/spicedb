@@ -8,7 +8,7 @@ import (
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
-	internal "github.com/authzed/spicedb/internal/proto/impl/v1"
+	internal "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 const (
