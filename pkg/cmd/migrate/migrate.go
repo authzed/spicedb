@@ -74,11 +74,11 @@ func headRevisionRun(cmd *cobra.Command, args []string) error {
 
 	switch engine {
 	case "cockroachdb":
-		headRevision, err = crdbmigrations.CRDBMigrations.HeadRevision()
+		headRevision, err = crdbmigrations.Manager.HeadRevision()
 	case "postgres":
-		headRevision, err = psqlmigrations.DatabaseMigrations.HeadRevision()
+		headRevision, err = psqlmigrations.Manager.HeadRevision()
 	case "mysql":
-		headRevision, err = mysqlmigrations.DatabaseMigrations.HeadRevision()
+		headRevision, err = mysqlmigrations.Manager.HeadRevision()
 	default:
 		return fmt.Errorf("cannot migrate datastore engine type: %s", engine)
 	}
@@ -101,21 +101,21 @@ func datastoreManagerAndDriver(datastoreEngine, dbURL string) (*migrate.Manager,
 			return nil, nil, err
 		}
 
-		migrationManager = crdbmigrations.CRDBMigrations
+		migrationManager = crdbmigrations.Manager
 	} else if datastoreEngine == "postgres" {
 		migrationDriver, err = psqlmigrations.NewAlembicPostgresDriver(dbURL)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		migrationManager = psqlmigrations.DatabaseMigrations
+		migrationManager = psqlmigrations.Manager
 	} else if datastoreEngine == "mysql" {
 		migrationDriver, err = mysqlmigrations.NewMysqlDriver(dbURL)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		migrationManager = mysqlmigrations.DatabaseMigrations
+		migrationManager = mysqlmigrations.Manager
 	} else {
 		return nil, nil, fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 	}

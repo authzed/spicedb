@@ -12,7 +12,7 @@ const createMysqlMigrationVersion = `CREATE TABLE mysql_migration_version (
 const insertEmptyVersion = `INSERT INTO mysql_migration_version (version_num) VALUES ('');`
 
 func init() {
-	if err := DatabaseMigrations.Register("initial", "", func(mysql *MysqlDriver) error {
+	if err := Manager.Register("initial", "", func(mysql *MysqlDriver) error {
 		tx, err := mysql.db.Beginx()
 		if err != nil {
 			return err

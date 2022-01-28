@@ -6,7 +6,7 @@ const (
 )
 
 func init() {
-	if err := DatabaseMigrations.Register("add-reverse-index", "1eaeba4b8a73", func(apd *AlembicPostgresDriver) error {
+	if err := Manager.Register("add-reverse-index", "1eaeba4b8a73", func(apd *AlembicPostgresDriver) error {
 		tx, err := apd.db.Beginx()
 		if err != nil {
 			return err

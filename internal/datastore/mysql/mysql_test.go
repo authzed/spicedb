@@ -74,7 +74,7 @@ func createDbAndRunMigrations(db *sql.DB, dbName string, connectStr string) (str
 		return "", fmt.Errorf("unable to get starting migration version: %w", err)
 	}
 	if version == "" {
-		err = migrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+		err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
 		if err != nil {
 			return "", fmt.Errorf("unable to migrate database: %w", err)
 		}
