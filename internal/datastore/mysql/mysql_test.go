@@ -138,11 +138,7 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 
 		return nil
 	}); err != nil {
-<<<<<<< HEAD
-		req.NoError(err, fmt.Errorf("mysql database error: %w", err))
-=======
 		log.Fatalf("mysql database error: %v", err)
->>>>>>> 8a5ecd5 (update test to follow more closely what other datastores are doing)
 	}
 
 	uniquePortion, err := secrets.TokenHex(4)
