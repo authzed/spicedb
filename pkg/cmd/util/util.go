@@ -203,7 +203,7 @@ func (c *completedHTTPServer) Close() {
 }
 
 // RegisterHTTPServerFlags adds the following flags for use with
-// HttpServerFromFlags:
+// HTTPServerFromFlags:
 // - "$PREFIX-addr"
 // - "$PREFIX-tls-cert-path"
 // - "$PREFIX-tls-key-path"
