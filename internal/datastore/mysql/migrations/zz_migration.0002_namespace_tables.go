@@ -34,9 +34,8 @@ const createRelationTuple = `CREATE TABLE relation_tuple (
 	);`
 
 const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction (
-		id BIGINT NOT NULL AUTO_INCREMENT,
 		timestamp DATETIME DEFAULT now() NOT NULL,
-    PRIMARY KEY (id)
+		PRIMARY KEY (id)
 );`
 
 func init() {
