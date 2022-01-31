@@ -6,23 +6,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// namespace max size: https://buf.build/authzed/api/file/main/authzed/api/v0/core.proto#L29
 const createNamespaceConfig = `CREATE TABLE namespace_config (
-	namespace VARCHAR(127) NOT NULL,
+	namespace VARCHAR(128) NOT NULL,
 	serialized_config BLOB NOT NULL,
 	created_transaction BIGINT NOT NULL,
 	deleted_transaction BIGINT NOT NULL DEFAULT '9223372036854775807',
 	CONSTRAINT pk_namespace_config PRIMARY KEY (namespace, created_transaction)
 );`
 
-// 127 max varchar length due to  unique constraints
+// relationship max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L33
+// object id max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L45
 const createRelationTuple = `CREATE TABLE relation_tuple (
 		id BIGINT NOT NULL AUTO_INCREMENT,
-		namespace VARCHAR(127) NOT NULL,
-		object_id VARCHAR(127) NOT NULL,
-		relation VARCHAR(127) NOT NULL,
-		userset_namespace VARCHAR(127) NOT NULL,
-		userset_object_id VARCHAR(127) NOT NULL,
-		userset_relation VARCHAR(127) NOT NULL,
+		namespace VARCHAR(128) NOT NULL,
+		object_id VARCHAR(128) NOT NULL,
+		relation VARCHAR(64) NOT NULL,
+		userset_namespace VARCHAR(128) NOT NULL,
+		userset_object_id VARCHAR(128) NOT NULL,
+		userset_relation VARCHAR(64) NOT NULL,
 		created_transaction BIGINT NOT NULL,
 		deleted_transaction BIGINT NOT NULL DEFAULT '9223372036854775807',
 		PRIMARY KEY (id),
