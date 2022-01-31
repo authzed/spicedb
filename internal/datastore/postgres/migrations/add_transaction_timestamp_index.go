@@ -5,7 +5,7 @@ const createIndexOnTupleTransactionTimestamp = `
 `
 
 func init() {
-	if err := DatabaseMigrations.Register("add-transaction-timestamp-index", "add-unique-living-ns", func(apd *AlembicPostgresDriver) error {
+	if err := Manager.Register("add-transaction-timestamp-index", "add-unique-living-ns", func(apd *AlembicPostgresDriver) error {
 		tx, err := apd.db.Beginx()
 		if err != nil {
 			return err

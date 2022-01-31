@@ -9,13 +9,14 @@ import (
 	"github.com/spf13/cobra"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
-	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	mysqlmigrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	psqlmigrations "github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 func RegisterMigrateFlags(cmd *cobra.Command) {
-	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb", "mysql")`)
 	cmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 }
 
@@ -34,37 +35,17 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
 	dbURL := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
 
-	if datastoreEngine == "cockroachdb" {
-		log.Info().Msg("migrating cockroachdb datastore")
+	targetRevision := args[0]
 
-		migrationDriver, err := crdbmigrations.NewCRDBDriver(dbURL)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to create migration driver")
-		}
+	migrationManager, migrationDriver, err := datastoreManagerAndDriver(datastoreEngine, dbURL)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to create migration driver")
+	}
 
-		targetRevision := args[0]
-
-		log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
-		err = crdbmigrations.CRDBMigrations.Run(migrationDriver, targetRevision, migrate.LiveRun)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to complete requested migrations")
-		}
-	} else if datastoreEngine == "postgres" {
-		log.Info().Msg("migrating postgres datastore")
-		migrationDriver, err := migrations.NewAlembicPostgresDriver(dbURL)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to create migration driver")
-		}
-
-		targetRevision := args[0]
-
-		log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
-		err = migrations.DatabaseMigrations.Run(migrationDriver, targetRevision, migrate.LiveRun)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to complete requested migrations")
-		}
-	} else {
-		return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
+	log.Info().Msg(fmt.Sprintf("migrating %s datastore", datastoreEngine))
+	err = runMigrations(migrationManager, migrationDriver, targetRevision)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to complete requested migrations")
 	}
 
 	return nil
@@ -93,9 +74,11 @@ func headRevisionRun(cmd *cobra.Command, args []string) error {
 
 	switch engine {
 	case "cockroachdb":
-		headRevision, err = crdbmigrations.CRDBMigrations.HeadRevision()
+		headRevision, err = crdbmigrations.Manager.HeadRevision()
 	case "postgres":
-		headRevision, err = migrations.DatabaseMigrations.HeadRevision()
+		headRevision, err = psqlmigrations.Manager.HeadRevision()
+	case "mysql":
+		headRevision, err = mysqlmigrations.Manager.HeadRevision()
 	default:
 		return fmt.Errorf("cannot migrate datastore engine type: %s", engine)
 	}
@@ -104,5 +87,48 @@ func headRevisionRun(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println(headRevision)
+	return nil
+}
+
+func datastoreManagerAndDriver(datastoreEngine, dbURL string) (*migrate.Manager, migrate.Driver, error) {
+	var migrationDriver migrate.Driver
+	var migrationManager *migrate.Manager
+	var err error
+
+	if datastoreEngine == "cockroachdb" {
+		migrationDriver, err = crdbmigrations.NewCRDBDriver(dbURL)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		migrationManager = crdbmigrations.Manager
+	} else if datastoreEngine == "postgres" {
+		migrationDriver, err = psqlmigrations.NewAlembicPostgresDriver(dbURL)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		migrationManager = psqlmigrations.Manager
+	} else if datastoreEngine == "mysql" {
+		migrationDriver, err = mysqlmigrations.NewMysqlDriver(dbURL)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		migrationManager = mysqlmigrations.Manager
+	} else {
+		return nil, nil, fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
+	}
+
+	return migrationManager, migrationDriver, nil
+}
+
+func runMigrations(migrationMananger *migrate.Manager, migrationDriver migrate.Driver, targetRevision string) error {
+	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
+	err := migrationMananger.Run(migrationDriver, targetRevision, migrate.LiveRun)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

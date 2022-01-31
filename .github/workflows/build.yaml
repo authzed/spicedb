@@ -146,5 +146,5 @@ jobs:
           BUF_INPUT_HTTPS_PASSWORD: "${{ github.token }}"
         with:
           input: "proto/internal"
-          against: "https://github.com/authzed/spicedb.git#branch=main,subdir=proto/internal"
+          against: "https://github.com/github/spicedb.git#branch=main,subdir=proto/internal"
           buf_token: "${{ secrets.BUF_REGISTRY_TOKEN }}"
