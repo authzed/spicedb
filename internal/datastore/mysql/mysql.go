@@ -4,44 +4,80 @@ import (
 	"context"
 	"fmt"
 
+	sq "github.com/Masterminds/squirrel"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	sqlDriver "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
+	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/options"
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
 
+var (
+	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
+
+	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES"
+
+	tracer = otel.Tracer("spicedb/internal/datastore/mysql")
+)
+
 func NewMysqlDatastore(url string) (datastore.Datastore, error) {
-	return &mysqlDatastore{}, nil
+	// TODO: we're currently using a DSN here, not a URI
+	dbConfig, err := sqlDriver.ParseDSN(url)
+	if err != nil {
+		return nil, fmt.Errorf(common.ErrUnableToInstantiate, err)
+	}
+
+	db, err := sqlx.Connect("mysql", dbConfig.FormatDSN())
+	if err != nil {
+		return nil, fmt.Errorf(common.ErrUnableToInstantiate, err)
+	}
+	err = sqlDriver.SetLogger(&log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
+	}
+
+	return &mysqlDatastore{db}, nil
 }
 
-type mysqlDatastore struct{}
+type mysqlDatastore struct {
+	db *sqlx.DB
+}
 
 // Close closes the data store.
 func (mds *mysqlDatastore) Close() error {
 	return nil
 }
 
+func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
+	ctx, span := tracer.Start(ctx, "computeNewTransaction")
+	defer span.End()
+
+	result, err := tx.ExecContext(ctx, createTxn)
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: %w", err)
+	}
+
+	lastInsertId, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: failed to get last inserted id: %w", err)
+	}
+
+	return uint64(lastInsertId), nil
+}
+
 // IsReady returns whether the datastore is ready to accept data. Datastores that require
 // database schema creation will return false until the migrations have been run to create
 // the necessary tables.
 func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
-	return false, fmt.Errorf(errNotImplemented)
-}
-
-// WriteTuples takes a list of existing tuples that must exist, and a list of
-// tuple mutations and applies it to the datastore for the specified
-// namespace.
-func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
-	return datastore.NoRevision, fmt.Errorf(errNotImplemented)
-}
-
-// DeleteRelationships deletes all Relationships that match the provided
-// filter if all preconditions are met.
-func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
-	return datastore.NoRevision, fmt.Errorf(errNotImplemented)
+	if err := mds.db.PingContext(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // OptimizedRevision gets a revision that will likely already be replicated
@@ -82,26 +118,6 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 
 // ListNamespaces lists all namespaces defined.
 func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
-	return nil, fmt.Errorf(errNotImplemented)
-}
-
-// QueryTuples reads relationships starting from the resource side.
-func (mds *mysqlDatastore) QueryTuples(
-	ctx context.Context,
-	filter *v1.RelationshipFilter,
-	revision datastore.Revision,
-	options ...options.QueryOptionsOption,
-) (datastore.TupleIterator, error) {
-	return nil, fmt.Errorf(errNotImplemented)
-}
-
-// ReverseQueryTuples reads relationships starting from the subject.
-func (mds *mysqlDatastore) ReverseQueryTuples(
-	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
-	revision datastore.Revision,
-	options ...options.ReverseQueryOptionsOption,
-) (datastore.TupleIterator, error) {
 	return nil, fmt.Errorf(errNotImplemented)
 }
 

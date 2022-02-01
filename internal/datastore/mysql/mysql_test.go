@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
@@ -40,6 +43,13 @@ func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
 	}
 
 	return migrationDriver, nil
+}
+
+func TestMysqlDatastore(t *testing.T) {
+	tester := newTester(mysqlContainer, "root:secret", 3306)
+	defer tester.cleanup()
+
+	t.Run("TestSimple", func(t *testing.T) { test.SimpleTest(t, tester) })
 }
 
 func TestMySQLMigrations(t *testing.T) {
@@ -88,14 +98,17 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 	if err != nil {
 		log.Fatalf("Could not start resource: %s", err)
 	}
+	log.Print("container started")
 
 	var db *sql.DB
 	port := resource.GetPort(fmt.Sprintf("%d/tcp", portNum))
 	connectStr := fmt.Sprintf("%s@(localhost:%s)/%s", creds, port, dbName)
+	log.Printf("connecting over %s", connectStr)
 	db, err = sql.Open("mysql", connectStr)
 	if err != nil {
 		log.Fatalf("couldn't open DB: %s", err)
 	}
+	log.Printf("connecting over %s", connectStr)
 
 	if err = pool.Retry(func() error {
 		var err error
@@ -110,13 +123,30 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 
 	cleanup := func() {
 		// When you're done, kill and remove the container
-		if err = pool.Purge(resource); err != nil {
-			log.Fatalf("Could not purge resource: %s", err)
-		}
+		//if err = pool.Purge(resource); err != nil {
+		//	log.Fatalf("Could not purge resource: %s", err)
+		//}
 	}
 
 	return &sqlTest{
 		connectStr: connectStr,
 		cleanup:    cleanup,
 	}
+}
+
+func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	sqlTester := newTester(mysqlContainer, creds, 3306)
+	defer sqlTester.cleanup()
+
+	migrationDriver, err := createMigrationDriver(sqlTester.connectStr)
+	if err != nil {
+		panic(err)
+	}
+
+	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	if err != nil {
+		panic(err)
+	}
+
+	return NewMysqlDatastore(sqlTester.connectStr)
 }
