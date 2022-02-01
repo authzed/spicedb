@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"syscall"
 )
@@ -14,7 +15,7 @@ func Run(ctx context.Context, out, errOut io.Writer, args ...string) error {
 	if err != nil {
 		return err
 	}
-	cleanupOnDone(ctx.Done(), cmd.Process.Pid, errOut)
+	cleanupOnDone(ctx.Done(), cmd.Process.Pid, os.Stderr)
 	return cmd.Wait()
 }
 
@@ -25,7 +26,7 @@ func GoRun(ctx context.Context, out, errOut io.Writer, args ...string) (int, err
 		return 0, err
 	}
 	go func() {
-		cleanupOnDone(ctx.Done(), cmd.Process.Pid, errOut)
+		cleanupOnDone(ctx.Done(), cmd.Process.Pid, os.Stderr)
 
 		if err := cmd.Wait(); err != nil {
 			fmt.Fprintln(errOut, err)
