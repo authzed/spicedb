@@ -7,7 +7,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a
 	github.com/authzed/authzed-go v0.4.1
 	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
-	github.com/aws/aws-sdk-go v1.42.25
+	github.com/aws/aws-sdk-go v1.42.44
 	github.com/benbjohnson/clock v1.3.0
 	github.com/cespare/xxhash v1.1.0
 	github.com/containerd/continuity v0.2.1 // indirect
