@@ -16,7 +16,7 @@ require (
 	github.com/docker/docker v20.10.9+incompatible // indirect
 	github.com/ecordell/optgen v0.0.5-0.20211217170453-18cdce036e35
 	github.com/emirpasic/gods v1.12.0
-	github.com/envoyproxy/protoc-gen-validate v0.6.2
+	github.com/envoyproxy/protoc-gen-validate v0.6.3
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
 	github.com/gogo/protobuf v1.3.2
