@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	sq "github.com/Masterminds/squirrel"
+
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
@@ -132,12 +133,12 @@ func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, er
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}
 
-	lastInsertId, err := result.LastInsertId()
+	lastInsertID, err := result.LastInsertId()
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: failed to get last inserted id: %w", err)
 	}
 
-	return uint64(lastInsertId), nil
+	return uint64(lastInsertID), nil
 }
 
 func revisionFromTransaction(txID uint64) datastore.Revision {

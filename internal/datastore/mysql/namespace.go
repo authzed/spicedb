@@ -7,13 +7,14 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/jackc/pgx/v4"
 	"github.com/jmoiron/sqlx"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const (
@@ -205,6 +206,10 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 		return nil, err
 	}
 	defer rows.Close()
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
 
 	for rows.Next() {
 		var config []byte
