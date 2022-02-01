@@ -128,6 +128,9 @@ func TestNoNewEnemy(t *testing.T) {
 	require.NoError(t, vulnerableSpiceDb.Start(ctx, tlog, "vulnerable",
 		"--datastore-tx-overlap-strategy=insecure"))
 	require.NoError(t, vulnerableSpiceDb.Connect(ctx, tlog))
+	t.Cleanup(func() {
+		require.NoError(t, vulnerableSpiceDb.Stop(tlog))
+	})
 
 	t.Log("start protected spicedb cluster")
 	protectedSpiceDb := spice.NewClusterFromCockroachCluster(crdb,
@@ -139,6 +142,9 @@ func TestNoNewEnemy(t *testing.T) {
 		spice.WithDbName(dbName))
 	require.NoError(t, protectedSpiceDb.Start(ctx, tlog, "protected"))
 	require.NoError(t, protectedSpiceDb.Connect(ctx, tlog))
+	t.Cleanup(func() {
+		require.NoError(t, protectedSpiceDb.Stop(tlog))
+	})
 
 	t.Log("configure small ranges, single replicas, short ttl")
 	require.NoError(t, crdb.SQL(ctx, tlog, tlog,
@@ -150,7 +156,7 @@ func TestNoNewEnemy(t *testing.T) {
 	// seems to make the test converge faster
 	schemaData := generateSchemaData(4000, 500)
 	fillSchema(t, schemaTpl, schemaData, vulnerableSpiceDb[1].Client().V1Alpha1().Schema())
-	slowNodeId, err := crdb[1].NodeID(testCtx)
+	slowNodeId, err := crdb[1].NodeID(ctx)
 	require.NoError(t, err)
 
 	t.Log("modifying time")
@@ -302,13 +308,13 @@ func iterationsForHighConfidence(samples []int) (iterations int) {
 func checkDataNoNewEnemy(ctx context.Context, t testing.TB, schemaData []SchemaData, slowNodeId int, crdb cockroach.Cluster, spicedb spice.Cluster, maxAttempts int) (bool, int) {
 	prefix := prefixForNode(ctx, crdb[1].Conn(), schemaData, slowNodeId)
 	t.Log("filling with data to span multiple ranges for prefix", prefix)
-	fill(t, spicedb[0].Client().V0().ACL(), prefix, 500, 100)
+	fill(ctx, t, spicedb[0].Client().V0().ACL(), prefix, 500, 100)
 
 	for attempts := 1; attempts <= maxAttempts; attempts++ {
 		direct, exclude := generateTuple(prefix, objIdGenerator)
 
 		// write to node 1
-		r1, err := spicedb[0].Client().V0().ACL().Write(testCtx, &v0.WriteRequest{
+		r1, err := spicedb[0].Client().V0().ACL().Write(ctx, &v0.WriteRequest{
 			Updates: []*v0.RelationTupleUpdate{exclude},
 		})
 		require.NoError(t, err)
@@ -319,7 +325,7 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, schemaData []SchemaD
 		time.Sleep(100 * time.Millisecond)
 
 		// write to node 2 (clock is behind)
-		r2, err := spicedb[1].Client().V0().ACL().Write(testCtx, &v0.WriteRequest{
+		r2, err := spicedb[1].Client().V0().ACL().Write(ctx, &v0.WriteRequest{
 			Updates: []*v0.RelationTupleUpdate{direct},
 		})
 		require.NoError(t, err)
@@ -335,9 +341,9 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, schemaData []SchemaD
 		})
 		require.NoError(t, err)
 
-		r1leader, r2leader := getLeaderNode(testCtx, crdb[1].Conn(), exclude.Tuple), getLeaderNode(testCtx, crdb[1].Conn(), direct.Tuple)
-		ns1Leader := getLeaderNodeForNamespace(testCtx, crdb[1].Conn(), exclude.Tuple.ObjectAndRelation.Namespace)
-		ns2Leader := getLeaderNodeForNamespace(testCtx, crdb[1].Conn(), exclude.Tuple.User.GetUserset().Namespace)
+		r1leader, r2leader := getLeaderNode(ctx, crdb[1].Conn(), exclude.Tuple), getLeaderNode(ctx, crdb[1].Conn(), direct.Tuple)
+		ns1Leader := getLeaderNodeForNamespace(ctx, crdb[1].Conn(), exclude.Tuple.ObjectAndRelation.Namespace)
+		ns2Leader := getLeaderNodeForNamespace(ctx, crdb[1].Conn(), exclude.Tuple.User.GetUserset().Namespace)
 		z1, _ := zookie.DecodeRevision(r1.GetRevision())
 		z2, _ := zookie.DecodeRevision(r2.GetRevision())
 		t.Log(z1, z2, z1.Sub(z2).String(), r1leader, r2leader, ns1Leader, ns2Leader)
@@ -417,13 +423,13 @@ func checkSchemaNoNewEnemy(ctx context.Context, t testing.TB, schemaData []Schem
 		})))
 
 		// write the "direct" tuple
-		require.NoError(t, getErr(spicedb[0].Client().V0().ACL().Write(testCtx, &v0.WriteRequest{
+		require.NoError(t, getErr(spicedb[0].Client().V0().ACL().Write(ctx, &v0.WriteRequest{
 			Updates: []*v0.RelationTupleUpdate{direct},
 		})))
 
 		// write the "excludes" tuple
 		// writing to 1 primes the namespace cache on node 1 with the "allow" namespace
-		r2, err := spicedb[1].Client().V0().ACL().Write(testCtx, &v0.WriteRequest{
+		r2, err := spicedb[1].Client().V0().ACL().Write(ctx, &v0.WriteRequest{
 			Updates: []*v0.RelationTupleUpdate{exclude},
 		})
 		require.NoError(t, err)
@@ -431,7 +437,7 @@ func checkSchemaNoNewEnemy(ctx context.Context, t testing.TB, schemaData []Schem
 		// write the "exclude" schema. If this write hits the slow crdb node, it
 		// can get a revision in between the direct and exclude tuple writes
 		// which will cause check to fail, when it should succeed
-		require.NoError(t, getErr(spicedb[1].Client().V1Alpha1().Schema().WriteSchema(testCtx, &v1alpha1.WriteSchemaRequest{
+		require.NoError(t, getErr(spicedb[1].Client().V1Alpha1().Schema().WriteSchema(ctx, &v1alpha1.WriteSchemaRequest{
 			Schema: excludeSchema,
 		})))
 
@@ -442,7 +448,7 @@ func checkSchemaNoNewEnemy(ctx context.Context, t testing.TB, schemaData []Schem
 		checkAccess := func() bool {
 			var err error
 
-			canHas, err = spicedb[0].Client().V1().Permissions().CheckPermission(testCtx, &v1.CheckPermissionRequest{
+			canHas, err = spicedb[0].Client().V1().Permissions().CheckPermission(ctx, &v1.CheckPermissionRequest{
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_AtExactSnapshot{AtExactSnapshot: zedtoken.NewFromRevision(rev)},
 				},
@@ -493,13 +499,13 @@ func BenchmarkBatchWrites(b *testing.B) {
 
 	directs, excludes := generateTuples("", b.N*20, objIdGenerator)
 	b.ResetTimer()
-	_, err := spicedb[0].Client().V0().ACL().Write(testCtx, &v0.WriteRequest{
+	_, err := spicedb[0].Client().V0().ACL().Write(ctx, &v0.WriteRequest{
 		Updates: excludes,
 	})
 	if err != nil {
 		b.Log(err)
 	}
-	_, err = spicedb[0].Client().V0().ACL().Write(testCtx, &v0.WriteRequest{
+	_, err = spicedb[0].Client().V0().ACL().Write(ctx, &v0.WriteRequest{
 		Updates: directs,
 	})
 	if err != nil {
@@ -517,24 +523,24 @@ func BenchmarkConflictingTupleWrites(b *testing.B) {
 	require.NoError(b, spicedb.Connect(ctx, tlog))
 
 	// fill with tuples to ensure we span multiple ranges
-	fill(b, spicedb[0].Client().V0().ACL(), "", 2000, 100)
+	fill(ctx, b, spicedb[0].Client().V0().ACL(), "", 2000, 100)
 
 	b.ResetTimer()
 
 	checkDataNoNewEnemy(ctx, b, generateSchemaData(1, 1), 1, crdb, spicedb, b.N)
 }
 
-func fill(t testing.TB, client v0.ACLServiceClient, prefix string, fillerCount, batchSize int) {
+func fill(ctx context.Context, t testing.TB, client v0.ACLServiceClient, prefix string, fillerCount, batchSize int) {
 	t.Log("filling prefix", prefix)
 	require := require.New(t)
 	directs, excludes := generateTuples(prefix, fillerCount, objIdGenerator)
 	for i := 0; i < fillerCount/batchSize; i++ {
 		t.Log("filling", i*batchSize, "to", (i+1)*batchSize)
-		_, err := client.Write(testCtx, &v0.WriteRequest{
+		_, err := client.Write(ctx, &v0.WriteRequest{
 			Updates: excludes[i*batchSize : (i+1)*batchSize],
 		})
 		require.NoError(err)
-		_, err = client.Write(testCtx, &v0.WriteRequest{
+		_, err = client.Write(ctx, &v0.WriteRequest{
 			Updates: directs[i*batchSize : (i+1)*batchSize],
 		})
 		require.NoError(err)
