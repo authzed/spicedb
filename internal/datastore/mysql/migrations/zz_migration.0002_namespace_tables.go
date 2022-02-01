@@ -1,11 +1,5 @@
 package migrations
 
-import (
-	"fmt"
-
-	"github.com/rs/zerolog/log"
-)
-
 // namespace max size: https://buf.build/authzed/api/file/main/authzed/api/v0/core.proto#L29
 const createNamespaceConfig = `CREATE TABLE namespace_config (
 	namespace VARCHAR(128) NOT NULL,
@@ -40,30 +34,15 @@ const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction 
 );`
 
 func init() {
-	if err := Manager.Register("namespace-tables", "initial", func(mysql *MysqlDriver) error {
-		tx, err := mysql.db.Beginx()
-		if err != nil {
-			return err
-		}
-		defer func() {
-			log.Err(tx.Rollback())
-		}()
-
-		statements := []string{
+	err := Manager.Register("namespace-tables",
+		"initial",
+		newMigrationExecutor(
 			createNamespaceConfig,
 			createRelationTuple,
 			createRelationTupleTransaction,
-		}
-
-		for _, stmt := range statements {
-			_, err := tx.Exec(stmt)
-			if err != nil {
-				return fmt.Errorf("failed to run statement: %w", err)
-			}
-		}
-
-		return tx.Commit()
-	}); err != nil {
+		).migrate,
+	)
+	if err != nil {
 		panic("failed to register migration  " + err.Error())
 	}
 }
