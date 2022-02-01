@@ -15,7 +15,7 @@ func Run(ctx context.Context, out, errOut io.Writer, args ...string) error {
 	if err != nil {
 		return err
 	}
-	cleanupOnDone(ctx.Done(), cmd.Process.Pid, os.Stderr)
+	cleanupOnDone(ctx.Done(), cmd.Process.Pid)
 	return cmd.Wait()
 }
 
@@ -26,7 +26,7 @@ func GoRun(ctx context.Context, out, errOut io.Writer, args ...string) (int, err
 		return 0, err
 	}
 	go func() {
-		cleanupOnDone(ctx.Done(), cmd.Process.Pid, os.Stderr)
+		cleanupOnDone(ctx.Done(), cmd.Process.Pid)
 
 		if err := cmd.Wait(); err != nil {
 			fmt.Fprintln(errOut, err)
@@ -48,12 +48,12 @@ func start(ctx context.Context, out, errOut io.Writer, args ...string) (*exec.Cm
 	return cmd, nil
 }
 
-func cleanupOnDone(done <-chan struct{}, pid int, errOut io.Writer) {
+func cleanupOnDone(done <-chan struct{}, pid int) {
 	go func() {
 		<-done
 		// negative Pid sends the signal to all child processes in the group
 		if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
-			fmt.Fprintln(errOut, err)
+			fmt.Fprintln(os.Stderr, err)
 		}
 	}()
 }
