@@ -207,10 +207,6 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 	}
 	defer rows.Close()
 
-	if rows.Err() != nil {
-		return nil, rows.Err()
-	}
-
 	for rows.Next() {
 		var config []byte
 		var version datastore.Revision
@@ -224,6 +220,10 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 		}
 
 		nsDefs = append(nsDefs, &loaded)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
 	}
 
 	return nsDefs, nil
