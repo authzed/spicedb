@@ -7,19 +7,19 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type migrationExecutor struct {
+type executor struct {
 	statements []string
 }
 
-func newMigrationExecutor(statements ...string) migrationExecutor {
-	return migrationExecutor{
+func newExecutor(statements ...string) executor {
+	return executor{
 		statements: statements,
 	}
 }
 
-func (me migrationExecutor) migrate(mysql *MysqlDriver) error {
+func (me executor) migrate(mysql *MysqlDriver) error {
 	if len(me.statements) == 0 {
-		return errors.New("migrationExecutor.migrate: No statements to migrate")
+		return errors.New("executor.migrate: No statements to migrate")
 	}
 
 	tx, err := mysql.db.Beginx()
@@ -33,7 +33,7 @@ func (me migrationExecutor) migrate(mysql *MysqlDriver) error {
 	for _, stmt := range me.statements {
 		_, err := tx.Exec(stmt)
 		if err != nil {
-			return fmt.Errorf("migrationExecutor.migrate: failed to run statement: %w", err)
+			return fmt.Errorf("executor.migrate: failed to run statement: %w", err)
 		}
 	}
 
