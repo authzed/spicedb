@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/authzed/grpcutil"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/rs/cors"
@@ -204,6 +205,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		dashboardServer:     dashboardServer,
 		unaryMiddleware:     c.UnaryMiddleware,
 		streamingMiddleware: c.StreamingMiddleware,
+		presharedKey:        c.PresharedKey,
 	}, nil
 }
 
@@ -212,6 +214,7 @@ type RunnableServer interface {
 	Run(ctx context.Context) error
 	Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor)
 	SetMiddleware(unaryInterceptors []grpc.UnaryServerInterceptor, streamingInterceptors []grpc.StreamServerInterceptor) RunnableServer
+	GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
 
 // completedServerConfig holds the full configuration to run a spicedb server,
@@ -226,6 +229,7 @@ type completedServerConfig struct {
 
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
+	presharedKey        string
 }
 
 func (c *completedServerConfig) Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
@@ -236,6 +240,15 @@ func (c *completedServerConfig) SetMiddleware(unaryInterceptors []grpc.UnaryServ
 	c.unaryMiddleware = unaryInterceptors
 	c.streamingMiddleware = streamingInterceptors
 	return c
+}
+
+func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	if c.gRPCServer.Insecure() {
+		opts = append(opts, grpcutil.WithInsecureBearerToken(c.presharedKey))
+	} else {
+		opts = append(opts, grpcutil.WithBearerToken(c.presharedKey))
+	}
+	return c.gRPCServer.DialContext(ctx, opts...)
 }
 
 func (c *completedServerConfig) Run(ctx context.Context) error {
