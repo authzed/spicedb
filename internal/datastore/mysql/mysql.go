@@ -4,20 +4,49 @@ import (
 	"context"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/jmoiron/sqlx"
+	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
-const errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
+const (
+	errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
+
+	tableNamespace = "namespace_config"
+	tableTuple     = "relation_tuple"
+
+	colNamespace  = "namespace"
+	colConfig     = "serialized_config"
+	colCreatedTxn = "created_transaction"
+	colDeletedTxn = "deleted_transaction"
+
+	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES"
+
+	liveDeletedTxnID = uint64(9223372036854775807)
+)
+
+var (
+	psql   = sq.StatementBuilder.PlaceholderFormat(sq.Question)
+	tracer = otel.Tracer("spicedb/internal/datastore/mysql")
+)
 
 func NewMysqlDatastore(url string) (datastore.Datastore, error) {
-	return &mysqlDatastore{}, nil
+	db, err := sqlx.Open("mysql", url)
+	if err != nil {
+		return nil, fmt.Errorf("NewMysqlDatastore: failed to open database: %w", err)
+	}
+
+	return &mysqlDatastore{conn: db}, nil
 }
 
-type mysqlDatastore struct{}
+type mysqlDatastore struct {
+	conn *sqlx.DB
+}
 
 // Close closes the data store.
 func (mds *mysqlDatastore) Close() error {
@@ -28,7 +57,12 @@ func (mds *mysqlDatastore) Close() error {
 // database schema creation will return false until the migrations have been run to create
 // the necessary tables.
 func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
-	return false, fmt.Errorf(errNotImplemented)
+	err := mds.conn.DB.PingContext(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // WriteTuples takes a list of existing tuples that must exist, and a list of
@@ -63,28 +97,6 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	return nil, nil
 }
 
-// WriteNamespace takes a proto namespace definition and persists it,
-// returning the version of the namespace that was created.
-func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
-	return datastore.NoRevision, fmt.Errorf(errNotImplemented)
-}
-
-// ReadNamespace reads a namespace definition and version and returns it, and the revision at
-// which it was created or last written, if found.
-func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (ns *v0.NamespaceDefinition, lastWritten datastore.Revision, err error) {
-	return nil, datastore.NoRevision, fmt.Errorf(errNotImplemented)
-}
-
-// DeleteNamespace deletes a namespace and any associated tuples.
-func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
-	return datastore.NoRevision, fmt.Errorf(errNotImplemented)
-}
-
-// ListNamespaces lists all namespaces defined.
-func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
-	return nil, fmt.Errorf(errNotImplemented)
-}
-
 // QueryTuples reads relationships starting from the resource side.
 func (mds *mysqlDatastore) QueryTuples(
 	ctx context.Context,
@@ -109,4 +121,37 @@ func (mds *mysqlDatastore) ReverseQueryTuples(
 // hasn't been garbage collected.
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	return fmt.Errorf(errNotImplemented)
+}
+
+func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
+	ctx, span := tracer.Start(ctx, "computeNewTransaction")
+	defer span.End()
+
+	result, err := tx.ExecContext(ctx, createTxn)
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: %w", err)
+	}
+
+	lastInsertId, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: failed to get last inserted id: %w", err)
+	}
+
+	return uint64(lastInsertId), nil
+}
+
+func revisionFromTransaction(txID uint64) datastore.Revision {
+	return decimal.NewFromInt(int64(txID))
+}
+
+func transactionFromRevision(revision datastore.Revision) uint64 {
+	return uint64(revision.IntPart())
+}
+
+func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {
+	return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+		Where(sq.Or{
+			sq.Eq{colDeletedTxn: liveDeletedTxnID},
+			sq.Gt{colDeletedTxn: revision},
+		})
 }
