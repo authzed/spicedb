@@ -4,6 +4,7 @@ package server
 import (
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
+	auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc "google.golang.org/grpc"
 	"time"
 )
@@ -31,6 +32,13 @@ func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
 func WithGRPCServer(gRPCServer util.GRPCServerConfig) ConfigOption {
 	return func(c *Config) {
 		c.GRPCServer = gRPCServer
+	}
+}
+
+// WithGRPCAuthFunc returns an option that can set GRPCAuthFunc on a Config
+func WithGRPCAuthFunc(gRPCAuthFunc auth.AuthFunc) ConfigOption {
+	return func(c *Config) {
+		c.GRPCAuthFunc = gRPCAuthFunc
 	}
 }
 

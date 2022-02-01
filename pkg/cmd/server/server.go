@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
+	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
@@ -28,6 +30,7 @@ import (
 type Config struct {
 	// API config
 	GRPCServer          util.GRPCServerConfig
+	GRPCAuthFunc        grpc_auth.AuthFunc
 	PresharedKey        string
 	ShutdownGracePeriod time.Duration
 
@@ -60,7 +63,7 @@ type Config struct {
 	DashboardAPI util.HTTPServerConfig
 	MetricsAPI   util.HTTPServerConfig
 
-	//  Middleware for grpc
+	// Middleware for grpc
 	UnaryMiddleware     []grpc.UnaryServerInterceptor
 	StreamingMiddleware []grpc.StreamServerInterceptor
 
@@ -73,8 +76,12 @@ type Config struct {
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
 func (c *Config) Complete() (RunnableServer, error) {
-	if len(c.PresharedKey) < 1 {
+	if len(c.PresharedKey) < 1 && c.GRPCAuthFunc == nil {
 		return nil, fmt.Errorf("a preshared key must be provided to authenticate API requests")
+	}
+
+	if c.GRPCAuthFunc == nil {
+		c.GRPCAuthFunc = auth.RequirePresharedKey(c.PresharedKey)
 	}
 
 	ds, err := datastorecfg.NewDatastore(c.Datastore.ToOption())
@@ -105,7 +112,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
-		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultMiddleware(log.Logger, c.PresharedKey, dispatcher, ds)
+		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey))
 	}
 
 	cachingClusterDispatch, err := combineddispatch.NewClusterDispatcher(dispatcher, nsm, ds)
@@ -134,7 +141,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	if len(c.UnaryMiddleware) == 0 && len(c.StreamingMiddleware) == 0 {
-		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.PresharedKey, dispatcher, ds)
+		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, dispatcher, ds)
 	}
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {

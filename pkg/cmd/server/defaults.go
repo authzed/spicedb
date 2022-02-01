@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -65,13 +64,13 @@ func MetricsHandler() http.Handler {
 	return mux
 }
 
-func DefaultMiddleware(logger zerolog.Logger, presharedKey string, dispatcher dispatch.Dispatcher, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, dispatcher dispatch.Dispatcher, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger)),
 			otelgrpc.UnaryServerInterceptor(),
-			grpcauth.UnaryServerInterceptor(auth.RequirePresharedKey(presharedKey)),
+			grpcauth.UnaryServerInterceptor(authFunc),
 			grpcprom.UnaryServerInterceptor,
 			dispatchmw.UnaryServerInterceptor(dispatcher),
 			datastoremw.UnaryServerInterceptor(ds),
@@ -81,10 +80,28 @@ func DefaultMiddleware(logger zerolog.Logger, presharedKey string, dispatcher di
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger)),
 			otelgrpc.StreamServerInterceptor(),
-			grpcauth.StreamServerInterceptor(auth.RequirePresharedKey(presharedKey)),
+			grpcauth.StreamServerInterceptor(authFunc),
 			grpcprom.StreamServerInterceptor,
 			dispatchmw.StreamServerInterceptor(dispatcher),
 			datastoremw.StreamServerInterceptor(ds),
 			servicespecific.StreamServerInterceptor,
+		}
+}
+
+func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+	return []grpc.UnaryServerInterceptor{
+			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
+			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			otelgrpc.UnaryServerInterceptor(),
+			grpcauth.UnaryServerInterceptor(authFunc),
+			grpcprom.UnaryServerInterceptor,
+		}, []grpc.StreamServerInterceptor{
+			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
+			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			otelgrpc.StreamServerInterceptor(),
+			grpcauth.StreamServerInterceptor(authFunc),
+			grpcprom.StreamServerInterceptor,
 		}
 }
