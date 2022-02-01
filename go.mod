@@ -41,9 +41,7 @@ require (
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/ngrok/sqlmw v0.0.0-20210819213940-241da6c2def4
 	github.com/ory/dockertest/v3 v3.8.1
-	github.com/prometheus/client_golang v1.11.0
-	github.com/prometheus/common v0.32.1 // indirect
-	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/prometheus/client_golang v1.12.1
 	github.com/rs/cors v1.8.2
 	github.com/rs/zerolog v1.26.1
 	github.com/scylladb/go-set v1.0.2
@@ -61,7 +59,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.3.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 	golang.org/x/tools v0.1.8
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
 	google.golang.org/grpc v1.43.0
