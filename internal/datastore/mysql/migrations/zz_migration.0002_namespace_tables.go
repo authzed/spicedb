@@ -34,8 +34,7 @@ const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction 
 );`
 
 func init() {
-	err := Manager.Register("namespace-tables",
-		"initial",
+	err := Manager.Register("namespace-tables", "initial",
 		newExecutor(
 			createNamespaceConfig,
 			createRelationTuple,
