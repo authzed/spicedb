@@ -37,5 +37,15 @@ func (mt *mysqlTransaction) Commit(_ context.Context) error {
 }
 
 func (mt *mysqlTransaction) Query(ctx context.Context, query string, args ...interface{}) (Rows, error) {
-	return mt.tx.QueryContext(ctx, query, args...)
+	rows, err := mt.tx.QueryContext(ctx, query, args...)
+	return &mysqlRows{rows}, err
+}
+
+type mysqlRows struct {
+	*sql.Rows
+}
+
+func (mr *mysqlRows) Close() {
+	// ignore the error to satify the Rows interface
+	mr.Rows.Close()
 }

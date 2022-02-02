@@ -13,8 +13,7 @@ type Transaction interface {
 }
 
 type Rows interface {
-	Close() error
-	Columns() ([]string, error)
+	Close()
 	Err() error
 	Next() bool
 	Scan(...interface{}) error
