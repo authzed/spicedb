@@ -8,11 +8,12 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const (
@@ -21,8 +22,6 @@ const (
 )
 
 var (
-	//queryTupleExists = sb.Select(common.ColID).From(common.TableTuple)
-
 	writeTuple = sb.Insert(common.TableTuple).Columns(
 		common.ColNamespace,
 		common.ColObjectID,
@@ -112,7 +111,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	return common.RevisionFromTransaction(newTxnID), nil
 }
 
-//NOTE(chriskirkland): ErrNoRows needs to be configured/dependency injected per sql-driver type
+// NOTE(chriskirkland): ErrNoRows needs to be configured/dependency injected per sql-driver type
 func (mds *mysqlDatastore) checkPreconditions(ctx context.Context, tx *sqlx.Tx, preconditions []*v1.Precondition) error {
 	ctx, span := tracer.Start(ctx, "checkPreconditions")
 	defer span.End()
@@ -148,7 +147,7 @@ func (mds *mysqlDatastore) checkPreconditions(ctx context.Context, tx *sqlx.Tx, 
 	return nil
 }
 
-//NOTE(chriskirkland): this is all generic other than the squirrel templating for `queryTupleExists`
+// NOTE(chriskirkland): this is all generic other than the squirrel templating for `queryTupleExists`
 func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
 	query := queryTupleExists.Where(sq.Eq{common.ColNamespace: filter.ResourceType})
 
@@ -172,7 +171,7 @@ func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
 	return query
 }
 
-//NOTE(chriskirkland): nothing special in terms of mysql vs psq other than the concrete transaction types
+// NOTE(chriskirkland): nothing special in terms of mysql vs psq other than the concrete transaction types
 func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()

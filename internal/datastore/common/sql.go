@@ -9,14 +9,13 @@ import (
 	"github.com/alecthomas/units"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jzelinskie/stringz"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common/rdb"
 )
 
 const (
@@ -183,11 +182,11 @@ func (sqf SchemaQueryFilterer) Limit(limit uint64) SchemaQueryFilterer {
 
 // TransactionPreparer is a function provided by the datastore to prepare the transaction before
 // the tuple query is run.
-type TransactionPreparer func(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error
+type TransactionPreparer func(ctx context.Context, tx rdb.Transaction, revision datastore.Revision) error
 
 // TupleQuerySplitter is a tuple query runner shared by SQL implementations of the datastore.
 type TupleQuerySplitter struct {
-	Conn                      *pgxpool.Pool
+	rdb.TransactionBeginner
 	PrepareTransaction        TransactionPreparer
 	SplitAtEstimatedQuerySize units.Base2Bytes
 
@@ -279,7 +278,7 @@ func (ctq TupleQuerySplitter) executeSingleQuery(ctx context.Context, query Sche
 
 	span.AddEvent("Query converted to SQL")
 
-	tx, err := ctq.Conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	tx, err := ctq.BeginTransaction(ctx, true)
 	if err != nil {
 		return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 	}
