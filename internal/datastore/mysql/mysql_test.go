@@ -22,19 +22,12 @@ var (
 	testDBPrefix = "spicedb_test"
 	creds        = "root:secret"
 
-	containerResource *dockertest.Resource
-	mysqlPort         = 3306
-	containerPort     string
+	mysqlPort     = 3306
+	containerPort string
 )
 
 type sqlTest struct {
 	connectStr string
-}
-
-var mysqlContainer = &dockertest.RunOptions{
-	Repository: "mysql",
-	Tag:        "latest",
-	Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
 }
 
 func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
@@ -49,7 +42,7 @@ func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
 func TestMySQLMigrations(t *testing.T) {
 	req := require.New(t)
 
-	connectStr := setupDatabase(mysqlContainer, creds)
+	connectStr := setupDatabase()
 
 	migrationDriver, err := createMigrationDriver(connectStr)
 	req.NoError(err)
@@ -69,7 +62,7 @@ func TestMySQLMigrations(t *testing.T) {
 	req.Equal(headVersion, version)
 }
 
-func setupDatabase(containerOpts *dockertest.RunOptions, creds string) string {
+func setupDatabase() string {
 	var db *sql.DB
 	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql", creds, containerPort)
 	db, err := sql.Open("mysql", connectStr)
@@ -104,6 +97,12 @@ func setupDatabase(containerOpts *dockertest.RunOptions, creds string) string {
 }
 
 func TestMain(m *testing.M) {
+	var mysqlContainerRunOpts = &dockertest.RunOptions{
+		Repository: "mysql",
+		Tag:        "latest",
+		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
+	}
+
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		fmt.Printf("could not connect to docker: %s\n", err)
@@ -111,7 +110,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// only bring up the container once
-	containerResource, err := pool.RunWithOptions(mysqlContainer)
+	containerResource, err := pool.RunWithOptions(mysqlContainerRunOpts)
 	if err != nil {
 		fmt.Printf("could not start resource: %s\n", err)
 		os.Exit(1)
