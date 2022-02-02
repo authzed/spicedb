@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
@@ -25,6 +28,22 @@ var (
 type sqlTest struct {
 	connectStr string
 	cleanup    func()
+}
+
+func (sql *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	sqlTester := newTester(mysqlContainer, "root:secret", 3306)
+
+	migrationDriver, err := createMigrationDriver(sqlTester.connectStr)
+	if err != nil {
+		log.Fatalf("failed to create migration driver: %s", err)
+	}
+
+	migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	if err != nil {
+		log.Fatalf("failed to create migration driver: %s", err)
+	}
+
+	return NewMysqlDatastore(sqlTester.connectStr)
 }
 
 var mysqlContainer = &dockertest.RunOptions{
@@ -40,6 +59,14 @@ func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
 	}
 
 	return migrationDriver, nil
+}
+
+func TestMySQLConformance(t *testing.T) {
+	tester := newTester(mysqlContainer, creds, 3306)
+	defer tester.cleanup()
+
+	t.Run("TestNamespaceWrite", func(t *testing.T) { test.NamespaceWriteTest(t, tester) })
+	// t.Run("TestNamespaceDelete", func(t *testing.T) { test.NamespaceDeleteTest(t, tester) }) // requires tuples
 }
 
 func TestMySQLMigrations(t *testing.T) {
