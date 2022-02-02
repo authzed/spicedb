@@ -7,10 +7,6 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-//TODO(chriskirkland):
-// - add an implementation for Postgres/CRDB
-// - plug it into Postgres/CRDB and run tests to validate
-
 func NewMysqlTransactionBeginner(db *sqlx.DB) TransactionBeginner {
 	return &mysqlTransactionBeginner{db}
 }
