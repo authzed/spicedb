@@ -8,11 +8,12 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const (
