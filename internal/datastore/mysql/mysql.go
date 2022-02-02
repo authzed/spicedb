@@ -2,9 +2,11 @@ package mysql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/jackc/pgx/v4"
 	"github.com/jmoiron/sqlx"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
@@ -18,22 +20,26 @@ import (
 const (
 	errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
 
-	tableNamespace = "namespace_config"
-	tableTuple     = "relation_tuple"
+	tableNamespace   = "namespace_config"
+	tableTransaction = "relation_tuple_transaction"
+	tableTuple       = "relation_tuple"
 
 	colNamespace  = "namespace"
 	colConfig     = "serialized_config"
 	colCreatedTxn = "created_transaction"
 	colDeletedTxn = "deleted_transaction"
 
-	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES"
+	errRevision = "unable to find revision: %w"
+
+	createTxn = "INSERT INTO relation_tuple_transaction VALUES()"
 
 	liveDeletedTxnID = uint64(9223372036854775807)
 )
 
 var (
-	psql   = sq.StatementBuilder.PlaceholderFormat(sq.Question)
-	tracer = otel.Tracer("spicedb/internal/datastore/mysql")
+	psql        = sq.StatementBuilder.PlaceholderFormat(sq.Question)
+	tracer      = otel.Tracer("spicedb/internal/datastore/mysql")
+	getRevision = psql.Select("MAX(id)").From(tableTransaction)
 )
 
 func NewMysqlDatastore(url string) (datastore.Datastore, error) {
@@ -88,7 +94,15 @@ func (mds *mysqlDatastore) OptimizedRevision(ctx context.Context) (datastore.Rev
 // HeadRevision gets a revision that is guaranteed to be at least as fresh as
 // right now.
 func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	return datastore.NoRevision, fmt.Errorf(errNotImplemented)
+	ctx, span := tracer.Start(ctx, "HeadRevision")
+	defer span.End()
+
+	revision, err := mds.loadRevision(ctx)
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+
+	return revisionFromTransaction(revision), nil
 }
 
 // Watch notifies the caller about all changes to tuples.
@@ -155,4 +169,25 @@ func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revisio
 			sq.Eq{colDeletedTxn: liveDeletedTxnID},
 			sq.Gt{colDeletedTxn: revision},
 		})
+}
+
+func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
+	ctx, span := tracer.Start(ctx, "loadRevision")
+	defer span.End()
+
+	sql, args, err := getRevision.ToSql()
+	if err != nil {
+		return 0, fmt.Errorf(errRevision, err)
+	}
+
+	var revision uint64
+	err = mds.conn.QueryRowxContext(datastore.SeparateContextWithTracing(ctx), sql, args...).Scan(&revision)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf(errRevision, err)
+	}
+
+	return revision, nil
 }
