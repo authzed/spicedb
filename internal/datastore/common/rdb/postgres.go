@@ -7,6 +7,8 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
+// NewPostgresTransactionBeginner constructs TransactionBeginner implementation which adapts
+// a postgres pool object (pgxpool.Pool).
 func NewPostgresTransactionBeginner(pool *pgxpool.Pool) TransactionBeginner {
 	return &postgresTransactionBeginner{pool}
 }

@@ -7,6 +7,8 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// NewPostgresTransactionBeginner constructs TransactionBeginner implementation which adapts
+// a mysql database connection.
 func NewMysqlTransactionBeginner(db *sqlx.DB) TransactionBeginner {
 	return &mysqlTransactionBeginner{db}
 }
