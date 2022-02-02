@@ -17,24 +17,17 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
-const (
-	errUnableToWriteConfig    = "unable to write namespace config: %w"
-	errUnableToReadConfig     = "unable to read namespace config: %w"
-	errUnableToDeleteConfig   = "unable to delete namespace config: %w"
-	errUnableToListNamespaces = "unable to list namespaces: %w"
-)
-
 var (
-	writeNamespace = sb.Insert(tableNamespace).Columns(
-		colNamespace,
-		colConfig,
-		colCreatedTxn,
+	writeNamespace = sb.Insert(common.TableNamespace).Columns(
+		common.ColNamespace,
+		common.ColConfig,
+		common.ColCreatedTxn,
 	)
 
-	readNamespace   = sb.Select(colConfig, colCreatedTxn).From(tableNamespace)
-	deleteNamespace = sb.Update(tableNamespace).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	readNamespace   = sb.Select(common.ColConfig, common.ColCreatedTxn).From(common.TableNamespace)
+	deleteNamespace = sb.Update(common.TableNamespace).Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
 
-	deleteNamespaceTuples = sb.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteNamespaceTuples = sb.Update(common.TableTuple).Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
 )
 
 // WriteNamespace takes a proto namespace definition and persists it,
@@ -67,36 +60,36 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 	span.AddEvent("Model transaction created")
 
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedTxn, newTxnID).
-		Where(sq.Eq{colNamespace: newConfig.Name, colDeletedTxn: liveDeletedTxnID}).
+		Set(common.ColDeletedTxn, newTxnID).
+		Where(sq.Eq{common.ColNamespace: newConfig.Name, common.ColDeletedTxn: liveDeletedTxnID}).
 		ToSql()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
 	_, err = tx.ExecContext(datastore.SeparateContextWithTracing(ctx), delSQL, delArgs...)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
 	sql, args, err := writeNamespace.Values(newConfig.Name, serialized, newTxnID).ToSql()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
 	_, err = tx.ExecContext(ctx, sql, args...)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 	span.AddEvent("Namespace config written")
 
 	err = tx.Commit()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 	span.AddEvent("Namespace config committed")
 
-	return revisionFromTransaction(newTxnID), nil
+	return common.RevisionFromTransaction(newTxnID), nil
 }
 
 // ReadNamespace reads a namespace definition and version and returns it, and the revision at
@@ -109,18 +102,18 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 
 	tx, err := mds.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
+		return nil, datastore.NoRevision, fmt.Errorf(common.ErrUnableToReadConfig, err)
 	}
 	defer tx.Rollback()
 
-	loaded, version, err := loadNamespace(ctx, nsName, tx, filterToLivingObjects(readNamespace, revision))
+	loaded, version, err := loadNamespace(ctx, nsName, tx, common.FilterToLivingObjects(readNamespace, revision, liveDeletedTxnID))
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
 	case err == nil:
 		return loaded, version, nil
 	default:
-		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
+		return nil, datastore.NoRevision, fmt.Errorf(common.ErrUnableToReadConfig, err)
 	}
 }
 
@@ -130,11 +123,11 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 
 	tx, err := mds.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 	defer tx.Rollback()
 
-	baseQuery := readNamespace.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	baseQuery := readNamespace.Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
 	_, createdAt, err := loadNamespace(ctx, nsName, tx, baseQuery)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
@@ -142,46 +135,46 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	case err == nil:
 		break
 	default:
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
 	newTxnID, err := createNewTransaction(ctx, tx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedTxn, newTxnID).
-		Where(sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt}).
+		Set(common.ColDeletedTxn, newTxnID).
+		Where(sq.Eq{common.ColNamespace: nsName, common.ColCreatedTxn: createdAt}).
 		ToSql()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
 	_, err = tx.ExecContext(ctx, delSQL, delArgs...)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
 	deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
-		Set(colDeletedTxn, newTxnID).
-		Where(sq.Eq{colNamespace: nsName}).
+		Set(common.ColDeletedTxn, newTxnID).
+		Where(sq.Eq{common.ColNamespace: nsName}).
 		ToSql()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
 	_, err = tx.ExecContext(ctx, deleteTupleSQL, deleteTupleArgs...)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
-	return revisionFromTransaction(newTxnID), nil
+	return common.RevisionFromTransaction(newTxnID), nil
 }
 
 // ListNamespaces lists all namespaces defined.
@@ -194,7 +187,7 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 	}
 	defer tx.Rollback()
 
-	sql, args, err := filterToLivingObjects(readNamespace, revision).ToSql()
+	sql, args, err := common.FilterToLivingObjects(readNamespace, revision, liveDeletedTxnID).ToSql()
 	if err != nil {
 		return nil, err
 	}
@@ -211,12 +204,12 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 		var config []byte
 		var version datastore.Revision
 		if err := rows.Scan(&config, &version); err != nil {
-			return nil, fmt.Errorf(errUnableToListNamespaces, err)
+			return nil, fmt.Errorf(common.ErrUnableToListNamespaces, err)
 		}
 
 		var loaded v0.NamespaceDefinition
 		if err := proto.Unmarshal(config, &loaded); err != nil {
-			return nil, fmt.Errorf(errUnableToReadConfig, err)
+			return nil, fmt.Errorf(common.ErrUnableToReadConfig, err)
 		}
 
 		nsDefs = append(nsDefs, &loaded)
@@ -235,7 +228,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx, baseQuery
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
-	query, args, err := baseQuery.Where(sq.Eq{colNamespace: namespace}).ToSql()
+	query, args, err := baseQuery.Where(sq.Eq{common.ColNamespace: namespace}).ToSql()
 	if err != nil {
 		return nil, datastore.NoRevision, err
 	}

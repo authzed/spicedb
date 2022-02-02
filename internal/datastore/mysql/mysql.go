@@ -8,23 +8,14 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const (
 	errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
-
-	tableNamespace   = "namespace_config"
-	tableTransaction = "relation_tuple_transaction"
-	tableTuple       = "relation_tuple"
-
-	colNamespace  = "namespace"
-	colConfig     = "serialized_config"
-	colCreatedTxn = "created_transaction"
-	colDeletedTxn = "deleted_transaction"
 
 	errRevision = "unable to find revision: %w"
 
@@ -35,7 +26,7 @@ const (
 
 var (
 	tracer      = otel.Tracer("spicedb/internal/datastore/mysql")
-	getRevision = sb.Select("MAX(id)").From(tableTransaction)
+	getRevision = sb.Select("MAX(id)").From(common.TableTransaction)
 
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 )
@@ -103,7 +94,7 @@ func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 		return datastore.NoRevision, err
 	}
 
-	return revisionFromTransaction(revision), nil
+	return common.RevisionFromTransaction(revision), nil
 }
 
 // Watch notifies the caller about all changes to tuples.
@@ -117,22 +108,6 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 // hasn't been garbage collected.
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	return fmt.Errorf(errNotImplemented)
-}
-
-func revisionFromTransaction(txID uint64) datastore.Revision {
-	return decimal.NewFromInt(int64(txID))
-}
-
-func transactionFromRevision(revision datastore.Revision) uint64 {
-	return uint64(revision.IntPart())
-}
-
-func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {
-	return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
-		Where(sq.Or{
-			sq.Eq{colDeletedTxn: liveDeletedTxnID},
-			sq.Gt{colDeletedTxn: revision},
-		})
 }
 
 func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
