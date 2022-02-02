@@ -137,7 +137,7 @@ func TestMain(m *testing.M) {
 	defer func() {
 		err := db.Close() // we do not want this connection to stay open
 		if err != nil {
-			fmt.Printf("failed  to close db: %s\n", err)
+			fmt.Printf("failed to close db: %s\n", err)
 			os.Exit(1)
 		}
 	}()
