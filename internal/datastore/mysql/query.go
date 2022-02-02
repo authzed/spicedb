@@ -6,6 +6,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/common/rdb"
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
@@ -51,7 +52,7 @@ func (mds *mysqlDatastore) QueryTuples(
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
 	ctq := common.GeneralTupleQuerySplitter{
-		DbConn:                    mds.dbConnectionWrapper,
+		TransactionBeginner:       rdb.NewMysqlTransactionBeginner(mds.db),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: 0,
 
@@ -85,7 +86,7 @@ func (mds *mysqlDatastore) ReverseQueryTuples(
 	}
 
 	ctq := common.GeneralTupleQuerySplitter{
-		DbConn:                    mds.dbConnectionWrapper,
+		TransactionBeginner:       rdb.NewMysqlTransactionBeginner(mds.db),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: 0,
 

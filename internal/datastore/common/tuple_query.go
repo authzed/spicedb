@@ -8,17 +8,18 @@ import (
 	"github.com/alecthomas/units"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common/rdb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // GeneralTransactionPreparer is a function provided by the datastore to prepare the transaction before
 // the tuple query is run.
-type GeneralTransactionPreparer func(ctx context.Context, tx TransactionWrapper, revision datastore.Revision) error
+type GeneralTransactionPreparer func(ctx context.Context, tx rdb.Transaction, revision datastore.Revision) error
 
 // GeneralTupleQuerySplitter is a tuple query runner shared by SQL implementations of the datastore.
 type GeneralTupleQuerySplitter struct {
-	DbConn                    DbConnection
+	rdb.TransactionBeginner
 	PrepareTransaction        GeneralTransactionPreparer
 	SplitAtEstimatedQuerySize units.Base2Bytes
 
@@ -110,7 +111,7 @@ func (ctq GeneralTupleQuerySplitter) executeSingleQuery(ctx context.Context, que
 
 	span.AddEvent("Query converted to SQL")
 
-	tx, err := ctq.DbConn.BeginTxx(ctx, true)
+	tx, err := ctq.BeginTransaction(ctx, true)
 	if err != nil {
 		return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 	}
