@@ -2,43 +2,48 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	sqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
-	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
-const errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
+const (
+	errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
+
+	tableNamespace   = "namespace_config"
+	tableTransaction = "relation_tuple_transaction"
+	tableTuple       = "relation_tuple"
+
+	colNamespace  = "namespace"
+	colConfig     = "serialized_config"
+	colCreatedTxn = "created_transaction"
+	colDeletedTxn = "deleted_transaction"
+
+	errRevision = "unable to find revision: %w"
+
+	createTxn = "INSERT INTO relation_tuple_transaction VALUES()"
+
+	liveDeletedTxnID = uint64(9223372036854775807)
+)
 
 var (
+	tracer      = otel.Tracer("spicedb/internal/datastore/mysql")
+	getRevision = sb.Select("MAX(id)").From(tableTransaction)
+
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
-
-	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES"
-
-	tracer = otel.Tracer("spicedb/internal/datastore/mysql")
 )
 
 func NewMysqlDatastore(url string) (datastore.Datastore, error) {
-	// TODO: we're currently using a DSN here, not a URI
-	dbConfig, err := sqlDriver.ParseDSN(url)
+	db, err := sqlx.Open("mysql", url)
 	if err != nil {
-		return nil, fmt.Errorf(common.ErrUnableToInstantiate, err)
-	}
-
-	db, err := sqlx.Connect("mysql", dbConfig.FormatDSN())
-	if err != nil {
-		return nil, fmt.Errorf(common.ErrUnableToInstantiate, err)
-	}
-	err = sqlDriver.SetLogger(&log.Logger)
-	if err != nil {
-		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
+		return nil, fmt.Errorf("NewMysqlDatastore: failed to open database: %w", err)
 	}
 
 	return &mysqlDatastore{db}, nil
@@ -74,7 +79,8 @@ func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, er
 // database schema creation will return false until the migrations have been run to create
 // the necessary tables.
 func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
-	if err := mds.db.PingContext(ctx); err != nil {
+	err := mds.db.PingContext(ctx)
+	if err != nil {
 		return false, err
 	}
 	return true, nil
@@ -89,7 +95,15 @@ func (mds *mysqlDatastore) OptimizedRevision(ctx context.Context) (datastore.Rev
 // HeadRevision gets a revision that is guaranteed to be at least as fresh as
 // right now.
 func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	return datastore.NoRevision, fmt.Errorf(errNotImplemented)
+	ctx, span := tracer.Start(ctx, "HeadRevision")
+	defer span.End()
+
+	revision, err := mds.loadRevision(ctx)
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+
+	return revisionFromTransaction(revision), nil
 }
 
 // Watch notifies the caller about all changes to tuples.
@@ -99,30 +113,46 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	return nil, nil
 }
 
-// WriteNamespace takes a proto namespace definition and persists it,
-// returning the version of the namespace that was created.
-func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
-	return datastore.NoRevision, fmt.Errorf(errNotImplemented)
-}
-
-// ReadNamespace reads a namespace definition and version and returns it, and the revision at
-// which it was created or last written, if found.
-func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (ns *v0.NamespaceDefinition, lastWritten datastore.Revision, err error) {
-	return nil, datastore.NoRevision, fmt.Errorf(errNotImplemented)
-}
-
-// DeleteNamespace deletes a namespace and any associated tuples.
-func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
-	return datastore.NoRevision, fmt.Errorf(errNotImplemented)
-}
-
-// ListNamespaces lists all namespaces defined.
-func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
-	return nil, fmt.Errorf(errNotImplemented)
-}
-
 // CheckRevision checks the specified revision to make sure it's valid and
 // hasn't been garbage collected.
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	return fmt.Errorf(errNotImplemented)
+}
+
+func revisionFromTransaction(txID uint64) datastore.Revision {
+	return decimal.NewFromInt(int64(txID))
+}
+
+func transactionFromRevision(revision datastore.Revision) uint64 {
+	return uint64(revision.IntPart())
+}
+
+func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {
+	return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+		Where(sq.Or{
+			sq.Eq{colDeletedTxn: liveDeletedTxnID},
+			sq.Gt{colDeletedTxn: revision},
+		})
+}
+
+func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
+	ctx, span := tracer.Start(ctx, "loadRevision")
+	defer span.End()
+
+	query, args, err := getRevision.ToSql()
+	if err != nil {
+		return 0, fmt.Errorf(errRevision, err)
+	}
+
+	var revision uint64
+	err = mds.db.QueryRowxContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf(errRevision, err)
+	}
+	fmt.Println("got revision", revision)
+
+	return revision, nil
 }
