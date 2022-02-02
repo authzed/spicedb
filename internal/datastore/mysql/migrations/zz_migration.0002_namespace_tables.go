@@ -6,7 +6,8 @@ const createNamespaceConfig = `CREATE TABLE namespace_config (
 	serialized_config BLOB NOT NULL,
 	created_transaction BIGINT NOT NULL,
 	deleted_transaction BIGINT NOT NULL DEFAULT '9223372036854775807',
-	CONSTRAINT pk_namespace_config PRIMARY KEY (namespace, created_transaction)
+	CONSTRAINT pk_namespace_config PRIMARY KEY (namespace, created_transaction),
+	CONSTRAINT uq_namespace_living UNIQUE (namespace, deleted_transaction)
 );`
 
 // relationship max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L33
@@ -23,8 +24,7 @@ const createRelationTuple = `CREATE TABLE relation_tuple (
 		deleted_transaction BIGINT NOT NULL DEFAULT '9223372036854775807',
 		PRIMARY KEY (id),
 		CONSTRAINT uq_relation_tuple_namespace UNIQUE (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation, created_transaction, deleted_transaction),
-		CONSTRAINT uq_relation_tuple_living UNIQUE (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation, deleted_transaction),
-		CONSTRAINT uq_namespace_living UNIQUE (namespace, deleted_transaction)
+		CONSTRAINT uq_relation_tuple_living UNIQUE (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation, deleted_transaction)
 	);`
 
 const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction (
@@ -33,12 +33,15 @@ const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction 
 		PRIMARY KEY (id)
 );`
 
+const insertFirstTransaction = "INSERT INTO relation_tuple_transaction VALUES();"
+
 func init() {
 	err := Manager.Register("namespace-tables", "initial",
 		newExecutor(
 			createNamespaceConfig,
 			createRelationTuple,
 			createRelationTupleTransaction,
+			insertFirstTransaction,
 		).migrate,
 	)
 	if err != nil {

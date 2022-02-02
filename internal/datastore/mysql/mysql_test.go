@@ -30,6 +30,23 @@ type sqlTest struct {
 	cleanup    func()
 }
 
+func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	sqlTester := newTester(mysqlContainer, creds, 3306)
+	defer sqlTester.cleanup()
+
+	migrationDriver, err := createMigrationDriver(sqlTester.connectStr)
+	if err != nil {
+		panic(err)
+	}
+
+	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	if err != nil {
+		panic(err)
+	}
+
+	return NewMysqlDatastore(sqlTester.connectStr)
+}
+
 var mysqlContainer = &dockertest.RunOptions{
 	Repository: "mysql",
 	Tag:        "latest",
@@ -46,10 +63,12 @@ func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
 }
 
 func TestMysqlDatastore(t *testing.T) {
-	tester := newTester(mysqlContainer, "root:secret", 3306)
+	tester := newTester(mysqlContainer, creds, 3306)
 	defer tester.cleanup()
 
 	t.Run("TestSimple", func(t *testing.T) { test.SimpleTest(t, tester) })
+	t.Run("TestNamespaceWrite", func(t *testing.T) { test.NamespaceWriteTest(t, tester) })
+	t.Run("TestNamespaceDelete", func(t *testing.T) { test.NamespaceDeleteTest(t, tester) }) // requires tuples
 }
 
 func TestMySQLMigrations(t *testing.T) {
@@ -132,21 +151,4 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		connectStr: connectStr,
 		cleanup:    cleanup,
 	}
-}
-
-func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	sqlTester := newTester(mysqlContainer, creds, 3306)
-	defer sqlTester.cleanup()
-
-	migrationDriver, err := createMigrationDriver(sqlTester.connectStr)
-	if err != nil {
-		panic(err)
-	}
-
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
-	if err != nil {
-		panic(err)
-	}
-
-	return NewMysqlDatastore(sqlTester.connectStr)
 }

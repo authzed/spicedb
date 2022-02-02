@@ -16,11 +16,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
-const (
-	// This is the largest positive integer possible in postgresql
-	liveDeletedTxnID = uint64(9223372036854775807)
-)
-
 var (
 	writeTuple = sb.Insert(common.TableTuple).Columns(
 		common.ColNamespace,
