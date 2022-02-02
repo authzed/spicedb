@@ -97,7 +97,7 @@ func setupDatabase() string {
 }
 
 func TestMain(m *testing.M) {
-	var mysqlContainerRunOpts = &dockertest.RunOptions{
+	mysqlContainerRunOpts := &dockertest.RunOptions{
 		Repository: "mysql",
 		Tag:        "latest",
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
