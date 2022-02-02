@@ -50,10 +50,10 @@ func (mds *mysqlDatastore) QueryTuples(
 
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
-	ctq := common.TupleQuerySplitter{
-		Conn:                      pgd.dbpool,
+	ctq := common.GeneralTupleQuerySplitter{
+		dbConn:                    mds.dbConnectionWrapper,
 		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
+		SplitAtEstimatedQuerySize: 0,
 
 		FilteredQueryBuilder: qBuilder,
 		Revision:             revision,

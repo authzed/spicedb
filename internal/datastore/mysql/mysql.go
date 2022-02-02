@@ -70,6 +70,10 @@ func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, er
 	return uint64(lastInsertId), nil
 }
 
+func (mds *mysqlDatastore) dbConnectionWrapper() *mysqlDbConnection {
+	return &mysqlDbConnection{db: mds.db}
+}
+
 // IsReady returns whether the datastore is ready to accept data. Datastores that require
 // database schema creation will return false until the migrations have been run to create
 // the necessary tables.

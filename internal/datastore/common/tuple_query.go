@@ -16,9 +16,8 @@ import (
 
 // GeneralTupleQuerySplitter is a tuple query runner shared by SQL implementations of the datastore.
 type GeneralTupleQuerySplitter struct {
-	//TODO(chriskirkland): try to abstract this into some kind of `Transacter`/`TransactionBeginner` interface
-	// that can wrap the concrete psql + mysql transaction types.
 	Conn                      *pgxpool.Pool
+	dbConn                    *DbConnection
 	PrepareTransaction        TransactionPreparer
 	SplitAtEstimatedQuerySize units.Base2Bytes
 
