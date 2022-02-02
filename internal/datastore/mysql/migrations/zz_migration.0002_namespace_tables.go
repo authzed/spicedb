@@ -33,12 +33,15 @@ const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction 
 		PRIMARY KEY (id)
 );`
 
+const insertFirstTransaction = "INSERT INTO relation_tuple_transaction VALUES();"
+
 func init() {
 	err := Manager.Register("namespace-tables", "initial",
 		newExecutor(
 			createNamespaceConfig,
 			createRelationTuple,
 			createRelationTupleTransaction,
+			insertFirstTransaction,
 		).migrate,
 	)
 	if err != nil {
