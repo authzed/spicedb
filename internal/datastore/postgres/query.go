@@ -52,7 +52,7 @@ func (pgd *pgDatastore) QueryTuples(
 
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
-	ctq := common.GeneralTupleQuerySplitter{
+	ctq := common.TupleQuerySplitter{
 		TransactionBeginner:       rdb.NewPostgresTransactionBeginner(pgd.dbpool),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
@@ -86,7 +86,7 @@ func (pgd *pgDatastore) ReverseQueryTuples(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	ctq := common.GeneralTupleQuerySplitter{
+	ctq := common.TupleQuerySplitter{
 		TransactionBeginner:       rdb.NewPostgresTransactionBeginner(pgd.dbpool),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,

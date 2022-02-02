@@ -57,7 +57,7 @@ func (cds *crdbDatastore) QueryTuples(
 
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
-	ctq := common.GeneralTupleQuerySplitter{
+	ctq := common.TupleQuerySplitter{
 		TransactionBeginner:       rdb.NewPostgresTransactionBeginner(cds.conn),
 		PrepareTransaction:        prepareTransaction,
 		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
@@ -91,7 +91,7 @@ func (cds *crdbDatastore) ReverseQueryTuples(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	ctq := common.GeneralTupleQuerySplitter{
+	ctq := common.TupleQuerySplitter{
 		TransactionBeginner:       rdb.NewPostgresTransactionBeginner(cds.conn),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,

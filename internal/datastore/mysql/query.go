@@ -51,7 +51,7 @@ func (mds *mysqlDatastore) QueryTuples(
 
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
-	ctq := common.GeneralTupleQuerySplitter{
+	ctq := common.TupleQuerySplitter{
 		TransactionBeginner:       rdb.NewMysqlTransactionBeginner(mds.db),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: 0,
@@ -85,7 +85,7 @@ func (mds *mysqlDatastore) ReverseQueryTuples(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	ctq := common.GeneralTupleQuerySplitter{
+	ctq := common.TupleQuerySplitter{
 		TransactionBeginner:       rdb.NewMysqlTransactionBeginner(mds.db),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: 0,
