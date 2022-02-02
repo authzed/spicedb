@@ -32,7 +32,6 @@ type sqlTest struct {
 
 func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 	sqlTester := newTester(mysqlContainer, creds, 3306)
-	defer sqlTester.cleanup()
 
 	migrationDriver, err := createMigrationDriver(sqlTester.connectStr)
 	if err != nil {
