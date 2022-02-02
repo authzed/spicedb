@@ -18,13 +18,13 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-var (
+const (
+	mysqlPort    = 3306
 	testDBPrefix = "spicedb_test"
 	creds        = "root:secret"
-
-	mysqlPort     = 3306
-	containerPort string
 )
+
+var containerPort string
 
 type sqlTest struct {
 	connectStr string
