@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 	"testing"
 
 	"github.com/ory/dockertest/v3"
@@ -23,9 +22,10 @@ var (
 	testDBPrefix = "spicedb_test"
 	creds        = "root:secret"
 
-	once              sync.Once
 	containerResource *dockertest.Resource
 	containerCleanup  func()
+	mysqlPort         = 3306
+	containerPort     string
 )
 
 type sqlTest struct {
@@ -50,7 +50,7 @@ func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
 func TestMySQLMigrations(t *testing.T) {
 	req := require.New(t)
 
-	connectStr := setupDatabase(mysqlContainer, creds, 3306)
+	connectStr := setupDatabase(mysqlContainer, creds)
 
 	migrationDriver, err := createMigrationDriver(connectStr)
 	req.NoError(err)
@@ -70,47 +70,19 @@ func TestMySQLMigrations(t *testing.T) {
 	req.Equal(headVersion, version)
 }
 
-func setupDatabase(containerOpts *dockertest.RunOptions, creds string, portNum uint16) string {
-	pool, err := dockertest.NewPool("")
-	if err != nil {
-		log.Fatalf("Could not connect to docker: %s", err)
-	}
-
-	// only bring up the container once
-	once.Do(func() {
-		containerResource, err = pool.RunWithOptions(containerOpts)
-		if err != nil {
-			log.Fatalf("Could not start resource: %s", err)
-		}
-
-		containerCleanup = func() {
-			// When you're done, kill and remove the container
-			if err := pool.Purge(containerResource); err != nil {
-				log.Fatalf("Could not purge resource: %s", err)
-			}
-		}
-	})
-
+func setupDatabase(containerOpts *dockertest.RunOptions, creds string) string {
 	var db *sql.DB
-	port := containerResource.GetPort(fmt.Sprintf("%d/tcp", portNum))
-	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql", creds, port)
-	db, err = sql.Open("mysql", connectStr)
+	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql", creds, containerPort)
+	db, err := sql.Open("mysql", connectStr)
 	if err != nil {
 		log.Fatalf("couldn't open DB: %s", err)
 	}
-	defer db.Close() // we do not want this connection to stay open
-
-	err = pool.Retry(func() error {
-		var err error
-		err = db.Ping()
+	defer func() {
+		err := db.Close() // we do not want this connection to stay open
 		if err != nil {
-			return fmt.Errorf("couldn't validate docker/mysql readiness: %w", err)
+			log.Fatalf("failed to close db: %s", err)
 		}
-		return nil
-	})
-	if err != nil {
-		log.Fatalf("mysql database error: %v", err)
-	}
+	}()
 
 	uniquePortion, err := secrets.TokenHex(4)
 	if err != nil {
@@ -123,17 +95,68 @@ func setupDatabase(containerOpts *dockertest.RunOptions, creds string, portNum u
 	if err != nil {
 		log.Fatalf("failed to create database: %s: %s", dbName, err)
 	}
-	tx.Commit()
 
-	connectStr = fmt.Sprintf("%s@(localhost:%s)/%s", creds, port, dbName)
-	return connectStr
+	err = tx.Commit()
+	if err != nil {
+		log.Fatalf("failed to commit: %s", err)
+	}
+
+	return fmt.Sprintf("%s@(localhost:%s)/%s", creds, containerPort, dbName)
 }
 
 func TestMain(m *testing.M) {
-	exitStatus := m.Run()
-	// clean up container
-	if containerResource != nil && containerCleanup != nil {
-		containerCleanup()
+	pool, err := dockertest.NewPool("")
+	if err != nil {
+		fmt.Printf("could not connect to docker: %s\n", err)
+		os.Exit(1)
 	}
-	os.Exit(exitStatus)
+
+	// only bring up the container once
+	containerResource, err := pool.RunWithOptions(mysqlContainer)
+	if err != nil {
+		fmt.Printf("could not start resource: %s\n", err)
+		os.Exit(1)
+	}
+
+	containerCleanup = func() {
+		// When you're done, kill and remove the container
+		if err := pool.Purge(containerResource); err != nil {
+			fmt.Printf("could not purge resource: %s\n", err)
+			os.Exit(1)
+		}
+	}
+	defer containerCleanup()
+
+	containerPort = containerResource.GetPort(fmt.Sprintf("%d/tcp", mysqlPort))
+	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql", creds, containerPort)
+
+	db, err := sql.Open("mysql", connectStr)
+	if err != nil {
+		fmt.Printf("failed to open db: %s\n", err)
+		os.Exit(1)
+	}
+
+	defer func() {
+		err := db.Close() // we do not want this connection to stay open
+		if err != nil {
+			fmt.Printf("failed  to close db: %s\n", err)
+			os.Exit(1)
+		}
+	}()
+
+	err = pool.Retry(func() error {
+		var err error
+		err = db.Ping()
+		if err != nil {
+			return fmt.Errorf("couldn't validate docker/mysql readiness: %w", err)
+		}
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("mysql database error: %s\n", err)
+		os.Exit(1)
+	}
+
+	os.Exit(m.Run())
 }
