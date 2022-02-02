@@ -51,7 +51,7 @@ func (mds *mysqlDatastore) QueryTuples(
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
 	ctq := common.GeneralTupleQuerySplitter{
-		dbConn:                    mds.dbConnectionWrapper,
+		DbConn:                    mds.dbConnectionWrapper,
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: 0,
 
@@ -84,10 +84,10 @@ func (mds *mysqlDatastore) ReverseQueryTuples(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	ctq := common.TupleQuerySplitter{
-		Conn:                      pgd.dbpool,
+	ctq := common.GeneralTupleQuerySplitter{
+		DbConn:                    mds.dbConnectionWrapper,
 		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
+		SplitAtEstimatedQuerySize: 0,
 
 		FilteredQueryBuilder: qBuilder,
 		Revision:             revision,

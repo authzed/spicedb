@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -10,7 +11,7 @@ type mysqlTransaction struct {
 	tx *sqlx.Tx
 }
 
-func (mysqlTx *mysqlTransaction) Query(ctx context.Context, sql string, args ...interface{}) (*mysqlDbRows, error) {
+func (mysqlTx *mysqlTransaction) Query(ctx context.Context, sql string, args ...interface{}) (common.DbRows, error) {
 	rows, err := mysqlTx.tx.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -20,5 +21,5 @@ func (mysqlTx *mysqlTransaction) Query(ctx context.Context, sql string, args ...
 }
 
 func (mysqlTx *mysqlTransaction) Rollback(ctx context.Context) error {
-	return mysqlTx.Rollback(ctx)
+	return mysqlTx.tx.Rollback()
 }
