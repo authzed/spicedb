@@ -8,6 +8,7 @@ type TransactionBeginner interface {
 
 type Transaction interface {
 	Query(ctx context.Context, query string, args ...interface{}) (Rows, error)
+	Exec(ctx context.Context, stmt string, args ...interface{}) error
 	Rollback(ctx context.Context) error
 	Commit(ctx context.Context) error
 }

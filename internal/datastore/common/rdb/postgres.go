@@ -21,7 +21,11 @@ func (ptb *postgresTransactionBeginner) BeginTransaction(ctx context.Context, re
 		opts.AccessMode = pgx.ReadOnly
 	}
 	tx, err := ptb.pool.BeginTx(ctx, opts)
-	return &postgresTransaction{tx}, err
+	return NewPostgresTransaction(tx), err
+}
+
+func NewPostgresTransaction(tx pgx.Tx) Transaction {
+	return &postgresTransaction{tx}
 }
 
 type postgresTransaction struct {
@@ -32,4 +36,9 @@ type postgresTransaction struct {
 // interface, even though it satisfies it.
 func (pt *postgresTransaction) Query(ctx context.Context, query string, args ...interface{}) (Rows, error) {
 	return pt.Tx.Query(ctx, query, args...)
+}
+
+func (pt *postgresTransaction) Exec(ctx context.Context, stmt string, args ...interface{}) error {
+	_, err := pt.Tx.Exec(ctx, stmt, args...)
+	return err
 }

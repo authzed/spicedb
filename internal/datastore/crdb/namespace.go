@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common/rdb"
 )
 
 const (
@@ -83,7 +84,7 @@ func (cds *crdbDatastore) ReadNamespace(
 	}
 	defer tx.Rollback(ctx)
 
-	if err := prepareTransaction(ctx, tx, revision); err != nil {
+	if err := prepareTransaction(ctx, rdb.NewPostgresTransaction(tx), revision); err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
@@ -179,7 +180,7 @@ func (cds *crdbDatastore) ListNamespaces(ctx context.Context, revision datastore
 	}
 	defer tx.Rollback(ctx)
 
-	if err := prepareTransaction(ctx, tx, revision); err != nil {
+	if err := prepareTransaction(ctx, rdb.NewPostgresTransaction(tx), revision); err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 

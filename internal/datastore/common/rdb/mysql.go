@@ -41,6 +41,11 @@ func (mt *mysqlTransaction) Query(ctx context.Context, query string, args ...int
 	return &mysqlRows{rows}, err
 }
 
+func (mt *mysqlTransaction) Exec(ctx context.Context, query string, args ...interface{}) error {
+	_, err := mt.tx.ExecContext(ctx, query, args...)
+	return err
+}
+
 type mysqlRows struct {
 	*sql.Rows
 }
