@@ -23,7 +23,6 @@ var (
 	creds        = "root:secret"
 
 	containerResource *dockertest.Resource
-	containerCleanup  func()
 	mysqlPort         = 3306
 	containerPort     string
 )
@@ -118,7 +117,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	containerCleanup = func() {
+	containerCleanup := func() {
 		// When you're done, kill and remove the container
 		if err := pool.Purge(containerResource); err != nil {
 			fmt.Printf("could not purge resource: %s\n", err)
