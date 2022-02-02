@@ -33,7 +33,7 @@ func (mt *mysqlTransaction) Commit(_ context.Context) error {
 }
 
 func (mt *mysqlTransaction) Query(ctx context.Context, query string, args ...interface{}) (Rows, error) {
-	rows, err := mt.tx.QueryContext(ctx, query, args...)
+	rows, err := mt.tx.QueryContext(ctx, query, args...) // nolint
 	return &mysqlRows{rows}, err
 }
 
