@@ -70,8 +70,7 @@ func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, er
 // database schema creation will return false until the migrations have been run to create
 // the necessary tables.
 func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
-	err := mds.db.PingContext(ctx)
-	if err != nil {
+	if err := mds.db.PingContext(ctx); err != nil {
 		return false, err
 	}
 	return true, nil
