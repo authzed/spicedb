@@ -1,8 +1,7 @@
-package v0
+package v0_test
 
 import (
 	"context"
-	"net"
 	"testing"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -10,14 +9,12 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testserver"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -25,29 +22,11 @@ import (
 func TestNamespace(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-	defer ds.Close()
-
-	lis := bufconn.Listen(1024 * 1024)
-	s := testfixtures.NewTestServer(ds)
-	v0.RegisterNamespaceServiceServer(s, NewNamespaceServer(ds))
-	go func() {
-		if err := s.Serve(lis); err != nil {
-			panic("failed to shutdown cleanly: " + err.Error())
-		}
-	}()
-	defer func() {
-		s.Stop()
-		lis.Close()
-	}()
-	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(err)
+	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+	t.Cleanup(cleanup)
 	nsClient := v0.NewNamespaceServiceClient(conn)
 
-	_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+	_, err := nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
 	})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
@@ -117,7 +96,7 @@ func TestNamespaceChanged(t *testing.T) {
 				"folder",
 				ns.Relation("anotherrel",
 					nil,
-					ns.AllowedRelation("folder", "..."),
+					ns.AllowedRelation("folder", "viewer"),
 				),
 				ns.Relation("viewer",
 					nil,
@@ -198,29 +177,11 @@ func TestNamespaceChanged(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-			require.NoError(err)
-			defer ds.Close()
-
-			lis := bufconn.Listen(1024 * 1024)
-			s := testfixtures.NewTestServer(ds)
-			v0.RegisterNamespaceServiceServer(s, NewNamespaceServer(ds))
-			go func() {
-				if err := s.Serve(lis); err != nil {
-					panic("failed to shutdown cleanly: " + err.Error())
-				}
-			}()
-			defer func() {
-				s.Stop()
-				lis.Close()
-			}()
-			conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-				return lis.Dial()
-			}), grpc.WithTransportCredentials(insecure.NewCredentials()))
-			require.NoError(err)
+			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+			t.Cleanup(cleanup)
 			nsClient := v0.NewNamespaceServiceClient(conn)
 
-			_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+			_, err := nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 				Namespace: testfixtures.DocumentNS.Name,
 			})
 			grpcutil.RequireStatus(t, codes.NotFound, err)
@@ -239,7 +200,10 @@ func TestNamespaceChanged(t *testing.T) {
 				})
 			}
 
-			_, err = ds.WriteTuples(context.Background(), nil, updates)
+			_, err = v1.NewPermissionsServiceClient(conn).WriteRelationships(
+				context.Background(),
+				&v1.WriteRelationshipsRequest{Updates: updates},
+			)
 			require.NoError(err)
 
 			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
@@ -315,29 +279,11 @@ func TestDeleteNamespace(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-			require.NoError(err)
-			defer ds.Close()
-
-			lis := bufconn.Listen(1024 * 1024)
-			s := testfixtures.NewTestServer(ds)
-			v0.RegisterNamespaceServiceServer(s, NewNamespaceServer(ds))
-			go func() {
-				if err := s.Serve(lis); err != nil {
-					panic("failed to shutdown cleanly: " + err.Error())
-				}
-			}()
-			defer func() {
-				s.Stop()
-				lis.Close()
-			}()
-			conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-				return lis.Dial()
-			}), grpc.WithTransportCredentials(insecure.NewCredentials()))
-			require.NoError(err)
+			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+			t.Cleanup(cleanup)
 			nsClient := v0.NewNamespaceServiceClient(conn)
 
-			_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+			_, err := nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 				Namespace: testfixtures.DocumentNS.Name,
 			})
 			grpcutil.RequireStatus(t, codes.NotFound, err)
@@ -353,7 +299,7 @@ func TestDeleteNamespace(t *testing.T) {
 				updates = append(updates, tuple.UpdateToRelationshipUpdate(tuple.Create(tpl)))
 			}
 
-			_, err = ds.WriteTuples(context.Background(), nil, updates)
+			_, err = v1.NewPermissionsServiceClient(conn).WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{Updates: updates})
 			require.NoError(err)
 
 			_, err = nsClient.DeleteConfigs(context.Background(), &v0.DeleteConfigsRequest{

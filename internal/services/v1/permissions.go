@@ -107,7 +107,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 	// TODO(jschorr): Change to either using shared interfaces for nodes, or switch the internal
 	// dispatched expand to return V1 node types.
 	return &v1.ExpandPermissionTreeResponse{
-		TreeRoot:   translateExpansionTree(resp.TreeNode),
+		TreeRoot:   TranslateExpansionTree(resp.TreeNode),
 		ExpandedAt: expandedAt,
 	}, nil
 }
@@ -178,7 +178,7 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 	}
 }
 
-func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelationshipTree {
+func TranslateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelationshipTree {
 	switch t := node.NodeType.(type) {
 	case *v0.RelationTupleTreeNode_IntermediateNode:
 		var operation v1.AlgebraicSubjectSet_Operation
@@ -195,7 +195,7 @@ func translateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelati
 
 		var children []*v1.PermissionRelationshipTree
 		for _, child := range node.GetIntermediateNode().ChildNodes {
-			children = append(children, translateExpansionTree(child))
+			children = append(children, TranslateExpansionTree(child))
 		}
 
 		var objRef *v1.ObjectReference

@@ -1,65 +1,26 @@
-package v1alpha1
+package v1alpha1_test
 
 import (
 	"context"
-	"net"
 	"testing"
-	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/dispatch/graph"
-	"github.com/authzed/spicedb/internal/namespace"
-	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testserver"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func newSchemaServicer(t testing.TB, prefixRequired PrefixRequiredOption) (v1alpha1.SchemaServiceClient, v0.NamespaceServiceClient, v0.ACLServiceClient, func()) {
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(t, err)
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
-	require.NoError(t, err)
-	dispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
-
-	lis := bufconn.Listen(1024 * 1024)
-	s := testfixtures.NewTestServer(ds)
-	v1alpha1.RegisterSchemaServiceServer(s, NewSchemaServer(ds, prefixRequired))
-	v0.RegisterNamespaceServiceServer(s, v0svc.NewNamespaceServer(ds))
-	v0.RegisterACLServiceServer(s, v0svc.NewACLServer(ds, nsm, dispatch, 50))
-	go func() {
-		if err := s.Serve(lis); err != nil {
-			panic("failed to shutdown cleanly: " + err.Error())
-		}
-	}()
-
-	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
-
-	return v1alpha1.NewSchemaServiceClient(conn),
-		v0.NewNamespaceServiceClient(conn),
-		v0.NewACLServiceClient(conn),
-		func() {
-			require.NoError(t, conn.Close())
-			s.Stop()
-			require.NoError(t, lis.Close())
-		}
-}
-
 func TestSchemaReadNoPrefix(t *testing.T) {
-	client, _, _, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
 
 	_, err := client.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
 		ObjectDefinitionsNames: []string{"user"},
@@ -68,8 +29,9 @@ func TestSchemaReadNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteNoPrefix(t *testing.T) {
-	client, _, _, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
 
 	_, err := client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
 		Schema: `define user {}`,
@@ -78,8 +40,9 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteNoPrefixNotRequired(t *testing.T) {
-	client, _, _, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
 
 	resp, err := client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
 		Schema: `definition user {}`,
@@ -92,8 +55,9 @@ func TestSchemaWriteNoPrefixNotRequired(t *testing.T) {
 }
 
 func TestSchemaReadInvalidName(t *testing.T) {
-	client, _, _, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
 
 	_, err := client.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
 		ObjectDefinitionsNames: []string{"誤り"},
@@ -102,8 +66,9 @@ func TestSchemaReadInvalidName(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidSchema(t *testing.T) {
-	client, _, _, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
 
 	_, err := client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
 		Schema: `invalid example/user {}`,
@@ -117,8 +82,9 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 }
 
 func TestSchemaWriteAndReadBack(t *testing.T) {
-	client, _, _, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
 
 	requestedObjectDefNames := []string{"example/user"}
 
@@ -157,8 +123,10 @@ func TestSchemaReadUpgradeInvalid(t *testing.T) {
 }
 
 func upgrade(t *testing.T, nsdefs []*v0.NamespaceDefinition) (*v1alpha1.ReadSchemaResponse, error) {
-	client, v0client, _, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
+	v0client := v0.NewNamespaceServiceClient(conn)
 
 	_, err := v0client.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 		Configs: nsdefs,
@@ -176,8 +144,10 @@ func upgrade(t *testing.T, nsdefs []*v0.NamespaceDefinition) (*v1alpha1.ReadSche
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {
-	client, _, v0client, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
+	v0client := v0.NewACLServiceClient(conn)
 
 	// Write a basic schema.
 	_, err := client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
@@ -240,8 +210,9 @@ func TestSchemaDeleteRelation(t *testing.T) {
 }
 
 func TestSchemaReadUpdateAndFailWrite(t *testing.T) {
-	client, _, _, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
 
 	requestedObjectDefNames := []string{"example/user"}
 
@@ -293,8 +264,10 @@ func TestSchemaReadUpdateAndFailWrite(t *testing.T) {
 }
 
 func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
-	client, v0client, _, cleanup := newSchemaServicer(t, PrefixNotRequired)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
+	v0client := v0.NewNamespaceServiceClient(conn)
 
 	requestedObjectDefNames := []string{"example/user"}
 

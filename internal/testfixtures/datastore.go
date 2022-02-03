@@ -98,6 +98,12 @@ var StandardTuples = []string{
 	"document:specialplan#viewer_and_editor@user:missingrolegal#...",
 }
 
+func EmptyDatastore(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+	rev, err := ds.HeadRevision(context.Background())
+	require.NoError(err)
+	return ds, rev
+}
+
 func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	ctx := context.Background()
 	validating := NewValidatingDatastore(ds)
