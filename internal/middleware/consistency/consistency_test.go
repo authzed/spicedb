@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -191,8 +192,14 @@ func TestConsistencyTestSuite(t *testing.T) {
 	s := &ConsistencyTestSuite{
 		InterceptorTestSuite: &grpc_testing.InterceptorTestSuite{
 			ServerOpts: []grpc.ServerOption{
-				grpc.StreamInterceptor(StreamServerInterceptor(ds)),
-				grpc.UnaryInterceptor(UnaryServerInterceptor(ds)),
+				grpc.ChainStreamInterceptor(
+					datastoremw.StreamServerInterceptor(ds),
+					StreamServerInterceptor(),
+				),
+				grpc.ChainUnaryInterceptor(
+					datastoremw.UnaryServerInterceptor(ds),
+					UnaryServerInterceptor(),
+				),
 			},
 		},
 	}

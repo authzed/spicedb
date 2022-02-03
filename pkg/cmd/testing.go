@@ -34,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
@@ -214,8 +215,16 @@ func (ptbm *perTokenBackendMiddleware) createUpstream() (*upstream, error) {
 		dispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
 
 		grpcServer := grpc.NewServer(
-			grpc.ChainUnaryInterceptor(consistency.UnaryServerInterceptor(ds), servicespecific.UnaryServerInterceptor),
-			grpc.ChainStreamInterceptor(consistency.StreamServerInterceptor(ds), servicespecific.StreamServerInterceptor),
+			grpc.ChainUnaryInterceptor(
+				datastoremw.UnaryServerInterceptor(ds),
+				consistency.UnaryServerInterceptor(),
+				servicespecific.UnaryServerInterceptor,
+			),
+			grpc.ChainStreamInterceptor(
+				datastoremw.StreamServerInterceptor(ds),
+				consistency.StreamServerInterceptor(),
+				servicespecific.StreamServerInterceptor,
+			),
 		)
 
 		services.RegisterGrpcServices(

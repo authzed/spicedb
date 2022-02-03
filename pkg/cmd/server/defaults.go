@@ -75,7 +75,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, dispat
 			grpcprom.UnaryServerInterceptor,
 			dispatchmw.UnaryServerInterceptor(dispatcher),
 			datastoremw.UnaryServerInterceptor(ds),
-			consistencymw.UnaryServerInterceptor(ds),
+			consistencymw.UnaryServerInterceptor(),
 			servicespecific.UnaryServerInterceptor,
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
@@ -86,7 +86,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, dispat
 			grpcprom.StreamServerInterceptor,
 			dispatchmw.StreamServerInterceptor(dispatcher),
 			datastoremw.StreamServerInterceptor(ds),
-			consistencymw.StreamServerInterceptor(ds),
+			consistencymw.StreamServerInterceptor(),
 			servicespecific.StreamServerInterceptor,
 		}
 }

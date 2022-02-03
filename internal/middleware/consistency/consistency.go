@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 	"github.com/authzed/spicedb/pkg/zookie"
@@ -186,13 +187,14 @@ var bypassServiceWhitelist = map[string]struct{}{
 
 // UnaryServerInterceptor returns a new unary server interceptor that performs per-request exchange of
 // the specified consistency configuration for the revision at which to perform the request.
-func UnaryServerInterceptor(ds datastore.Datastore) grpc.UnaryServerInterceptor {
+func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
 				return handler(ctx, req)
 			}
 		}
+		ds := datastoremw.MustFromContext(ctx)
 		newCtx := ContextWithHandle(ctx)
 		if err := AddRevisionToContext(newCtx, req, ds); err != nil {
 			return nil, err
@@ -204,21 +206,20 @@ func UnaryServerInterceptor(ds datastore.Datastore) grpc.UnaryServerInterceptor 
 
 // StreamServerInterceptor returns a new stream server interceptor that performs per-request exchange of
 // the specified consistency configuration for the revision at which to perform the request.
-func StreamServerInterceptor(ds datastore.Datastore) grpc.StreamServerInterceptor {
+func StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
 				return handler(srv, stream)
 			}
 		}
-		wrapper := &recvWrapper{stream, ds, ContextWithHandle(stream.Context())}
+		wrapper := &recvWrapper{stream, ContextWithHandle(stream.Context())}
 		return handler(srv, wrapper)
 	}
 }
 
 type recvWrapper struct {
 	grpc.ServerStream
-	ds  datastore.Datastore
 	ctx context.Context
 }
 
@@ -230,8 +231,9 @@ func (s *recvWrapper) RecvMsg(m interface{}) error {
 	if err := s.ServerStream.RecvMsg(m); err != nil {
 		return err
 	}
+	ds := datastoremw.MustFromContext(s.ctx)
 
-	if err := AddRevisionToContext(s.ctx, m, s.ds); err != nil {
+	if err := AddRevisionToContext(s.ctx, m, ds); err != nil {
 		return err
 	}
 
