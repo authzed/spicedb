@@ -19,7 +19,10 @@ type mysqlTransactionBeginner struct {
 
 func (mtb *mysqlTransactionBeginner) BeginTransaction(ctx context.Context, readOnly bool) (Transaction, error) {
 	tx, err := mtb.db.BeginTxx(ctx, &sql.TxOptions{ReadOnly: readOnly})
-	return &mysqlTransaction{tx}, err
+        if err != nil {
+          return nil, err
+        }
+	return &mysqlTransaction{tx}, nil
 }
 
 type mysqlTransaction struct {
@@ -36,7 +39,10 @@ func (mt *mysqlTransaction) Commit(_ context.Context) error {
 
 func (mt *mysqlTransaction) Query(ctx context.Context, query string, args ...interface{}) (Rows, error) {
 	rows, err := mt.tx.QueryContext(ctx, query, args...) // nolint
-	return &mysqlRows{rows}, err
+        if err != nil {
+          return nil, err
+        }
+	return &mysqlRows{rows}, nil
 }
 
 func (mt *mysqlTransaction) Exec(ctx context.Context, query string, args ...interface{}) error {
