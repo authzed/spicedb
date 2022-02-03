@@ -21,10 +21,16 @@ import (
 
 type engineBuilderFunc func(options Config) (datastore.Datastore, error)
 
+const (
+	MemoryEngine    = "memory"
+	PostgresEngine  = "postgres"
+	CockroachEngine = "cockroachdb"
+)
+
 var builderForEngine = map[string]engineBuilderFunc{
-	"cockroachdb": newCRDBDatastore,
-	"postgres":    newPostgresDatastore,
-	"memory":      newMemoryDatstore,
+	CockroachEngine: newCRDBDatastore,
+	PostgresEngine:  newPostgresDatastore,
+	MemoryEngine:    newMemoryDatstore,
 }
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config

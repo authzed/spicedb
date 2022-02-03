@@ -23,7 +23,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	}
 
 	// Flags for the datastore
-	datastore.RegisterDatastoreFlags(cmd, &config.Datastore)
+	datastore.RegisterDatastoreFlags(cmd, &config.DatastoreConfig)
 
 	// Flags for the namespace manager
 	cmd.Flags().DurationVar(&config.NamespaceCacheExpiration, "ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")

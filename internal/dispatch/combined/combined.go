@@ -36,7 +36,7 @@ func UpstreamAddr(addr string) Option {
 	}
 }
 
-// UpstreamAddr sets the optional cluster dispatching upstream certificate
+// UpstreamCAPath sets the optional cluster dispatching upstream certificate
 // authority.
 func UpstreamCAPath(path string) Option {
 	return func(state *optionState) {
