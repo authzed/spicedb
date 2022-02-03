@@ -37,17 +37,28 @@ var (
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 )
 
-func NewMysqlDatastore(url string) (datastore.Datastore, error) {
+func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, error) {
+	config, err := generateConfig(options)
+	if err != nil {
+		return nil, fmt.Errorf(common.ErrUnableToInstantiate, err)
+	}
+
 	db, err := sqlx.Open("mysql", url)
 	if err != nil {
 		return nil, fmt.Errorf("NewMysqlDatastore: failed to open database: %w", err)
 	}
 
-	return &mysqlDatastore{db}, nil
+	datastore := &mysqlDatastore{
+		db:                db,
+		watchBufferLength: config.watchBufferLength,
+	}
+
+	return datastore, nil
 }
 
 type mysqlDatastore struct {
-	db *sqlx.DB
+	db                *sqlx.DB
+	watchBufferLength uint16
 }
 
 // Close closes the data store.
@@ -121,13 +132,6 @@ func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	}
 
 	return common.RevisionFromTransaction(revision), nil
-}
-
-// Watch notifies the caller about all changes to tuples.
-//
-// All events following afterRevision will be sent to the caller.
-func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	return nil, nil
 }
 
 // CheckRevision checks the specified revision to make sure it's valid and
