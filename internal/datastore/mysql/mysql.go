@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v4"
 	"github.com/jmoiron/sqlx"
 	"go.opentelemetry.io/otel"
 
@@ -25,8 +28,11 @@ const (
 )
 
 var (
-	tracer      = otel.Tracer("spicedb/internal/datastore/mysql")
-	getRevision = sb.Select("MAX(id)").From(common.TableTransaction)
+	tracer           = otel.Tracer("spicedb/internal/datastore/mysql")
+	getRevision      = sb.Select("MAX(id)").From(common.TableTransaction)
+	getRevisionRange = sb.Select("MIN(id)", "MAX(id)").From(common.TableTransaction)
+
+	getNow = sb.Select("NOW() as now")
 
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 )
@@ -79,7 +85,28 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 // OptimizedRevision gets a revision that will likely already be replicated
 // and will likely be shared amongst many queries.
 func (mds *mysqlDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
-	return datastore.NoRevision, fmt.Errorf(errNotImplemented)
+	ctx, span := tracer.Start(ctx, "OptimizedRevision")
+	defer span.End()
+
+	lower, upper, err := mds.computeRevisionRange(ctx, 0)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+	}
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		revision, err := mds.loadRevision(ctx)
+		if err != nil {
+			return datastore.NoRevision, err
+		}
+
+		return common.RevisionFromTransaction(revision), nil
+	}
+
+	if upper-lower == 0 {
+		return common.RevisionFromTransaction(upper), nil
+	}
+
+	return common.RevisionFromTransaction(uint64(rand.Intn(int(upper-lower))) + lower), nil
 }
 
 // HeadRevision gets a revision that is guaranteed to be at least as fresh as
@@ -106,7 +133,7 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 // CheckRevision checks the specified revision to make sure it's valid and
 // hasn't been garbage collected.
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	return fmt.Errorf(errNotImplemented)
+	return fmt.Errorf("CheckRevision: %s", errNotImplemented)
 }
 
 func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
@@ -129,4 +156,48 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	fmt.Println("got revision", revision)
 
 	return revision, nil
+}
+
+func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInverted time.Duration) (uint64, uint64, error) {
+	ctx, span := tracer.Start(ctx, "computeRevisionRange")
+	defer span.End()
+
+	nowSQL, nowArgs, err := getNow.ToSql()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var now time.Time
+	err = mds.db.QueryRowxContext(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
+	if err != nil {
+		return 0, 0, err
+	}
+	// RelationTupleTransaction is not timezone aware
+	// Explicitly use UTC before using as a query arg
+	now = now.UTC()
+
+	span.AddEvent("DB returned value for NOW()")
+
+	lowerBound := now.Add(windowInverted)
+
+	query, args, err := getRevisionRange.Where(sq.GtOrEq{common.ColTimestamp: lowerBound}).ToSql()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var lower, upper sql.NullInt64
+	err = mds.db.QueryRowxContext(
+		datastore.SeparateContextWithTracing(ctx), query, args...,
+	).Scan(&lower, &upper)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	span.AddEvent("DB returned revision range")
+
+	if !lower.Valid || !upper.Valid {
+		return 0, 0, pgx.ErrNoRows
+	}
+
+	return uint64(lower.Int64), uint64(upper.Int64), nil
 }

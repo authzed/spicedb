@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/mysql"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -25,6 +26,7 @@ var builderForEngine = map[string]engineBuilderFunc{
 	"cockroachdb": newCRDBDatastore,
 	"postgres":    newPostgresDatastore,
 	"memory":      newMemoryDatstore,
+	"mysql":       newMysqlDatastore,
 }
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
@@ -94,7 +96,7 @@ func (o *Config) ToOption() ConfigOption {
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
 func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
-	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb", "mysql")`)
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
 	cmd.Flags().IntVar(&opts.MinOpenConns, "datastore-conn-min-open", 10, "number of minimum concurrent connections open in a remote datastore's connection pool")
@@ -244,4 +246,8 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
 	return memdb.NewMemdbDatastore(0, opts.RevisionQuantization, opts.GCWindow, 0)
+}
+
+func newMysqlDatastore(opts Config) (datastore.Datastore, error) {
+	return mysql.NewMysqlDatastore(opts.URI)
 }
