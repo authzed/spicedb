@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -19,6 +20,10 @@ type MockedDatastore struct {
 func (md *MockedDatastore) Close() error {
 	args := md.Called()
 	return args.Error(0)
+}
+
+func (md *MockedDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
 }
 
 func (md *MockedDatastore) IsReady(ctx context.Context) (bool, error) {

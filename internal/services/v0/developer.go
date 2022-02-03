@@ -134,7 +134,6 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	ctx = devContext.Ctx
 
 	if devErr != nil {
 		return &v0.EditCheckResponse{
@@ -190,7 +189,6 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	if err != nil {
 		return nil, err
 	}
-	ctx = devContext.Ctx
 
 	if devErrs != nil {
 		return &v0.ValidateResponse{

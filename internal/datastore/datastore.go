@@ -65,6 +65,9 @@ type Datastore interface {
 	// the necessary tables.
 	IsReady(ctx context.Context) (bool, error)
 
+	// NamespaceCacheKey returns a string key for use in a NamespaceManager's cache
+	NamespaceCacheKey(namespaceName string, revision Revision) (string, error)
+
 	// Close closes the data store.
 	Close() error
 }

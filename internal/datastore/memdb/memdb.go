@@ -385,6 +385,10 @@ func (mds *memdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+func (mds *memdbDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
+}
+
 func revisionFromVersion(version uint64) datastore.Revision {
 	return decimal.NewFromInt(int64(version))
 }

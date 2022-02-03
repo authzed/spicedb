@@ -205,6 +205,10 @@ type pgDatastore struct {
 	cancelGc context.CancelFunc
 }
 
+func (pgd *pgDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
+}
+
 func (pgd *pgDatastore) Close() error {
 	pgd.cancelGc()
 

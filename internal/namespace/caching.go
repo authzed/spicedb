@@ -27,10 +27,6 @@ type cachingManager struct {
 	readNsGroup singleflight.Group
 }
 
-func cacheKey(nsName string, revision decimal.Decimal) string {
-	return fmt.Sprintf("%s@%s", nsName, revision)
-}
-
 func NewCachingNamespaceManager(
 	expiration time.Duration,
 	cacheConfig *ristretto.Config,
@@ -72,7 +68,10 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 	ds := datastoremw.MustFromContext(ctx)
 
 	// Check the cache.
-	nsRevisionKey := cacheKey(nsName, revision)
+	nsRevisionKey, err := ds.NamespaceCacheKey(nsName, revision)
+	if err != nil {
+		return nil, err
+	}
 	value, found := nsc.c.Get(nsRevisionKey)
 	if found {
 		return value.(*v0.NamespaceDefinition), nil
@@ -89,8 +88,13 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 		// Remove user-defined metadata.
 		loaded = namespace.FilterUserDefinedMetadata(loaded)
 
+		cacheKey, err := ds.NamespaceCacheKey(nsName, revision)
+		if err != nil {
+			return nil, err
+		}
+
 		// Save it to the cache
-		nsc.c.Set(cacheKey(nsName, revision), loaded, int64(proto.Size(loaded)))
+		nsc.c.Set(cacheKey, loaded, int64(proto.Size(loaded)))
 		span.AddEvent("Saved to cache")
 
 		return loaded, err

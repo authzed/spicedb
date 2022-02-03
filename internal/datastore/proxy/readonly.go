@@ -22,6 +22,10 @@ func NewReadonlyDatastore(delegate datastore.Datastore) datastore.Datastore {
 	return roDatastore{delegate: delegate}
 }
 
+func (rd roDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return rd.delegate.NamespaceCacheKey(namespaceName, revision)
+}
+
 func (rd roDatastore) Close() error {
 	return rd.delegate.Close()
 }

@@ -34,6 +34,14 @@ func NewMappingProxy(delegate datastore.Datastore, mapper namespace.Mapper, watc
 	return mappingProxy{delegate, mapper, watchBufferLength}
 }
 
+func (mp mappingProxy) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	mapped, err := mp.mapper.Encode(namespaceName)
+	if err != nil {
+		return "", err
+	}
+	return mp.delegate.NamespaceCacheKey(mapped, revision)
+}
+
 func (mp mappingProxy) Close() error {
 	return mp.delegate.Close()
 }
