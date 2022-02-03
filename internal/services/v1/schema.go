@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
@@ -42,10 +43,7 @@ type schemaServer struct {
 }
 
 func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
-	readRevision, err := ss.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewritePermissionsError(ctx, err)
-	}
+	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	nsDefs, err := ss.ds.ListNamespaces(ctx, readRevision)
 	if err != nil {
@@ -74,10 +72,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaRequest) (*v1.WriteSchemaResponse, error) {
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 
-	readRevision, err := ss.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewritePermissionsError(ctx, err)
-	}
+	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	inputSchema := compiler.InputSchema{
 		Source:       input.Source("schema"),

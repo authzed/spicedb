@@ -2,6 +2,8 @@
 package server
 
 import (
+	datastore1 "github.com/authzed/spicedb/internal/datastore"
+	dispatch "github.com/authzed/spicedb/internal/dispatch"
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -98,8 +100,15 @@ func SetHTTPGatewayCorsAllowedOrigins(hTTPGatewayCorsAllowedOrigins []string) Co
 	}
 }
 
+// WithDatastoreConfig returns an option that can set DatastoreConfig on a Config
+func WithDatastoreConfig(datastoreConfig datastore.Config) ConfigOption {
+	return func(c *Config) {
+		c.DatastoreConfig = datastoreConfig
+	}
+}
+
 // WithDatastore returns an option that can set Datastore on a Config
-func WithDatastore(datastore datastore.Config) ConfigOption {
+func WithDatastore(datastore datastore1.Datastore) ConfigOption {
 	return func(c *Config) {
 		c.Datastore = datastore
 	}
@@ -144,6 +153,13 @@ func WithDispatchUpstreamAddr(dispatchUpstreamAddr string) ConfigOption {
 func WithDispatchUpstreamCAPath(dispatchUpstreamCAPath string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchUpstreamCAPath = dispatchUpstreamCAPath
+	}
+}
+
+// WithDispatcher returns an option that can set Dispatcher on a Config
+func WithDispatcher(dispatcher dispatch.Dispatcher) ConfigOption {
+	return func(c *Config) {
+		c.Dispatcher = dispatcher
 	}
 }
 

@@ -1,4 +1,4 @@
-package v1
+package v1_test
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -200,8 +201,9 @@ func TestReadRelationships(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
-					client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
-					defer stop()
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					client := v1.NewPermissionsServiceClient(conn)
+					t.Cleanup(cleanup)
 
 					stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
 						Consistency: &v1.Consistency{
@@ -252,8 +254,9 @@ func TestReadRelationships(t *testing.T) {
 func TestWriteRelationships(t *testing.T) {
 	require := require.New(t)
 
-	client, stop, _ := newPermissionsServicer(require, 0, memdb.DisableGC, 0)
-	defer stop()
+	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
 
 	toWrite := tuple.MustParse("document:totallynew#parent@folder:plans")
 
@@ -457,8 +460,9 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
-					client, stop, _ := newPermissionsServicer(require, 0, memdb.DisableGC, 0)
-					defer stop()
+					conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					client := v1.NewPermissionsServiceClient(conn)
+					t.Cleanup(cleanup)
 
 					var preconditions []*v1.Precondition
 					for _, filter := range tc.preconditions {
@@ -777,8 +781,9 @@ func TestDeleteRelationships(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(fmt.Sprintf("fuzz%d/%s", delta/time.Millisecond, tc.name), func(t *testing.T) {
 				require := require.New(t)
-				client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
-				defer stop()
+				conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+				client := v1.NewPermissionsServiceClient(conn)
+				t.Cleanup(cleanup)
 
 				resp, err := client.DeleteRelationships(context.Background(), tc.req)
 

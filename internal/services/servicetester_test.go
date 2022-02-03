@@ -1,4 +1,4 @@
-package services
+package services_test
 
 import (
 	"context"
@@ -28,7 +28,7 @@ type serviceTester interface {
 
 // v0ServiceTester tests the V0 API.
 type v0ServiceTester struct {
-	srv v0.ACLServiceServer
+	aclClient v0.ACLServiceClient
 }
 
 func (v0st v0ServiceTester) Name() string {
@@ -36,7 +36,7 @@ func (v0st v0ServiceTester) Name() string {
 }
 
 func (v0st v0ServiceTester) Check(ctx context.Context, resource *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, atRevision decimal.Decimal) (bool, error) {
-	checkResp, err := v0st.srv.Check(ctx, &v0.CheckRequest{
+	checkResp, err := v0st.aclClient.Check(ctx, &v0.CheckRequest{
 		TestUserset: resource,
 		User: &v0.User{
 			UserOneof: &v0.User_Userset{
@@ -52,7 +52,7 @@ func (v0st v0ServiceTester) Check(ctx context.Context, resource *v0.ObjectAndRel
 }
 
 func (v0st v0ServiceTester) Expand(ctx context.Context, resource *v0.ObjectAndRelation, atRevision decimal.Decimal) (*v0.RelationTupleTreeNode, error) {
-	expandResp, err := v0st.srv.Expand(ctx, &v0.ExpandRequest{
+	expandResp, err := v0st.aclClient.Expand(ctx, &v0.ExpandRequest{
 		Userset:    resource,
 		AtRevision: zookie.NewFromRevision(atRevision),
 	})
@@ -63,7 +63,7 @@ func (v0st v0ServiceTester) Expand(ctx context.Context, resource *v0.ObjectAndRe
 }
 
 func (v0st v0ServiceTester) Write(ctx context.Context, tpl *v0.RelationTuple) error {
-	_, err := v0st.srv.Write(ctx, &v0.WriteRequest{
+	_, err := v0st.aclClient.Write(ctx, &v0.WriteRequest{
 		WriteConditions: []*v0.RelationTuple{tpl},
 		Updates:         []*v0.RelationTupleUpdate{tuple.Touch(tpl)},
 	})
@@ -71,7 +71,7 @@ func (v0st v0ServiceTester) Write(ctx context.Context, tpl *v0.RelationTuple) er
 }
 
 func (v0st v0ServiceTester) Read(ctx context.Context, namespaceName string, atRevision decimal.Decimal) ([]*v0.RelationTuple, error) {
-	result, err := v0st.srv.Read(context.Background(), &v0.ReadRequest{
+	result, err := v0st.aclClient.Read(context.Background(), &v0.ReadRequest{
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: namespaceName},
 		},
@@ -89,7 +89,7 @@ func (v0st v0ServiceTester) Read(ctx context.Context, namespaceName string, atRe
 }
 
 func (v0st v0ServiceTester) Lookup(ctx context.Context, resourceRelation *v0.RelationReference, subject *v0.ObjectAndRelation, atRevision decimal.Decimal) ([]string, error) {
-	result, err := v0st.srv.Lookup(context.Background(), &v0.LookupRequest{
+	result, err := v0st.aclClient.Lookup(context.Background(), &v0.LookupRequest{
 		User:           subject,
 		ObjectRelation: resourceRelation,
 		Limit:          ^uint32(0),

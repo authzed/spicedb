@@ -1,4 +1,4 @@
-package services
+package services_test
 
 import (
 	"context"
@@ -13,12 +13,14 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/jwangsadinata/go-multimap/slicemultimap"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	yamlv2 "gopkg.in/yaml.v2"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
@@ -26,9 +28,9 @@ import (
 	"github.com/authzed/spicedb/internal/membership"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
-	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/internal/testserver"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -62,16 +64,20 @@ func TestConsistency(t *testing.T) {
 						t.Run(dispatcherKind, func(t *testing.T) {
 							lrequire := require.New(t)
 
-							unvalidated, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
-							lrequire.NoError(err)
-
-							ds := testfixtures.NewValidatingDatastore(unvalidated)
-
-							fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
-							lrequire.NoError(err)
+							var fullyResolved *validationfile.FullyParsedValidationFile
+							var ds datastore.Datastore
+							conn, cleanup, revision := testserver.NewTestServer(lrequire, delta, memdb.DisableGC, 0, true, func(inDS datastore.Datastore, require *require.Assertions) (outDS datastore.Datastore, rev datastore.Revision) {
+								// TODO: configure a testserver with the dispatch api enabled and remove the validating datastore
+								outDS = testfixtures.NewValidatingDatastore(inDS)
+								fullyResolved, rev, err = validationfile.PopulateFromFiles(outDS, []string{filePath})
+								require.NoError(err)
+								ds = outDS
+								return
+							})
+							t.Cleanup(cleanup)
 
 							ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
-							lrequire.NoError(err)
+							require.NoError(t, err)
 
 							// Validate the type system for each namespace.
 							for _, nsDef := range fullyResolved.NamespaceDefinitions {
@@ -101,13 +107,12 @@ func TestConsistency(t *testing.T) {
 							}
 							defer dispatcher.Close()
 
-							v1permclient, _ := v1svc.RunForTesting(t, ds, ns, dispatcher, 50)
 							testers := []serviceTester{
-								v0ServiceTester{v0svc.NewACLServer(ds, ns, dispatcher, 50)},
-								v1ServiceTester{v1permclient},
+								v0ServiceTester{v0.NewACLServiceClient(conn)},
+								v1ServiceTester{v1.NewPermissionsServiceClient(conn)},
 							}
 
-							runCrossVersionTests(t, testers, dispatcher, fullyResolved, tuplesPerNamespace, revision)
+							runCrossVersionTests(t, testers, fullyResolved, revision)
 
 							for _, tester := range testers {
 								t.Run(tester.Name(), func(t *testing.T) {
@@ -169,9 +174,7 @@ func runAssertions(t *testing.T,
 
 func runCrossVersionTests(t *testing.T,
 	testers []serviceTester,
-	dispatch dispatch.Dispatcher,
 	fullyResolved *validationfile.FullyParsedValidationFile,
-	tuplesPerNamespace *slicemultimap.MultiMap,
 	revision decimal.Decimal,
 ) {
 	for _, nsDef := range fullyResolved.NamespaceDefinitions {
@@ -347,13 +350,13 @@ func runConsistencyTests(t *testing.T,
 }
 
 func accessibleViaWildcardOnly(t *testing.T, dispatch dispatch.Dispatcher, onr *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, revision decimal.Decimal) bool {
-	resp, err := dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+	resp, err := dispatch.DispatchExpand(context.Background(), &dispatchv1.DispatchExpandRequest{
 		ObjectAndRelation: onr,
-		Metadata: &v1.ResolverMeta{
+		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 100,
 		},
-		ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
+		ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 	})
 	require.NoError(t, err)
 
@@ -398,7 +401,7 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 		}
 	}
 
-	expectedRelations, err := yaml.Marshal(expectedMap)
+	expectedRelations, err := yamlv2.Marshal(expectedMap)
 	require.NoError(t, err, "Could not marshal expected relations map")
 
 	// Run validation with the expected map, to generate the full expected relations YAML string.
@@ -447,7 +450,7 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 		"assertTrue":  trueAssertions,
 		"assertFalse": falseAssertions,
 	}
-	assertions, err := yaml.Marshal(assertionsMap)
+	assertions, err := yamlv2.Marshal(assertionsMap)
 	require.NoError(t, err, "Could not marshal assertions map")
 
 	// Run validation with the assertions and the updated YAML.
@@ -620,32 +623,32 @@ func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
 					accessibleTerminalSubjects := vctx.accessibilitySet.AccessibleTerminalSubjects(nsDef.Name, relation.Name, objectIDStr)
 
 					// Run a non-recursive expansion to verify no errors are raised.
-					_, err := vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+					_, err := vctx.dispatch.DispatchExpand(context.Background(), &dispatchv1.DispatchExpandRequest{
 						ObjectAndRelation: &v0.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,
 						},
-						Metadata: &v1.ResolverMeta{
+						Metadata: &dispatchv1.ResolverMeta{
 							AtRevision:     vctx.revision.String(),
 							DepthRemaining: 100,
 						},
-						ExpansionMode: v1.DispatchExpandRequest_SHALLOW,
+						ExpansionMode: dispatchv1.DispatchExpandRequest_SHALLOW,
 					})
 					vrequire.NoError(err)
 
 					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
-					resp, err := vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+					resp, err := vctx.dispatch.DispatchExpand(context.Background(), &dispatchv1.DispatchExpandRequest{
 						ObjectAndRelation: &v0.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,
 						},
-						Metadata: &v1.ResolverMeta{
+						Metadata: &dispatchv1.ResolverMeta{
 							AtRevision:     vctx.revision.String(),
 							DepthRemaining: 100,
 						},
-						ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
+						ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 					})
 					vrequire.NoError(err)
 

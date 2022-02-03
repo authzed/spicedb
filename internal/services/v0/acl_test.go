@@ -1,9 +1,8 @@
-package v0
+package v0_test
 
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"sort"
 	"testing"
@@ -18,16 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/membership"
-	"github.com/authzed/spicedb/internal/namespace"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testserver"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
@@ -222,8 +217,9 @@ func TestRead(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
 
-					client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
-					defer stop()
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					t.Cleanup(cleanup)
+					client := v0.NewACLServiceClient(conn)
 
 					resp, err := client.Read(context.Background(), &v0.ReadRequest{
 						Tuplesets:  []*v0.RelationTupleFilter{tc.filter},
@@ -249,8 +245,9 @@ func TestReadBadZookie(t *testing.T) {
 	require := require.New(t)
 
 	gcWindow := 100 * time.Millisecond
-	client, stop, revision, _ := newACLServicer(require, 0, gcWindow, 0)
-	defer stop()
+	conn, cleanup, revision := testserver.NewTestServer(require, 0, gcWindow, 0, true, tf.StandardDatastoreWithData)
+	t.Cleanup(cleanup)
+	client := v0.NewACLServiceClient(conn)
 
 	_, err := client.Read(context.Background(), &v0.ReadRequest{
 		Tuplesets: []*v0.RelationTupleFilter{
@@ -299,8 +296,9 @@ func TestReadBadZookie(t *testing.T) {
 func TestWrite(t *testing.T) {
 	require := require.New(t)
 
-	client, stop, _, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
-	defer stop()
+	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+	t.Cleanup(cleanup)
+	client := v0.NewACLServiceClient(conn)
 
 	toWriteStr := "document:totallynew#parent@folder:plans"
 	toWrite := tuple.MustParse(toWriteStr)
@@ -434,8 +432,9 @@ func TestInvalidWriteArguments(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			client, stop, _, _ := newACLServicer(require, 0, memdb.DisableGC, 0)
-			defer stop()
+			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+			t.Cleanup(cleanup)
+			client := v0.NewACLServiceClient(conn)
 
 			var preconditions []*v0.RelationTuple
 			for _, p := range tc.preconditions {
@@ -543,8 +542,9 @@ func TestCheck(t *testing.T) {
 						)
 						t.Run(name, func(t *testing.T) {
 							require := require.New(t)
-							client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
-							defer stop()
+							conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+							t.Cleanup(cleanup)
+							client := v0.NewACLServiceClient(conn)
 							resp, err := client.Check(context.Background(), &v0.CheckRequest{
 								TestUserset: tc.start,
 								User: &v0.User{
@@ -599,8 +599,10 @@ func TestCheck(t *testing.T) {
 
 func BenchmarkACL(b *testing.B) {
 	require := require.New(b)
-	client, stop, revision, _ := newACLServicer(require, 0, memdb.DisableGC, 3*time.Millisecond)
-	defer stop()
+
+	conn, cleanup, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, 3*time.Millisecond, true, tf.StandardDatastoreWithData)
+	b.Cleanup(cleanup)
+	client := v0.NewACLServiceClient(conn)
 
 	b.Run("check", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -637,8 +639,10 @@ func TestExpand(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
 					require := require.New(t)
-					client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
-					defer stop()
+
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					t.Cleanup(cleanup)
+					client := v0.NewACLServiceClient(conn)
 
 					var trailer metadata.MD
 					expanded, err := client.Expand(context.Background(), &v0.ExpandRequest{
@@ -795,8 +799,10 @@ func TestLookup(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s::%s from %s", tc.relation.Namespace, tc.relation.Relation, tuple.StringONR(tc.user)), func(t *testing.T) {
 					require := require.New(t)
-					client, stop, revision, _ := newACLServicer(require, delta, memdb.DisableGC, 0)
-					defer stop()
+
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					t.Cleanup(cleanup)
+					client := v0.NewACLServiceClient(conn)
 
 					var trailer metadata.MD
 					result, err := client.Lookup(context.Background(), &v0.LookupRequest{
@@ -848,12 +854,14 @@ func TestLookup(t *testing.T) {
 
 func TestLookupMissingTypeInformation(t *testing.T) {
 	require := require.New(t)
-	client, stop, revision, ds := newACLServicer(require, time.Duration(0), memdb.DisableGC, 0)
-	defer stop()
+
+	conn, cleanup, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+	t.Cleanup(cleanup)
+	client := v0.NewACLServiceClient(conn)
+	nsClient := v0.NewNamespaceServiceClient(conn)
 
 	// Write a namespace without any type information.
-	srv := NewNamespaceServer(ds)
-	_, err := srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+	_, err := nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 		Configs: []*v0.NamespaceDefinition{
 			ns.Namespace(
 				"typelessdoc",
@@ -872,44 +880,6 @@ func TestLookupMissingTypeInformation(t *testing.T) {
 	})
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 	require.Equal("rpc error: code = FailedPrecondition desc = failed precondition: relation/permission `viewer` under definition `typelessdoc` is missing type information", err.Error())
-}
-
-// starts a server on a random port, returns a client for the server and a fn to stop the server when done
-func newACLServicer(
-	require *require.Assertions,
-	revisionFuzzingTimedelta time.Duration,
-	gcWindow time.Duration,
-	simulatedLatency time.Duration,
-) (v0.ACLServiceClient, func(), decimal.Decimal, datastore.Datastore) {
-	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
-	require.NoError(err)
-
-	ds, revision := tf.StandardDatastoreWithData(emptyDS, require)
-
-	ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
-	require.NoError(err)
-
-	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
-	lis := bufconn.Listen(1024 * 1024)
-	s := tf.NewTestServer()
-	v0.RegisterACLServiceServer(s, NewACLServer(ds, ns, dispatch, 50))
-	go func() {
-		if err := s.Serve(lis); err != nil {
-			panic("failed to shutdown cleanly: " + err.Error())
-		}
-	}()
-
-	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(err)
-
-	return v0.NewACLServiceClient(conn), func() {
-		ns.Close()
-		ds.Close()
-		s.Stop()
-		lis.Close()
-	}, revision, ds
 }
 
 func verifyTuples(expected []string, found []*v0.RelationTuple, require *require.Assertions) {

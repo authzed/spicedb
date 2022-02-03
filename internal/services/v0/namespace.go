@@ -14,14 +14,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
@@ -49,10 +49,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		return nil, rewriteNamespaceError(ctx, err)
 	}
 
-	readRevision, err := nss.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewriteNamespaceError(ctx, err)
-	}
+	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	for _, config := range req.Configs {
 		// Validate the type system for the updated namespace.
@@ -80,10 +77,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 
-		headRevision, err := nss.ds.HeadRevision(ctx)
-		if err != nil {
-			return nil, rewriteNamespaceError(ctx, err)
-		}
+		headRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 		for _, delta := range diff.Deltas() {
 			switch delta.Type {
@@ -170,10 +164,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 }
 
 func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) (*v0.ReadConfigResponse, error) {
-	readRevision, err := nss.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewriteNamespaceError(ctx, err)
-	}
+	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
 		DispatchCount: 1,
@@ -192,10 +183,7 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 }
 
 func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsRequest) (*v0.DeleteConfigsResponse, error) {
-	headRevision, err := nss.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewriteNamespaceError(ctx, err)
-	}
+	headRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	// Ensure that all the specified namespaces can be deleted.
 	for _, nsName := range req.Namespaces {

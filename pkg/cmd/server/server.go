@@ -17,6 +17,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/dispatch"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -43,7 +45,8 @@ type Config struct {
 	HTTPGatewayCorsAllowedOrigins  []string
 
 	// Datastore
-	Datastore datastorecfg.Config
+	DatastoreConfig datastorecfg.Config
+	Datastore       datastore.Datastore
 
 	// Namespace cache
 	NamespaceCacheExpiration time.Duration
@@ -56,6 +59,7 @@ type Config struct {
 	DispatchMaxDepth       uint32
 	DispatchUpstreamAddr   string
 	DispatchUpstreamCAPath string
+	Dispatcher             dispatch.Dispatcher
 
 	// API Behavior
 	DisableV1SchemaAPI bool
@@ -85,9 +89,13 @@ func (c *Config) Complete() (RunnableServer, error) {
 		c.GRPCAuthFunc = auth.RequirePresharedKey(c.PresharedKey)
 	}
 
-	ds, err := datastorecfg.NewDatastore(c.Datastore.ToOption())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create datastore: %w", err)
+	ds := c.Datastore
+	if ds == nil {
+		var err error
+		ds, err = datastorecfg.NewDatastore(c.DatastoreConfig.ToOption())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create datastore: %w", err)
+		}
 	}
 
 	nsm, err := namespace.NewCachingNamespaceManager(ds, c.NamespaceCacheExpiration, nil)
@@ -99,27 +107,36 @@ func (c *Config) Complete() (RunnableServer, error) {
 		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
 	))
 
-	dispatcher, err := combineddispatch.NewDispatcher(nsm, ds,
-		combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
-		combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
-		combineddispatch.GrpcPresharedKey(c.PresharedKey),
-		combineddispatch.GrpcDialOpts(
-			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-			grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+	dispatcher := c.Dispatcher
+	if dispatcher == nil {
+		var err error
+		dispatcher, err = combineddispatch.NewDispatcher(nsm, ds,
+			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
+			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
+			combineddispatch.GrpcPresharedKey(c.PresharedKey),
+			combineddispatch.GrpcDialOpts(
+				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+				grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
+			),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+		}
 	}
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey))
 	}
 
-	cachingClusterDispatch, err := combineddispatch.NewClusterDispatcher(dispatcher, nsm, ds)
-	if err != nil {
-		return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
+	var cachingClusterDispatch dispatch.Dispatcher
+	if c.DispatchServer.Enabled {
+		var err error
+		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm, ds)
+		if err != nil {
+			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
+		}
 	}
+
 	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
@@ -137,7 +154,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	v1SchemaServiceOption := services.V1SchemaServiceEnabled
-	if !c.DisableV1SchemaAPI {
+	if c.DisableV1SchemaAPI {
 		v1SchemaServiceOption = services.V1SchemaServiceDisabled
 	}
 
@@ -190,7 +207,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	dashboardServer, err := c.DashboardAPI.Complete(zerolog.InfoLevel, dashboard.NewHandler(
 		c.GRPCServer.Address,
 		c.GRPCServer.TLSKeyPath != "" || c.GRPCServer.TLSCertPath != "",
-		c.Datastore.Engine,
+		c.DatastoreConfig.Engine,
 		ds,
 	))
 	if err != nil {

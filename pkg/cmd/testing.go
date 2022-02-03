@@ -13,11 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/cmd/server"
-
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
+	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/jzelinskie/cobrautil"
@@ -35,10 +33,13 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -214,8 +215,16 @@ func (ptbm *perTokenBackendMiddleware) createUpstream() (*upstream, error) {
 		dispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
 
 		grpcServer := grpc.NewServer(
-			grpc.UnaryInterceptor(servicespecific.UnaryServerInterceptor),
-			grpc.StreamInterceptor(servicespecific.StreamServerInterceptor),
+			grpc.ChainUnaryInterceptor(
+				datastoremw.UnaryServerInterceptor(ds),
+				consistency.UnaryServerInterceptor(),
+				servicespecific.UnaryServerInterceptor,
+			),
+			grpc.ChainStreamInterceptor(
+				datastoremw.StreamServerInterceptor(ds),
+				consistency.StreamServerInterceptor(),
+				servicespecific.StreamServerInterceptor,
+			),
 		)
 
 		services.RegisterGrpcServices(

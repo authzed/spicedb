@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/authzed/spicedb/pkg/middleware/consistency"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
@@ -19,13 +17,13 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
-	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -47,13 +45,11 @@ func NewPermissionsServer(ds datastore.Datastore,
 				grpcvalidate.UnaryServerInterceptor(),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
-				consistencymw.UnaryServerInterceptor(ds),
 			),
 			Stream: grpcmw.ChainStreamServer(
 				grpcvalidate.StreamServerInterceptor(),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
-				consistencymw.StreamServerInterceptor(ds),
 			),
 		},
 	}
@@ -149,10 +145,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 }
 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
-	readRevision, err := ps.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewritePermissionsError(ctx, err)
-	}
+	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	errG, groupCtx := errgroup.WithContext(ctx)
 	for _, precond := range req.OptionalPreconditions {
@@ -270,10 +263,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 }
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
-	readRevision, err := ps.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewritePermissionsError(ctx, err)
-	}
+	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, readRevision); err != nil {
 		return nil, rewritePermissionsError(ctx, err)

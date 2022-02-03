@@ -1,4 +1,4 @@
-package v0
+package v0_test
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testserver"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -21,23 +22,21 @@ import (
 func TestNamespace(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-	defer ds.Close()
+	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+	t.Cleanup(cleanup)
+	nsClient := v0.NewNamespaceServiceClient(conn)
 
-	srv := NewNamespaceServer(ds)
-
-	_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+	_, err := nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
 	})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 
-	_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+	_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 		Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS},
 	})
 	require.NoError(err)
 
-	readBack, err := srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+	readBack, err := nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: testfixtures.DocumentNS.Name,
 	})
 	require.NoError(err)
@@ -47,7 +46,7 @@ func TestNamespace(t *testing.T) {
 		require.Fail("should have read back the same config")
 	}
 
-	_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+	_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 		Namespace: "fake",
 	})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
@@ -97,7 +96,7 @@ func TestNamespaceChanged(t *testing.T) {
 				"folder",
 				ns.Relation("anotherrel",
 					nil,
-					ns.AllowedRelation("folder", "..."),
+					ns.AllowedRelation("folder", "viewer"),
 				),
 				ns.Relation("viewer",
 					nil,
@@ -178,18 +177,16 @@ func TestNamespaceChanged(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-			require.NoError(err)
-			defer ds.Close()
+			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+			t.Cleanup(cleanup)
+			nsClient := v0.NewNamespaceServiceClient(conn)
 
-			srv := NewNamespaceServer(ds)
-
-			_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+			_, err := nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 				Namespace: testfixtures.DocumentNS.Name,
 			})
 			grpcutil.RequireStatus(t, codes.NotFound, err)
 
-			_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 				Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace},
 			})
 			require.NoError(err)
@@ -203,10 +200,13 @@ func TestNamespaceChanged(t *testing.T) {
 				})
 			}
 
-			_, err = ds.WriteTuples(context.Background(), nil, updates)
+			_, err = v1.NewPermissionsServiceClient(conn).WriteRelationships(
+				context.Background(),
+				&v1.WriteRelationshipsRequest{Updates: updates},
+			)
 			require.NoError(err)
 
-			_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 				Configs: []*v0.NamespaceDefinition{tc.updatedNamespace},
 			})
 
@@ -279,18 +279,16 @@ func TestDeleteNamespace(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-			require.NoError(err)
-			defer ds.Close()
+			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+			t.Cleanup(cleanup)
+			nsClient := v0.NewNamespaceServiceClient(conn)
 
-			srv := NewNamespaceServer(ds)
-
-			_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+			_, err := nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 				Namespace: testfixtures.DocumentNS.Name,
 			})
 			grpcutil.RequireStatus(t, codes.NotFound, err)
 
-			_, err = srv.WriteConfig(context.Background(), &v0.WriteConfigRequest{
+			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 				Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace},
 			})
 			require.NoError(err)
@@ -301,10 +299,10 @@ func TestDeleteNamespace(t *testing.T) {
 				updates = append(updates, tuple.UpdateToRelationshipUpdate(tuple.Create(tpl)))
 			}
 
-			_, err = ds.WriteTuples(context.Background(), nil, updates)
+			_, err = v1.NewPermissionsServiceClient(conn).WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{Updates: updates})
 			require.NoError(err)
 
-			_, err = srv.DeleteConfigs(context.Background(), &v0.DeleteConfigsRequest{
+			_, err = nsClient.DeleteConfigs(context.Background(), &v0.DeleteConfigsRequest{
 				Namespaces: tc.namespacesToDelete,
 			})
 
@@ -315,7 +313,7 @@ func TestDeleteNamespace(t *testing.T) {
 				require.Contains(err.Error(), tc.expectedError)
 
 				for _, nsName := range tc.namespacesToDelete {
-					_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+					_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 						Namespace: nsName,
 					})
 					require.NoError(err)
@@ -324,7 +322,7 @@ func TestDeleteNamespace(t *testing.T) {
 				require.Nil(err)
 
 				for _, nsName := range tc.namespacesToDelete {
-					_, err = srv.ReadConfig(context.Background(), &v0.ReadConfigRequest{
+					_, err = nsClient.ReadConfig(context.Background(), &v0.ReadConfigRequest{
 						Namespace: nsName,
 					})
 					grpcutil.RequireStatus(t, codes.NotFound, err)
