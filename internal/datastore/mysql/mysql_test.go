@@ -1,3 +1,6 @@
+//go:build ci
+// +build ci
+
 package mysql
 
 import (
@@ -63,16 +66,16 @@ func TestMysqlDatastore(t *testing.T) {
 	// TODO: switch this to call test.All() once we added the remaining test support:
 	// - TestRevisionFuzzing
 	// - TestInvalidReads
-	// t.Run("TestSimple", func(t *testing.T) { test.SimpleTest(t, tester) })
-	// t.Run("TestWritePreconditions", func(t *testing.T) { test.WritePreconditionsTest(t, tester) })
-	// t.Run("TestDeletePreconditions", func(t *testing.T) { test.DeletePreconditionsTest(t, tester) })
-	// t.Run("TestDeleteRelationships", func(t *testing.T) { test.DeleteRelationshipsTest(t, tester) })
-	// t.Run("TestNamespaceWrite", func(t *testing.T) { test.NamespaceWriteTest(t, tester) })
-	// t.Run("TestNamespaceDelete", func(t *testing.T) { test.NamespaceDeleteTest(t, tester) })
-	// t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { test.EmptyNamespaceDeleteTest(t, tester) })
-	// t.Run("TestUsersets", func(t *testing.T) { test.UsersetsTest(t, tester) })
+	t.Run("TestSimple", func(t *testing.T) { test.SimpleTest(t, tester) })
+	t.Run("TestWritePreconditions", func(t *testing.T) { test.WritePreconditionsTest(t, tester) })
+	t.Run("TestDeletePreconditions", func(t *testing.T) { test.DeletePreconditionsTest(t, tester) })
+	t.Run("TestDeleteRelationships", func(t *testing.T) { test.DeleteRelationshipsTest(t, tester) })
+	t.Run("TestNamespaceWrite", func(t *testing.T) { test.NamespaceWriteTest(t, tester) })
+	t.Run("TestNamespaceDelete", func(t *testing.T) { test.NamespaceDeleteTest(t, tester) })
+	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { test.EmptyNamespaceDeleteTest(t, tester) })
+	t.Run("TestUsersets", func(t *testing.T) { test.UsersetsTest(t, tester) })
 	t.Run("TestWatch", func(t *testing.T) { test.WatchTest(t, tester) })
-	// t.Run("TestWatchCancel", func(t *testing.T) { test.WatchCancelTest(t, tester) })
+	t.Run("TestWatchCancel", func(t *testing.T) { test.WatchCancelTest(t, tester) })
 }
 
 func TestMySQLMigrations(t *testing.T) {
