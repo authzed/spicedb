@@ -229,7 +229,6 @@ func (ptbm *perTokenBackendMiddleware) createUpstream() (*upstream, error) {
 
 		services.RegisterGrpcServices(
 			grpcServer,
-			ds,
 			nsm,
 			dispatch,
 			maxDepth,

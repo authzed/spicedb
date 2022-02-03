@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -36,7 +37,6 @@ type aclServer struct {
 	v0.UnimplementedACLServiceServer
 	shared.WithUnaryServiceSpecificInterceptor
 
-	ds           datastore.Datastore
 	nsm          namespace.Manager
 	dispatch     dispatch.Dispatcher
 	defaultDepth uint32
@@ -50,7 +50,7 @@ const (
 var errInvalidZookie = errors.New("invalid revision requested")
 
 // NewACLServer creates an instance of the ACL server.
-func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
+func NewACLServer(nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
 	middleware := []grpc.UnaryServerInterceptor{
 		usagemetrics.UnaryServerInterceptor(),
 		handwrittenvalidation.UnaryServerInterceptor,
@@ -59,7 +59,6 @@ func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispat
 	middleware = append(middleware, grpcutil.DefaultUnaryMiddleware...)
 
 	s := &aclServer{
-		ds:           ds,
 		nsm:          nsm,
 		dispatch:     dispatch,
 		defaultDepth: defaultDepth,
@@ -98,7 +97,8 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 		DispatchCount: uint32(len(preconditions)) + 1,
 	})
 
-	revision, err := as.ds.WriteTuples(ctx, preconditions, mutations)
+	ds := datastoremw.MustFromContext(ctx)
+	revision, err := ds.WriteTuples(ctx, preconditions, mutations)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -110,6 +110,7 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 
 func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadResponse, error) {
 	atRevision, _ := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx)
 
 	errG, groupCtx := errgroup.WithContext(ctx)
 	for _, tuplesetFilter := range req.Tuplesets {
@@ -174,7 +175,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 	}
 
 	errG.Go(func() error {
-		return as.ds.CheckRevision(groupCtx, atRevision)
+		return ds.CheckRevision(groupCtx, atRevision)
 	})
 	if err := errG.Wait(); err != nil {
 		return nil, rewriteACLError(ctx, err)
@@ -202,7 +203,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 				}
 			}
 
-			tupleIterator, err := as.ds.QueryTuples(queryCtx, queryFilter, atRevision)
+			tupleIterator, err := ds.QueryTuples(queryCtx, queryFilter, atRevision)
 			if err != nil {
 				return err
 			}

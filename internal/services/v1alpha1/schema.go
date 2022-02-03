@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
@@ -46,14 +47,12 @@ type schemaServiceServer struct {
 	shared.WithUnaryServiceSpecificInterceptor
 
 	prefixRequired PrefixRequiredOption
-	ds             datastore.Datastore
 }
 
 // NewSchemaServer returns an new instance of a server that implements
 // authzed.api.v1alpha1.SchemaService.
-func NewSchemaServer(ds datastore.Datastore, prefixRequired PrefixRequiredOption) v1alpha1.SchemaServiceServer {
+func NewSchemaServer(prefixRequired PrefixRequiredOption) v1alpha1.SchemaServiceServer {
 	return &schemaServiceServer{
-		ds:             ds,
 		prefixRequired: prefixRequired,
 		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
 			Unary: grpcmw.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
@@ -63,13 +62,14 @@ func NewSchemaServer(ds datastore.Datastore, prefixRequired PrefixRequiredOption
 
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
 	headRevision, _ := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx)
 
 	numRequested := len(in.GetObjectDefinitionsNames())
 
 	objectDefs := make([]string, 0, numRequested)
 	createdRevisions := make(map[string]datastore.Revision, numRequested)
 	for _, objectDefName := range in.GetObjectDefinitionsNames() {
-		found, createdAt, err := ss.ds.ReadNamespace(ctx, objectDefName, headRevision)
+		found, createdAt, err := ds.ReadNamespace(ctx, objectDefName, headRevision)
 		if err != nil {
 			return nil, rewriteError(ctx, err)
 		}
@@ -97,7 +97,9 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 
 func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
-	nsm, err := namespace.NewCachingNamespaceManager(ss.ds, 0, nil) // non-caching manager
+	ds := datastoremw.MustFromContext(ctx)
+
+	nsm, err := namespace.NewCachingNamespaceManager(ds, 0, nil) // non-caching manager
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
@@ -132,7 +134,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			return nil, rewriteError(ctx, err)
 		}
 
-		if err := shared.SanityCheckExistingRelationships(ctx, ss.ds, nsdef, headRevision); err != nil {
+		if err := shared.SanityCheckExistingRelationships(ctx, ds, nsdef, headRevision); err != nil {
 			return nil, rewriteError(ctx, err)
 		}
 	}
@@ -147,7 +149,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		}
 
 		for nsName, existingRevision := range decoded {
-			_, createdAt, err := ss.ds.ReadNamespace(ctx, nsName, headRevision)
+			_, createdAt, err := ds.ReadNamespace(ctx, nsName, headRevision)
 			if err != nil {
 				var nsNotFoundError sharederrors.UnknownNamespaceError
 				if errors.As(err, &nsNotFoundError) {
@@ -172,7 +174,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	names := make([]string, 0, len(nsdefs))
 	revisions := make(map[string]datastore.Revision, len(nsdefs))
 	for _, nsdef := range nsdefs {
-		revision, err := ss.ds.WriteNamespace(ctx, nsdef)
+		revision, err := ds.WriteNamespace(ctx, nsdef)
 		if err != nil {
 			return nil, rewriteError(ctx, err)
 		}

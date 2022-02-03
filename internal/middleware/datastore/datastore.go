@@ -33,8 +33,7 @@ func FromContext(ctx context.Context) datastore.Datastore {
 	return nil
 }
 
-// MustFromContext reads the selected datastore out of a context.Context, computes a zedtoken
-// from it, and panics if it has not been set on the context.
+// MustFromContext reads the selected datastore out of a context.Context and panics if it does not exist
 func MustFromContext(ctx context.Context) datastore.Datastore {
 	datastore := FromContext(ctx)
 	if datastore == nil {

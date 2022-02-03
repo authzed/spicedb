@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
@@ -21,23 +22,23 @@ type watchServer struct {
 	v0.UnimplementedWatchServiceServer
 	shared.WithStreamServiceSpecificInterceptor
 
-	ds  datastore.Datastore
 	nsm namespace.Manager
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(ds datastore.Datastore, nsm namespace.Manager) v0.WatchServiceServer {
+func NewWatchServer(nsm namespace.Manager) v0.WatchServiceServer {
 	s := &watchServer{
-		ds: ds,
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
 			Stream: grpcvalidate.StreamServerInterceptor(),
 		},
+		nsm: nsm,
 	}
 	return s
 }
 
 func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchServer) error {
 	ctx := stream.Context()
+	ds := datastoremw.MustFromContext(ctx)
 
 	var afterRevision decimal.Decimal
 	if req.StartRevision != nil && req.StartRevision.Token != "" {
@@ -49,7 +50,7 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 		afterRevision = decodedRevision
 	} else {
 		var err error
-		afterRevision, err = ws.ds.OptimizedRevision(ctx)
+		afterRevision, err = ds.OptimizedRevision(ctx)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
@@ -70,7 +71,7 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 		DispatchCount: 1,
 	})
 
-	updates, errchan := ws.ds.Watch(ctx, afterRevision)
+	updates, errchan := ds.Watch(ctx, afterRevision)
 	for {
 		select {
 		case update, ok := <-updates:

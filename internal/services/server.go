@@ -9,7 +9,6 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
@@ -31,7 +30,6 @@ const (
 // RegisterGrpcServices registers all services to be exposed on the GRPC server.
 func RegisterGrpcServices(
 	srv *grpc.Server,
-	ds datastore.Datastore,
 	nsm namespace.Manager,
 	dispatch dispatch.Dispatcher,
 	maxDepth uint32,
@@ -40,26 +38,26 @@ func RegisterGrpcServices(
 ) {
 	healthSrv := grpcutil.NewAuthlessHealthServer()
 
-	v0.RegisterACLServiceServer(srv, v0svc.NewACLServer(ds, nsm, dispatch, maxDepth))
+	v0.RegisterACLServiceServer(srv, v0svc.NewACLServer(nsm, dispatch, maxDepth))
 	healthSrv.SetServicesHealthy(&v0.ACLService_ServiceDesc)
 
-	v0.RegisterNamespaceServiceServer(srv, v0svc.NewNamespaceServer(ds))
+	v0.RegisterNamespaceServiceServer(srv, v0svc.NewNamespaceServer())
 	healthSrv.SetServicesHealthy(&v0.NamespaceService_ServiceDesc)
 
-	v0.RegisterWatchServiceServer(srv, v0svc.NewWatchServer(ds, nsm))
+	v0.RegisterWatchServiceServer(srv, v0svc.NewWatchServer(nsm))
 	healthSrv.SetServicesHealthy(&v0.WatchService_ServiceDesc)
 
-	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(ds, prefixRequired))
+	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(prefixRequired))
 	healthSrv.SetServicesHealthy(&v1alpha1.SchemaService_ServiceDesc)
 
-	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(ds, nsm, dispatch, maxDepth))
+	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(nsm, dispatch, maxDepth))
 	healthSrv.SetServicesHealthy(&v1.PermissionsService_ServiceDesc)
 
-	v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer(ds))
+	v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer())
 	healthSrv.SetServicesHealthy(&v1.WatchService_ServiceDesc)
 
 	if schemaServiceOption == V1SchemaServiceEnabled {
-		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(ds))
+		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer())
 		healthSrv.SetServicesHealthy(&v1.SchemaService_ServiceDesc)
 	}
 

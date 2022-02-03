@@ -165,7 +165,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
 				server,
-				ds,
 				nsm,
 				dispatcher,
 				c.DispatchMaxDepth,
