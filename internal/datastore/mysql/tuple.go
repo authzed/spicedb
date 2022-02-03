@@ -41,7 +41,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 
 	tx, err := mds.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToInstantiate, err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 	}
 	defer tx.Rollback()
 
