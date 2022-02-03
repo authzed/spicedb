@@ -91,7 +91,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, dispat
 		}
 }
 
-func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
@@ -99,6 +99,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			otelgrpc.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
 			grpcprom.UnaryServerInterceptor,
+			datastoremw.UnaryServerInterceptor(ds),
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
@@ -106,5 +107,6 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			otelgrpc.StreamServerInterceptor(),
 			grpcauth.StreamServerInterceptor(authFunc),
 			grpcprom.StreamServerInterceptor,
+			datastoremw.StreamServerInterceptor(ds),
 		}
 }

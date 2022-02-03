@@ -125,7 +125,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
-		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey))
+		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey), ds)
 	}
 
 	var cachingClusterDispatch dispatch.Dispatcher
@@ -165,7 +165,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
 				server,
-				ds,
 				nsm,
 				dispatcher,
 				c.DispatchMaxDepth,
