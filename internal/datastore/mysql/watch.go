@@ -5,10 +5,11 @@ import (
 	"errors"
 	"time"
 
-	sq "github.com/Masterminds/squirrel"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+
+	sq "github.com/Masterminds/squirrel"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 )
 
 const (
