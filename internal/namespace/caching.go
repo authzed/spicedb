@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -29,6 +30,10 @@ type cachingManager struct {
 
 func cacheKey(nsName string, revision decimal.Decimal) string {
 	return fmt.Sprintf("%s@%s", nsName, revision)
+}
+
+func NewCachingContextNamespaceManager(expiration time.Duration, cacheConfig *ristretto.Config) (Manager, error) {
+	return NewCachingNamespaceManager(proxy.NewContextDatastore(), expiration, cacheConfig)
 }
 
 func NewCachingNamespaceManager(

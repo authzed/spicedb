@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/membership"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -76,15 +77,18 @@ func TestConsistency(t *testing.T) {
 							})
 							t.Cleanup(cleanup)
 
-							ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
-							require.NoError(t, err)
+							ns, err := namespace.NewCachingContextNamespaceManager(1*time.Second, nil)
+							lrequire.NoError(err)
+
+							dsCtx := datastoremw.ContextWithHandle(context.Background())
+							lrequire.NoError(datastoremw.SetInContext(dsCtx, ds))
 
 							// Validate the type system for each namespace.
 							for _, nsDef := range fullyResolved.NamespaceDefinitions {
-								_, ts, err := ns.ReadNamespaceAndTypes(context.Background(), nsDef.Name, revision)
+								_, ts, err := ns.ReadNamespaceAndTypes(dsCtx, nsDef.Name, revision)
 								lrequire.NoError(err)
 
-								err = ts.Validate(context.Background())
+								err = ts.Validate(dsCtx)
 								lrequire.NoError(err)
 							}
 

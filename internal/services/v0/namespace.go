@@ -43,7 +43,7 @@ func NewNamespaceServer() v0.NamespaceServiceServer {
 
 func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest) (*v0.WriteConfigResponse, error) {
 	ds := datastoremw.MustFromContext(ctx)
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 0*time.Second, nil)
+	nsm, err := namespace.NewCachingContextNamespaceManager(0*time.Second, nil)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}

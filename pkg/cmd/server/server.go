@@ -98,7 +98,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 	}
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, c.NamespaceCacheExpiration, nil)
+	nsm, err := namespace.NewCachingContextNamespaceManager(c.NamespaceCacheExpiration, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace manager: %w", err)
 	}

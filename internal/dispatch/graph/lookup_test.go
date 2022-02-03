@@ -165,7 +165,7 @@ func TestMaxDepthLookup(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingContextNamespaceManager(1*time.Second, testCacheConfig)
 	require.NoError(err)
 
 	dispatch := NewLocalOnlyDispatcher(nsm, ds)
