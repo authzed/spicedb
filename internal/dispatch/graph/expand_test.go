@@ -19,6 +19,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	expand "github.com/authzed/spicedb/internal/graph"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/graph"
@@ -140,9 +141,9 @@ func TestExpand(t *testing.T) {
 		t.Run(fmt.Sprintf("%s-%s", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
 			require := require.New(t)
 
-			dispatch, revision := newLocalDispatcher(require)
+			ctx, dispatch, revision := newLocalDispatcher(require)
 
-			expandResult, err := dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+			expandResult, err := dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 				ObjectAndRelation: tc.start,
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
@@ -272,16 +273,17 @@ func TestMaxDepthExpand(t *testing.T) {
 		},
 	}}
 
-	ctx := context.Background()
+	ctx := datastoremw.ContextWithHandle(context.Background())
 
 	revision, err := ds.WriteTuples(ctx, nil, mutations)
 	require.NoError(err)
 	require.True(revision.GreaterThan(decimal.Zero))
+	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingContextNamespaceManager(1*time.Second, testCacheConfig)
 	require.NoError(err)
 
-	dispatch := NewLocalOnlyDispatcher(nsm, ds)
+	dispatch := NewLocalOnlyDispatcher(nsm)
 
 	_, err = dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 		ObjectAndRelation: ONR("folder", "oops", "viewer"),

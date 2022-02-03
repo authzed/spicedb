@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/graph"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -127,9 +128,9 @@ func TestSimple(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
-					dispatch, revision := newLocalDispatcher(require)
+					ctx, dispatch, revision := newLocalDispatcher(require)
 
-					checkResult, err := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 						ObjectAndRelation: ONR(tc.namespace, tc.objectID, expected.relation),
 						Subject:           userset.userset,
 						Metadata: &v1.ResolverMeta{
@@ -173,18 +174,19 @@ func TestMaxDepth(t *testing.T) {
 		},
 	}}
 
-	ctx := context.Background()
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	revision, err := ds.WriteTuples(ctx, nil, mutations)
 	require.NoError(err)
 	require.True(revision.GreaterThan(decimal.Zero))
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingContextNamespaceManager(1*time.Second, testCacheConfig)
 	require.NoError(err)
 
-	dispatch := NewLocalOnlyDispatcher(nsm, ds)
+	dispatch := NewLocalOnlyDispatcher(nsm)
 
-	checkResult, err := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+	checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ObjectAndRelation: ONR("folder", "oops", "owner"),
 		Subject:           ONR("user", "fake", graph.Ellipsis),
 		Metadata: &v1.ResolverMeta{
@@ -270,9 +272,9 @@ func TestCheckMetadata(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
-					dispatch, revision := newLocalDispatcher(require)
+					ctx, dispatch, revision := newLocalDispatcher(require)
 
-					checkResult, err := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 						ObjectAndRelation: ONR(tc.namespace, tc.objectID, expected.relation),
 						Subject:           userset.userset,
 						Metadata: &v1.ResolverMeta{
@@ -291,20 +293,23 @@ func TestCheckMetadata(t *testing.T) {
 	}
 }
 
-func newLocalDispatcher(require *require.Assertions) (dispatch.Dispatcher, decimal.Decimal) {
+func newLocalDispatcher(require *require.Assertions) (context.Context, dispatch.Dispatcher, decimal.Decimal) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingContextNamespaceManager(1*time.Second, testCacheConfig)
 	require.NoError(err)
 
-	dispatch := NewLocalOnlyDispatcher(nsm, ds)
+	dispatch := NewLocalOnlyDispatcher(nsm)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(nil, "")
 	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(err)
 
-	return cachingDispatcher, revision
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(datastoremw.SetInContext(ctx, ds))
+
+	return ctx, cachingDispatcher, revision
 }

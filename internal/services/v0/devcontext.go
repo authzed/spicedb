@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -61,7 +62,12 @@ func newDevContext(ctx context.Context, requestContext *v0.RequestContext, ds da
 		return nil, false, err
 	}
 
-	dispatcher := graph.NewLocalOnlyDispatcher(nsm, ds)
+	dispatcher := graph.NewLocalOnlyDispatcher(nsm)
+
+	ctx = datastoremw.ContextWithHandle(ctx)
+	if err := datastoremw.SetInContext(ctx, ds); err != nil {
+		return nil, false, err
+	}
 
 	namespaces, devError, err := compile(requestContext.Schema)
 	if err != nil {
