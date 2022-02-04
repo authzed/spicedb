@@ -50,7 +50,7 @@ func (mds *mysqlDatastore) Close() error {
 }
 
 func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
-	ctx, span := tracer.Start(ctx, "computeNewTransaction")
+	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
 	result, err := tx.ExecContext(ctx, createTxn)
