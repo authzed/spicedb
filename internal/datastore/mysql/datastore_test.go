@@ -104,13 +104,13 @@ func TestIsReady(t *testing.T) {
 	ctx := context.Background()
 	ready, err := datastore.IsReady(ctx)
 	req.NoError(err)
-	req.Equal(false, ready)
+	req.False(ready)
 
 	migrateDatabase(connectStr)
 
 	ready, err = datastore.IsReady(ctx)
 	req.NoError(err)
-	req.Equal(true, ready)
+	req.True(ready)
 }
 
 func setupDatabase() string {
