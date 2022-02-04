@@ -126,7 +126,6 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 		}
 		return 0, fmt.Errorf(errRevision, err)
 	}
-	fmt.Println("got revision", revision)
 
 	return revision, nil
 }
