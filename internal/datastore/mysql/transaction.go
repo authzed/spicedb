@@ -7,7 +7,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/rs/zerolog/log"
 )
 
 // NewMysqlTransactionBeginner constructs TransactionBeginner implementation which adapts
@@ -58,8 +57,5 @@ type mysqlRows struct {
 }
 
 func (mr *mysqlRows) Close() {
-	// ignore the error to satify the Rows interface, but log a warning
-	if err := mr.Rows.Close(); err != nil {
-		log.Error().Err(err).Msg("error closing mysql rows")
-	}
+	common.LogOnError(context.Background(), mr.Rows.Close)
 }
