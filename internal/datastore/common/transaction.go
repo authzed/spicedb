@@ -1,4 +1,4 @@
-package rdb
+package common
 
 import "context"
 

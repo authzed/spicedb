@@ -8,8 +8,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/rdb"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	"github.com/authzed/spicedb/internal/datastore/postgres"
 )
 
 const (
@@ -58,7 +58,7 @@ func (cds *crdbDatastore) QueryTuples(
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
 	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       rdb.NewPostgresTransactionBeginner(cds.conn),
+		TransactionBeginner:       postgres.NewPostgresTransactionBeginner(cds.conn),
 		PrepareTransaction:        prepareTransaction,
 		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
 
@@ -92,7 +92,7 @@ func (cds *crdbDatastore) ReverseQueryTuples(
 	}
 
 	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       rdb.NewPostgresTransactionBeginner(cds.conn),
+		TransactionBeginner:       postgres.NewPostgresTransactionBeginner(cds.conn),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
 
@@ -108,7 +108,7 @@ func (cds *crdbDatastore) ReverseQueryTuples(
 	return ctq.SplitAndExecute(ctx)
 }
 
-func prepareTransaction(ctx context.Context, tx rdb.Transaction, revision datastore.Revision) error {
+func prepareTransaction(ctx context.Context, tx common.Transaction, revision datastore.Revision) error {
 	setTxTime := fmt.Sprintf(querySetTransactionTime, revision)
 	return tx.Exec(ctx, setTxTime)
 }
