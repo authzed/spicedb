@@ -119,6 +119,9 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 
 // DeleteNamespace deletes a namespace and any associated tuples.
 func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
+		attribute.String("name", nsName),
+	))
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := mds.db.BeginTxx(ctx, nil)
