@@ -162,7 +162,6 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
-	defer containerCleanup()
 
 	containerPort = containerResource.GetPort(fmt.Sprintf("%d/tcp", mysqlPort))
 	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql", creds, containerPort)
@@ -170,6 +169,7 @@ func TestMain(m *testing.M) {
 	db, err := sql.Open("mysql", connectStr)
 	if err != nil {
 		fmt.Printf("failed to open db: %s\n", err)
+		containerCleanup()
 		os.Exit(1)
 	}
 
@@ -177,6 +177,7 @@ func TestMain(m *testing.M) {
 		err := db.Close() // we do not want this connection to stay open
 		if err != nil {
 			fmt.Printf("failed to close db: %s\n", err)
+			containerCleanup()
 			os.Exit(1)
 		}
 	}()
@@ -192,8 +193,11 @@ func TestMain(m *testing.M) {
 
 	if err != nil {
 		fmt.Printf("mysql database error: %s\n", err)
+		containerCleanup()
 		os.Exit(1)
 	}
 
-	os.Exit(m.Run())
+	exitStatus := m.Run()
+	containerCleanup()
+	os.Exit(exitStatus)
 }
