@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v4/pgxpool"
-
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/prometheus/client_golang/prometheus"
@@ -40,7 +38,6 @@ func init() {
 type conn interface {
 	Begin(context.Context) (pgx.Tx, error)
 	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
-	Acquire(ctx context.Context) (*pgxpool.Conn, error)
 }
 
 type transactionFn func(tx pgx.Tx) error
@@ -94,7 +91,7 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 		return nil
 	}
 
-	for i = 0; i < maxRetries; i++ {
+	for i = 0; i < maxRetries+1; i++ {
 		if err = releasedFn(tx); err != nil {
 			if retriable(ctx, err) {
 				if _, retryErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT cockroach_restart"); retryErr != nil {
@@ -123,21 +120,13 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 	return errors.New(errReachedMaxRetry)
 }
 
-// tx will be rolled back and it's connection closed
+// tx will be rolled back and a new tx will be started
 func resetExecution(ctx context.Context, conn conn, tx *pgx.Tx, txOptions pgx.TxOptions) (newTx pgx.Tx, err error) {
 	err = (*tx).Rollback(ctx)
 	if err != nil {
 		return nil, err
 	}
-	err = (*tx).Conn().Close(ctx)
-	if err != nil {
-		return nil, err
-	}
-	newConn, err := conn.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	newTx, err = newConn.BeginTx(ctx, txOptions)
+	newTx, err = conn.BeginTx(ctx, txOptions)
 	if err != nil {
 		return nil, err
 	}
