@@ -10,6 +10,7 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -281,7 +282,11 @@ func (ctq TupleQuerySplitter) executeSingleQuery(ctx context.Context, query Sche
 	if err != nil {
 		return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			log.Error().Err(err).Msg("error rolling back transaction")
+		}
+	}()
 
 	span.AddEvent("DB transaction established")
 
