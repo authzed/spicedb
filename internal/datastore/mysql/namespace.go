@@ -50,7 +50,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("WriteNamespace: unable to write config: %w", err)
 	}
-	defer tx.Rollback()
+	defer common.LogOnError(ctx, tx.Rollback)
 	span.AddEvent("DB transaction established")
 
 	newTxnID, err := createNewTransaction(ctx, tx)
@@ -104,7 +104,7 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(common.ErrUnableToReadConfig, err)
 	}
-	defer tx.Rollback()
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	loaded, version, err := loadNamespace(ctx, nsName, tx, common.FilterToLivingObjects(readNamespace, revision, liveDeletedTxnID))
 	switch {
@@ -125,7 +125,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
-	defer tx.Rollback()
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	baseQuery := readNamespace.Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
 	_, createdAt, err := loadNamespace(ctx, nsName, tx, baseQuery)
@@ -185,7 +185,7 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	sql, args, err := common.FilterToLivingObjects(readNamespace, revision, liveDeletedTxnID).ToSql()
 	if err != nil {
@@ -198,7 +198,7 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.LogOnError(ctx, rows.Close)
 
 	for rows.Next() {
 		var config []byte
