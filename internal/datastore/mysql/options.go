@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const (
@@ -28,7 +29,12 @@ type mysqlOptions struct {
 type Option func(*mysqlOptions)
 
 func generateConfig(options []Option) (mysqlOptions, error) {
-	computed := mysqlOptions{}
+	computed := mysqlOptions{
+		gcWindow:                  defaultGarbageCollectionWindow,
+		gcInterval:                defaultGarbageCollectionInterval,
+		gcMaxOperationTime:        defaultGarbageCollectionMaxOperationTime,
+		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
+	}
 
 	for _, option := range options {
 		option(&computed)
