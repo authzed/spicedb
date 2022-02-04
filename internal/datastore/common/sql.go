@@ -10,12 +10,12 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common/rdb"
 )
 
 const (
@@ -182,11 +182,11 @@ func (sqf SchemaQueryFilterer) Limit(limit uint64) SchemaQueryFilterer {
 
 // TransactionPreparer is a function provided by the datastore to prepare the transaction before
 // the tuple query is run.
-type TransactionPreparer func(ctx context.Context, tx rdb.Transaction, revision datastore.Revision) error
+type TransactionPreparer func(ctx context.Context, tx Transaction, revision datastore.Revision) error
 
 // TupleQuerySplitter is a tuple query runner shared by SQL implementations of the datastore.
 type TupleQuerySplitter struct {
-	rdb.TransactionBeginner
+	TransactionBeginner
 	PrepareTransaction        TransactionPreparer
 	SplitAtEstimatedQuerySize units.Base2Bytes
 
@@ -282,7 +282,11 @@ func (ctq TupleQuerySplitter) executeSingleQuery(ctx context.Context, query Sche
 	if err != nil {
 		return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			log.Ctx(ctx).Error().Err(err).Msg("error rolling back transaction")
+		}
+	}()
 
 	span.AddEvent("DB transaction established")
 

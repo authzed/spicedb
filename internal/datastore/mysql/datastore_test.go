@@ -40,12 +40,12 @@ func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBu
 
 	migrationDriver, err := createMigrationDriver(connectStr)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to run migration: %s", err)
 	}
 
 	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to run migration: %s", err)
 	}
 
 	return NewMysqlDatastore(connectStr,
@@ -128,7 +128,6 @@ func setupDatabase() string {
 	if err != nil {
 		log.Fatalf("failed to create database: %s: %s", dbName, err)
 	}
-	log.Printf("database created for test: %s", dbName)
 
 	err = tx.Commit()
 	if err != nil {

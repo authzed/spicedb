@@ -60,11 +60,11 @@ type mysqlDatastore struct {
 
 // Close closes the data store.
 func (mds *mysqlDatastore) Close() error {
-	return nil
+	return mds.db.Close()
 }
 
 func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
-	ctx, span := tracer.Start(ctx, "computeNewTransaction")
+	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
 	result, err := tx.ExecContext(ctx, createTxn)
@@ -161,7 +161,6 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 		}
 		return 0, fmt.Errorf(errRevision, err)
 	}
-	fmt.Println("got revision", revision)
 
 	return revision, nil
 }

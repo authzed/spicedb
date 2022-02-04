@@ -32,15 +32,15 @@ var (
 
 // WriteNamespace takes a proto namespace definition and persists it,
 // returning the version of the namespace that was created.
-func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.NamespaceDefinition) (datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
 	defer span.End()
 
-	span.SetAttributes(common.ObjNamespaceNameKey.String(newConfig.Name))
+	span.SetAttributes(common.ObjNamespaceNameKey.String(newNamespace.Name))
 
-	serialized, err := proto.Marshal(newConfig)
+	serialized, err := proto.Marshal(newNamespace)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("WriteNamespace: failed to serialize config: %w", err)
 	}
@@ -50,18 +50,18 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("WriteNamespace: unable to write config: %w", err)
 	}
-	defer tx.Rollback()
-	span.AddEvent("DB transaction established")
+	defer common.LogOnError(ctx, tx.Rollback)
+	span.AddEvent("begin DB transaction")
 
 	newTxnID, err := createNewTransaction(ctx, tx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf("errUnableToWriteConfig: %w", err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 	span.AddEvent("Model transaction created")
 
 	delSQL, delArgs, err := deleteNamespace.
 		Set(common.ColDeletedTxn, newTxnID).
-		Where(sq.Eq{common.ColNamespace: newConfig.Name, common.ColDeletedTxn: liveDeletedTxnID}).
+		Where(sq.Eq{common.ColNamespace: newNamespace.Name, common.ColDeletedTxn: liveDeletedTxnID}).
 		ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
@@ -72,12 +72,12 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
-	sql, args, err := writeNamespace.Values(newConfig.Name, serialized, newTxnID).ToSql()
+	query, args, err := writeNamespace.Values(newNamespace.Name, serialized, newTxnID).ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
-	_, err = tx.ExecContext(ctx, sql, args...)
+	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
@@ -104,7 +104,7 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(common.ErrUnableToReadConfig, err)
 	}
-	defer tx.Rollback()
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	loaded, version, err := loadNamespace(ctx, nsName, tx, common.FilterToLivingObjects(readNamespace, revision, liveDeletedTxnID))
 	switch {
@@ -119,13 +119,17 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 
 // DeleteNamespace deletes a namespace and any associated tuples.
 func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
+		attribute.String("name", nsName),
+	))
+	defer span.End()
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := mds.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
-	defer tx.Rollback()
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	baseQuery := readNamespace.Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
 	_, createdAt, err := loadNamespace(ctx, nsName, tx, baseQuery)
@@ -185,20 +189,20 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer common.LogOnError(ctx, tx.Rollback)
 
-	sql, args, err := common.FilterToLivingObjects(readNamespace, revision, liveDeletedTxnID).ToSql()
+	query, args, err := common.FilterToLivingObjects(readNamespace, revision, liveDeletedTxnID).ToSql()
 	if err != nil {
 		return nil, err
 	}
 
 	var nsDefs []*v0.NamespaceDefinition
 
-	rows, err := tx.QueryxContext(ctx, sql, args...)
+	rows, err := tx.QueryxContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer common.LogOnError(ctx, rows.Close)
 
 	for rows.Next() {
 		var config []byte
