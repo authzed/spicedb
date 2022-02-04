@@ -154,7 +154,7 @@ func (mds *mysqlDatastore) collectGarbage() error {
 	}
 
 	if !ready {
-		log.Ctx(ctx).Warn().Msg("cannot perform postgres garbage collection: postgres driver is not yet ready")
+		log.Ctx(ctx).Warn().Msg("cannot perform mysql garbage collection: mysql driver is not yet ready")
 		return nil
 	}
 
@@ -164,7 +164,7 @@ func (mds *mysqlDatastore) collectGarbage() error {
 	}
 
 	before := now.Add(mds.gcWindowInverted)
-	log.Ctx(ctx).Debug().Time("before", before).Msg("running postgres garbage collection")
+	log.Ctx(ctx).Debug().Time("before", before).Msg("running mysql garbage collection")
 	_, _, err = mds.collectGarbageBefore(ctx, before)
 	return err
 }
