@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alecthomas/units"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
@@ -30,7 +31,9 @@ const (
 
 var containerPort string
 
-type sqlTest struct{}
+type sqlTest struct {
+	splitAtEstimatedQuerySize units.Base2Bytes
+}
 
 func newTester() *sqlTest {
 	return &sqlTest{}
@@ -43,6 +46,9 @@ func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBu
 
 	return NewMysqlDatastore(connectStr,
 		RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+		GCWindow(gcWindow),
+		GCInterval(0*time.Second), // Disable auto GC
+		SplitAtEstimatedQuerySize(st.splitAtEstimatedQuerySize),
 	)
 }
 
