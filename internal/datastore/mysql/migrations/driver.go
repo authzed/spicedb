@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+
 	sqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog/log"
