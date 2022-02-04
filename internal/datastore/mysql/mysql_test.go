@@ -126,7 +126,6 @@ func setupDatabase() string {
 	if err != nil {
 		log.Fatalf("failed to create database: %s: %s", dbName, err)
 	}
-	log.Printf("database created for test: %s", dbName)
 
 	err = tx.Commit()
 	if err != nil {
