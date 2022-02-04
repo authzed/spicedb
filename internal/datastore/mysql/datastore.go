@@ -10,7 +10,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/alecthomas/units"
-	"github.com/jackc/pgx/v4"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
@@ -360,21 +359,21 @@ func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore
 		return nil
 	}
 
-	if !errors.Is(err, pgx.ErrNoRows) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
 	// There are no unexpired rows
-	sql, args, err := getRevision.ToSql()
+	query, args, err := getRevision.ToSql()
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
 	var highest uint64
 	err = mds.db.QueryRowContext(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
+		datastore.SeparateContextWithTracing(ctx), query, args...,
 	).Scan(&highest)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 	if err != nil {
