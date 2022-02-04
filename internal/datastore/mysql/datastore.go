@@ -10,6 +10,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/alecthomas/units"
+	"github.com/jackc/pgx/v4"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
@@ -22,8 +23,8 @@ import (
 
 const (
 	errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
-
-	errRevision = "unable to find revision: %w"
+	errRevision       = "unable to find revision: %w"
+	errCheckRevision  = "unable to check revision: %w"
 
 	createTxn = "INSERT INTO relation_tuple_transaction VALUES()"
 
@@ -344,7 +345,50 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 // CheckRevision checks the specified revision to make sure it's valid and
 // hasn't been garbage collected.
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	return fmt.Errorf(errNotImplemented)
+	ctx, span := tracer.Start(ctx, "CheckRevision")
+	defer span.End()
+
+	revisionTx := common.TransactionFromRevision(revision)
+
+	lower, upper, err := mds.computeRevisionRange(ctx, mds.gcWindowInverted)
+	if err == nil {
+		if revisionTx < lower {
+			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
+		} else if revisionTx > upper {
+			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
+		}
+
+		return nil
+	}
+
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	// There are no unexpired rows
+	sql, args, err := getRevision.ToSql()
+	if err != nil {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	var highest uint64
+	err = mds.db.QueryRowContext(
+		datastore.SeparateContextWithTracing(ctx), sql, args...,
+	).Scan(&highest)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
+	}
+	if err != nil {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	if revisionTx < highest {
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
+	} else if revisionTx > highest {
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
+	}
+
+	return nil
 }
 
 func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
