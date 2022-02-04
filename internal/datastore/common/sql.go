@@ -284,7 +284,7 @@ func (ctq TupleQuerySplitter) executeSingleQuery(ctx context.Context, query Sche
 	}
 	defer func() {
 		if err := tx.Rollback(ctx); err != nil {
-			log.Error().Err(err).Msg("error rolling back transaction")
+			log.Ctx(ctx).Error().Err(err).Msg("error rolling back transaction")
 		}
 	}()
 
