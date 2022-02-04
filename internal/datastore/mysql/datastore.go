@@ -22,9 +22,8 @@ import (
 )
 
 const (
-	errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
-	errRevision       = "unable to find revision: %w"
-	errCheckRevision  = "unable to check revision: %w"
+	errRevision      = "unable to find revision: %w"
+	errCheckRevision = "unable to check revision: %w"
 
 	createTxn = "INSERT INTO relation_tuple_transaction VALUES()"
 

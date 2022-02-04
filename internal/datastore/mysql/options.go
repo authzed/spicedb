@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
