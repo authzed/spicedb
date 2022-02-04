@@ -65,7 +65,6 @@ func TestMysqlDatastore(t *testing.T) {
 	tester := newTester()
 
 	// TODO: switch this to call test.All() once we added the remaining test support:
-	// - TestInvalidReads
 	// - TestWatch
 	// - TestWatchCancel
 	t.Run("TestSimple", func(t *testing.T) { test.SimpleTest(t, tester) })
@@ -76,6 +75,7 @@ func TestMysqlDatastore(t *testing.T) {
 	t.Run("TestNamespaceWrite", func(t *testing.T) { test.NamespaceWriteTest(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { test.NamespaceDeleteTest(t, tester) })
 	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { test.EmptyNamespaceDeleteTest(t, tester) })
+	t.Run("TestInvalidReads", func(t *testing.T) { test.InvalidReadsTest(t, tester) })
 	t.Run("TestUsersets", func(t *testing.T) { test.UsersetsTest(t, tester) })
 }
 
