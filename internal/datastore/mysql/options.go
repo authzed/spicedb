@@ -1,11 +1,26 @@
 package mysql
 
 import (
+	"fmt"
 	"time"
+
+	"github.com/alecthomas/units"
+)
+
+const (
+	errFuzzingTooLarge = "revision fuzzing timedelta (%s) must be less than GC window (%s)"
+
+	defaultGarbageCollectionWindow           = 24 * time.Hour
+	defaultGarbageCollectionInterval         = time.Minute * 3
+	defaultGarbageCollectionMaxOperationTime = time.Minute
 )
 
 type mysqlOptions struct {
-	revisionFuzzingTimedelta time.Duration
+	revisionFuzzingTimedelta  time.Duration
+	gcWindow                  time.Duration
+	gcInterval                time.Duration
+	gcMaxOperationTime        time.Duration
+	splitAtEstimatedQuerySize units.Base2Bytes
 }
 
 // Option provides the facility to configure how clients within the
@@ -19,7 +34,26 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		option(&computed)
 	}
 
+	// Run any checks on the config that need to be done
+	if computed.revisionFuzzingTimedelta >= computed.gcWindow {
+		return computed, fmt.Errorf(
+			errFuzzingTooLarge,
+			computed.revisionFuzzingTimedelta,
+			computed.gcWindow,
+		)
+	}
+
 	return computed, nil
+}
+
+// SplitAtEstimatedQuerySize is the query size at which it is split into two
+// (or more) queries.
+//
+// This value defaults to `common.DefaultSplitAtEstimatedQuerySize`.
+func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) Option {
+	return func(mo *mysqlOptions) {
+		mo.splitAtEstimatedQuerySize = splitAtEstimatedQuerySize
+	}
 }
 
 // RevisionFuzzingTimedelta is the time bucket size to which advertised
@@ -29,5 +63,34 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 func RevisionFuzzingTimedelta(delta time.Duration) Option {
 	return func(mo *mysqlOptions) {
 		mo.revisionFuzzingTimedelta = delta
+	}
+}
+
+// GCWindow is the maximum age of a passed revision that will be considered
+// valid.
+//
+// This value defaults to 24 hours.
+func GCWindow(window time.Duration) Option {
+	return func(mo *mysqlOptions) {
+		mo.gcWindow = window
+	}
+}
+
+// GCInterval is the the interval at which garbage collection will occur.
+//
+// This value defaults to 3 minutes.
+func GCInterval(interval time.Duration) Option {
+	return func(mo *mysqlOptions) {
+		mo.gcInterval = interval
+	}
+}
+
+// GCMaxOperationTime is the maximum operation time of a garbage collection
+// pass before it times out.
+//
+// This value defaults to 1 minute.
+func GCMaxOperationTime(time time.Duration) Option {
+	return func(mo *mysqlOptions) {
+		mo.gcMaxOperationTime = time
 	}
 }
