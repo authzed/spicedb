@@ -55,7 +55,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.
 
 	newTxnID, err := createNewTransaction(ctx, tx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf("errUnableToWriteConfig: %w", err)
+		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 	span.AddEvent("Model transaction created")
 
