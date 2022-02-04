@@ -9,9 +9,9 @@ import (
 	"github.com/alecthomas/units"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jzelinskie/stringz"
+	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -19,7 +19,21 @@ import (
 )
 
 const (
-	errUnableToQueryTuples = "unable to query tuples: %w"
+	TableNamespace   = "namespace_config"
+	TableTransaction = "relation_tuple_transaction"
+	TableTuple       = "relation_tuple"
+
+	ColID               = "id"
+	ColTimestamp        = "timestamp"
+	ColNamespace        = "namespace"
+	ColConfig           = "serialized_config"
+	ColCreatedTxn       = "created_transaction"
+	ColDeletedTxn       = "deleted_transaction"
+	ColObjectID         = "object_id"
+	ColRelation         = "relation"
+	ColUsersetNamespace = "userset_namespace"
+	ColUsersetObjectID  = "userset_object_id"
+	ColUsersetRelation  = "userset_relation"
 )
 
 var (
@@ -168,11 +182,11 @@ func (sqf SchemaQueryFilterer) Limit(limit uint64) SchemaQueryFilterer {
 
 // TransactionPreparer is a function provided by the datastore to prepare the transaction before
 // the tuple query is run.
-type TransactionPreparer func(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error
+type TransactionPreparer func(ctx context.Context, tx Transaction, revision datastore.Revision) error
 
 // TupleQuerySplitter is a tuple query runner shared by SQL implementations of the datastore.
 type TupleQuerySplitter struct {
-	Conn                      *pgxpool.Pool
+	TransactionBeginner
 	PrepareTransaction        TransactionPreparer
 	SplitAtEstimatedQuerySize units.Base2Bytes
 
@@ -259,23 +273,27 @@ func (ctq TupleQuerySplitter) executeSingleQuery(ctx context.Context, query Sche
 
 	sql, args, err := query.queryBuilder.ToSql()
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToQueryTuples, err)
+		return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 	}
 
 	span.AddEvent("Query converted to SQL")
 
-	tx, err := ctq.Conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	tx, err := ctq.BeginTransaction(ctx, true)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToQueryTuples, err)
+		return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			log.Ctx(ctx).Error().Err(err).Msg("error rolling back transaction")
+		}
+	}()
 
 	span.AddEvent("DB transaction established")
 
 	if ctq.PrepareTransaction != nil {
 		err = ctq.PrepareTransaction(ctx, tx, ctq.Revision)
 		if err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
+			return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 		}
 
 		span.AddEvent("Transaction prepared")
@@ -283,7 +301,7 @@ func (ctq TupleQuerySplitter) executeSingleQuery(ctx context.Context, query Sche
 
 	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToQueryTuples, err)
+		return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 	}
 	defer rows.Close()
 
@@ -313,15 +331,42 @@ func (ctq TupleQuerySplitter) executeSingleQuery(ctx context.Context, query Sche
 			&userset.Relation,
 		)
 		if err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
+			return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 		}
 
 		tuples = append(tuples, nextTuple)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf(errUnableToQueryTuples, err)
+		return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
 	}
 
 	span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 	return tuples, nil
+}
+
+func RevisionFromTransaction(txID uint64) datastore.Revision {
+	return decimal.NewFromInt(int64(txID))
+}
+
+func TransactionFromRevision(revision datastore.Revision) uint64 {
+	return uint64(revision.IntPart())
+}
+
+func ExactRelationshipClause(r *v1.Relationship) sq.Eq {
+	return sq.Eq{
+		ColNamespace:        r.Resource.ObjectType,
+		ColObjectID:         r.Resource.ObjectId,
+		ColRelation:         r.Relation,
+		ColUsersetNamespace: r.Subject.Object.ObjectType,
+		ColUsersetObjectID:  r.Subject.Object.ObjectId,
+		ColUsersetRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
+	}
+}
+
+func FilterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision, maxTransactionID uint64) sq.SelectBuilder {
+	return original.Where(sq.LtOrEq{ColCreatedTxn: TransactionFromRevision(revision)}).
+		Where(sq.Or{
+			sq.Eq{ColDeletedTxn: maxTransactionID},
+			sq.Gt{ColDeletedTxn: revision},
+		})
 }

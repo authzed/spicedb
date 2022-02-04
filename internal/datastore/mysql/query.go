@@ -1,4 +1,4 @@
-package postgres
+package mysql
 
 import (
 	"context"
@@ -10,31 +10,31 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
-var queryTuples = psql.Select(
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-).From(tableTuple)
+var queryTuples = sb.Select(
+	common.ColNamespace,
+	common.ColObjectID,
+	common.ColRelation,
+	common.ColUsersetNamespace,
+	common.ColUsersetObjectID,
+	common.ColUsersetRelation,
+).From(common.TableTuple)
 
 var schema = common.SchemaInformation{
-	ColNamespace:        colNamespace,
-	ColObjectID:         colObjectID,
-	ColRelation:         colRelation,
-	ColUsersetNamespace: colUsersetNamespace,
-	ColUsersetObjectID:  colUsersetObjectID,
-	ColUsersetRelation:  colUsersetRelation,
+	ColNamespace:        common.ColNamespace,
+	ColObjectID:         common.ColObjectID,
+	ColRelation:         common.ColRelation,
+	ColUsersetNamespace: common.ColUsersetNamespace,
+	ColUsersetObjectID:  common.ColUsersetObjectID,
+	ColUsersetRelation:  common.ColUsersetRelation,
 }
 
-func (pgd *pgDatastore) QueryTuples(
+func (mds *mysqlDatastore) QueryTuples(
 	ctx context.Context,
 	filter *v1.RelationshipFilter,
 	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(queryTuples, revision)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(queryTuples, revision, liveDeletedTxnID)).
 		FilterToResourceType(filter.ResourceType)
 
 	if filter.OptionalResourceId != "" {
@@ -52,9 +52,9 @@ func (pgd *pgDatastore) QueryTuples(
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
 	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       NewPostgresTransactionBeginner(pgd.dbpool),
+		TransactionBeginner:       NewMysqlTransactionBeginner(mds.db),
 		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
+		SplitAtEstimatedQuerySize: 0,
 
 		FilteredQueryBuilder: qBuilder,
 		Revision:             revision,
@@ -68,13 +68,13 @@ func (pgd *pgDatastore) QueryTuples(
 	return ctq.SplitAndExecute(ctx)
 }
 
-func (pgd *pgDatastore) ReverseQueryTuples(
+func (mds *mysqlDatastore) ReverseQueryTuples(
 	ctx context.Context,
 	subjectFilter *v1.SubjectFilter,
 	revision datastore.Revision,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(queryTuples, revision)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(queryTuples, revision, liveDeletedTxnID)).
 		FilterToSubjectFilter(subjectFilter)
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
@@ -86,9 +86,9 @@ func (pgd *pgDatastore) ReverseQueryTuples(
 	}
 
 	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       NewPostgresTransactionBeginner(pgd.dbpool),
+		TransactionBeginner:       NewMysqlTransactionBeginner(mds.db),
 		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
+		SplitAtEstimatedQuerySize: 0,
 
 		FilteredQueryBuilder: qBuilder,
 		Revision:             revision,

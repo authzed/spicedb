@@ -9,11 +9,14 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
@@ -26,8 +29,26 @@ const (
 
 var containerPort string
 
-type sqlTest struct {
-	connectStr string
+type sqlTest struct{}
+
+func newTester() *sqlTest {
+	return &sqlTest{}
+}
+
+func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	connectStr := setupDatabase()
+
+	migrationDriver, err := createMigrationDriver(connectStr)
+	if err != nil {
+		log.Fatalf("failed to run migration: %s", err)
+	}
+
+	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	if err != nil {
+		log.Fatalf("failed to run migration: %s", err)
+	}
+
+	return NewMysqlDatastore(connectStr)
 }
 
 func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
@@ -37,6 +58,24 @@ func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
 	}
 
 	return migrationDriver, nil
+}
+
+func TestMysqlDatastore(t *testing.T) {
+	tester := newTester()
+
+	// TODO: switch this to call test.All() once we added the remaining test support:
+	// - TestRevisionFuzzing
+	// - TestInvalidReads
+	// - TestWatch
+	// - TestWatchCancel
+	t.Run("TestSimple", func(t *testing.T) { test.SimpleTest(t, tester) })
+	t.Run("TestWritePreconditions", func(t *testing.T) { test.WritePreconditionsTest(t, tester) })
+	t.Run("TestDeletePreconditions", func(t *testing.T) { test.DeletePreconditionsTest(t, tester) })
+	t.Run("TestDeleteRelationships", func(t *testing.T) { test.DeleteRelationshipsTest(t, tester) })
+	t.Run("TestNamespaceWrite", func(t *testing.T) { test.NamespaceWriteTest(t, tester) })
+	t.Run("TestNamespaceDelete", func(t *testing.T) { test.NamespaceDeleteTest(t, tester) })
+	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { test.EmptyNamespaceDeleteTest(t, tester) })
+	t.Run("TestUsersets", func(t *testing.T) { test.UsersetsTest(t, tester) })
 }
 
 func TestMySQLMigrations(t *testing.T) {
