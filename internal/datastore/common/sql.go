@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common/rdb"
 )
 
 const (
@@ -182,11 +181,11 @@ func (sqf SchemaQueryFilterer) Limit(limit uint64) SchemaQueryFilterer {
 
 // TransactionPreparer is a function provided by the datastore to prepare the transaction before
 // the tuple query is run.
-type TransactionPreparer func(ctx context.Context, tx rdb.Transaction, revision datastore.Revision) error
+type TransactionPreparer func(ctx context.Context, tx Transaction, revision datastore.Revision) error
 
 // TupleQuerySplitter is a tuple query runner shared by SQL implementations of the datastore.
 type TupleQuerySplitter struct {
-	rdb.TransactionBeginner
+	TransactionBeginner
 	PrepareTransaction        TransactionPreparer
 	SplitAtEstimatedQuerySize units.Base2Bytes
 

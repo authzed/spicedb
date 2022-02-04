@@ -1,7 +1,9 @@
-package rdb
+package postgres
 
 import (
 	"context"
+
+	"github.com/authzed/spicedb/internal/datastore/common"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -9,7 +11,7 @@ import (
 
 // NewPostgresTransactionBeginner constructs TransactionBeginner implementation which adapts
 // a postgres pool object (pgxpool.Pool).
-func NewPostgresTransactionBeginner(pool *pgxpool.Pool) TransactionBeginner {
+func NewPostgresTransactionBeginner(pool *pgxpool.Pool) common.TransactionBeginner {
 	return &postgresTransactionBeginner{pool}
 }
 
@@ -17,7 +19,7 @@ type postgresTransactionBeginner struct {
 	pool *pgxpool.Pool
 }
 
-func (ptb *postgresTransactionBeginner) BeginTransaction(ctx context.Context, readOnly bool) (Transaction, error) {
+func (ptb *postgresTransactionBeginner) BeginTransaction(ctx context.Context, readOnly bool) (common.Transaction, error) {
 	var opts pgx.TxOptions
 	if readOnly {
 		opts.AccessMode = pgx.ReadOnly
@@ -26,7 +28,7 @@ func (ptb *postgresTransactionBeginner) BeginTransaction(ctx context.Context, re
 	return NewPostgresTransaction(tx), err
 }
 
-func NewPostgresTransaction(tx pgx.Tx) Transaction {
+func NewPostgresTransaction(tx pgx.Tx) common.Transaction {
 	return &postgresTransaction{tx}
 }
 
@@ -36,7 +38,7 @@ type postgresTransaction struct {
 
 // NOTE(chriskirkland): need to adapt this explicitly because the pgx.Rows interface is not the desired Rows
 // interface, even though it satisfies it.
-func (pt *postgresTransaction) Query(ctx context.Context, query string, args ...interface{}) (Rows, error) {
+func (pt *postgresTransaction) Query(ctx context.Context, query string, args ...interface{}) (common.Rows, error) {
 	return pt.Tx.Query(ctx, query, args...)
 }
 

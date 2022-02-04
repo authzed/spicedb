@@ -1,8 +1,10 @@
-package rdb
+package mysql
 
 import (
 	"context"
 	"database/sql"
+
+	"github.com/authzed/spicedb/internal/datastore/common"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog/log"
@@ -10,7 +12,7 @@ import (
 
 // NewMysqlTransactionBeginner constructs TransactionBeginner implementation which adapts
 // a mysql database connection.
-func NewMysqlTransactionBeginner(db *sqlx.DB) TransactionBeginner {
+func NewMysqlTransactionBeginner(db *sqlx.DB) common.TransactionBeginner {
 	return &mysqlTransactionBeginner{db}
 }
 
@@ -18,7 +20,7 @@ type mysqlTransactionBeginner struct {
 	db *sqlx.DB
 }
 
-func (mtb *mysqlTransactionBeginner) BeginTransaction(ctx context.Context, readOnly bool) (Transaction, error) {
+func (mtb *mysqlTransactionBeginner) BeginTransaction(ctx context.Context, readOnly bool) (common.Transaction, error) {
 	tx, err := mtb.db.BeginTxx(ctx, &sql.TxOptions{ReadOnly: readOnly})
 	if err != nil {
 		return nil, err
@@ -38,7 +40,7 @@ func (mt *mysqlTransaction) Commit(_ context.Context) error {
 	return mt.tx.Commit()
 }
 
-func (mt *mysqlTransaction) Query(ctx context.Context, query string, args ...interface{}) (Rows, error) {
+func (mt *mysqlTransaction) Query(ctx context.Context, query string, args ...interface{}) (common.Rows, error) {
 	rows, err := mt.tx.QueryContext(ctx, query, args...) // nolint
 	if err != nil {
 		return nil, err
