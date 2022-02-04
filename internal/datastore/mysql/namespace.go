@@ -72,12 +72,12 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
-	sql, args, err := writeNamespace.Values(newNamespace.Name, serialized, newTxnID).ToSql()
+	query, args, err := writeNamespace.Values(newNamespace.Name, serialized, newTxnID).ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
-	_, err = tx.ExecContext(ctx, sql, args...)
+	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
