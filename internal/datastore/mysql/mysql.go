@@ -46,7 +46,7 @@ type mysqlDatastore struct {
 
 // Close closes the data store.
 func (mds *mysqlDatastore) Close() error {
-	return nil
+	return mds.db.Close()
 }
 
 func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
