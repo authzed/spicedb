@@ -216,12 +216,12 @@ func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, precondition
 
 	query = query.Set(common.ColDeletedTxn, newTxnID)
 
-	sql, args, err := query.ToSql()
+	querySQL, args, err := query.ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteTuples, err)
 	}
 
-	if _, err := tx.ExecContext(ctx, sql, args...); err != nil {
+	if _, err := tx.ExecContext(ctx, querySQL, args...); err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 	}
 

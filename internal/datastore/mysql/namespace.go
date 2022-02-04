@@ -187,14 +187,14 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
 
-	sql, args, err := common.FilterToLivingObjects(readNamespace, revision, liveDeletedTxnID).ToSql()
+	query, args, err := common.FilterToLivingObjects(readNamespace, revision, liveDeletedTxnID).ToSql()
 	if err != nil {
 		return nil, err
 	}
 
 	var nsDefs []*v0.NamespaceDefinition
 
-	rows, err := tx.QueryxContext(ctx, sql, args...)
+	rows, err := tx.QueryxContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
