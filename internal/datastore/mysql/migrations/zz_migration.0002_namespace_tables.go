@@ -29,7 +29,7 @@ const createRelationTuple = `CREATE TABLE relation_tuple (
 
 const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction (
 		id BIGINT NOT NULL AUTO_INCREMENT,
-		timestamp DATETIME DEFAULT now() NOT NULL,
+		timestamp DATETIME(6) DEFAULT NOW(6) NOT NULL,
 		PRIMARY KEY (id)
 );`
 

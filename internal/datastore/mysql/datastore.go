@@ -34,7 +34,7 @@ var (
 	getRevision      = sb.Select("MAX(id)").From(common.TableTransaction)
 	getRevisionRange = sb.Select("MIN(id)", "MAX(id)").From(common.TableTransaction)
 
-	getNow = sb.Select("NOW() as now")
+	getNow = sb.Select("NOW(6) as now")
 
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 )
