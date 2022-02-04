@@ -1,10 +1,11 @@
 package migrations
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
-	"github.com/rs/zerolog/log"
+	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 type executor struct {
@@ -26,9 +27,7 @@ func (me executor) migrate(mysql *MysqlDriver) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		log.Err(tx.Rollback())
-	}()
+	defer common.LogOnError(context.Background(), tx.Rollback)
 
 	for _, stmt := range me.statements {
 		_, err := tx.Exec(stmt)

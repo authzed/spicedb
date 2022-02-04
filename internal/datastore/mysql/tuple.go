@@ -43,7 +43,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 	}
-	defer tx.Rollback()
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	if err := mds.checkPreconditions(ctx, tx, preconditions); err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
@@ -175,7 +175,7 @@ func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, precondition
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteTuples, err)
 	}
-	defer tx.Rollback()
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	if err := mds.checkPreconditions(ctx, tx, preconditions); err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)

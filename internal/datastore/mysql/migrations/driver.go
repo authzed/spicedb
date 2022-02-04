@@ -1,9 +1,11 @@
 package migrations
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	sqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog/log"
@@ -84,5 +86,5 @@ func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
 }
 
 func (mysql *MysqlDriver) Dispose() {
-	mysql.db.Close()
+	defer common.LogOnError(context.Background(), mysql.db.Close)
 }
