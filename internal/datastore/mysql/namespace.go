@@ -32,15 +32,15 @@ var (
 
 // WriteNamespace takes a proto namespace definition and persists it,
 // returning the version of the namespace that was created.
-func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.NamespaceDefinition) (datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
 	defer span.End()
 
-	span.SetAttributes(common.ObjNamespaceNameKey.String(newConfig.Name))
+	span.SetAttributes(common.ObjNamespaceNameKey.String(newNamespace.Name))
 
-	serialized, err := proto.Marshal(newConfig)
+	serialized, err := proto.Marshal(newNamespace)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("WriteNamespace: failed to serialize config: %w", err)
 	}
@@ -61,7 +61,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 
 	delSQL, delArgs, err := deleteNamespace.
 		Set(common.ColDeletedTxn, newTxnID).
-		Where(sq.Eq{common.ColNamespace: newConfig.Name, common.ColDeletedTxn: liveDeletedTxnID}).
+		Where(sq.Eq{common.ColNamespace: newNamespace.Name, common.ColDeletedTxn: liveDeletedTxnID}).
 		ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
@@ -72,7 +72,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
-	sql, args, err := writeNamespace.Values(newConfig.Name, serialized, newTxnID).ToSql()
+	sql, args, err := writeNamespace.Values(newNamespace.Name, serialized, newTxnID).ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
