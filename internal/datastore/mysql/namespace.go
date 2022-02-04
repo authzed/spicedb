@@ -122,6 +122,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	ctx, span := tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
+	defer span.End()
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := mds.db.BeginTxx(ctx, nil)
