@@ -24,11 +24,6 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
-
-	"github.com/spf13/cobra"
-	"go.opentelemetry.io/contrib/propagators/ot"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
 )
 
 // ServeExample creates an example usage string with the provided program name.
@@ -54,25 +49,7 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 		cobrautil.SyncViperPreRunE(programName),
 		cobrautil.ZeroLogRunE("log", zerolog.InfoLevel),
 		cobrautil.OpenTelemetryRunE("otel", zerolog.InfoLevel),
-		customizeGitHubOpenTracing(),
 	)
-}
-
-// customizeGitHubOpenTracing overrides the OpenTelemetry propogators set in cobrautil
-//
-// In GitHub's environment there are some legacy OpenTracing clients, so to have complete
-// traces propogators need to include OpenTracing. This is not set as default in cobrautil.
-// See https://github.com/github/observability/issues/1495 for history and
-// https://thehub.github.com/engineering/development-and-ops/observability/distributed-tracing/instrumentation/#golang
-func customizeGitHubOpenTracing() cobrautil.CobraRunFunc {
-	return func(cmd *cobra.Command, args []string) error {
-		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-			propagation.Baggage{},      // W3C baggage support
-			propagation.TraceContext{}, // W3C for compatibility with other tracing system
-			ot.OT{},
-		))
-		return nil
-	}
 }
 
 // MetricsHandler sets up an HTTP server that handles serving Prometheus

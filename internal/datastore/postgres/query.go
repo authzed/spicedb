@@ -7,7 +7,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/rdb"
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
@@ -53,7 +52,7 @@ func (pgd *pgDatastore) QueryTuples(
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
 	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       rdb.NewPostgresTransactionBeginner(pgd.dbpool),
+		TransactionBeginner:       NewPostgresTransactionBeginner(pgd.dbpool),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
 
@@ -87,7 +86,7 @@ func (pgd *pgDatastore) ReverseQueryTuples(
 	}
 
 	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       rdb.NewPostgresTransactionBeginner(pgd.dbpool),
+		TransactionBeginner:       NewPostgresTransactionBeginner(pgd.dbpool),
 		PrepareTransaction:        nil,
 		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
 

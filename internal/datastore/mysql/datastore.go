@@ -17,6 +17,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 )
 
 const (
@@ -39,7 +40,7 @@ var (
 	getRevision      = sb.Select("MAX(id)").From(common.TableTransaction)
 	getRevisionRange = sb.Select("MIN(id)", "MAX(id)").From(common.TableTransaction)
 
-	getNow = sb.Select("NOW() as now")
+	getNow = sb.Select("NOW(6) as now")
 
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 )
@@ -53,7 +54,6 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 	if err != nil {
 		return nil, fmt.Errorf("NewMysqlDatastore: failed to open database: %w", err)
 	}
-
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -63,6 +63,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 
 	datastore := &mysqlDatastore{
 		db:                        db,
+		url:                       url,
 		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
 		gcWindowInverted:          -1 * config.gcWindow,
 		gcInterval:                config.gcInterval,
@@ -84,7 +85,9 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 }
 
 type mysqlDatastore struct {
-	db                        *sqlx.DB
+	db  *sqlx.DB
+	url string
+
 	revisionFuzzingTimedelta  time.Duration
 	gcWindowInverted          time.Duration
 	gcInterval                time.Duration
@@ -98,7 +101,7 @@ type mysqlDatastore struct {
 
 // Close closes the data store.
 func (mds *mysqlDatastore) Close() error {
-	return nil
+	return mds.db.Close()
 }
 
 func (mds *mysqlDatastore) runGarbageCollector() error {
@@ -248,7 +251,7 @@ func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, fi
 }
 
 func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
-	ctx, span := tracer.Start(ctx, "computeNewTransaction")
+	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
 	result, err := tx.ExecContext(ctx, createTxn)
@@ -271,7 +274,23 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 	if err := mds.db.PingContext(ctx); err != nil {
 		return false, err
 	}
-	return true, nil
+
+	driver, err := migrations.NewMysqlDriver(mds.url)
+	if err != nil {
+		return false, err
+	}
+
+	currentRevision, err := driver.Version()
+	if err != nil {
+		return false, err
+	}
+
+	headRevision, err := migrations.Manager.HeadRevision()
+	if err != nil {
+		return false, err
+	}
+
+	return headRevision == currentRevision, nil
 }
 
 // OptimizedRevision gets a revision that will likely already be replicated
@@ -345,7 +364,6 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 		}
 		return 0, fmt.Errorf(errRevision, err)
 	}
-	fmt.Println("got revision", revision)
 
 	return revision, nil
 }
