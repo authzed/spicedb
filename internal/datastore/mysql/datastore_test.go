@@ -41,7 +41,9 @@ func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBu
 
 	migrateDatabase(connectStr)
 
-	return NewMysqlDatastore(connectStr)
+	return NewMysqlDatastore(connectStr,
+		RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+	)
 }
 
 func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
@@ -57,11 +59,11 @@ func TestMysqlDatastore(t *testing.T) {
 	tester := newTester()
 
 	// TODO: switch this to call test.All() once we added the remaining test support:
-	// - TestRevisionFuzzing
 	// - TestInvalidReads
 	// - TestWatch
 	// - TestWatchCancel
 	t.Run("TestSimple", func(t *testing.T) { test.SimpleTest(t, tester) })
+	t.Run("TestRevisionFuzzing", func(t *testing.T) { test.RevisionFuzzingTest(t, tester) })
 	t.Run("TestWritePreconditions", func(t *testing.T) { test.WritePreconditionsTest(t, tester) })
 	t.Run("TestDeletePreconditions", func(t *testing.T) { test.DeletePreconditionsTest(t, tester) })
 	t.Run("TestDeleteRelationships", func(t *testing.T) { test.DeleteRelationshipsTest(t, tester) })
@@ -144,7 +146,7 @@ func setupDatabase() string {
 		log.Fatalf("failed to commit: %s", err)
 	}
 
-	return fmt.Sprintf("%s@(localhost:%s)/%s", creds, containerPort, dbName)
+	return fmt.Sprintf("%s@(localhost:%s)/%s?parseTime=true", creds, containerPort, dbName)
 }
 
 func migrateDatabase(connectStr string) {
@@ -189,7 +191,7 @@ func TestMain(m *testing.M) {
 	defer containerCleanup()
 
 	containerPort = containerResource.GetPort(fmt.Sprintf("%d/tcp", mysqlPort))
-	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql", creds, containerPort)
+	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql?parseTime=true", creds, containerPort)
 
 	db, err := sql.Open("mysql", connectStr)
 	if err != nil {
