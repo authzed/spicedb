@@ -4,6 +4,7 @@
 package mysql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -38,15 +39,7 @@ func newTester() *sqlTest {
 func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 	connectStr := setupDatabase()
 
-	migrationDriver, err := createMigrationDriver(connectStr)
-	if err != nil {
-		log.Fatalf("failed to run migration: %s", err)
-	}
-
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
-	if err != nil {
-		log.Fatalf("failed to run migration: %s", err)
-	}
+	migrateDatabase(connectStr)
 
 	return NewMysqlDatastore(connectStr)
 }
@@ -101,6 +94,25 @@ func TestMySQLMigrations(t *testing.T) {
 	req.Equal(headVersion, version)
 }
 
+func TestIsReady(t *testing.T) {
+	req := require.New(t)
+
+	connectStr := setupDatabase()
+	datastore, err := NewMysqlDatastore(connectStr)
+	req.NoError(err)
+
+	ctx := context.Background()
+	ready, err := datastore.IsReady(ctx)
+	req.NoError(err)
+	req.Equal(false, ready)
+
+	migrateDatabase(connectStr)
+
+	ready, err = datastore.IsReady(ctx)
+	req.NoError(err)
+	req.Equal(true, ready)
+}
+
 func setupDatabase() string {
 	var db *sql.DB
 	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql", creds, containerPort)
@@ -133,6 +145,18 @@ func setupDatabase() string {
 	}
 
 	return fmt.Sprintf("%s@(localhost:%s)/%s", creds, containerPort, dbName)
+}
+
+func migrateDatabase(connectStr string) {
+	migrationDriver, err := createMigrationDriver(connectStr)
+	if err != nil {
+		log.Fatalf("failed to run migration: %s", err)
+	}
+
+	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	if err != nil {
+		log.Fatalf("failed to run migration: %s", err)
+	}
 }
 
 func TestMain(m *testing.M) {

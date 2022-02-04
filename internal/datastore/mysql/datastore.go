@@ -12,6 +12,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 )
 
 const (
@@ -37,11 +38,12 @@ func NewMysqlDatastore(url string) (datastore.Datastore, error) {
 		return nil, fmt.Errorf("NewMysqlDatastore: failed to open database: %w", err)
 	}
 
-	return &mysqlDatastore{db}, nil
+	return &mysqlDatastore{db: db, url: url}, nil
 }
 
 type mysqlDatastore struct {
-	db *sqlx.DB
+	db  *sqlx.DB
+	url string
 }
 
 // Close closes the data store.
@@ -73,7 +75,23 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 	if err := mds.db.PingContext(ctx); err != nil {
 		return false, err
 	}
-	return true, nil
+
+	driver, err := migrations.NewMysqlDriver(mds.url)
+	if err != nil {
+		return false, err
+	}
+
+	currentRevision, err := driver.Version()
+	if err != nil {
+		return false, err
+	}
+
+	headRevision, err := migrations.Manager.HeadRevision()
+	if err != nil {
+		return false, err
+	}
+
+	return headRevision == currentRevision, nil
 }
 
 // OptimizedRevision gets a revision that will likely already be replicated
