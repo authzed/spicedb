@@ -26,7 +26,7 @@ type mysqlOptions struct {
 }
 
 // Option provides the facility to configure how clients within the
-// Postgres datastore interact with the running Postgres database.
+// Mysql datastore interact with the running mysql database.
 type Option func(*mysqlOptions)
 
 func generateConfig(options []Option) (mysqlOptions, error) {
