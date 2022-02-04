@@ -51,7 +51,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.
 		return datastore.NoRevision, fmt.Errorf("WriteNamespace: unable to write config: %w", err)
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
-	span.AddEvent("DB transaction established")
+	span.AddEvent("begin DB transaction")
 
 	newTxnID, err := createNewTransaction(ctx, tx)
 	if err != nil {
