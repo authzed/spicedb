@@ -259,6 +259,9 @@ func (c *completedServerConfig) SetMiddleware(unaryInterceptors []grpc.UnaryServ
 }
 
 func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	if len(c.presharedKey) == 0 {
+		return c.gRPCServer.DialContext(ctx, opts...)
+	}
 	if c.gRPCServer.Insecure() {
 		opts = append(opts, grpcutil.WithInsecureBearerToken(c.presharedKey))
 	} else {
