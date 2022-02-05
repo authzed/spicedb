@@ -14,6 +14,14 @@ func NewQueryOptionsWithOptions(opts ...QueryOptionsOption) *QueryOptions {
 	return q
 }
 
+// ToOption returns a new QueryOptionsOption that sets the values from the passed in QueryOptions
+func (q *QueryOptions) ToOption() QueryOptionsOption {
+	return func(to *QueryOptions) {
+		to.Limit = q.Limit
+		to.Usersets = q.Usersets
+	}
+}
+
 // QueryOptionsWithOptions configures an existing QueryOptions with the passed in options set
 func QueryOptionsWithOptions(q *QueryOptions, opts ...QueryOptionsOption) *QueryOptions {
 	for _, o := range opts {
@@ -52,6 +60,14 @@ func NewReverseQueryOptionsWithOptions(opts ...ReverseQueryOptionsOption) *Rever
 		o(r)
 	}
 	return r
+}
+
+// ToOption returns a new ReverseQueryOptionsOption that sets the values from the passed in ReverseQueryOptions
+func (r *ReverseQueryOptions) ToOption() ReverseQueryOptionsOption {
+	return func(to *ReverseQueryOptions) {
+		to.ReverseLimit = r.ReverseLimit
+		to.ResRelation = r.ResRelation
+	}
 }
 
 // ReverseQueryOptionsWithOptions configures an existing ReverseQueryOptions with the passed in options set

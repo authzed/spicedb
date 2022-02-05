@@ -7,7 +7,7 @@ require (
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/authzed/spicedb v0.0.0
 	github.com/brianvoe/gofakeit/v6 v6.14.3
-	github.com/ecordell/optgen v0.0.5-0.20211217170453-18cdce036e35
+	github.com/ecordell/optgen v0.0.6
 	github.com/jackc/pgtype v1.9.1
 	github.com/jackc/pgx/v4 v4.14.1
 	github.com/stretchr/testify v1.7.0

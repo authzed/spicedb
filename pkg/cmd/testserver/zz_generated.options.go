@@ -14,6 +14,15 @@ func NewConfigWithOptions(opts ...ConfigOption) *Config {
 	return c
 }
 
+// ToOption returns a new ConfigOption that sets the values from the passed in Config
+func (c *Config) ToOption() ConfigOption {
+	return func(to *Config) {
+		to.GRPCServer = c.GRPCServer
+		to.ReadOnlyGRPCServer = c.ReadOnlyGRPCServer
+		to.LoadConfigs = c.LoadConfigs
+	}
+}
+
 // ConfigWithOptions configures an existing Config with the passed in options set
 func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
 	for _, o := range opts {
