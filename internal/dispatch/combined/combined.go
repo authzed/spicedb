@@ -22,10 +22,18 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	upstreamAddr     string
-	upstreamCAPath   string
-	grpcPresharedKey string
-	grpcDialOpts     []grpc.DialOption
+	prometheusSubsystem string
+	upstreamAddr        string
+	upstreamCAPath      string
+	grpcPresharedKey    string
+	grpcDialOpts        []grpc.DialOption
+}
+
+// PrometheusSubsystem sets the subsystem name for the prometheus metrics
+func PrometheusSubsystem(name string) Option {
+	return func(state *optionState) {
+		state.prometheusSubsystem = name
+	}
 }
 
 // UpstreamAddr sets the optional cluster dispatching upstream address.
@@ -68,7 +76,11 @@ func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatche
 	}
 	log.Debug().Str("upstream", opts.upstreamAddr).Msg("configured combined dispatcher")
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(nil, "dispatch_client")
+	if opts.prometheusSubsystem == "" {
+		opts.prometheusSubsystem = "dispatch_client"
+	}
+
+	cachingRedispatch, err := caching.NewCachingDispatcher(nil, opts.prometheusSubsystem)
 	if err != nil {
 		return nil, err
 	}

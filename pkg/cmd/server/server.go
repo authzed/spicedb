@@ -55,11 +55,12 @@ type Config struct {
 	SchemaPrefixesRequired bool
 
 	// Dispatch options
-	DispatchServer         util.GRPCServerConfig
-	DispatchMaxDepth       uint32
-	DispatchUpstreamAddr   string
-	DispatchUpstreamCAPath string
-	Dispatcher             dispatch.Dispatcher
+	DispatchServer              util.GRPCServerConfig
+	DispatchMaxDepth            uint32
+	DispatchUpstreamAddr        string
+	DispatchUpstreamCAPath      string
+	DispatchClientMetricsPrefix string
+	Dispatcher                  dispatch.Dispatcher
 
 	// API Behavior
 	DisableV1SchemaAPI bool
@@ -118,6 +119,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 				grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
 			),
+			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -222,6 +224,20 @@ func (c *Config) Complete() (RunnableServer, error) {
 		unaryMiddleware:     c.UnaryMiddleware,
 		streamingMiddleware: c.StreamingMiddleware,
 		presharedKey:        c.PresharedKey,
+		closeFunc: func() {
+			if err := ds.Close(); err != nil {
+				log.Warn().Err(err).Msg("couldn't close datastore")
+			}
+			if err := dispatcher.Close(); err != nil {
+				log.Warn().Err(err).Msg("couldn't close dispatcher")
+			}
+			if cachingClusterDispatch == nil {
+				return
+			}
+			if err := cachingClusterDispatch.Close(); err != nil {
+				log.Warn().Err(err).Msg("couldn't close cluster dispatcher")
+			}
+		},
 	}, nil
 }
 
@@ -246,6 +262,7 @@ type completedServerConfig struct {
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
 	presharedKey        string
+	closeFunc           func()
 }
 
 func (c *completedServerConfig) Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
@@ -296,6 +313,8 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 
 	g.Go(c.dashboardServer.ListenAndServe)
 	g.Go(stopOnCancel(c.dashboardServer.Close))
+
+	g.Go(stopOnCancel(c.closeFunc))
 
 	if err := g.Wait(); err != nil {
 		log.Warn().Err(err).Msg("error shutting down servers")

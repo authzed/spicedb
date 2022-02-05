@@ -42,6 +42,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchMaxDepth = c.DispatchMaxDepth
 		to.DispatchUpstreamAddr = c.DispatchUpstreamAddr
 		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
+		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
 		to.Dispatcher = c.Dispatcher
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
 		to.DashboardAPI = c.DashboardAPI
@@ -184,6 +185,13 @@ func WithDispatchUpstreamAddr(dispatchUpstreamAddr string) ConfigOption {
 func WithDispatchUpstreamCAPath(dispatchUpstreamCAPath string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchUpstreamCAPath = dispatchUpstreamCAPath
+	}
+}
+
+// WithDispatchClientMetricsPrefix returns an option that can set DispatchClientMetricsPrefix on a Config
+func WithDispatchClientMetricsPrefix(dispatchClientMetricsPrefix string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchClientMetricsPrefix = dispatchClientMetricsPrefix
 	}
 }
 
