@@ -253,6 +253,9 @@ type HTTPServerConfig struct {
 }
 
 func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (RunnableHTTPServer, error) {
+	if !c.Enabled {
+		return &disabledHTTPServer{}, nil
+	}
 	srv := &http.Server{
 		Addr:    c.Address,
 		Handler: handler,
@@ -332,3 +335,11 @@ func RegisterHTTPServerFlags(flags *pflag.FlagSet, config *HTTPServerConfig, fla
 	flags.StringVar(&config.TLSKeyPath, flagPrefix+"-tls-key-path", "", "local path to the TLS key used to serve "+serviceName)
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" http server")
 }
+
+type disabledHTTPServer struct{}
+
+func (d *disabledHTTPServer) ListenAndServe() error {
+	return nil
+}
+
+func (d *disabledHTTPServer) Close() {}
