@@ -70,6 +70,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
 		gcCtx:                     gcCtx,
 		cancelGc:                  cancelGc,
+		watchBufferLength:         config.watchBufferLength,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -92,6 +93,7 @@ type mysqlDatastore struct {
 	gcInterval                time.Duration
 	gcMaxOperationTime        time.Duration
 	splitAtEstimatedQuerySize units.Base2Bytes
+	watchBufferLength         uint16
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context

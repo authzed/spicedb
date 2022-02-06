@@ -15,6 +15,8 @@ const (
 	defaultGarbageCollectionWindow           = 24 * time.Hour
 	defaultGarbageCollectionInterval         = time.Minute * 3
 	defaultGarbageCollectionMaxOperationTime = time.Minute
+
+	defaultWatchBufferLength = 128
 )
 
 type mysqlOptions struct {
@@ -23,10 +25,11 @@ type mysqlOptions struct {
 	gcInterval                time.Duration
 	gcMaxOperationTime        time.Duration
 	splitAtEstimatedQuerySize units.Base2Bytes
+	watchBufferLength         uint16
 }
 
 // Option provides the facility to configure how clients within the
-// Mysql datastore interact with the running mysql database.
+// MySQL datastore interact with the running MySQL database.
 type Option func(*mysqlOptions)
 
 func generateConfig(options []Option) (mysqlOptions, error) {
@@ -35,6 +38,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		gcInterval:                defaultGarbageCollectionInterval,
 		gcMaxOperationTime:        defaultGarbageCollectionMaxOperationTime,
 		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
+		watchBufferLength:         defaultWatchBufferLength,
 	}
 
 	for _, option := range options {
