@@ -110,7 +110,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
 		var err error
-		dispatcher, err = combineddispatch.NewDispatcher(nsm, ds,
+		dispatcher, err = combineddispatch.NewDispatcher(nsm,
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
 			combineddispatch.GrpcPresharedKey(c.PresharedKey),
@@ -131,7 +131,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
 		var err error
-		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm, ds)
+		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}

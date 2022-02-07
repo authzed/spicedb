@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -109,9 +110,9 @@ func TestSimpleLookup(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
 
-			dispatch, revision := newLocalDispatcher(require)
+			ctx, dispatch, revision := newLocalDispatcher(require)
 
-			lookupResult, err := dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+			lookupResult, err := dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
 				ObjectRelation: tc.start,
 				Subject:        tc.target,
 				Metadata: &v1.ResolverMeta{
@@ -168,9 +169,11 @@ func TestMaxDepthLookup(t *testing.T) {
 	nsm, err := namespace.NewCachingNamespaceManager(1*time.Second, testCacheConfig)
 	require.NoError(err)
 
-	dispatch := NewLocalOnlyDispatcher(nsm, ds)
+	dispatch := NewLocalOnlyDispatcher(nsm)
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	_, err = dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+	_, err = dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
 		ObjectRelation: RR("document", "viewer"),
 		Subject:        ONR("user", "legal", "..."),
 		Metadata: &v1.ResolverMeta{

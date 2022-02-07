@@ -26,13 +26,12 @@ var tracer = otel.Tracer("spicedb/internal/dispatch/local")
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
 func NewLocalOnlyDispatcher(
 	nsm namespace.Manager,
-	ds datastore.Datastore,
 ) dispatch.Dispatcher {
 	d := &localDispatcher{nsm: nsm}
 
-	d.checker = graph.NewConcurrentChecker(d, ds, nsm)
-	d.expander = graph.NewConcurrentExpander(d, ds, nsm)
-	d.lookupHandler = graph.NewConcurrentLookup(d, ds, nsm)
+	d.checker = graph.NewConcurrentChecker(d, nsm)
+	d.expander = graph.NewConcurrentExpander(d, nsm)
+	d.lookupHandler = graph.NewConcurrentLookup(d, nsm)
 
 	return d
 }
@@ -42,11 +41,10 @@ func NewLocalOnlyDispatcher(
 func NewDispatcher(
 	redispatcher dispatch.Dispatcher,
 	nsm namespace.Manager,
-	ds datastore.Datastore,
 ) dispatch.Dispatcher {
-	checker := graph.NewConcurrentChecker(redispatcher, ds, nsm)
-	expander := graph.NewConcurrentExpander(redispatcher, ds, nsm)
-	lookupHandler := graph.NewConcurrentLookup(redispatcher, ds, nsm)
+	checker := graph.NewConcurrentChecker(redispatcher, nsm)
+	expander := graph.NewConcurrentExpander(redispatcher, nsm)
+	lookupHandler := graph.NewConcurrentLookup(redispatcher, nsm)
 
 	return &localDispatcher{checker, expander, lookupHandler, nsm}
 }

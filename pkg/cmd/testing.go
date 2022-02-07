@@ -212,7 +212,7 @@ func (ptbm *perTokenBackendMiddleware) createUpstream() (*upstream, error) {
 			return nil, fmt.Errorf("failed to initialize namespace manager: %w", err)
 		}
 
-		dispatch := graph.NewLocalOnlyDispatcher(nsm, ds)
+		dispatch := graph.NewLocalOnlyDispatcher(nsm)
 
 		grpcServer := grpc.NewServer(
 			grpc.ChainUnaryInterceptor(

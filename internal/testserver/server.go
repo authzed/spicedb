@@ -34,7 +34,7 @@ func NewTestServer(require *require.Assertions,
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
 		server.WithNamespaceCacheExpiration(1*time.Second),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(ns, ds)),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(ns)),
 		server.WithDispatchMaxDepth(50),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,

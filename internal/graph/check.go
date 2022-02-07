@@ -9,23 +9,22 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
-func NewConcurrentChecker(d dispatch.Check, ds datastore.GraphDatastore, nsm namespace.Manager) *ConcurrentChecker {
-	return &ConcurrentChecker{d: d, ds: ds, nsm: nsm}
+func NewConcurrentChecker(d dispatch.Check, nsm namespace.Manager) *ConcurrentChecker {
+	return &ConcurrentChecker{d: d, nsm: nsm}
 }
 
 // ConcurrentChecker exposes a method to perform Check requests, and delegates subproblems to the
 // provided dispatch.Check instance.
 type ConcurrentChecker struct {
 	d   dispatch.Check
-	ds  datastore.GraphDatastore
 	nsm namespace.Manager
 }
 
@@ -76,9 +75,10 @@ func onrEqualOrWildcard(tpl, target *v0.ObjectAndRelation) bool {
 func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("direct", req).Send()
+		ds := datastoremw.MustFromContext(ctx)
 
 		// TODO(jschorr): Use type information to further optimize this query.
-		it, err := cc.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   req.ObjectAndRelation.Relation,
@@ -200,7 +200,8 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req ValidatedCheckRequest, ttu *v0.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
-		it, err := cc.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		ds := datastoremw.MustFromContext(ctx)
+		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   ttu.Tupleset.Relation,
