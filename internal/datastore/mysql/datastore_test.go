@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alecthomas/units"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
@@ -30,7 +31,9 @@ const (
 
 var containerPort string
 
-type sqlTest struct{}
+type sqlTest struct {
+	splitAtEstimatedQuerySize units.Base2Bytes
+}
 
 func newTester() *sqlTest {
 	return &sqlTest{}
@@ -43,6 +46,9 @@ func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBu
 
 	return NewMysqlDatastore(connectStr,
 		RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+		GCWindow(gcWindow),
+		GCInterval(0*time.Second), // Disable auto GC
+		SplitAtEstimatedQuerySize(st.splitAtEstimatedQuerySize),
 	)
 }
 
@@ -57,20 +63,7 @@ func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
 
 func TestMysqlDatastore(t *testing.T) {
 	tester := newTester()
-
-	// TODO: switch this to call test.All() once we added the remaining test support:
-	// - TestInvalidReads
-	// - TestWatch
-	// - TestWatchCancel
-	t.Run("TestSimple", func(t *testing.T) { test.SimpleTest(t, tester) })
-	t.Run("TestRevisionFuzzing", func(t *testing.T) { test.RevisionFuzzingTest(t, tester) })
-	t.Run("TestWritePreconditions", func(t *testing.T) { test.WritePreconditionsTest(t, tester) })
-	t.Run("TestDeletePreconditions", func(t *testing.T) { test.DeletePreconditionsTest(t, tester) })
-	t.Run("TestDeleteRelationships", func(t *testing.T) { test.DeleteRelationshipsTest(t, tester) })
-	t.Run("TestNamespaceWrite", func(t *testing.T) { test.NamespaceWriteTest(t, tester) })
-	t.Run("TestNamespaceDelete", func(t *testing.T) { test.NamespaceDeleteTest(t, tester) })
-	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { test.EmptyNamespaceDeleteTest(t, tester) })
-	t.Run("TestUsersets", func(t *testing.T) { test.UsersetsTest(t, tester) })
+	test.All(t, tester)
 }
 
 func TestMySQLMigrations(t *testing.T) {

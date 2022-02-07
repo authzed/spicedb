@@ -347,10 +347,10 @@ func (pgd *pgDatastore) batchDelete(ctx context.Context, tableName string, filte
 		return -1, err
 	}
 
-	query := fmt.Sprintf(`WITH rows AS (%s)
+	query := fmt.Sprintf(`WITH rows AS (%s LIMIT %d)
 		  DELETE FROM %s
 		  WHERE id IN (SELECT id FROM rows);
-	`, sql, tableName)
+	`, sql, batchDeleteSize, tableName)
 
 	var deletedCount int64
 	for {

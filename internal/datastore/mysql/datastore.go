@@ -9,8 +9,11 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/alecthomas/units"
 	"github.com/jmoiron/sqlx"
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -18,15 +21,16 @@ import (
 )
 
 const (
-	errNotImplemented = "spicedb/datastore/mysql: Not Implemented"
-
-	errRevision = "unable to find revision: %w"
+	errRevision      = "unable to find revision: %w"
+	errCheckRevision = "unable to check revision: %w"
 
 	createTxn = "INSERT INTO relation_tuple_transaction VALUES()"
 
 	liveDeletedTxnID = uint64(9223372036854775807)
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
+
+	batchDeleteSize = 1000
 )
 
 var (
@@ -40,6 +44,10 @@ var (
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 )
 
+type sqlFilter interface {
+	ToSql() (string, []interface{}, error)
+}
+
 func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, error) {
 	db, err := sqlx.Open("mysql", url)
 	if err != nil {
@@ -50,22 +58,199 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	return &mysqlDatastore{
-		db:                       db,
-		url:                      url,
-		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
-	}, nil
+	gcCtx, cancelGc := context.WithCancel(context.Background())
+
+	datastore := &mysqlDatastore{
+		db:                        db,
+		url:                       url,
+		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
+		gcWindowInverted:          -1 * config.gcWindow,
+		gcInterval:                config.gcInterval,
+		gcMaxOperationTime:        config.gcMaxOperationTime,
+		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
+		gcCtx:                     gcCtx,
+		cancelGc:                  cancelGc,
+		watchBufferLength:         config.watchBufferLength,
+	}
+
+	// Start a goroutine for garbage collection.
+	if datastore.gcInterval > 0*time.Minute {
+		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
+		datastore.gcGroup.Go(datastore.runGarbageCollector)
+	} else {
+		log.Warn().Msg("garbage collection disabled in mysql driver")
+	}
+
+	return datastore, nil
 }
 
 type mysqlDatastore struct {
-	db                       *sqlx.DB
-	url                      string
-	revisionFuzzingTimedelta time.Duration
+	db  *sqlx.DB
+	url string
+
+	revisionFuzzingTimedelta  time.Duration
+	gcWindowInverted          time.Duration
+	gcInterval                time.Duration
+	gcMaxOperationTime        time.Duration
+	splitAtEstimatedQuerySize units.Base2Bytes
+	watchBufferLength         uint16
+
+	gcGroup  *errgroup.Group
+	gcCtx    context.Context
+	cancelGc context.CancelFunc
 }
 
 // Close closes the data store.
 func (mds *mysqlDatastore) Close() error {
+	mds.cancelGc()
+	if mds.gcGroup != nil {
+		if err := mds.gcGroup.Wait(); err != nil {
+			log.Error().Err(err).Msg("error from running garbage collector on shutdown")
+		}
+	}
 	return mds.db.Close()
+}
+
+func (mds *mysqlDatastore) runGarbageCollector() error {
+	log.Info().Dur("interval", mds.gcInterval).Msg("garbage collection worker started for mysql driver")
+
+	for {
+		select {
+		case <-mds.gcCtx.Done():
+			log.Info().Msg("shutting down garbage collection worker for mysql driver")
+			return mds.gcCtx.Err()
+
+		case <-time.After(mds.gcInterval):
+			err := mds.collectGarbage()
+			if err != nil {
+				log.Warn().Err(err).Msg("error when attempting to perform garbage collection")
+			} else {
+				log.Debug().Msg("garbage collection completed for mysql")
+			}
+		}
+	}
+}
+
+func (mds *mysqlDatastore) getNow(ctx context.Context) (time.Time, error) {
+	// Retrieve the `now` time from the database.
+	nowSQL, nowArgs, err := getNow.ToSql()
+	if err != nil {
+		return time.Now(), err
+	}
+
+	var now time.Time
+	err = mds.db.QueryRowxContext(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
+	if err != nil {
+		return time.Now(), err
+	}
+
+	// RelationTupleTransaction is not timezone aware
+	// Explicitly use UTC before using as a query arg
+	now = now.UTC()
+
+	return now, nil
+}
+
+func (mds *mysqlDatastore) collectGarbage() error {
+	ctx, cancel := context.WithTimeout(context.Background(), mds.gcMaxOperationTime)
+	defer cancel()
+
+	// Ensure the database is ready.
+	ready, err := mds.IsReady(ctx)
+	if err != nil {
+		return err
+	}
+
+	if !ready {
+		log.Ctx(ctx).Warn().Msg("cannot perform mysql garbage collection: mysql driver is not yet ready")
+		return nil
+	}
+
+	now, err := mds.getNow(ctx)
+	if err != nil {
+		return err
+	}
+
+	before := now.Add(mds.gcWindowInverted)
+	log.Ctx(ctx).Debug().Time("before", before).Msg("running mysql garbage collection")
+	_, _, err = mds.collectGarbageBefore(ctx, before)
+	return err
+}
+
+func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
+	// Find the highest transaction ID before the GC window.
+	query, args, err := getRevision.Where(sq.Lt{common.ColTimestamp: before}).ToSql()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var value sql.NullInt64
+	err = mds.db.QueryRowxContext(
+		datastore.SeparateContextWithTracing(ctx), query, args...,
+	).Scan(&value)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if !value.Valid {
+		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
+		return 0, 0, nil
+	}
+	highest := uint64(value.Int64)
+
+	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Msg("retrieved transaction ID for GC")
+
+	return mds.collectGarbageForTransaction(ctx, highest)
+}
+
+func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
+	// Delete any relationship rows with deleted_transaction <= the transaction ID.
+	relCount, err := mds.batchDelete(ctx, common.TableTuple, sq.LtOrEq{common.ColDeletedTxn: highest})
+	if err != nil {
+		return 0, 0, err
+	}
+
+	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
+	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
+	// itself to ensure there is always at least one transaction present.
+	transactionCount, err := mds.batchDelete(ctx, common.TableTransaction, sq.Lt{common.ColID: highest})
+	if err != nil {
+		return relCount, 0, err
+	}
+
+	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("transactionsDeleted", transactionCount).Msg("deleted stale transactions")
+	return relCount, transactionCount, nil
+}
+
+func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
+	innerQuery, args, err := sb.Select("id").From(tableName).Where(filter).ToSql()
+	if err != nil {
+		return -1, err
+	}
+
+	query := fmt.Sprintf(`WITH rows AS (%s LIMIT %d)
+		  DELETE FROM %s
+		  WHERE id IN (SELECT id FROM rows);
+	`, innerQuery, batchDeleteSize, tableName)
+
+	var deletedCount int64
+	for {
+		cr, err := mds.db.ExecContext(ctx, query, args...)
+		if err != nil {
+			return deletedCount, err
+		}
+
+		rowsDeleted, err := cr.RowsAffected()
+		if err != nil {
+			return deletedCount, err
+		}
+		deletedCount += rowsDeleted
+		if rowsDeleted < batchDeleteSize {
+			break
+		}
+	}
+
+	return deletedCount, nil
 }
 
 func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
@@ -152,17 +337,53 @@ func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	return common.RevisionFromTransaction(revision), nil
 }
 
-// Watch notifies the caller about all changes to tuples.
-//
-// All events following afterRevision will be sent to the caller.
-func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	return nil, nil
-}
-
 // CheckRevision checks the specified revision to make sure it's valid and
 // hasn't been garbage collected.
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	return fmt.Errorf(errNotImplemented)
+	ctx, span := tracer.Start(ctx, "CheckRevision")
+	defer span.End()
+
+	revisionTx := common.TransactionFromRevision(revision)
+
+	lower, upper, err := mds.computeRevisionRange(ctx, mds.gcWindowInverted)
+	if err == nil {
+		if revisionTx < lower {
+			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
+		} else if revisionTx > upper {
+			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
+		}
+
+		return nil
+	}
+
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	// There are no unexpired rows
+	query, args, err := getRevision.ToSql()
+	if err != nil {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	var highest uint64
+	err = mds.db.QueryRowContext(
+		datastore.SeparateContextWithTracing(ctx), query, args...,
+	).Scan(&highest)
+	if errors.Is(err, sql.ErrNoRows) {
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
+	}
+	if err != nil {
+		return fmt.Errorf(errCheckRevision, err)
+	}
+
+	if revisionTx < highest {
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
+	} else if revisionTx > highest {
+		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
+	}
+
+	return nil
 }
 
 func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
@@ -190,19 +411,10 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 	ctx, span := tracer.Start(ctx, "computeRevisionRange")
 	defer span.End()
 
-	nowSQL, nowArgs, err := getNow.ToSql()
+	now, err := mds.getNow(ctx)
 	if err != nil {
 		return 0, 0, err
 	}
-
-	var now time.Time
-	err = mds.db.QueryRowxContext(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
-	if err != nil {
-		return 0, 0, err
-	}
-	// RelationTupleTransaction is not timezone aware
-	// Explicitly use UTC before using as a query arg
-	now = now.UTC()
 
 	span.AddEvent("DB returned value for NOW()")
 
