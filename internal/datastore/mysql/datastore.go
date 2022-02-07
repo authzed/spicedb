@@ -335,13 +335,6 @@ func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	return common.RevisionFromTransaction(revision), nil
 }
 
-// Watch notifies the caller about all changes to tuples.
-//
-// All events following afterRevision will be sent to the caller.
-func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	return nil, nil
-}
-
 // CheckRevision checks the specified revision to make sure it's valid and
 // hasn't been garbage collected.
 func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
