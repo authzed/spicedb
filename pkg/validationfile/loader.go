@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -95,27 +94,15 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 		var updates []*v1.RelationshipUpdate
 		seenTuples := map[string]bool{}
 
-		relationships := parsed.Relationships
-		if relationships != "" {
-			lines := strings.Split(relationships, "\n")
-			for index, line := range lines {
-				trimmed := strings.TrimSpace(line)
-				if len(trimmed) == 0 || strings.HasPrefix(trimmed, "//") {
-					continue
-				}
+		relationshipsBlockString := parsed.Relationships
+		if relationshipsBlockString != "" {
+			parsedTuples, err := ParseRelationships(relationshipsBlockString)
+			if err != nil {
+				return nil, decimal.Zero, err
+			}
 
-				tpl := tuple.Parse(trimmed)
-				if tpl == nil {
-					return nil, decimal.Zero, fmt.Errorf("error parsing relationship #%v: %s", index, trimmed)
-				}
-
-				_, ok := seenTuples[tuple.String(tpl)]
-				if ok {
-					continue
-				}
-				seenTuples[tuple.String(tpl)] = true
-
-				tuples = append(tuples, tpl)
+			tuples = parsedTuples
+			for _, tpl := range tuples {
 				updates = append(updates, &v1.RelationshipUpdate{
 					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 					Relationship: tuple.MustToRelationship(tpl),

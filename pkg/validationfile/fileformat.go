@@ -1,6 +1,7 @@
 package validationfile
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -362,5 +363,76 @@ func (a Assertions) AssertFalseRelationships() ([]ParsedAssertion, *ErrorWithSou
 			ColumnPosition: uint32(assertion.columnPosition),
 		})
 	}
+	return relationships, nil
+}
+
+// ParseRelationshipsBlock parses a block of newline-separated relationships into a set
+// of relation tuples.
+func ParseRelationshipsBlock(contents []byte) ([]*v0.RelationTuple, error) {
+	// Unmarshal to a node, so we can get line and col information.
+	var node yamlv3.Node
+	err := yamlv3.Unmarshal(contents, &node)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(node.Content) == 0 {
+		return nil, nil
+	}
+
+	if node.Content[0].Kind != yamlv3.ScalarNode {
+		return nil, fmt.Errorf("expected string at top level")
+	}
+
+	parsed, err := ParseRelationships(node.Content[0].Value)
+	if err != nil {
+		var errWithSource ErrorWithSource
+		if errors.As(err, &errWithSource) {
+			return nil, ErrorWithSource{
+				errWithSource.error,
+				errWithSource.Source,
+				errWithSource.LineNumber + uint32(node.Line),
+				errWithSource.ColumnPosition,
+			}
+		}
+	}
+	return parsed, err
+}
+
+// ParseRelationships parses a newline-separated relationships string into a set
+// of relation tuples.
+func ParseRelationships(relationshipsString string) ([]*v0.RelationTuple, error) {
+	if relationshipsString == "" {
+		return nil, nil
+	}
+
+	var relationships []*v0.RelationTuple
+
+	seenTuples := map[string]bool{}
+	lines := strings.Split(relationshipsString, "\n")
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if len(trimmed) == 0 || strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+
+		tpl := tuple.Parse(trimmed)
+		if tpl == nil {
+			return nil, ErrorWithSource{
+				fmt.Errorf("error parsing relationship #%v: %s", index, trimmed),
+				trimmed,
+				uint32(index + 1), // 1-indexed
+				1,                 // 1-indexed
+			}
+		}
+
+		_, ok := seenTuples[tuple.String(tpl)]
+		if ok {
+			continue
+		}
+		seenTuples[tuple.String(tpl)] = true
+		relationships = append(relationships, tpl)
+	}
+
 	return relationships, nil
 }
