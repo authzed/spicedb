@@ -171,6 +171,9 @@ func (p *sourceParser) isKeyword(keyword string) bool {
 // node.
 func (p *sourceParser) emitErrorf(format string, args ...interface{}) {
 	errorNode := p.createErrorNodef(format, args...)
+	if len(p.currentToken.Value) > 0 {
+		errorNode.Decorate(dslshape.NodePredicateErrorSource, p.currentToken.Value)
+	}
 	p.currentNode().Connect(dslshape.NodePredicateChild, errorNode)
 }
 

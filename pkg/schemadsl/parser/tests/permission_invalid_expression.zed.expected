@@ -23,10 +23,12 @@ NodeTypeFile
         NodeTypeError
           end-rune = 36
           error-message = Expected end of statement or definition, found: TokenTypeMinus
+          error-source = -
           input-source = permission invalid expression test
           start-rune = 38
     NodeTypeError
       end-rune = 36
       error-message = Unexpected token at root level: TokenTypeMinus
+      error-source = -
       input-source = permission invalid expression test
       start-rune = 38

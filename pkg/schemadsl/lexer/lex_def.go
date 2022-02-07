@@ -119,7 +119,7 @@ Loop:
 			if l.acceptString("..") {
 				l.emit(TokenTypeEllipsis)
 			} else {
-				return l.errorf("unrecognized character at this location: %#U", r)
+				return l.errorf(r, "unrecognized character at this location: %#U", r)
 			}
 
 		case r == '-':
@@ -159,7 +159,7 @@ Loop:
 
 			l.emit(TokenTypeDiv)
 		default:
-			return l.errorf("unrecognized character at this location: %#U", r)
+			return l.errorf(r, "unrecognized character at this location: %#U", r)
 		}
 	}
 
@@ -192,7 +192,7 @@ func lexMultilineComment(l *Lexer) stateFn {
 		// Otherwise, consume until we hit EOFRUNE.
 		r := l.next()
 		if r == EOFRUNE {
-			return l.errorf("Unterminated multiline comment")
+			return l.errorf(r, "Unterminated multiline comment")
 		}
 	}
 }

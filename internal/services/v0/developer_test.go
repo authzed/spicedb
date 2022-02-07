@@ -98,11 +98,12 @@ func TestEditCheck(t *testing.T) {
 			[]*v0.RelationTuple{},
 			[]*v0.RelationTuple{},
 			&v0.DeveloperError{
-				Message: "parse error in `schema`, line 3, column 4: Expected identifier, found token TokenTypeRightBrace",
+				Message: "Expected identifier, found token TokenTypeRightBrace",
 				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
 				Source:  v0.DeveloperError_SCHEMA,
 				Line:    3,
 				Column:  4,
+				Context: "}",
 			},
 			nil,
 		},
@@ -112,7 +113,7 @@ func TestEditCheck(t *testing.T) {
 			[]*v0.RelationTuple{},
 			[]*v0.RelationTuple{},
 			&v0.DeveloperError{
-				Message: "parse error in `schema`, line 1, column 1: error in object definition fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+				Message: "error in object definition fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
 				Source:  v0.DeveloperError_SCHEMA,
 				Line:    1,

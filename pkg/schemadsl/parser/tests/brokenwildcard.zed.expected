@@ -39,6 +39,7 @@ NodeTypeFile
                     NodeTypeError
                       end-rune = 74
                       error-message = Expected one of: [TokenTypeStar], found: TokenTypePipe
+                      error-source = |
                       input-source = broken wildcard test
                       start-rune = 76
                 NodeTypeSpecificTypeReference

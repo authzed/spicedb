@@ -76,6 +76,7 @@ type Lexeme struct {
 	Kind     TokenType          // The type of this lexeme.
 	Position input.BytePosition // The starting position of this token in the input string.
 	Value    string             // The textual value of this token.
+	Error    string             // The error associated with the lexeme, if any.
 }
 
 // stateFn represents the state of the scanner as a function that returns the next state.
@@ -136,7 +137,7 @@ func (l *Lexer) value() string {
 
 // emit passes an token back to the client.
 func (l *Lexer) emit(t TokenType) {
-	currentToken := Lexeme{t, l.start, l.value()}
+	currentToken := Lexeme{t, l.start, l.value(), ""}
 
 	if t == TokenTypeWhitespace {
 		l.lastNonWhitespaceToken = currentToken
@@ -158,8 +159,8 @@ func (l *Lexer) emit(t TokenType) {
 
 // errorf returns an error token and terminates the scan by passing
 // back a nil pointer that will be the next state, terminating l.nexttoken.
-func (l *Lexer) errorf(format string, args ...interface{}) stateFn {
-	l.tokens <- Lexeme{TokenTypeError, l.start, fmt.Sprintf(format, args...)}
+func (l *Lexer) errorf(currentRune rune, format string, args ...interface{}) stateFn {
+	l.tokens <- Lexeme{TokenTypeError, l.start, string(currentRune), fmt.Sprintf(format, args...)}
 	return nil
 }
 
@@ -220,7 +221,7 @@ func buildLexUntil(findType TokenType, checker checkFn) stateFn {
 			r := l.next()
 			isValid, err := checker(r)
 			if err != nil {
-				return l.errorf("%v", err)
+				return l.errorf(r, "%v", err)
 			}
 			if !isValid {
 				l.backup()
