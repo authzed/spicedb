@@ -1,26 +1,33 @@
 package validationfile
 
 import (
-	"errors"
 	"fmt"
-	"regexp"
-	"strings"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	yaml "gopkg.in/yaml.v2"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	yamlv3 "gopkg.in/yaml.v3"
-
-	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// DecodeValidationFile decodes the validation file as found in the contents bytes
+// and returns it.
+func DecodeValidationFile(contents []byte) (*FullyParsedValidationFile, error) {
+	p := ValidationFile{}
+	err := yamlv3.Unmarshal(contents, &p)
+	if err != nil {
+		return nil, err
+	}
+
+	f, _, err := ParsedValidationFile(p)
+	return f, err
+}
 
 // ValidationFile represents the contents of a YAML validation file, as
 // exported by the playground.
 //
-// NOTE: This struct does not contain the  `validation` block produced
-// by the playground, as it is currently unused in Go-side code.
+// NOTE: This is exported from the module solely so that tooling can decode into
+// it, maintain line and column position information (as yamlv3.Node) and then
+// call the various Parse*Block functions if necessary.
 //
-// Parsing for those blocks' *contents* can be found in this module, since they
-// are parsed by the developer API.
+// Most callers should use DecodeValidationFile.
 type ValidationFile struct {
 	// Schema is the defined schema, in DSL format. Optional if at least one
 	// NamespaceConfig is specified.
@@ -28,411 +35,109 @@ type ValidationFile struct {
 
 	// Relationships are the validation relationships, as a single string of
 	// newline separated tuple string syntax.
-	// Optional if ValidationTuples is specified.
-	Relationships string `yaml:"relationships"`
+	Relationships yamlv3.Node `yaml:"relationships"`
+
+	// Assertions are the (optional) assertions for the validation file.
+	Assertions yamlv3.Node `yaml:"assertions"`
+
+	// Validation is the expected relations block.
+	Validation yamlv3.Node `yaml:"validation"`
 
 	// NamespaceConfigs are the namespace configuration protos, in text format.
-	// Optional if Schema is specified.
+	// Deprecated: only for internal use. Use Schema.
 	NamespaceConfigs []string `yaml:"namespace_configs"`
 
 	// ValidationTuples are the validation tuples, in tuple string syntax.
-	// Optional if Relationships are specified.
+	// Deprecated: only for internal use. Use Relationships.
 	ValidationTuples []string `yaml:"validation_tuples"`
-
-	// Assertions are the (optional) assertions for the validation file.
-	Assertions SimpleAssertions `yaml:"assertions"`
 }
 
-// ErrorWithSource is an error that includes the source text and position
-// information.
-type ErrorWithSource struct {
-	error
+// FullyParsedValidationFile is a validation file that has been fully parsed.
+type FullyParsedValidationFile struct {
+	// Schema is the schema.
+	Schema string
 
-	// Source is the source text for the error.
-	Source string
+	// Relationships are the relationships specified in the validation file.
+	Relationships []*v1.Relationship
 
-	// LineNumber is the (1-indexed) line number of the error, or 0 if unknown.
-	LineNumber uint32
+	// Assertions are the assertions defined in the validation file. May be nil
+	// if no assertions are defined.
+	Assertions *Assertions
 
-	// ColumnPosition is the (1-indexed) column position of the error, or 0 if
-	// unknown.
-	ColumnPosition uint32
+	// ExpectedRelations is the map of expected relations.
+	ExpectedRelations ValidationMap
+
+	// NamespaceConfigs are the namespace configuration protos, in text format.
+	// Deprecated: only for internal use. Use Schema.
+	NamespaceConfigs []string `yaml:"namespace_configs"`
+
+	// ValidationTuples are the validation tuples, in tuple string syntax.
+	// Deprecated: only for internal use. Use Relationships.
+	ValidationTuples []string `yaml:"validation_tuples"`
 }
 
-// ParseValidationFile attempts to parse the given contents as a YAML
-// validation file.
-func ParseValidationFile(contents []byte) (ValidationFile, error) {
-	file := ValidationFile{}
-	err := yaml.Unmarshal(contents, &file)
-	return file, err
-}
+// ErrorBlockKind is the kind of block that raised the error.
+type ErrorBlockKind = int
 
-// ParseValidationBlock attempts to parse the given contents as a YAML
-// validation block.
-func ParseValidationBlock(contents []byte) (ValidationMap, error) {
-	block := ValidationMap{}
-	err := yaml.Unmarshal(contents, &block)
-	return block, err
-}
+const (
+	// NoBlockError indicates no error occurred.
+	NoBlockError ErrorBlockKind = iota
 
-// ParseAssertionsBlock attempts to parse the given contents as a YAML
-// assertions block.
-func ParseAssertionsBlock(contents []byte) (*Assertions, error) {
-	// Unmarshal to a node, so we can get line and col information.
-	var node yamlv3.Node
-	err := yamlv3.Unmarshal(contents, &node)
-	if err != nil {
-		return nil, err
-	}
+	// RelationshipsBlockError is an error in the `relationships` block.
+	RelationshipsBlockError
 
-	if len(node.Content) == 0 {
-		return &Assertions{}, nil
-	}
+	// AssertionsBlockError is an error in the `assertions` block.
+	AssertionsBlockError
 
-	if node.Content[0].Kind != yamlv3.MappingNode {
-		return nil, fmt.Errorf("expected object at top level")
-	}
-
-	mapping := node.Content[0]
-	key := ""
-	var parsed Assertions
-	for _, child := range mapping.Content {
-		if child.Kind == yamlv3.ScalarNode {
-			key = child.Value
-
-			switch key {
-			case "assertTrue":
-			case "assertFalse":
-				continue
-
-			default:
-				return nil, ErrorWithSource{
-					fmt.Errorf("unexpected key `%s` on line %d", key, child.Line),
-					key,
-					uint32(child.Line),
-					uint32(child.Column),
-				}
-			}
-		}
-
-		if child.Kind == yamlv3.SequenceNode {
-			for _, contentChild := range child.Content {
-				if contentChild.Kind == yamlv3.ScalarNode {
-					assertion := Assertion{
-						relationshipString: contentChild.Value,
-						lineNumber:         contentChild.Line,
-						columnPosition:     contentChild.Column,
-					}
-
-					switch key {
-					case "assertTrue":
-						parsed.AssertTrue = append(parsed.AssertTrue, assertion)
-
-					case "assertFalse":
-						parsed.AssertFalse = append(parsed.AssertFalse, assertion)
-
-					default:
-						return nil, ErrorWithSource{
-							fmt.Errorf("unexpected key `%s` on line %d", key, child.Line),
-							key,
-							uint32(child.Line),
-							uint32(child.Column),
-						}
-					}
-				} else {
-					return nil, fmt.Errorf("unexpected value on line `%d`", contentChild.Line)
-				}
-			}
-		}
-	}
-
-	// Unmarshal to a well-typed block, in case manual error checking missed something.
-	var simple SimpleAssertions
-	err = yamlv3.Unmarshal(contents, &simple)
-	if err != nil {
-		return nil, err
-	}
-
-	return &parsed, nil
-}
-
-// ValidationMap is a map from an Object Relation (as a Relationship) to the
-// validation strings containing the Subjects for that Object Relation.
-type ValidationMap map[ObjectRelationString][]ValidationString
-
-// AsYAML returns the ValidationMap in its YAML form.
-func (vm ValidationMap) AsYAML() (string, error) {
-	data, err := yaml.Marshal(vm)
-	return string(data), err
-}
-
-// ObjectRelationString represents an ONR defined as a string in the key for
-// the ValidationMap.
-type ObjectRelationString string
-
-// ONR returns the ObjectAndRelation parsed from this string, if valid, or an
-// error on failure to parse.
-func (ors ObjectRelationString) ONR() (*v0.ObjectAndRelation, *ErrorWithSource) {
-	parsed := tuple.ParseONR(string(ors))
-	if parsed == nil {
-		return nil, &ErrorWithSource{fmt.Errorf("could not parse %s", ors), string(ors), 0, 0}
-	}
-	return parsed, nil
-}
-
-var (
-	vsSubjectRegex               = regexp.MustCompile(`(.*?)\[(?P<user_str>.*)\](.*?)`)
-	vsObjectAndRelationRegex     = regexp.MustCompile(`(.*?)<(?P<onr_str>[^\>]+)>(.*?)`)
-	vsSubjectWithExceptionsRegex = regexp.MustCompile(`^(.+)\s*-\s*\{([^\}]+)\}$`)
+	// ExpectedRelationsBlockError is an error in the `validation` block.
+	ExpectedRelationsBlockError
 )
 
-// SubjectWithExceptions returns the subject found in a validation string, along with any exceptions.
-type SubjectWithExceptions struct {
-	// Subject is the subject found.
-	Subject *v0.ObjectAndRelation
-
-	// Exceptions are those subjects removed from the subject, if it is a wildcard.
-	Exceptions []*v0.ObjectAndRelation
-}
-
-// ValidationString holds a validation string containing a Subject and one or
-// more Relations to the parent Object.
-// Example: `[tenant/user:someuser#...] is <tenant/document:example#viewer>`
-type ValidationString string
-
-// SubjectString returns the subject contained in the ValidationString, if any.
-func (vs ValidationString) SubjectString() (string, bool) {
-	result := vsSubjectRegex.FindStringSubmatch(string(vs))
-	if len(result) != 4 {
-		return "", false
+// ParsedValidationFile parses the YAML-encoded ValidationFile. If an error occurs,
+// it likely is an ErrorWithSource, so callers should check that.
+func ParsedValidationFile(p ValidationFile) (*FullyParsedValidationFile, ErrorBlockKind, error) {
+	// Parse the test relationships.
+	var relationships []*v1.Relationship
+	if p.Relationships.Kind != 0 && p.Relationships.Kind != yamlv3.ScalarNode {
+		return nil, RelationshipsBlockError, ErrorWithSource{
+			fmt.Errorf("invalid YAML node for relationships"),
+			"relationships",
+			uint32(p.Relationships.Line),
+			uint32(p.Relationships.Column),
+		}
 	}
 
-	return result[2], true
-}
-
-// Subject returns the subject contained in the ValidationString, if any. If
-// none, returns nil.
-func (vs ValidationString) Subject() (*SubjectWithExceptions, *ErrorWithSource) {
-	subjectStr, ok := vs.SubjectString()
-	if !ok {
-		return nil, nil
+	if p.Relationships.Kind != 0 {
+		r, err := DecodeRelationshipsBlock(p.Relationships.Value, p.Relationships.Line+1) // +1 for the key
+		if err != nil {
+			return nil, RelationshipsBlockError, err
+		}
+		relationships = r
 	}
 
-	subjectStr = strings.TrimSpace(subjectStr)
-	if strings.HasSuffix(subjectStr, "}") {
-		result := vsSubjectWithExceptionsRegex.FindStringSubmatch(subjectStr)
-		if len(result) != 3 {
-			return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", subjectStr), subjectStr, 0, 0}
+	// Parse the assertions.
+	var assertions *Assertions
+	if p.Assertions.Kind != 0 && len(p.Assertions.Content) > 0 {
+		parsed, err := DecodeAssertionsBlock(&p.Assertions)
+		if err != nil {
+			return nil, AssertionsBlockError, err
 		}
 
-		subjectONR := tuple.ParseSubjectONR(strings.TrimSpace(result[1]))
-		if subjectONR == nil {
-			return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", result[1]), result[1], 0, 0}
-		}
-
-		exceptionsString := strings.TrimSpace(result[2])
-		exceptionsStringsSlice := strings.Split(exceptionsString, ",")
-		exceptions := make([]*v0.ObjectAndRelation, 0, len(exceptionsStringsSlice))
-		for _, exceptionString := range exceptionsStringsSlice {
-			exceptionONR := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
-			if exceptionONR == nil {
-				return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", exceptionString), exceptionString, 0, 0}
-			}
-
-			exceptions = append(exceptions, exceptionONR)
-		}
-
-		return &SubjectWithExceptions{subjectONR, exceptions}, nil
+		assertions = parsed
 	}
 
-	found := tuple.ParseSubjectONR(subjectStr)
-	if found == nil {
-		return nil, &ErrorWithSource{fmt.Errorf("invalid subject: %s", subjectStr), subjectStr, 0, 0}
-	}
-	return &SubjectWithExceptions{found, nil}, nil
-}
-
-// ONRStrings returns the ONRs contained in the ValidationString, if any.
-func (vs ValidationString) ONRStrings() []string {
-	results := vsObjectAndRelationRegex.FindAllStringSubmatch(string(vs), -1)
-	onrStrings := []string{}
-	for _, result := range results {
-		onrStrings = append(onrStrings, result[2])
-	}
-	return onrStrings
-}
-
-// ONRS returns the subject ONRs in the ValidationString, if any.
-func (vs ValidationString) ONRS() ([]*v0.ObjectAndRelation, *ErrorWithSource) {
-	onrStrings := vs.ONRStrings()
-
-	onrs := []*v0.ObjectAndRelation{}
-	for _, onrString := range onrStrings {
-		found := tuple.ParseONR(onrString)
-		if found == nil {
-			return nil, &ErrorWithSource{fmt.Errorf("invalid object and relation: %s", onrString), onrString, 0, 0}
-		}
-
-		onrs = append(onrs, found)
-	}
-	return onrs, nil
-}
-
-// SimpleAssertions is a parsed assertions block.
-type SimpleAssertions struct {
-	// AssertTrue is the set of relationships to assert true.
-	AssertTrue []string `yaml:"assertTrue"`
-
-	// AssertFalse is the set of relationships to assert false.
-	AssertFalse []string `yaml:"assertFalse"`
-}
-
-// Assertion is an unparsed assertion.
-type Assertion struct {
-	relationshipString string
-	lineNumber         int
-	columnPosition     int
-}
-
-// Assertions represents assertions defined in the validation file.
-type Assertions struct {
-	// AssertTrue is the set of relationships to assert true.
-	AssertTrue []Assertion `yaml:"assertTrue"`
-
-	// AssertFalse is the set of relationships to assert false.
-	AssertFalse []Assertion `yaml:"assertFalse"`
-}
-
-// ParsedAssertion contains information about a parsed assertion relationship.
-type ParsedAssertion struct {
-	// Relationship is the parsed relationship on which the assertion is being
-	// run.
-	Relationship *v0.RelationTuple
-
-	// LineNumber is the (1-indexed) line number of the assertion in the parent
-	// YAML.
-	LineNumber uint32
-
-	// ColumnPosition is the (1-indexed) column position of the assertion in the
-	// parent YAML.
-	ColumnPosition uint32
-}
-
-// AssertTrueRelationships returns the relationships for which to assert
-// existence.
-func (a Assertions) AssertTrueRelationships() ([]ParsedAssertion, *ErrorWithSource) {
-	relationships := make([]ParsedAssertion, 0, len(a.AssertTrue))
-	for _, assertion := range a.AssertTrue {
-		trimmed := strings.TrimSpace(assertion.relationshipString)
-		parsed := tuple.Parse(trimmed)
-		if parsed == nil {
-			return relationships, &ErrorWithSource{
-				fmt.Errorf("could not parse relationship `%s`", assertion.relationshipString),
-				assertion.relationshipString,
-				uint32(assertion.lineNumber),
-				uint32(assertion.columnPosition),
-			}
-		}
-		relationships = append(relationships, ParsedAssertion{
-			Relationship:   parsed,
-			LineNumber:     uint32(assertion.lineNumber),
-			ColumnPosition: uint32(assertion.columnPosition),
-		})
-	}
-	return relationships, nil
-}
-
-// AssertFalseRelationships returns the relationships for which to assert
-// non-existence.
-func (a Assertions) AssertFalseRelationships() ([]ParsedAssertion, *ErrorWithSource) {
-	relationships := make([]ParsedAssertion, 0, len(a.AssertFalse))
-	for _, assertion := range a.AssertFalse {
-		trimmed := strings.TrimSpace(assertion.relationshipString)
-		parsed := tuple.Parse(trimmed)
-		if parsed == nil {
-			return relationships, &ErrorWithSource{
-				fmt.Errorf("could not parse relationship `%s`", assertion.relationshipString),
-				assertion.relationshipString,
-				uint32(assertion.lineNumber),
-				uint32(assertion.columnPosition),
-			}
-		}
-		relationships = append(relationships, ParsedAssertion{
-			Relationship:   parsed,
-			LineNumber:     uint32(assertion.lineNumber),
-			ColumnPosition: uint32(assertion.columnPosition),
-		})
-	}
-	return relationships, nil
-}
-
-// ParseRelationshipsBlock parses a block of newline-separated relationships into a set
-// of relation tuples.
-func ParseRelationshipsBlock(contents []byte) ([]*v0.RelationTuple, error) {
-	// Unmarshal to a node, so we can get line and col information.
-	var node yamlv3.Node
-	err := yamlv3.Unmarshal(contents, &node)
+	// Parse the expected relations.
+	expectedRelations, err := DecodeValidationBlock(p.Validation)
 	if err != nil {
-		return nil, err
+		return nil, ExpectedRelationsBlockError, err
 	}
 
-	if len(node.Content) == 0 {
-		return nil, nil
-	}
-
-	if node.Content[0].Kind != yamlv3.ScalarNode {
-		return nil, fmt.Errorf("expected string at top level")
-	}
-
-	parsed, err := ParseRelationships(node.Content[0].Value)
-	if err != nil {
-		var errWithSource ErrorWithSource
-		if errors.As(err, &errWithSource) {
-			return nil, ErrorWithSource{
-				errWithSource.error,
-				errWithSource.Source,
-				errWithSource.LineNumber + uint32(node.Line),
-				errWithSource.ColumnPosition,
-			}
-		}
-	}
-	return parsed, err
-}
-
-// ParseRelationships parses a newline-separated relationships string into a set
-// of relation tuples.
-func ParseRelationships(relationshipsString string) ([]*v0.RelationTuple, error) {
-	if relationshipsString == "" {
-		return nil, nil
-	}
-
-	var relationships []*v0.RelationTuple
-
-	seenTuples := map[string]bool{}
-	lines := strings.Split(relationshipsString, "\n")
-	for index, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if len(trimmed) == 0 || strings.HasPrefix(trimmed, "//") {
-			continue
-		}
-
-		tpl := tuple.Parse(trimmed)
-		if tpl == nil {
-			return nil, ErrorWithSource{
-				fmt.Errorf("error parsing relationship #%v: %s", index, trimmed),
-				trimmed,
-				uint32(index + 1), // 1-indexed
-				1,                 // 1-indexed
-			}
-		}
-
-		_, ok := seenTuples[tuple.String(tpl)]
-		if ok {
-			continue
-		}
-		seenTuples[tuple.String(tpl)] = true
-		relationships = append(relationships, tpl)
-	}
-
-	return relationships, nil
+	return &FullyParsedValidationFile{
+		Schema:            p.Schema,
+		Relationships:     relationships,
+		Assertions:        assertions,
+		ExpectedRelations: expectedRelations,
+		NamespaceConfigs:  p.NamespaceConfigs,
+		ValidationTuples:  p.ValidationTuples,
+	}, NoBlockError, nil
 }

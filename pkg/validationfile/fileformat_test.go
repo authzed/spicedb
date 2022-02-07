@@ -1,238 +1,148 @@
 package validationfile
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestValidationString(t *testing.T) {
-	type testCase struct {
-		name            string
-		input           string
-		expectedSubject string
-		expectedONRs    []string
+func TestDecodeValidationFile(t *testing.T) {
+	tests := []struct {
+		name                     string
+		contents                 string
+		expectedError            string
+		expectedRelCount         int
+		expectedAssertTrueCount  int
+		expectedAssertFalseCount int
+		expectedValidationCount  int
+	}{
+		{
+			name:                     "empty",
+			contents:                 "",
+			expectedError:            "",
+			expectedRelCount:         0,
+			expectedAssertTrueCount:  0,
+			expectedAssertFalseCount: 0,
+			expectedValidationCount:  0,
+		},
+		{
+			name: "invalid schema",
+			contents: `schema:
+foo:
+	- asdasd`,
+			expectedError:            "yaml: line 3: found character that cannot start any token",
+			expectedRelCount:         0,
+			expectedAssertTrueCount:  0,
+			expectedAssertFalseCount: 0,
+			expectedValidationCount:  0,
+		},
+		{
+			name: "valid",
+			contents: `
+schema: >-
+  definition user {}
+  definition document {
+      relation writer: user
+      relation reader: user
+      permission edit = writer
+      permission view = reader + edit
+  }
+
+relationships: >-
+  document:firstdoc#writer@user:tom
+
+  document:firstdoc#reader@user:fred
+
+  document:seconddoc#reader@user:tom
+
+assertions:
+  assertTrue:
+    - document:firstdoc#view@user:tom
+    - document:firstdoc#view@user:fred
+    - document:seconddoc#view@user:tom
+  assertFalse:
+    - document:seconddoc#view@user:fred
+
+validation:
+  document:firstdoc#view:
+    - "[user:tom] is <document:firstdoc#writer>"
+    - "[user:fred] is <document:firstdoc#reader>"
+  document:seconddoc#view:
+    - "[user:tom] is <document:seconddoc#reader>"
+`,
+			expectedError:            "",
+			expectedRelCount:         3,
+			expectedAssertTrueCount:  3,
+			expectedAssertFalseCount: 1,
+			expectedValidationCount:  2,
+		},
 	}
 
-	tests := []testCase{
-		{
-			"empty",
-			"",
-			"",
-			[]string{},
-		},
-		{
-			"basic",
-			"[tenant/user:someuser#...] is <tenant/document:example#viewer>",
-			"tenant/user:someuser",
-			[]string{"tenant/document:example#viewer"},
-		},
-		{
-			"missing onrs",
-			"[tenant/user:someuser#...]",
-			"tenant/user:someuser",
-			[]string{},
-		},
-		{
-			"missing subject",
-			"is <tenant/document:example#viewer>",
-			"",
-			[]string{"tenant/document:example#viewer"},
-		},
-		{
-			"multiple onrs",
-			"[tenant/user:someuser#...] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
-			"tenant/user:someuser",
-			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
-		},
-		{
-			"ellided ellipsis",
-			"[tenant/user:someuser] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
-			"tenant/user:someuser",
-			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
-		},
-		{
-			"bad subject",
-			"[tenant/user:someuser#... is <tenant/document:example#viewer>/<tenant/document:example#builder>",
-			"",
-			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
-		},
-		{
-			"bad parse",
-			"[tenant/user:someuser:asdsad] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
-			"",
-			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
-		},
-		{
-			"subject with exclusions",
-			"[tenant/user:someuser#... - {test/user:1,test/user:2}] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
-			"tenant/user:someuser",
-			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
-		},
-		{
-			"subject with bad exclusions",
-			"[tenant/user:someuser#... - {te1,test/user:2}] is <tenant/document:example#viewer>/<tenant/document:example#builder>",
-			"",
-			[]string{"tenant/document:example#viewer", "tenant/document:example#builder"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
-			vs := ValidationString(tc.input)
-
-			subject, err := vs.Subject()
-
-			if tc.expectedSubject == "" {
-				require.Nil(subject)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decoded, err := DecodeValidationFile([]byte(tt.contents))
+			if tt.expectedError != "" {
+				require.NotNil(t, err)
+				require.Equal(t, err.Error(), tt.expectedError)
 			} else {
-				require.Nil(err)
-				require.Equal(tc.expectedSubject, tuple.StringONR(subject.Subject))
-			}
+				require.Nil(t, err)
 
-			foundONRStrings := []string{}
-			onrs, _ := vs.ONRS()
-			for _, onr := range onrs {
-				foundONRStrings = append(foundONRStrings, tuple.StringONR(onr))
-			}
+				require.NotNil(t, decoded)
+				require.Equal(t, len(decoded.Relationships), tt.expectedRelCount)
 
-			require.Equal(tc.expectedONRs, foundONRStrings)
-		})
-	}
-}
+				at, err := decoded.Assertions.AssertTrueRelationships()
+				require.Nil(t, err)
 
-func TestAssertions(t *testing.T) {
-	type testCase struct {
-		name                 string
-		input                string
-		expectedRelationship string
-	}
+				af, err := decoded.Assertions.AssertFalseRelationships()
+				require.Nil(t, err)
 
-	tests := []testCase{
-		{
-			"empty",
-			"",
-			"",
-		},
-		{
-			"empty",
-			"foos:bar#bazzy@groo:grar#graz",
-			"foos:bar#bazzy@groo:grar#graz",
-		},
-		{
-			"empty",
-			"foos:bar#bazzy@groo:grar",
-			"foos:bar#bazzy@groo:grar",
-		},
-		{
-			"empty",
-			"foos:bar#bazzy@groo:grar#...",
-			"foos:bar#bazzy@groo:grar",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
-			a := Assertions{AssertTrue: []Assertion{{tc.input, 0, 0}}}
-
-			foundRelationships := []string{}
-			assertions, _ := a.AssertTrueRelationships()
-			for _, assertion := range assertions {
-				foundRelationships = append(foundRelationships, tuple.String(assertion.Relationship))
-			}
-
-			if tc.expectedRelationship != "" {
-				require.Equal([]string{tc.expectedRelationship}, foundRelationships)
-			} else {
-				require.Equal(0, len(foundRelationships))
+				require.Equal(t, len(at), tt.expectedAssertTrueCount)
+				require.Equal(t, len(af), tt.expectedAssertFalseCount)
+				require.Equal(t, len(decoded.ExpectedRelations), tt.expectedValidationCount)
 			}
 		})
 	}
 }
 
-func TestParseAssertionsBlock(t *testing.T) {
-	type testCase struct {
-		name               string
-		input              string
-		expectedError      string
-		expectedAssertions Assertions
-	}
+func TestDecodeRelationshipsErrorLineNumber(t *testing.T) {
+	_, err := DecodeValidationFile([]byte(`
+schema: >-
+  definition user {}
 
-	tests := []testCase{
-		{
-			"empty",
-			"",
-			"",
-			Assertions{},
-		},
-		{
-			"with one assertion",
-			`assertTrue:
-- document:foo#view@user:someone`,
-			"",
-			Assertions{
-				AssertTrue: []Assertion{
-					{
-						"document:foo#view@user:someone", 2, 3,
-					},
-				},
-			},
-		},
-		{
-			"with one assertion per section",
-			`assertTrue:
-- document:foo#view@user:someone
-assertFalse:
-- document:foo#write@user:someone`,
-			"",
-			Assertions{
-				AssertTrue: []Assertion{
-					{
-						"document:foo#view@user:someone", 2, 3,
-					},
-				},
-				AssertFalse: []Assertion{
-					{
-						"document:foo#write@user:someone", 4, 3,
-					},
-				},
-			},
-		},
-		{
-			"with invalid yaml",
-			`assertTrue: somethinginvalid
-- document:foo#view@user:someone`,
-			"yaml: line 1: did not find expected key",
-			Assertions{},
-		},
-		{
-			"with garbage",
-			`assertTrue:
-  - document:firstdoc#view@user:tom
-  - document:firstdoc#view@user:fred
-  - document:seconddoc#view@user:tom
-assertFalse: garbage
-  - document:seconddoc#view@user:fred`,
-			"unexpected key `garbage - document:seconddoc#view@user:fred` on line 5",
-			Assertions{},
-		},
-	}
+relationships: >-
+  document:firstdoc#writer@user:tom
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
-			assertions, err := ParseAssertionsBlock([]byte(tc.input))
-			if tc.expectedError != "" {
-				require.Nil(assertions)
-				require.Equal(err.Error(), tc.expectedError)
-			} else {
-				require.NoError(err)
-				require.Equal(tc.expectedAssertions, *assertions)
-			}
-		})
-	}
+  document:firstdoc#readeruser:fred
+`))
+
+	var errWithSource ErrorWithSource
+	require.True(t, errors.As(err, &errWithSource))
+
+	require.Equal(t, err.Error(), "error parsing relationship #1: document:firstdoc#readeruser:fred")
+	require.Equal(t, uint32(8), errWithSource.LineNumber)
+}
+
+func TestDecodeAssertionsErrorLineNumber(t *testing.T) {
+	_, err := DecodeValidationFile([]byte(`
+schema: >-
+  definition user {}
+
+relationships: >-
+  document:firstdoc#writer@user:tom
+
+assertions:
+  assertTrues:
+    - document:firstdoc#view@user:tom
+    - document:firstdoc#view@user:fred
+    - document:seconddoc#view@user:tom
+  assertFalse:
+    - document:seconddoc#view@user:fred
+`))
+
+	var errWithSource ErrorWithSource
+	require.True(t, errors.As(err, &errWithSource))
+
+	require.Equal(t, err.Error(), "unexpected key `assertTrues` on line 9")
+	require.Equal(t, uint32(9), errWithSource.LineNumber)
 }
