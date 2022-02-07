@@ -102,6 +102,12 @@ type mysqlDatastore struct {
 
 // Close closes the data store.
 func (mds *mysqlDatastore) Close() error {
+	mds.cancelGc()
+	if mds.gcGroup != nil {
+		if err := mds.gcGroup.Wait(); err != nil {
+			log.Error().Err(err).Msg("error from running garbage collector on shutdown")
+		}
+	}
 	return mds.db.Close()
 }
 
@@ -190,11 +196,7 @@ func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time
 		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
 		return 0, 0, nil
 	}
-
 	highest := uint64(value.Int64)
-	if err != nil {
-		return 0, 0, err
-	}
 
 	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Msg("retrieved transaction ID for GC")
 
@@ -221,15 +223,15 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 }
 
 func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
-	sql, args, err := sb.Select("id").From(tableName).Where(filter).ToSql()
+	innerQuery, args, err := sb.Select("id").From(tableName).Where(filter).ToSql()
 	if err != nil {
 		return -1, err
 	}
 
-	query := fmt.Sprintf(`WITH rows AS (%s)
+	query := fmt.Sprintf(`WITH rows AS (%s LIMIT %d)
 		  DELETE FROM %s
 		  WHERE id IN (SELECT id FROM rows);
-	`, sql, tableName)
+	`, innerQuery, batchDeleteSize, tableName)
 
 	var deletedCount int64
 	for {
