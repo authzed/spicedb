@@ -29,7 +29,7 @@ func NewTestServer(require *require.Assertions,
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
 	require.NoError(err)
 	ds, revision := dsInitFunc(emptyDS, require)
-	ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
+	ns, err := namespace.NewCachingNamespaceManager(1*time.Second, nil)
 	require.NoError(err)
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),

@@ -99,7 +99,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 	ds := datastoremw.MustFromContext(ctx)
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 0, nil) // non-caching manager
+	nsm, err := namespace.NewCachingNamespaceManager(0, nil) // non-caching manager
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}

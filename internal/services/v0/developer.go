@@ -142,6 +142,8 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 	}
 	defer devContext.Dispose()
 
+	ctx = devContext.Ctx
+
 	// Run the checks and store their output.
 	results := make([]*v0.EditCheckResult, 0, len(req.CheckRelationships))
 	for _, checkTpl := range req.CheckRelationships {
@@ -194,6 +196,8 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 		}, nil
 	}
 	defer devContext.Dispose()
+
+	ctx = devContext.Ctx
 
 	// Parse the assertions YAML.
 	assertions, devErr := development.ParseAssertionsYAML(req.AssertionsYaml)

@@ -278,7 +278,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	require.NoError(err)
 	require.True(revision.GreaterThan(decimal.Zero))
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingNamespaceManager(1*time.Second, testCacheConfig)
 	require.NoError(err)
 
 	dispatch := NewLocalOnlyDispatcher(nsm, ds)

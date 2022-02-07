@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -21,7 +22,6 @@ const (
 )
 
 type cachingManager struct {
-	delegate    datastore.Datastore
 	expiration  time.Duration
 	c           *ristretto.Cache
 	readNsGroup singleflight.Group
@@ -32,7 +32,6 @@ func cacheKey(nsName string, revision decimal.Decimal) string {
 }
 
 func NewCachingNamespaceManager(
-	delegate datastore.Datastore,
 	expiration time.Duration,
 	cacheConfig *ristretto.Config,
 ) (Manager, error) {
@@ -50,7 +49,6 @@ func NewCachingNamespaceManager(
 	}
 
 	return &cachingManager{
-		delegate:   delegate,
 		expiration: expiration,
 		c:          cache,
 	}, nil
@@ -71,6 +69,8 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 	ctx, span := tracer.Start(ctx, "ReadNamespace")
 	defer span.End()
 
+	ds := datastoremw.MustFromContext(ctx)
+
 	// Check the cache.
 	nsRevisionKey := cacheKey(nsName, revision)
 	value, found := nsc.c.Get(nsRevisionKey)
@@ -81,7 +81,7 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 	// We couldn't use the cached entry, load one
 	loadedRaw, err, _ := nsc.readNsGroup.Do(nsRevisionKey, func() (interface{}, error) {
 		span.AddEvent("Read namespace from delegate (datastore)")
-		loaded, _, err := nsc.delegate.ReadNamespace(ctx, nsName, revision)
+		loaded, _, err := ds.ReadNamespace(ctx, nsName, revision)
 		if err != nil {
 			return nil, err
 		}

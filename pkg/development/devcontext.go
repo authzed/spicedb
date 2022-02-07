@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	maingraph "github.com/authzed/spicedb/internal/graph"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -50,9 +51,10 @@ func NewDevContext(ctx context.Context, developerRequestContext *v0.RequestConte
 	if err != nil {
 		return nil, nil, err
 	}
+	ctx = datastoremw.ContextWithDatastore(ctx, ds)
 
 	// Instantiate the namespace manager with *no caching*.
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 0*time.Second, nil)
+	nsm, err := namespace.NewCachingNamespaceManager(0*time.Second, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -122,7 +124,7 @@ func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0
 		Datastore:        ds,
 		Namespaces:       namespaces,
 		Revision:         revision,
-		Dispatcher:       graph.NewLocalOnlyDispatcher(nsm, ds),
+		Dispatcher:       graph.NewLocalOnlyDispatcher(nsm),
 		NamespaceManager: nsm,
 	}, nil, nil
 }

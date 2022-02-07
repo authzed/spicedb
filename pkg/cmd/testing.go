@@ -207,7 +207,7 @@ func (ptbm *perTokenBackendMiddleware) createUpstream() (*upstream, error) {
 	for _, dsInfo := range []datastoreInfo{{readwriteDS, false}, {readonlyDS, true}} {
 		ds := dsInfo.ds
 
-		nsm, err := namespace.NewCachingNamespaceManager(ds, nsCacheExpiration, nil)
+		nsm, err := namespace.NewCachingNamespaceManager(nsCacheExpiration, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize namespace manager: %w", err)
 		}

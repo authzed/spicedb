@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -221,20 +222,21 @@ func TestTypeSystem(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 			require.NoError(err)
 
-			nsm, err := NewCachingNamespaceManager(ds, 0*time.Second, nil)
+			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
+			nsm, err := NewCachingNamespaceManager(0*time.Second, nil)
 			require.NoError(err)
 
 			var lastRevision decimal.Decimal
 			for _, otherNS := range tc.otherNamespaces {
 				var err error
-				lastRevision, err = ds.WriteNamespace(context.Background(), otherNS)
+				lastRevision, err = ds.WriteNamespace(ctx, otherNS)
 				require.NoError(err)
 			}
 
 			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
 			require.NoError(err)
 
-			terr := ts.Validate(context.Background())
+			terr := ts.Validate(ctx)
 			if tc.expectedError == "" {
 				require.NoError(terr)
 			} else {

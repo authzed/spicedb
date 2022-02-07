@@ -53,6 +53,11 @@ func SetInContext(ctx context.Context, datastore datastore.Datastore) error {
 	return nil
 }
 
+// ContextWithDatastore adds the handle and datastore in one step
+func ContextWithDatastore(ctx context.Context, datastore datastore.Datastore) context.Context {
+	return context.WithValue(ctx, datastoreKey, &datastoreHandle{datastore: datastore})
+}
+
 // UnaryServerInterceptor returns a new unary server interceptor that adds the
 // datastore to the context
 func UnaryServerInterceptor(datastore datastore.Datastore) grpc.UnaryServerInterceptor {
