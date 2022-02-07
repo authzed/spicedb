@@ -70,6 +70,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
 		gcCtx:                     gcCtx,
 		cancelGc:                  cancelGc,
+		watchBufferLength:         config.watchBufferLength,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -92,6 +93,7 @@ type mysqlDatastore struct {
 	gcInterval                time.Duration
 	gcMaxOperationTime        time.Duration
 	splitAtEstimatedQuerySize units.Base2Bytes
+	watchBufferLength         uint16
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
@@ -331,13 +333,6 @@ func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	}
 
 	return common.RevisionFromTransaction(revision), nil
-}
-
-// Watch notifies the caller about all changes to tuples.
-//
-// All events following afterRevision will be sent to the caller.
-func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	return nil, nil
 }
 
 // CheckRevision checks the specified revision to make sure it's valid and

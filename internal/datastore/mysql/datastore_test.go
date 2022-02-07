@@ -63,20 +63,7 @@ func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
 
 func TestMysqlDatastore(t *testing.T) {
 	tester := newTester()
-
-	// TODO: switch this to call test.All() once we added the remaining test support:
-	// - TestWatch
-	// - TestWatchCancel
-	t.Run("TestSimple", func(t *testing.T) { test.SimpleTest(t, tester) })
-	t.Run("TestRevisionFuzzing", func(t *testing.T) { test.RevisionFuzzingTest(t, tester) })
-	t.Run("TestWritePreconditions", func(t *testing.T) { test.WritePreconditionsTest(t, tester) })
-	t.Run("TestDeletePreconditions", func(t *testing.T) { test.DeletePreconditionsTest(t, tester) })
-	t.Run("TestDeleteRelationships", func(t *testing.T) { test.DeleteRelationshipsTest(t, tester) })
-	t.Run("TestNamespaceWrite", func(t *testing.T) { test.NamespaceWriteTest(t, tester) })
-	t.Run("TestNamespaceDelete", func(t *testing.T) { test.NamespaceDeleteTest(t, tester) })
-	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { test.EmptyNamespaceDeleteTest(t, tester) })
-	t.Run("TestInvalidReads", func(t *testing.T) { test.InvalidReadsTest(t, tester) })
-	t.Run("TestUsersets", func(t *testing.T) { test.UsersetsTest(t, tester) })
+	test.All(t, tester)
 }
 
 func TestMySQLMigrations(t *testing.T) {
