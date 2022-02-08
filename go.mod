@@ -36,7 +36,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
-	github.com/jzelinskie/cobrautil v0.0.8-0.20220201184525-1bd0f8999a84
+	github.com/jzelinskie/cobrautil v0.0.8
 	github.com/jzelinskie/stringz v0.0.1
 	github.com/lib/pq v1.10.4
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
