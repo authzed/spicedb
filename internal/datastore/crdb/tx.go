@@ -16,8 +16,8 @@ const (
 	crdbRetryErrCode = "40001"
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
 	crdbAmbiguousErrorCode = "40003"
-	errUnableToRetry       = "failed to retry conflicted transaction: %w"
-	errReachedMaxRetry     = "maximum retries reached"
+
+	errReachedMaxRetry = "maximum retries reached"
 
 	sqlRollback         = "ROLLBACK TO SAVEPOINT cockroach_restart"
 	sqlSavepoint        = "SAVEPOINT cockroach_restart"
@@ -50,37 +50,81 @@ type transactionFn func(tx pgx.Tx) error
 
 type executeTxRetryFunc func(context.Context, conn, pgx.TxOptions, transactionFn) error
 
+// RetryError wraps an error that prevented the transaction function from being retried.
+type RetryError struct {
+	err error
+}
+
+// Error returns the wrapped error
+func (e RetryError) Error() string {
+	return fmt.Errorf("unable to retry conflicted transaction: %w", e.err).Error()
+}
+
+// Unwrap returns the wrapped, non-retriable error
+func (e RetryError) Unwrap() error {
+	return e.err
+}
+
 func executeWithMaxRetries(max int) executeTxRetryFunc {
 	return func(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn) (err error) {
-		return execute(ctx, conn, txOptions, fn, max)
+		return executeWithResets(ctx, conn, txOptions, fn, max)
 	}
 }
 
-// adapted from https://github.com/cockroachdb/cockroach-go
-func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn, maxRetries int) (err error) {
-	var tx pgx.Tx
-	tx, err = conn.BeginTx(ctx, txOptions)
-	if err != nil {
-		return err
-	}
+// executeWithResets executes transactionFn and resets the tx when ambiguous crdb errors are encountered.
+func executeWithResets(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn, maxRetries int) (err error) {
+	var retries, resets int
 	defer func() {
-		if err == nil {
-			_ = tx.Commit(ctx)
-			return
-		}
-		_ = tx.Rollback(ctx)
-	}()
-
-	if _, err = tx.Exec(ctx, sqlSavepoint); err != nil {
-		return
-	}
-
-	var i, resets int
-	defer func() {
-		retryHistogram.Observe(float64(i))
+		retryHistogram.Observe(float64(retries))
 		resetHistogram.Observe(float64(resets))
 	}()
 
+	var tx pgx.Tx
+	defer func() {
+		if err == nil {
+			commitErr := tx.Commit(ctx)
+			if commitErr == nil {
+				return
+			}
+			log.Err(commitErr).Msg("failed tx commit")
+		}
+
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			log.Err(rollbackErr).Msg("error during tx rollback")
+		}
+	}()
+
+	// NOTE: n maxRetries can yield n+1 executions of the transaction fn
+	for retries = 0; retries <= maxRetries; retries++ {
+		tx, err = resetExecution(ctx, conn, tx, txOptions)
+		if err != nil {
+			log.Err(err).Msg("error resetting transaction")
+			resets++
+			continue
+		}
+
+		retryAttempts, txErr := executeWithRetries(ctx, tx, fn, maxRetries-retries)
+		retries += retryAttempts
+		if txErr == nil {
+			return
+		}
+		err = txErr
+
+		if resetable(ctx, err) {
+			log.Err(err).Msg("resettable error, reconnecting with new transaction")
+			resets++
+			continue
+		}
+
+		return
+	}
+	err = errors.New(errReachedMaxRetry)
+	return
+}
+
+// executeWithRetries executes the transaction fn and attempts to retry up to maxRetries.
+// adapted from https://github.com/cockroachdb/cockroach-go/blob/05d7aaec086fe3288377923bf9a98648d29c44c6/crdb/tx.go#L95
+func executeWithRetries(ctx context.Context, currentTx pgx.Tx, fn transactionFn, maxRetries int) (retries int, err error) {
 	releasedFn := func(tx pgx.Tx) error {
 		if err := fn(tx); err != nil {
 			return err
@@ -97,46 +141,35 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 		return nil
 	}
 
+	var i int
 	for i = 0; i <= maxRetries; i++ {
-		if err = releasedFn(tx); err != nil {
+		if err = releasedFn(currentTx); err != nil {
 			if retriable(ctx, err) {
-				if _, retryErr := tx.Exec(ctx, sqlRollback); retryErr != nil {
-					// Attempt to reset on failed retries
-					newTx, resetErr := resetExecution(ctx, conn, &tx, txOptions)
-					if resetErr != nil {
-						return fmt.Errorf(errUnableToRetry, err)
-					}
-					tx = newTx
-					resets++
+				if _, retryErr := currentTx.Exec(ctx, sqlRollback); retryErr != nil {
+					return i, RetryError{err: retryErr}
 				}
-				continue
-			} else if resetable(ctx, err) {
-				newTx, resetErr := resetExecution(ctx, conn, &tx, txOptions)
-				if resetErr != nil {
-					return fmt.Errorf(errUnableToRetry, err)
-				}
-				tx = newTx
-				resets++
 				continue
 			}
-			return err
+			return i, err
 		}
-		return nil
+		return i, nil
 	}
-	return errors.New(errReachedMaxRetry)
+	return i, errors.New(errReachedMaxRetry)
 }
 
 // resetExecution attempts to rollback the given tx, begins a new tx with a new connection, and creates a savepoint.
-func resetExecution(ctx context.Context, conn conn, tx *pgx.Tx, txOptions pgx.TxOptions) (newTx pgx.Tx, err error) {
-	err = (*tx).Rollback(ctx)
-	if err != nil {
-		return nil, err
+func resetExecution(ctx context.Context, conn conn, tx pgx.Tx, txOptions pgx.TxOptions) (newTx pgx.Tx, err error) {
+	if tx != nil {
+		err = tx.Rollback(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 	newTx, err = conn.BeginTx(ctx, txOptions)
 	if err != nil {
 		return nil, err
 	}
-	if _, err = newTx.Exec(ctx, "SAVEPOINT cockroach_restart"); err != nil {
+	if _, err = newTx.Exec(ctx, sqlSavepoint); err != nil {
 		return nil, err
 	}
 
@@ -153,10 +186,11 @@ func resetable(ctx context.Context, err error) bool {
 	return sqlErrorCode(ctx, err) == crdbAmbiguousErrorCode
 }
 
+// sqlErrorCode attenmpts to extract the crdb error code from the error state.
 func sqlErrorCode(ctx context.Context, err error) string {
 	var pgerr *pgconn.PgError
 	if !errors.As(err, &pgerr) {
-		log.Ctx(ctx).Info().Err(err).Msg("couldn't determine a sqlstate error code")
+		log.Info().Err(err).Msg("couldn't determine a sqlstate error code")
 		return ""
 	}
 

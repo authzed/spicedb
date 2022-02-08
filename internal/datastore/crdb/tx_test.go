@@ -6,8 +6,8 @@ package crdb
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
@@ -15,10 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
-	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
-	"github.com/authzed/spicedb/pkg/secrets"
 )
 
 const (
@@ -29,36 +26,11 @@ var testUserNS = namespace.Namespace(testUserNamespace)
 
 // newCRDB creates a new database in crdb, migrates to HEAD, and returns the specific crdb datastore.
 func (st sqlTest) newCRDB() (*crdbDatastore, error) {
-	uniquePortion, err := secrets.TokenHex(4)
-	if err != nil {
-		return nil, err
-	}
-
-	newDBName := "db" + uniquePortion
-
-	_, err = st.conn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create database: %w", err)
-	}
-
-	connectStr := fmt.Sprintf(
-		"postgres://%s@localhost:%s/%s?sslmode=disable",
-		st.creds,
-		st.port,
-		newDBName,
-	)
-
-	migrationDriver, err := migrations.NewCRDBDriver(connectStr)
-	if err != nil {
-		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
-	}
-
-	err = migrations.CRDBMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
-	if err != nil {
-		return nil, fmt.Errorf("unable to migrate database: %w", err)
-	}
-
-	ds, err := NewCRDBDatastore(connectStr)
+	// Use crdb defaults
+	ds, err := st.New(
+		5*time.Second,
+		24*time.Hour,
+		128)
 	return ds.(*crdbDatastore), err
 }
 
@@ -74,7 +46,7 @@ func executeWithErrors(errors *[]pgconn.PgError, maxRetries int) executeTxRetryF
 			return fn(tx)
 		}
 
-		return execute(ctx, conn, txOptions, wrappedFn, maxRetries)
+		return executeWithResets(ctx, conn, txOptions, wrappedFn, maxRetries)
 	}
 }
 
@@ -114,6 +86,7 @@ func TestTxReset(t *testing.T) {
 			errors: []pgconn.PgError{
 				{Code: crdbRetryErrCode},
 				{Code: crdbAmbiguousErrorCode},
+				{Code: crdbRetryErrCode},
 			},
 			expectError:   false,
 			expectedError: nil,
