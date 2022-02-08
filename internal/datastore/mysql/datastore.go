@@ -60,7 +60,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
-	datastore := &mysqlDatastore{
+	store := &mysqlDatastore{
 		db:                        db,
 		url:                       url,
 		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
@@ -74,14 +74,14 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 	}
 
 	// Start a goroutine for garbage collection.
-	if datastore.gcInterval > 0*time.Minute {
-		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
-		datastore.gcGroup.Go(datastore.runGarbageCollector)
+	if store.gcInterval > 0*time.Minute {
+		store.gcGroup, store.gcCtx = errgroup.WithContext(store.gcCtx)
+		store.gcGroup.Go(store.runGarbageCollector)
 	} else {
 		log.Warn().Msg("garbage collection disabled in mysql driver")
 	}
 
-	return datastore, nil
+	return store, nil
 }
 
 type mysqlDatastore struct {
