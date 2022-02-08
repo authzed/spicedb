@@ -538,7 +538,7 @@ func migrateDatabase(connectStr string) {
 func TestMain(m *testing.M) {
 	mysqlContainerRunOpts := &dockertest.RunOptions{
 		Repository: "mysql",
-		Tag:        "latest",
+		Tag:        "5",
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
 	}
 
