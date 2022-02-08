@@ -10,7 +10,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/alecthomas/units"
-	"github.com/jmoiron/sqlx"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
@@ -49,7 +49,7 @@ type sqlFilter interface {
 }
 
 func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, error) {
-	db, err := sqlx.Open("mysql", url)
+	db, err := sql.Open("mysql", url)
 	if err != nil {
 		return nil, fmt.Errorf("NewMysqlDatastore: failed to open database: %w", err)
 	}
@@ -85,7 +85,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 }
 
 type mysqlDatastore struct {
-	db  *sqlx.DB
+	db  *sql.DB
 	url string
 
 	revisionFuzzingTimedelta  time.Duration
@@ -139,7 +139,7 @@ func (mds *mysqlDatastore) getNow(ctx context.Context) (time.Time, error) {
 	}
 
 	var now time.Time
-	err = mds.db.QueryRowxContext(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
+	err = mds.db.QueryRowContext(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
 	if err != nil {
 		return time.Now(), err
 	}
@@ -185,7 +185,7 @@ func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time
 	}
 
 	var value sql.NullInt64
-	err = mds.db.QueryRowxContext(
+	err = mds.db.QueryRowContext(
 		datastore.SeparateContextWithTracing(ctx), query, args...,
 	).Scan(&value)
 	if err != nil {
@@ -248,7 +248,7 @@ func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, fi
 	return deletedCount, nil
 }
 
-func createNewTransaction(ctx context.Context, tx *sqlx.Tx) (newTxnID uint64, err error) {
+func createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
@@ -391,7 +391,7 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	}
 
 	var revision uint64
-	err = mds.db.QueryRowxContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
+	err = mds.db.QueryRowContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, nil
@@ -421,7 +421,7 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 	}
 
 	var lower, upper sql.NullInt64
-	err = mds.db.QueryRowxContext(
+	err = mds.db.QueryRowContext(
 		datastore.SeparateContextWithTracing(ctx), query, args...,
 	).Scan(&lower, &upper)
 	if err != nil {

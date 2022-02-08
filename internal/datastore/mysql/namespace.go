@@ -8,7 +8,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/jmoiron/sqlx"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
@@ -46,7 +45,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.
 	}
 	span.AddEvent("Serialized namespace config")
 
-	tx, err := mds.db.BeginTxx(ctx, nil)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("WriteNamespace: unable to write config: %w", err)
 	}
@@ -100,7 +99,7 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 	))
 	defer span.End()
 
-	tx, err := mds.db.BeginTxx(ctx, nil)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(common.ErrUnableToReadConfig, err)
 	}
@@ -125,7 +124,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	defer span.End()
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	tx, err := mds.db.BeginTxx(ctx, nil)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
@@ -185,7 +184,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	tx, err := mds.db.BeginTxx(ctx, nil)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +197,7 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 
 	var nsDefs []*v0.NamespaceDefinition
 
-	rows, err := tx.QueryxContext(ctx, query, args...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +225,7 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 	return nsDefs, nil
 }
 
-func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx, baseQuery sq.SelectBuilder) (*v0.NamespaceDefinition, datastore.Revision, error) {
+func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery sq.SelectBuilder) (*v0.NamespaceDefinition, datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "loadNamespace")
@@ -239,7 +238,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sqlx.Tx, baseQuery
 
 	var config []byte
 	var version datastore.Revision
-	err = tx.QueryRowxContext(ctx, query, args...).Scan(&config, &version)
+	err = tx.QueryRowContext(ctx, query, args...).Scan(&config, &version)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = datastore.NewNamespaceNotFoundErr(namespace)

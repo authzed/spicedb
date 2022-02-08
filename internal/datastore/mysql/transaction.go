@@ -5,22 +5,20 @@ import (
 	"database/sql"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-
-	"github.com/jmoiron/sqlx"
 )
 
 // NewMysqlTransactionBeginner constructs TransactionBeginner implementation which adapts
 // a mysql database connection.
-func NewMysqlTransactionBeginner(db *sqlx.DB) common.TransactionBeginner {
+func NewMysqlTransactionBeginner(db *sql.DB) common.TransactionBeginner {
 	return &mysqlTransactionBeginner{db}
 }
 
 type mysqlTransactionBeginner struct {
-	db *sqlx.DB
+	db *sql.DB
 }
 
 func (mtb *mysqlTransactionBeginner) BeginTransaction(ctx context.Context, readOnly bool) (common.Transaction, error) {
-	tx, err := mtb.db.BeginTxx(ctx, &sql.TxOptions{ReadOnly: readOnly})
+	tx, err := mtb.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: readOnly})
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +26,7 @@ func (mtb *mysqlTransactionBeginner) BeginTransaction(ctx context.Context, readO
 }
 
 type mysqlTransaction struct {
-	tx *sqlx.Tx
+	tx *sql.Tx
 }
 
 func (mt *mysqlTransaction) Rollback(_ context.Context) error {
