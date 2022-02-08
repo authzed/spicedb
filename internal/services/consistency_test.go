@@ -64,7 +64,7 @@ func TestConsistency(t *testing.T) {
 						t.Run(dispatcherKind, func(t *testing.T) {
 							lrequire := require.New(t)
 
-							var fullyResolved *validationfile.FullyParsedValidationFile
+							var fullyResolved *validationfile.PopulatedValidationFile
 							var ds datastore.Datastore
 							conn, cleanup, revision := testserver.NewTestServer(lrequire, delta, memdb.DisableGC, 0, true, func(inDS datastore.Datastore, require *require.Assertions) (outDS datastore.Datastore, rev datastore.Revision) {
 								// TODO: configure a testserver with the dispatch api enabled and remove the validating datastore
@@ -131,14 +131,15 @@ func TestConsistency(t *testing.T) {
 func runAssertions(t *testing.T,
 	tester serviceTester,
 	dispatch dispatch.Dispatcher,
-	fullyResolved *validationfile.FullyParsedValidationFile,
+	fullyResolved *validationfile.PopulatedValidationFile,
 	revision decimal.Decimal) {
 	for _, parsedFile := range fullyResolved.ParsedFiles {
-		for _, assertTrueRel := range parsedFile.Assertions.AssertTrue {
-			rel := tuple.Parse(assertTrueRel)
-			require.NotNil(t, rel)
+		assertsTrue, err := parsedFile.Assertions.AssertTrueRelationships()
+		require.Nil(t, err)
 
+		for _, assertTrue := range assertsTrue {
 			// Ensure the assertion passes Check.
+			rel := assertTrue.Relationship
 			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
 			require.NoError(t, err)
 			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.String(rel))
@@ -152,9 +153,12 @@ func runAssertions(t *testing.T,
 			require.Contains(t, resolvedObjectIds, rel.ObjectAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ObjectAndRelation, rel)
 		}
 
-		for _, assertFalseRel := range parsedFile.Assertions.AssertFalse {
-			rel := tuple.Parse(assertFalseRel)
-			require.NotNil(t, rel)
+		assertsFalse, err := parsedFile.Assertions.AssertFalseRelationships()
+		require.Nil(t, err)
+
+		for _, assertFalse := range assertsFalse {
+			// Ensure the assertion passes Check.
+			rel := assertFalse.Relationship
 
 			// Ensure the assertion does not pass Check.
 			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
@@ -174,7 +178,7 @@ func runAssertions(t *testing.T,
 
 func runCrossVersionTests(t *testing.T,
 	testers []serviceTester,
-	fullyResolved *validationfile.FullyParsedValidationFile,
+	fullyResolved *validationfile.PopulatedValidationFile,
 	revision decimal.Decimal,
 ) {
 	for _, nsDef := range fullyResolved.NamespaceDefinitions {
@@ -231,7 +235,7 @@ func verifyCrossVersion(t *testing.T, name string, testers []serviceTester, runA
 func runConsistencyTests(t *testing.T,
 	tester serviceTester,
 	dispatch dispatch.Dispatcher,
-	fullyResolved *validationfile.FullyParsedValidationFile,
+	fullyResolved *validationfile.PopulatedValidationFile,
 	tuplesPerNamespace *slicemultimap.MultiMap,
 	revision decimal.Decimal) {
 	lrequire := require.New(t)
@@ -366,7 +370,7 @@ func accessibleViaWildcardOnly(t *testing.T, dispatch dispatch.Dispatcher, onr *
 }
 
 type validationContext struct {
-	fullyResolved *validationfile.FullyParsedValidationFile
+	fullyResolved *validationfile.PopulatedValidationFile
 
 	objectsPerNamespace *setmultimap.MultiMap
 	subjects            *tuple.ONRSet
