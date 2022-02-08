@@ -223,15 +223,10 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 }
 
 func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
-	innerQuery, args, err := sb.Select("id").From(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
+	query, args, err := sb.Delete(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
 	}
-
-	query := fmt.Sprintf(`WITH dids AS (%s)
-		  DELETE FROM %s
-		  WHERE id IN (SELECT id FROM dids);
-	`, innerQuery, tableName)
 
 	var deletedCount int64
 	for {
