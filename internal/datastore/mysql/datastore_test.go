@@ -98,51 +98,51 @@ func TestIsReady(t *testing.T) {
 	req := require.New(t)
 
 	connectStr := setupDatabase()
-	datastore, err := NewMysqlDatastore(connectStr)
+	store, err := NewMysqlDatastore(connectStr)
 	req.NoError(err)
 
 	ctx := context.Background()
-	ready, err := datastore.IsReady(ctx)
+	ready, err := store.IsReady(ctx)
 	req.NoError(err)
 	req.False(ready)
 
 	migrateDatabase(connectStr)
 
-	ready, err = datastore.IsReady(ctx)
+	ready, err = store.IsReady(ctx)
 	req.NoError(err)
 	req.True(ready)
 }
 
 func TestGarbageCollection(t *testing.T) {
-	require := require.New(t)
+	req := require.New(t)
 
 	tester := newTester()
 
 	ds, err := tester.New(0, time.Millisecond*1, 1)
-	require.NoError(err)
-	defer ds.Close()
+	req.NoError(err)
+	defer FailOnError(t, ds.Close)
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
-	require.NoError(err)
-	require.True(ok)
+	req.NoError(err)
+	req.True(ok)
 
 	// Write basic namespaces.
 	_, err = ds.WriteNamespace(ctx, namespace.Namespace(
 		"resource",
 		namespace.Relation("reader", nil),
 	))
-	require.NoError(err)
+	req.NoError(err)
 
 	writtenAt, err := ds.WriteNamespace(ctx, namespace.Namespace("user"))
-	require.NoError(err)
+	req.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed.
 	mds := ds.(*mysqlDatastore)
 
 	relsDeleted, _, err := mds.collectGarbageForTransaction(ctx, uint64(writtenAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
-	require.NoError(err)
+	req.Equal(int64(0), relsDeleted)
+	req.NoError(err)
 
 	// Write a relationship.
 	tpl := &v0.RelationTuple{
@@ -167,22 +167,22 @@ func TestGarbageCollection(t *testing.T) {
 			Relationship: relationship,
 		}},
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
 	relsDeleted, transactionsDeleted, err := mds.collectGarbageForTransaction(ctx, uint64(relWrittenAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
-	require.NoError(err)
+	req.Equal(int64(0), relsDeleted)
+	req.Equal(int64(1), transactionsDeleted)
+	req.NoError(err)
 
 	// Run GC again and ensure there are no changes.
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relWrittenAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
-	require.Equal(int64(0), transactionsDeleted)
-	require.NoError(err)
+	req.Equal(int64(0), relsDeleted)
+	req.Equal(int64(0), transactionsDeleted)
+	req.NoError(err)
 
 	// Ensure the relationship is still present.
-	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
+	tRequire := testfixtures.TupleChecker{Require: req, DS: ds}
 	tRequire.TupleExists(ctx, tpl, relWrittenAt)
 
 	// Overwrite the relationship.
@@ -194,19 +194,19 @@ func TestGarbageCollection(t *testing.T) {
 			Relationship: relationship,
 		}},
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	// Run GC at the transaction and ensure the (older copy of the) relationship is removed, as well as 1 transaction (the write).
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relOverwrittenAt.IntPart()))
-	require.Equal(int64(1), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
-	require.NoError(err)
+	req.Equal(int64(1), relsDeleted)
+	req.Equal(int64(1), transactionsDeleted)
+	req.NoError(err)
 
 	// Run GC again and ensure there are no changes.
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relOverwrittenAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
-	require.Equal(int64(0), transactionsDeleted)
-	require.NoError(err)
+	req.Equal(int64(0), relsDeleted)
+	req.Equal(int64(0), transactionsDeleted)
+	req.NoError(err)
 
 	// Ensure the relationship is still present.
 	tRequire.TupleExists(ctx, tpl, relOverwrittenAt)
@@ -220,22 +220,22 @@ func TestGarbageCollection(t *testing.T) {
 			Relationship: relationship,
 		}},
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	// Ensure the relationship is gone.
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
 
 	// Run GC at the transaction and ensure the relationship is removed, as well as 1 transaction (the overwrite).
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relDeletedAt.IntPart()))
-	require.Equal(int64(1), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
-	require.NoError(err)
+	req.Equal(int64(1), relsDeleted)
+	req.Equal(int64(1), transactionsDeleted)
+	req.NoError(err)
 
 	// Run GC again and ensure there are no changes.
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relDeletedAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
-	require.Equal(int64(0), transactionsDeleted)
-	require.NoError(err)
+	req.Equal(int64(0), relsDeleted)
+	req.Equal(int64(0), transactionsDeleted)
+	req.NoError(err)
 
 	// Write a the relationship a few times.
 	_, err = ds.WriteTuples(
@@ -246,7 +246,7 @@ func TestGarbageCollection(t *testing.T) {
 			Relationship: relationship,
 		}},
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	_, err = ds.WriteTuples(
 		ctx,
@@ -256,7 +256,7 @@ func TestGarbageCollection(t *testing.T) {
 			Relationship: relationship,
 		}},
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	relLastWriteAt, err := ds.WriteTuples(
 		ctx,
@@ -266,42 +266,42 @@ func TestGarbageCollection(t *testing.T) {
 			Relationship: relationship,
 		}},
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
 	// as well as the 2 older write transactions and the older delete transaction.
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relLastWriteAt.IntPart()))
-	require.Equal(int64(2), relsDeleted)
-	require.Equal(int64(3), transactionsDeleted)
-	require.NoError(err)
+	req.Equal(int64(2), relsDeleted)
+	req.Equal(int64(3), transactionsDeleted)
+	req.NoError(err)
 
 	// Ensure the relationship is still present.
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
 }
 
 func TestGarbageCollectionByTime(t *testing.T) {
-	require := require.New(t)
+	req := require.New(t)
 
 	tester := newTester()
 
 	ds, err := tester.New(0, time.Millisecond*1, 1)
-	require.NoError(err)
-	defer ds.Close()
+	req.NoError(err)
+	defer FailOnError(t, ds.Close)
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
-	require.NoError(err)
-	require.True(ok)
+	req.NoError(err)
+	req.True(ok)
 
 	// Write basic namespaces.
 	_, err = ds.WriteNamespace(ctx, namespace.Namespace(
 		"resource",
 		namespace.Relation("reader", nil),
 	))
-	require.NoError(err)
+	req.NoError(err)
 
 	_, err = ds.WriteNamespace(ctx, namespace.Namespace("user"))
-	require.NoError(err)
+	req.NoError(err)
 
 	mds := ds.(*mysqlDatastore)
 
@@ -331,19 +331,19 @@ func TestGarbageCollectionByTime(t *testing.T) {
 			Relationship: relationship,
 		}},
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	// Run GC and ensure only transactions were removed.
 	afterWrite, err := mds.getNow(ctx)
-	require.NoError(err)
+	req.NoError(err)
 
 	relsDeleted, transactionsDeleted, err := mds.collectGarbageBefore(ctx, afterWrite)
-	require.Equal(int64(0), relsDeleted)
-	require.True(transactionsDeleted > 0)
-	require.NoError(err)
+	req.Equal(int64(0), relsDeleted)
+	req.True(transactionsDeleted > 0)
+	req.NoError(err)
 
 	// Ensure the relationship is still present.
-	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
+	tRequire := testfixtures.TupleChecker{Require: req, DS: ds}
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
 
 	// Sleep 1ms to ensure GC will delete the previous write.
@@ -358,16 +358,16 @@ func TestGarbageCollectionByTime(t *testing.T) {
 			Relationship: relationship,
 		}},
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	// Run GC and ensure the relationship is removed.
 	afterDelete, err := mds.getNow(ctx)
-	require.NoError(err)
+	req.NoError(err)
 
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageBefore(ctx, afterDelete)
-	require.Equal(int64(1), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
-	require.NoError(err)
+	req.Equal(int64(1), relsDeleted)
+	req.Equal(int64(1), transactionsDeleted)
+	req.NoError(err)
 
 	// Ensure the relationship is still not present.
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
@@ -376,28 +376,28 @@ func TestGarbageCollectionByTime(t *testing.T) {
 const chunkRelationshipCount = 2000
 
 func TestChunkedGarbageCollection(t *testing.T) {
-	require := require.New(t)
+	req := require.New(t)
 
 	tester := newTester()
 
 	ds, err := tester.New(0, time.Millisecond*1, 1)
-	require.NoError(err)
-	defer ds.Close()
+	req.NoError(err)
+	defer FailOnError(t, ds.Close)
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
-	require.NoError(err)
-	require.True(ok)
+	req.NoError(err)
+	req.True(ok)
 
 	// Write basic namespaces.
 	_, err = ds.WriteNamespace(ctx, namespace.Namespace(
 		"resource",
 		namespace.Relation("reader", nil),
 	))
-	require.NoError(err)
+	req.NoError(err)
 
 	_, err = ds.WriteNamespace(ctx, namespace.Namespace("user"))
-	require.NoError(err)
+	req.NoError(err)
 
 	mds := ds.(*mysqlDatastore)
 
@@ -434,22 +434,22 @@ func TestChunkedGarbageCollection(t *testing.T) {
 		nil,
 		updates,
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	// Ensure the relationships were written.
-	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
+	tRequire := testfixtures.TupleChecker{Require: req, DS: ds}
 	for _, tpl := range tpls {
 		tRequire.TupleExists(ctx, tpl, writtenAt)
 	}
 
 	// Run GC and ensure only transactions were removed.
 	afterWrite, err := mds.getNow(ctx)
-	require.NoError(err)
+	req.NoError(err)
 
 	relsDeleted, transactionsDeleted, err := mds.collectGarbageBefore(ctx, afterWrite)
-	require.Equal(int64(0), relsDeleted)
-	require.True(transactionsDeleted > 0)
-	require.NoError(err)
+	req.Equal(int64(0), relsDeleted)
+	req.True(transactionsDeleted > 0)
+	req.NoError(err)
 
 	// Sleep to ensure the relationships will GC.
 	time.Sleep(1 * time.Millisecond)
@@ -469,7 +469,7 @@ func TestChunkedGarbageCollection(t *testing.T) {
 		nil,
 		deletes,
 	)
-	require.NoError(err)
+	req.NoError(err)
 
 	// Ensure the relationships were deleted.
 	for _, tpl := range tpls {
@@ -481,12 +481,12 @@ func TestChunkedGarbageCollection(t *testing.T) {
 
 	// Run GC and ensure all the stale relationships are removed.
 	afterDelete, err := mds.getNow(ctx)
-	require.NoError(err)
+	req.NoError(err)
 
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageBefore(ctx, afterDelete)
-	require.Equal(int64(chunkRelationshipCount), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
-	require.NoError(err)
+	req.Equal(int64(chunkRelationshipCount), relsDeleted)
+	req.Equal(int64(1), transactionsDeleted)
+	req.NoError(err)
 }
 
 func setupDatabase() string {
@@ -600,4 +600,8 @@ func TestMain(m *testing.M) {
 	exitStatus := m.Run()
 	containerCleanup()
 	os.Exit(exitStatus)
+}
+
+func FailOnError(t *testing.T, f func() error) {
+	require.NoError(t, f())
 }
