@@ -11,8 +11,10 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -25,7 +27,7 @@ const (
 
 var testUserNS = namespace.Namespace(testUserNamespace)
 
-// Copied from crdb_test.go
+// newCRDB creates a new database in crdb, migrates to HEAD, and returns the specific crdb datastore.
 func (st sqlTest) newCRDB() (*crdbDatastore, error) {
 	uniquePortion, err := secrets.TokenHex(4)
 	if err != nil {
@@ -151,10 +153,11 @@ func TestTxReset(t *testing.T) {
 			revision, err := ds.WriteNamespace(ctx, testUserNS)
 			if tt.expectedError != nil {
 				require.Error(err)
+				require.Equal(datastore.NoRevision, revision)
 			} else {
 				require.NoError(err)
+				require.True(revision.GreaterThan(decimal.Zero))
 			}
-			require.NotNil(revision)
 
 			tester.cleanup()
 			ds.Close()

@@ -12,10 +12,16 @@ import (
 )
 
 const (
-	crdbRetryErrCode       = "40001"
+	// https://www.cockroachlabs.com/docs/stable/common-errors.html#restart-transaction
+	crdbRetryErrCode = "40001"
+	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
 	crdbAmbiguousErrorCode = "40003"
 	errUnableToRetry       = "failed to retry conflicted transaction: %w"
 	errReachedMaxRetry     = "maximum retries reached"
+
+	sqlRollback         = "ROLLBACK TO SAVEPOINT cockroach_restart"
+	sqlSavepoint        = "SAVEPOINT cockroach_restart"
+	sqlReleaseSavepoint = "RELEASE SAVEPOINT cockroach_restart"
 )
 
 var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -65,7 +71,7 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 		_ = tx.Rollback(ctx)
 	}()
 
-	if _, err = tx.Exec(ctx, "SAVEPOINT cockroach_restart"); err != nil {
+	if _, err = tx.Exec(ctx, sqlSavepoint); err != nil {
 		return
 	}
 
@@ -85,16 +91,16 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 
 		// RELEASE SAVEPOINT itself can fail, in which case the entire
 		// transaction needs to be retried
-		if _, err := tx.Exec(ctx, "RELEASE SAVEPOINT cockroach_restart"); err != nil {
+		if _, err := tx.Exec(ctx, sqlReleaseSavepoint); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	for i = 0; i < maxRetries+1; i++ {
+	for i = 0; i <= maxRetries; i++ {
 		if err = releasedFn(tx); err != nil {
 			if retriable(ctx, err) {
-				if _, retryErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT cockroach_restart"); retryErr != nil {
+				if _, retryErr := tx.Exec(ctx, sqlRollback); retryErr != nil {
 					// Attempt to reset on failed retries
 					newTx, resetErr := resetExecution(ctx, conn, &tx, txOptions)
 					if resetErr != nil {
@@ -120,7 +126,7 @@ func execute(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transac
 	return errors.New(errReachedMaxRetry)
 }
 
-// tx will be rolled back and a new tx will be started
+// resetExecution attempts to rollback the given tx, begins a new tx with a new connection, and creates a savepoint.
 func resetExecution(ctx context.Context, conn conn, tx *pgx.Tx, txOptions pgx.TxOptions) (newTx pgx.Tx, err error) {
 	err = (*tx).Rollback(ctx)
 	if err != nil {
