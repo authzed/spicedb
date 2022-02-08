@@ -87,21 +87,11 @@ func GCWindow(window time.Duration) Option {
 	}
 }
 
-// GCInterval is the the interval at which garbage collection will occur.
+// GCInterval is the interval at which garbage collection will occur.
 //
 // This value defaults to 3 minutes.
 func GCInterval(interval time.Duration) Option {
 	return func(mo *mysqlOptions) {
 		mo.gcInterval = interval
-	}
-}
-
-// GCMaxOperationTime is the maximum operation time of a garbage collection
-// pass before it times out.
-//
-// This value defaults to 1 minute.
-func GCMaxOperationTime(time time.Duration) Option {
-	return func(mo *mysqlOptions) {
-		mo.gcMaxOperationTime = time
 	}
 }
