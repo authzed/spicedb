@@ -141,7 +141,7 @@ func TestGarbageCollection(t *testing.T) {
 	mds := ds.(*mysqlDatastore)
 
 	relsDeleted, _, err := mds.collectGarbageForTransaction(ctx, uint64(writtenAt.IntPart()))
-	req.Equal(int64(0), relsDeleted)
+	req.Zero(relsDeleted)
 	req.NoError(err)
 
 	// Write a relationship.
@@ -171,14 +171,14 @@ func TestGarbageCollection(t *testing.T) {
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
 	relsDeleted, transactionsDeleted, err := mds.collectGarbageForTransaction(ctx, uint64(relWrittenAt.IntPart()))
-	req.Equal(int64(0), relsDeleted)
+	req.Zero(relsDeleted)
 	req.Equal(int64(1), transactionsDeleted)
 	req.NoError(err)
 
 	// Run GC again and ensure there are no changes.
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relWrittenAt.IntPart()))
-	req.Equal(int64(0), relsDeleted)
-	req.Equal(int64(0), transactionsDeleted)
+	req.Zero(relsDeleted)
+	req.Zero(transactionsDeleted)
 	req.NoError(err)
 
 	// Ensure the relationship is still present.
@@ -204,8 +204,8 @@ func TestGarbageCollection(t *testing.T) {
 
 	// Run GC again and ensure there are no changes.
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relOverwrittenAt.IntPart()))
-	req.Equal(int64(0), relsDeleted)
-	req.Equal(int64(0), transactionsDeleted)
+	req.Zero(relsDeleted)
+	req.Zero(transactionsDeleted)
 	req.NoError(err)
 
 	// Ensure the relationship is still present.
@@ -233,8 +233,8 @@ func TestGarbageCollection(t *testing.T) {
 
 	// Run GC again and ensure there are no changes.
 	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relDeletedAt.IntPart()))
-	req.Equal(int64(0), relsDeleted)
-	req.Equal(int64(0), transactionsDeleted)
+	req.Zero(relsDeleted)
+	req.Zero(transactionsDeleted)
 	req.NoError(err)
 
 	// Write the relationship a few times.
@@ -338,8 +338,8 @@ func TestGarbageCollectionByTime(t *testing.T) {
 	req.NoError(err)
 
 	relsDeleted, transactionsDeleted, err := mds.collectGarbageBefore(ctx, afterWrite)
-	req.Equal(int64(0), relsDeleted)
-	req.True(transactionsDeleted > 0)
+	req.Zero(relsDeleted)
+	req.NotZero(transactionsDeleted)
 	req.NoError(err)
 
 	// Ensure the relationship is still present.
@@ -447,8 +447,8 @@ func TestChunkedGarbageCollection(t *testing.T) {
 	req.NoError(err)
 
 	relsDeleted, transactionsDeleted, err := mds.collectGarbageBefore(ctx, afterWrite)
-	req.Equal(int64(0), relsDeleted)
-	req.True(transactionsDeleted > 0)
+	req.Zero(relsDeleted)
+	req.NotZero(transactionsDeleted)
 	req.NoError(err)
 
 	// Sleep to ensure the relationships will GC.
