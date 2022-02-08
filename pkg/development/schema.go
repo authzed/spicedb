@@ -23,17 +23,18 @@ func CompileSchema(schema string) ([]*v0.NamespaceDefinition, *v0.DeveloperError
 
 	var contextError compiler.ErrorWithContext
 	if errors.As(err, &contextError) {
-		line, col, err := contextError.SourceRange.Start().LineAndColumn()
-		if err != nil {
-			return []*v0.NamespaceDefinition{}, nil, err
+		line, col, lerr := contextError.SourceRange.Start().LineAndColumn()
+		if lerr != nil {
+			return []*v0.NamespaceDefinition{}, nil, lerr
 		}
 
 		return []*v0.NamespaceDefinition{}, &v0.DeveloperError{
-			Message: contextError.Error(),
+			Message: contextError.BaseCompilerError.BaseMessage,
 			Kind:    v0.DeveloperError_SCHEMA_ISSUE,
 			Source:  v0.DeveloperError_SCHEMA,
 			Line:    uint32(line) + 1, // 0-indexed in parser.
 			Column:  uint32(col) + 1,  // 0-indexed in parser.
+			Context: contextError.ErrorSourceCode,
 		}, nil
 	}
 

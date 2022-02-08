@@ -22,9 +22,17 @@ type InputSchema struct {
 
 // ErrorWithContext defines an error which contains contextual information.
 type ErrorWithContext struct {
+	BaseCompilerError
+	SourceRange     input.SourceRange
+	Source          input.Source
+	ErrorSourceCode string
+}
+
+// BaseCompilerError defines an error with contains the base message of the issue
+// that occurred.
+type BaseCompilerError struct {
 	error
-	SourceRange input.SourceRange
-	Source      input.Source
+	BaseMessage string
 }
 
 type errorWithNode struct {
@@ -52,7 +60,7 @@ func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*v0.NamespaceDe
 		if err != nil {
 			var errorWithNode errorWithNode
 			if errors.As(err, &errorWithNode) {
-				err = toContextError(errorWithNode.error.Error(), errorWithNode.node, mapper)
+				err = toContextError(errorWithNode.error.Error(), "", errorWithNode.node, mapper)
 			}
 
 			return []*v0.NamespaceDefinition{}, err
@@ -74,10 +82,20 @@ func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {
 		return fmt.Errorf("could not get error message for error node: %w", err)
 	}
 
-	return toContextError(errMessage, node, mapper)
+	errorSourceCode := ""
+	if node.Has(dslshape.NodePredicateErrorSource) {
+		es, err := node.GetString(dslshape.NodePredicateErrorSource)
+		if err != nil {
+			return fmt.Errorf("could not get error source for error node: %w", err)
+		}
+
+		errorSourceCode = es
+	}
+
+	return toContextError(errMessage, errorSourceCode, node, mapper)
 }
 
-func toContextError(errMessage string, node *dslNode, mapper input.PositionMapper) error {
+func toContextError(errMessage string, errorSourceCode string, node *dslNode, mapper input.PositionMapper) error {
 	sourceRange, err := node.Range(mapper)
 	if err != nil {
 		return fmt.Errorf("could not get range for error node: %w", err)
@@ -94,9 +112,13 @@ func toContextError(errMessage string, node *dslNode, mapper input.PositionMappe
 	}
 
 	return ErrorWithContext{
-		error:       fmt.Errorf("parse error in %s: %s", formattedRange, errMessage),
-		SourceRange: sourceRange,
-		Source:      input.Source(source),
+		BaseCompilerError: BaseCompilerError{
+			error:       fmt.Errorf("parse error in %s: %s", formattedRange, errMessage),
+			BaseMessage: errMessage,
+		},
+		SourceRange:     sourceRange,
+		Source:          input.Source(source),
+		ErrorSourceCode: errorSourceCode,
 	}
 }
 
