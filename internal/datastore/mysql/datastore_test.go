@@ -237,7 +237,7 @@ func TestGarbageCollection(t *testing.T) {
 	req.Equal(int64(0), transactionsDeleted)
 	req.NoError(err)
 
-	// Write a the relationship a few times.
+	// Write the relationship a few times.
 	_, err = ds.WriteTuples(
 		ctx,
 		nil,
@@ -402,7 +402,7 @@ func TestChunkedGarbageCollection(t *testing.T) {
 	mds := ds.(*mysqlDatastore)
 
 	// Prepare relationships to write.
-	var tpls []*v0.RelationTuple
+	var tuples []*v0.RelationTuple
 	for i := 0; i < chunkRelationshipCount; i++ {
 		tpl := &v0.RelationTuple{
 			ObjectAndRelation: &v0.ObjectAndRelation{
@@ -416,12 +416,12 @@ func TestChunkedGarbageCollection(t *testing.T) {
 				Relation:  "...",
 			}}},
 		}
-		tpls = append(tpls, tpl)
+		tuples = append(tuples, tpl)
 	}
 
 	// Write a large number of relationships.
 	var updates []*v1.RelationshipUpdate
-	for _, tpl := range tpls {
+	for _, tpl := range tuples {
 		relationship := tuple.ToRelationship(tpl)
 		updates = append(updates, &v1.RelationshipUpdate{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
@@ -438,7 +438,7 @@ func TestChunkedGarbageCollection(t *testing.T) {
 
 	// Ensure the relationships were written.
 	tRequire := testfixtures.TupleChecker{Require: req, DS: ds}
-	for _, tpl := range tpls {
+	for _, tpl := range tuples {
 		tRequire.TupleExists(ctx, tpl, writtenAt)
 	}
 
@@ -456,7 +456,7 @@ func TestChunkedGarbageCollection(t *testing.T) {
 
 	// Delete all the relationships.
 	var deletes []*v1.RelationshipUpdate
-	for _, tpl := range tpls {
+	for _, tpl := range tuples {
 		relationship := tuple.ToRelationship(tpl)
 		deletes = append(deletes, &v1.RelationshipUpdate{
 			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
@@ -472,7 +472,7 @@ func TestChunkedGarbageCollection(t *testing.T) {
 	req.NoError(err)
 
 	// Ensure the relationships were deleted.
-	for _, tpl := range tpls {
+	for _, tpl := range tuples {
 		tRequire.NoTupleExists(ctx, tpl, deletedAt)
 	}
 
