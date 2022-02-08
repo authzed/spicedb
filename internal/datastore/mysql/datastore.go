@@ -60,7 +60,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
-	datastore := &mysqlDatastore{
+	store := &mysqlDatastore{
 		db:                        db,
 		url:                       url,
 		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
@@ -74,14 +74,14 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 	}
 
 	// Start a goroutine for garbage collection.
-	if datastore.gcInterval > 0*time.Minute {
-		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
-		datastore.gcGroup.Go(datastore.runGarbageCollector)
+	if store.gcInterval > 0*time.Minute {
+		store.gcGroup, store.gcCtx = errgroup.WithContext(store.gcCtx)
+		store.gcGroup.Go(store.runGarbageCollector)
 	} else {
 		log.Warn().Msg("garbage collection disabled in mysql driver")
 	}
 
-	return datastore, nil
+	return store, nil
 }
 
 type mysqlDatastore struct {
@@ -223,15 +223,10 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 }
 
 func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
-	innerQuery, args, err := sb.Select("id").From(tableName).Where(filter).ToSql()
+	query, args, err := sb.Delete(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
 	}
-
-	query := fmt.Sprintf(`WITH rows AS (%s LIMIT %d)
-		  DELETE FROM %s
-		  WHERE id IN (SELECT id FROM rows);
-	`, innerQuery, batchDeleteSize, tableName)
 
 	var deletedCount int64
 	for {
