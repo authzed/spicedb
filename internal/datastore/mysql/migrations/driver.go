@@ -2,13 +2,13 @@ package migrations
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 
 	sqlDriver "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog/log"
 )
 
@@ -18,7 +18,7 @@ const (
 )
 
 type MysqlDriver struct {
-	db *sqlx.DB
+	db *sql.DB
 }
 
 // https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
@@ -37,7 +37,7 @@ func NewMysqlDriver(url string) (*MysqlDriver, error) {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	db, err := sqlx.Connect("mysql", dbConfig.FormatDSN())
+	db, err := sql.Open("mysql", dbConfig.FormatDSN())
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -53,7 +53,7 @@ func NewMysqlDriver(url string) (*MysqlDriver, error) {
 func (mysql *MysqlDriver) Version() (string, error) {
 	var loaded string
 
-	if err := mysql.db.QueryRowx("SELECT version_num FROM mysql_migration_version").Scan(&loaded); err != nil {
+	if err := mysql.db.QueryRow("SELECT version_num FROM mysql_migration_version").Scan(&loaded); err != nil {
 		var mysqlError *sqlDriver.MySQLError
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
 			return "", nil

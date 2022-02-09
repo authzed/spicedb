@@ -23,7 +23,7 @@ func (e executor) migrate(mysql *MysqlDriver) error {
 		return errors.New("executor.migrate: No statements to migrate")
 	}
 
-	tx, err := mysql.db.Beginx()
+	tx, err := mysql.db.Begin()
 	if err != nil {
 		return err
 	}

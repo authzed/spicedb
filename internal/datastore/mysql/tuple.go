@@ -8,7 +8,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jmoiron/sqlx"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -39,7 +38,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
 
-	tx, err := mds.db.BeginTxx(ctx, nil)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 	}
@@ -107,7 +106,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 }
 
 // NOTE(chriskirkland): ErrNoRows needs to be configured/dependency injected per sql-driver type
-func (mds *mysqlDatastore) checkPreconditions(ctx context.Context, tx *sqlx.Tx, preconditions []*v1.Precondition) error {
+func (mds *mysqlDatastore) checkPreconditions(ctx context.Context, tx *sql.Tx, preconditions []*v1.Precondition) error {
 	ctx, span := tracer.Start(ctx, "checkPreconditions")
 	defer span.End()
 
@@ -171,7 +170,7 @@ func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, precondition
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 
-	tx, err := mds.db.BeginTxx(ctx, nil)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteTuples, err)
 	}
