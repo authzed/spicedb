@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/Masterminds/squirrel v1.5.2
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/authzed/authzed-go v0.4.1
+	github.com/authzed/authzed-go v0.4.2-0.20220207230446-c781fa7fa969
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/aws/aws-sdk-go v1.42.44
 	github.com/benbjohnson/clock v1.3.0
