@@ -2,10 +2,9 @@ package migrations
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
-
-	"database/sql"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 
