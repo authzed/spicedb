@@ -3,7 +3,7 @@ module github.com/authzed/spicedb/e2e
 go 1.17
 
 require (
-	github.com/authzed/authzed-go v0.4.1
+	github.com/authzed/authzed-go v0.4.2-0.20220207230446-c781fa7fa969
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/authzed/spicedb v0.0.0
 	github.com/brianvoe/gofakeit/v6 v6.14.3
