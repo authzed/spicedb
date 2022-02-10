@@ -1,9 +1,10 @@
-package validationfile
+package blocks
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -104,144 +105,12 @@ func TestValidationString(t *testing.T) {
 	}
 }
 
-func TestAssertions(t *testing.T) {
-	type testCase struct {
-		name                 string
-		input                string
-		expectedRelationship string
-	}
-
-	tests := []testCase{
-		{
-			"empty",
-			"",
-			"",
-		},
-		{
-			"empty",
-			"foos:bar#bazzy@groo:grar#graz",
-			"foos:bar#bazzy@groo:grar#graz",
-		},
-		{
-			"empty",
-			"foos:bar#bazzy@groo:grar",
-			"foos:bar#bazzy@groo:grar",
-		},
-		{
-			"empty",
-			"foos:bar#bazzy@groo:grar#...",
-			"foos:bar#bazzy@groo:grar",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
-			a := Assertions{AssertTrue: []Assertion{{tc.input, 0, 0}}}
-
-			foundRelationships := []string{}
-			assertions, _ := a.AssertTrueRelationships()
-			for _, assertion := range assertions {
-				foundRelationships = append(foundRelationships, tuple.String(assertion.Relationship))
-			}
-
-			if tc.expectedRelationship != "" {
-				require.Equal([]string{tc.expectedRelationship}, foundRelationships)
-			} else {
-				require.Equal(0, len(foundRelationships))
-			}
-		})
-	}
-}
-
-func TestParseAssertionsBlock(t *testing.T) {
-	type testCase struct {
-		name               string
-		input              string
-		expectedError      string
-		expectedAssertions Assertions
-	}
-
-	tests := []testCase{
-		{
-			"empty",
-			"",
-			"",
-			Assertions{},
-		},
-		{
-			"with one assertion",
-			`assertTrue:
-- document:foo#view@user:someone`,
-			"",
-			Assertions{
-				AssertTrue: []Assertion{
-					{
-						"document:foo#view@user:someone", 2, 3,
-					},
-				},
-			},
-		},
-		{
-			"with one assertion per section",
-			`assertTrue:
-- document:foo#view@user:someone
-assertFalse:
-- document:foo#write@user:someone`,
-			"",
-			Assertions{
-				AssertTrue: []Assertion{
-					{
-						"document:foo#view@user:someone", 2, 3,
-					},
-				},
-				AssertFalse: []Assertion{
-					{
-						"document:foo#write@user:someone", 4, 3,
-					},
-				},
-			},
-		},
-		{
-			"with invalid yaml",
-			`assertTrue: somethinginvalid
-- document:foo#view@user:someone`,
-			"yaml: line 1: did not find expected key",
-			Assertions{},
-		},
-		{
-			"with garbage",
-			`assertTrue:
-  - document:firstdoc#view@user:tom
-  - document:firstdoc#view@user:fred
-  - document:seconddoc#view@user:tom
-assertFalse: garbage
-  - document:seconddoc#view@user:fred`,
-			"unexpected key `garbage - document:seconddoc#view@user:fred` on line 5",
-			Assertions{},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
-			assertions, err := ParseAssertionsBlock([]byte(tc.input))
-			if tc.expectedError != "" {
-				require.Nil(assertions)
-				require.Equal(err.Error(), tc.expectedError)
-			} else {
-				require.NoError(err)
-				require.Equal(tc.expectedAssertions, *assertions)
-			}
-		})
-	}
-}
-
-func TestParseValidationBlock(t *testing.T) {
+func TestParseExpectedRelations(t *testing.T) {
 	type testCase struct {
 		name          string
-		input         string
+		contents      string
 		expectedError string
+		expectedKeys  int
 	}
 
 	tests := []testCase{
@@ -249,33 +118,65 @@ func TestParseValidationBlock(t *testing.T) {
 			"empty",
 			"",
 			"",
+			0,
 		},
 		{
 			"not a map",
 			`- hi
 - hello `,
-			`line 1: cannot unmarshal !!seq into validationfile.ValidationMap`,
+			`cannot unmarshal !!seq into blocks.ValidationMap`,
+			0,
 		},
 		{
 			"valid",
 			`document:firstdoc#view:
 - "[user:tom] is <document:firstdoc#writer>"
-- "[user:fred] is <document:firstdoc#reader>"
+- "[user:fred] is <document:firstdoc#reader>/<document:firstdoc#writer>"
 document:seconddoc#view:
 - "[user:tom] is <document:seconddoc#reader>"`,
 			"",
+			2,
+		},
+		{
+			"invalid key",
+			`document:firstdocview:
+- "[user:tom] is <document:firstdoc#writer>"`,
+			"could not parse document:firstdocview",
+			0,
+		},
+		{
+			"invalid subject",
+			`document:firstdoc#view:
+- "[usertom] is <document:firstdoc#writer>"`,
+			"invalid subject: `usertom`",
+			0,
+		},
+		{
+			"invalid resource",
+			`document:firstdoc#view:
+- "[user:tom] is <document:firstdocwriter>"`,
+			"invalid resource and relation: `document:firstdocwriter`",
+			0,
+		},
+		{
+			"invalid multi-resource",
+			`document:firstdoc#view:
+- "[user:tom] is <document:firstdoc#writer/document:firstdoc#reader>"`,
+			"invalid resource and relation: `document:firstdoc#writer/document:firstdoc#reader`",
+			0,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			block, err := ParseValidationBlock([]byte(tc.input))
+			per := ParsedExpectedRelations{}
+			err := yamlv3.Unmarshal([]byte(tc.contents), &per)
 			if tc.expectedError != "" {
 				require.Contains(err.Error(), tc.expectedError)
 			} else {
-				require.NotNil(block)
 				require.NoError(err)
+				require.Equal(tc.expectedKeys, len(per.ValidationMap))
 			}
 		})
 	}
