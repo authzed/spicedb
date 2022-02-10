@@ -9,8 +9,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -23,15 +23,14 @@ const (
 )
 
 // NewConcurrentExpander creates an instance of ConcurrentExpander
-func NewConcurrentExpander(d dispatch.Expand, ds datastore.GraphDatastore, nsm namespace.Manager) *ConcurrentExpander {
-	return &ConcurrentExpander{d: d, ds: ds, nsm: nsm}
+func NewConcurrentExpander(d dispatch.Expand, nsm namespace.Manager) *ConcurrentExpander {
+	return &ConcurrentExpander{d: d, nsm: nsm}
 }
 
 // ConcurrentExpander exposes a method to perform Expand requests, and delegates subproblems to the
 // provided dispatch.Expand instance.
 type ConcurrentExpander struct {
 	d   dispatch.Expand
-	ds  datastore.GraphDatastore
 	nsm namespace.Manager
 }
 
@@ -65,7 +64,8 @@ func (ce *ConcurrentExpander) expandDirect(
 ) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		it, err := ce.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		ds := datastoremw.MustFromContext(ctx)
+		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   req.ObjectAndRelation.Relation,
@@ -233,7 +233,8 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 
 func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req ValidatedExpandRequest, ttu *v0.TupleToUserset) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		it, err := ce.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		ds := datastoremw.MustFromContext(ctx)
+		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   ttu.Tupleset.Relation,

@@ -162,8 +162,8 @@ github.com/docker/docker v20.10.9+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05b
 github.com/docker/go-connections v0.4.0/go.mod h1:Gbd7IOopHjR8Iph03tsViu4nIes5XhDvyHbTtUxmeec=
 github.com/docker/go-units v0.4.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
-github.com/ecordell/optgen v0.0.5-0.20211217170453-18cdce036e35 h1:BWkgCFLPOJXWYvUCfQa7ArWzX22Jiw0erbnzCMZI2rc=
-github.com/ecordell/optgen v0.0.5-0.20211217170453-18cdce036e35/go.mod h1:bAPkLVWcBlTX5EkXW0UTPRj3+yjq2I6VLgH8OasuQEM=
+github.com/ecordell/optgen v0.0.6 h1:aSknPe6ZUBrjwHGp2+6XfmfCGYGD6W0ZDfCmmsrS7s4=
+github.com/ecordell/optgen v0.0.6/go.mod h1:bAPkLVWcBlTX5EkXW0UTPRj3+yjq2I6VLgH8OasuQEM=
 github.com/emirpasic/gods v1.12.0/go.mod h1:YfzfFFoVP/catgzJb4IKIqXjX78Ha8FMSDh3ymbK86o=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=

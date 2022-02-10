@@ -10,24 +10,23 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/dispatch"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewConcurrentLookup creates and instance of ConcurrentLookup.
-func NewConcurrentLookup(d dispatch.Lookup, ds datastore.GraphDatastore, nsm namespace.Manager) *ConcurrentLookup {
-	return &ConcurrentLookup{d: d, ds: ds, nsm: nsm}
+func NewConcurrentLookup(d dispatch.Lookup, nsm namespace.Manager) *ConcurrentLookup {
+	return &ConcurrentLookup{d: d, nsm: nsm}
 }
 
 // ConcurrentLookup exposes a method to perform Lookup requests, and delegates subproblems to the
 // provided dispatch.Lookup instance.
 type ConcurrentLookup struct {
 	d   dispatch.Lookup
-	ds  datastore.GraphDatastore
 	nsm namespace.Manager
 }
 
@@ -175,10 +174,12 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 		return returnResult(lookupResultError(req, err, emptyMetadata))
 	}
 
+	ds := datastoremw.MustFromContext(ctx)
+
 	if isDirectAllowed == namespace.DirectRelationValid {
 		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
 			objects := tuple.NewONRSet()
-			it, err := cl.ds.ReverseQueryTuples(
+			it, err := ds.ReverseQueryTuples(
 				ctx,
 				tuple.UsersetToSubjectFilter(req.Subject),
 				req.Revision,
@@ -218,7 +219,7 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 	if isWildcardAllowed == namespace.PublicSubjectAllowed {
 		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
 			objects := tuple.NewONRSet()
-			it, err := cl.ds.ReverseQueryTuples(
+			it, err := ds.ReverseQueryTuples(
 				ctx,
 				tuple.UsersetToSubjectFilter(&v0.ObjectAndRelation{
 					Namespace: req.Subject.Namespace,
@@ -318,7 +319,7 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 			objects := tuple.NewONRSet()
 			if len(result.Resp.ResolvedOnrs) > 0 {
 				limit := uint64(req.Limit)
-				it, err := cl.ds.QueryTuples(
+				it, err := ds.QueryTuples(
 					ctx,
 					&v1_proto.RelationshipFilter{
 						ResourceType:     req.ObjectRelation.Namespace,
@@ -506,8 +507,9 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req Valid
 			// Perform the tupleset lookup.
 			objects := tuple.NewONRSet()
 			if len(usersets) > 0 {
+				ds := datastoremw.MustFromContext(ctx)
 				limit := uint64(req.Limit)
-				it, err := cl.ds.QueryTuples(
+				it, err := ds.QueryTuples(
 					ctx,
 					&v1_proto.RelationshipFilter{
 						ResourceType:     req.ObjectRelation.Namespace,

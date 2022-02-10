@@ -12,12 +12,13 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
+	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 )
@@ -36,7 +37,7 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	defer tester.cleanup()
 
-	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), grpc.WithInsecure())
+	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(err)
 	defer conn.Close()
 
@@ -44,7 +45,7 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 
-	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithInsecure())
+	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(err)
 	defer roConn.Close()
 

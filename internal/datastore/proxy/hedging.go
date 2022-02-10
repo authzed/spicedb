@@ -172,6 +172,10 @@ func newHedgingProxyWithTimeSource(
 	}
 }
 
+func (hp hedgingProxy) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return hp.delegate.NamespaceCacheKey(namespaceName, revision)
+}
+
 func (hp hedgingProxy) OptimizedRevision(ctx context.Context) (rev datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {

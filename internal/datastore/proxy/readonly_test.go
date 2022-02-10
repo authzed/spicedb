@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -270,6 +271,10 @@ func (dm *delegateMock) ListNamespaces(ctx context.Context, revision datastore.R
 func (dm *delegateMock) IsReady(ctx context.Context) (bool, error) {
 	args := dm.Called()
 	return args.Bool(0), args.Error(1)
+}
+
+func (dm *delegateMock) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
 }
 
 func (dm *delegateMock) Close() error {

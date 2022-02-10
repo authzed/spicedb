@@ -55,11 +55,12 @@ type Config struct {
 	SchemaPrefixesRequired bool
 
 	// Dispatch options
-	DispatchServer         util.GRPCServerConfig
-	DispatchMaxDepth       uint32
-	DispatchUpstreamAddr   string
-	DispatchUpstreamCAPath string
-	Dispatcher             dispatch.Dispatcher
+	DispatchServer              util.GRPCServerConfig
+	DispatchMaxDepth            uint32
+	DispatchUpstreamAddr        string
+	DispatchUpstreamCAPath      string
+	DispatchClientMetricsPrefix string
+	Dispatcher                  dispatch.Dispatcher
 
 	// API Behavior
 	DisableV1SchemaAPI bool
@@ -98,7 +99,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 	}
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, c.NamespaceCacheExpiration, nil)
+	nsm, err := namespace.NewCachingNamespaceManager(c.NamespaceCacheExpiration, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace manager: %w", err)
 	}
@@ -110,7 +111,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
 		var err error
-		dispatcher, err = combineddispatch.NewDispatcher(nsm, ds,
+		dispatcher, err = combineddispatch.NewDispatcher(nsm,
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
 			combineddispatch.GrpcPresharedKey(c.PresharedKey),
@@ -118,6 +119,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 				grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
 			),
+			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -125,13 +127,13 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
-		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey))
+		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey), ds)
 	}
 
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
 		var err error
-		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm, ds)
+		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}
@@ -165,7 +167,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
 				server,
-				ds,
 				nsm,
 				dispatcher,
 				c.DispatchMaxDepth,
@@ -223,6 +224,20 @@ func (c *Config) Complete() (RunnableServer, error) {
 		unaryMiddleware:     c.UnaryMiddleware,
 		streamingMiddleware: c.StreamingMiddleware,
 		presharedKey:        c.PresharedKey,
+		closeFunc: func() {
+			if err := ds.Close(); err != nil {
+				log.Warn().Err(err).Msg("couldn't close datastore")
+			}
+			if err := dispatcher.Close(); err != nil {
+				log.Warn().Err(err).Msg("couldn't close dispatcher")
+			}
+			if cachingClusterDispatch == nil {
+				return
+			}
+			if err := cachingClusterDispatch.Close(); err != nil {
+				log.Warn().Err(err).Msg("couldn't close cluster dispatcher")
+			}
+		},
 	}, nil
 }
 
@@ -247,6 +262,7 @@ type completedServerConfig struct {
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
 	presharedKey        string
+	closeFunc           func()
 }
 
 func (c *completedServerConfig) Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
@@ -260,6 +276,9 @@ func (c *completedServerConfig) SetMiddleware(unaryInterceptors []grpc.UnaryServ
 }
 
 func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	if len(c.presharedKey) == 0 {
+		return c.gRPCServer.DialContext(ctx, opts...)
+	}
 	if c.gRPCServer.Insecure() {
 		opts = append(opts, grpcutil.WithInsecureBearerToken(c.presharedKey))
 	} else {
@@ -294,6 +313,8 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 
 	g.Go(c.dashboardServer.ListenAndServe)
 	g.Go(stopOnCancel(c.dashboardServer.Close))
+
+	g.Go(stopOnCancel(c.closeFunc))
 
 	if err := g.Wait(); err != nil {
 		log.Warn().Err(err).Msg("error shutting down servers")

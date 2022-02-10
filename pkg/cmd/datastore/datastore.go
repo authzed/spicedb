@@ -70,34 +70,6 @@ type Config struct {
 	GCMaxOperationTime time.Duration
 }
 
-func (o *Config) ToOption() ConfigOption {
-	return func(to *Config) {
-		to.Engine = o.Engine
-		to.URI = o.URI
-		to.GCWindow = o.GCWindow
-		to.RevisionQuantization = o.RevisionQuantization
-		to.MaxLifetime = o.MaxLifetime
-		to.MaxIdleTime = o.MaxIdleTime
-		to.MaxOpenConns = o.MaxOpenConns
-		to.MinOpenConns = o.MinOpenConns
-		to.SplitQuerySize = o.SplitQuerySize
-		to.ReadOnly = o.ReadOnly
-		to.BootstrapFiles = o.BootstrapFiles
-		to.BootstrapOverwrite = o.BootstrapOverwrite
-		to.RequestHedgingEnabled = o.RequestHedgingEnabled
-		to.RequestHedgingInitialSlowValue = o.RequestHedgingInitialSlowValue
-		to.RequestHedgingMaxRequests = o.RequestHedgingMaxRequests
-		to.RequestHedgingQuantile = o.RequestHedgingQuantile
-		to.FollowerReadDelay = o.FollowerReadDelay
-		to.MaxRetries = o.MaxRetries
-		to.OverlapKey = o.OverlapKey
-		to.OverlapStrategy = o.OverlapStrategy
-		to.HealthCheckPeriod = o.HealthCheckPeriod
-		to.GCInterval = o.GCInterval
-		to.GCMaxOperationTime = o.GCMaxOperationTime
-	}
-}
-
 // RegisterDatastoreFlags adds datastore flags to a cobra command
 func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)

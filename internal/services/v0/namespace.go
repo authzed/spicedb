@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
@@ -28,14 +29,11 @@ import (
 type nsServer struct {
 	v0.UnimplementedNamespaceServiceServer
 	shared.WithUnaryServiceSpecificInterceptor
-
-	ds datastore.Datastore
 }
 
 // NewNamespaceServer creates an instance of the namespace server.
-func NewNamespaceServer(ds datastore.Datastore) v0.NamespaceServiceServer {
+func NewNamespaceServer() v0.NamespaceServiceServer {
 	s := &nsServer{
-		ds: ds,
 		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
 			Unary: grpcmw.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
 		},
@@ -44,7 +42,8 @@ func NewNamespaceServer(ds datastore.Datastore) v0.NamespaceServiceServer {
 }
 
 func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest) (*v0.WriteConfigResponse, error) {
-	nsm, err := namespace.NewCachingNamespaceManager(nss.ds, 0*time.Second, nil)
+	ds := datastoremw.MustFromContext(ctx)
+	nsm, err := namespace.NewCachingNamespaceManager(0*time.Second, nil)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
@@ -67,7 +66,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		//
 		// NOTE: We use the datastore here to read the namespace, rather than the namespace manager,
 		// to ensure there is no caching being used.
-		existing, _, err := nss.ds.ReadNamespace(ctx, config.Name, readRevision)
+		existing, _, err := ds.ReadNamespace(ctx, config.Name, readRevision)
 		if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
@@ -82,7 +81,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 		for _, delta := range diff.Deltas() {
 			switch delta.Type {
 			case namespace.RemovedRelation:
-				qy, qyErr := nss.ds.QueryTuples(
+				qy, qyErr := ds.QueryTuples(
 					ctx,
 					&v1.RelationshipFilter{
 						ResourceType:     config.Name,
@@ -101,7 +100,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 				}
 
 				// Also check for right sides of tuples.
-				qy, qyErr = nss.ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
+				qy, qyErr = ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
 					SubjectType: config.Name,
 					OptionalRelation: &v1.SubjectFilter_RelationFilter{
 						Relation: delta.RelationName,
@@ -117,7 +116,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 				}
 
 			case namespace.RelationDirectTypeRemoved:
-				qy, qyErr := nss.ds.ReverseQueryTuples(
+				qy, qyErr := ds.ReverseQueryTuples(
 					ctx,
 					&v1.SubjectFilter{
 						SubjectType: delta.DirectType.Namespace,
@@ -152,7 +151,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 	revision := decimal.Zero
 	for _, config := range req.Configs {
 		var err error
-		revision, err = nss.ds.WriteNamespace(ctx, config)
+		revision, err = ds.WriteNamespace(ctx, config)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
@@ -165,12 +164,13 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 
 func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) (*v0.ReadConfigResponse, error) {
 	readRevision, _ := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx)
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
 		DispatchCount: 1,
 	})
 
-	found, _, err := nss.ds.ReadNamespace(ctx, req.Namespace, readRevision)
+	found, _, err := ds.ReadNamespace(ctx, req.Namespace, readRevision)
 	if err != nil {
 		return nil, rewriteNamespaceError(ctx, err)
 	}
@@ -184,17 +184,18 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 
 func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsRequest) (*v0.DeleteConfigsResponse, error) {
 	headRevision, _ := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx)
 
 	// Ensure that all the specified namespaces can be deleted.
 	for _, nsName := range req.Namespaces {
 		// Ensure the namespace exists.
-		_, _, err := nss.ds.ReadNamespace(ctx, nsName, headRevision)
+		_, _, err := ds.ReadNamespace(ctx, nsName, headRevision)
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 
 		// Check for relationships under the namespace.
-		qy, qyErr := nss.ds.QueryTuples(
+		qy, qyErr := ds.QueryTuples(
 			ctx,
 			&v1.RelationshipFilter{
 				ResourceType: nsName,
@@ -212,7 +213,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 		}
 
 		// Also check for right sides of relationships.
-		qy, qyErr = nss.ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
+		qy, qyErr = ds.ReverseQueryTuples(ctx, &v1.SubjectFilter{
 			SubjectType: nsName,
 		}, headRevision, options.WithReverseLimit(options.LimitOne))
 		err = shared.ErrorIfTupleIteratorReturnsTuples(
@@ -231,7 +232,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 
 	// Delete all the namespaces specified.
 	for _, nsName := range req.Namespaces {
-		if _, err := nss.ds.DeleteNamespace(ctx, nsName); err != nil {
+		if _, err := ds.DeleteNamespace(ctx, nsName); err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 	}

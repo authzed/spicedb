@@ -33,8 +33,7 @@ func FromContext(ctx context.Context) datastore.Datastore {
 	return nil
 }
 
-// MustFromContext reads the selected datastore out of a context.Context, computes a zedtoken
-// from it, and panics if it has not been set on the context.
+// MustFromContext reads the selected datastore out of a context.Context and panics if it does not exist
 func MustFromContext(ctx context.Context) datastore.Datastore {
 	datastore := FromContext(ctx)
 	if datastore == nil {
@@ -52,6 +51,11 @@ func SetInContext(ctx context.Context, datastore datastore.Datastore) error {
 	}
 	handle.(*datastoreHandle).datastore = datastore
 	return nil
+}
+
+// ContextWithDatastore adds the handle and datastore in one step
+func ContextWithDatastore(ctx context.Context, datastore datastore.Datastore) context.Context {
+	return context.WithValue(ctx, datastoreKey, &datastoreHandle{datastore: datastore})
 }
 
 // UnaryServerInterceptor returns a new unary server interceptor that adds the

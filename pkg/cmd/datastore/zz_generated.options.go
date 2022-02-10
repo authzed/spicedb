@@ -14,6 +14,35 @@ func NewConfigWithOptions(opts ...ConfigOption) *Config {
 	return c
 }
 
+// ToOption returns a new ConfigOption that sets the values from the passed in Config
+func (c *Config) ToOption() ConfigOption {
+	return func(to *Config) {
+		to.Engine = c.Engine
+		to.URI = c.URI
+		to.GCWindow = c.GCWindow
+		to.RevisionQuantization = c.RevisionQuantization
+		to.MaxIdleTime = c.MaxIdleTime
+		to.MaxLifetime = c.MaxLifetime
+		to.MaxOpenConns = c.MaxOpenConns
+		to.MinOpenConns = c.MinOpenConns
+		to.SplitQuerySize = c.SplitQuerySize
+		to.ReadOnly = c.ReadOnly
+		to.BootstrapFiles = c.BootstrapFiles
+		to.BootstrapOverwrite = c.BootstrapOverwrite
+		to.RequestHedgingEnabled = c.RequestHedgingEnabled
+		to.RequestHedgingInitialSlowValue = c.RequestHedgingInitialSlowValue
+		to.RequestHedgingMaxRequests = c.RequestHedgingMaxRequests
+		to.RequestHedgingQuantile = c.RequestHedgingQuantile
+		to.FollowerReadDelay = c.FollowerReadDelay
+		to.MaxRetries = c.MaxRetries
+		to.OverlapKey = c.OverlapKey
+		to.OverlapStrategy = c.OverlapStrategy
+		to.HealthCheckPeriod = c.HealthCheckPeriod
+		to.GCInterval = c.GCInterval
+		to.GCMaxOperationTime = c.GCMaxOperationTime
+	}
+}
+
 // ConfigWithOptions configures an existing Config with the passed in options set
 func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
 	for _, o := range opts {

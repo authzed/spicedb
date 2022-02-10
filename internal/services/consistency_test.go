@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/membership"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -76,15 +77,18 @@ func TestConsistency(t *testing.T) {
 							})
 							t.Cleanup(cleanup)
 
-							ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
-							require.NoError(t, err)
+							ns, err := namespace.NewCachingNamespaceManager(1*time.Second, nil)
+							lrequire.NoError(err)
+
+							dsCtx := datastoremw.ContextWithHandle(context.Background())
+							lrequire.NoError(datastoremw.SetInContext(dsCtx, ds))
 
 							// Validate the type system for each namespace.
 							for _, nsDef := range fullyResolved.NamespaceDefinitions {
-								_, ts, err := ns.ReadNamespaceAndTypes(context.Background(), nsDef.Name, revision)
+								_, ts, err := ns.ReadNamespaceAndTypes(dsCtx, nsDef.Name, revision)
 								lrequire.NoError(err)
 
-								err = ts.Validate(context.Background())
+								err = ts.Validate(dsCtx)
 								lrequire.NoError(err)
 							}
 
@@ -95,12 +99,12 @@ func TestConsistency(t *testing.T) {
 							}
 
 							// Run the consistency tests for each service.
-							dispatcher := graph.NewLocalOnlyDispatcher(ns, ds)
+							dispatcher := graph.NewLocalOnlyDispatcher(ns)
 							if dispatcherKind == "caching" {
 								cachingDispatcher, err := caching.NewCachingDispatcher(nil, "")
 								lrequire.NoError(err)
 
-								localDispatcher := graph.NewDispatcher(cachingDispatcher, ns, ds)
+								localDispatcher := graph.NewDispatcher(cachingDispatcher, ns)
 								defer localDispatcher.Close()
 								cachingDispatcher.SetDelegate(localDispatcher)
 								dispatcher = cachingDispatcher
@@ -116,7 +120,7 @@ func TestConsistency(t *testing.T) {
 
 							for _, tester := range testers {
 								t.Run(tester.Name(), func(t *testing.T) {
-									runConsistencyTests(t, tester, dispatcher, fullyResolved, tuplesPerNamespace, revision)
+									runConsistencyTests(t, tester, ds, dispatcher, fullyResolved, tuplesPerNamespace, revision)
 									runAssertions(t, tester, dispatcher, fullyResolved, revision)
 								})
 							}
@@ -234,6 +238,7 @@ func verifyCrossVersion(t *testing.T, name string, testers []serviceTester, runA
 
 func runConsistencyTests(t *testing.T,
 	tester serviceTester,
+	ds datastore.Datastore,
 	dispatch dispatch.Dispatcher,
 	fullyResolved *validationfile.PopulatedValidationFile,
 	tuplesPerNamespace *slicemultimap.MultiMap,
@@ -310,7 +315,7 @@ func runConsistencyTests(t *testing.T,
 					require.NoError(t, err)
 
 					// If a member, check if due to a wildcard only.
-					if hasPermission && accessibleViaWildcardOnly(t, dispatch, onr, subject, revision) {
+					if hasPermission && accessibleViaWildcardOnly(t, ds, dispatch, onr, subject, revision) {
 						accessibilitySet.Set(onr, subject, isMemberViaWildcard)
 						continue
 					}
@@ -340,7 +345,7 @@ func runConsistencyTests(t *testing.T,
 	validateExpansion(t, vctx)
 
 	// Run a fully recursive expand on each relation and ensure all terminal subjects are reached.
-	validateExpansionSubjects(t, vctx)
+	validateExpansionSubjects(t, ds, vctx)
 
 	// For each relation in each namespace, for each user, collect the objects accessible
 	// to that user and then verify the lookup returns the same set of objects.
@@ -353,8 +358,11 @@ func runConsistencyTests(t *testing.T,
 	validateDeveloper(t, dev, vctx)
 }
 
-func accessibleViaWildcardOnly(t *testing.T, dispatch dispatch.Dispatcher, onr *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, revision decimal.Decimal) bool {
-	resp, err := dispatch.DispatchExpand(context.Background(), &dispatchv1.DispatchExpandRequest{
+func accessibleViaWildcardOnly(t *testing.T, ds datastore.Datastore, dispatch dispatch.Dispatcher, onr *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, revision decimal.Decimal) bool {
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(t, datastoremw.SetInContext(ctx, ds))
+
+	resp, err := dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
 		ObjectAndRelation: onr,
 		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
@@ -612,7 +620,9 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 	}
 }
 
-func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
+func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *validationContext) {
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
 		allObjectIds, ok := vctx.objectsPerNamespace.Get(nsDef.Name)
 		if !ok {
@@ -627,7 +637,7 @@ func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
 					accessibleTerminalSubjects := vctx.accessibilitySet.AccessibleTerminalSubjects(nsDef.Name, relation.Name, objectIDStr)
 
 					// Run a non-recursive expansion to verify no errors are raised.
-					_, err := vctx.dispatch.DispatchExpand(context.Background(), &dispatchv1.DispatchExpandRequest{
+					_, err := vctx.dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
 						ObjectAndRelation: &v0.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
@@ -642,7 +652,7 @@ func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
 					vrequire.NoError(err)
 
 					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
-					resp, err := vctx.dispatch.DispatchExpand(context.Background(), &dispatchv1.DispatchExpandRequest{
+					resp, err := vctx.dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
 						ObjectAndRelation: &v0.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,

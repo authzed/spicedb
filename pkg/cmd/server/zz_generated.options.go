@@ -22,6 +22,38 @@ func NewConfigWithOptions(opts ...ConfigOption) *Config {
 	return c
 }
 
+// ToOption returns a new ConfigOption that sets the values from the passed in Config
+func (c *Config) ToOption() ConfigOption {
+	return func(to *Config) {
+		to.GRPCServer = c.GRPCServer
+		to.GRPCAuthFunc = c.GRPCAuthFunc
+		to.PresharedKey = c.PresharedKey
+		to.ShutdownGracePeriod = c.ShutdownGracePeriod
+		to.HTTPGateway = c.HTTPGateway
+		to.HTTPGatewayUpstreamAddr = c.HTTPGatewayUpstreamAddr
+		to.HTTPGatewayUpstreamTLSCertPath = c.HTTPGatewayUpstreamTLSCertPath
+		to.HTTPGatewayCorsEnabled = c.HTTPGatewayCorsEnabled
+		to.HTTPGatewayCorsAllowedOrigins = c.HTTPGatewayCorsAllowedOrigins
+		to.DatastoreConfig = c.DatastoreConfig
+		to.Datastore = c.Datastore
+		to.NamespaceCacheExpiration = c.NamespaceCacheExpiration
+		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
+		to.DispatchServer = c.DispatchServer
+		to.DispatchMaxDepth = c.DispatchMaxDepth
+		to.DispatchUpstreamAddr = c.DispatchUpstreamAddr
+		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
+		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
+		to.Dispatcher = c.Dispatcher
+		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
+		to.DashboardAPI = c.DashboardAPI
+		to.MetricsAPI = c.MetricsAPI
+		to.UnaryMiddleware = c.UnaryMiddleware
+		to.StreamingMiddleware = c.StreamingMiddleware
+		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
+		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
+	}
+}
+
 // ConfigWithOptions configures an existing Config with the passed in options set
 func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
 	for _, o := range opts {
@@ -153,6 +185,13 @@ func WithDispatchUpstreamAddr(dispatchUpstreamAddr string) ConfigOption {
 func WithDispatchUpstreamCAPath(dispatchUpstreamCAPath string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchUpstreamCAPath = dispatchUpstreamCAPath
+	}
+}
+
+// WithDispatchClientMetricsPrefix returns an option that can set DispatchClientMetricsPrefix on a Config
+func WithDispatchClientMetricsPrefix(dispatchClientMetricsPrefix string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchClientMetricsPrefix = dispatchClientMetricsPrefix
 	}
 }
 
