@@ -1,7 +1,6 @@
 package development
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -17,9 +16,10 @@ import (
 )
 
 // RunValidation runs the parsed validation block against the data in the dev context.
-func RunValidation(ctx context.Context, devContext *DevContext, validation *blocks.ParsedExpectedRelations) (*membership.Set, *DeveloperErrors, error) {
+func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRelations) (*membership.Set, *DeveloperErrors, error) {
 	var failures []*v0.DeveloperError
 	membershipSet := membership.NewMembershipSet()
+	ctx := devContext.Ctx
 
 	for onrKey, expectedSubjects := range validation.ValidationMap {
 		if onrKey.ObjectAndRelation == nil {
@@ -36,7 +36,7 @@ func RunValidation(ctx context.Context, devContext *DevContext, validation *bloc
 			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 		})
 		if derr != nil {
-			devErr, wireErr := DistinguishGraphError(ctx, derr, v0.DeveloperError_VALIDATION_YAML, 0, 0, onrKey.ObjectRelationString)
+			devErr, wireErr := DistinguishGraphError(devContext, derr, v0.DeveloperError_VALIDATION_YAML, 0, 0, onrKey.ObjectRelationString)
 			if wireErr != nil {
 				return nil, nil, wireErr
 			}
@@ -48,7 +48,7 @@ func RunValidation(ctx context.Context, devContext *DevContext, validation *bloc
 		// Add the ONR and its expansion to the membership set.
 		foundSubjects, _, aerr := membershipSet.AddExpansion(onrKey.ObjectAndRelation, er.TreeNode)
 		if aerr != nil {
-			devErr, wireErr := DistinguishGraphError(ctx, aerr, v0.DeveloperError_VALIDATION_YAML, 0, 0, onrKey.ObjectRelationString)
+			devErr, wireErr := DistinguishGraphError(devContext, aerr, v0.DeveloperError_VALIDATION_YAML, 0, 0, onrKey.ObjectRelationString)
 			if wireErr != nil {
 				return nil, nil, wireErr
 			}

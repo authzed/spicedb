@@ -142,20 +142,17 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 	}
 	defer devContext.Dispose()
 
-	ctx = devContext.Ctx
-
 	// Run the checks and store their output.
 	results := make([]*v0.EditCheckResult, 0, len(req.CheckRelationships))
 	for _, checkTpl := range req.CheckRelationships {
 		cr, err := development.RunCheck(
-			ctx,
 			devContext,
 			checkTpl.ObjectAndRelation,
 			checkTpl.User.GetUserset(),
 		)
 		if err != nil {
 			devErr, wireErr := development.DistinguishGraphError(
-				ctx,
+				devContext,
 				err,
 				v0.DeveloperError_CHECK_WATCH,
 				0, 0,
@@ -197,8 +194,6 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	}
 	defer devContext.Dispose()
 
-	ctx = devContext.Ctx
-
 	// Parse the assertions YAML.
 	assertions, devErr := development.ParseAssertionsYAML(req.AssertionsYaml)
 	if devErr != nil {
@@ -217,7 +212,7 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 
 	// Run assertions.
 	var failures []*v0.DeveloperError
-	assertDevErrs, aerr := development.RunAllAssertions(ctx, devContext, assertions)
+	assertDevErrs, aerr := development.RunAllAssertions(devContext, assertions)
 	if aerr != nil {
 		return nil, aerr
 	}
@@ -233,7 +228,7 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	}
 
 	// Run expected relations validation.
-	membershipSet, erDevErrs, wireErr := development.RunValidation(ctx, devContext, expectedRelationsMap)
+	membershipSet, erDevErrs, wireErr := development.RunValidation(devContext, expectedRelationsMap)
 	if wireErr != nil {
 		return nil, wireErr
 	}
