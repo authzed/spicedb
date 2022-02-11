@@ -12,8 +12,6 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -28,7 +26,7 @@ type PopulatedValidationFile struct {
 	Tuples []*v0.RelationTuple
 
 	// ParsedFiles are the underlying parsed validation files.
-	ParsedFiles []FullyParsedValidationFile
+	ParsedFiles []ValidationFile
 }
 
 // PopulateFromFiles populates the given datastore with the namespaces and tuples found in
@@ -37,7 +35,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 	var revision decimal.Decimal
 	nsDefs := []*v0.NamespaceDefinition{}
 	tuples := []*v0.RelationTuple{}
-	files := []FullyParsedValidationFile{}
+	files := []ValidationFile{}
 
 	for _, filePath := range filePaths {
 		fileContents, err := os.ReadFile(filePath)
@@ -52,24 +50,15 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 
 		files = append(files, *parsed)
 
-		// Parse the schema, if any.
-		if parsed.Schema != "" {
-			defs, err := compiler.Compile([]compiler.InputSchema{{
-				Source:       input.Source(filePath),
-				SchemaString: parsed.Schema,
-			}}, nil)
-			if err != nil {
-				return nil, decimal.Zero, fmt.Errorf("error when parsing schema in config file %s: %w", filePath, err)
-			}
-
-			log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
-			for index, nsDef := range defs {
-				nsDefs = append(nsDefs, nsDef)
-				log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
-				_, lnerr := ds.WriteNamespace(context.Background(), nsDef)
-				if lnerr != nil {
-					return nil, decimal.Zero, fmt.Errorf("error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
-				}
+		// Add schema-based namespace definitions.
+		defs := parsed.Schema.Definitions
+		log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
+		for index, nsDef := range defs {
+			nsDefs = append(nsDefs, nsDef)
+			log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
+			_, lnerr := ds.WriteNamespace(context.Background(), nsDef)
+			if lnerr != nil {
+				return nil, decimal.Zero, fmt.Errorf("error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
 			}
 		}
 
@@ -93,7 +82,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 		// Load the validation tuples/relationships.
 		var updates []*v1.RelationshipUpdate
 		seenTuples := map[string]bool{}
-		for _, rel := range parsed.Relationships {
+		for _, rel := range parsed.Relationships.Relationships {
 			updates = append(updates, &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 				Relationship: rel,

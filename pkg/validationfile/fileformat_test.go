@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
 func TestDecodeValidationFile(t *testing.T) {
@@ -89,17 +91,11 @@ validation:
 				require.Nil(t, err)
 
 				require.NotNil(t, decoded)
-				require.Equal(t, len(decoded.Relationships), tt.expectedRelCount)
+				require.Equal(t, len(decoded.Relationships.Relationships), tt.expectedRelCount)
 
-				at, err := decoded.Assertions.AssertTrueRelationships()
-				require.Nil(t, err)
-
-				af, err := decoded.Assertions.AssertFalseRelationships()
-				require.Nil(t, err)
-
-				require.Equal(t, len(at), tt.expectedAssertTrueCount)
-				require.Equal(t, len(af), tt.expectedAssertFalseCount)
-				require.Equal(t, len(decoded.ExpectedRelations), tt.expectedValidationCount)
+				require.Equal(t, len(decoded.Assertions.AssertTrue), tt.expectedAssertTrueCount)
+				require.Equal(t, len(decoded.Assertions.AssertFalse), tt.expectedAssertFalseCount)
+				require.Equal(t, len(decoded.ExpectedRelations.ValidationMap), tt.expectedValidationCount)
 			}
 		})
 	}
@@ -116,11 +112,11 @@ relationships: >-
   document:firstdoc#readeruser:fred
 `))
 
-	var errWithSource ErrorWithSource
+	var errWithSource blocks.ErrorWithSource
 	require.True(t, errors.As(err, &errWithSource))
 
-	require.Equal(t, err.Error(), "error parsing relationship #1: document:firstdoc#readeruser:fred")
-	require.Equal(t, uint32(8), errWithSource.LineNumber)
+	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`")
+	require.Equal(t, uint64(8), errWithSource.LineNumber)
 }
 
 func TestDecodeAssertionsErrorLineNumber(t *testing.T) {
@@ -132,7 +128,7 @@ relationships: >-
   document:firstdoc#writer@user:tom
 
 assertions:
-  assertTrues:
+  assertTrue: asdkjhasd
     - document:firstdoc#view@user:tom
     - document:firstdoc#view@user:fred
     - document:seconddoc#view@user:tom
@@ -140,9 +136,9 @@ assertions:
     - document:seconddoc#view@user:fred
 `))
 
-	var errWithSource ErrorWithSource
+	var errWithSource blocks.ErrorWithSource
 	require.True(t, errors.As(err, &errWithSource))
 
-	require.Equal(t, err.Error(), "unexpected key `assertTrues` on line 9")
-	require.Equal(t, uint32(9), errWithSource.LineNumber)
+	require.Equal(t, err.Error(), "unexpected value `asdkjha`")
+	require.Equal(t, uint64(9), errWithSource.LineNumber)
 }

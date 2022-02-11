@@ -266,9 +266,10 @@ func TestDeveloperValidate(t *testing.T) {
 			`asdkjhgasd`,
 			"",
 			&v0.DeveloperError{
-				Message: "cannot unmarshal !!str `asdkjhgasd` into validationfile.ValidationMap",
+				Message: "unexpected value `asdkjhg`",
 				Kind:    v0.DeveloperError_PARSE_ERROR,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
+				Context: "asdkjhg",
 				Line:    1,
 			},
 			"",
@@ -280,9 +281,11 @@ func TestDeveloperValidate(t *testing.T) {
 			"",
 			`asdhasjdkhjasd`,
 			&v0.DeveloperError{
-				Message: "expected object at top level",
+				Message: "unexpected value `asdhasj`",
 				Kind:    v0.DeveloperError_PARSE_ERROR,
 				Source:  v0.DeveloperError_ASSERTION,
+				Context: "asdhasj",
+				Line:    1,
 			},
 			"",
 		},
@@ -317,12 +320,12 @@ assertFalse: garbage
 assertFalse: garbage
   - document:seconddoc#view@user:fred`,
 			&v0.DeveloperError{
-				Message: "unexpected key `garbage - document:seconddoc#view@user:fred` on line 5",
+				Message: "unexpected value `garbage`",
 				Kind:    v0.DeveloperError_PARSE_ERROR,
 				Source:  v0.DeveloperError_ASSERTION,
 				Line:    5,
-				Column:  14,
-				Context: "garbage - document:seconddoc#view@user:fred",
+				Column:  0,
+				Context: "garbage",
 			},
 			"",
 		},
@@ -334,7 +337,7 @@ assertFalse: garbage
 			`assertTrue:
 - something`,
 			&v0.DeveloperError{
-				Message: "could not parse relationship `something`",
+				Message: "error parsing relationship `something`",
 				Kind:    v0.DeveloperError_PARSE_ERROR,
 				Source:  v0.DeveloperError_ASSERTION,
 				Line:    2,
@@ -473,14 +476,14 @@ assertFalse: garbage
 			`assertTrue:
 - document:somedoc#view@user:jimmy`,
 			&v0.DeveloperError{
-				Message: "For object and permission/relation `document:somedoc#view`, invalid subject: user",
+				Message: "invalid subject: `user`",
 				Kind:    v0.DeveloperError_PARSE_ERROR,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
 				Context: "[user]",
+				Line:    2,
+				Column:  3,
 			},
-			`document:somedoc#view:
-- '[user:jimmy] is <document:somedoc#writer>'
-`,
+			``,
 		},
 		{
 			"parse error in validation relationships",
@@ -498,14 +501,14 @@ assertFalse: garbage
 			`assertTrue:
 - document:somedoc#view@user:jimmy`,
 			&v0.DeveloperError{
-				Message: "For object and permission/relation `document:somedoc#view`, invalid object and relation: document:som",
+				Message: "invalid resource and relation: `document:som`",
 				Kind:    v0.DeveloperError_PARSE_ERROR,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Context: "<document:som>",
+				Context: "document:som",
+				Line:    2,
+				Column:  3,
 			},
-			`document:somedoc#view:
-- '[user:jimmy] is <document:somedoc#writer>'
-`,
+			``,
 		},
 		{
 			"different relations",
@@ -664,7 +667,7 @@ assertFalse:
 			},
 			`"document:somedoc#view":
 - "[user:*] is <document:somedoc#viewer>"
-- "[user:jimmy] is <document:somedoc#viewer/document:somedoc#writer>"`,
+- "[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>"`,
 			`assertTrue:
 - document:somedoc#writer@user:jimmy
 - document:somedoc#viewer@user:jimmy

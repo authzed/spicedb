@@ -138,12 +138,9 @@ func runAssertions(t *testing.T,
 	fullyResolved *validationfile.PopulatedValidationFile,
 	revision decimal.Decimal) {
 	for _, parsedFile := range fullyResolved.ParsedFiles {
-		assertsTrue, err := parsedFile.Assertions.AssertTrueRelationships()
-		require.Nil(t, err)
-
-		for _, assertTrue := range assertsTrue {
+		for _, assertTrue := range parsedFile.Assertions.AssertTrue {
 			// Ensure the assertion passes Check.
-			rel := assertTrue.Relationship
+			rel := tuple.MustFromRelationship(assertTrue.Relationship)
 			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
 			require.NoError(t, err)
 			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.String(rel))
@@ -157,12 +154,9 @@ func runAssertions(t *testing.T,
 			require.Contains(t, resolvedObjectIds, rel.ObjectAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ObjectAndRelation, rel)
 		}
 
-		assertsFalse, err := parsedFile.Assertions.AssertFalseRelationships()
-		require.Nil(t, err)
-
-		for _, assertFalse := range assertsFalse {
+		for _, assertFalse := range parsedFile.Assertions.AssertFalse {
 			// Ensure the assertion passes Check.
-			rel := assertFalse.Relationship
+			rel := tuple.MustFromRelationship(assertFalse.Relationship)
 
 			// Ensure the assertion does not pass Check.
 			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
@@ -427,21 +421,19 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 
 	// Parse the full validation YAML, and ensure every referenced subject is, in fact, allowed.
 	updatedValidationYaml := resp.UpdatedValidationYaml
-	validationMap, err := validationfile.ParseValidationBlock([]byte(updatedValidationYaml))
+	validationMap, err := validationfile.ParseExpectedRelationsBlock([]byte(updatedValidationYaml))
 	require.NoError(t, err)
 
-	for onrStr, validationStrings := range validationMap {
-		onr, err := onrStr.ONR()
-		require.Nil(t, err)
-
-		for _, validationStr := range validationStrings {
-			foundSubject, err := validationStr.Subject()
+	for onrKey, expectedSubjects := range validationMap.ValidationMap {
+		for _, expectedSubject := range expectedSubjects {
+			onr := onrKey.ObjectAndRelation
+			subjectWithExceptions := expectedSubject.SubjectWithExceptions
 			require.Nil(t, err)
 			require.True(t,
-				(vctx.accessibilitySet.GetIsMember(onr, foundSubject.Subject) == isMember ||
-					vctx.accessibilitySet.GetIsMember(onr, foundSubject.Subject) == isWildcard),
+				(vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject) == isMember ||
+					vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject) == isWildcard),
 				"Generated expected relations returned inaccessible member %s for %s",
-				tuple.StringONR(foundSubject.Subject),
+				tuple.StringONR(subjectWithExceptions.Subject),
 				tuple.StringONR(onr))
 		}
 	}
