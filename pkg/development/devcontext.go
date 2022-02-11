@@ -169,7 +169,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 
 		err := validateTupleWrite(ctx, tpl, nsm, revision)
 		if err != nil {
-			devErr, wireErr := DistinguishGraphError(ctx, err, v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl))
+			devErr, wireErr := distinguishGraphError(ctx, err, v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl))
 			if devErr != nil {
 				devErrors = append(devErrors, devErr)
 				continue
@@ -225,7 +225,11 @@ func loadNamespaces(
 
 // DistinguishGraphError turns an error from a dispatch call into either a user-facing
 // DeveloperError or an internal error, based on the error raised by the dispatcher.
-func DistinguishGraphError(ctx context.Context, dispatchError error, source v0.DeveloperError_Source, line uint32, column uint32, context string) (*v0.DeveloperError, error) {
+func DistinguishGraphError(devContext *DevContext, dispatchError error, source v0.DeveloperError_Source, line uint32, column uint32, context string) (*v0.DeveloperError, error) {
+	return distinguishGraphError(devContext.Ctx, dispatchError, source, line, column, context)
+}
+
+func distinguishGraphError(ctx context.Context, dispatchError error, source v0.DeveloperError_Source, line uint32, column uint32, context string) (*v0.DeveloperError, error) {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
 
