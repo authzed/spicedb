@@ -102,8 +102,24 @@ validation:
 }
 
 func TestDecodeRelationshipsErrorLineNumber(t *testing.T) {
-	_, err := DecodeValidationFile([]byte(`
-schema: >-
+	_, err := DecodeValidationFile([]byte(`schema: >-
+  definition user {}
+
+relationships: >-
+  document:firstdocwriter@user:tom
+
+  document:firstdoc#reader#user:fred
+`))
+
+	var errWithSource blocks.ErrorWithSource
+	require.True(t, errors.As(err, &errWithSource))
+
+	require.Equal(t, err.Error(), "error parsing relationship `document:firstdocwriter@user:tom`")
+	require.Equal(t, uint64(5), errWithSource.LineNumber)
+}
+
+func TestDecodeRelationshipsErrorLineNumberLater(t *testing.T) {
+	_, err := DecodeValidationFile([]byte(`schema: >-
   definition user {}
 
 relationships: >-
@@ -116,7 +132,30 @@ relationships: >-
 	require.True(t, errors.As(err, &errWithSource))
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`")
-	require.Equal(t, uint64(8), errWithSource.LineNumber)
+	require.Equal(t, uint64(7), errWithSource.LineNumber)
+}
+
+func TestDecodeRelationshipsErrorLineNumberEventLater(t *testing.T) {
+	_, err := DecodeValidationFile([]byte(`schema: >-
+  definition user {}
+
+relationships: >-
+  document:firstdoc#writer@user:tom
+
+  document:firstdoc#writer@user:tom
+
+  document:firstdoc#writer@user:tom
+
+  document:firstdoc#writer@user:tom
+
+  document:firstdoc#readeruser:fred
+`))
+
+	var errWithSource blocks.ErrorWithSource
+	require.True(t, errors.As(err, &errWithSource))
+
+	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`")
+	require.Equal(t, uint64(13), errWithSource.LineNumber)
 }
 
 func TestDecodeAssertionsErrorLineNumber(t *testing.T) {
@@ -140,5 +179,29 @@ assertions:
 	require.True(t, errors.As(err, &errWithSource))
 
 	require.Equal(t, err.Error(), "unexpected value `asdkjha`")
+	require.Equal(t, uint64(9), errWithSource.LineNumber)
+}
+
+func TestDecodeAssertionsErrorLineNumberSmallerToken(t *testing.T) {
+	_, err := DecodeValidationFile([]byte(`
+schema: >-
+  definition user {}
+
+relationships: >-
+  document:firstdoc#writer@user:tom
+
+assertions:
+  assertTrue: asdk
+    - document:firstdoc#view@user:tom
+    - document:firstdoc#view@user:fred
+    - document:seconddoc#view@user:tom
+  assertFalse:
+    - document:seconddoc#view@user:fred
+`))
+
+	var errWithSource blocks.ErrorWithSource
+	require.True(t, errors.As(err, &errWithSource))
+
+	require.Equal(t, err.Error(), "unexpected value `asdk`")
 	require.Equal(t, uint64(9), errWithSource.LineNumber)
 }

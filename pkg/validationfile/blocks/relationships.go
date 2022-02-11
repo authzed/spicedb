@@ -48,7 +48,7 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 			return ErrorWithSource{
 				fmt.Errorf("error parsing relationship `%s`", trimmed),
 				trimmed,
-				uint64(index + node.Line + 2), // +1 since 1-indexed, and +1 for the key
+				uint64(node.Line + 1 + (index * 2)), // +1 for the key, and *2 for newlines in YAML
 				uint64(node.Column),
 			}
 		}
