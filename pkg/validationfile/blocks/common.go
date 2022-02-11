@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // SourcePosition is a position in the input source.
@@ -50,7 +51,11 @@ func convertYamlError(err error) error {
 		unmarshalPieces := yamlUnmarshalRegex.FindStringSubmatch(message)
 		if len(unmarshalPieces) == 2 {
 			source = unmarshalPieces[1]
-			message = fmt.Sprintf("unexpected value `%s`", unmarshalPieces[1])
+			if strings.Contains(source, " ") {
+				source = strings.Split(source, " ")[0]
+			}
+
+			message = fmt.Sprintf("unexpected value `%s`", source)
 		}
 
 		return ErrorWithSource{
