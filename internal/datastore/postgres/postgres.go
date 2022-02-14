@@ -374,7 +374,7 @@ func (pgd *pgDatastore) batchDelete(ctx context.Context, tableName string, filte
 }
 
 func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
-	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
+	headMigration, err := migrations.Manager.HeadRevision()
 	if err != nil {
 		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}

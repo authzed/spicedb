@@ -38,7 +38,7 @@ const createAlembicVersion = `CREATE TABLE alembic_version (
 const insertEmptyVersion = `INSERT INTO alembic_version (version_num) VALUES ('');`
 
 func init() {
-	if err := DatabaseMigrations.Register("1eaeba4b8a73", "", func(apd *AlembicPostgresDriver) error {
+	if err := Manager.Register("1eaeba4b8a73", "", func(apd *AlembicPostgresDriver) error {
 		tx, err := apd.db.Beginx()
 		if err != nil {
 			return err

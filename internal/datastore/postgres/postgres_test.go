@@ -67,7 +67,7 @@ func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBuf
 		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
 	}
 
-	err = migrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
 	if err != nil {
 		return nil, fmt.Errorf("unable to migrate database: %w", err)
 	}

@@ -157,7 +157,7 @@ type crdbDatastore struct {
 }
 
 func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
-	headMigration, err := migrations.CRDBMigrations.HeadRevision()
+	headMigration, err := migrations.Manager.HeadRevision()
 	if err != nil {
 		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
