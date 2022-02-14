@@ -27,7 +27,10 @@ func (e executor) migrate(mysql *MysqlDriver) error {
 	if err != nil {
 		return err
 	}
-	defer common.LogOnError(context.Background(), tx.Rollback)
+
+	// set the default logger in the context
+	ctx := mysql.defaultLogger.WithContext(context.Background())
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	for _, stmt := range e.statements {
 		_, err := tx.Exec(stmt)

@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 
 	sqlDriver "github.com/go-sql-driver/mysql"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -18,7 +19,8 @@ const (
 )
 
 type MysqlDriver struct {
-	db *sql.DB
+	db            *sql.DB
+	defaultLogger *zerolog.Logger
 }
 
 // https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
@@ -45,7 +47,10 @@ func NewMysqlDriver(url string) (*MysqlDriver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
 	}
-	return &MysqlDriver{db}, nil
+	return &MysqlDriver{
+		db:            db,
+		defaultLogger: &log.Logger,
+	}, nil
 }
 
 // Version returns the version of the schema to which the connected database
@@ -87,5 +92,7 @@ func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
 }
 
 func (mysql *MysqlDriver) Dispose() {
-	defer common.LogOnError(context.Background(), mysql.db.Close)
+	// set the default logger in the context
+	ctx := mysql.defaultLogger.WithContext(context.Background())
+	common.LogOnError(ctx, mysql.db.Close)
 }
