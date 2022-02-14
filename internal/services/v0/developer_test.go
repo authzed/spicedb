@@ -429,6 +429,8 @@ assertFalse: garbage
 				Kind:    v0.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
 				Context: "document:somedoc#view",
+				Line:    1,
+				Column:  1,
 			},
 			`document:somedoc#view:
 - '[user:jimmy] is <document:somedoc#writer>'
@@ -454,7 +456,9 @@ assertFalse: garbage
 				Message: "For object and permission/relation `document:somedoc#view`, missing expected subject `user:jake`",
 				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Context: "user:jake",
+				Context: "[user:jake] is <document:somedoc#viewer>",
+				Line:    3,
+				Column:  3,
 			},
 			`document:somedoc#view:
 - '[user:jimmy] is <document:somedoc#writer>'
@@ -530,6 +534,8 @@ assertFalse: garbage
 				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
 				Context: `[user:jimmy] is <document:somedoc#viewer>`,
+				Line:    2,
+				Column:  3,
 			},
 			`document:somedoc#view:
 - '[user:jimmy] is <document:somedoc#writer>'
@@ -613,6 +619,8 @@ assertFalse:
 				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Source:  v0.DeveloperError_VALIDATION_YAML,
 				Context: `[user:jimmy] is <document:somedoc#writer>`,
+				Line:    2,
+				Column:  3,
 			},
 			`document:somedoc#view:
 - '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'

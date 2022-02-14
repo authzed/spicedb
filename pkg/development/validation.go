@@ -58,7 +58,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 		}
 
 		// Compare the terminal subjects found to those specified.
-		errs := validateSubjects(onrKey.ObjectAndRelation, foundSubjects, expectedSubjects)
+		errs := validateSubjects(onrKey, foundSubjects, expectedSubjects)
 		failures = append(failures, errs...)
 	}
 
@@ -80,7 +80,9 @@ func wrapRelationships(onrStrings []string) []string {
 	return wrapped
 }
 
-func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, expectedSubjects []blocks.ExpectedSubject) []*v0.DeveloperError {
+func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects, expectedSubjects []blocks.ExpectedSubject) []*v0.DeveloperError {
+	onr := onrKey.ObjectAndRelation
+
 	var failures []*v0.DeveloperError
 
 	// Verify that every referenced subject is found in the membership.
@@ -95,7 +97,9 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, ex
 				Message: fmt.Sprintf("For object and permission/relation `%s`, missing expected subject `%s`", tuple.StringONR(onr), tuple.StringONR(subjectWithExceptions.Subject)),
 				Source:  v0.DeveloperError_VALIDATION_YAML,
 				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
-				Context: tuple.StringONR(subjectWithExceptions.Subject),
+				Context: string(expectedSubject.ValidationString),
+				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
+				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
 			})
 			continue
 		}
@@ -116,6 +120,8 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, ex
 				Source:  v0.DeveloperError_VALIDATION_YAML,
 				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(expectedSubject.ValidationString),
+				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
+				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
 			})
 		}
 
@@ -136,6 +142,8 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, ex
 					Source:  v0.DeveloperError_VALIDATION_YAML,
 					Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 					Context: string(expectedSubject.ValidationString),
+					Line:    uint32(expectedSubject.SourcePosition.LineNumber),
+					Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
 				})
 			}
 		} else {
@@ -147,6 +155,8 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, ex
 					Source:  v0.DeveloperError_VALIDATION_YAML,
 					Kind:    v0.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
 					Context: string(expectedSubject.ValidationString),
+					Line:    uint32(expectedSubject.SourcePosition.LineNumber),
+					Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
 				})
 			}
 		}
@@ -164,6 +174,8 @@ func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, ex
 				Source:  v0.DeveloperError_VALIDATION_YAML,
 				Kind:    v0.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
 				Context: tuple.StringONR(onr),
+				Line:    uint32(onrKey.SourcePosition.LineNumber),
+				Column:  uint32(onrKey.SourcePosition.ColumnPosition),
 			})
 		}
 	}

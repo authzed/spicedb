@@ -131,6 +131,7 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	es.SubjectWithExceptions = subjectWithExceptions
+	es.SourcePosition = SourcePosition{node.Line, node.Column}
 	es.Resources = onrs
 	return nil
 }
