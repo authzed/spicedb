@@ -3,8 +3,8 @@ module github.com/authzed/spicedb
 go 1.16
 
 require (
+	cloud.google.com/go/spanner v1.28.0
 	github.com/Masterminds/squirrel v1.5.2
-	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/authzed/authzed-go v0.4.2-0.20220207230446-c781fa7fa969
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/aws/aws-sdk-go v1.42.44
@@ -19,6 +19,7 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v0.6.3
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
+	github.com/go-co-op/gocron v1.11.0
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.5.7
@@ -67,6 +68,7 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27 // indirect
 	golang.org/x/tools v0.1.9
+	google.golang.org/api v0.63.0
 	google.golang.org/genproto v0.0.0-20220126215142-9970aeb2e350
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1

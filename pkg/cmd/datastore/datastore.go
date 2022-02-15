@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/internal/datastore/spanner"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -23,12 +24,14 @@ const (
 	MemoryEngine    = "memory"
 	PostgresEngine  = "postgres"
 	CockroachEngine = "cockroachdb"
+	SpannerEngine   = "spanner"
 )
 
 var builderForEngine = map[string]engineBuilderFunc{
 	CockroachEngine: newCRDBDatastore,
 	PostgresEngine:  newPostgresDatastore,
 	MemoryEngine:    newMemoryDatstore,
+	SpannerEngine:   newSpannerDatastore,
 }
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
@@ -70,7 +73,7 @@ type Config struct {
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
 func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
-	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb", "spanner")`)
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
 	cmd.Flags().IntVar(&opts.MinOpenConns, "datastore-conn-min-open", 10, "number of minimum concurrent connections open in a remote datastore's connection pool")
@@ -206,6 +209,15 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
 		postgres.EnablePrometheusStats(),
 		postgres.EnableTracing(),
+	)
+}
+
+func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
+	return spanner.NewSpannerDatastore(
+		opts.URI,
+		spanner.FollowerReadDelay(opts.FollowerReadDelay),
+		spanner.GCInterval(opts.GCInterval),
+		spanner.GCWindow(opts.GCWindow),
 	)
 }
 

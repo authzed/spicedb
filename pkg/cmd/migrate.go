@@ -10,6 +10,7 @@ import (
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	spannermigrations "github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -55,6 +56,15 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
 		manager = migrations.DatabaseMigrations
+	} else if datastoreEngine == "spanner" {
+		log.Info().Msg("migrating spanner datastore")
+
+		var err error
+		migrationDriver, err = spannermigrations.NewSpannerDriver(dbURL)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to create migration driver")
+		}
+		manager = spannermigrations.SpannerMigrations
 	} else {
 		return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 	}
