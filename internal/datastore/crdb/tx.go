@@ -81,16 +81,18 @@ func executeWithResets(ctx context.Context, conn conn, txOptions pgx.TxOptions, 
 
 	var tx pgx.Tx
 	defer func() {
-		if err == nil {
-			commitErr := tx.Commit(ctx)
-			if commitErr == nil {
-				return
+		if tx != nil {
+			if err == nil {
+				commitErr := tx.Commit(ctx)
+				if commitErr == nil {
+					return
+				}
+				log.Err(commitErr).Msg("failed tx commit")
 			}
-			log.Err(commitErr).Msg("failed tx commit")
-		}
 
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			log.Err(rollbackErr).Msg("error during tx rollback")
+			if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+				log.Err(rollbackErr).Msg("error during tx rollback")
+			}
 		}
 	}()
 
@@ -111,7 +113,7 @@ func executeWithResets(ctx context.Context, conn conn, txOptions pgx.TxOptions, 
 		err = txErr
 
 		if resetable(ctx, err) {
-			log.Err(err).Msg("resettable error, reconnecting with new transaction")
+			log.Err(err).Msg("resettable error, will attempt to reset tx")
 			resets++
 			continue
 		}
@@ -159,6 +161,7 @@ func executeWithRetries(ctx context.Context, currentTx pgx.Tx, fn transactionFn,
 
 // resetExecution attempts to rollback the given tx, begins a new tx with a new connection, and creates a savepoint.
 func resetExecution(ctx context.Context, conn conn, tx pgx.Tx, txOptions pgx.TxOptions) (newTx pgx.Tx, err error) {
+	log.Info().Msg("attempting to initialize new tx")
 	if tx != nil {
 		err = tx.Rollback(ctx)
 		if err != nil {
