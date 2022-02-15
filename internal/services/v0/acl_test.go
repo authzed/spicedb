@@ -24,11 +24,18 @@ import (
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
-var ONR = tuple.ObjectAndRelation
+func ONR(ns, oid, rel string) *v0.ObjectAndRelation {
+	return &v0.ObjectAndRelation{
+		Namespace: ns,
+		ObjectId:  oid,
+		Relation:  rel,
+	}
+}
 
 func RR(namespaceName string, relationName string) *v0.RelationReference {
 	return &v0.RelationReference{
@@ -223,7 +230,7 @@ func TestRead(t *testing.T) {
 
 					resp, err := client.Read(context.Background(), &v0.ReadRequest{
 						Tuplesets:  []*v0.RelationTupleFilter{tc.filter},
-						AtRevision: zookie.NewFromRevision(revision),
+						AtRevision: core.V0Zookie(zookie.NewFromRevision(revision)),
 					})
 
 					if tc.expectedCode == codes.OK {
@@ -253,7 +260,7 @@ func TestReadBadZookie(t *testing.T) {
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
-		AtRevision: zookie.NewFromRevision(revision),
+		AtRevision: core.V0Zookie(zookie.NewFromRevision(revision)),
 	})
 	require.NoError(err)
 
@@ -261,7 +268,7 @@ func TestReadBadZookie(t *testing.T) {
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
-		AtRevision: zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1))),
+		AtRevision: core.V0Zookie(zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1)))),
 	})
 	require.NoError(err)
 
@@ -272,7 +279,7 @@ func TestReadBadZookie(t *testing.T) {
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
-		AtRevision: zookie.NewFromRevision(revision),
+		AtRevision: core.V0Zookie(zookie.NewFromRevision(revision)),
 	})
 	require.NoError(err)
 
@@ -280,7 +287,7 @@ func TestReadBadZookie(t *testing.T) {
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
-		AtRevision: zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1))),
+		AtRevision: core.V0Zookie(zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1)))),
 	})
 	grpcutil.RequireStatus(t, codes.OutOfRange, err)
 
@@ -288,7 +295,7 @@ func TestReadBadZookie(t *testing.T) {
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: tf.DocumentNS.Name},
 		},
-		AtRevision: zookie.NewFromRevision(revision.Add(decimal.NewFromInt(1))),
+		AtRevision: core.V0Zookie(zookie.NewFromRevision(revision.Add(decimal.NewFromInt(1)))),
 	})
 	grpcutil.RequireStatus(t, codes.OutOfRange, err)
 }
@@ -304,8 +311,8 @@ func TestWrite(t *testing.T) {
 	toWrite := tuple.MustParse(toWriteStr)
 
 	resp, err := client.Write(context.Background(), &v0.WriteRequest{
-		WriteConditions: []*v0.RelationTuple{toWrite},
-		Updates:         []*v0.RelationTupleUpdate{tuple.Create(toWrite)},
+		WriteConditions: []*v0.RelationTuple{core.V0RelationTuple(toWrite)},
+		Updates:         []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Create(toWrite))},
 	})
 	require.Nil(resp)
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
@@ -314,8 +321,8 @@ func TestWrite(t *testing.T) {
 	require.NotNil(existing)
 
 	resp, err = client.Write(context.Background(), &v0.WriteRequest{
-		WriteConditions: []*v0.RelationTuple{existing},
-		Updates:         []*v0.RelationTupleUpdate{tuple.Create(toWrite)},
+		WriteConditions: []*v0.RelationTuple{core.V0RelationTuple(existing)},
+		Updates:         []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Create(toWrite))},
 	})
 	require.NoError(err)
 	require.NotNil(resp.Revision)
@@ -340,7 +347,7 @@ func TestWrite(t *testing.T) {
 	verifyTuples([]string{toWriteStr}, readBack.Tuplesets[0].Tuples, require)
 
 	deleted, err := client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Delete(toWrite)},
+		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Delete(toWrite))},
 	})
 	require.NoError(err)
 
@@ -436,19 +443,19 @@ func TestInvalidWriteArguments(t *testing.T) {
 			t.Cleanup(cleanup)
 			client := v0.NewACLServiceClient(conn)
 
-			var preconditions []*v0.RelationTuple
+			var preconditions []*core.RelationTuple
 			for _, p := range tc.preconditions {
 				preconditions = append(preconditions, tuple.Parse(p))
 			}
 
-			var mutations []*v0.RelationTupleUpdate
+			var mutations []*core.RelationTupleUpdate
 			for _, tpl := range tc.tuples {
 				mutations = append(mutations, tuple.Touch(tuple.Parse(tpl)))
 			}
 
 			_, err := client.Write(context.Background(), &v0.WriteRequest{
-				WriteConditions: preconditions,
-				Updates:         mutations,
+				WriteConditions: core.V0RelationTuples(preconditions),
+				Updates:         core.V0RelationTupleUpdates(mutations),
 			})
 			grpcutil.RequireStatus(t, tc.expectedCode, err)
 		})
@@ -533,11 +540,11 @@ func TestCheck(t *testing.T) {
 	for _, delta := range testTimedeltas {
 		t.Run(fmt.Sprintf("fuzz%d", delta), func(t *testing.T) {
 			for _, tc := range testCases {
-				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
+				t.Run(tuple.StringONR(core.CoreObjectAndRelation(tc.start)), func(t *testing.T) {
 					for _, checkTest := range tc.checkTests {
 						name := fmt.Sprintf(
 							"%s=>%t",
-							tuple.StringONR(checkTest.user),
+							tuple.StringONR(core.CoreObjectAndRelation(checkTest.user)),
 							checkTest.membership,
 						)
 						t.Run(name, func(t *testing.T) {
@@ -552,7 +559,7 @@ func TestCheck(t *testing.T) {
 										Userset: checkTest.user,
 									},
 								},
-								AtRevision: zookie.NewFromRevision(revision),
+								AtRevision: core.V0Zookie(zookie.NewFromRevision(revision)),
 							})
 
 							var trailer metadata.MD
@@ -613,7 +620,7 @@ func BenchmarkACL(b *testing.B) {
 						Userset: ONR("user", "villain", "..."),
 					},
 				},
-				AtRevision: zookie.NewFromRevision(revision),
+				AtRevision: core.V0Zookie(zookie.NewFromRevision(revision)),
 			})
 			require.NoError(err)
 			require.Equal(v0.CheckResponse_NOT_MEMBER, resp.Membership)
@@ -637,7 +644,7 @@ func TestExpand(t *testing.T) {
 	for _, delta := range testTimedeltas {
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
-				t.Run(tuple.StringONR(tc.start), func(t *testing.T) {
+				t.Run(tuple.StringONR(core.CoreObjectAndRelation(tc.start)), func(t *testing.T) {
 					require := require.New(t)
 
 					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
@@ -647,14 +654,14 @@ func TestExpand(t *testing.T) {
 					var trailer metadata.MD
 					expanded, err := client.Expand(context.Background(), &v0.ExpandRequest{
 						Userset:    tc.start,
-						AtRevision: zookie.NewFromRevision(revision),
+						AtRevision: core.V0Zookie(zookie.NewFromRevision(revision)),
 					}, grpc.Trailer(&trailer))
 					if tc.expectedErrorCode == codes.OK {
 						require.NoError(err)
 						require.NotNil(expanded.Revision)
 						require.NotEmpty(expanded.Revision.Token)
 
-						found, err := membership.AccessibleExpansionSubjects(expanded.TreeNode)
+						found, err := membership.AccessibleExpansionSubjects(core.CoreRelationTupleTreeNode(expanded.TreeNode))
 						require.NoError(err)
 						require.Equal(tc.expandRelatedCount, len(found))
 
@@ -797,7 +804,7 @@ func TestLookup(t *testing.T) {
 	for _, delta := range testTimedeltas {
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
-				t.Run(fmt.Sprintf("%s::%s from %s", tc.relation.Namespace, tc.relation.Relation, tuple.StringONR(tc.user)), func(t *testing.T) {
+				t.Run(fmt.Sprintf("%s::%s from %s", tc.relation.Namespace, tc.relation.Relation, tuple.StringONR(core.CoreObjectAndRelation(tc.user))), func(t *testing.T) {
 					require := require.New(t)
 
 					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
@@ -809,7 +816,7 @@ func TestLookup(t *testing.T) {
 						User:           tc.user,
 						ObjectRelation: tc.relation,
 						Limit:          100,
-						AtRevision:     zookie.NewFromRevision(revision),
+						AtRevision:     core.V0Zookie(zookie.NewFromRevision(revision)),
 					}, grpc.Trailer(&trailer))
 					if tc.expectedErrorCode == codes.OK {
 						require.NoError(err)
@@ -834,7 +841,7 @@ func TestLookup(t *testing.T) {
 										Userset: tc.user,
 									},
 								},
-								AtRevision: zookie.NewFromRevision(revision),
+								AtRevision: core.V0Zookie(zookie.NewFromRevision(revision)),
 							})
 							require.NoError(err)
 							require.Equal(true, checkResp.IsMember, "Object ID %s is not a member", objID)
@@ -863,10 +870,10 @@ func TestLookupMissingTypeInformation(t *testing.T) {
 	// Write a namespace without any type information.
 	_, err := nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
 		Configs: []*v0.NamespaceDefinition{
-			ns.Namespace(
+			core.V0NamespaceDefinition(ns.Namespace(
 				"typelessdoc",
 				ns.Relation("viewer", nil),
-			),
+			)),
 		},
 	})
 	require.NoError(err)
@@ -876,7 +883,7 @@ func TestLookupMissingTypeInformation(t *testing.T) {
 		User:           ONR("user", "legal", "..."),
 		ObjectRelation: RR("typelessdoc", "viewer"),
 		Limit:          100,
-		AtRevision:     zookie.NewFromRevision(revision),
+		AtRevision:     core.V0Zookie(zookie.NewFromRevision(revision)),
 	})
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 	require.Equal("rpc error: code = FailedPrecondition desc = failed precondition: relation/permission `viewer` under definition `typelessdoc` is missing type information", err.Error())
@@ -889,7 +896,7 @@ func verifyTuples(expected []string, found []*v0.RelationTuple, require *require
 	}
 
 	for _, foundTpl := range found {
-		serialized := tuple.String(foundTpl)
+		serialized := tuple.String(core.CoreRelationTuple(foundTpl))
 		require.NotZero(serialized)
 		_, ok := expectedTuples[serialized]
 		require.True(ok, "unexpected tuple: %s", serialized)

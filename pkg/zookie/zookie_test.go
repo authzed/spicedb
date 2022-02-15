@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
@@ -98,7 +99,7 @@ var decodeTests = []struct {
 func TestDecode(t *testing.T) {
 	assert := assert.New(t)
 	for _, testCase := range decodeTests {
-		decoded, err := DecodeRevision(&v0.Zookie{
+		decoded, err := DecodeRevision(&core.Zookie{
 			Token: testCase.token,
 		})
 		if err == nil {

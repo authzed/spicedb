@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
@@ -129,13 +130,13 @@ func TestPostgresGarbageCollection(t *testing.T) {
 	require.NoError(err)
 
 	// Write a relationship.
-	tpl := &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
+	tpl := &core.RelationTuple{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: "resource",
 			ObjectId:  "someresource",
 			Relation:  "reader",
 		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 			Namespace: "user",
 			ObjectId:  "someuser",
 			Relation:  "...",
@@ -294,13 +295,13 @@ func TestPostgresGarbageCollectionByTime(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Write a relationship.
-	tpl := &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
+	tpl := &core.RelationTuple{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: "resource",
 			ObjectId:  "someresource",
 			Relation:  "reader",
 		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 			Namespace: "user",
 			ObjectId:  "someuser",
 			Relation:  "...",
@@ -388,15 +389,15 @@ func TestPostgresChunkedGarbageCollection(t *testing.T) {
 	pds := ds.(*pgDatastore)
 
 	// Prepare relationships to write.
-	var tpls []*v0.RelationTuple
+	var tpls []*core.RelationTuple
 	for i := 0; i < chunkRelationshipCount; i++ {
-		tpl := &v0.RelationTuple{
-			ObjectAndRelation: &v0.ObjectAndRelation{
+		tpl := &core.RelationTuple{
+			ObjectAndRelation: &core.ObjectAndRelation{
 				Namespace: "resource",
 				ObjectId:  fmt.Sprintf("resource-%d", i),
 				Relation:  "reader",
 			},
-			User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+			User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 				Namespace: "user",
 				ObjectId:  "someuser",
 				Relation:  "...",

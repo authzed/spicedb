@@ -3,7 +3,6 @@ package v1
 import (
 	"errors"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/shopspring/decimal"
@@ -14,6 +13,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -91,7 +91,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	}
 }
 
-func filterUpdates(objectTypes map[string]struct{}, candidates []*v0.RelationTupleUpdate) []*v1.RelationshipUpdate {
+func filterUpdates(objectTypes map[string]struct{}, candidates []*core.RelationTupleUpdate) []*v1.RelationshipUpdate {
 	updates := tuple.UpdatesToRelationshipUpdates(candidates)
 
 	if len(objectTypes) == 0 {

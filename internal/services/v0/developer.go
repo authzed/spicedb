@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/pkg/development"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -147,8 +148,8 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 	for _, checkTpl := range req.CheckRelationships {
 		cr, err := development.RunCheck(
 			devContext,
-			checkTpl.ObjectAndRelation,
-			checkTpl.User.GetUserset(),
+			core.CoreObjectAndRelation(checkTpl.ObjectAndRelation),
+			core.CoreObjectAndRelation(checkTpl.User.GetUserset()),
 		)
 		if err != nil {
 			devErr, wireErr := development.DistinguishGraphError(
@@ -156,7 +157,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 				err,
 				v0.DeveloperError_CHECK_WATCH,
 				0, 0,
-				tuple.String(checkTpl),
+				tuple.String(core.CoreRelationTuple(checkTpl)),
 			)
 			if wireErr != nil {
 				return nil, wireErr
@@ -262,7 +263,7 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 func upgradeSchema(configs []string) (string, error) {
 	schema := ""
 	for _, config := range configs {
-		nsDef := v0.NamespaceDefinition{}
+		nsDef := core.NamespaceDefinition{}
 		nerr := prototext.Unmarshal([]byte(config), &nsDef)
 		if nerr != nil {
 			return "", fmt.Errorf("could not upgrade schema due to parse error: %w", nerr)

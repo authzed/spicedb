@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	yamlv3 "gopkg.in/yaml.v3"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -20,7 +21,7 @@ type ParsedSchema struct {
 	SourcePosition SourcePosition
 
 	// Definitions are the compiled definitions for the schema.
-	Definitions []*v0.NamespaceDefinition
+	Definitions []*core.NamespaceDefinition
 }
 
 // UnmarshalYAML is a custom unmarshaller.

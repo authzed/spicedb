@@ -3,13 +3,14 @@ package membership
 import (
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func set(subjects ...*v0.ObjectAndRelation) TrackingSubjectSet {
+func set(subjects ...*core.ObjectAndRelation) TrackingSubjectSet {
 	newSet := NewTrackingSubjectSet()
 	for _, subject := range subjects {
 		newSet.Add(NewFoundSubject(subject))
@@ -41,7 +42,7 @@ func exclude(firstSet TrackingSubjectSet, sets ...TrackingSubjectSet) TrackingSu
 	return current
 }
 
-func fs(subjectType string, subjectID string, subjectRel string, excludedSubjects ...*v0.ObjectAndRelation) FoundSubject {
+func fs(subjectType string, subjectID string, subjectRel string, excludedSubjects ...*core.ObjectAndRelation) FoundSubject {
 	return FoundSubject{
 		subject:          ONR(subjectType, subjectID, subjectRel),
 		excludedSubjects: tuple.NewONRSet(excludedSubjects...),

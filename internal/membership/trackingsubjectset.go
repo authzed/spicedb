@@ -3,12 +3,12 @@ package membership
 import (
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func isWildcard(subject *v0.ObjectAndRelation) bool {
+func isWildcard(subject *core.ObjectAndRelation) bool {
 	return subject.ObjectId == tuple.PublicWildcard
 }
 
@@ -66,20 +66,20 @@ func (tss TrackingSubjectSet) AddWithResources(subjectsAndResources []FoundSubje
 }
 
 // Get returns the found subject in the set, if any.
-func (tss TrackingSubjectSet) Get(subject *v0.ObjectAndRelation) (FoundSubject, bool) {
+func (tss TrackingSubjectSet) Get(subject *core.ObjectAndRelation) (FoundSubject, bool) {
 	found, ok := tss[toKey(subject)]
 	return found, ok
 }
 
 // Contains returns true if the set contains the given subject.
-func (tss TrackingSubjectSet) Contains(subject *v0.ObjectAndRelation) bool {
+func (tss TrackingSubjectSet) Contains(subject *core.ObjectAndRelation) bool {
 	_, ok := tss[toKey(subject)]
 	return ok
 }
 
 // removeExact removes the given subject(s) from the set. If the subject is a wildcard, only
 // the exact matching wildcard will be removed.
-func (tss TrackingSubjectSet) removeExact(subjects ...*v0.ObjectAndRelation) {
+func (tss TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
 	for _, subject := range subjects {
 		delete(tss, toKey(subject))
 	}
@@ -88,7 +88,7 @@ func (tss TrackingSubjectSet) removeExact(subjects ...*v0.ObjectAndRelation) {
 // Remove removes the given subject(s) from the set. If the subject is a wildcard, all matching
 // subjects are removed. If the subject matches a wildcard in the existing set, then it is added
 // to that wildcard as an exclusion.
-func (tss TrackingSubjectSet) Remove(subjects ...*v0.ObjectAndRelation) {
+func (tss TrackingSubjectSet) Remove(subjects ...*core.ObjectAndRelation) {
 	for _, subject := range subjects {
 		delete(tss, toKey(subject))
 
@@ -174,12 +174,12 @@ func (tss TrackingSubjectSet) ToFoundSubjects() FoundSubjects {
 	return FoundSubjects{tss}
 }
 
-func toKey(subject *v0.ObjectAndRelation) string {
+func toKey(subject *core.ObjectAndRelation) string {
 	return fmt.Sprintf("%s %s %s", subject.Namespace, subject.ObjectId, subject.Relation)
 }
 
-func fromKey(key string) *v0.ObjectAndRelation {
-	subject := &v0.ObjectAndRelation{}
+func fromKey(key string) *core.ObjectAndRelation {
+	subject := &core.ObjectAndRelation{}
 	fmt.Sscanf(key, "%s %s %s", &subject.Namespace, &subject.ObjectId, &subject.Relation)
 	return subject
 }

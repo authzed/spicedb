@@ -3,9 +3,10 @@ package datastore
 import (
 	"context"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
@@ -17,7 +18,7 @@ const Ellipsis = "..."
 // RevisionChanges represents the changes in a single transaction.
 type RevisionChanges struct {
 	Revision Revision
-	Changes  []*v0.RelationTupleUpdate
+	Changes  []*core.RelationTupleUpdate
 }
 
 // Datastore represents tuple access for a single namespace.
@@ -48,17 +49,17 @@ type Datastore interface {
 
 	// WriteNamespace takes a proto namespace definition and persists it,
 	// returning the version of the namespace that was created.
-	WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (Revision, error)
+	WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (Revision, error)
 
 	// ReadNamespace reads a namespace definition and version and returns it, and the revision at
 	// which it was created or last written, if found.
-	ReadNamespace(ctx context.Context, nsName string, revision Revision) (ns *v0.NamespaceDefinition, lastWritten Revision, err error)
+	ReadNamespace(ctx context.Context, nsName string, revision Revision) (ns *core.NamespaceDefinition, lastWritten Revision, err error)
 
 	// DeleteNamespace deletes a namespace and any associated tuples.
 	DeleteNamespace(ctx context.Context, nsName string) (Revision, error)
 
 	// ListNamespaces lists all namespaces defined.
-	ListNamespaces(ctx context.Context, revision Revision) ([]*v0.NamespaceDefinition, error)
+	ListNamespaces(ctx context.Context, revision Revision) ([]*core.NamespaceDefinition, error)
 
 	// IsReady returns whether the datastore is ready to accept data. Datastores that require
 	// database schema creation will return false until the migrations have been run to create
@@ -99,7 +100,7 @@ type GraphDatastore interface {
 // TupleIterator is an iterator over matched tuples.
 type TupleIterator interface {
 	// Next returns the next tuple in the result set.
-	Next() *v0.RelationTuple
+	Next() *core.RelationTuple
 
 	// After receiving a nil response, the caller must check for an error.
 	Err() error

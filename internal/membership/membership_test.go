@@ -4,8 +4,9 @@ import (
 	"sort"
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/testutil"
@@ -18,7 +19,7 @@ var (
 )
 
 var (
-	_this *v0.ObjectAndRelation
+	_this *core.ObjectAndRelation
 
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
 		tuple.User(ONR("user", "owner", Ellipsis)),
@@ -359,7 +360,7 @@ func TestMembershipSetIntersectionWithTwoBranchesMissingWildcards(t *testing.T) 
 }
 
 func verifySubjects(t *testing.T, require *require.Assertions, fs FoundSubjects, expected ...string) {
-	foundSubjects := []*v0.ObjectAndRelation{}
+	foundSubjects := []*core.ObjectAndRelation{}
 	for _, found := range fs.ListFound() {
 		foundSubjects = append(foundSubjects, found.Subject())
 

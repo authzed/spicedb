@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"golang.org/x/sync/errgroup"
@@ -12,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -47,12 +47,12 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			AtRevision:     atRevision.String(),
 			DepthRemaining: ps.defaultDepth,
 		},
-		ObjectAndRelation: &v0.ObjectAndRelation{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
 			ObjectId:  req.Resource.ObjectId,
 			Relation:  req.Permission,
 		},
-		Subject: &v0.ObjectAndRelation{
+		Subject: &core.ObjectAndRelation{
 			Namespace: req.Subject.Object.ObjectType,
 			ObjectId:  req.Subject.Object.ObjectId,
 			Relation:  normalizeSubjectRelation(req.Subject),
@@ -92,7 +92,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 			AtRevision:     atRevision.String(),
 			DepthRemaining: ps.defaultDepth,
 		},
-		ObjectAndRelation: &v0.ObjectAndRelation{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
 			ObjectId:  req.Resource.ObjectId,
 			Relation:  req.Permission,
@@ -112,11 +112,11 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 	}, nil
 }
 
-// TranslateRelationshipTree translates a V1 PermissionRelationshipTree into a V0 RelationTupleTreeNode.
-func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.RelationTupleTreeNode {
-	var expanded *v0.ObjectAndRelation
+// TranslateRelationshipTree translates a V1 PermissionRelationshipTree into a RelationTupleTreeNode.
+func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.RelationTupleTreeNode {
+	var expanded *core.ObjectAndRelation
 	if tree.ExpandedObject != nil {
-		expanded = &v0.ObjectAndRelation{
+		expanded = &core.ObjectAndRelation{
 			Namespace: tree.ExpandedObject.ObjectType,
 			ObjectId:  tree.ExpandedObject.ObjectId,
 			Relation:  tree.ExpandedRelation,
@@ -125,26 +125,26 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 
 	switch t := tree.TreeType.(type) {
 	case *v1.PermissionRelationshipTree_Intermediate:
-		var operation v0.SetOperationUserset_Operation
+		var operation core.SetOperationUserset_Operation
 		switch t.Intermediate.Operation {
 		case v1.AlgebraicSubjectSet_OPERATION_EXCLUSION:
-			operation = v0.SetOperationUserset_EXCLUSION
+			operation = core.SetOperationUserset_EXCLUSION
 		case v1.AlgebraicSubjectSet_OPERATION_INTERSECTION:
-			operation = v0.SetOperationUserset_INTERSECTION
+			operation = core.SetOperationUserset_INTERSECTION
 		case v1.AlgebraicSubjectSet_OPERATION_UNION:
-			operation = v0.SetOperationUserset_UNION
+			operation = core.SetOperationUserset_UNION
 		default:
 			panic("unknown set operation")
 		}
 
-		children := []*v0.RelationTupleTreeNode{}
+		children := []*core.RelationTupleTreeNode{}
 		for _, child := range t.Intermediate.Children {
 			children = append(children, TranslateRelationshipTree(child))
 		}
 
-		return &v0.RelationTupleTreeNode{
-			NodeType: &v0.RelationTupleTreeNode_IntermediateNode{
-				IntermediateNode: &v0.SetOperationUserset{
+		return &core.RelationTupleTreeNode{
+			NodeType: &core.RelationTupleTreeNode_IntermediateNode{
+				IntermediateNode: &core.SetOperationUserset{
 					Operation:  operation,
 					ChildNodes: children,
 				},
@@ -153,11 +153,11 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 		}
 
 	case *v1.PermissionRelationshipTree_Leaf:
-		var users []*v0.User
+		var users []*core.User
 		for _, subj := range t.Leaf.Subjects {
-			users = append(users, &v0.User{
-				UserOneof: &v0.User_Userset{
-					Userset: &v0.ObjectAndRelation{
+			users = append(users, &core.User{
+				UserOneof: &core.User_Userset{
+					Userset: &core.ObjectAndRelation{
 						Namespace: subj.Object.ObjectType,
 						ObjectId:  subj.Object.ObjectId,
 						Relation:  stringz.DefaultEmpty(subj.OptionalRelation, graph.Ellipsis),
@@ -166,9 +166,9 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 			})
 		}
 
-		return &v0.RelationTupleTreeNode{
-			NodeType: &v0.RelationTupleTreeNode_LeafNode{
-				LeafNode: &v0.DirectUserset{Users: users},
+		return &core.RelationTupleTreeNode{
+			NodeType: &core.RelationTupleTreeNode_LeafNode{
+				LeafNode: &core.DirectUserset{Users: users},
 			},
 			Expanded: expanded,
 		}
@@ -178,16 +178,16 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *v0.Relation
 	}
 }
 
-func TranslateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelationshipTree {
+func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRelationshipTree {
 	switch t := node.NodeType.(type) {
-	case *v0.RelationTupleTreeNode_IntermediateNode:
+	case *core.RelationTupleTreeNode_IntermediateNode:
 		var operation v1.AlgebraicSubjectSet_Operation
 		switch t.IntermediateNode.Operation {
-		case v0.SetOperationUserset_EXCLUSION:
+		case core.SetOperationUserset_EXCLUSION:
 			operation = v1.AlgebraicSubjectSet_OPERATION_EXCLUSION
-		case v0.SetOperationUserset_INTERSECTION:
+		case core.SetOperationUserset_INTERSECTION:
 			operation = v1.AlgebraicSubjectSet_OPERATION_INTERSECTION
-		case v0.SetOperationUserset_UNION:
+		case core.SetOperationUserset_UNION:
 			operation = v1.AlgebraicSubjectSet_OPERATION_UNION
 		default:
 			panic("unknown set operation")
@@ -219,7 +219,7 @@ func TranslateExpansionTree(node *v0.RelationTupleTreeNode) *v1.PermissionRelati
 			ExpandedRelation: objRel,
 		}
 
-	case *v0.RelationTupleTreeNode_LeafNode:
+	case *core.RelationTupleTreeNode_LeafNode:
 		var subjects []*v1.SubjectReference
 		for _, found := range t.LeafNode.Users {
 			subjects = append(subjects, &v1.SubjectReference{
@@ -287,11 +287,11 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			AtRevision:     atRevision.String(),
 			DepthRemaining: ps.defaultDepth,
 		},
-		ObjectRelation: &v0.RelationReference{
+		ObjectRelation: &core.RelationReference{
 			Namespace: req.ResourceObjectType,
 			Relation:  req.Permission,
 		},
-		Subject: &v0.ObjectAndRelation{
+		Subject: &core.ObjectAndRelation{
 			Namespace: req.Subject.Object.ObjectType,
 			ObjectId:  req.Subject.Object.ObjectId,
 			Relation:  normalizeSubjectRelation(req.Subject),

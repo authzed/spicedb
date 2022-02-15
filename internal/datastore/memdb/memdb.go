@@ -8,11 +8,12 @@ import (
 	"sync"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 	"github.com/shopspring/decimal"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
@@ -125,14 +126,14 @@ func (r relationship) Relationship() *v1.Relationship {
 	}
 }
 
-func (r relationship) RelationTuple() *v0.RelationTuple {
-	return &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
+func (r relationship) RelationTuple() *core.RelationTuple {
+	return &core.RelationTuple{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: r.namespace,
 			ObjectId:  r.resourceID,
 			Relation:  r.relation,
 		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 			Namespace: r.subjectNamespace,
 			ObjectId:  r.subjectObjectID,
 			Relation:  r.subjectRelation,

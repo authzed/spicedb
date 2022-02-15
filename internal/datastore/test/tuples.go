@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -49,7 +50,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
-			var testTuples []*v0.RelationTuple
+			var testTuples []*core.RelationTuple
 
 			var lastRevision datastore.Revision
 			for i := 0; i < numTuples; i++ {
@@ -166,7 +167,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
-				incorrectUserset := &v0.ObjectAndRelation{
+				incorrectUserset := &core.ObjectAndRelation{
 					Namespace: tupleUserset.Namespace,
 					ObjectId:  tupleUserset.ObjectId,
 					Relation:  "fake",
@@ -281,7 +282,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			iter, err = ds.QueryTuples(ctx, &v1.RelationshipFilter{
 				ResourceType: testTuples[0].ObjectAndRelation.Namespace,
-			}, lastRevision, options.WithUsersets(&v0.ObjectAndRelation{
+			}, lastRevision, options.WithUsersets(&core.ObjectAndRelation{
 				Namespace: "test/user",
 				ObjectId:  "fakeuser",
 				Relation:  ellipsis,
@@ -445,7 +446,7 @@ func DeletePreconditionsTest(t *testing.T, tester DatastoreTester) {
 // DeleteRelationshipsTest tests whether or not the requirements for deleting
 // relationships hold for a particular datastore.
 func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
-	var testTuples []*v0.RelationTuple
+	var testTuples []*core.RelationTuple
 	for i := 0; i < 10; i++ {
 		newTuple := makeTestTuple(fmt.Sprintf("resource%d", i), fmt.Sprintf("user%d", i%2))
 		testTuples = append(testTuples, newTuple)
@@ -454,10 +455,10 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 	table := []struct {
 		name                      string
-		inputTuples               []*v0.RelationTuple
+		inputTuples               []*core.RelationTuple
 		filter                    *v1.RelationshipFilter
-		expectedExistingTuples    []*v0.RelationTuple
-		expectedNonExistingTuples []*v0.RelationTuple
+		expectedExistingTuples    []*core.RelationTuple
+		expectedNonExistingTuples []*core.RelationTuple
 	}{
 		{
 			"resourceID",
@@ -477,7 +478,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 				OptionalRelation: "writer",
 			},
 			testTuples[:len(testTuples)-1],
-			[]*v0.RelationTuple{testTuples[len(testTuples)-1]},
+			[]*core.RelationTuple{testTuples[len(testTuples)-1]},
 		},
 		{
 			"subjectID",
@@ -486,8 +487,8 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 				ResourceType:          testResourceNamespace,
 				OptionalSubjectFilter: &v1.SubjectFilter{SubjectType: testUserNamespace, OptionalSubjectId: "user0"},
 			},
-			[]*v0.RelationTuple{testTuples[1], testTuples[3], testTuples[5], testTuples[7], testTuples[9]},
-			[]*v0.RelationTuple{testTuples[0], testTuples[2], testTuples[4], testTuples[6], testTuples[8]},
+			[]*core.RelationTuple{testTuples[1], testTuples[3], testTuples[5], testTuples[7], testTuples[9]},
+			[]*core.RelationTuple{testTuples[0], testTuples[2], testTuples[4], testTuples[6], testTuples[8]},
 		},
 		{
 			"subjectRelation",
@@ -632,14 +633,14 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 
 				tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
-				var testTuples []*v0.RelationTuple
+				var testTuples []*core.RelationTuple
 
 				ctx := context.Background()
 
 				// Add test tuples on the same resource but with different users.
 				var lastRevision datastore.Revision
 
-				usersets := []*v0.ObjectAndRelation{}
+				usersets := []*core.ObjectAndRelation{}
 				for i := 0; i < numTuples; i++ {
 					resourceName := "theresource"
 					userName := fmt.Sprintf("user%d", i)

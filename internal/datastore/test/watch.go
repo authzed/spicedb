@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -141,7 +142,7 @@ func setOfChangesRel(changes []*v1.RelationshipUpdate) *strset.Set {
 	return changeSet
 }
 
-func setOfChanges(changes []*v0.RelationTupleUpdate) *strset.Set {
+func setOfChanges(changes []*core.RelationTupleUpdate) *strset.Set {
 	changeSet := strset.NewWithSize(len(changes))
 	for _, change := range changes {
 		changeSet.Add(fmt.Sprintf("OPERATION_%s(%s)", change.Operation, tuple.String(change.Tuple)))
@@ -177,7 +178,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 		case created, ok := <-changes:
 			if ok {
 				require.Equal(
-					[]*v0.RelationTupleUpdate{tuple.Touch(makeTestTuple("test", "test"))},
+					[]*core.RelationTupleUpdate{tuple.Touch(makeTestTuple("test", "test"))},
 					created.Changes,
 				)
 				require.True(created.Revision.GreaterThan(datastore.NoRevision))

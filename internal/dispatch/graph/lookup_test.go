@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -21,8 +22,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func RR(namespaceName string, relationName string) *v0.RelationReference {
-	return &v0.RelationReference{
+func RR(namespaceName string, relationName string) *core.RelationReference {
+	return &core.RelationReference{
 		Namespace: namespaceName,
 		Relation:  relationName,
 	}
@@ -37,23 +38,23 @@ func init() {
 
 func TestSimpleLookup(t *testing.T) {
 	testCases := []struct {
-		start                 *v0.RelationReference
-		target                *v0.ObjectAndRelation
-		resolvedObjects       []*v0.ObjectAndRelation
+		start                 *core.RelationReference
+		target                *core.ObjectAndRelation
+		resolvedObjects       []*core.ObjectAndRelation
 		expectedDispatchCount int
 		expectedDepthRequired int
 	}{
 		{
 			RR("document", "viewer"),
 			ONR("user", "unknown", "..."),
-			[]*v0.ObjectAndRelation{},
+			[]*core.ObjectAndRelation{},
 			9,
 			5,
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "eng_lead", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("document", "masterplan", "viewer"),
 			},
 			18,
@@ -62,7 +63,7 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "owner"),
 			ONR("user", "product_manager", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("document", "masterplan", "owner"),
 			},
 			2,
@@ -71,7 +72,7 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "viewer"),
 			ONR("user", "legal", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("document", "companyplan", "viewer"),
 				ONR("document", "masterplan", "viewer"),
 			},
@@ -81,7 +82,7 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "viewer_and_editor"),
 			ONR("user", "multiroleguy", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("document", "specialplan", "viewer_and_editor"),
 			},
 			8,
@@ -90,7 +91,7 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("folder", "viewer"),
 			ONR("user", "owner", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("folder", "strategy", "viewer"),
 				ONR("folder", "company", "viewer"),
 			},
@@ -188,7 +189,7 @@ func TestMaxDepthLookup(t *testing.T) {
 	require.Error(err)
 }
 
-type OrderedResolved []*v0.ObjectAndRelation
+type OrderedResolved []*core.ObjectAndRelation
 
 func (a OrderedResolved) Len() int { return len(a) }
 

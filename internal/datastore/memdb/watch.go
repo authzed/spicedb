@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/hashicorp/go-memdb"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -89,7 +90,7 @@ func (mds *memdbDatastore) loadChanges(ctx context.Context, currentTxn uint64) (
 		}
 		for rawCreated := createdIt.Next(); rawCreated != nil; rawCreated = createdIt.Next() {
 			created := rawCreated.(*relationship)
-			stagedChanges.AddChange(ctx, txnRevision, created.RelationTuple(), v0.RelationTupleUpdate_TOUCH)
+			stagedChanges.AddChange(ctx, txnRevision, created.RelationTuple(), core.RelationTupleUpdate_TOUCH)
 		}
 
 		deletedIt, err := loadNewTxn.Get(tableRelationship, indexDeletedTxn, currentTxn)
@@ -98,7 +99,7 @@ func (mds *memdbDatastore) loadChanges(ctx context.Context, currentTxn uint64) (
 		}
 		for rawDeleted := deletedIt.Next(); rawDeleted != nil; rawDeleted = deletedIt.Next() {
 			deleted := rawDeleted.(*relationship)
-			stagedChanges.AddChange(ctx, txnRevision, deleted.RelationTuple(), v0.RelationTupleUpdate_DELETE)
+			stagedChanges.AddChange(ctx, txnRevision, deleted.RelationTuple(), core.RelationTupleUpdate_DELETE)
 		}
 	}
 

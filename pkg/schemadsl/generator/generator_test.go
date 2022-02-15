@@ -3,8 +3,9 @@ package generator
 import (
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -14,7 +15,7 @@ import (
 func TestGenerator(t *testing.T) {
 	type generatorTest struct {
 		name     string
-		input    *v0.NamespaceDefinition
+		input    *core.NamespaceDefinition
 		expected string
 		okay     bool
 	}

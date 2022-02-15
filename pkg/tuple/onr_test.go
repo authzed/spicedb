@@ -3,13 +3,14 @@ package tuple
 import (
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/stretchr/testify/require"
 )
 
 var onrTestCases = []struct {
 	serialized   string
-	objectFormat *v0.ObjectAndRelation
+	objectFormat *core.ObjectAndRelation
 }{
 	{
 		serialized:   "tenant/testns:testobj#testrel",
@@ -60,7 +61,7 @@ func TestParseONR(t *testing.T) {
 
 var subjectOnrTestCases = []struct {
 	serialized   string
-	objectFormat *v0.ObjectAndRelation
+	objectFormat *core.ObjectAndRelation
 }{
 	{
 		serialized:   "tenant/testns:testobj#testrel",

@@ -1,8 +1,9 @@
 package namespace
 
 import (
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"google.golang.org/protobuf/types/known/anypb"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
@@ -16,7 +17,7 @@ var userDefinedMetadataTypeUrls = map[string]struct{}{
 
 // FilterUserDefinedMetadataInPlace removes user-defined metadata (e.g. comments) from the given namespace
 // *in place*.
-func FilterUserDefinedMetadataInPlace(nsconfig *v0.NamespaceDefinition) {
+func FilterUserDefinedMetadataInPlace(nsconfig *core.NamespaceDefinition) {
 	nsconfig.Metadata = nil
 	for _, relation := range nsconfig.Relation {
 		if relation.Metadata != nil {
@@ -32,7 +33,7 @@ func FilterUserDefinedMetadataInPlace(nsconfig *v0.NamespaceDefinition) {
 }
 
 // GetComments returns the comment metadata found within the given metadata message.
-func GetComments(metadata *v0.Metadata) []string {
+func GetComments(metadata *core.Metadata) []string {
 	if metadata == nil {
 		return []string{}
 	}
@@ -49,9 +50,9 @@ func GetComments(metadata *v0.Metadata) []string {
 }
 
 // AddComment adds a comment to the given metadata message.
-func AddComment(metadata *v0.Metadata, comment string) (*v0.Metadata, error) {
+func AddComment(metadata *core.Metadata, comment string) (*core.Metadata, error) {
 	if metadata == nil {
-		metadata = &v0.Metadata{}
+		metadata = &core.Metadata{}
 	}
 
 	var dc iv1.DocComment
@@ -67,7 +68,7 @@ func AddComment(metadata *v0.Metadata, comment string) (*v0.Metadata, error) {
 }
 
 // GetRelationKind returns the kind of the relation.
-func GetRelationKind(relation *v0.Relation) iv1.RelationMetadata_RelationKind {
+func GetRelationKind(relation *core.Relation) iv1.RelationMetadata_RelationKind {
 	metadata := relation.Metadata
 	if metadata == nil {
 		return iv1.RelationMetadata_UNKNOWN_KIND
@@ -84,10 +85,10 @@ func GetRelationKind(relation *v0.Relation) iv1.RelationMetadata_RelationKind {
 }
 
 // SetRelationKind sets the kind of relation.
-func SetRelationKind(relation *v0.Relation, kind iv1.RelationMetadata_RelationKind) error {
+func SetRelationKind(relation *core.Relation, kind iv1.RelationMetadata_RelationKind) error {
 	metadata := relation.Metadata
 	if metadata == nil {
-		metadata = &v0.Metadata{}
+		metadata = &core.Metadata{}
 		relation.Metadata = metadata
 	}
 

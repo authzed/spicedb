@@ -6,13 +6,14 @@ import (
 	"sync"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/benbjohnson/clock"
 	"github.com/influxdata/tdigest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -208,7 +209,7 @@ func (hp hedgingProxy) HeadRevision(ctx context.Context) (rev datastore.Revision
 	return
 }
 
-func (hp hedgingProxy) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (ns *v0.NamespaceDefinition, createdAt datastore.Revision, err error) {
+func (hp hedgingProxy) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (ns *core.NamespaceDefinition, createdAt datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
 		delegatedNs, delegatedRev, delegatedErr := hp.delegate.ReadNamespace(ctx, nsName, revision)
@@ -245,7 +246,7 @@ func (hp hedgingProxy) Watch(ctx context.Context, afterRevision datastore.Revisi
 	return hp.delegate.Watch(ctx, afterRevision)
 }
 
-func (hp hedgingProxy) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (hp hedgingProxy) WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (datastore.Revision, error) {
 	return hp.delegate.WriteNamespace(ctx, newConfig)
 }
 
@@ -306,6 +307,6 @@ func (hp hedgingProxy) CheckRevision(ctx context.Context, revision datastore.Rev
 	return hp.delegate.CheckRevision(ctx, revision)
 }
 
-func (hp hedgingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+func (hp hedgingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	return hp.delegate.ListNamespaces(ctx, revision)
 }

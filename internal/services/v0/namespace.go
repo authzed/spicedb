@@ -15,12 +15,13 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
-	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -48,7 +49,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 
 	for _, config := range req.Configs {
 		// Validate the type system for the updated namespace.
-		ts, terr := namespace.BuildNamespaceTypeSystemWithFallback(config, nsm, req.Configs, readRevision)
+		ts, terr := namespace.BuildNamespaceTypeSystemWithFallback(core.CoreNamespaceDefinition(config), nsm, core.CoreNamespaceDefinitions(req.Configs), readRevision)
 		if terr != nil {
 			return nil, rewriteNamespaceError(ctx, terr)
 		}
@@ -67,7 +68,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 
-		diff, err := namespace.DiffNamespaces(existing, config)
+		diff, err := namespace.DiffNamespaces(existing, core.CoreNamespaceDefinition(config))
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
@@ -147,14 +148,14 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 	revision := decimal.Zero
 	for _, config := range req.Configs {
 		var err error
-		revision, err = ds.WriteNamespace(ctx, config)
+		revision, err = ds.WriteNamespace(ctx, core.CoreNamespaceDefinition(config))
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 	}
 
 	return &v0.WriteConfigResponse{
-		Revision: zookie.NewFromRevision(revision),
+		Revision: core.V0Zookie(zookie.NewFromRevision(revision)),
 	}, nil
 }
 
@@ -173,8 +174,8 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 
 	return &v0.ReadConfigResponse{
 		Namespace: req.Namespace,
-		Config:    found,
-		Revision:  zookie.NewFromRevision(readRevision),
+		Config:    core.V0NamespaceDefinition(found),
+		Revision:  core.V0Zookie(zookie.NewFromRevision(readRevision)),
 	}, nil
 }
 
@@ -234,7 +235,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 	}
 
 	return &v0.DeleteConfigsResponse{
-		Revision: zookie.NewFromRevision(headRevision),
+		Revision: core.V0Zookie(zookie.NewFromRevision(headRevision)),
 	}, nil
 }
 

@@ -7,13 +7,14 @@ import (
 	"runtime"
 
 	sq "github.com/Masterminds/squirrel"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -125,7 +126,7 @@ func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) S
 // FilterToUsersets returns a new SchemaQueryFilterer that is limited to resources with subjects
 // in the specified list of usersets. Nil or empty usersets parameter does not affect the underlying
 // query.
-func (sqf SchemaQueryFilterer) filterToUsersets(usersets []*v0.ObjectAndRelation) SchemaQueryFilterer {
+func (sqf SchemaQueryFilterer) filterToUsersets(usersets []*core.ObjectAndRelation) SchemaQueryFilterer {
 	if len(usersets) == 0 {
 		return sqf
 	}
@@ -169,7 +170,7 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 	defer span.End()
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
-	var tuples []*v0.RelationTuple
+	var tuples []*core.RelationTuple
 	remainingLimit := math.MaxInt
 	if queryOpts.Limit != nil {
 		remainingLimit = int(*queryOpts.Limit)
@@ -209,14 +210,14 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 }
 
 // ExecuteQueryFunc is a function that can be used to execute a single rendered SQL query.
-type ExecuteQueryFunc func(ctx context.Context, revision datastore.Revision, sql string, args []interface{}) ([]*v0.RelationTuple, error)
+type ExecuteQueryFunc func(ctx context.Context, revision datastore.Revision, sql string, args []interface{}) ([]*core.RelationTuple, error)
 
 // TransactionPreparer is a function provided by the datastore to prepare the transaction before
 // the tuple query is run.
 type TransactionPreparer func(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error
 
 func NewPGXExecutor(conn *pgxpool.Pool, prepTxn TransactionPreparer) ExecuteQueryFunc {
-	return func(ctx context.Context, revision datastore.Revision, sql string, args []interface{}) ([]*v0.RelationTuple, error) {
+	return func(ctx context.Context, revision datastore.Revision, sql string, args []interface{}) ([]*core.RelationTuple, error) {
 		ctx = datastore.SeparateContextWithTracing(ctx)
 
 		span := trace.SpanFromContext(ctx)
@@ -246,13 +247,13 @@ func NewPGXExecutor(conn *pgxpool.Pool, prepTxn TransactionPreparer) ExecuteQuer
 
 		span.AddEvent("Query issued to database")
 
-		var tuples []*v0.RelationTuple
+		var tuples []*core.RelationTuple
 		for rows.Next() {
-			nextTuple := &v0.RelationTuple{
-				ObjectAndRelation: &v0.ObjectAndRelation{},
-				User: &v0.User{
-					UserOneof: &v0.User_Userset{
-						Userset: &v0.ObjectAndRelation{},
+			nextTuple := &core.RelationTuple{
+				ObjectAndRelation: &core.ObjectAndRelation{},
+				User: &core.User{
+					UserOneof: &core.User_Userset{
+						Userset: &core.ObjectAndRelation{},
 					},
 				},
 			}

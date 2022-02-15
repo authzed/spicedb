@@ -3,8 +3,9 @@ package namespace
 import (
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	ns "github.com/authzed/spicedb/pkg/namespace"
 )
@@ -12,8 +13,8 @@ import (
 func TestNamespaceDiff(t *testing.T) {
 	testCases := []struct {
 		name           string
-		existing       *v0.NamespaceDefinition
-		updated        *v0.NamespaceDefinition
+		existing       *core.NamespaceDefinition
+		updated        *core.NamespaceDefinition
 		expectedDeltas []Delta
 	}{
 		{
@@ -129,7 +130,7 @@ func TestNamespaceDiff(t *testing.T) {
 				), ns.AllowedRelation("foo", "bar")),
 			),
 			[]Delta{
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
+				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &core.RelationReference{
 					Namespace: "foo",
 					Relation:  "bar",
 				}},
@@ -152,7 +153,7 @@ func TestNamespaceDiff(t *testing.T) {
 				)),
 			),
 			[]Delta{
-				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &v0.RelationReference{
+				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &core.RelationReference{
 					Namespace: "foo",
 					Relation:  "bar",
 				}},
@@ -193,11 +194,11 @@ func TestNamespaceDiff(t *testing.T) {
 				), ns.AllowedRelation("foo2", "bar")),
 			),
 			[]Delta{
-				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &v0.RelationReference{
+				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &core.RelationReference{
 					Namespace: "foo",
 					Relation:  "bar",
 				}},
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
+				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &core.RelationReference{
 					Namespace: "foo2",
 					Relation:  "bar",
 				}},
@@ -242,7 +243,7 @@ func TestNamespaceDiff(t *testing.T) {
 			),
 			[]Delta{
 				{Type: RelationDirectWildcardTypeRemoved, RelationName: "somerel", WildcardType: "foo"},
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
+				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &core.RelationReference{
 					Namespace: "foo",
 					Relation:  "something",
 				}},
@@ -260,7 +261,7 @@ func TestNamespaceDiff(t *testing.T) {
 			),
 			[]Delta{
 				{Type: RelationDirectWildcardTypeRemoved, RelationName: "somerel", WildcardType: "user"},
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
+				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &core.RelationReference{
 					Namespace: "organization",
 					Relation:  "user",
 				}},

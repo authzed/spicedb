@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -36,17 +37,17 @@ func TestAttemptWriteRelationshipToPermission(t *testing.T) {
 
 	// Write a relationship to the relation.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#reader@example/user:someuser#..."),
-		)},
+		))},
 	})
 	require.NoError(t, err)
 
 	// Attempt to write a relation to the permission, which should fail.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#read@example/user:someuser#..."),
-		)},
+		))},
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 }

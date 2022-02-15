@@ -1,14 +1,14 @@
 package graph
 
 import (
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 // Leaf constructs a RelationTupleTreeNode leaf.
-func Leaf(start *v0.ObjectAndRelation, children ...*v0.User) *v0.RelationTupleTreeNode {
-	return &v0.RelationTupleTreeNode{
-		NodeType: &v0.RelationTupleTreeNode_LeafNode{
-			LeafNode: &v0.DirectUserset{
+func Leaf(start *core.ObjectAndRelation, children ...*core.User) *core.RelationTupleTreeNode {
+	return &core.RelationTupleTreeNode{
+		NodeType: &core.RelationTupleTreeNode_LeafNode{
+			LeafNode: &core.DirectUserset{
 				Users: children,
 			},
 		},
@@ -17,13 +17,13 @@ func Leaf(start *v0.ObjectAndRelation, children ...*v0.User) *v0.RelationTupleTr
 }
 
 func setResult(
-	op v0.SetOperationUserset_Operation,
-	start *v0.ObjectAndRelation,
-	children []*v0.RelationTupleTreeNode,
-) *v0.RelationTupleTreeNode {
-	return &v0.RelationTupleTreeNode{
-		NodeType: &v0.RelationTupleTreeNode_IntermediateNode{
-			IntermediateNode: &v0.SetOperationUserset{
+	op core.SetOperationUserset_Operation,
+	start *core.ObjectAndRelation,
+	children []*core.RelationTupleTreeNode,
+) *core.RelationTupleTreeNode {
+	return &core.RelationTupleTreeNode{
+		NodeType: &core.RelationTupleTreeNode_IntermediateNode{
+			IntermediateNode: &core.SetOperationUserset{
 				Operation:  op,
 				ChildNodes: children,
 			},
@@ -33,16 +33,16 @@ func setResult(
 }
 
 // Union constructs a RelationTupleTreeNode union operation.
-func Union(start *v0.ObjectAndRelation, children ...*v0.RelationTupleTreeNode) *v0.RelationTupleTreeNode {
-	return setResult(v0.SetOperationUserset_UNION, start, children)
+func Union(start *core.ObjectAndRelation, children ...*core.RelationTupleTreeNode) *core.RelationTupleTreeNode {
+	return setResult(core.SetOperationUserset_UNION, start, children)
 }
 
 // Intersection constructs a RelationTupleTreeNode intersection operation.
-func Intersection(start *v0.ObjectAndRelation, children ...*v0.RelationTupleTreeNode) *v0.RelationTupleTreeNode {
-	return setResult(v0.SetOperationUserset_INTERSECTION, start, children)
+func Intersection(start *core.ObjectAndRelation, children ...*core.RelationTupleTreeNode) *core.RelationTupleTreeNode {
+	return setResult(core.SetOperationUserset_INTERSECTION, start, children)
 }
 
 // Exclusion constructs a RelationTupleTreeNode exclusion operation.
-func Exclusion(start *v0.ObjectAndRelation, children ...*v0.RelationTupleTreeNode) *v0.RelationTupleTreeNode {
-	return setResult(v0.SetOperationUserset_EXCLUSION, start, children)
+func Exclusion(start *core.ObjectAndRelation, children ...*core.RelationTupleTreeNode) *core.RelationTupleTreeNode {
+	return setResult(core.SetOperationUserset_EXCLUSION, start, children)
 }
