@@ -40,6 +40,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.HealthCheckPeriod = c.HealthCheckPeriod
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
+		to.SpannerCredentialsFile = c.SpannerCredentialsFile
 	}
 }
 
@@ -216,5 +217,12 @@ func WithGCInterval(gCInterval time.Duration) ConfigOption {
 func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.GCMaxOperationTime = gCMaxOperationTime
+	}
+}
+
+// WithSpannerCredentialsFile returns an option that can set SpannerCredentialsFile on a Config
+func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
+	return func(c *Config) {
+		c.SpannerCredentialsFile = spannerCredentialsFile
 	}
 }

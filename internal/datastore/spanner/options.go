@@ -13,6 +13,7 @@ type spannerOptions struct {
 	gcWindow                    time.Duration
 	gcInterval                  time.Duration
 	maxRetries                  int
+	credentialsFilePath         string
 }
 
 const (
@@ -124,5 +125,13 @@ func GCInterval(interval time.Duration) Option {
 func MaxRetries(maxRetries int) Option {
 	return func(so *spannerOptions) {
 		so.maxRetries = maxRetries
+	}
+}
+
+// CredentialsFile is the path to a file containing credentials for a service
+// account that can access the cloud spanner instance
+func CredentialsFile(path string) Option {
+	return func(so *spannerOptions) {
+		so.credentialsFilePath = path
 	}
 }

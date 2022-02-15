@@ -18,6 +18,7 @@ import (
 func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
 	cmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
+	cmd.Flags().String("datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
 }
 
 func NewMigrateCommand(programName string) *cobra.Command {
@@ -59,8 +60,9 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	} else if datastoreEngine == "spanner" {
 		log.Info().Msg("migrating spanner datastore")
 
+		credFile := cobrautil.MustGetStringExpanded(cmd, "datastore-spanner-credentials")
 		var err error
-		migrationDriver, err = spannermigrations.NewSpannerDriver(dbURL)
+		migrationDriver, err = spannermigrations.NewSpannerDriver(dbURL, credFile)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}

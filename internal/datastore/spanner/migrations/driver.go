@@ -5,6 +5,8 @@ import (
 
 	"cloud.google.com/go/spanner"
 	admin "cloud.google.com/go/spanner/admin/database/apiv1"
+	"github.com/rs/zerolog/log"
+	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/pkg/migrate"
@@ -20,15 +22,16 @@ type SpannerMigrationDriver struct {
 	adminClient *admin.DatabaseAdminClient
 }
 
-func NewSpannerDriver(database string) (SpannerMigrationDriver, error) {
+func NewSpannerDriver(database, credentialsFilePath string) (SpannerMigrationDriver, error) {
 	ctx := context.Background()
 
-	client, err := spanner.NewClient(context.Background(), database)
+	log.Info().Str("credentials", credentialsFilePath).Str("db", database).Msg("connecting")
+	client, err := spanner.NewClient(ctx, database, option.WithCredentialsFile(credentialsFilePath))
 	if err != nil {
 		return SpannerMigrationDriver{}, err
 	}
 
-	adminClient, err := admin.NewDatabaseAdminClient(ctx)
+	adminClient, err := admin.NewDatabaseAdminClient(ctx, option.WithCredentialsFile(credentialsFilePath))
 	if err != nil {
 		return SpannerMigrationDriver{}, err
 	}

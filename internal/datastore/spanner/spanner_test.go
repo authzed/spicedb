@@ -90,7 +90,7 @@ func (st spannerTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watc
 		log.Fatal().Err(err).Msg("error waiting for database")
 	}
 
-	migrationDriver, err := migrations.NewSpannerDriver(db.Name)
+	migrationDriver, err := migrations.NewSpannerDriver(db.Name, "")
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
 	}

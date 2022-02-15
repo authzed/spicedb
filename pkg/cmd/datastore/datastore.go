@@ -69,6 +69,9 @@ type Config struct {
 	HealthCheckPeriod  time.Duration
 	GCInterval         time.Duration
 	GCMaxOperationTime time.Duration
+
+	// Spanner
+	SpannerCredentialsFile string
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
@@ -97,6 +100,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 50, "number of times a retriable transaction should be retried (cockroach driver only)")
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
+	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
 }
 
 func DefaultDatastoreConfig() *Config {
@@ -218,6 +222,7 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.FollowerReadDelay(opts.FollowerReadDelay),
 		spanner.GCInterval(opts.GCInterval),
 		spanner.GCWindow(opts.GCWindow),
+		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 	)
 }
 

@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
+	"google.golang.org/api/option"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -38,12 +39,12 @@ type spannerDatastore struct {
 }
 
 func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, error) {
-	client, err := spanner.NewClient(context.Background(), database) // option.WithGRPCConnectionPool(100))
+	config, err := generateConfig(opts)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	config, err := generateConfig(opts)
+	client, err := spanner.NewClient(context.Background(), database, option.WithCredentialsFile(config.credentialsFilePath)) // option.WithGRPCConnectionPool(100))
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -57,16 +58,16 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
 	ds := spannerDatastore{
-		&common.RemoteClockRevisions{
+		RemoteClockRevisions: &common.RemoteClockRevisions{
 			QuantizationNanos:      config.revisionQuantization.Nanoseconds(),
 			GCWindowNanos:          config.gcWindow.Nanoseconds(),
 			FollowerReadDelayNanos: config.followerReadDelay.Nanoseconds(),
 			MaxRevisionStaleness:   maxRevisionStaleness,
 		},
-		client,
-		querySplitter,
-		config,
-		noopCancelFunc,
+		client:        client,
+		querySplitter: querySplitter,
+		config:        config,
+		stopGC:        noopCancelFunc,
 	}
 
 	ds.RemoteClockRevisions.NowFunc = ds.HeadRevision
@@ -81,7 +82,7 @@ func (sd spannerDatastore) IsReady(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
 
-	currentRevision, err := migrations.NewSpannerDriver(sd.client.DatabaseName())
+	currentRevision, err := migrations.NewSpannerDriver(sd.client.DatabaseName(), sd.config.credentialsFilePath)
 	if err != nil {
 		return false, err
 	}
