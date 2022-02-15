@@ -196,22 +196,27 @@ func checkPreconditions(ctx context.Context, rwt *spanner.ReadWriteTransaction, 
 			return err
 		}
 
-		iter := rwt.Query(ctx, statementFromSQL(sql, args))
-		defer iter.Stop()
+		if err := func() error {
+			iter := rwt.Query(ctx, statementFromSQL(sql, args))
+			defer iter.Stop()
 
-		first, err := iter.Next()
-		if err != nil && !errors.Is(err, iterator.Done) {
+			first, err := iter.Next()
+			if err != nil && !errors.Is(err, iterator.Done) {
+				return err
+			}
+
+			if errors.Is(err, iterator.Done) && precond.Operation == v1.Precondition_OPERATION_MUST_MATCH {
+				// Didn't find tuples when we expected to
+				return datastore.NewPreconditionFailedErr(precond)
+			}
+
+			if err == nil && first != nil && precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH {
+				// Found a tuple when we didn't expect to
+				return datastore.NewPreconditionFailedErr(precond)
+			}
+			return nil
+		}(); err != nil {
 			return err
-		}
-
-		if errors.Is(err, iterator.Done) && precond.Operation == v1.Precondition_OPERATION_MUST_MATCH {
-			// Didn't find tuples when we expected to
-			return datastore.NewPreconditionFailedErr(precond)
-		}
-
-		if err == nil && first != nil && precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH {
-			// Found a tuple when we didn't expect to
-			return datastore.NewPreconditionFailedErr(precond)
 		}
 	}
 
