@@ -38,7 +38,7 @@ func main() {
 	cmd.RegisterRootFlags(rootCmd)
 
 	// Add a version command
-	versionCmd := cmd.NewRootCommand(rootCmd.Use)
+	versionCmd := cmd.NewVersionCommand(rootCmd.Use)
 	cmd.RegisterVersionFlags(versionCmd)
 	rootCmd.AddCommand(versionCmd)
 
