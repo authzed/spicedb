@@ -25,6 +25,10 @@ var (
 	revOneMillion = decimal.NewFromInt(1_000_000)
 )
 
+func revisionFromTransactionID(txID uint64) datastore.Revision {
+	return decimal.NewFromInt(int64(txID))
+}
+
 func TestChanges(t *testing.T) {
 	type changeEntry struct {
 		revision     uint64
@@ -310,8 +314,4 @@ func canonicalize(in []*datastore.RevisionChanges) []*datastore.RevisionChanges 
 	}
 
 	return out
-}
-
-func revisionFromTransactionID(txID uint64) datastore.Revision {
-	return decimal.NewFromInt(int64(txID))
 }

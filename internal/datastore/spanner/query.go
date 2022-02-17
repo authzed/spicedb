@@ -85,6 +85,8 @@ func queryExecutor(client *spanner.Client) common.ExecuteQueryFunc {
 		sql string,
 		args []interface{},
 	) ([]*v0.RelationTuple, error) {
+		ctx, span := tracer.Start(ctx, "ExecuteQuery")
+		defer span.End()
 		iter := client.
 			Single().
 			WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(revision))).

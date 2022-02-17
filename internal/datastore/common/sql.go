@@ -165,7 +165,8 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
 ) (datastore.TupleIterator, error) {
-	// TODO handle tracing spans here
+	ctx, span := tracer.Start(ctx, "SplitAndExecuteQuery")
+	defer span.End()
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
 	var tuples []*v0.RelationTuple
@@ -192,7 +193,6 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 
 		queryTuples, err := tqs.Executor(ctx, revision, sql, args)
 		if err != nil {
-			fmt.Println(sql)
 			return nil, err
 		}
 

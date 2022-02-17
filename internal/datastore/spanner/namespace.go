@@ -15,6 +15,8 @@ import (
 )
 
 func (sd spannerDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "WriteNamespace")
+	defer span.End()
 	serialized, err := proto.Marshal(newConfig)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
@@ -37,6 +39,8 @@ func (sd spannerDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 }
 
 func (sd spannerDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*v0.NamespaceDefinition, datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "ReadNamespace")
+	defer span.End()
 	ts := timestampFromRevision(revision)
 
 	nsKey := spanner.Key{nsName}
@@ -68,6 +72,8 @@ func (sd spannerDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 }
 
 func (sd spannerDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "DeleteNamespace")
+	defer span.End()
 	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
 		if err := deleteWithFilter(ctx, rwt, &v1.RelationshipFilter{
 			ResourceType: nsName,
@@ -90,6 +96,8 @@ func (sd spannerDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 }
 
 func (sd spannerDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+	ctx, span := tracer.Start(ctx, "ListNamespaces")
+	defer span.End()
 	ts := timestampFromRevision(revision)
 
 	iter := sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(ts)).Read(

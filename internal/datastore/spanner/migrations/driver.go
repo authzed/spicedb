@@ -17,11 +17,14 @@ const (
 	colVersionNum      = "version_num"
 )
 
+// SpannerMigrationDriver can migrate a Cloud Spanner instance
+// The adminClient is required for DDL changes
 type SpannerMigrationDriver struct {
 	client      *spanner.Client
 	adminClient *admin.DatabaseAdminClient
 }
 
+// NewSpannerDriver returns a migration driver for the given Cloud Spanner instance
 func NewSpannerDriver(database, credentialsFilePath string) (SpannerMigrationDriver, error) {
 	ctx := context.Background()
 

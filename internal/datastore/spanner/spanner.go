@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/api/option"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -28,7 +29,10 @@ const (
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
 
-var sql = sq.StatementBuilder.PlaceholderFormat(sq.AtP)
+var (
+	sql    = sq.StatementBuilder.PlaceholderFormat(sq.AtP)
+	tracer = otel.Tracer("spicedb/internal/datastore/spanner")
+)
 
 type spannerDatastore struct {
 	*common.RemoteClockRevisions
@@ -38,13 +42,14 @@ type spannerDatastore struct {
 	stopGC        cancelFunc
 }
 
+// NewSpannerDatastore returns a datastore backed by cloud spanner
 func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, error) {
 	config, err := generateConfig(opts)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	client, err := spanner.NewClient(context.Background(), database, option.WithCredentialsFile(config.credentialsFilePath)) // option.WithGRPCConnectionPool(100))
+	client, err := spanner.NewClient(context.Background(), database, option.WithCredentialsFile(config.credentialsFilePath))
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}

@@ -24,9 +24,13 @@ func (sd spannerDatastore) runGC() cancelFunc {
 	log.Info().Stringer("interval", sd.config.gcInterval).Msg("garbage collection: starting")
 
 	s := gocron.NewScheduler(time.UTC)
+
 	var numRemoved int64
 	_, err := s.Every(sd.config.gcInterval).Do(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), sd.config.gcInterval)
+		ctx, span := tracer.Start(context.Background(), "CollectGarbage")
+		defer span.End()
+
+		ctx, cancel := context.WithTimeout(ctx, sd.config.gcInterval)
 		defer cancel()
 
 		spannerNow, err := sd.now(ctx)
