@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -181,7 +180,7 @@ func TestMaxDepth(t *testing.T) {
 	require.NoError(err)
 	require.True(revision.GreaterThan(decimal.Zero))
 
-	nsm, err := namespace.NewCachingNamespaceManager(1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingNamespaceManager(testCacheConfig)
 	require.NoError(err)
 
 	dispatch := NewLocalOnlyDispatcher(nsm)
@@ -299,7 +298,7 @@ func newLocalDispatcher(require *require.Assertions) (context.Context, dispatch.
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	nsm, err := namespace.NewCachingNamespaceManager(1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingNamespaceManager(testCacheConfig)
 	require.NoError(err)
 
 	dispatch := NewLocalOnlyDispatcher(nsm)

@@ -36,7 +36,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.HTTPGatewayCorsAllowedOrigins = c.HTTPGatewayCorsAllowedOrigins
 		to.DatastoreConfig = c.DatastoreConfig
 		to.Datastore = c.Datastore
-		to.NamespaceCacheExpiration = c.NamespaceCacheExpiration
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
 		to.DispatchMaxDepth = c.DispatchMaxDepth
@@ -143,13 +142,6 @@ func WithDatastoreConfig(datastoreConfig datastore.Config) ConfigOption {
 func WithDatastore(datastore datastore1.Datastore) ConfigOption {
 	return func(c *Config) {
 		c.Datastore = datastore
-	}
-}
-
-// WithNamespaceCacheExpiration returns an option that can set NamespaceCacheExpiration on a Config
-func WithNamespaceCacheExpiration(namespaceCacheExpiration time.Duration) ConfigOption {
-	return func(c *Config) {
-		c.NamespaceCacheExpiration = namespaceCacheExpiration
 	}
 }
 

@@ -3,7 +3,6 @@ package v0
 import (
 	"context"
 	"errors"
-	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -43,10 +42,7 @@ func NewNamespaceServer() v0.NamespaceServiceServer {
 
 func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest) (*v0.WriteConfigResponse, error) {
 	ds := datastoremw.MustFromContext(ctx)
-	nsm, err := namespace.NewCachingNamespaceManager(0*time.Second, nil)
-	if err != nil {
-		return nil, rewriteNamespaceError(ctx, err)
-	}
+	nsm := namespace.NewNonCachingNamespaceManager()
 
 	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 

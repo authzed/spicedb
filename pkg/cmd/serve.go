@@ -26,7 +26,10 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	datastore.RegisterDatastoreFlags(cmd, &config.DatastoreConfig)
 
 	// Flags for the namespace manager
-	cmd.Flags().DurationVar(&config.NamespaceCacheExpiration, "ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
+	cmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
+	if err := cmd.Flags().MarkHidden("ns-cache-expiration"); err != nil {
+		panic("failed to mark flag hidden: " + err.Error())
+	}
 
 	// Flags for parsing and validating schemas.
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")

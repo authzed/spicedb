@@ -48,9 +48,6 @@ type Config struct {
 	DatastoreConfig datastorecfg.Config
 	Datastore       datastore.Datastore
 
-	// Namespace cache
-	NamespaceCacheExpiration time.Duration
-
 	// Schema options
 	SchemaPrefixesRequired bool
 
@@ -99,7 +96,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 	}
 
-	nsm, err := namespace.NewCachingNamespaceManager(c.NamespaceCacheExpiration, nil)
+	nsm, err := namespace.NewCachingNamespaceManager(nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace manager: %w", err)
 	}

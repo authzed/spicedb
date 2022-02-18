@@ -54,10 +54,7 @@ func NewDevContext(ctx context.Context, developerRequestContext *v0.RequestConte
 	ctx = datastoremw.ContextWithDatastore(ctx, ds)
 
 	// Instantiate the namespace manager with *no caching*.
-	nsm, err := namespace.NewCachingNamespaceManager(0*time.Second, nil)
-	if err != nil {
-		return nil, nil, err
-	}
+	nsm := namespace.NewNonCachingNamespaceManager()
 
 	dctx, devErrs, nerr := newDevContextWithDatastore(ctx, developerRequestContext, ds, nsm)
 	if nerr != nil || devErrs != nil {

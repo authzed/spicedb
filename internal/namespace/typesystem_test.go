@@ -3,7 +3,6 @@ package namespace
 import (
 	"context"
 	"testing"
-	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
@@ -223,7 +222,7 @@ func TestTypeSystem(t *testing.T) {
 			require.NoError(err)
 
 			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
-			nsm, err := NewCachingNamespaceManager(0*time.Second, nil)
+			nsm, err := NewCachingNamespaceManager(nil)
 			require.NoError(err)
 
 			var lastRevision decimal.Decimal
