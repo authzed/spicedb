@@ -124,8 +124,6 @@ func (mds *mysqlDatastore) runGarbageCollector() error {
 			err := mds.collectGarbage()
 			if err != nil {
 				log.Warn().Err(err).Msg("error when attempting to perform garbage collection")
-			} else {
-				log.Debug().Msg("garbage collection completed for mysql")
 			}
 		}
 	}
@@ -173,7 +171,8 @@ func (mds *mysqlDatastore) collectGarbage() error {
 
 	before := now.Add(mds.gcWindowInverted)
 	log.Debug().Time("before", before).Msg("running mysql garbage collection")
-	_, _, err = mds.collectGarbageBefore(ctx, before)
+	relCount, transCount, err := mds.collectGarbageBefore(ctx, before)
+	log.Debug().Int64("relationshipsDeleted", relCount).Int64("transactionsDeleted", transCount).Msg("garbage collection completed for mysql")
 	return err
 }
 
