@@ -1,29 +1,25 @@
-package crdb
+package spanner
 
 import (
 	"context"
-	"fmt"
 
+	"cloud.google.com/go/spanner"
+	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jackc/pgx/v4"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
-const (
-	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
-)
-
-var queryTuples = psql.Select(
+var queryTuples = sql.Select(
 	colNamespace,
 	colObjectID,
 	colRelation,
 	colUsersetNamespace,
 	colUsersetObjectID,
 	colUsersetRelation,
-).From(tableTuple)
+).From(tableRelationship)
 
 var schema = common.SchemaInformation{
 	ColNamespace:        colNamespace,
@@ -34,7 +30,7 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (cds *crdbDatastore) QueryTuples(
+func (sd spannerDatastore) QueryTuples(
 	ctx context.Context,
 	filter *v1.RelationshipFilter,
 	revision datastore.Revision,
@@ -55,10 +51,10 @@ func (cds *crdbDatastore) QueryTuples(
 		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
 	}
 
-	return cds.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, revision, opts...)
+	return sd.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, revision, opts...)
 }
 
-func (cds *crdbDatastore) ReverseQueryTuples(
+func (sd spannerDatastore) ReverseQueryTuples(
 	ctx context.Context,
 	subjectFilter *v1.SubjectFilter,
 	revision datastore.Revision,
@@ -75,16 +71,58 @@ func (cds *crdbDatastore) ReverseQueryTuples(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	return cds.querySplitter.SplitAndExecuteQuery(
-		ctx,
+	return sd.querySplitter.SplitAndExecuteQuery(ctx,
 		qBuilder,
 		revision,
 		options.WithLimit(queryOpts.ReverseLimit),
 	)
 }
 
-func prepareTransaction(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error {
-	setTxTime := fmt.Sprintf(querySetTransactionTime, revision)
-	_, err := tx.Exec(ctx, setTxTime)
-	return err
+func queryExecutor(client *spanner.Client) common.ExecuteQueryFunc {
+	return func(
+		ctx context.Context,
+		revision datastore.Revision,
+		sql string,
+		args []interface{},
+	) ([]*v0.RelationTuple, error) {
+		ctx, span := tracer.Start(ctx, "ExecuteQuery")
+		defer span.End()
+		iter := client.
+			Single().
+			WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(revision))).
+			Query(ctx, statementFromSQL(sql, args))
+
+		var tuples []*v0.RelationTuple
+
+		if err := iter.Do(func(row *spanner.Row) error {
+			nextTuple := &v0.RelationTuple{
+				ObjectAndRelation: &v0.ObjectAndRelation{},
+				User: &v0.User{
+					UserOneof: &v0.User_Userset{
+						Userset: &v0.ObjectAndRelation{},
+					},
+				},
+			}
+			userset := nextTuple.User.GetUserset()
+			err := row.Columns(
+				&nextTuple.ObjectAndRelation.Namespace,
+				&nextTuple.ObjectAndRelation.ObjectId,
+				&nextTuple.ObjectAndRelation.Relation,
+				&userset.Namespace,
+				&userset.ObjectId,
+				&userset.Relation,
+			)
+			if err != nil {
+				return err
+			}
+
+			tuples = append(tuples, nextTuple)
+
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+
+		return tuples, nil
+	}
 }

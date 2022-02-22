@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alecthomas/units"
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -18,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -29,11 +27,11 @@ import (
 )
 
 type sqlTest struct {
-	dbpool                    *pgxpool.Pool
-	port                      string
-	creds                     string
-	splitAtEstimatedQuerySize units.Base2Bytes
-	cleanup                   func()
+	dbpool              *pgxpool.Pool
+	port                string
+	creds               string
+	splitAtUsersetCount uint16
+	cleanup             func()
 }
 
 var postgresContainer = &dockertest.RunOptions{
@@ -78,7 +76,7 @@ func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBuf
 		GCWindow(gcWindow),
 		GCInterval(0*time.Second), // Disable auto GC
 		WatchBufferLength(watchBufferLength),
-		SplitAtEstimatedQuerySize(st.splitAtEstimatedQuerySize),
+		SplitAtUsersetCount(st.splitAtUsersetCount),
 	)
 }
 
@@ -92,7 +90,7 @@ func TestPostgresDatastore(t *testing.T) {
 func TestPostgresDatastoreWithSplit(t *testing.T) {
 	// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
 	tester := newTester(postgresContainer, "postgres:secret", 5432)
-	tester.splitAtEstimatedQuerySize = 1 // bytes
+	tester.splitAtUsersetCount = 1 // 1 userset
 	defer tester.cleanup()
 
 	test.All(t, tester)
@@ -538,5 +536,11 @@ func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint1
 		}
 	}
 
-	return &sqlTest{dbpool: dbpool, port: port, cleanup: cleanup, creds: creds, splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize}
+	return &sqlTest{
+		dbpool:              dbpool,
+		port:                port,
+		cleanup:             cleanup,
+		creds:               creds,
+		splitAtUsersetCount: defaultUsersetBatchSize,
+	}
 }

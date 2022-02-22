@@ -6,16 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alecthomas/units"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/internal/datastore/spanner"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -25,12 +24,14 @@ const (
 	MemoryEngine    = "memory"
 	PostgresEngine  = "postgres"
 	CockroachEngine = "cockroachdb"
+	SpannerEngine   = "spanner"
 )
 
 var builderForEngine = map[string]engineBuilderFunc{
 	CockroachEngine: newCRDBDatastore,
 	PostgresEngine:  newPostgresDatastore,
 	MemoryEngine:    newMemoryDatstore,
+	SpannerEngine:   newSpannerDatastore,
 }
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
@@ -41,12 +42,12 @@ type Config struct {
 	RevisionQuantization time.Duration
 
 	// Options
-	MaxIdleTime    time.Duration
-	MaxLifetime    time.Duration
-	MaxOpenConns   int
-	MinOpenConns   int
-	SplitQuerySize string
-	ReadOnly       bool
+	MaxIdleTime     time.Duration
+	MaxLifetime     time.Duration
+	MaxOpenConns    int
+	MinOpenConns    int
+	SplitQueryCount uint16
+	ReadOnly        bool
 
 	// Bootstrap
 	BootstrapFiles     []string
@@ -68,11 +69,14 @@ type Config struct {
 	HealthCheckPeriod  time.Duration
 	GCInterval         time.Duration
 	GCMaxOperationTime time.Duration
+
+	// Spanner
+	SpannerCredentialsFile string
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
 func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
-	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb", "spanner")`)
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
 	cmd.Flags().IntVar(&opts.MinOpenConns, "datastore-conn-min-open", 10, "number of minimum concurrent connections open in a remote datastore's connection pool")
@@ -92,10 +96,11 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().Float64Var(&opts.RequestHedgingQuantile, "datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	cmd.Flags().DurationVar(&opts.FollowerReadDelay, "datastore-follower-read-delay-duration", 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
-	cmd.Flags().StringVar(&opts.SplitQuerySize, "datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
+	cmd.Flags().Uint16Var(&opts.SplitQueryCount, "datastore-query-userset-batch-size", 1024, "number of usersets after which a relationship query will be split into multiple queries")
 	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 50, "number of times a retriable transaction should be retried (cockroach driver only)")
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
+	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
 }
 
 func DefaultDatastoreConfig() *Config {
@@ -106,7 +111,7 @@ func DefaultDatastoreConfig() *Config {
 		MaxIdleTime:          30 * time.Minute,
 		MaxOpenConns:         20,
 		MinOpenConns:         10,
-		SplitQuerySize:       common.DefaultSplitAtEstimatedQuerySize.String(),
+		SplitQueryCount:      1024,
 		MaxRetries:           50,
 		OverlapStrategy:      "prefix",
 		HealthCheckPeriod:    30 * time.Second,
@@ -177,10 +182,6 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 }
 
 func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
-	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse split query size: %w", err)
-	}
 	return crdb.NewCRDBDatastore(
 		opts.URI,
 		crdb.GCWindow(opts.GCWindow),
@@ -189,7 +190,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.ConnMaxLifetime(opts.MaxLifetime),
 		crdb.MaxOpenConns(opts.MaxOpenConns),
 		crdb.MinOpenConns(opts.MinOpenConns),
-		crdb.SplitAtEstimatedQuerySize(splitQuerySize),
+		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
 		crdb.MaxRetries(opts.MaxRetries),
 		crdb.OverlapKey(opts.OverlapKey),
@@ -198,10 +199,6 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 }
 
 func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
-	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse split query size: %w", err)
-	}
 	return postgres.NewPostgresDatastore(
 		opts.URI,
 		postgres.GCWindow(opts.GCWindow),
@@ -210,12 +207,22 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.ConnMaxLifetime(opts.MaxLifetime),
 		postgres.MaxOpenConns(opts.MaxOpenConns),
 		postgres.MinOpenConns(opts.MinOpenConns),
-		postgres.SplitAtEstimatedQuerySize(splitQuerySize),
+		postgres.SplitAtUsersetCount(opts.SplitQueryCount),
 		postgres.HealthCheckPeriod(opts.HealthCheckPeriod),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
 		postgres.EnablePrometheusStats(),
 		postgres.EnableTracing(),
+	)
+}
+
+func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
+	return spanner.NewSpannerDatastore(
+		opts.URI,
+		spanner.FollowerReadDelay(opts.FollowerReadDelay),
+		spanner.GCInterval(opts.GCInterval),
+		spanner.GCWindow(opts.GCWindow),
+		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 	)
 }
 

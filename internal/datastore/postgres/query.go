@@ -49,23 +49,7 @@ func (pgd *pgDatastore) QueryTuples(
 		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
 	}
 
-	queryOpts := options.NewQueryOptionsWithOptions(opts...)
-
-	ctq := common.TupleQuerySplitter{
-		Conn:                      pgd.dbpool,
-		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
-
-		FilteredQueryBuilder: qBuilder,
-		Revision:             revision,
-		Limit:                queryOpts.Limit,
-		Usersets:             queryOpts.Usersets,
-
-		Tracer:    tracer,
-		DebugName: "QueryTuples",
-	}
-
-	return ctq.SplitAndExecute(ctx)
+	return pgd.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, revision, opts...)
 }
 
 func (pgd *pgDatastore) ReverseQueryTuples(
@@ -85,19 +69,9 @@ func (pgd *pgDatastore) ReverseQueryTuples(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	ctq := common.TupleQuerySplitter{
-		Conn:                      pgd.dbpool,
-		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: pgd.splitAtEstimatedQuerySize,
-
-		FilteredQueryBuilder: qBuilder,
-		Revision:             revision,
-		Limit:                queryOpts.ReverseLimit,
-		Usersets:             nil,
-
-		Tracer:    tracer,
-		DebugName: "ReverseQueryTuples",
-	}
-
-	return ctq.SplitAndExecute(ctx)
+	return pgd.querySplitter.SplitAndExecuteQuery(ctx,
+		qBuilder,
+		revision,
+		options.WithLimit(queryOpts.ReverseLimit),
+	)
 }

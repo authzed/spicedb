@@ -16,6 +16,10 @@ func (*fakeDriver) WriteVersion(version, replaced string) error {
 	return nil
 }
 
+func (*fakeDriver) Close() error {
+	return nil
+}
+
 func TestParameterChecking(t *testing.T) {
 	testCases := []struct {
 		driver      Driver

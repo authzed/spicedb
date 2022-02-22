@@ -25,7 +25,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxLifetime = c.MaxLifetime
 		to.MaxOpenConns = c.MaxOpenConns
 		to.MinOpenConns = c.MinOpenConns
-		to.SplitQuerySize = c.SplitQuerySize
+		to.SplitQueryCount = c.SplitQueryCount
 		to.ReadOnly = c.ReadOnly
 		to.BootstrapFiles = c.BootstrapFiles
 		to.BootstrapOverwrite = c.BootstrapOverwrite
@@ -40,6 +40,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.HealthCheckPeriod = c.HealthCheckPeriod
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
+		to.SpannerCredentialsFile = c.SpannerCredentialsFile
 	}
 }
 
@@ -107,10 +108,10 @@ func WithMinOpenConns(minOpenConns int) ConfigOption {
 	}
 }
 
-// WithSplitQuerySize returns an option that can set SplitQuerySize on a Config
-func WithSplitQuerySize(splitQuerySize string) ConfigOption {
+// WithSplitQueryCount returns an option that can set SplitQueryCount on a Config
+func WithSplitQueryCount(splitQueryCount uint16) ConfigOption {
 	return func(c *Config) {
-		c.SplitQuerySize = splitQuerySize
+		c.SplitQueryCount = splitQueryCount
 	}
 }
 
@@ -216,5 +217,12 @@ func WithGCInterval(gCInterval time.Duration) ConfigOption {
 func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.GCMaxOperationTime = gCMaxOperationTime
+	}
+}
+
+// WithSpannerCredentialsFile returns an option that can set SpannerCredentialsFile on a Config
+func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
+	return func(c *Config) {
+		c.SpannerCredentialsFile = spannerCredentialsFile
 	}
 }

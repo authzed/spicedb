@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -12,9 +13,23 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+type revisionKey string
+
+func keyFromRevision(rev datastore.Revision) revisionKey {
+	return revisionKey(rev.String())
+}
+
+func mustRevisionFromKey(key revisionKey) datastore.Revision {
+	rev, err := decimal.NewFromString(string(key))
+	if err != nil {
+		panic(fmt.Errorf("unparseable revision key(%s): %w", key, err))
+	}
+	return rev
+}
+
 // Changes represents a set of tuple mutations that are kept self-consistent
 // across one or more transaction revisions.
-type Changes map[uint64]*changeRecord
+type Changes map[revisionKey]*changeRecord
 
 type changeRecord struct {
 	tupleTouches map[string]*v0.RelationTuple
@@ -29,17 +44,18 @@ func NewChanges() Changes {
 // AddChange adds a specific change to the complete list of tracked changes
 func (ch Changes) AddChange(
 	ctx context.Context,
-	revTxID uint64,
+	rev decimal.Decimal,
 	tpl *v0.RelationTuple,
 	op v0.RelationTupleUpdate_Operation,
 ) {
-	revisionChanges, ok := ch[revTxID]
+	rk := keyFromRevision(rev)
+	revisionChanges, ok := ch[rk]
 	if !ok {
 		revisionChanges = &changeRecord{
 			tupleTouches: make(map[string]*v0.RelationTuple),
 			tupleDeletes: make(map[string]*v0.RelationTuple),
 		}
-		ch[revTxID] = revisionChanges
+		ch[rk] = revisionChanges
 	}
 
 	tplKey := tuple.String(tpl)
@@ -64,20 +80,26 @@ func (ch Changes) AddChange(
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
 // compatible, ordered, changelist.
 func (ch Changes) AsRevisionChanges() (changes []*datastore.RevisionChanges) {
-	revisionsWithChanges := make([]uint64, 0, len(ch))
-	for revTxID := range ch {
-		revisionsWithChanges = append(revisionsWithChanges, revTxID)
+	type keyAndRevision struct {
+		key revisionKey
+		rev datastore.Revision
+	}
+
+	revisionsWithChanges := make([]keyAndRevision, 0, len(ch))
+	for rk := range ch {
+		kar := keyAndRevision{rk, mustRevisionFromKey(rk)}
+		revisionsWithChanges = append(revisionsWithChanges, kar)
 	}
 	sort.Slice(revisionsWithChanges, func(i int, j int) bool {
-		return revisionsWithChanges[i] < revisionsWithChanges[j]
+		return revisionsWithChanges[i].rev.LessThan(revisionsWithChanges[j].rev)
 	})
 
-	for _, revTxID := range revisionsWithChanges {
+	for _, kar := range revisionsWithChanges {
 		revisionChange := &datastore.RevisionChanges{
-			Revision: revisionFromTransactionID(revTxID),
+			Revision: kar.rev,
 		}
 
-		revisionChangeRecord := ch[revTxID]
+		revisionChangeRecord := ch[kar.key]
 		for _, tpl := range revisionChangeRecord.tupleTouches {
 			revisionChange.Changes = append(revisionChange.Changes, &v0.RelationTupleUpdate{
 				Operation: v0.RelationTupleUpdate_TOUCH,
@@ -94,8 +116,4 @@ func (ch Changes) AsRevisionChanges() (changes []*datastore.RevisionChanges) {
 	}
 
 	return
-}
-
-func revisionFromTransactionID(txID uint64) datastore.Revision {
-	return decimal.NewFromInt(int64(txID))
 }
