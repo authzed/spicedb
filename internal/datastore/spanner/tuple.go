@@ -19,6 +19,7 @@ import (
 func (sd spannerDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "WriteTuples")
 	defer span.End()
+
 	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
 		if err := checkPreconditions(ctx, rwt, preconditions); err != nil {
 			return err

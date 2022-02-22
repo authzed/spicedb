@@ -37,11 +37,11 @@ func (rcr *RemoteClockRevisions) OptimizedRevision(ctx context.Context) (datasto
 
 	localNow := time.Now()
 	if localNow.Before(rcr.revisionValidThrough) {
-		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Msg("returning cached revision")
+		log.Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Msg("returning cached revision")
 		return rcr.lastQuantizedRevision, nil
 	}
 
-	log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Msg("computing new revision")
+	log.Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Msg("computing new revision")
 
 	nowHLC, err := rcr.NowFunc(ctx)
 	if err != nil {
@@ -50,19 +50,20 @@ func (rcr *RemoteClockRevisions) OptimizedRevision(ctx context.Context) (datasto
 
 	// Round the revision down to the nearest quantization
 	// Apply a delay to enable follower reads: https://www.cockroachlabs.com/docs/stable/follower-reads.html
-	crdbNow := nowHLC.IntPart() - rcr.FollowerReadDelayNanos
-	quantized := crdbNow
+	// This is currently only used for crdb, but other datastores may have similar features in the future
+	now := nowHLC.IntPart() - rcr.FollowerReadDelayNanos
+	quantized := now
 	if rcr.QuantizationNanos > 0 {
-		quantized -= (crdbNow % rcr.QuantizationNanos)
+		quantized -= (now % rcr.QuantizationNanos)
 	}
-	log.Ctx(ctx).Debug().Int64("readSkew", rcr.FollowerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
+	log.Debug().Int64("readSkew", rcr.FollowerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
 
-	validForNanos := (quantized + rcr.QuantizationNanos) - crdbNow
+	validForNanos := (quantized + rcr.QuantizationNanos) - now
 
 	rcr.revisionValidThrough = localNow.
 		Add(time.Duration(validForNanos) * time.Nanosecond).
 		Add(rcr.MaxRevisionStaleness)
-	log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Int64("validForNanos", validForNanos).Msg("setting valid through")
+	log.Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Int64("validForNanos", validForNanos).Msg("setting valid through")
 	rcr.lastQuantizedRevision = decimal.NewFromInt(quantized)
 
 	return rcr.lastQuantizedRevision, nil
@@ -82,15 +83,15 @@ func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, revision dat
 	nowNanos := now.IntPart()
 	revisionNanos := revision.IntPart()
 
-	staleRevision := revisionNanos < (nowNanos - rcr.GCWindowNanos)
-	if staleRevision {
-		log.Ctx(ctx).Debug().Stringer("now", now).Stringer("revision", revision).Msg("stale revision")
+	isStale := revisionNanos < (nowNanos - rcr.GCWindowNanos)
+	if isStale {
+		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("stale revision")
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
-	futureRevision := revisionNanos > nowNanos
-	if futureRevision {
-		log.Ctx(ctx).Debug().Stringer("now", now).Stringer("revision", revision).Msg("future revision")
+	isFuture := revisionNanos > nowNanos
+	if isFuture {
+		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("future revision")
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
 	}
 
