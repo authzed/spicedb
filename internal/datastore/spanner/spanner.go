@@ -40,7 +40,7 @@ type spannerDatastore struct {
 	client        *spanner.Client
 	querySplitter common.TupleQuerySplitter
 	config        spannerOptions
-	stopGC        cancelFunc
+	stopGC        context.CancelFunc
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
@@ -76,11 +76,15 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		client:        client,
 		querySplitter: querySplitter,
 		config:        config,
-		stopGC:        noopCancelFunc,
 	}
 
 	ds.RemoteClockRevisions.NowFunc = ds.HeadRevision
-	ds.stopGC = ds.runGC()
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := ds.runGC(ctx); err != nil {
+		cancel()
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+	ds.stopGC = cancel
 
 	return ds, nil
 }

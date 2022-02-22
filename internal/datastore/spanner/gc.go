@@ -11,14 +11,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type cancelFunc func()
-
-var noopCancelFunc cancelFunc = func() {}
-
-func (sd spannerDatastore) runGC() cancelFunc {
+// runGC runs the gc cron job, returning an error if it can't start properly.
+// it cleans up and stops when ctx is Done.
+func (sd spannerDatastore) runGC(ctx context.Context) error {
 	if sd.config.gcInterval <= 0 {
 		log.Info().Stringer("interval", sd.config.gcInterval).Msg("garbage collection: disabled")
-		return noopCancelFunc
+		return nil
 	}
 
 	log.Info().Stringer("interval", sd.config.gcInterval).Msg("garbage collection: starting")
@@ -57,11 +55,13 @@ func (sd spannerDatastore) runGC() cancelFunc {
 			Msg("garbage collection: removed changelog entries")
 	})
 	if err != nil {
-		panic(fmt.Errorf("unable to start garbage collection: %w", err))
+		return fmt.Errorf("unable to start garbage collection: %w", err)
 	}
 
-	return func() {
+	go func() {
+		<-ctx.Done()
 		log.Info().Msg("garbage collection: stopping")
 		s.Stop()
-	}
+	}()
+	return nil
 }
