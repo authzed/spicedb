@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/api/option"
 
@@ -48,6 +49,9 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
+
+	config.gcInterval = common.WithJitter(0.2, config.gcInterval)
+	log.Info().Float64("factor", 0.2).Msg("gc configured with jitter")
 
 	client, err := spanner.NewClient(context.Background(), database, option.WithCredentialsFile(config.credentialsFilePath))
 	if err != nil {
