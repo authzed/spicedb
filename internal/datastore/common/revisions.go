@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
@@ -25,6 +26,7 @@ type RemoteClockRevisions struct {
 	MaxRevisionStaleness   time.Duration
 	NowFunc                RemoteNowFunction
 
+	updateGroup           singleflight.Group
 	lastQuantizedRevision decimal.Decimal
 	revisionValidThrough  time.Time
 }
@@ -41,32 +43,36 @@ func (rcr *RemoteClockRevisions) OptimizedRevision(ctx context.Context) (datasto
 		return rcr.lastQuantizedRevision, nil
 	}
 
-	log.Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Msg("computing new revision")
+	lastQuantizedRevision, err, _ := rcr.updateGroup.Do("", func() (interface{}, error) {
+		log.Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Msg("computing new revision")
 
-	nowHLC, err := rcr.NowFunc(ctx)
-	if err != nil {
-		return datastore.NoRevision, err
-	}
+		nowHLC, err := rcr.NowFunc(ctx)
+		if err != nil {
+			return datastore.NoRevision, err
+		}
 
-	// Round the revision down to the nearest quantization
-	// Apply a delay to enable follower reads: https://www.cockroachlabs.com/docs/stable/follower-reads.html
-	// This is currently only used for crdb, but other datastores may have similar features in the future
-	now := nowHLC.IntPart() - rcr.FollowerReadDelayNanos
-	quantized := now
-	if rcr.QuantizationNanos > 0 {
-		quantized -= (now % rcr.QuantizationNanos)
-	}
-	log.Debug().Int64("readSkew", rcr.FollowerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
+		// Round the revision down to the nearest quantization
+		// Apply a delay to enable follower reads: https://www.cockroachlabs.com/docs/stable/follower-reads.html
+		// This is currently only used for crdb, but other datastores may have similar features in the future
+		now := nowHLC.IntPart() - rcr.FollowerReadDelayNanos
+		quantized := now
+		if rcr.QuantizationNanos > 0 {
+			quantized -= (now % rcr.QuantizationNanos)
+		}
+		log.Debug().Int64("readSkew", rcr.FollowerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
 
-	validForNanos := (quantized + rcr.QuantizationNanos) - now
+		validForNanos := (quantized + rcr.QuantizationNanos) - now
 
-	rcr.revisionValidThrough = localNow.
-		Add(time.Duration(validForNanos) * time.Nanosecond).
-		Add(rcr.MaxRevisionStaleness)
-	log.Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Int64("validForNanos", validForNanos).Msg("setting valid through")
-	rcr.lastQuantizedRevision = decimal.NewFromInt(quantized)
+		rcr.revisionValidThrough = localNow.
+			Add(time.Duration(validForNanos) * time.Nanosecond).
+			Add(rcr.MaxRevisionStaleness)
+		log.Debug().Time("now", localNow).Time("valid", rcr.revisionValidThrough).Int64("validForNanos", validForNanos).Msg("setting valid through")
+		rcr.lastQuantizedRevision = decimal.NewFromInt(quantized)
 
-	return rcr.lastQuantizedRevision, nil
+		return rcr.lastQuantizedRevision, nil
+	})
+
+	return lastQuantizedRevision.(decimal.Decimal), err
 }
 
 // CheckRevision asserts whether a given revision is valid
