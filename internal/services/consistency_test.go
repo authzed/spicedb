@@ -29,7 +29,6 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
-	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -64,18 +63,15 @@ func TestConsistency(t *testing.T) {
 				t.Run(path.Base(filePath), func(t *testing.T) {
 					for _, dispatcherKind := range []string{"local", "caching"} {
 						t.Run(dispatcherKind, func(t *testing.T) {
+							t.Parallel()
 							lrequire := require.New(t)
 
-							var fullyResolved *validationfile.PopulatedValidationFile
-							var ds datastore.Datastore
-							conn, cleanup, revision := testserver.NewTestServer(lrequire, delta, memdb.DisableGC, 0, true, func(inDS datastore.Datastore, require *require.Assertions) (outDS datastore.Datastore, rev datastore.Revision) {
-								// TODO: configure a testserver with the dispatch api enabled and remove the validating datastore
-								outDS = testfixtures.NewValidatingDatastore(inDS)
-								fullyResolved, rev, err = validationfile.PopulateFromFiles(outDS, []string{filePath})
-								require.NoError(err)
-								ds = outDS
-								return
-							})
+							ds, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
+							require.NoError(t, err)
+
+							fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
+							require.NoError(t, err)
+							conn, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
 							t.Cleanup(cleanup)
 
 							ns, err := namespace.NewCachingNamespaceManager(nil)
@@ -113,8 +109,8 @@ func TestConsistency(t *testing.T) {
 							defer dispatcher.Close()
 
 							testers := []serviceTester{
-								v0ServiceTester{v0.NewACLServiceClient(conn)},
-								v1ServiceTester{v1.NewPermissionsServiceClient(conn)},
+								v0ServiceTester{v0.NewACLServiceClient(conn[0])},
+								v1ServiceTester{v1.NewPermissionsServiceClient(conn[0])},
 							}
 
 							runCrossVersionTests(t, testers, fullyResolved, revision)
