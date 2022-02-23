@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/authzed/grpcutil"
@@ -25,9 +26,16 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	"github.com/authzed/spicedb/pkg/balancer"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
+
+func init() {
+	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
+		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
+	))
+}
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
@@ -49,18 +57,20 @@ type Config struct {
 	Datastore       datastore.Datastore
 
 	// Namespace cache
+	NamespaceManager     namespace.Manager
 	NamespaceCacheConfig CacheConfig
 
 	// Schema options
 	SchemaPrefixesRequired bool
 
 	// Dispatch options
-	DispatchServer              util.GRPCServerConfig
-	DispatchMaxDepth            uint32
-	DispatchUpstreamAddr        string
-	DispatchUpstreamCAPath      string
-	DispatchClientMetricsPrefix string
-	Dispatcher                  dispatch.Dispatcher
+	DispatchServer               util.GRPCServerConfig
+	DispatchMaxDepth             uint32
+	DispatchUpstreamAddr         string
+	DispatchUpstreamCAPath       string
+	DispatchClientMetricsPrefix  string
+	DispatchClusterMetricsPrefix string
+	Dispatcher                   dispatch.Dispatcher
 
 	DispatchCacheConfig        CacheConfig
 	ClusterDispatchCacheConfig CacheConfig
@@ -105,19 +115,18 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 	}
 
-	nscc, err := c.NamespaceCacheConfig.Complete()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create namespace manager: %w", err)
-	}
+	nsm := c.NamespaceManager
+	if nsm == nil {
+		nscc, err := c.NamespaceCacheConfig.Complete()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+		}
 
-	nsm, err := namespace.NewCachingNamespaceManager(nscc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+		nsm, err = namespace.NewCachingNamespaceManager(nscc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+		}
 	}
-
-	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
-		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
-	))
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
@@ -133,7 +142,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 			combineddispatch.GrpcPresharedKey(c.PresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-				grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
+				grpc.WithDefaultServiceConfig(balancer.BalancerServiceConfig),
 			),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
 			combineddispatch.CacheConfig(cc),
@@ -155,7 +164,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 
 		var err error
-		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm, cdcc)
+		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm, c.DispatchClusterMetricsPrefix, cdcc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}
@@ -167,6 +176,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		},
 		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
 		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
+		// grpc.NumStreamWorkers(uint32(runtime.NumCPU())),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
@@ -196,6 +206,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 				v1SchemaServiceOption,
 			)
 		},
+		// grpc.NumStreamWorkers(uint32(runtime.NumCPU())),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
@@ -269,6 +280,7 @@ type RunnableServer interface {
 	Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor)
 	SetMiddleware(unaryInterceptors []grpc.UnaryServerInterceptor, streamingInterceptors []grpc.StreamServerInterceptor) RunnableServer
 	GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error)
 }
 
 // completedServerConfig holds the full configuration to run a spicedb server,
@@ -307,6 +319,10 @@ func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grp
 		opts = append(opts, grpcutil.WithBearerToken(c.presharedKey))
 	}
 	return c.gRPCServer.DialContext(ctx, opts...)
+}
+
+func (c *completedServerConfig) DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error) {
+	return c.dispatchGRPCServer.NetDialContext(ctx, s)
 }
 
 func (c *completedServerConfig) Run(ctx context.Context) error {

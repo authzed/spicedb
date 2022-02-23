@@ -1,3 +1,4 @@
+// go:build ci
 //go:build ci
 // +build ci
 

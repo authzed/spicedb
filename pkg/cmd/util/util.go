@@ -58,7 +58,10 @@ func RegisterGRPCServerFlags(flags *pflag.FlagSet, config *GRPCServerConfig, fla
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" gRPC server")
 }
 
-type DialFunc func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+type (
+	DialFunc    func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	NetDialFunc func(ctx context.Context, s string) (net.Conn, error)
+)
 
 // Complete takes a set of default options and returns a completed server
 func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(server *grpc.Server), opts ...grpc.ServerOption) (RunnableGRPCServer, error) {
@@ -82,7 +85,7 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		return nil, err
 	}
 
-	l, dial, err := c.listenerAndDialer()
+	l, dial, netDial, err := c.listenerAndDialer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on addr for gRPC server: %w", err)
 	}
@@ -98,7 +101,8 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		listenFunc: func() error {
 			return srv.Serve(l)
 		},
-		dial: dial,
+		dial:    dial,
+		netDial: netDial,
 		prestopFunc: func() {
 			log.WithLevel(level).Str("addr", c.Address).Str("network", c.Network).
 				Str("prefix", c.flagPrefix).Msg("grpc server stopped listening")
@@ -108,23 +112,26 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 	}, nil
 }
 
-func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, error) {
+func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialFunc, error) {
 	if c.Network == BufferedNetwork {
 		bl := bufconn.Listen(c.BufferSize)
 		return bl, func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-			opts = append(opts, grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+				opts = append(opts, grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+					return bl.DialContext(ctx)
+				}))
+
+				return grpc.DialContext(ctx, BufferedNetwork, opts...)
+			}, func(ctx context.Context, s string) (net.Conn, error) {
 				return bl.DialContext(ctx)
-			}))
-			return grpc.DialContext(ctx, BufferedNetwork, opts...)
-		}, nil
+			}, nil
 	}
 	l, err := net.Listen(c.Network, c.Address)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	return l, func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 		return grpc.DialContext(ctx, c.Address, opts...)
-	}, nil
+	}, nil, nil
 }
 
 func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, error) {
@@ -169,6 +176,7 @@ type RunnableGRPCServer interface {
 	WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer
 	Listen() error
 	DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	NetDialContext(ctx context.Context, s string) (net.Conn, error)
 	Insecure() bool
 	GracefulStop()
 }
@@ -181,6 +189,7 @@ type completedGRPCServer struct {
 	prestopFunc       func()
 	stopFunc          func()
 	dial              func(context.Context, ...grpc.DialOption) (*grpc.ClientConn, error)
+	netDial           func(ctx context.Context, s string) (net.Conn, error)
 	creds             credentials.TransportCredentials
 }
 
@@ -205,6 +214,11 @@ func (c *completedGRPCServer) Listen() error {
 func (c *completedGRPCServer) DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	opts = append(opts, grpc.WithTransportCredentials(c.creds))
 	return c.dial(ctx, opts...)
+}
+
+// NetDialContext returns a low level net.Conn connection to the server
+func (c *completedGRPCServer) NetDialContext(ctx context.Context, s string) (net.Conn, error) {
+	return c.netDial(ctx, s)
 }
 
 // Insecure returns true if the server is configured without TLS enabled
@@ -237,6 +251,11 @@ func (d *disabledGrpcServer) Insecure() bool {
 
 // DialContext starts a connection to grpc server
 func (d *disabledGrpcServer) DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	return nil, nil
+}
+
+// NetDialContext starts a connection to grpc server
+func (d *disabledGrpcServer) NetDialContext(ctx context.Context, s string) (net.Conn, error) {
 	return nil, nil
 }
 
