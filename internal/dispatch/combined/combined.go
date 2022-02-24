@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/authzed/grpcutil"
+	"github.com/dgraph-io/ristretto"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -27,6 +28,7 @@ type optionState struct {
 	upstreamCAPath      string
 	grpcPresharedKey    string
 	grpcDialOpts        []grpc.DialOption
+	cacheConfig         *ristretto.Config
 }
 
 // PrometheusSubsystem sets the subsystem name for the prometheus metrics
@@ -67,6 +69,13 @@ func GrpcDialOpts(opts ...grpc.DialOption) Option {
 	}
 }
 
+// CacheConfig sets the configuration for the local dispatcher's cache.
+func CacheConfig(config *ristretto.Config) Option {
+	return func(state *optionState) {
+		state.cacheConfig = config
+	}
+}
+
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
 func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatcher, error) {
@@ -80,7 +89,7 @@ func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatche
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(nil, opts.prometheusSubsystem)
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem)
 	if err != nil {
 		return nil, err
 	}
@@ -116,9 +125,9 @@ func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatche
 // NewClusterDispatcher takes a caching redispatcher (such as one created by
 // NewDispatcher) and returns a cluster dispatcher suitable for use as the
 // dispatcher for the dispatch grpc server.
-func NewClusterDispatcher(cachingRedispatch dispatch.Dispatcher, nsm namespace.Manager) (dispatch.Dispatcher, error) {
+func NewClusterDispatcher(cachingRedispatch dispatch.Dispatcher, nsm namespace.Manager, config *ristretto.Config) (dispatch.Dispatcher, error) {
 	clusterDispatch := graph.NewDispatcher(cachingRedispatch, nsm)
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(nil, "dispatch")
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(config, "dispatch")
 	if err != nil {
 		return nil, err
 	}

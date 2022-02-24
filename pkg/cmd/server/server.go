@@ -48,6 +48,9 @@ type Config struct {
 	DatastoreConfig datastorecfg.Config
 	Datastore       datastore.Datastore
 
+	// Namespace cache
+	NamespaceCacheConfig CacheConfig
+
 	// Schema options
 	SchemaPrefixesRequired bool
 
@@ -58,6 +61,9 @@ type Config struct {
 	DispatchUpstreamCAPath      string
 	DispatchClientMetricsPrefix string
 	Dispatcher                  dispatch.Dispatcher
+
+	DispatchCacheConfig        CacheConfig
+	ClusterDispatchCacheConfig CacheConfig
 
 	// API Behavior
 	DisableV1SchemaAPI bool
@@ -96,7 +102,12 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 	}
 
-	nsm, err := namespace.NewCachingNamespaceManager(nil)
+	nscc, err := c.NamespaceCacheConfig.Complete()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+	}
+
+	nsm, err := namespace.NewCachingNamespaceManager(nscc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace manager: %w", err)
 	}
@@ -108,6 +119,11 @@ func (c *Config) Complete() (RunnableServer, error) {
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
 		var err error
+		cc, cerr := c.DispatchCacheConfig.Complete()
+		if cerr != nil {
+			return nil, fmt.Errorf("failed to create dispatcher: %w", cerr)
+		}
+
 		dispatcher, err = combineddispatch.NewDispatcher(nsm,
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
@@ -117,6 +133,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 				grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
 			),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
+			combineddispatch.CacheConfig(cc),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -129,8 +146,13 @@ func (c *Config) Complete() (RunnableServer, error) {
 
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
+		cdcc, cerr := c.ClusterDispatchCacheConfig.Complete()
+		if cerr != nil {
+			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", cerr)
+		}
+
 		var err error
-		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm)
+		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm, cdcc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}

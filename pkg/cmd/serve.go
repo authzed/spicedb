@@ -30,6 +30,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	if err := cmd.Flags().MarkHidden("ns-cache-expiration"); err != nil {
 		panic("failed to mark flag hidden: " + err.Error())
 	}
+	server.RegisterCacheConfigFlags(cmd.Flags(), &config.NamespaceCacheConfig, "ns-cache")
 
 	// Flags for parsing and validating schemas.
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
@@ -55,6 +56,8 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 
 	// Flags for configuring the dispatch server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
+	server.RegisterCacheConfigFlags(cmd.Flags(), &config.DispatchCacheConfig, "dispatch-cache")
+	server.RegisterCacheConfigFlags(cmd.Flags(), &config.ClusterDispatchCacheConfig, "dispatch-cluster-cache")
 
 	// Flags for configuring dispatch requests
 	cmd.Flags().Uint32Var(&config.DispatchMaxDepth, "dispatch-max-depth", 50, "maximum recursion depth for nested calls")

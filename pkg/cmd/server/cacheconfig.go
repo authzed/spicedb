@@ -1,0 +1,51 @@
+package server
+
+import (
+	"fmt"
+
+	"github.com/dgraph-io/ristretto"
+	"github.com/dustin/go-humanize"
+	"github.com/jzelinskie/stringz"
+	"github.com/spf13/pflag"
+)
+
+// CacheConfig defines configuration for a ristretto cache.
+// See: https://github.com/dgraph-io/ristretto#Config
+type CacheConfig struct {
+	MaxCost     string
+	NumCounters int64
+	Metrics     bool
+}
+
+const (
+	defaultMaxCost     = "16MB"
+	defaultNumCounters = 1e4 // number of keys to track frequency of (10k).
+	defaultBufferItems = 64
+)
+
+// Complete converts the cache config into a ristretto cache config.
+func (cc *CacheConfig) Complete() (*ristretto.Config, error) {
+	if cc.MaxCost == "" || cc.NumCounters == 0 {
+		return nil, nil
+	}
+
+	maxCost, err := humanize.ParseBytes(cc.MaxCost)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing cache max cost `%s`: %w", cc.MaxCost, err)
+	}
+
+	return &ristretto.Config{
+		MaxCost:     int64(maxCost),
+		NumCounters: cc.NumCounters,
+		Metrics:     cc.Metrics,
+		BufferItems: defaultBufferItems,
+	}, nil
+}
+
+// RegisterCacheConfigFlags registers flags for a ristretto-based cache.
+func RegisterCacheConfigFlags(flags *pflag.FlagSet, config *CacheConfig, flagPrefix string) {
+	flagPrefix = stringz.DefaultEmpty(flagPrefix, "cache")
+	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaultMaxCost, "the maximum cost to be stored in the cache, in bytes")
+	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", defaultNumCounters, "the number of keys to track")
+	flags.BoolVar(&config.Metrics, flagPrefix+"-metrics", false, "whether metrics should be maintained for the cache. WARNING: Incurs a performance penality.")
+}

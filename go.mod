@@ -14,6 +14,7 @@ require (
 	github.com/dave/jennifer v1.4.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/docker/docker v20.10.9+incompatible // indirect
+	github.com/dustin/go-humanize v1.0.0
 	github.com/ecordell/optgen v0.0.6
 	github.com/emirpasic/gods v1.12.0
 	github.com/envoyproxy/protoc-gen-validate v0.6.3
