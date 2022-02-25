@@ -124,8 +124,6 @@ func (mds *mysqlDatastore) runGarbageCollector() error {
 			err := mds.collectGarbage()
 			if err != nil {
 				log.Warn().Err(err).Msg("error when attempting to perform garbage collection")
-			} else {
-				log.Debug().Msg("garbage collection completed for mysql")
 			}
 		}
 	}
@@ -162,7 +160,7 @@ func (mds *mysqlDatastore) collectGarbage() error {
 	}
 
 	if !ready {
-		log.Ctx(ctx).Warn().Msg("cannot perform mysql garbage collection: mysql driver is not yet ready")
+		log.Warn().Msg("cannot perform mysql garbage collection: mysql driver is not yet ready")
 		return nil
 	}
 
@@ -172,8 +170,9 @@ func (mds *mysqlDatastore) collectGarbage() error {
 	}
 
 	before := now.Add(mds.gcWindowInverted)
-	log.Ctx(ctx).Debug().Time("before", before).Msg("running mysql garbage collection")
-	_, _, err = mds.collectGarbageBefore(ctx, before)
+	log.Debug().Time("before", before).Msg("running mysql garbage collection")
+	relCount, transCount, err := mds.collectGarbageBefore(ctx, before)
+	log.Debug().Int64("relationshipsDeleted", relCount).Int64("transactionsDeleted", transCount).Msg("garbage collection completed for mysql")
 	return err
 }
 
@@ -193,12 +192,12 @@ func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time
 	}
 
 	if !value.Valid {
-		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
+		log.Debug().Time("before", before).Msg("no stale transactions found in the datastore")
 		return 0, 0, nil
 	}
 	highest := uint64(value.Int64)
 
-	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Msg("retrieved transaction ID for GC")
+	log.Trace().Uint64("highestTransactionId", highest).Msg("retrieved transaction ID for GC")
 
 	return mds.collectGarbageForTransaction(ctx, highest)
 }
@@ -210,7 +209,7 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 		return 0, 0, err
 	}
 
-	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
+	log.Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
 	// itself to ensure there is always at least one transaction present.
 	transactionCount, err := mds.batchDelete(ctx, common.TableTransaction, sq.Lt{common.ColID: highest})
@@ -218,7 +217,7 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 		return relCount, 0, err
 	}
 
-	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("transactionsDeleted", transactionCount).Msg("deleted stale transactions")
+	log.Trace().Uint64("highestTransactionId", highest).Int64("transactionsDeleted", transactionCount).Msg("deleted stale transactions")
 	return relCount, transactionCount, nil
 }
 
