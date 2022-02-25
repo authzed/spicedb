@@ -98,11 +98,7 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.WriteSchemaRequest) (*v1alpha1.WriteSchemaResponse, error) {
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 	ds := datastoremw.MustFromContext(ctx)
-
-	nsm, err := namespace.NewCachingNamespaceManager(0, nil) // non-caching manager
-	if err != nil {
-		return nil, rewriteError(ctx, err)
-	}
+	nsm := namespace.NewNonCachingNamespaceManager()
 
 	inputSchema := compiler.InputSchema{
 		Source:       input.Source("schema"),

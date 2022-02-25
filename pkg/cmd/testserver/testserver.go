@@ -3,7 +3,6 @@ package testserver
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -22,10 +21,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
-const (
-	nsCacheExpiration = 0 * time.Minute // No caching
-	maxDepth          = 50
-)
+const maxDepth = 50
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
@@ -41,7 +37,7 @@ type RunnableTestServer interface {
 }
 
 func (c *Config) Complete() (RunnableTestServer, error) {
-	nsm, err := namespace.NewCachingNamespaceManager(nsCacheExpiration, nil)
+	nsm, err := namespace.NewCachingNamespaceManager(nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize namespace manager: %w", err)
 	}

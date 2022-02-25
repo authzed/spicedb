@@ -8,7 +8,6 @@ import (
 	"go/token"
 	"os"
 	"testing"
-	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -280,7 +279,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	require.True(revision.GreaterThan(decimal.Zero))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	nsm, err := namespace.NewCachingNamespaceManager(1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingNamespaceManager(testCacheConfig)
 	require.NoError(err)
 
 	dispatch := NewLocalOnlyDispatcher(nsm)

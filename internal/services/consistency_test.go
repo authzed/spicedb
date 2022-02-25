@@ -77,7 +77,7 @@ func TestConsistency(t *testing.T) {
 							})
 							t.Cleanup(cleanup)
 
-							ns, err := namespace.NewCachingNamespaceManager(1*time.Second, nil)
+							ns, err := namespace.NewCachingNamespaceManager(nil)
 							lrequire.NoError(err)
 
 							dsCtx := datastoremw.ContextWithHandle(context.Background())

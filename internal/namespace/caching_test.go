@@ -3,9 +3,9 @@ package namespace
 import (
 	"context"
 	"testing"
-	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/dgraph-io/ristretto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -14,7 +14,7 @@ import (
 )
 
 func TestDisjointCacheKeys(t *testing.T) {
-	cache, err := NewCachingNamespaceManager(10*time.Second, nil)
+	cache, err := NewCachingNamespaceManager(nil)
 	require.NoError(t, err)
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
@@ -37,7 +37,7 @@ func TestDisjointCacheKeys(t *testing.T) {
 	keyA, err := dsA.NamespaceCacheKey("test/user", rev)
 	require.NoError(t, err)
 
-	rCache := cache.(*cachingManager).c
+	rCache := cache.(*cachingManager).c.(*ristretto.Cache)
 	rCache.Wait()
 
 	nsA, ok := rCache.Get(keyA)
@@ -61,4 +61,32 @@ func TestDisjointCacheKeys(t *testing.T) {
 
 	// namespaces are different
 	require.NotEmpty(t, nsA, nsB)
+}
+
+func TestNoCache(t *testing.T) {
+	cache := NewNonCachingNamespaceManager()
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	require.NoError(t, err)
+
+	ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
+
+	rev, err := ds.WriteNamespace(ctx, &v0.NamespaceDefinition{Name: "test/user"})
+	require.NoError(t, err)
+
+	def, err := cache.ReadNamespace(ctx, "test/user", rev)
+	require.NoError(t, err)
+	require.Equal(t, "test/user", def.Name)
+
+	defB, err := cache.ReadNamespace(ctx, "test/user", rev)
+	require.NoError(t, err)
+	require.Equal(t, "test/user", defB.Name)
+
+	rev, err = ds.WriteNamespace(ctx, &v0.NamespaceDefinition{Name: "test/user", Relation: []*v0.Relation{{Name: "test"}}})
+	require.NoError(t, err)
+	defC, err := cache.ReadNamespace(ctx, "test/user", rev)
+	require.NoError(t, err)
+	require.Equal(t, "test/user", defC.Name)
+	require.EqualValues(t, "test", defC.Relation[0].Name)
+
+	require.Equal(t, def, defB)
 }

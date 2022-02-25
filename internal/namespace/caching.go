@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/dgraph-io/ristretto"
@@ -21,14 +20,20 @@ const (
 	errInitialization = "unable to initialize namespace manager: %w"
 )
 
+// nsCache holds the subset of the underlying ristretto.Cache interface that the
+// manager needs
+type nsCache interface {
+	Get(key interface{}) (interface{}, bool)
+	Set(key, value interface{}, cost int64) bool
+	Close()
+}
+
 type cachingManager struct {
-	expiration  time.Duration
-	c           *ristretto.Cache
+	c           nsCache
 	readNsGroup singleflight.Group
 }
 
 func NewCachingNamespaceManager(
-	expiration time.Duration,
 	cacheConfig *ristretto.Config,
 ) (Manager, error) {
 	if cacheConfig == nil {
@@ -45,9 +50,13 @@ func NewCachingNamespaceManager(
 	}
 
 	return &cachingManager{
-		expiration: expiration,
-		c:          cache,
+		c: cache,
 	}, nil
+}
+
+// NewNonCachingNamespaceManager returns a namespace manager that doesn't cache
+func NewNonCachingNamespaceManager() Manager {
+	return &cachingManager{c: noCache{}}
 }
 
 func (nsc *cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*v0.NamespaceDefinition, *NamespaceTypeSystem, error) {
@@ -67,7 +76,7 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 
 	ds := datastoremw.MustFromContext(ctx)
 
-	// Check the cache.
+	// Check the nsCache.
 	nsRevisionKey, err := ds.NamespaceCacheKey(nsName, revision)
 	if err != nil {
 		return nil, err
@@ -88,14 +97,9 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 		// Remove user-defined metadata.
 		loaded = namespace.FilterUserDefinedMetadata(loaded)
 
-		cacheKey, err := ds.NamespaceCacheKey(nsName, revision)
-		if err != nil {
-			return nil, err
-		}
-
-		// Save it to the cache
-		nsc.c.Set(cacheKey, loaded, int64(proto.Size(loaded)))
-		span.AddEvent("Saved to cache")
+		// Save it to the nsCache
+		nsc.c.Set(nsRevisionKey, loaded, int64(proto.Size(loaded)))
+		span.AddEvent("Saved to nsCache")
 
 		return loaded, err
 	})
@@ -132,3 +136,18 @@ func (nsc *cachingManager) Close() error {
 	nsc.c.Close()
 	return nil
 }
+
+// noCache is an implementation of nsCache that doesn't cache
+type noCache struct{}
+
+var _ nsCache = noCache{}
+
+func (n noCache) Get(key interface{}) (interface{}, bool) {
+	return nil, false
+}
+
+func (n noCache) Set(key, value interface{}, cost int64) bool {
+	return false
+}
+
+func (n noCache) Close() {}

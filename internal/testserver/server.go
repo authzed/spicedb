@@ -29,11 +29,10 @@ func NewTestServer(require *require.Assertions,
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
 	require.NoError(err)
 	ds, revision := dsInitFunc(emptyDS, require)
-	ns, err := namespace.NewCachingNamespaceManager(1*time.Second, nil)
+	ns, err := namespace.NewCachingNamespaceManager(nil)
 	require.NoError(err)
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
-		server.WithNamespaceCacheExpiration(1*time.Second),
 		server.WithDispatcher(graph.NewLocalOnlyDispatcher(ns)),
 		server.WithDispatchMaxDepth(50),
 		server.WithGRPCServer(util.GRPCServerConfig{
@@ -41,7 +40,6 @@ func NewTestServer(require *require.Assertions,
 			Enabled: true,
 		}),
 		server.WithSchemaPrefixesRequired(schemaPrefixRequired),
-		server.WithNamespaceCacheExpiration(1*time.Second),
 		server.WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
 			return ctx, nil
 		}),
