@@ -19,7 +19,7 @@ var createNamespaceConfig = fmt.Sprintf("CREATE TABLE %s", common.TableNamespace
 // relationship max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L33
 // object id max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L45
 var createRelationTuple = fmt.Sprintf("CREATE TABLE %s", common.TableTuple) +
-	` (	id BIGINT NOT NULL AUTO_INCREMENT,
+	` ( id BIGINT NOT NULL AUTO_INCREMENT,
 		namespace VARCHAR(128) NOT NULL,
 		object_id VARCHAR(128) NOT NULL,
 		relation VARCHAR(64) NOT NULL,
@@ -34,8 +34,7 @@ var createRelationTuple = fmt.Sprintf("CREATE TABLE %s", common.TableTuple) +
 	);`
 
 var createRelationTupleTransaction = fmt.Sprintf("CREATE TABLE %s", common.TableTransaction) +
-	` (
-		id BIGINT NOT NULL AUTO_INCREMENT,
+	` ( id BIGINT NOT NULL AUTO_INCREMENT,
 		timestamp DATETIME(6) DEFAULT NOW(6) NOT NULL,
 		PRIMARY KEY (id)
 	);`
