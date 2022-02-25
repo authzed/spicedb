@@ -24,8 +24,6 @@ const (
 	errRevision      = "unable to find revision: %w"
 	errCheckRevision = "unable to check revision: %w"
 
-	createTxn = "INSERT INTO relation_tuple_transaction VALUES()"
-
 	liveDeletedTxnID = uint64(9223372036854775807)
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
@@ -38,6 +36,7 @@ var (
 
 	getRevision      = sb.Select("MAX(id)").From(common.TableTransaction)
 	getRevisionRange = sb.Select("MIN(id)", "MAX(id)").From(common.TableTransaction)
+	createTxn        = sb.Insert(common.TableTransaction)
 
 	getNow = sb.Select("NOW(6) as now")
 
@@ -252,7 +251,13 @@ func createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	result, err := tx.ExecContext(ctx, createTxn)
+	createQuery, _, err := createTxn.Values(sq.Expr("DEFAULT")).ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: %w", err)
+	}
+
+	fmt.Println("**********" + createQuery)
+	result, err := tx.ExecContext(ctx, createQuery)
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}

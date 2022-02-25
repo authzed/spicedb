@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 
 	sq "github.com/Masterminds/squirrel"
@@ -19,10 +20,6 @@ import (
 )
 
 const (
-	TableNamespace   = "namespace_config"
-	TableTransaction = "relation_tuple_transaction"
-	TableTuple       = "relation_tuple"
-
 	ColID               = "id"
 	ColTimestamp        = "timestamp"
 	ColNamespace        = "namespace"
@@ -37,6 +34,10 @@ const (
 )
 
 var (
+	TableNamespace   = tableNameWithPrefix("namespace_config")
+	TableTransaction = tableNameWithPrefix("relation_tuple_transaction")
+	TableTuple       = tableNameWithPrefix("relation_tuple")
+
 	// ObjNamespaceNameKey is a tracing attribute representing the resource
 	// object type.
 	ObjNamespaceNameKey = attribute.Key("authzed.com/spicedb/sql/objNamespaceName")
@@ -90,6 +91,15 @@ type SchemaQueryFilterer struct {
 	queryBuilder         sq.SelectBuilder
 	currentEstimatedSize int
 	tracerAttributes     []attribute.KeyValue
+}
+
+func tableNameWithPrefix(tableName string) string {
+	prefix, ok := os.LookupEnv("table_prefix")
+	if !ok {
+		return tableName
+	}
+
+	return fmt.Sprintf("%s%s", prefix, tableName)
 }
 
 // NewSchemaQueryFilterer creates a new SchemaQueryFilterer object.
