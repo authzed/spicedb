@@ -9,7 +9,7 @@ import (
 // namespace max size: https://buf.build/authzed/api/file/main/authzed/api/v0/core.proto#L29
 var createNamespaceConfig = fmt.Sprintf("CREATE TABLE %s", common.TableNamespace) +
 	` ( namespace VARCHAR(128) NOT NULL,
-	    serialized_config BLOB NOT NULL,
+		serialized_config BLOB NOT NULL,
 		created_transaction BIGINT NOT NULL,
 		deleted_transaction BIGINT NOT NULL DEFAULT '9223372036854775807',
 		CONSTRAINT pk_namespace_config PRIMARY KEY (namespace, created_transaction),
