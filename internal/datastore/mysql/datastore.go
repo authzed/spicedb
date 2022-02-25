@@ -36,7 +36,7 @@ var (
 
 	getRevision      = sb.Select("MAX(id)").From(common.TableTransaction)
 	getRevisionRange = sb.Select("MIN(id)", "MAX(id)").From(common.TableTransaction)
-	createTxn        = sb.Insert(common.TableTransaction)
+	createTxn        = sb.Insert(common.TableTransaction).Values()
 
 	getNow = sb.Select("NOW(6) as now")
 
@@ -251,7 +251,7 @@ func createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	createQuery, _, err := createTxn.Values().ToSql()
+	createQuery, _, err := createTxn.ToSql()
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}
