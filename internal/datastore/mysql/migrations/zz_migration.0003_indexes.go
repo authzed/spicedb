@@ -1,9 +1,15 @@
 package migrations
 
-const (
-	createReverseQueryIndex                = `CREATE INDEX ix_relation_tuple_by_subject ON relation_tuple (userset_object_id, userset_namespace, userset_relation, namespace, relation)`
-	createReverseCheckIndex                = `CREATE INDEX ix_relation_tuple_by_subject_relation ON relation_tuple (userset_namespace, userset_relation, namespace, relation)`
-	createIndexOnTupleTransactionTimestamp = `CREATE INDEX ix_relation_tuple_transaction_by_timestamp on relation_tuple_transaction(timestamp)`
+import (
+	"fmt"
+
+	"github.com/authzed/spicedb/internal/datastore/common"
+)
+
+var (
+	createReverseQueryIndex                = fmt.Sprintf("CREATE INDEX ix_relation_tuple_by_subject ON %s (userset_object_id, userset_namespace, userset_relation, namespace, relation)", common.TableTuple)
+	createReverseCheckIndex                = fmt.Sprintf("CREATE INDEX ix_relation_tuple_by_subject_relation ON %s (userset_namespace, userset_relation, namespace, relation)", common.TableTuple)
+	createIndexOnTupleTransactionTimestamp = fmt.Sprintf("CREATE INDEX ix_relation_tuple_transaction_by_timestamp on %s (timestamp)", common.TableTransaction)
 )
 
 func init() {

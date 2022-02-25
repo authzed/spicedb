@@ -20,6 +20,10 @@ import (
 )
 
 const (
+	TableNamespaceDefault   = "namespace_config"
+	TableTransactionDefault = "relation_tuple_transaction"
+	TableTupleDefault       = "relation_tuple"
+
 	ColID               = "id"
 	ColTimestamp        = "timestamp"
 	ColNamespace        = "namespace"
@@ -34,9 +38,9 @@ const (
 )
 
 var (
-	TableNamespace   = tableNameWithPrefix("namespace_config")
-	TableTransaction = tableNameWithPrefix("relation_tuple_transaction")
-	TableTuple       = tableNameWithPrefix("relation_tuple")
+	TableNamespace   = tableNameWithPrefix(TableNamespaceDefault)
+	TableTransaction = tableNameWithPrefix(TableTransactionDefault)
+	TableTuple       = tableNameWithPrefix(TableTupleDefault)
 
 	// ObjNamespaceNameKey is a tracing attribute representing the resource
 	// object type.
@@ -93,13 +97,16 @@ type SchemaQueryFilterer struct {
 	tracerAttributes     []attribute.KeyValue
 }
 
+// Check if there's an enironment variable set with a prefix for db table names. If there is,
+// prepend it to the given tableName, otherwise just return the tableName.
 func tableNameWithPrefix(tableName string) string {
-	prefix, ok := os.LookupEnv("table_prefix")
+	tablePrefix, ok := os.LookupEnv("table_prefix")
+	// os.LookupEnv will return an error if the environment variable isn't set
 	if !ok {
 		return tableName
 	}
 
-	return fmt.Sprintf("%s%s", prefix, tableName)
+	return fmt.Sprintf("%s%s", tablePrefix, tableName)
 }
 
 // NewSchemaQueryFilterer creates a new SchemaQueryFilterer object.
