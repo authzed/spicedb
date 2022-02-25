@@ -7,6 +7,8 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/dgraph-io/ristretto"
+	"github.com/dustin/go-humanize"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/protobuf/proto"
@@ -42,6 +44,8 @@ func NewCachingNamespaceManager(
 			MaxCost:     1 << 24, // maximum cost of cache (16MB).
 			BufferItems: 64,      // number of keys per Get buffer.
 		}
+	} else {
+		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching namespace manager")
 	}
 
 	cache, err := ristretto.NewCache(cacheConfig)

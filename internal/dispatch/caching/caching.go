@@ -6,6 +6,7 @@ import (
 	"unsafe"
 
 	"github.com/dgraph-io/ristretto"
+	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
@@ -61,6 +62,8 @@ func NewCachingDispatcher(
 			BufferItems: 64,      // number of keys per Get buffer.
 			Metrics:     true,    // collect metrics.
 		}
+	} else {
+		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching dispatcher")
 	}
 
 	cache, err := ristretto.NewCache(cacheConfig)

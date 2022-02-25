@@ -36,6 +36,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.HTTPGatewayCorsAllowedOrigins = c.HTTPGatewayCorsAllowedOrigins
 		to.DatastoreConfig = c.DatastoreConfig
 		to.Datastore = c.Datastore
+		to.NamespaceCacheConfig = c.NamespaceCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
 		to.DispatchMaxDepth = c.DispatchMaxDepth
@@ -43,6 +44,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
 		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
 		to.Dispatcher = c.Dispatcher
+		to.DispatchCacheConfig = c.DispatchCacheConfig
+		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
 		to.DashboardAPI = c.DashboardAPI
 		to.MetricsAPI = c.MetricsAPI
@@ -145,6 +148,13 @@ func WithDatastore(datastore datastore1.Datastore) ConfigOption {
 	}
 }
 
+// WithNamespaceCacheConfig returns an option that can set NamespaceCacheConfig on a Config
+func WithNamespaceCacheConfig(namespaceCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.NamespaceCacheConfig = namespaceCacheConfig
+	}
+}
+
 // WithSchemaPrefixesRequired returns an option that can set SchemaPrefixesRequired on a Config
 func WithSchemaPrefixesRequired(schemaPrefixesRequired bool) ConfigOption {
 	return func(c *Config) {
@@ -191,6 +201,20 @@ func WithDispatchClientMetricsPrefix(dispatchClientMetricsPrefix string) ConfigO
 func WithDispatcher(dispatcher dispatch.Dispatcher) ConfigOption {
 	return func(c *Config) {
 		c.Dispatcher = dispatcher
+	}
+}
+
+// WithDispatchCacheConfig returns an option that can set DispatchCacheConfig on a Config
+func WithDispatchCacheConfig(dispatchCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.DispatchCacheConfig = dispatchCacheConfig
+	}
+}
+
+// WithClusterDispatchCacheConfig returns an option that can set ClusterDispatchCacheConfig on a Config
+func WithClusterDispatchCacheConfig(clusterDispatchCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.ClusterDispatchCacheConfig = clusterDispatchCacheConfig
 	}
 }
 
