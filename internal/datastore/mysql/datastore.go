@@ -251,12 +251,11 @@ func createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	createQuery, _, err := createTxn.Values(sq.Expr("DEFAULT")).ToSql()
+	createQuery, _, err := createTxn.Values().ToSql()
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}
 
-	fmt.Println("**********" + createQuery)
 	result, err := tx.ExecContext(ctx, createQuery)
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
