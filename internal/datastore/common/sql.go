@@ -100,7 +100,7 @@ type SchemaQueryFilterer struct {
 // Check if there's an enironment variable set with a prefix for db table names. If there is,
 // prepend it to the given tableName, otherwise just return the tableName.
 func tableNameWithPrefix(tableName string) string {
-	tablePrefix, ok := os.LookupEnv("table_prefix")
+	tablePrefix, ok := os.LookupEnv("SPICEDB_TABLE_PREFIX")
 	// os.LookupEnv will return an error if the environment variable isn't set
 	if !ok {
 		return tableName
