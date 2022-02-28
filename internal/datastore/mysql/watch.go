@@ -16,16 +16,18 @@ const (
 	watchSleep = 100 * time.Millisecond
 )
 
-var queryChanged = sb.Select(
-	common.ColNamespace,
-	common.ColObjectID,
-	common.ColRelation,
-	common.ColUsersetNamespace,
-	common.ColUsersetObjectID,
-	common.ColUsersetRelation,
-	common.ColCreatedTxn,
-	common.ColDeletedTxn,
-).From(common.TableTuple)
+func (mds *mysqlDatastore) queryChanged(sb sq.StatementBuilderType) sq.SelectBuilder {
+	return sb.Select(
+		common.ColNamespace,
+		common.ColObjectID,
+		common.ColRelation,
+		common.ColUsersetNamespace,
+		common.ColUsersetObjectID,
+		common.ColUsersetRelation,
+		common.ColCreatedTxn,
+		common.ColDeletedTxn,
+	).From(mds.TableTuple())
+}
 
 // Watch notifies the caller about all changes to tuples.
 //
@@ -94,7 +96,7 @@ func (mds *mysqlDatastore) loadChanges(
 		return
 	}
 
-	sql, args, err := queryChanged.Where(sq.Or{
+	sql, args, err := mds.queryChanged(sb).Where(sq.Or{
 		sq.And{
 			sq.Gt{common.ColCreatedTxn: afterRevision},
 			sq.LtOrEq{common.ColCreatedTxn: newRevision},

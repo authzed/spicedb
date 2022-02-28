@@ -189,3 +189,10 @@ func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 		c.GCMaxOperationTime = gCMaxOperationTime
 	}
 }
+
+// WithTablePrefix returns an option that can set TablePrefix on a Config
+func WithTablePrefix(tablePrefix string) ConfigOption {
+	return func(c *Config) {
+		c.TablePrefix = tablePrefix
+	}
+}

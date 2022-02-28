@@ -3,7 +3,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"os"
 	"runtime"
 
 	sq "github.com/Masterminds/squirrel"
@@ -38,10 +37,6 @@ const (
 )
 
 var (
-	TableNamespace   = tableNameWithPrefix(TableNamespaceDefault)
-	TableTransaction = tableNameWithPrefix(TableTransactionDefault)
-	TableTuple       = tableNameWithPrefix(TableTupleDefault)
-
 	// ObjNamespaceNameKey is a tracing attribute representing the resource
 	// object type.
 	ObjNamespaceNameKey = attribute.Key("authzed.com/spicedb/sql/objNamespaceName")
@@ -95,18 +90,6 @@ type SchemaQueryFilterer struct {
 	queryBuilder         sq.SelectBuilder
 	currentEstimatedSize int
 	tracerAttributes     []attribute.KeyValue
-}
-
-// Check if there's an enironment variable set with a prefix for db table names. If there is,
-// prepend it to the given tableName, otherwise just return the tableName.
-func tableNameWithPrefix(tableName string) string {
-	tablePrefix, ok := os.LookupEnv("SPICEDB_TABLE_PREFIX")
-	// os.LookupEnv will return an error if the environment variable isn't set
-	if !ok {
-		return tableName
-	}
-
-	return fmt.Sprintf("%s%s", tablePrefix, tableName)
 }
 
 // NewSchemaQueryFilterer creates a new SchemaQueryFilterer object.

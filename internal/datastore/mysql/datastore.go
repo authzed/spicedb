@@ -34,10 +34,6 @@ const (
 var (
 	tracer = otel.Tracer("spicedb/internal/datastore/mysql")
 
-	getRevision      = sb.Select("MAX(id)").From(common.TableTransaction)
-	getRevisionRange = sb.Select("MIN(id)", "MAX(id)").From(common.TableTransaction)
-	createTxn        = sb.Insert(common.TableTransaction).Values()
-
 	getNow = sb.Select("NOW(6) as now")
 
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
@@ -70,6 +66,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		gcCtx:                     gcCtx,
 		cancelGc:                  cancelGc,
 		watchBufferLength:         config.watchBufferLength,
+		tablePrefix:               config.tablePrefix,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -97,6 +94,8 @@ type mysqlDatastore struct {
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
+
+	tablePrefix string
 }
 
 // Close closes the data store.
@@ -177,7 +176,7 @@ func (mds *mysqlDatastore) collectGarbage() error {
 
 func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
 	// Find the highest transaction ID before the GC window.
-	query, args, err := getRevision.Where(sq.Lt{common.ColTimestamp: before}).ToSql()
+	query, args, err := mds.getRevision(sb).Where(sq.Lt{common.ColTimestamp: before}).ToSql()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -203,7 +202,7 @@ func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time
 
 func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	relCount, err := mds.batchDelete(ctx, common.TableTuple, sq.LtOrEq{common.ColDeletedTxn: highest})
+	relCount, err := mds.batchDelete(ctx, mds.TableTuple(), sq.LtOrEq{common.ColDeletedTxn: highest})
 	if err != nil {
 		return 0, 0, err
 	}
@@ -211,7 +210,7 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 	log.Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
 	// itself to ensure there is always at least one transaction present.
-	transactionCount, err := mds.batchDelete(ctx, common.TableTransaction, sq.Lt{common.ColID: highest})
+	transactionCount, err := mds.batchDelete(ctx, mds.TableTransaction(), sq.Lt{common.ColID: highest})
 	if err != nil {
 		return relCount, 0, err
 	}
@@ -246,11 +245,11 @@ func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, fi
 	return deletedCount, nil
 }
 
-func createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
+func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	createQuery, _, err := createTxn.ToSql()
+	createQuery, _, err := mds.createTxn(sb).ToSql()
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}
@@ -438,4 +437,28 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 	}
 
 	return uint64(lower.Int64), uint64(upper.Int64), nil
+}
+
+func (mds *mysqlDatastore) TableNamespace() string {
+	return fmt.Sprintf("%s%s", mds.tablePrefix, common.TableNamespaceDefault)
+}
+
+func (mds *mysqlDatastore) TableTransaction() string {
+	return fmt.Sprintf("%s%s", mds.tablePrefix, common.TableTransactionDefault)
+}
+
+func (mds *mysqlDatastore) TableTuple() string {
+	return fmt.Sprintf("%s%s", mds.tablePrefix, common.TableTupleDefault)
+}
+
+func (mds *mysqlDatastore) getRevision(sb sq.StatementBuilderType) sq.SelectBuilder {
+	return sb.Select("MAX(id)").From(mds.TableTransaction())
+}
+
+func (mds *mysqlDatastore) getRevisionRange(sb sq.StatementBuilderType) sq.SelectBuilder {
+	return sb.Select("MIN(id)", "MAX(id)").From(mds.TableTransaction())
+}
+
+func (mds *mysqlDatastore) createTxn(sb sq.StatementBuilderType) sq.InsertBuilder {
+	return sb.Insert(mds.TableTransaction()).Values()
 }

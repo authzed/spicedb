@@ -64,6 +64,9 @@ type Config struct {
 	HealthCheckPeriod  time.Duration
 	GCInterval         time.Duration
 	GCMaxOperationTime time.Duration
+
+	// MySQL
+	TablePrefix string
 }
 
 func (o *Config) ToOption() ConfigOption {
@@ -91,6 +94,7 @@ func (o *Config) ToOption() ConfigOption {
 		to.HealthCheckPeriod = o.HealthCheckPeriod
 		to.GCInterval = o.GCInterval
 		to.GCMaxOperationTime = o.GCMaxOperationTime
+		to.TablePrefix = o.TablePrefix
 	}
 }
 
@@ -120,6 +124,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 50, "number of times a retriable transaction should be retried (cockroach driver only)")
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
+	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-table-prefix", "prefix", "prefix to add to the name of all SpiceDB database tables (mysql driver only)")
 }
 
 func DefaultDatastoreConfig() *Config {
@@ -249,10 +254,12 @@ func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 }
 
 func newMysqlDatastore(opts Config) (datastore.Datastore, error) {
-	return mysql.NewMysqlDatastore(opts.URI,
+	return mysql.NewMysqlDatastore(
+		opts.URI,
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCWindow(opts.GCWindow),
 		mysql.GCInterval(opts.GCInterval),
 		mysql.RevisionFuzzingTimedelta(opts.RevisionQuantization),
+		mysql.TablePrefix(opts.TablePrefix),
 	)
 }

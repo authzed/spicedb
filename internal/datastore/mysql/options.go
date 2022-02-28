@@ -26,6 +26,7 @@ type mysqlOptions struct {
 	gcMaxOperationTime        time.Duration
 	splitAtEstimatedQuerySize units.Base2Bytes
 	watchBufferLength         uint16
+	tablePrefix               string
 }
 
 // Option provides the facility to configure how clients within the
@@ -93,5 +94,11 @@ func GCWindow(window time.Duration) Option {
 func GCInterval(interval time.Duration) Option {
 	return func(mo *mysqlOptions) {
 		mo.gcInterval = interval
+	}
+}
+
+func TablePrefix(prefix string) Option {
+	return func(mo *mysqlOptions) {
+		mo.tablePrefix = prefix
 	}
 }

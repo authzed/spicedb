@@ -15,8 +15,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
-var (
-	writeTuple = sb.Insert(common.TableTuple).Columns(
+func (mds *mysqlDatastore) writeTuple(sb sq.StatementBuilderType) sq.InsertBuilder {
+	return sb.Insert(mds.TableTuple()).Columns(
 		common.ColNamespace,
 		common.ColObjectID,
 		common.ColRelation,
@@ -25,11 +25,15 @@ var (
 		common.ColUsersetRelation,
 		common.ColCreatedTxn,
 	)
+}
 
-	deleteTuple = sb.Update(common.TableTuple).Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
+func (mds *mysqlDatastore) deleteTuple(sb sq.StatementBuilderType) sq.UpdateBuilder {
+	return sb.Update(mds.TableTuple()).Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
+}
 
-	queryTupleExists = sb.Select(common.ColID).From(common.TableTuple)
-)
+func (mds *mysqlDatastore) queryTupleExists(sb sq.StatementBuilderType) sq.SelectBuilder {
+	return sb.Select(common.ColID).From(mds.TableTuple())
+}
 
 // WriteTuples takes a list of existing tuples that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified
@@ -48,12 +52,12 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 	}
 
-	newTxnID, err := createNewTransaction(ctx, tx)
+	newTxnID, err := mds.createNewTransaction(ctx, tx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 	}
 
-	bulkWrite := writeTuple
+	bulkWrite := mds.writeTuple(sb)
 	bulkWriteHasValues := false
 
 	// Process the actual updates
@@ -61,7 +65,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 		rel := mut.Relationship
 
 		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
-			query, args, err := deleteTuple.Where(common.ExactRelationshipClause(rel)).Set(common.ColDeletedTxn, newTxnID).ToSql()
+			query, args, err := mds.deleteTuple(sb).Where(common.ExactRelationshipClause(rel)).Set(common.ColDeletedTxn, newTxnID).ToSql()
 			if err != nil {
 				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 			}
@@ -113,7 +117,7 @@ func (mds *mysqlDatastore) checkPreconditions(ctx context.Context, tx *sql.Tx, p
 	for _, precond := range preconditions {
 		switch precond.Operation {
 		case v1.Precondition_OPERATION_MUST_NOT_MATCH, v1.Precondition_OPERATION_MUST_MATCH:
-			query, args, err := selectQueryForFilter(precond.Filter).Limit(1).ToSql()
+			query, args, err := mds.selectQueryForFilter(precond.Filter).Limit(1).ToSql()
 			if err != nil {
 				return err
 			}
@@ -142,8 +146,8 @@ func (mds *mysqlDatastore) checkPreconditions(ctx context.Context, tx *sql.Tx, p
 }
 
 // NOTE(chriskirkland): this is all generic other than the squirrel templating for `queryTupleExists`
-func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
-	query := queryTupleExists.Where(sq.Eq{common.ColNamespace: filter.ResourceType})
+func (mds *mysqlDatastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
+	query := mds.queryTupleExists(sb).Where(sq.Eq{common.ColNamespace: filter.ResourceType})
 
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{common.ColObjectID: filter.OptionalResourceId})
@@ -181,7 +185,7 @@ func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, precondition
 	}
 
 	// Add clauses for the ResourceFilter
-	query := deleteTuple.Where(sq.Eq{common.ColNamespace: filter.ResourceType})
+	query := mds.deleteTuple(sb).Where(sq.Eq{common.ColNamespace: filter.ResourceType})
 	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{common.ColObjectID: filter.OptionalResourceId})
@@ -208,7 +212,7 @@ func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, precondition
 
 	span.SetAttributes(tracerAttributes...)
 
-	newTxnID, err := createNewTransaction(ctx, tx)
+	newTxnID, err := mds.createNewTransaction(ctx, tx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 	}
