@@ -172,3 +172,64 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, `definition example/user {}`, readback.SchemaText)
 }
+
+func TestSchemaRemoveWildcard(t *testing.T) {
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+	v0client := v0.NewACLServiceClient(conn)
+
+	// Write a basic schema.
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition example/user {}
+	
+		definition example/document {
+			relation somerelation: example/user:*
+		}`,
+	})
+	require.NoError(t, err)
+
+	// Write the wildcard relationship.
+	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
+		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
+		)},
+	})
+	require.Nil(t, err)
+
+	newSchema := `definition example/document {
+	relation somerelation: example/organization#user
+}
+
+definition example/organization {
+	relation user: example/user
+}
+
+definition example/user {}`
+
+	// Attempt to change the wildcard type, which should fail.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: newSchema,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed wildcard type `example/user:*` from Relation `somerelation` in Object Definition `example/document`, as a Relationship exists with it", err.Error())
+
+	// Delete the relationship.
+	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
+		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
+			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
+		)},
+	})
+	require.Nil(t, err)
+
+	// Attempt to delete the wildcard type, which should work now.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: newSchema,
+	})
+	require.Nil(t, err)
+
+	// Ensure it was deleted.
+	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	require.NoError(t, err)
+	require.Equal(t, newSchema, readback.SchemaText)
+}

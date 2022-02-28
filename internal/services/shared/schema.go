@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // EnsureNoRelationshipsExist ensures that no relationships exist within the namespace with the given name.
@@ -105,6 +106,30 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 				qy,
 				qyErr,
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship references it", delta.RelationName, nsdef.Name)
+			if err != nil {
+				return err
+			}
+
+		case namespace.RelationDirectWildcardTypeRemoved:
+			qy, qyErr := ds.ReverseQueryTuples(
+				ctx,
+				&v1.SubjectFilter{
+					SubjectType:       delta.WildcardType,
+					OptionalSubjectId: tuple.PublicWildcard,
+				},
+				headRevision,
+				options.WithResRelation(&options.ResourceRelation{
+					Namespace: nsdef.Name,
+					Relation:  delta.RelationName,
+				}),
+				options.WithReverseLimit(options.LimitOne),
+			)
+			err = ErrorIfTupleIteratorReturnsTuples(
+				ctx,
+				qy,
+				qyErr,
+				"cannot remove allowed wildcard type `%s:*` from Relation `%s` in Object Definition `%s`, as a Relationship exists with it",
+				delta.WildcardType, delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
 			}
