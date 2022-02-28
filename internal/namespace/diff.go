@@ -40,11 +40,11 @@ const (
 
 	// RelationDirectWildcardTypeAdded indicates that an allowed relation wildcard type has been added to
 	// the relation.
-	RelationDirectWildcardTypeAdded DeltaType = "relation-direct-type-added"
+	RelationDirectWildcardTypeAdded DeltaType = "relation-wildcard-type-added"
 
 	// RelationDirectWildcardTypeRemoved indicates that an allowed relation wildcard type has been removed from
 	// the relation.
-	RelationDirectWildcardTypeRemoved DeltaType = "relation-direct-type-removed"
+	RelationDirectWildcardTypeRemoved DeltaType = "relation-wildcard-type-removed"
 )
 
 // NamespaceDiff holds the diff between two namespaces.

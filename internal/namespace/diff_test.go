@@ -224,7 +224,6 @@ func TestNamespaceDiff(t *testing.T) {
 				{Type: RelationDirectWildcardTypeAdded, RelationName: "somerel", WildcardType: "foo2"},
 			},
 		},
-
 		{
 			"wildcard type changed",
 			ns.Namespace(
@@ -246,6 +245,24 @@ func TestNamespaceDiff(t *testing.T) {
 				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
 					Namespace: "foo",
 					Relation:  "something",
+				}},
+			},
+		},
+		{
+			"wildcard type changed no rewrite",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedPublicNamespace("user")),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelation("organization", "user")),
+			),
+			[]Delta{
+				{Type: RelationDirectWildcardTypeRemoved, RelationName: "somerel", WildcardType: "user"},
+				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &v0.RelationReference{
+					Namespace: "organization",
+					Relation:  "user",
 				}},
 			},
 		},
