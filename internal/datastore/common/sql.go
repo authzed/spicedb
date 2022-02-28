@@ -172,7 +172,6 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 	var tuples []*v0.RelationTuple
 	remainingLimit := math.MaxInt
 	if queryOpts.Limit != nil {
-		tuples = make([]*v0.RelationTuple, 0, *queryOpts.Limit)
 		remainingLimit = int(*queryOpts.Limit)
 	}
 
