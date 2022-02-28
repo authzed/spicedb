@@ -358,7 +358,7 @@ func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore
 	}
 
 	// There are no unexpired rows
-	query, args, err := getRevision.ToSql()
+	query, args, err := mds.getRevision(sb).ToSql()
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -387,7 +387,7 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
-	query, args, err := getRevision.ToSql()
+	query, args, err := mds.getRevision(sb).ToSql()
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}
@@ -417,7 +417,7 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 
 	lowerBound := now.Add(windowInverted)
 
-	query, args, err := getRevisionRange.Where(sq.GtOrEq{common.ColTimestamp: lowerBound}).ToSql()
+	query, args, err := mds.getRevisionRange(sb).Where(sq.GtOrEq{common.ColTimestamp: lowerBound}).ToSql()
 	if err != nil {
 		return 0, 0, err
 	}
