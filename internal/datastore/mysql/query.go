@@ -3,7 +3,6 @@ package mysql
 import (
 	"context"
 
-	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -26,7 +25,7 @@ func (mds *mysqlDatastore) QueryTuples(
 	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.queryTuples(sb), revision, liveDeletedTxnID)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.builderCache.QueryTuples, revision, liveDeletedTxnID)).
 		FilterToResourceType(filter.ResourceType)
 
 	if filter.OptionalResourceId != "" {
@@ -66,7 +65,7 @@ func (mds *mysqlDatastore) ReverseQueryTuples(
 	revision datastore.Revision,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.queryTuples(sb), revision, liveDeletedTxnID)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.builderCache.QueryTuples, revision, liveDeletedTxnID)).
 		FilterToSubjectFilter(subjectFilter)
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
@@ -92,15 +91,4 @@ func (mds *mysqlDatastore) ReverseQueryTuples(
 	}
 
 	return ctq.SplitAndExecute(ctx)
-}
-
-func (mds *mysqlDatastore) queryTuples(sb sq.StatementBuilderType) sq.SelectBuilder {
-	return sb.Select(
-		common.ColNamespace,
-		common.ColObjectID,
-		common.ColRelation,
-		common.ColUsersetNamespace,
-		common.ColUsersetObjectID,
-		common.ColUsersetRelation,
-	).From(mds.TableTuple())
 }

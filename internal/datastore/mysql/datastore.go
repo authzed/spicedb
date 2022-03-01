@@ -182,7 +182,7 @@ func (mds *mysqlDatastore) collectGarbage() error {
 
 func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
 	// Find the highest transaction ID before the GC window.
-	query, args, err := mds.getRevision(sb).Where(sq.Lt{common.ColTimestamp: before}).ToSql()
+	query, args, err := mds.builderCache.GetRevision.Where(sq.Lt{common.ColTimestamp: before}).ToSql()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -208,7 +208,7 @@ func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time
 
 func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	relCount, err := mds.batchDelete(ctx, mds.TableTuple(), sq.LtOrEq{common.ColDeletedTxn: highest})
+	relCount, err := mds.batchDelete(ctx, mds.builderCache.TableTuple, sq.LtOrEq{common.ColDeletedTxn: highest})
 	if err != nil {
 		return 0, 0, err
 	}
@@ -216,7 +216,7 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 	log.Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
 	// itself to ensure there is always at least one transaction present.
-	transactionCount, err := mds.batchDelete(ctx, mds.TableTransaction(), sq.Lt{common.ColID: highest})
+	transactionCount, err := mds.batchDelete(ctx, mds.builderCache.TableTransaction, sq.Lt{common.ColID: highest})
 	if err != nil {
 		return relCount, 0, err
 	}
@@ -255,7 +255,7 @@ func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx)
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	createQuery, _, err := mds.createTxn(sb).ToSql()
+	createQuery, _, err := mds.builderCache.CreateTxn.ToSql()
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}
@@ -364,7 +364,7 @@ func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore
 	}
 
 	// There are no unexpired rows
-	query, args, err := mds.getRevision(sb).ToSql()
+	query, args, err := mds.builderCache.GetRevision.ToSql()
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -393,7 +393,7 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
-	query, args, err := mds.getRevision(sb).ToSql()
+	query, args, err := mds.builderCache.GetRevision.ToSql()
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}
@@ -423,7 +423,7 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 
 	lowerBound := now.Add(windowInverted)
 
-	query, args, err := mds.getRevisionRange(sb).Where(sq.GtOrEq{common.ColTimestamp: lowerBound}).ToSql()
+	query, args, err := mds.builderCache.GetRevisionRange.Where(sq.GtOrEq{common.ColTimestamp: lowerBound}).ToSql()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -443,28 +443,4 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 	}
 
 	return uint64(lower.Int64), uint64(upper.Int64), nil
-}
-
-func (mds *mysqlDatastore) TableNamespace() string {
-	return fmt.Sprintf("%s%s", mds.tablePrefix, common.TableNamespaceDefault)
-}
-
-func (mds *mysqlDatastore) TableTransaction() string {
-	return fmt.Sprintf("%s%s", mds.tablePrefix, common.TableTransactionDefault)
-}
-
-func (mds *mysqlDatastore) TableTuple() string {
-	return fmt.Sprintf("%s%s", mds.tablePrefix, common.TableTupleDefault)
-}
-
-func (mds *mysqlDatastore) getRevision(sb sq.StatementBuilderType) sq.SelectBuilder {
-	return sb.Select("MAX(id)").From(mds.TableTransaction())
-}
-
-func (mds *mysqlDatastore) getRevisionRange(sb sq.StatementBuilderType) sq.SelectBuilder {
-	return sb.Select("MIN(id)", "MAX(id)").From(mds.TableTransaction())
-}
-
-func (mds *mysqlDatastore) createTxn(sb sq.StatementBuilderType) sq.InsertBuilder {
-	return sb.Insert(mds.TableTransaction()).Values()
 }

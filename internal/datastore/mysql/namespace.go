@@ -16,26 +16,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
-func (mds *mysqlDatastore) writeNamespace(sb sq.StatementBuilderType) sq.InsertBuilder {
-	return sb.Insert(mds.TableNamespace()).Columns(
-		common.ColNamespace,
-		common.ColConfig,
-		common.ColCreatedTxn,
-	)
-}
-
-func (mds *mysqlDatastore) readNamespace(sb sq.StatementBuilderType) sq.SelectBuilder {
-	return sb.Select(common.ColConfig, common.ColCreatedTxn).From(mds.TableNamespace())
-}
-
-func (mds *mysqlDatastore) deleteNamespace(sb sq.StatementBuilderType) sq.UpdateBuilder {
-	return sb.Update(mds.TableNamespace()).Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
-}
-
-func (mds *mysqlDatastore) deleteNamespaceTuples(sb sq.StatementBuilderType) sq.UpdateBuilder {
-	return sb.Update(mds.TableTuple()).Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
-}
-
 // WriteNamespace takes a proto namespace definition and persists it,
 // returning the version of the namespace that was created.
 func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.NamespaceDefinition) (datastore.Revision, error) {
@@ -65,7 +45,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.
 	}
 	span.AddEvent("Model transaction created")
 
-	delSQL, delArgs, err := mds.deleteNamespace(sb).
+	delSQL, delArgs, err := mds.builderCache.DeleteNamespace.
 		Set(common.ColDeletedTxn, newTxnID).
 		Where(sq.Eq{common.ColNamespace: newNamespace.Name, common.ColDeletedTxn: liveDeletedTxnID}).
 		ToSql()
@@ -78,7 +58,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
-	query, args, err := mds.writeNamespace(sb).Values(newNamespace.Name, serialized, newTxnID).ToSql()
+	query, args, err := mds.builderCache.WriteNamespace.Values(newNamespace.Name, serialized, newTxnID).ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
@@ -112,7 +92,7 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
 
-	loaded, version, err := loadNamespace(ctx, nsName, tx, common.FilterToLivingObjects(mds.readNamespace(sb), revision, liveDeletedTxnID))
+	loaded, version, err := loadNamespace(ctx, nsName, tx, common.FilterToLivingObjects(mds.builderCache.ReadNamespace, revision, liveDeletedTxnID))
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
@@ -137,7 +117,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
 
-	baseQuery := mds.readNamespace(sb).Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
+	baseQuery := mds.builderCache.ReadNamespace.Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
 	_, createdAt, err := loadNamespace(ctx, nsName, tx, baseQuery)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
@@ -153,7 +133,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
-	delSQL, delArgs, err := mds.deleteNamespace(sb).
+	delSQL, delArgs, err := mds.builderCache.DeleteNamespace.
 		Set(common.ColDeletedTxn, newTxnID).
 		Where(sq.Eq{common.ColNamespace: nsName, common.ColCreatedTxn: createdAt}).
 		ToSql()
@@ -166,7 +146,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := mds.deleteNamespaceTuples(sb).
+	deleteTupleSQL, deleteTupleArgs, err := mds.builderCache.DeleteNamespaceTuples.
 		Set(common.ColDeletedTxn, newTxnID).
 		Where(sq.Eq{common.ColNamespace: nsName}).
 		ToSql()
@@ -197,7 +177,7 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
 
-	query, args, err := common.FilterToLivingObjects(mds.readNamespace(sb), revision, liveDeletedTxnID).ToSql()
+	query, args, err := common.FilterToLivingObjects(mds.builderCache.ReadNamespace, revision, liveDeletedTxnID).ToSql()
 	if err != nil {
 		return nil, err
 	}
