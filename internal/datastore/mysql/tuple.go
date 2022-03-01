@@ -37,7 +37,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 	}
 
-	bulkWrite := mds.builderCache.WriteTuple
+	bulkWrite := mds.WriteTupleQuery
 	bulkWriteHasValues := false
 
 	// Process the actual updates
@@ -45,7 +45,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 		rel := mut.Relationship
 
 		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
-			query, args, err := mds.builderCache.DeleteTuple.Where(common.ExactRelationshipClause(rel)).Set(common.ColDeletedTxn, newTxnID).ToSql()
+			query, args, err := mds.DeleteTupleQuery.Where(common.ExactRelationshipClause(rel)).Set(common.ColDeletedTxn, newTxnID).ToSql()
 			if err != nil {
 				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 			}
@@ -127,7 +127,7 @@ func (mds *mysqlDatastore) checkPreconditions(ctx context.Context, tx *sql.Tx, p
 
 // NOTE(chriskirkland): this is all generic other than the squirrel templating for `queryTupleExists`
 func (mds *mysqlDatastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
-	query := mds.builderCache.QueryTupleExists.Where(sq.Eq{common.ColNamespace: filter.ResourceType})
+	query := mds.QueryTupleExistsQuery.Where(sq.Eq{common.ColNamespace: filter.ResourceType})
 
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{common.ColObjectID: filter.OptionalResourceId})
@@ -165,7 +165,7 @@ func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, precondition
 	}
 
 	// Add clauses for the ResourceFilter
-	query := mds.builderCache.DeleteTuple.Where(sq.Eq{common.ColNamespace: filter.ResourceType})
+	query := mds.DeleteTupleQuery.Where(sq.Eq{common.ColNamespace: filter.ResourceType})
 	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{common.ColObjectID: filter.OptionalResourceId})

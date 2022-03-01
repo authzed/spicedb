@@ -25,7 +25,7 @@ func (mds *mysqlDatastore) QueryTuples(
 	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.builderCache.QueryTuples, revision, liveDeletedTxnID)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.QueryTuplesQuery, revision, liveDeletedTxnID)).
 		FilterToResourceType(filter.ResourceType)
 
 	if filter.OptionalResourceId != "" {
@@ -65,7 +65,7 @@ func (mds *mysqlDatastore) ReverseQueryTuples(
 	revision datastore.Revision,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.builderCache.QueryTuples, revision, liveDeletedTxnID)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.QueryTuplesQuery, revision, liveDeletedTxnID)).
 		FilterToSubjectFilter(subjectFilter)
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)

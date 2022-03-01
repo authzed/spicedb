@@ -83,7 +83,7 @@ func (mds *mysqlDatastore) loadChanges(
 		return
 	}
 
-	sql, args, err := mds.builderCache.QueryChanged.Where(sq.Or{
+	sql, args, err := mds.QueryChangedQuery.Where(sq.Or{
 		sq.And{
 			sq.Gt{common.ColCreatedTxn: afterRevision},
 			sq.LtOrEq{common.ColCreatedTxn: newRevision},

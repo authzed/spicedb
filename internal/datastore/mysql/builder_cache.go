@@ -17,24 +17,24 @@ type BuilderCache struct {
 	GetRevisionRange sq.SelectBuilder
 	CreateTxn        sq.InsertBuilder
 
-	WriteNamespace        sq.InsertBuilder
-	ReadNamespace         sq.SelectBuilder
-	DeleteNamespace       sq.UpdateBuilder
-	DeleteNamespaceTuples sq.UpdateBuilder
+	WriteNamespaceQuery        sq.InsertBuilder
+	ReadNamespaceQuery         sq.SelectBuilder
+	DeleteNamespaceQuery       sq.UpdateBuilder
+	DeleteNamespaceTuplesQuery sq.UpdateBuilder
 
-	QueryTuples      sq.SelectBuilder
-	DeleteTuple      sq.UpdateBuilder
-	QueryTupleExists sq.SelectBuilder
-	WriteTuple       sq.InsertBuilder
-	QueryChanged     sq.SelectBuilder
+	QueryTuplesQuery      sq.SelectBuilder
+	DeleteTupleQuery      sq.UpdateBuilder
+	QueryTupleExistsQuery sq.SelectBuilder
+	WriteTupleQuery       sq.InsertBuilder
+	QueryChangedQuery     sq.SelectBuilder
 }
 
 func NewBuilderCache(tablePrefix string) *BuilderCache {
 	builder := BuilderCache{}
 
-	builder.TableNamespace = TableNamespace(tablePrefix)
-	builder.TableTransaction = TableTransaction(tablePrefix)
-	builder.TableTuple = TableTuple(tablePrefix)
+	builder.TableNamespace = tableNamespace(tablePrefix)
+	builder.TableTransaction = tableTransaction(tablePrefix)
+	builder.TableTuple = tableTuple(tablePrefix)
 
 	// transaction builders
 	builder.GetRevision = getRevision(builder.TableTransaction)
@@ -42,30 +42,30 @@ func NewBuilderCache(tablePrefix string) *BuilderCache {
 	builder.CreateTxn = createTxn(builder.TableTransaction)
 
 	// namespace builders
-	builder.WriteNamespace = writeNamespace(builder.TableNamespace)
-	builder.ReadNamespace = readNamespace(builder.TableNamespace)
-	builder.DeleteNamespace = deleteNamespace(builder.TableNamespace)
+	builder.WriteNamespaceQuery = writeNamespace(builder.TableNamespace)
+	builder.ReadNamespaceQuery = readNamespace(builder.TableNamespace)
+	builder.DeleteNamespaceQuery = deleteNamespace(builder.TableNamespace)
 
 	// tuple builders
-	builder.DeleteNamespaceTuples = deleteNamespaceTuples(builder.TableTuple)
-	builder.QueryTuples = queryTuples(builder.TableTuple)
-	builder.DeleteTuple = deleteTuple(builder.TableTuple)
-	builder.QueryTupleExists = queryTupleExists(builder.TableTuple)
-	builder.WriteTuple = writeTuple(builder.TableTuple)
-	builder.QueryChanged = queryChanged(builder.TableTuple)
+	builder.DeleteNamespaceTuplesQuery = deleteNamespaceTuples(builder.TableTuple)
+	builder.QueryTuplesQuery = queryTuples(builder.TableTuple)
+	builder.DeleteTupleQuery = deleteTuple(builder.TableTuple)
+	builder.QueryTupleExistsQuery = queryTupleExists(builder.TableTuple)
+	builder.WriteTupleQuery = writeTuple(builder.TableTuple)
+	builder.QueryChangedQuery = queryChanged(builder.TableTuple)
 
 	return &builder
 }
 
-func TableNamespace(tablePrefix string) string {
+func tableNamespace(tablePrefix string) string {
 	return fmt.Sprintf("%s%s", tablePrefix, common.TableNamespaceDefault)
 }
 
-func TableTransaction(tablePrefix string) string {
+func tableTransaction(tablePrefix string) string {
 	return fmt.Sprintf("%s%s", tablePrefix, common.TableTransactionDefault)
 }
 
-func TableTuple(tablePrefix string) string {
+func tableTuple(tablePrefix string) string {
 	return fmt.Sprintf("%s%s", tablePrefix, common.TableTupleDefault)
 }
 

@@ -45,7 +45,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.
 	}
 	span.AddEvent("Model transaction created")
 
-	delSQL, delArgs, err := mds.builderCache.DeleteNamespace.
+	delSQL, delArgs, err := mds.DeleteNamespaceQuery.
 		Set(common.ColDeletedTxn, newTxnID).
 		Where(sq.Eq{common.ColNamespace: newNamespace.Name, common.ColDeletedTxn: liveDeletedTxnID}).
 		ToSql()
@@ -58,7 +58,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *v0.
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
 
-	query, args, err := mds.builderCache.WriteNamespace.Values(newNamespace.Name, serialized, newTxnID).ToSql()
+	query, args, err := mds.WriteNamespaceQuery.Values(newNamespace.Name, serialized, newTxnID).ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteConfig, err)
 	}
@@ -92,7 +92,7 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
 
-	loaded, version, err := loadNamespace(ctx, nsName, tx, common.FilterToLivingObjects(mds.builderCache.ReadNamespace, revision, liveDeletedTxnID))
+	loaded, version, err := loadNamespace(ctx, nsName, tx, common.FilterToLivingObjects(mds.ReadNamespaceQuery, revision, liveDeletedTxnID))
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
@@ -117,7 +117,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
 
-	baseQuery := mds.builderCache.ReadNamespace.Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
+	baseQuery := mds.ReadNamespaceQuery.Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
 	_, createdAt, err := loadNamespace(ctx, nsName, tx, baseQuery)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
@@ -133,7 +133,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
-	delSQL, delArgs, err := mds.builderCache.DeleteNamespace.
+	delSQL, delArgs, err := mds.DeleteNamespaceQuery.
 		Set(common.ColDeletedTxn, newTxnID).
 		Where(sq.Eq{common.ColNamespace: nsName, common.ColCreatedTxn: createdAt}).
 		ToSql()
@@ -146,7 +146,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 		return datastore.NoRevision, fmt.Errorf(common.ErrUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := mds.builderCache.DeleteNamespaceTuples.
+	deleteTupleSQL, deleteTupleArgs, err := mds.DeleteNamespaceTuplesQuery.
 		Set(common.ColDeletedTxn, newTxnID).
 		Where(sq.Eq{common.ColNamespace: nsName}).
 		ToSql()
@@ -177,7 +177,7 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
 
-	query, args, err := common.FilterToLivingObjects(mds.builderCache.ReadNamespace, revision, liveDeletedTxnID).ToSql()
+	query, args, err := common.FilterToLivingObjects(mds.ReadNamespaceQuery, revision, liveDeletedTxnID).ToSql()
 	if err != nil {
 		return nil, err
 	}
