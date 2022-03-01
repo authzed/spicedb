@@ -38,6 +38,7 @@ const (
 var containerPort string
 
 type sqlTest struct {
+	tablePrefix               string
 	splitAtEstimatedQuerySize units.Base2Bytes
 }
 
@@ -45,20 +46,29 @@ func newTester() *sqlTest {
 	return &sqlTest{}
 }
 
+func newPrefixTester(tablePrefix string) *sqlTest {
+	return &sqlTest{tablePrefix: tablePrefix}
+}
+
 func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 	connectStr := setupDatabase()
 
-	migrateDatabase(connectStr)
+	migrateDatabaseWithPrefix(connectStr, st.tablePrefix)
 
 	return NewMysqlDatastore(connectStr,
 		RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
 		GCWindow(gcWindow),
 		GCInterval(0*time.Second), // Disable auto GC
 		SplitAtEstimatedQuerySize(st.splitAtEstimatedQuerySize),
+		TablePrefix(st.tablePrefix),
 	)
 }
 
-func createMigrationDriver(connectStr string, prefix string) (*migrations.MysqlDriver, error) {
+func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
+	return createMigrationDriverWithPrefix(connectStr, "")
+}
+
+func createMigrationDriverWithPrefix(connectStr string, prefix string) (*migrations.MysqlDriver, error) {
 	migrationDriver, err := migrations.NewMysqlDriver(connectStr, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
@@ -72,12 +82,17 @@ func TestMysqlDatastore(t *testing.T) {
 	test.All(t, tester)
 }
 
+func TestMysqlDatastoreWithTablePrefix(t *testing.T) {
+	tester := newPrefixTester("spicedb_")
+	test.All(t, tester)
+}
+
 func TestMySQLMigrations(t *testing.T) {
 	req := require.New(t)
 
 	connectStr := setupDatabase()
 
-	migrationDriver, err := createMigrationDriver(connectStr, "")
+	migrationDriver, err := createMigrationDriver(connectStr)
 	req.NoError(err)
 
 	version, err := migrationDriver.Version()
@@ -100,7 +115,7 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 
 	connectStr := setupDatabase()
 
-	migrationDriver, err := createMigrationDriver(connectStr, "spicedb_")
+	migrationDriver, err := createMigrationDriverWithPrefix(connectStr, "spicedb_")
 	req.NoError(err)
 
 	version, err := migrationDriver.Version()
@@ -558,7 +573,11 @@ func setupDatabase() string {
 }
 
 func migrateDatabase(connectStr string) {
-	migrationDriver, err := createMigrationDriver(connectStr, "")
+	migrateDatabaseWithPrefix(connectStr, "")
+}
+
+func migrateDatabaseWithPrefix(connectStr, tablePrefix string) {
+	migrationDriver, err := createMigrationDriverWithPrefix(connectStr, tablePrefix)
 	if err != nil {
 		log.Fatalf("failed to run migration: %s", err)
 	}
