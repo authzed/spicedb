@@ -124,7 +124,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 50, "number of times a retriable transaction should be retried (cockroach driver only)")
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
-	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-table-prefix", "prefix", "prefix to add to the name of all SpiceDB database tables (mysql driver only)")
+	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-table-prefix", "", "prefix to add to the name of all SpiceDB database tables (mysql driver only)")
 }
 
 func DefaultDatastoreConfig() *Config {
