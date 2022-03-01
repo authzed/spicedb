@@ -7,7 +7,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.2
 	github.com/authzed/authzed-go v0.4.2-0.20220207230446-c781fa7fa969
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
-	github.com/aws/aws-sdk-go v1.42.44
+	github.com/aws/aws-sdk-go v1.43.8
 	github.com/benbjohnson/clock v1.3.0
 	github.com/cespare/xxhash v1.1.0
 	github.com/containerd/continuity v0.2.1 // indirect
@@ -65,7 +65,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.3.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838 // indirect
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27 // indirect
 	golang.org/x/tools v0.1.9
