@@ -19,7 +19,7 @@ const (
 
 type MysqlDriver struct {
 	db          *sql.DB
-	TablePrefix string
+	tablePrefix string
 }
 
 // https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
@@ -54,7 +54,7 @@ func NewMysqlDriver(url string, tablePrefix string) (*MysqlDriver, error) {
 func (mysql *MysqlDriver) Version() (string, error) {
 	var loaded string
 
-	query := fmt.Sprintf("SELECT version_num FROM %smysql_migration_version", mysql.TablePrefix)
+	query := fmt.Sprintf("SELECT version_num FROM %smysql_migration_version", mysql.tablePrefix)
 
 	if err := mysql.db.QueryRow(query).Scan(&loaded); err != nil {
 		var mysqlError *sqlDriver.MySQLError
@@ -70,7 +70,7 @@ func (mysql *MysqlDriver) Version() (string, error) {
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
 func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
-	updateSQL := fmt.Sprintf("UPDATE %smysql_migration_version SET version_num=? WHERE version_num=?;", mysql.TablePrefix)
+	updateSQL := fmt.Sprintf("UPDATE %smysql_migration_version SET version_num=? WHERE version_num=?;", mysql.tablePrefix)
 
 	result, err := mysql.db.Exec(updateSQL, version, replaced)
 	if err != nil {
