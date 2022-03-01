@@ -54,7 +54,9 @@ func NewMysqlDriver(url string, tablePrefix string) (*MysqlDriver, error) {
 func (mysql *MysqlDriver) Version() (string, error) {
 	var loaded string
 
-	if err := mysql.db.QueryRow("SELECT version_num FROM mysql_migration_version").Scan(&loaded); err != nil {
+	query := fmt.Sprintf("SELECT version_num FROM %smysql_migration_version", mysql.TablePrefix)
+
+	if err := mysql.db.QueryRow(query).Scan(&loaded); err != nil {
 		var mysqlError *sqlDriver.MySQLError
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
 			return "", nil
@@ -68,7 +70,7 @@ func (mysql *MysqlDriver) Version() (string, error) {
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
 func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
-	updateSQL := "UPDATE mysql_migration_version SET version_num=? WHERE version_num=?;"
+	updateSQL := fmt.Sprintf("UPDATE %smysql_migration_version SET version_num=? WHERE version_num=?;", mysql.TablePrefix)
 
 	result, err := mysql.db.Exec(updateSQL, version, replaced)
 	if err != nil {
