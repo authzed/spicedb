@@ -95,6 +95,39 @@ func TestMySQLMigrations(t *testing.T) {
 	req.Equal(headVersion, version)
 }
 
+func TestMySQLMigrationsWithPrefix(t *testing.T) {
+	req := require.New(t)
+
+	connectStr := setupDatabase()
+
+	migrationDriver, err := createMigrationDriver(connectStr, "spicedb_")
+	req.NoError(err)
+
+	version, err := migrationDriver.Version()
+	req.NoError(err)
+	req.Equal("", version)
+
+	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	req.NoError(err)
+
+	version, err = migrationDriver.Version()
+	req.NoError(err)
+
+	headVersion, err := migrations.Manager.HeadRevision()
+	req.NoError(err)
+	req.Equal(headVersion, version)
+
+	db, err := sql.Open("mysql", connectStr)
+	rows, err := db.Query("SHOW TABLES;")
+
+	for rows.Next() {
+		var tbl string
+		rows.Scan(&tbl)
+		req.Contains(tbl, "spicedb_")
+	}
+	req.NoError(rows.Err())
+}
+
 func TestIsReady(t *testing.T) {
 	req := require.New(t)
 
