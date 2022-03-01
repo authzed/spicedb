@@ -36,7 +36,6 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
 	dbURL := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
 	tablePrefix, err := cmd.Flags().GetString("datastore-table-prefix")
-
 	if err != nil {
 		log.Fatal().Msg(fmt.Sprintf("unable to get table prefix: %s", err))
 	}
