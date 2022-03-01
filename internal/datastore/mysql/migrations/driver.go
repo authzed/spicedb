@@ -18,7 +18,8 @@ const (
 )
 
 type MysqlDriver struct {
-	db *sql.DB
+	db          *sql.DB
+	TablePrefix string
 }
 
 // https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
@@ -30,7 +31,7 @@ type MysqlDriver struct {
 // schema: The default database for the connection. If no database is specified, the connection has no default database.
 
 // NewMysqlDriver creates a new driver with active connections to the database specified.
-func NewMysqlDriver(url string) (*MysqlDriver, error) {
+func NewMysqlDriver(url string, tablePrefix string) (*MysqlDriver, error) {
 	// TODO: we're currently using a DSN here, not a URI
 	dbConfig, err := sqlDriver.ParseDSN(url)
 	if err != nil {
@@ -45,7 +46,7 @@ func NewMysqlDriver(url string) (*MysqlDriver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
 	}
-	return &MysqlDriver{db}, nil
+	return &MysqlDriver{db, tablePrefix}, nil
 }
 
 // Version returns the version of the schema to which the connected database
