@@ -58,8 +58,8 @@ func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBu
 	)
 }
 
-func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
-	migrationDriver, err := migrations.NewMysqlDriver(connectStr)
+func createMigrationDriver(connectStr string, prefix string) (*migrations.MysqlDriver, error) {
+	migrationDriver, err := migrations.NewMysqlDriver(connectStr, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
 	}
@@ -77,7 +77,7 @@ func TestMySQLMigrations(t *testing.T) {
 
 	connectStr := setupDatabase()
 
-	migrationDriver, err := createMigrationDriver(connectStr)
+	migrationDriver, err := createMigrationDriver(connectStr, "")
 	req.NoError(err)
 
 	version, err := migrationDriver.Version()
@@ -525,7 +525,7 @@ func setupDatabase() string {
 }
 
 func migrateDatabase(connectStr string) {
-	migrationDriver, err := createMigrationDriver(connectStr)
+	migrationDriver, err := createMigrationDriver(connectStr, "")
 	if err != nil {
 		log.Fatalf("failed to run migration: %s", err)
 	}
