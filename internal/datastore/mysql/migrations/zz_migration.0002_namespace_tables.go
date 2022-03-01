@@ -2,13 +2,11 @@ package migrations
 
 import (
 	"fmt"
-
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 // namespace max size: https://buf.build/authzed/api/file/main/authzed/api/v0/core.proto#L29
 func createNamespaceConfig(mysql *MysqlDriver) string {
-	return fmt.Sprintf("CREATE TABLE %s", mysql.tablePrefix+common.TableNamespaceDefault) +
+	return fmt.Sprintf("CREATE TABLE %s", mysql.tableNamespace()) +
 		` ( namespace VARCHAR(128) NOT NULL,
 		serialized_config BLOB NOT NULL,
 		created_transaction BIGINT NOT NULL,
@@ -21,7 +19,7 @@ func createNamespaceConfig(mysql *MysqlDriver) string {
 // relationship max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L33
 // object id max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L45
 func createRelationTuple(mysql *MysqlDriver) string {
-	return fmt.Sprintf("CREATE TABLE %s", mysql.tablePrefix+common.TableTupleDefault) +
+	return fmt.Sprintf("CREATE TABLE %s", mysql.tableTuple()) +
 		` ( id BIGINT NOT NULL AUTO_INCREMENT,
 		namespace VARCHAR(128) NOT NULL,
 		object_id VARCHAR(128) NOT NULL,
@@ -38,7 +36,7 @@ func createRelationTuple(mysql *MysqlDriver) string {
 }
 
 func createRelationTupleTransaction(mysql *MysqlDriver) string {
-	return fmt.Sprintf("CREATE TABLE %s", mysql.tablePrefix+common.TableTransactionDefault) +
+	return fmt.Sprintf("CREATE TABLE %s", mysql.tableTransaction()) +
 		` ( id BIGINT NOT NULL AUTO_INCREMENT,
 		timestamp DATETIME(6) DEFAULT NOW(6) NOT NULL,
 		PRIMARY KEY (id)
@@ -46,7 +44,7 @@ func createRelationTupleTransaction(mysql *MysqlDriver) string {
 }
 
 func insertFirstTransaction(mysql *MysqlDriver) string {
-	return fmt.Sprintf("INSERT INTO %s VALUES();", mysql.tablePrefix+common.TableTransactionDefault)
+	return fmt.Sprintf("INSERT INTO %s VALUES();", mysql.tableTransaction())
 }
 
 func init() {

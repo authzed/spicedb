@@ -2,23 +2,21 @@ package migrations
 
 import (
 	"fmt"
-
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 func createReverseQueryIndex(mysql *MysqlDriver) string {
 	return fmt.Sprintf("CREATE INDEX ix_relation_tuple_by_subject ON %s (userset_object_id, userset_namespace, userset_relation, namespace, relation)",
-		mysql.tablePrefix+common.TableTupleDefault)
+		mysql.tableTuple())
 }
 
 func createReverseCheckIndex(mysql *MysqlDriver) string {
 	return fmt.Sprintf("CREATE INDEX ix_relation_tuple_by_subject_relation ON %s (userset_namespace, userset_relation, namespace, relation)",
-		mysql.tablePrefix+common.TableTupleDefault)
+		mysql.tableTuple())
 }
 
 func createIndexOnTupleTransactionTimestamp(mysql *MysqlDriver) string {
 	return fmt.Sprintf("CREATE INDEX ix_relation_tuple_transaction_by_timestamp on %s (timestamp)",
-		mysql.tablePrefix+common.TableTransactionDefault)
+		mysql.tableTransaction())
 }
 
 func init() {

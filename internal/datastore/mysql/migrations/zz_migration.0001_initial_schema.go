@@ -3,13 +3,13 @@ package migrations
 import "fmt"
 
 func createMysqlMigrationVersion(mysql *MysqlDriver) string {
-	return fmt.Sprintf("CREATE TABLE %smysql_migration_version (version_num VARCHAR(255) NOT NULL PRIMARY KEY);",
-		mysql.tablePrefix)
+	return fmt.Sprintf("CREATE TABLE %s (version_num VARCHAR(255) NOT NULL PRIMARY KEY);",
+		mysql.mysqlMigrationVersionTable())
 }
 
 func insertEmptyVersion(mysql *MysqlDriver) string {
-	return fmt.Sprintf("INSERT INTO %smysql_migration_version (version_num) VALUES ('');",
-		mysql.tablePrefix)
+	return fmt.Sprintf("INSERT INTO %s (version_num) VALUES ('');",
+		mysql.mysqlMigrationVersionTable())
 }
 
 func init() {
