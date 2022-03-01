@@ -1,9 +1,16 @@
 package migrations
 
-const createMysqlMigrationVersion = `CREATE TABLE mysql_migration_version (
-	version_num VARCHAR(255) NOT NULL PRIMARY KEY
-);`
-const insertEmptyVersion = `INSERT INTO mysql_migration_version (version_num) VALUES ('');`
+import "fmt"
+
+func createMysqlMigrationVersion(mysql *MysqlDriver) string {
+	return fmt.Sprintf("CREATE TABLE %smysql_migration_version (version_num VARCHAR(255) NOT NULL PRIMARY KEY);",
+		mysql.TablePrefix)
+}
+
+func insertEmptyVersion(mysql *MysqlDriver) string {
+	return fmt.Sprintf("INSERT INTO %smysql_migration_version (version_num) VALUES ('');",
+		mysql.TablePrefix)
+}
 
 func init() {
 	err := Manager.Register("initial", "",
