@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	sq "github.com/Masterminds/squirrel"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 
 	sqlDriver "github.com/go-sql-driver/mysql"
@@ -16,6 +18,8 @@ const (
 	errUnableToInstantiate       = "unable to instantiate MysqlDriver: %w"
 	mysqlMissingTableErrorNumber = 1146
 )
+
+var sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 
 type MysqlDriver struct {
 	db          *sql.DB
@@ -54,9 +58,12 @@ func NewMysqlDriver(url string, tablePrefix string) (*MysqlDriver, error) {
 func (mysql *MysqlDriver) Version() (string, error) {
 	var loaded string
 
-	query := fmt.Sprintf("SELECT version_num FROM %smysql_migration_version", mysql.tablePrefix)
+	query, args, err := sb.Select("version_num").From(mysql.mysqlMigrationVersionTable()).ToSql()
+	if err != nil {
+		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
+	}
 
-	if err := mysql.db.QueryRow(query).Scan(&loaded); err != nil {
+	if err := mysql.db.QueryRow(query, args...).Scan(&loaded); err != nil {
 		var mysqlError *sqlDriver.MySQLError
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
 			return "", nil
@@ -70,9 +77,12 @@ func (mysql *MysqlDriver) Version() (string, error) {
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
 func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
-	updateSQL := fmt.Sprintf("UPDATE %smysql_migration_version SET version_num=? WHERE version_num=?;", mysql.tablePrefix)
+	updateSQL, args, err := sb.Update(mysql.mysqlMigrationVersionTable()).Set("version_num", version).Where("version_num = ?", replaced).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to update version row: %w", err)
+	}
 
-	result, err := mysql.db.Exec(updateSQL, version, replaced)
+	result, err := mysql.db.Exec(updateSQL, args...)
 	if err != nil {
 		return fmt.Errorf("unable to update version row: %w", err)
 	}
@@ -91,4 +101,20 @@ func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
 
 func (mysql *MysqlDriver) Dispose() {
 	defer common.LogOnError(context.Background(), mysql.db.Close)
+}
+
+func (mysql *MysqlDriver) mysqlMigrationVersionTable() string {
+	return fmt.Sprintf("%s%s", mysql.tablePrefix, "mysql_migration_version")
+}
+
+func (mysql *MysqlDriver) tableTransaction() string {
+	return fmt.Sprintf("%s%s", mysql.tablePrefix, common.TableTransactionDefault)
+}
+
+func (mysql *MysqlDriver) tableTuple() string {
+	return fmt.Sprintf("%s%s", mysql.tablePrefix, common.TableTupleDefault)
+}
+
+func (mysql *MysqlDriver) tableNamespace() string {
+	return fmt.Sprintf("%s%s", mysql.tablePrefix, common.TableNamespaceDefault)
 }
