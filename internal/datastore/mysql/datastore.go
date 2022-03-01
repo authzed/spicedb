@@ -55,6 +55,9 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
+	// initialize all the statement builders
+	builderCache := NewBuilderCache(config.tablePrefix)
+
 	store := &mysqlDatastore{
 		db:                        db,
 		url:                       url,
@@ -67,6 +70,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		cancelGc:                  cancelGc,
 		watchBufferLength:         config.watchBufferLength,
 		tablePrefix:               config.tablePrefix,
+		builderCache:              builderCache,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -96,6 +100,8 @@ type mysqlDatastore struct {
 	cancelGc context.CancelFunc
 
 	tablePrefix string
+
+	builderCache *BuilderCache
 }
 
 // Close closes the data store.
