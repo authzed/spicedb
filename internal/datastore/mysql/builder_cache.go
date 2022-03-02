@@ -15,7 +15,7 @@ type BuilderCache struct {
 
 	GetRevision      sq.SelectBuilder
 	GetRevisionRange sq.SelectBuilder
-	CreateTxn        sq.InsertBuilder
+	CreateTxnQuery   sq.InsertBuilder
 
 	WriteNamespaceQuery        sq.InsertBuilder
 	ReadNamespaceQuery         sq.SelectBuilder
@@ -39,7 +39,7 @@ func NewBuilderCache(tablePrefix string) *BuilderCache {
 	// transaction builders
 	builder.GetRevision = getRevision(builder.TableTransaction)
 	builder.GetRevisionRange = getRevisionRange(builder.TableTransaction)
-	builder.CreateTxn = createTxn(builder.TableTransaction)
+	builder.CreateTxnQuery = createTxn(builder.TableTransaction)
 
 	// namespace builders
 	builder.WriteNamespaceQuery = writeNamespace(builder.TableNamespace)

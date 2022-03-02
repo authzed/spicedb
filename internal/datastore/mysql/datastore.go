@@ -53,10 +53,14 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	gcCtx, cancelGc := context.WithCancel(context.Background())
-
 	// initialize all the statement builders
 	builderCache := NewBuilderCache(config.tablePrefix)
+	createTxn, _, err := builderCache.CreateTxnQuery.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("NewMysqlDatastore: %w", err)
+	}
+
+	gcCtx, cancelGc := context.WithCancel(context.Background())
 
 	store := &mysqlDatastore{
 		db:                        db,
@@ -70,6 +74,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		cancelGc:                  cancelGc,
 		watchBufferLength:         config.watchBufferLength,
 		tablePrefix:               config.tablePrefix,
+		createTxn:                 createTxn,
 		BuilderCache:              builderCache,
 	}
 
@@ -100,6 +105,7 @@ type mysqlDatastore struct {
 	cancelGc context.CancelFunc
 
 	tablePrefix string
+	createTxn   string
 
 	*BuilderCache
 }
@@ -255,7 +261,7 @@ func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx)
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	createQuery, _, err := mds.CreateTxn.ToSql()
+	createQuery := mds.createTxn
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}
