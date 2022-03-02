@@ -94,30 +94,26 @@ func NewHeadCommand(programName string) *cobra.Command {
 		Use:     "head",
 		Short:   "compute the head database migration revision",
 		PreRunE: server.DefaultPreRunE(programName),
-		RunE:    headRevisionRun,
-		Args:    cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			headRevision, err := HeadRevision(cobrautil.MustGetStringExpanded(cmd, "datastore-engine"))
+			if err != nil {
+				log.Fatal().Err(err).Msg("unable to compute head revision")
+			}
+			fmt.Println(headRevision)
+			return nil
+		},
+		Args: cobra.ExactArgs(0),
 	}
 }
 
-func headRevisionRun(cmd *cobra.Command, args []string) error {
-	var (
-		engine       = cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
-		headRevision string
-		err          error
-	)
-
+// HeadRevision returns the latest migration revision for a given engine
+func HeadRevision(engine string) (string, error) {
 	switch engine {
 	case "cockroachdb":
-		headRevision, err = crdbmigrations.CRDBMigrations.HeadRevision()
+		return crdbmigrations.CRDBMigrations.HeadRevision()
 	case "postgres":
-		headRevision, err = migrations.DatabaseMigrations.HeadRevision()
+		return migrations.DatabaseMigrations.HeadRevision()
 	default:
-		return fmt.Errorf("cannot migrate datastore engine type: %s", engine)
+		return "", fmt.Errorf("cannot migrate datastore engine type: %s", engine)
 	}
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to compute head revision")
-	}
-
-	fmt.Println(headRevision)
-	return nil
 }
