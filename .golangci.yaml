@@ -57,3 +57,12 @@ issues:
     - text: "tx.Rollback()"
       linters:
         - "errcheck"
+    # NOTE: temporarily disable deprecation checks for v0.
+    - path: "internal/services/"
+      linters:
+        - "staticcheck"
+      text: "SA1019"
+    - path: "internal/middleware/consistency/"
+      linters:
+        - "staticcheck"
+      text: "SA1019"
