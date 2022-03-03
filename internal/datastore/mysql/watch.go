@@ -16,17 +16,6 @@ const (
 	watchSleep = 100 * time.Millisecond
 )
 
-var queryChanged = sb.Select(
-	common.ColNamespace,
-	common.ColObjectID,
-	common.ColRelation,
-	common.ColUsersetNamespace,
-	common.ColUsersetObjectID,
-	common.ColUsersetRelation,
-	common.ColCreatedTxn,
-	common.ColDeletedTxn,
-).From(common.TableTuple)
-
 // Watch notifies the caller about all changes to tuples.
 //
 // All events following afterRevision will be sent to the caller.
@@ -94,7 +83,7 @@ func (mds *mysqlDatastore) loadChanges(
 		return
 	}
 
-	sql, args, err := queryChanged.Where(sq.Or{
+	sql, args, err := mds.QueryChangedQuery.Where(sq.Or{
 		sq.And{
 			sq.Gt{common.ColCreatedTxn: afterRevision},
 			sq.LtOrEq{common.ColCreatedTxn: newRevision},

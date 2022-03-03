@@ -24,8 +24,6 @@ const (
 	errRevision      = "unable to find revision: %w"
 	errCheckRevision = "unable to check revision: %w"
 
-	createTxn = "INSERT INTO relation_tuple_transaction VALUES()"
-
 	liveDeletedTxnID = uint64(9223372036854775807)
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
@@ -35,9 +33,6 @@ const (
 
 var (
 	tracer = otel.Tracer("spicedb/internal/datastore/mysql")
-
-	getRevision      = sb.Select("MAX(id)").From(common.TableTransaction)
-	getRevisionRange = sb.Select("MIN(id)", "MAX(id)").From(common.TableTransaction)
 
 	getNow = sb.Select("NOW(6) as now")
 
@@ -58,6 +53,18 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
+	tableNamespace := tableNamespace(config.tablePrefix)
+	tableTransaction := tableTransaction(config.tablePrefix)
+	tableTuple := tableTuple(config.tablePrefix)
+
+	// initialize all the statement builders
+	builderCache := NewBuilderCache(tableTransaction, tableNamespace, tableTuple)
+
+	createTxn, _, err := createTxn(tableTransaction).ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("NewMysqlDatastore: %w", err)
+	}
+
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
 	store := &mysqlDatastore{
@@ -71,6 +78,12 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		gcCtx:                     gcCtx,
 		cancelGc:                  cancelGc,
 		watchBufferLength:         config.watchBufferLength,
+		tablePrefix:               config.tablePrefix,
+		createTxn:                 createTxn,
+		BuilderCache:              builderCache,
+		tableNamespace:            tableNamespace,
+		tableTransaction:          tableTransaction,
+		tableTuple:                tableTuple,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -98,6 +111,15 @@ type mysqlDatastore struct {
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
+
+	tablePrefix      string
+	tableNamespace   string
+	tableTransaction string
+	tableTuple       string
+
+	createTxn string
+
+	*BuilderCache
 }
 
 // Close closes the data store.
@@ -178,7 +200,7 @@ func (mds *mysqlDatastore) collectGarbage() error {
 
 func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
 	// Find the highest transaction ID before the GC window.
-	query, args, err := getRevision.Where(sq.Lt{common.ColTimestamp: before}).ToSql()
+	query, args, err := mds.GetRevision.Where(sq.Lt{common.ColTimestamp: before}).ToSql()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -204,7 +226,7 @@ func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time
 
 func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	relCount, err := mds.batchDelete(ctx, common.TableTuple, sq.LtOrEq{common.ColDeletedTxn: highest})
+	relCount, err := mds.batchDelete(ctx, mds.tableTuple, sq.LtOrEq{common.ColDeletedTxn: highest})
 	if err != nil {
 		return 0, 0, err
 	}
@@ -212,7 +234,7 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 	log.Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
 	// itself to ensure there is always at least one transaction present.
-	transactionCount, err := mds.batchDelete(ctx, common.TableTransaction, sq.Lt{common.ColID: highest})
+	transactionCount, err := mds.batchDelete(ctx, mds.tableTransaction, sq.Lt{common.ColID: highest})
 	if err != nil {
 		return relCount, 0, err
 	}
@@ -247,11 +269,16 @@ func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, fi
 	return deletedCount, nil
 }
 
-func createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
+func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	result, err := tx.ExecContext(ctx, createTxn)
+	createQuery := mds.createTxn
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: %w", err)
+	}
+
+	result, err := tx.ExecContext(ctx, createQuery)
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}
@@ -272,7 +299,7 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	driver, err := migrations.NewMysqlDriver(mds.url)
+	driver, err := migrations.NewMysqlDriver(mds.url, mds.tablePrefix)
 	if err != nil {
 		return false, err
 	}
@@ -355,7 +382,7 @@ func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore
 	}
 
 	// There are no unexpired rows
-	query, args, err := getRevision.ToSql()
+	query, args, err := mds.GetRevision.ToSql()
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -384,7 +411,7 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
-	query, args, err := getRevision.ToSql()
+	query, args, err := mds.GetRevision.ToSql()
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}
@@ -414,7 +441,7 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 
 	lowerBound := now.Add(windowInverted)
 
-	query, args, err := getRevisionRange.Where(sq.GtOrEq{common.ColTimestamp: lowerBound}).ToSql()
+	query, args, err := mds.GetRevisionRange.Where(sq.GtOrEq{common.ColTimestamp: lowerBound}).ToSql()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -434,4 +461,20 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 	}
 
 	return uint64(lower.Int64), uint64(upper.Int64), nil
+}
+
+func tableNamespace(tablePrefix string) string {
+	return fmt.Sprintf("%s%s", tablePrefix, common.TableNamespaceDefault)
+}
+
+func tableTransaction(tablePrefix string) string {
+	return fmt.Sprintf("%s%s", tablePrefix, common.TableTransactionDefault)
+}
+
+func tableTuple(tablePrefix string) string {
+	return fmt.Sprintf("%s%s", tablePrefix, common.TableTupleDefault)
+}
+
+func createTxn(tableTransaction string) sq.InsertBuilder {
+	return sb.Insert(tableTransaction).Values()
 }

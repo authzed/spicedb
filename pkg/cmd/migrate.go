@@ -18,6 +18,7 @@ import (
 func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb", "mysql")`)
 	cmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
+	cmd.Flags().String("datastore-table-prefix", "", "prefix to add to the name of all SpiceDB database tables (mysql driver only)")
 }
 
 func NewMigrateCommand(programName string) *cobra.Command {
@@ -34,10 +35,14 @@ func NewMigrateCommand(programName string) *cobra.Command {
 func migrateRun(cmd *cobra.Command, args []string) error {
 	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
 	dbURL := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
+	tablePrefix, err := cmd.Flags().GetString("datastore-table-prefix")
+	if err != nil {
+		log.Fatal().Msg(fmt.Sprintf("unable to get table prefix: %s", err))
+	}
 
 	targetRevision := args[0]
 
-	migrationManager, migrationDriver, err := datastoreManagerAndDriver(datastoreEngine, dbURL)
+	migrationManager, migrationDriver, err := datastoreManagerAndDriver(datastoreEngine, dbURL, tablePrefix)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to create migration driver")
 	}
@@ -90,7 +95,7 @@ func headRevisionRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func datastoreManagerAndDriver(datastoreEngine, dbURL string) (*migrate.Manager, migrate.Driver, error) {
+func datastoreManagerAndDriver(datastoreEngine, dbURL string, tablePrefix string) (*migrate.Manager, migrate.Driver, error) {
 	var migrationDriver migrate.Driver
 	var migrationManager *migrate.Manager
 	var err error
@@ -110,7 +115,7 @@ func datastoreManagerAndDriver(datastoreEngine, dbURL string) (*migrate.Manager,
 
 		migrationManager = psqlmigrations.Manager
 	} else if datastoreEngine == "mysql" {
-		migrationDriver, err = mysqlmigrations.NewMysqlDriver(dbURL)
+		migrationDriver, err = mysqlmigrations.NewMysqlDriver(dbURL, tablePrefix)
 		if err != nil {
 			return nil, nil, err
 		}

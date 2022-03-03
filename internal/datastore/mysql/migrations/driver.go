@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	sq "github.com/Masterminds/squirrel"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 
 	sqlDriver "github.com/go-sql-driver/mysql"
@@ -17,8 +19,11 @@ const (
 	mysqlMissingTableErrorNumber = 1146
 )
 
+var sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
+
 type MysqlDriver struct {
-	db *sql.DB
+	db          *sql.DB
+	tablePrefix string
 }
 
 // https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
@@ -30,7 +35,7 @@ type MysqlDriver struct {
 // schema: The default database for the connection. If no database is specified, the connection has no default database.
 
 // NewMysqlDriver creates a new driver with active connections to the database specified.
-func NewMysqlDriver(url string) (*MysqlDriver, error) {
+func NewMysqlDriver(url string, tablePrefix string) (*MysqlDriver, error) {
 	// TODO: we're currently using a DSN here, not a URI
 	dbConfig, err := sqlDriver.ParseDSN(url)
 	if err != nil {
@@ -45,7 +50,7 @@ func NewMysqlDriver(url string) (*MysqlDriver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
 	}
-	return &MysqlDriver{db}, nil
+	return &MysqlDriver{db, tablePrefix}, nil
 }
 
 // Version returns the version of the schema to which the connected database
@@ -53,7 +58,12 @@ func NewMysqlDriver(url string) (*MysqlDriver, error) {
 func (mysql *MysqlDriver) Version() (string, error) {
 	var loaded string
 
-	if err := mysql.db.QueryRow("SELECT version_num FROM mysql_migration_version").Scan(&loaded); err != nil {
+	query, args, err := sb.Select("version_num").From(mysql.mysqlMigrationVersionTable()).ToSql()
+	if err != nil {
+		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
+	}
+
+	if err := mysql.db.QueryRow(query, args...).Scan(&loaded); err != nil {
 		var mysqlError *sqlDriver.MySQLError
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
 			return "", nil
@@ -67,9 +77,12 @@ func (mysql *MysqlDriver) Version() (string, error) {
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
 func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
-	updateSQL := "UPDATE mysql_migration_version SET version_num=? WHERE version_num=?;"
+	updateSQL, args, err := sb.Update(mysql.mysqlMigrationVersionTable()).Set("version_num", version).Where("version_num = ?", replaced).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to update version row: %w", err)
+	}
 
-	result, err := mysql.db.Exec(updateSQL, version, replaced)
+	result, err := mysql.db.Exec(updateSQL, args...)
 	if err != nil {
 		return fmt.Errorf("unable to update version row: %w", err)
 	}
@@ -88,4 +101,20 @@ func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
 
 func (mysql *MysqlDriver) Dispose() {
 	defer common.LogOnError(context.Background(), mysql.db.Close)
+}
+
+func (mysql *MysqlDriver) mysqlMigrationVersionTable() string {
+	return fmt.Sprintf("%s%s", mysql.tablePrefix, "mysql_migration_version")
+}
+
+func (mysql *MysqlDriver) tableTransaction() string {
+	return fmt.Sprintf("%s%s", mysql.tablePrefix, common.TableTransactionDefault)
+}
+
+func (mysql *MysqlDriver) tableTuple() string {
+	return fmt.Sprintf("%s%s", mysql.tablePrefix, common.TableTupleDefault)
+}
+
+func (mysql *MysqlDriver) tableNamespace() string {
+	return fmt.Sprintf("%s%s", mysql.tablePrefix, common.TableNamespaceDefault)
 }

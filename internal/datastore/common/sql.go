@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	TableNamespace   = "namespace_config"
-	TableTransaction = "relation_tuple_transaction"
-	TableTuple       = "relation_tuple"
+	TableNamespaceDefault   = "namespace_config"
+	TableTransactionDefault = "relation_tuple_transaction"
+	TableTupleDefault       = "relation_tuple"
 
 	ColID               = "id"
 	ColTimestamp        = "timestamp"

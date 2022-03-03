@@ -10,15 +10,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
-var queryTuples = sb.Select(
-	common.ColNamespace,
-	common.ColObjectID,
-	common.ColRelation,
-	common.ColUsersetNamespace,
-	common.ColUsersetObjectID,
-	common.ColUsersetRelation,
-).From(common.TableTuple)
-
 var schema = common.SchemaInformation{
 	ColNamespace:        common.ColNamespace,
 	ColObjectID:         common.ColObjectID,
@@ -34,7 +25,7 @@ func (mds *mysqlDatastore) QueryTuples(
 	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(queryTuples, revision, liveDeletedTxnID)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.QueryTuplesQuery, revision, liveDeletedTxnID)).
 		FilterToResourceType(filter.ResourceType)
 
 	if filter.OptionalResourceId != "" {
@@ -74,7 +65,7 @@ func (mds *mysqlDatastore) ReverseQueryTuples(
 	revision datastore.Revision,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(queryTuples, revision, liveDeletedTxnID)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.QueryTuplesQuery, revision, liveDeletedTxnID)).
 		FilterToSubjectFilter(subjectFilter)
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)

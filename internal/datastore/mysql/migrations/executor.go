@@ -8,11 +8,13 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
+type driverExecutor func(mysqlDriver *MysqlDriver) string
+
 type executor struct {
-	statements []string
+	statements []driverExecutor
 }
 
-func newExecutor(statements ...string) executor {
+func newExecutor(statements ...driverExecutor) executor {
 	return executor{
 		statements: statements,
 	}
@@ -30,7 +32,7 @@ func (e executor) migrate(mysql *MysqlDriver) error {
 	defer common.LogOnError(context.Background(), tx.Rollback)
 
 	for _, stmt := range e.statements {
-		_, err := tx.Exec(stmt)
+		_, err := tx.Exec(stmt(mysql))
 		if err != nil {
 			return fmt.Errorf("executor.migrate: failed to run statement: %w", err)
 		}
