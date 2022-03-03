@@ -7,7 +7,7 @@
 [![Discord Server](https://img.shields.io/discord/844600078504951838?color=7289da&logo=discord "Discord Server")](https://discord.gg/jTysUaxXzM)
 [![Twitter](https://img.shields.io/twitter/follow/authzed?color=%23179CF0&logo=twitter&style=flat-square "@authzed on Twitter")](https://twitter.com/authzed)
 
-SpiceDB is a database system for managing security-critical application permissions.
+SpiceDB is a [Zanzibar]-inspired open source database system for managing security-critical application permissions.
 
 Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
@@ -17,13 +17,14 @@ Features that distinguish SpiceDB from other systems include:
 - An architecture faithful to [Google's Zanzibar paper], including resistance to the [New Enemy Problem]
 - An intuitive and expressive [schema language] complete with a [playground] dev environment
 - A powerful graph engine that supports distributed, parallel evaluation
-- Pluggable storage that supports [in-memory], [PostgreSQL], and [CockroachDB]
+- Pluggable storage that supports [in-memory], [PostgreSQL], [CockroachDB] and [Cloud Spanner] (beta)
 - Deep observability with [Prometheus metrics], structured logging, and [distributed tracing]
 
 See [CONTRIBUTING.md] for instructions on how to contribute and perform common tasks like building the project and running tests.
 
 [client library]: https://docs.authzed.com/reference/api#client-libraries
 [gRPC]: https://buf.build/authzed/api
+[Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [HTTP]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/authzed/authzed-go/main/proto/apidocs.swagger.json
 [Google's Zanzibar paper]: https://authzed.com/blog/what-is-zanzibar/
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
@@ -32,6 +33,7 @@ See [CONTRIBUTING.md] for instructions on how to contribute and perform common t
 [in-memory]: https://github.com/hashicorp/go-memdb
 [PostgreSQL]: https://www.postgresql.org
 [CockroachDB]: https://github.com/cockroachdb/cockroach
+[Cloud Spanner]: https://cloud.google.com/spanner
 [Prometheus metrics]: https://prometheus.io
 [distributed tracing]: https://opentelemetry.io
 [CONTRIBUTING.md]: CONTRIBUTING.md
@@ -137,3 +139,7 @@ A [SpiceDB GitHub action] is also available to run SpiceDB as part of your integ
 [Protecting Your First App]: https://docs.authzed.com/guides/first-app
 [Buf Registry]: https://buf.build/authzed/api/docs
 [Install zed]: https://github.com/authzed/zed
+
+## Have questions?
+
+Engage with the community and Authzed team in the [SpiceDB Discord](https://authzed.com/discord)
