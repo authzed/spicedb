@@ -53,9 +53,14 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
+	tableNamespace := tableNamespace(config.tablePrefix)
+	tableTransaction := tableTransaction(config.tablePrefix)
+	tableTuple := tableTuple(config.tablePrefix)
+
 	// initialize all the statement builders
-	builderCache := NewBuilderCache(config.tablePrefix)
-	createTxn, _, err := builderCache.CreateTxnQuery.ToSql()
+	builderCache := NewBuilderCache(tableTransaction, tableNamespace, tableTuple)
+
+	createTxn, _, err := createTxn(tableTransaction).ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("NewMysqlDatastore: %w", err)
 	}
@@ -76,6 +81,9 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		tablePrefix:               config.tablePrefix,
 		createTxn:                 createTxn,
 		BuilderCache:              builderCache,
+		tableNamespace:            tableNamespace,
+		tableTransaction:          tableTransaction,
+		tableTuple:                tableTuple,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -104,8 +112,12 @@ type mysqlDatastore struct {
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
 
-	tablePrefix string
-	createTxn   string
+	tablePrefix      string
+	tableNamespace   string
+	tableTransaction string
+	tableTuple       string
+
+	createTxn string
 
 	*BuilderCache
 }
@@ -214,7 +226,7 @@ func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time
 
 func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	relCount, err := mds.batchDelete(ctx, mds.TableTuple, sq.LtOrEq{common.ColDeletedTxn: highest})
+	relCount, err := mds.batchDelete(ctx, mds.tableTuple, sq.LtOrEq{common.ColDeletedTxn: highest})
 	if err != nil {
 		return 0, 0, err
 	}
@@ -222,7 +234,7 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 	log.Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
 	// itself to ensure there is always at least one transaction present.
-	transactionCount, err := mds.batchDelete(ctx, mds.TableTransaction, sq.Lt{common.ColID: highest})
+	transactionCount, err := mds.batchDelete(ctx, mds.tableTransaction, sq.Lt{common.ColID: highest})
 	if err != nil {
 		return relCount, 0, err
 	}
@@ -449,4 +461,20 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 	}
 
 	return uint64(lower.Int64), uint64(upper.Int64), nil
+}
+
+func tableNamespace(tablePrefix string) string {
+	return fmt.Sprintf("%s%s", tablePrefix, common.TableNamespaceDefault)
+}
+
+func tableTransaction(tablePrefix string) string {
+	return fmt.Sprintf("%s%s", tablePrefix, common.TableTransactionDefault)
+}
+
+func tableTuple(tablePrefix string) string {
+	return fmt.Sprintf("%s%s", tablePrefix, common.TableTupleDefault)
+}
+
+func createTxn(tableTransaction string) sq.InsertBuilder {
+	return sb.Insert(tableTransaction).Values()
 }
