@@ -196,7 +196,13 @@ func loadNamespaces(
 	for _, nsDef := range namespaces {
 		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(nsDef, namespaces)
 		if terr != nil {
-			return errors, lastRevision, terr
+			errors = append(errors, &v0.DeveloperError{
+				Message: terr.Error(),
+				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
+				Source:  v0.DeveloperError_SCHEMA,
+				Context: nsDef.Name,
+			})
+			continue
 		}
 
 		tverr := ts.Validate(ctx)
