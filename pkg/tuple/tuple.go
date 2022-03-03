@@ -20,8 +20,8 @@ const (
 
 const (
 	namespaceNameExpr = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]"
-	resourceIDExpr    = "[a-zA-Z0-9_][a-zA-Z0-9/_-]{0,127}"
-	subjectIDExpr     = "([a-zA-Z0-9_][a-zA-Z0-9/_-]{0,127})|\\*"
+	resourceIDExpr    = "[a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127}"
+	subjectIDExpr     = "([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*"
 	relationExpr      = "[a-z][a-z0-9_]{1,62}[a-z0-9]"
 )
 
