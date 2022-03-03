@@ -122,6 +122,27 @@ func TestEditCheck(t *testing.T) {
 			nil,
 		},
 		{
+			"invalid shared name",
+			`definition user {}
+			
+			definition resource {
+				relation writer: user
+				permission writer = writer
+			}
+`,
+			[]*v0.RelationTuple{},
+			[]*v0.RelationTuple{},
+			&v0.DeveloperError{
+				Message: "found duplicate relation/permission name writer",
+				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
+				Source:  v0.DeveloperError_SCHEMA,
+				Line:    0,
+				Column:  0,
+				Context: "resource",
+			},
+			nil,
+		},
+		{
 			"valid namespace",
 			`definition foos {}`,
 			[]*v0.RelationTuple{},
