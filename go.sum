@@ -82,8 +82,8 @@ github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmV
 github.com/armon/go-metrics v0.3.10/go.mod h1:4O98XIr/9W0sxpJ8UaYkvjk10Iff7SnFrb4QAOwNTFc=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
-github.com/authzed/authzed-go v0.4.2-0.20220207230446-c781fa7fa969 h1:fULdHQnky4yaVVx2qYDAKoMSAupP24U2moEs2/azp+Y=
-github.com/authzed/authzed-go v0.4.2-0.20220207230446-c781fa7fa969/go.mod h1:bsUniBRroq4l5WZMYLO+T9osQa/P2qMwZ+Af8zoJK8Y=
+github.com/authzed/authzed-go v0.5.1-0.20220303182356-243e79ca06fa h1:MUNOdz3U1UxmLL4ZQ+jjIRNvfMm/yuREwCJsk52ifac=
+github.com/authzed/authzed-go v0.5.1-0.20220303182356-243e79ca06fa/go.mod h1:bsUniBRroq4l5WZMYLO+T9osQa/P2qMwZ+Af8zoJK8Y=
 github.com/authzed/grpcutil v0.0.0-20210913124023-cad23ae5a9e8/go.mod h1:HwO/KbRU3fWXEYHE96kvXnwxzi97tkXD1hfi5UaZ71Y=
 github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5 h1:sZM7XzdyuLyxj7pC/g7uX+XAqZ7m6NMxZzuQRovgBPw=
 github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5/go.mod h1:rqjY3zyK/YP7NID9+B2BdIRRkvnK+cdf9/qya/zaFZE=

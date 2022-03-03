@@ -125,6 +125,15 @@ var testCases = []struct {
 		),
 		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "*", ""),
 	},
+	{
+		input:          "tenant/testns:testobj#testrel@tenant/user:authn|foo",
+		expectedOutput: "tenant/testns:testobj#testrel@tenant/user:authn|foo",
+		tupleFormat: makeTuple(
+			ObjectAndRelation("tenant/testns", "testobj", "testrel"),
+			ObjectAndRelation("tenant/user", "authn|foo", "..."),
+		),
+		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "authn|foo", ""),
+	},
 }
 
 func TestSerialize(t *testing.T) {
