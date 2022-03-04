@@ -136,7 +136,8 @@ func runAssertions(t *testing.T,
 	tester serviceTester,
 	dispatch dispatch.Dispatcher,
 	fullyResolved *validationfile.PopulatedValidationFile,
-	revision decimal.Decimal) {
+	revision decimal.Decimal,
+) {
 	for _, parsedFile := range fullyResolved.ParsedFiles {
 		for _, assertTrue := range parsedFile.Assertions.AssertTrue {
 			// Ensure the assertion passes Check.
@@ -236,7 +237,8 @@ func runConsistencyTests(t *testing.T,
 	dispatch dispatch.Dispatcher,
 	fullyResolved *validationfile.PopulatedValidationFile,
 	tuplesPerNamespace *slicemultimap.MultiMap,
-	revision decimal.Decimal) {
+	revision decimal.Decimal,
+) {
 	lrequire := require.New(t)
 
 	// Read all tuples defined in the namespaces.
