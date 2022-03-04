@@ -20,7 +20,7 @@ func createNamespaceConfig(mysql *MysqlDriver) string {
 // object id max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L45
 func createRelationTuple(mysql *MysqlDriver) string {
 	return fmt.Sprintf("CREATE TABLE %s", mysql.tableTuple()) +
-		` ( id BIGINT NOT NULL AUTO_INCREMENT,
+		` ( id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 		namespace VARCHAR(128) NOT NULL,
 		object_id VARCHAR(128) NOT NULL,
 		relation VARCHAR(64) NOT NULL,
@@ -37,7 +37,7 @@ func createRelationTuple(mysql *MysqlDriver) string {
 
 func createRelationTupleTransaction(mysql *MysqlDriver) string {
 	return fmt.Sprintf("CREATE TABLE %s", mysql.tableTransaction()) +
-		` ( id BIGINT NOT NULL AUTO_INCREMENT,
+		` ( id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 		timestamp DATETIME(6) DEFAULT NOW(6) NOT NULL,
 		PRIMARY KEY (id)
 	);`
