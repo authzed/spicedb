@@ -51,14 +51,17 @@ func getPrefix(t testing.TB) string {
 	}
 }
 
-var testResolverbuilder = &SafeManualResolverBuilder{}
+var testResolverBuilder = &SafeManualResolverBuilder{}
 
 func init() {
 	// register hashring balancer
 	balancer.Register(hashbalancer.NewConsistentHashringBuilder(xxhash.Sum64, 20, 1))
 
-	// register a manual resolver that we can feed addresses during tests
-	resolver.Register(testResolverbuilder)
+	// Register a manual resolver.Builder  that we can feed addresses for tests
+	// Registration is not thread safe, so we register a single resolver.Builder
+	// to handle all clusters, rather than registering a unique resolver.Builder
+	// per cluster.
+	resolver.Register(testResolverBuilder)
 }
 
 // SafeManualResolverBuilder is a resolver builder
@@ -130,31 +133,31 @@ func (r *SafeManualResolver) Close() {}
 
 // TestClusterWithDispatch creates a cluster with `size` nodes
 // The cluster has a real dispatch stack that uses bufconn grpc connections
-func TestClusterWithDispatch(t testing.TB, size int, ds datastore.Datastore) ([]*grpc.ClientConn, func()) {
+func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore) ([]*grpc.ClientConn, func()) {
 	// each cluster gets a unique prefix since grpc resolution is process-global
 	prefix := getPrefix(t)
 
 	// make placeholder resolved addresses, 1 per node
 	addresses := make([]resolver.Address, 0, size)
-	for i := 0; i < size; i++ {
+	for i := uint(0); i < size; i++ {
 		addresses = append(addresses, resolver.Address{
-			Addr:       prefix + "_" + strconv.Itoa(i),
+			Addr:       fmt.Sprintf("%s_%d", prefix, i),
 			ServerName: "",
 		})
 	}
-	testResolverbuilder.SetAddrs(prefix, addresses)
+	testResolverBuilder.SetAddrs(prefix, addresses)
 
 	dialers := make([]dialerFunc, 0, size)
 	conns := make([]*grpc.ClientConn, 0, size)
 	cancelFuncs := make([]func(), 0, size)
 
-	for i := 0; i < size; i++ {
+	for i := uint(0); i < size; i++ {
 		nsm, err := namespace.NewCachingNamespaceManager(nil)
 		require.NoError(t, err)
 
 		dispatcher, err := combineddispatch.NewDispatcher(nsm,
 			combineddispatch.UpstreamAddr("test://"+prefix),
-			combineddispatch.PrometheusSubsystem(prefix+"_"+strconv.Itoa(i)+"_client_dispatch"),
+			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithDefaultServiceConfig(hashbalancer.BalancerServiceConfig),
 				grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
@@ -194,8 +197,9 @@ func TestClusterWithDispatch(t testing.TB, size int, ds datastore.Datastore) ([]
 				Enabled: true,
 				Network: util.BufferedNetwork,
 			}),
-			server.WithDispatchClusterMetricsPrefix(prefix+"_"+strconv.Itoa(i)+"_dispatch"),
+			server.WithDispatchClusterMetricsPrefix(fmt.Sprintf("%s_%d_dispatch", prefix, i)),
 		).Complete()
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
@@ -210,7 +214,7 @@ func TestClusterWithDispatch(t testing.TB, size int, ds datastore.Datastore) ([]
 	}
 
 	// resolve after dialers have been set to initialize connections
-	testResolverbuilder.ResolveNow(prefix)
+	testResolverBuilder.ResolveNow(prefix)
 
 	return conns, func() {
 		for _, c := range conns {

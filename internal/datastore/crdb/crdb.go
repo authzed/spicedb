@@ -130,12 +130,12 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	}
 
 	ds := &crdbDatastore{
-		&common.RemoteClockRevisions{
-			QuantizationNanos:      config.revisionQuantization.Nanoseconds(),
-			GCWindowNanos:          gcWindowNanos,
-			FollowerReadDelayNanos: config.followerReadDelay.Nanoseconds(),
-			MaxRevisionStaleness:   maxRevisionStaleness,
-		},
+		common.NewRemoteClockRevisions(
+			config.revisionQuantization.Nanoseconds(),
+			gcWindowNanos,
+			config.followerReadDelay.Nanoseconds(),
+			maxRevisionStaleness,
+		),
 		url,
 		conn,
 		config.watchBufferLength,
@@ -144,7 +144,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		keyer,
 	}
 
-	ds.RemoteClockRevisions.NowFunc = ds.HeadRevision
+	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
 
 	return ds, nil
 }

@@ -67,18 +67,18 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
 	ds := spannerDatastore{
-		RemoteClockRevisions: &common.RemoteClockRevisions{
-			QuantizationNanos:      config.revisionQuantization.Nanoseconds(),
-			GCWindowNanos:          config.gcWindow.Nanoseconds(),
-			FollowerReadDelayNanos: config.followerReadDelay.Nanoseconds(),
-			MaxRevisionStaleness:   maxRevisionStaleness,
-		},
+		RemoteClockRevisions: common.NewRemoteClockRevisions(
+			config.revisionQuantization.Nanoseconds(),
+			config.gcWindow.Nanoseconds(),
+			config.followerReadDelay.Nanoseconds(),
+			maxRevisionStaleness,
+		),
 		client:        client,
 		querySplitter: querySplitter,
 		config:        config,
 	}
+	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
 
-	ds.RemoteClockRevisions.NowFunc = ds.HeadRevision
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := ds.runGC(ctx); err != nil {
 		cancel()

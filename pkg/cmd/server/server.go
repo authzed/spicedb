@@ -176,7 +176,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		},
 		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
 		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
-		// grpc.NumStreamWorkers(uint32(runtime.NumCPU())),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
@@ -206,7 +205,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 				v1SchemaServiceOption,
 			)
 		},
-		// grpc.NumStreamWorkers(uint32(runtime.NumCPU())),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
