@@ -376,6 +376,8 @@ func (cl *ConcurrentLookup) processSetOperation(ctx context.Context, req Validat
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *v0.SetOperation_Child_XThis:
+			// TODO(jschorr): Turn into an error once v0 API has been removed.
+			log.Ctx(ctx).Warn().Stringer("operation", so).Msg("Use of _this is deprecated and will soon be an error! Please switch to using schema!")
 			requests = append(requests, cl.lookupDirect(ctx, req, typeSystem))
 		case *v0.SetOperation_Child_ComputedUserset:
 			requests = append(requests, cl.lookupComputed(ctx, req, child.ComputedUserset))
