@@ -264,6 +264,11 @@ func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 }
 
 func newMysqlDatastore(opts Config) (datastore.Datastore, error) {
+	_, err := processConfigOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	return mysql.NewMysqlDatastore(
 		opts.URI,
 		mysql.GCInterval(opts.GCInterval),
