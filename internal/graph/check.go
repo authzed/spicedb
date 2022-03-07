@@ -44,6 +44,11 @@ type ValidatedCheckRequest struct {
 func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *v0.Relation) (*v1.DispatchCheckResponse, error) {
 	var directFunc ReduceableCheckFunc
 
+	// TODO(jschorr): Turn into an error once v0 API has been removed.
+	if relation.GetTypeInformation() == nil {
+		log.Ctx(ctx).Warn().Str("relation", relation.Name).Msg("Found relation without type information. Please switch to using schema. This will be an error in the future!")
+	}
+
 	if req.Subject.ObjectId == tuple.PublicWildcard {
 		directFunc = checkError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")))
 	} else if onrEqual(req.Subject, req.ObjectAndRelation) {
@@ -135,6 +140,8 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req Validate
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *v0.SetOperation_Child_XThis:
+			// TODO(jschorr): Turn into an error once v0 API has been removed.
+			log.Ctx(ctx).Warn().Stringer("operation", so).Msg("Use of _this is deprecated and will soon be an error! Please switch to using schema!")
 			requests = append(requests, cc.checkDirect(ctx, req))
 		case *v0.SetOperation_Child_ComputedUserset:
 			requests = append(requests, cc.checkComputedUserset(ctx, req, child.ComputedUserset, nil))
