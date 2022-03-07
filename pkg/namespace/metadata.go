@@ -2,23 +2,21 @@ package namespace
 
 import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 // userDefinedMetadataTypeUrls are the type URLs of any user-defined metadata found
-//  in the namespace proto. If placed here, FilterUserDefinedMetadata will remove the
+//  in the namespace proto. If placed here, FilterUserDefinedMetadataInPlace will remove the
 // metadata when called on the namespace.
 var userDefinedMetadataTypeUrls = map[string]struct{}{
 	"type.googleapis.com/impl.v1.DocComment": {},
 }
 
-// FilterUserDefinedMetadata removes user-defined metadata (e.g. comments) from the given namespace.
-func FilterUserDefinedMetadata(nsconfig *v0.NamespaceDefinition) *v0.NamespaceDefinition {
-	nsconfig = proto.Clone(nsconfig).(*v0.NamespaceDefinition)
-
+// FilterUserDefinedMetadataInPlace removes user-defined metadata (e.g. comments) from the given namespace
+// *in place*.
+func FilterUserDefinedMetadataInPlace(nsconfig *v0.NamespaceDefinition) {
 	nsconfig.Metadata = nil
 	for _, relation := range nsconfig.Relation {
 		if relation.Metadata != nil {
@@ -31,7 +29,6 @@ func FilterUserDefinedMetadata(nsconfig *v0.NamespaceDefinition) *v0.NamespaceDe
 			relation.Metadata.MetadataMessage = filteredMessages
 		}
 	}
-	return nsconfig
 }
 
 // GetComments returns the comment metadata found within the given metadata message.

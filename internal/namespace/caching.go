@@ -99,7 +99,7 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 		}
 
 		// Remove user-defined metadata.
-		loaded = namespace.FilterUserDefinedMetadata(loaded)
+		namespace.FilterUserDefinedMetadataInPlace(loaded)
 
 		// Save it to the nsCache
 		nsc.c.Set(nsRevisionKey, loaded, int64(proto.Size(loaded)))
