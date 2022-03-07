@@ -20,6 +20,10 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 )
 
+func init() {
+	datastore.Engines = append(datastore.Engines, Engine)
+}
+
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
@@ -29,7 +33,8 @@ var (
 )
 
 const (
-	tableNamespace    = "namespace_config"
+	Engine         = "cockroachdb"
+	tableNamespace = "namespace_config"
 	tableTuple        = "relation_tuple"
 	tableTransactions = "transactions"
 

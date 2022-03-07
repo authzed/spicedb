@@ -41,6 +41,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
+		to.WatchBufferLength = c.WatchBufferLength
+		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
 	}
 }
 
@@ -224,5 +226,19 @@ func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
 	return func(c *Config) {
 		c.SpannerCredentialsFile = spannerCredentialsFile
+	}
+}
+
+// WithWatchBufferLength returns an option that can set WatchBufferLength on a Config
+func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
+	return func(c *Config) {
+		c.WatchBufferLength = watchBufferLength
+	}
+}
+
+// WithEnableDatastoreMetrics returns an option that can set EnableDatastoreMetrics on a Config
+func WithEnableDatastoreMetrics(enableDatastoreMetrics bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableDatastoreMetrics = enableDatastoreMetrics
 	}
 }

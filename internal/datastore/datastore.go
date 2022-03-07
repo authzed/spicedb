@@ -11,6 +11,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
+var Engines = []string{}
+
 // Ellipsis is a special relation that is assumed to be valid on the right
 // hand side of a tuple.
 const Ellipsis = "..."

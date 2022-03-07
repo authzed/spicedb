@@ -84,7 +84,7 @@ func (rcr *RemoteClockRevisions) OptimizedRevision(ctx context.Context) (datasto
 		now := nowHLC.IntPart() - rcr.followerReadDelayNanos
 		quantized := now
 		if rcr.quantizationNanos > 0 {
-			quantized -= (now % rcr.quantizationNanos)
+			quantized -= now % rcr.quantizationNanos
 		}
 		log.Debug().Int64("readSkew", rcr.followerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
 

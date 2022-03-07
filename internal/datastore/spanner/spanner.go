@@ -16,7 +16,13 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 )
 
+func init() {
+	datastore.Engines = append(datastore.Engines, Engine)
+}
+
 const (
+	Engine = "spanner"
+
 	errUnableToInstantiate = "unable to instantiate spanner client: %w"
 
 	errRevision = "unable to load revision: %w"
