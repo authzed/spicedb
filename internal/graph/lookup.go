@@ -9,6 +9,8 @@ import (
 	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -18,15 +20,18 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+const MaxConcurrentSlowLookupChecks = 10
+
 // NewConcurrentLookup creates and instance of ConcurrentLookup.
-func NewConcurrentLookup(d dispatch.Lookup, nsm namespace.Manager) *ConcurrentLookup {
-	return &ConcurrentLookup{d: d, nsm: nsm}
+func NewConcurrentLookup(d dispatch.Lookup, c dispatch.Check, nsm namespace.Manager) *ConcurrentLookup {
+	return &ConcurrentLookup{d: d, c: c, nsm: nsm}
 }
 
 // ConcurrentLookup exposes a method to perform Lookup requests, and delegates subproblems to the
 // provided dispatch.Lookup instance.
 type ConcurrentLookup struct {
 	d   dispatch.Lookup
+	c   dispatch.Check
 	nsm namespace.Manager
 }
 
@@ -67,6 +72,116 @@ func (cl *ConcurrentLookup) Lookup(ctx context.Context, req ValidatedLookupReque
 	resolved.Resp.Metadata.LookupExcludedDirect = lookupExcludedDirect
 	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
 	return resolved.Resp, resolved.Err
+}
+
+// LookupViaChecks performs a slow-path lookup request with the provided request and context.
+// It performs a lookup by finding all instances of the requested object and then
+// issuing a check for each one.
+func (cl *ConcurrentLookup) LookupViaChecks(ctx context.Context, req ValidatedLookupRequest) (*v1.DispatchLookupResponse, error) {
+	if req.Subject.ObjectId == tuple.PublicWildcard {
+		resp := lookupResultError(req, NewErrInvalidArgument(errors.New("cannot perform lookup on wildcard")), emptyMetadata)
+		return resp.Resp, resp.Err
+	}
+
+	ds := datastoremw.MustFromContext(ctx)
+	it, err := ds.QueryTuples(ctx,
+		&v1_proto.RelationshipFilter{
+			ResourceType: req.ObjectRelation.Namespace,
+		},
+		req.Revision)
+	if err != nil {
+		resp := lookupResultError(req, err, emptyMetadata)
+		return resp.Resp, resp.Err
+	}
+	defer it.Close()
+
+	objects := tuple.NewONRSet()
+	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+		objects.Add(&v0.ObjectAndRelation{
+			Namespace: tpl.ObjectAndRelation.Namespace,
+			ObjectId:  tpl.ObjectAndRelation.ObjectId,
+			Relation:  req.ObjectRelation.Relation,
+		})
+	}
+
+	cancelCtx, checkCancel := context.WithCancel(ctx)
+	defer checkCancel()
+
+	g, checkCtx := errgroup.WithContext(cancelCtx)
+
+	type onrWithMeta struct {
+		onr  *v0.ObjectAndRelation
+		meta *v1.ResponseMeta
+	}
+	allowedONRs := make(chan onrWithMeta)
+
+	dispatchCount := uint32(1) // 1 for the initial read
+	cachedDispatchCount := uint32(0)
+	depthRequired := uint32(0)
+	allowed := tuple.NewONRSet()
+	g.Go(func() error {
+		for {
+			o, ok := <-allowedONRs
+			if !ok {
+				break
+			}
+			allowed.Add(o.onr)
+			dispatchCount += o.meta.DispatchCount
+			cachedDispatchCount += o.meta.CachedDispatchCount
+			if o.meta.DepthRequired > depthRequired {
+				depthRequired = o.meta.DepthRequired
+			}
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		sem := semaphore.NewWeighted(MaxConcurrentSlowLookupChecks)
+		for _, o := range objects.AsSlice() {
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return err
+			}
+			o := o
+			g.Go(func() error {
+				defer sem.Release(1)
+				res, err := cl.c.DispatchCheck(checkCtx, &v1.DispatchCheckRequest{
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     req.Revision.String(),
+						DepthRemaining: req.Metadata.DepthRemaining,
+					},
+					ObjectAndRelation: o,
+					Subject:           req.Subject,
+				})
+				if err != nil {
+					return err
+				}
+				if res.Membership == v1.DispatchCheckResponse_MEMBER {
+					allowedONRs <- onrWithMeta{
+						onr:  o,
+						meta: res.Metadata,
+					}
+				}
+				return nil
+			})
+		}
+		if err := sem.Acquire(ctx, MaxConcurrentSlowLookupChecks); err != nil {
+			return err
+		}
+		close(allowedONRs)
+		return it.Err()
+	})
+
+	if err := g.Wait(); err != nil {
+		resp := lookupResultError(req, err, emptyMetadata)
+		return resp.Resp, resp.Err
+	}
+
+	res := lookupResult(req, allowed.AsSlice(), &v1.ResponseMeta{
+		DispatchCount:       dispatchCount,
+		CachedDispatchCount: cachedDispatchCount,
+		DepthRequired:       depthRequired,
+	})
+	return res.Resp, res.Err
 }
 
 func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req ValidatedLookupRequest) ReduceableLookupFunc {
