@@ -198,18 +198,18 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "HeadRevision")
 	defer span.End()
 
-	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
-	}
-	defer tx.Rollback(ctx)
+	var hlcNow datastore.Revision
+	err := cds.execute(ctx, cds.conn, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		var fnErr error
+		hlcNow, fnErr = readCRDBNow(ctx, tx)
+		if fnErr != nil {
+			hlcNow = datastore.NoRevision
+			return fmt.Errorf(errRevision, fnErr)
+		}
+		return nil
+	})
 
-	hlcNow, err := readCRDBNow(ctx, tx)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
-	}
-
-	return hlcNow, nil
+	return hlcNow, err
 }
 
 func (cds *crdbDatastore) AddOverlapKey(keySet map[string]struct{}, namespace string) {

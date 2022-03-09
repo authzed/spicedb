@@ -25,13 +25,13 @@ const (
 
 var testUserNS = namespace.Namespace(testUserNamespace)
 
-func executeWithErrors(errors *[]pgconn.PgError, maxRetries int) executeTxRetryFunc {
+func executeWithErrors(errors *[]error, maxRetries int) executeTxRetryFunc {
 	return func(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn) (err error) {
 		wrappedFn := func(tx pgx.Tx) error {
 			if len(*errors) > 0 {
 				retErr := (*errors)[0]
 				(*errors) = (*errors)[1:]
-				return &retErr
+				return retErr
 			}
 
 			return fn(tx)
@@ -45,17 +45,17 @@ func TestTxReset(t *testing.T) {
 	cases := []struct {
 		name          string
 		maxRetries    int
-		errors        []pgconn.PgError
+		errors        []error
 		expectError   bool
 		expectedError error
 	}{
 		{
 			name:       "retryable",
 			maxRetries: 4,
-			errors: []pgconn.PgError{
-				{Code: crdbRetryErrCode},
-				{Code: crdbRetryErrCode},
-				{Code: crdbRetryErrCode},
+			errors: []error{
+				&pgconn.PgError{Code: crdbRetryErrCode},
+				&pgconn.PgError{Code: crdbRetryErrCode},
+				&pgconn.PgError{Code: crdbRetryErrCode},
 			},
 			expectError:   false,
 			expectedError: nil,
@@ -63,10 +63,10 @@ func TestTxReset(t *testing.T) {
 		{
 			name:       "resettable",
 			maxRetries: 4,
-			errors: []pgconn.PgError{
-				{Code: crdbAmbiguousErrorCode},
-				{Code: crdbAmbiguousErrorCode},
-				{Code: crdbAmbiguousErrorCode},
+			errors: []error{
+				&pgconn.PgError{Code: crdbAmbiguousErrorCode},
+				&pgconn.PgError{Code: crdbAmbiguousErrorCode},
+				&pgconn.PgError{Code: crdbAmbiguousErrorCode},
 			},
 			expectError:   false,
 			expectedError: nil,
@@ -74,10 +74,10 @@ func TestTxReset(t *testing.T) {
 		{
 			name:       "mixed",
 			maxRetries: 50,
-			errors: []pgconn.PgError{
-				{Code: crdbRetryErrCode},
-				{Code: crdbAmbiguousErrorCode},
-				{Code: crdbRetryErrCode},
+			errors: []error{
+				&pgconn.PgError{Code: crdbRetryErrCode},
+				&pgconn.PgError{Code: crdbAmbiguousErrorCode},
+				&pgconn.PgError{Code: crdbRetryErrCode},
 			},
 			expectError:   false,
 			expectedError: nil,
@@ -85,16 +85,16 @@ func TestTxReset(t *testing.T) {
 		{
 			name:          "noErrors",
 			maxRetries:    50,
-			errors:        []pgconn.PgError{},
+			errors:        []error{},
 			expectError:   false,
 			expectedError: nil,
 		},
 		{
 			name:       "nonRecoverable",
 			maxRetries: 1,
-			errors: []pgconn.PgError{
-				{Code: crdbRetryErrCode},
-				{Code: crdbAmbiguousErrorCode},
+			errors: []error{
+				&pgconn.PgError{Code: crdbRetryErrCode},
+				&pgconn.PgError{Code: crdbAmbiguousErrorCode},
 			},
 			expectError:   true,
 			expectedError: errors.New(errReachedMaxRetry),
@@ -102,8 +102,8 @@ func TestTxReset(t *testing.T) {
 		{
 			name:       "clockSkew",
 			maxRetries: 1,
-			errors: []pgconn.PgError{
-				{Code: crdbUnknownSQLState, Message: crdbClockSkewMessage},
+			errors: []error{
+				&pgconn.PgError{Code: crdbUnknownSQLState, Message: crdbClockSkewMessage},
 			},
 			expectError:   false,
 			expectedError: nil,

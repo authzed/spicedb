@@ -79,21 +79,23 @@ func (cds *crdbDatastore) ReadNamespace(
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
-	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
-	}
-	defer tx.Rollback(ctx)
-
-	if err := prepareTransaction(ctx, tx, revision); err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
-	}
-
-	config, timestamp, err := loadNamespace(ctx, tx, nsName)
-	if err != nil {
-		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
-			return nil, datastore.NoRevision, err
+	var config *core.NamespaceDefinition
+	var timestamp time.Time
+	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		var err error
+		if err := prepareTransaction(ctx, tx, revision); err != nil {
+			return fmt.Errorf(errUnableToReadConfig, err)
 		}
+
+		config, timestamp, err = loadNamespace(ctx, tx, nsName)
+		if err != nil {
+			if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
+				return err
+			}
+			return fmt.Errorf(errUnableToReadConfig, err)
+		}
+		return nil
+	}); err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
