@@ -7,43 +7,33 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 )
 
-//revive:disable
-
-// Mnually created to work around the following issue:
-// https://github.com/envoyproxy/protoc-gen-validate/issues/481
-var _Metadata_MetadataMessage_InLookup = map[string]struct{}{
-	"type.googleapis.com/impl.v1.DocComment":       {},
-	"type.googleapis.com/impl.v1.RelationMetadata": {},
-}
-
-//revive:enable
-
 func panicOnError(err error) {
 	if err != nil {
 		log.Panic().Msgf("error while converting message: %s", err)
 	}
 }
 
-// Core
-
+// CoreRelationTupleTreeNode converts the input to a core RelationTupleTreeNode.
 func CoreRelationTupleTreeNode(treenode *v0.RelationTupleTreeNode) *RelationTupleTreeNode {
 	coreNode := RelationTupleTreeNode{}
 	bytes, err := proto.Marshal(treenode)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &coreNode)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &coreNode
 }
 
+// CoreRelationTuple converts the input to a core RelationTuple.
 func CoreRelationTuple(tuple *v0.RelationTuple) *RelationTuple {
 	coreTuple := RelationTuple{}
 	bytes, err := proto.Marshal(tuple)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &coreTuple)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &coreTuple
 }
 
+// CoreRelationTuples converts the input slice elements to core RelationTuple.
 func CoreRelationTuples(tuples []*v0.RelationTuple) []*RelationTuple {
 	coreTuples := make([]*RelationTuple, len(tuples))
 	for i, elem := range tuples {
@@ -52,54 +42,60 @@ func CoreRelationTuples(tuples []*v0.RelationTuple) []*RelationTuple {
 	return coreTuples
 }
 
+// CoreRelationTupleUpdate converts the input to a core CoreRelationTupleUpdate.
 func CoreRelationTupleUpdate(update *v0.RelationTupleUpdate) *RelationTupleUpdate {
 	coreUpdate := RelationTupleUpdate{}
 	bytes, err := proto.Marshal(update)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &coreUpdate)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &coreUpdate
 }
 
+// CoreObjectAndRelation converts the input to a core CoreObjectAndRelation.
 func CoreObjectAndRelation(onr *v0.ObjectAndRelation) *ObjectAndRelation {
 	coreOnr := ObjectAndRelation{}
 	bytes, err := proto.Marshal(onr)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &coreOnr)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &coreOnr
 }
 
+// CoreZookie converts the input to a core Zookie.
 func CoreZookie(zookie *v0.Zookie) *Zookie {
 	if zookie == nil {
 		return nil
 	}
 	coreZookie := Zookie{}
 	bytes, err := proto.Marshal(zookie)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &coreZookie)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &coreZookie
 }
 
+// CoreRelationReference converts the input to a core CoreRelationReference.
 func CoreRelationReference(ref *v0.RelationReference) *RelationReference {
 	coreRef := RelationReference{}
 	bytes, err := proto.Marshal(ref)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &coreRef)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &coreRef
 }
 
+// CoreNamespaceDefinition converts the input to a core NamespaceDefinition.
 func CoreNamespaceDefinition(def *v0.NamespaceDefinition) *NamespaceDefinition {
 	coreDef := NamespaceDefinition{}
 	bytes, err := proto.Marshal(def)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &coreDef)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &coreDef
 }
 
+// CoreNamespaceDefinitions converts the input slice elements to  core NamespaceDefinition.
 func CoreNamespaceDefinitions(defs []*v0.NamespaceDefinition) []*NamespaceDefinition {
 	coreDefs := make([]*NamespaceDefinition, len(defs))
 	for i, elem := range defs {
@@ -108,35 +104,37 @@ func CoreNamespaceDefinitions(defs []*v0.NamespaceDefinition) []*NamespaceDefini
 	return coreDefs
 }
 
-// V0
-
+// V0RelationTupleTreeNode converts the input to a v0 RelationTupleTreeNode.
 func V0RelationTupleTreeNode(treenode *RelationTupleTreeNode) *v0.RelationTupleTreeNode {
 	v0Node := v0.RelationTupleTreeNode{}
 	bytes, err := proto.Marshal(treenode)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &v0Node)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &v0Node
 }
 
+// V0ObjectAndRelation converts the input to a v0 V0ObjectAndRelation.
 func V0ObjectAndRelation(onr *ObjectAndRelation) *v0.ObjectAndRelation {
 	v0Onr := v0.ObjectAndRelation{}
 	bytes, err := proto.Marshal(onr)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &v0Onr)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &v0Onr
 }
 
+// V0RelationTuple converts the input to a v0 V0RelationTuple.
 func V0RelationTuple(tuple *RelationTuple) *v0.RelationTuple {
 	v0Tuple := v0.RelationTuple{}
 	bytes, err := proto.Marshal(tuple)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &v0Tuple)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &v0Tuple
 }
 
+// V0RelationTuples converts the input slice elements to v0 RelationTuple.
 func V0RelationTuples(tuples []*RelationTuple) []*v0.RelationTuple {
 	v0Tuples := make([]*v0.RelationTuple, len(tuples))
 	for i, elem := range tuples {
@@ -145,15 +143,17 @@ func V0RelationTuples(tuples []*RelationTuple) []*v0.RelationTuple {
 	return v0Tuples
 }
 
+// V0NamespaceDefinition converts the input to a v0 V0NamespaceDefinition.
 func V0NamespaceDefinition(def *NamespaceDefinition) *v0.NamespaceDefinition {
 	v0Def := v0.NamespaceDefinition{}
 	bytes, err := proto.Marshal(def)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &v0Def)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &v0Def
 }
 
+// V0NamespaceDefinitions converts the input slice elements to  v0 NamespaceDefinition.
 func V0NamespaceDefinitions(defs []*NamespaceDefinition) []*v0.NamespaceDefinition {
 	v0Defs := make([]*v0.NamespaceDefinition, len(defs))
 	for i, elem := range defs {
@@ -162,15 +162,17 @@ func V0NamespaceDefinitions(defs []*NamespaceDefinition) []*v0.NamespaceDefiniti
 	return v0Defs
 }
 
+// V0RelationTupleUpdate converts the input to a v0 V0RelationTupleUpdate.
 func V0RelationTupleUpdate(update *RelationTupleUpdate) *v0.RelationTupleUpdate {
 	v0Update := v0.RelationTupleUpdate{}
 	bytes, err := proto.Marshal(update)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &v0Update)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &v0Update
 }
 
+// V0RelationTupleUpdates converts the input slice elements to v0 RelationTupleUpdate.
 func V0RelationTupleUpdates(updates []*RelationTupleUpdate) []*v0.RelationTupleUpdate {
 	v0Updates := make([]*v0.RelationTupleUpdate, len(updates))
 	for i, elem := range updates {
@@ -179,23 +181,25 @@ func V0RelationTupleUpdates(updates []*RelationTupleUpdate) []*v0.RelationTupleU
 	return v0Updates
 }
 
+// V0RelationReference converts the input to a v0 RelationReference.
 func V0RelationReference(ref *RelationReference) *v0.RelationReference {
 	v0Ref := v0.RelationReference{}
 	bytes, err := proto.Marshal(ref)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &v0Ref)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &v0Ref
 }
 
+// V0Zookie converts the input to a v0 Zookie.
 func V0Zookie(zookie *Zookie) *v0.Zookie {
 	if zookie == nil {
 		return nil
 	}
 	v0Zookie := v0.Zookie{}
 	bytes, err := proto.Marshal(zookie)
-	defer panicOnError(err)
+	panicOnError(err)
 	err = proto.Unmarshal(bytes, &v0Zookie)
-	defer panicOnError(err)
+	panicOnError(err)
 	return &v0Zookie
 }
