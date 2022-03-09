@@ -84,13 +84,13 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 	for _, cond := range req.WriteConditions {
 		preconditions = append(preconditions, &v1.Precondition{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
-			Filter:    tuple.MustToFilter(core.CoreRelationTuple(cond)),
+			Filter:    tuple.MustToFilter(core.ToCoreRelationTuple(cond)),
 		})
 	}
 
 	mutations := make([]*v1.RelationshipUpdate, 0, len(req.Updates))
 	for _, mut := range req.Updates {
-		mutations = append(mutations, tuple.UpdateToRelationshipUpdate(core.CoreRelationTupleUpdate(mut)))
+		mutations = append(mutations, tuple.UpdateToRelationshipUpdate(core.ToCoreRelationTupleUpdate(mut)))
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -105,7 +105,7 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 	}
 
 	return &v0.WriteResponse{
-		Revision: core.V0Zookie(zookie.NewFromRevision(revision)),
+		Revision: core.ToV0Zookie(zookie.NewFromRevision(revision)),
 	}, nil
 }
 
@@ -198,7 +198,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 				case v0.RelationTupleFilter_RELATION:
 					queryFilter.OptionalRelation = tuplesetFilter.Relation
 				case v0.RelationTupleFilter_USERSET:
-					queryFilter.OptionalSubjectFilter = tuple.UsersetToSubjectFilter(core.CoreObjectAndRelation(tuplesetFilter.Userset))
+					queryFilter.OptionalSubjectFilter = tuple.UsersetToSubjectFilter(core.ToCoreObjectAndRelation(tuplesetFilter.Userset))
 				default:
 					return status.Errorf(codes.InvalidArgument, "unknown tupleset filter type: %s", filter)
 				}
@@ -213,7 +213,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 
 			tuplesetResult := &v0.ReadResponse_Tupleset{}
 			for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
-				tuplesetResult.Tuples = append(tuplesetResult.Tuples, core.V0RelationTuple(tuple))
+				tuplesetResult.Tuples = append(tuplesetResult.Tuples, core.ToV0RelationTuple(tuple))
 			}
 			if tupleIterator.Err() != nil {
 				return status.Errorf(codes.Internal, "error when reading tuples: %s", err)
@@ -236,20 +236,20 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 
 	return &v0.ReadResponse{
 		Tuplesets: allTuplesetResults,
-		Revision:  core.V0Zookie(zookie.NewFromRevision(atRevision)),
+		Revision:  core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 	}, nil
 }
 
 func (as *aclServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.CheckResponse, error) {
 	atRevision, _ := consistency.MustRevisionFromContext(ctx)
-	return as.commonCheck(ctx, atRevision, core.CoreObjectAndRelation(req.TestUserset), core.CoreObjectAndRelation(req.User.GetUserset()))
+	return as.commonCheck(ctx, atRevision, core.ToCoreObjectAndRelation(req.TestUserset), core.ToCoreObjectAndRelation(req.User.GetUserset()))
 }
 
 func (as *aclServer) ContentChangeCheck(ctx context.Context, req *v0.ContentChangeCheckRequest) (*v0.CheckResponse, error) {
 	// the implementation is the same as `Check`, but the consistency middleware will set the revision to the head
 	// revision for this request, so it is always fully consistent.
 	atRevision, _ := consistency.MustRevisionFromContext(ctx)
-	return as.commonCheck(ctx, atRevision, core.CoreObjectAndRelation(req.TestUserset), core.CoreObjectAndRelation(req.User.GetUserset()))
+	return as.commonCheck(ctx, atRevision, core.ToCoreObjectAndRelation(req.TestUserset), core.ToCoreObjectAndRelation(req.User.GetUserset()))
 }
 
 func (as *aclServer) commonCheck(
@@ -308,7 +308,7 @@ func (as *aclServer) commonCheck(
 
 	return &v0.CheckResponse{
 		IsMember:   membership == v0.CheckResponse_MEMBER,
-		Revision:   core.V0Zookie(zookie.NewFromRevision(atRevision)),
+		Revision:   core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 		Membership: membership,
 	}, nil
 }
@@ -326,7 +326,7 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
 		},
-		ObjectAndRelation: core.CoreObjectAndRelation(req.Userset),
+		ObjectAndRelation: core.ToCoreObjectAndRelation(req.Userset),
 		ExpansionMode:     dispatchv1.DispatchExpandRequest_SHALLOW,
 	})
 	usagemetrics.SetInContext(ctx, resp.Metadata)
@@ -335,8 +335,8 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 	}
 
 	return &v0.ExpandResponse{
-		TreeNode: core.V0RelationTupleTreeNode(resp.TreeNode),
-		Revision: core.V0Zookie(zookie.NewFromRevision(atRevision)),
+		TreeNode: core.ToV0RelationTupleTreeNode(resp.TreeNode),
+		Revision: core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 	}, nil
 }
 
@@ -365,8 +365,8 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
 		},
-		ObjectRelation: core.CoreRelationReference(req.ObjectRelation),
-		Subject:        core.CoreObjectAndRelation(req.User),
+		ObjectRelation: core.ToCoreRelationReference(req.ObjectRelation),
+		Subject:        core.ToCoreObjectAndRelation(req.User),
 		Limit:          limit,
 		DirectStack:    nil,
 		TtuStack:       nil,
@@ -389,7 +389,7 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 	}
 
 	return &v0.LookupResponse{
-		Revision:          core.V0Zookie(zookie.NewFromRevision(atRevision)),
+		Revision:          core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 		ResolvedObjectIds: resolvedObjectIDs,
 	}, nil
 }

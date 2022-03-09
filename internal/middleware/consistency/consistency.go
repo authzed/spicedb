@@ -164,7 +164,7 @@ func addRevisionToContextFromAtRevision(ctx context.Context, req hasAtRevision, 
 
 	// Read should attempt to use the exact revision requested
 	if req, ok := req.(*v0.ReadRequest); ok && req.AtRevision != nil {
-		decoded, err := zookie.DecodeRevision(core.CoreZookie(req.AtRevision))
+		decoded, err := zookie.DecodeRevision(core.ToCoreZookie(req.AtRevision))
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "bad request revision: %s", err)
 		}
@@ -174,7 +174,7 @@ func addRevisionToContextFromAtRevision(ctx context.Context, req hasAtRevision, 
 	}
 
 	// all other requests pick a revision
-	revision, err := pickBestRevisionV0(ctx, core.CoreZookie(req.GetAtRevision()), ds)
+	revision, err := pickBestRevisionV0(ctx, core.ToCoreZookie(req.GetAtRevision()), ds)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, err.Error())
 	}

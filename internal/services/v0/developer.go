@@ -148,8 +148,8 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 	for _, checkTpl := range req.CheckRelationships {
 		cr, err := development.RunCheck(
 			devContext,
-			core.CoreObjectAndRelation(checkTpl.ObjectAndRelation),
-			core.CoreObjectAndRelation(checkTpl.User.GetUserset()),
+			core.ToCoreObjectAndRelation(checkTpl.ObjectAndRelation),
+			core.ToCoreObjectAndRelation(checkTpl.User.GetUserset()),
 		)
 		if err != nil {
 			devErr, wireErr := development.DistinguishGraphError(
@@ -157,7 +157,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 				err,
 				v0.DeveloperError_CHECK_WATCH,
 				0, 0,
-				tuple.String(core.CoreRelationTuple(checkTpl)),
+				tuple.String(core.ToCoreRelationTuple(checkTpl)),
 			)
 			if wireErr != nil {
 				return nil, wireErr

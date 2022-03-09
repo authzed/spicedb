@@ -90,7 +90,7 @@ func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0
 
 	var currentRevision decimal.Decimal
 	var inputErrors []*v0.DeveloperError
-	inputErrors, currentRevision, err = loadNamespaces(ctx, core.V0NamespaceDefinitions(namespaces), nsm, ds)
+	inputErrors, currentRevision, err = loadNamespaces(ctx, core.ToV0NamespaceDefinitions(namespaces), nsm, ds)
 	if err != nil || len(inputErrors) > 0 {
 		return nil, &DeveloperErrors{InputErrors: inputErrors}, err
 	}
@@ -120,7 +120,7 @@ func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0
 	return &DevContext{
 		Ctx:              ctx,
 		Datastore:        ds,
-		Namespaces:       core.V0NamespaceDefinitions(namespaces),
+		Namespaces:       core.ToV0NamespaceDefinitions(namespaces),
 		Revision:         revision,
 		Dispatcher:       graph.NewLocalOnlyDispatcher(nsm),
 		NamespaceManager: nsm,
@@ -160,14 +160,14 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 				Message: verr.Error(),
 				Source:  v0.DeveloperError_RELATIONSHIP,
 				Kind:    v0.DeveloperError_PARSE_ERROR,
-				Context: tuple.String(core.CoreRelationTuple(tpl)),
+				Context: tuple.String(core.ToCoreRelationTuple(tpl)),
 			})
 			continue
 		}
 
 		err := validateTupleWrite(ctx, tpl, nsm, revision)
 		if err != nil {
-			devErr, wireErr := distinguishGraphError(ctx, err, v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(core.CoreRelationTuple(tpl)))
+			devErr, wireErr := distinguishGraphError(ctx, err, v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(core.ToCoreRelationTuple(tpl)))
 			if devErr != nil {
 				devErrors = append(devErrors, devErr)
 				continue
@@ -178,7 +178,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 
 		updates = append(updates, &v1.RelationshipUpdate{
 			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: tuple.MustToRelationship(core.CoreRelationTuple(tpl)),
+			Relationship: tuple.MustToRelationship(core.ToCoreRelationTuple(tpl)),
 		})
 	}
 
@@ -195,8 +195,8 @@ func loadNamespaces(
 	errors := make([]*v0.DeveloperError, 0, len(namespaces))
 	var lastRevision decimal.Decimal
 	for _, nsDef := range namespaces {
-		coreNsDef := core.CoreNamespaceDefinition(nsDef)
-		coreNamespaces := core.CoreNamespaceDefinitions(namespaces)
+		coreNsDef := core.ToCoreNamespaceDefinition(nsDef)
+		coreNamespaces := core.ToCoreNamespaceDefinitions(namespaces)
 		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(coreNsDef, coreNamespaces)
 		if terr != nil {
 			errors = append(errors, &v0.DeveloperError{

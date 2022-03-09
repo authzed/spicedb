@@ -37,7 +37,7 @@ func TestAttemptWriteRelationshipToPermission(t *testing.T) {
 
 	// Write a relationship to the relation.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#reader@example/user:someuser#..."),
 		))},
 	})
@@ -45,7 +45,7 @@ func TestAttemptWriteRelationshipToPermission(t *testing.T) {
 
 	// Attempt to write a relation to the permission, which should fail.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#read@example/user:someuser#..."),
 		))},
 	})

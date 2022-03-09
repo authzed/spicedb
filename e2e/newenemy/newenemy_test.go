@@ -345,8 +345,8 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, schemaData []SchemaD
 		r1leader, r2leader := getLeaderNode(ctx, crdb[1].Conn(), exclude.Tuple), getLeaderNode(ctx, crdb[1].Conn(), direct.Tuple)
 		ns1Leader := getLeaderNodeForNamespace(ctx, crdb[1].Conn(), exclude.Tuple.ObjectAndRelation.Namespace)
 		ns2Leader := getLeaderNodeForNamespace(ctx, crdb[1].Conn(), exclude.Tuple.User.GetUserset().Namespace)
-		z1, _ := zookie.DecodeRevision(core.CoreZookie(r1.GetRevision()))
-		z2, _ := zookie.DecodeRevision(core.CoreZookie(r2.GetRevision()))
+		z1, _ := zookie.DecodeRevision(core.ToCoreZookie(r1.GetRevision()))
+		z2, _ := zookie.DecodeRevision(core.ToCoreZookie(r2.GetRevision()))
 		t.Log(z1, z2, z1.Sub(z2).String(), r1leader, r2leader, ns1Leader, ns2Leader)
 
 		if canHas.IsMember {
@@ -442,7 +442,7 @@ func checkSchemaNoNewEnemy(ctx context.Context, t testing.TB, schemaData []Schem
 			Schema: excludeSchema,
 		})))
 
-		rev, err := zookie.DecodeRevision(core.CoreZookie(r2.GetRevision()))
+		rev, err := zookie.DecodeRevision(core.ToCoreZookie(r2.GetRevision()))
 		require.NoError(t, err)
 
 		var canHas *v1.CheckPermissionResponse

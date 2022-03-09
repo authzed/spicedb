@@ -43,7 +43,7 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 
 	var afterRevision decimal.Decimal
 	if req.StartRevision != nil && req.StartRevision.Token != "" {
-		decodedRevision, err := zookie.DecodeRevision(core.CoreZookie(req.StartRevision))
+		decodedRevision, err := zookie.DecodeRevision(core.ToCoreZookie(req.StartRevision))
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}
@@ -80,8 +80,8 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 				filtered := filter.filterUpdates(update.Changes)
 				if len(filtered) > 0 {
 					if err := stream.Send(&v0.WatchResponse{
-						Updates:     core.V0RelationTupleUpdates(update.Changes),
-						EndRevision: core.V0Zookie(zookie.NewFromRevision(update.Revision)),
+						Updates:     core.ToV0RelationTupleUpdates(update.Changes),
+						EndRevision: core.ToV0Zookie(zookie.NewFromRevision(update.Revision)),
 					}); err != nil {
 						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
 					}

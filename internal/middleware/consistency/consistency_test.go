@@ -150,7 +150,7 @@ func TestAddRevisionToContextV0AtRevision(t *testing.T) {
 
 	updated := ContextWithHandle(context.Background())
 
-	err = AddRevisionToContext(updated, &v0.ReadRequest{AtRevision: core.V0Zookie(zookie.NewFromRevision(databaseRev))}, ds)
+	err = AddRevisionToContext(updated, &v0.ReadRequest{AtRevision: core.ToV0Zookie(zookie.NewFromRevision(databaseRev))}, ds)
 	require.NoError(err)
 	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
 }

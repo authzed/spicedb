@@ -80,7 +80,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -108,7 +108,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Delete(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -142,7 +142,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -156,7 +156,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Delete(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -192,7 +192,7 @@ func TestSchemaRemoveWildcard(t *testing.T) {
 
 	// Write the wildcard relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
 	})
@@ -217,7 +217,7 @@ definition example/user {}`
 
 	// Delete the relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Delete(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
 	})

@@ -49,7 +49,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 
 	for _, config := range req.Configs {
 		// Validate the type system for the updated namespace.
-		ts, terr := namespace.BuildNamespaceTypeSystemWithFallback(core.CoreNamespaceDefinition(config), nsm, core.CoreNamespaceDefinitions(req.Configs), readRevision)
+		ts, terr := namespace.BuildNamespaceTypeSystemWithFallback(core.ToCoreNamespaceDefinition(config), nsm, core.ToCoreNamespaceDefinitions(req.Configs), readRevision)
 		if terr != nil {
 			return nil, rewriteNamespaceError(ctx, terr)
 		}
@@ -68,7 +68,7 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 
-		diff, err := namespace.DiffNamespaces(existing, core.CoreNamespaceDefinition(config))
+		diff, err := namespace.DiffNamespaces(existing, core.ToCoreNamespaceDefinition(config))
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
@@ -148,14 +148,14 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 	revision := decimal.Zero
 	for _, config := range req.Configs {
 		var err error
-		revision, err = ds.WriteNamespace(ctx, core.CoreNamespaceDefinition(config))
+		revision, err = ds.WriteNamespace(ctx, core.ToCoreNamespaceDefinition(config))
 		if err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 	}
 
 	return &v0.WriteConfigResponse{
-		Revision: core.V0Zookie(zookie.NewFromRevision(revision)),
+		Revision: core.ToV0Zookie(zookie.NewFromRevision(revision)),
 	}, nil
 }
 
@@ -174,8 +174,8 @@ func (nss *nsServer) ReadConfig(ctx context.Context, req *v0.ReadConfigRequest) 
 
 	return &v0.ReadConfigResponse{
 		Namespace: req.Namespace,
-		Config:    core.V0NamespaceDefinition(found),
-		Revision:  core.V0Zookie(zookie.NewFromRevision(readRevision)),
+		Config:    core.ToV0NamespaceDefinition(found),
+		Revision:  core.ToV0Zookie(zookie.NewFromRevision(readRevision)),
 	}, nil
 }
 
@@ -235,7 +235,7 @@ func (nss *nsServer) DeleteConfigs(ctx context.Context, req *v0.DeleteConfigsReq
 	}
 
 	return &v0.DeleteConfigsResponse{
-		Revision: core.V0Zookie(zookie.NewFromRevision(headRevision)),
+		Revision: core.ToV0Zookie(zookie.NewFromRevision(headRevision)),
 	}, nil
 }
 

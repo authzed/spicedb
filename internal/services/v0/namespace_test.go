@@ -33,7 +33,7 @@ func TestNamespace(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 
 	_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
-		Configs: core.V0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS}),
+		Configs: core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS}),
 	})
 	require.NoError(err)
 
@@ -43,7 +43,7 @@ func TestNamespace(t *testing.T) {
 	require.NoError(err)
 	require.Equal(testfixtures.DocumentNS.Name, readBack.Namespace)
 
-	if diff := cmp.Diff(testfixtures.DocumentNS, core.CoreNamespaceDefinition(readBack.Config), protocmp.Transform()); diff != "" {
+	if diff := cmp.Diff(testfixtures.DocumentNS, core.ToCoreNamespaceDefinition(readBack.Config), protocmp.Transform()); diff != "" {
 		require.Fail("should have read back the same config")
 	}
 
@@ -188,7 +188,7 @@ func TestNamespaceChanged(t *testing.T) {
 			grpcutil.RequireStatus(t, codes.NotFound, err)
 
 			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
-				Configs: core.V0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace}),
+				Configs: core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace}),
 			})
 			require.NoError(err)
 
@@ -208,7 +208,7 @@ func TestNamespaceChanged(t *testing.T) {
 			require.NoError(err)
 
 			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
-				Configs: core.V0NamespaceDefinitions([]*core.NamespaceDefinition{tc.updatedNamespace}),
+				Configs: core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{tc.updatedNamespace}),
 			})
 
 			if tc.expectedError != "" {
@@ -290,7 +290,7 @@ func TestDeleteNamespace(t *testing.T) {
 			grpcutil.RequireStatus(t, codes.NotFound, err)
 
 			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
-				Configs: core.V0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace}),
+				Configs: core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace}),
 			})
 			require.NoError(err)
 

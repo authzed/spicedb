@@ -21,7 +21,7 @@ definition document {
 }
 `,
 		Relationships: []*v0.RelationTuple{
-			core.V0RelationTuple(tuple.MustParse("document:somedoc#viewer@user:someuser")),
+			core.ToV0RelationTuple(tuple.MustParse("document:somedoc#viewer@user:someuser")),
 		},
 	})
 

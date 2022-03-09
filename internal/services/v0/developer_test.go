@@ -170,7 +170,7 @@ func TestEditCheck(t *testing.T) {
 			nil,
 			[]*v0.EditCheckResult{
 				{
-					Relationship: core.V0RelationTuple(tuple.MustParse("somenamespace:someobj#anotherrel@user:foo")),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#anotherrel@user:foo")),
 					Error: &v0.DeveloperError{
 						Message: "relation/permission `anotherrel` not found under definition `somenamespace`",
 						Kind:    v0.DeveloperError_UNKNOWN_RELATION,
@@ -198,11 +198,11 @@ func TestEditCheck(t *testing.T) {
 			nil,
 			[]*v0.EditCheckResult{
 				{
-					Relationship: core.V0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:foo")),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:foo")),
 					IsMember:     true,
 				},
 				{
-					Relationship: core.V0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser")),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser")),
 					IsMember:     false,
 				},
 			},
@@ -225,11 +225,11 @@ func TestEditCheck(t *testing.T) {
 			nil,
 			[]*v0.EditCheckResult{
 				{
-					Relationship: core.V0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:foo")),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:foo")),
 					IsMember:     true,
 				},
 				{
-					Relationship: core.V0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser")),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser")),
 					IsMember:     true,
 				},
 			},
@@ -244,9 +244,9 @@ func TestEditCheck(t *testing.T) {
 			resp, err := srv.EditCheck(context.Background(), &v0.EditCheckRequest{
 				Context: &v0.RequestContext{
 					Schema:        tc.schema,
-					Relationships: core.V0RelationTuples(tc.relationships),
+					Relationships: core.ToV0RelationTuples(tc.relationships),
 				},
-				CheckRelationships: core.V0RelationTuples(tc.checkRelationships),
+				CheckRelationships: core.ToV0RelationTuples(tc.checkRelationships),
 			})
 			require.NoError(t, err)
 
@@ -777,7 +777,7 @@ assertFalse:
 			resp, err := srv.Validate(context.Background(), &v0.ValidateRequest{
 				Context: &v0.RequestContext{
 					Schema:        tc.schema,
-					Relationships: core.V0RelationTuples(tc.relationships),
+					Relationships: core.ToV0RelationTuples(tc.relationships),
 				},
 				ValidationYaml:       tc.validationYaml,
 				AssertionsYaml:       tc.assertionsYaml,

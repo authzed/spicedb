@@ -390,8 +390,8 @@ type validationContext struct {
 
 func validateDeveloper(t *testing.T, dev v0.DeveloperServiceServer, vctx *validationContext) {
 	reqContext := &v0.RequestContext{
-		LegacyNsConfigs: core.V0NamespaceDefinitions(vctx.fullyResolved.NamespaceDefinitions),
-		Relationships:   core.V0RelationTuples(vctx.fullyResolved.Tuples),
+		LegacyNsConfigs: core.ToV0NamespaceDefinitions(vctx.fullyResolved.NamespaceDefinitions),
+		Relationships:   core.ToV0RelationTuples(vctx.fullyResolved.Tuples),
 	}
 
 	// Validate edit checks (check watches).
@@ -510,7 +510,7 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					// Ensure that all Checks assert true via the developer API.
 					req := &v0.EditCheckRequest{
 						Context:            reqContext,
-						CheckRelationships: core.V0RelationTuples(checkRelationships),
+						CheckRelationships: core.ToV0RelationTuples(checkRelationships),
 					}
 
 					resp, err := dev.EditCheck(context.Background(), req)
@@ -518,8 +518,8 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					vrequire.Equal(len(checkRelationships), len(resp.CheckResults))
 					vrequire.Equal(0, len(resp.RequestErrors), "Got unexpected request error from edit check")
 					for _, result := range resp.CheckResults {
-						expectedMember := vctx.accessibilitySet.GetIsMember(core.CoreObjectAndRelation(result.Relationship.ObjectAndRelation), subject)
-						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard, result.IsMember, "Found unexpected membership difference for %s. Expected %v, Found: %v", tuple.String(core.CoreRelationTuple(result.Relationship)), expectedMember, result.IsMember)
+						expectedMember := vctx.accessibilitySet.GetIsMember(core.ToCoreObjectAndRelation(result.Relationship.ObjectAndRelation), subject)
+						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard, result.IsMember, "Found unexpected membership difference for %s. Expected %v, Found: %v", tuple.String(core.ToCoreRelationTuple(result.Relationship)), expectedMember, result.IsMember)
 					}
 				})
 			}

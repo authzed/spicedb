@@ -38,13 +38,13 @@ func (v0st v0ServiceTester) Name() string {
 
 func (v0st v0ServiceTester) Check(ctx context.Context, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, atRevision decimal.Decimal) (bool, error) {
 	checkResp, err := v0st.aclClient.Check(ctx, &v0.CheckRequest{
-		TestUserset: core.V0ObjectAndRelation(resource),
+		TestUserset: core.ToV0ObjectAndRelation(resource),
 		User: &v0.User{
 			UserOneof: &v0.User_Userset{
-				Userset: core.V0ObjectAndRelation(subject),
+				Userset: core.ToV0ObjectAndRelation(subject),
 			},
 		},
-		AtRevision: core.V0Zookie(zookie.NewFromRevision(atRevision)),
+		AtRevision: core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 	})
 	if err != nil {
 		return false, err
@@ -54,19 +54,19 @@ func (v0st v0ServiceTester) Check(ctx context.Context, resource *core.ObjectAndR
 
 func (v0st v0ServiceTester) Expand(ctx context.Context, resource *core.ObjectAndRelation, atRevision decimal.Decimal) (*core.RelationTupleTreeNode, error) {
 	expandResp, err := v0st.aclClient.Expand(ctx, &v0.ExpandRequest{
-		Userset:    core.V0ObjectAndRelation(resource),
-		AtRevision: core.V0Zookie(zookie.NewFromRevision(atRevision)),
+		Userset:    core.ToV0ObjectAndRelation(resource),
+		AtRevision: core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return core.CoreRelationTupleTreeNode(expandResp.TreeNode), nil
+	return core.ToCoreRelationTupleTreeNode(expandResp.TreeNode), nil
 }
 
 func (v0st v0ServiceTester) Write(ctx context.Context, tpl *core.RelationTuple) error {
 	_, err := v0st.aclClient.Write(ctx, &v0.WriteRequest{
-		WriteConditions: []*v0.RelationTuple{core.V0RelationTuple(tpl)},
-		Updates:         []*v0.RelationTupleUpdate{core.V0RelationTupleUpdate(tuple.Touch(tpl))},
+		WriteConditions: []*v0.RelationTuple{core.ToV0RelationTuple(tpl)},
+		Updates:         []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Touch(tpl))},
 	})
 	return err
 }
@@ -76,7 +76,7 @@ func (v0st v0ServiceTester) Read(ctx context.Context, namespaceName string, atRe
 		Tuplesets: []*v0.RelationTupleFilter{
 			{Namespace: namespaceName},
 		},
-		AtRevision: core.V0Zookie(zookie.NewFromRevision(atRevision)),
+		AtRevision: core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 	})
 	if err != nil {
 		return nil, err
@@ -86,15 +86,15 @@ func (v0st v0ServiceTester) Read(ctx context.Context, namespaceName string, atRe
 	for _, tplSet := range result.Tuplesets {
 		tuples = append(tuples, tplSet.Tuples...)
 	}
-	return core.CoreRelationTuples(tuples), nil
+	return core.ToCoreRelationTuples(tuples), nil
 }
 
 func (v0st v0ServiceTester) Lookup(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision decimal.Decimal) ([]string, error) {
 	result, err := v0st.aclClient.Lookup(context.Background(), &v0.LookupRequest{
-		User:           core.V0ObjectAndRelation(subject),
-		ObjectRelation: core.V0RelationReference(resourceRelation),
+		User:           core.ToV0ObjectAndRelation(subject),
+		ObjectRelation: core.ToV0RelationReference(resourceRelation),
 		Limit:          ^uint32(0),
-		AtRevision:     core.V0Zookie(zookie.NewFromRevision(atRevision)),
+		AtRevision:     core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 	})
 	if err != nil {
 		return nil, err
