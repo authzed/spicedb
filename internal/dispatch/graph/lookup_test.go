@@ -85,7 +85,7 @@ func TestSimpleLookup(t *testing.T) {
 				ONR("document", "specialplan", "viewer_and_editor"),
 			},
 			8,
-			4,
+			2,
 		},
 		{
 			RR("folder", "viewer"),
