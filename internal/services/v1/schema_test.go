@@ -233,3 +233,53 @@ definition example/user {}`
 	require.NoError(t, err)
 	require.Equal(t, newSchema, readback.SchemaText)
 }
+
+func TestSchemaEmpty(t *testing.T) {
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+	v0client := v0.NewACLServiceClient(conn)
+
+	// Write a basic schema.
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition example/user {}
+	
+		definition example/document {
+			relation somerelation: example/user
+			relation anotherrelation: example/user
+		}`,
+	})
+	require.NoError(t, err)
+
+	// Write a relationship for one of the relations.
+	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
+		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
+		)},
+	})
+	require.Nil(t, err)
+
+	// Attempt to empty the schema, which should fail.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: ``,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+
+	// Delete the relationship.
+	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
+		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
+			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
+		)},
+	})
+	require.Nil(t, err)
+
+	// Attempt to empty the schema, which should succeed.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: ``,
+	})
+	require.Nil(t, err)
+
+	// Ensure it was deleted.
+	_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	grpcutil.RequireStatus(t, codes.NotFound, err)
+}
