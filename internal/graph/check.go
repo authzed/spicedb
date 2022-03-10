@@ -45,7 +45,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 	var directFunc ReduceableCheckFunc
 
 	// TODO(jschorr): Turn into an error once v0 API has been removed.
-	if relation.GetTypeInformation() == nil {
+	if relation.GetTypeInformation() == nil && relation.GetUsersetRewrite() == nil {
 		log.Ctx(ctx).Warn().Str("relation", relation.Name).Msg("Found relation without type information. Please switch to using schema. This will be an error in the future!")
 	}
 
