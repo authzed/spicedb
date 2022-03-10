@@ -69,6 +69,10 @@ type Config struct {
 	TablePrefix string
 }
 
+type processedOptions struct {
+	SplitQuerySize units.Base2Bytes
+}
+
 func (o *Config) ToOption() ConfigOption {
 	return func(to *Config) {
 		to.Engine = o.Engine
@@ -206,10 +210,11 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 }
 
 func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
-	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
+	options, err := processConfigOptions(opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse split query size: %w", err)
+		return nil, err
 	}
+
 	return crdb.NewCRDBDatastore(
 		opts.URI,
 		crdb.GCWindow(opts.GCWindow),
@@ -218,7 +223,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.ConnMaxLifetime(opts.MaxLifetime),
 		crdb.MaxOpenConns(opts.MaxOpenConns),
 		crdb.MinOpenConns(opts.MinOpenConns),
-		crdb.SplitAtEstimatedQuerySize(splitQuerySize),
+		crdb.SplitAtEstimatedQuerySize(options.SplitQuerySize),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
 		crdb.MaxRetries(opts.MaxRetries),
 		crdb.OverlapKey(opts.OverlapKey),
@@ -227,10 +232,11 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 }
 
 func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
-	splitQuerySize, err := units.ParseBase2Bytes(opts.SplitQuerySize)
+	options, err := processConfigOptions(opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse split query size: %w", err)
+		return nil, err
 	}
+
 	return postgres.NewPostgresDatastore(
 		opts.URI,
 		postgres.GCWindow(opts.GCWindow),
@@ -239,7 +245,7 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.ConnMaxLifetime(opts.MaxLifetime),
 		postgres.MaxOpenConns(opts.MaxOpenConns),
 		postgres.MinOpenConns(opts.MinOpenConns),
-		postgres.SplitAtEstimatedQuerySize(splitQuerySize),
+		postgres.SplitAtEstimatedQuerySize(options.SplitQuerySize),
 		postgres.HealthCheckPeriod(opts.HealthCheckPeriod),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
@@ -250,10 +256,19 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 
 func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
+	_, err := processConfigOptions(opts)
+	if err != nil {
+		return nil, err
+	}
 	return memdb.NewMemdbDatastore(0, opts.RevisionQuantization, opts.GCWindow, 0)
 }
 
 func newMysqlDatastore(opts Config) (datastore.Datastore, error) {
+	_, err := processConfigOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	return mysql.NewMysqlDatastore(
 		opts.URI,
 		mysql.GCInterval(opts.GCInterval),
@@ -262,4 +277,20 @@ func newMysqlDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.RevisionFuzzingTimedelta(opts.RevisionQuantization),
 		mysql.TablePrefix(opts.TablePrefix),
 	)
+}
+
+func processConfigOptions(opts Config) (*processedOptions, error) {
+	var options processedOptions
+
+	if opts.Engine != "mysql" && opts.TablePrefix != "" {
+		return nil, fmt.Errorf("table-prefix option is not compatible with the %s datastore", opts.Engine)
+	} else if opts.Engine == "postgres" || opts.Engine == "cockroachdb" {
+		var err error
+		options.SplitQuerySize, err = units.ParseBase2Bytes(opts.SplitQuerySize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse split query size: %w", err)
+		}
+	}
+
+	return &options, nil
 }
