@@ -90,7 +90,10 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	if c.GRPCAuthFunc == nil {
+		log.Trace().Int("preshared-key-length", len(c.PresharedKey)).Msg("using gRPC auth with preshared key")
 		c.GRPCAuthFunc = auth.RequirePresharedKey(c.PresharedKey)
+	} else {
+		log.Trace().Msg("using preconfigured auth function")
 	}
 
 	ds := c.Datastore
