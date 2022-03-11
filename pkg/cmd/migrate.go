@@ -100,6 +100,10 @@ func datastoreManagerAndDriver(datastoreEngine, dbURL string, tablePrefix string
 	var migrationManager *migrate.Manager
 	var err error
 
+	if datastoreEngine != "mysql" && tablePrefix != "" {
+		return nil, nil, fmt.Errorf("table-prefix option is not compatible with the %s datastore", datastoreEngine)
+	}
+
 	if datastoreEngine == "cockroachdb" {
 		migrationDriver, err = crdbmigrations.NewCRDBDriver(dbURL)
 		if err != nil {
