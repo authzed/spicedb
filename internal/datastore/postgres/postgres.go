@@ -32,8 +32,8 @@ func init() {
 }
 
 const (
-	Engine         = "postgres"
-	tableNamespace = "namespace_config"
+	Engine           = "postgres"
+	tableNamespace   = "namespace_config"
 	tableTransaction = "relation_tuple_transaction"
 	tableTuple       = "relation_tuple"
 

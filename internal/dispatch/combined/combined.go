@@ -121,19 +121,3 @@ func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatche
 
 	return cachingRedispatch, nil
 }
-
-// NewClusterDispatcher takes a caching redispatcher (such as one created by
-// NewDispatcher) and returns a cluster dispatcher suitable for use as the
-// dispatcher for the dispatch grpc server.
-func NewClusterDispatcher(cachingRedispatch dispatch.Dispatcher, nsm namespace.Manager, prometheusSubsystem string, config *ristretto.Config) (dispatch.Dispatcher, error) {
-	clusterDispatch := graph.NewDispatcher(cachingRedispatch, nsm)
-	if prometheusSubsystem == "" {
-		prometheusSubsystem = "dispatch"
-	}
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(config, prometheusSubsystem)
-	if err != nil {
-		return nil, err
-	}
-	cachingClusterDispatch.SetDelegate(clusterDispatch)
-	return cachingClusterDispatch, nil
-}

@@ -24,6 +24,8 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
+const TestResolverScheme = "test"
+
 type TempError struct{}
 
 func (t TempError) Error() string {
@@ -64,14 +66,15 @@ func init() {
 	resolver.Register(testResolverBuilder)
 }
 
-// SafeManualResolverBuilder is a resolver builder
+// SafeManualResolverBuilder is a resolver builder that builds SafeManualResolvers
+// it is similar to manual.Resolver in grpc, but is thread safe
 type SafeManualResolverBuilder struct {
 	resolvers sync.Map
 	addrs     sync.Map
 }
 
 func (b *SafeManualResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
-	if target.URL.Scheme != "test" {
+	if target.URL.Scheme != TestResolverScheme {
 		return nil, fmt.Errorf("test resolver builder only works with test:// addresses")
 	}
 	var addrs []resolver.Address

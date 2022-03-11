@@ -33,8 +33,8 @@ var (
 )
 
 const (
-	Engine         = "cockroachdb"
-	tableNamespace = "namespace_config"
+	Engine            = "cockroachdb"
+	tableNamespace    = "namespace_config"
 	tableTuple        = "relation_tuple"
 	tableTransactions = "transactions"
 

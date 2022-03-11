@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/dashboard"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
+	clusterdispatch "github.com/authzed/spicedb/internal/dispatch/cluster"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -164,7 +165,12 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 
 		var err error
-		cachingClusterDispatch, err = combineddispatch.NewClusterDispatcher(dispatcher, nsm, c.DispatchClusterMetricsPrefix, cdcc)
+		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
+			dispatcher,
+			nsm,
+			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
+			clusterdispatch.CacheConfig(cdcc),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}
