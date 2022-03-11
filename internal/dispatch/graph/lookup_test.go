@@ -198,3 +198,30 @@ func (a OrderedResolved) Less(i, j int) bool {
 }
 
 func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func TestPrefix(t *testing.T) {
+	tests := []struct {
+		ns         string
+		wantPrefix string
+	}{
+		{
+			ns:         "test",
+			wantPrefix: "",
+		},
+		{
+			ns:         "prefix/test",
+			wantPrefix: "prefix",
+		},
+		{
+			ns:         "prefix1/prefix2/test",
+			wantPrefix: "prefix1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.ns+tt.wantPrefix, func(t *testing.T) {
+			if gotPrefix := prefix(tt.ns); gotPrefix != tt.wantPrefix {
+				t.Errorf("prefix() = %v, want %v", gotPrefix, tt.wantPrefix)
+			}
+		})
+	}
+}

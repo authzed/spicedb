@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
@@ -26,10 +27,10 @@ const errDispatch = "error dispatching request: %w"
 
 var tracer = otel.Tracer("spicedb/internal/dispatch/local")
 
-var slowLookupCounter = prometheus.NewCounter(prometheus.CounterOpts{
+var slowLookupCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Name: "spicedb_dispatch_slow_lookup_total",
 	Help: "count of how many times the slow lookup path is taken",
-})
+}, []string{"prefix"})
 
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
 func NewLocalOnlyDispatcher(
@@ -198,11 +199,19 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 
 	if ld.requiresLookupViaChecks(relation) {
 		log.Warn().Msg("slow path dispatch lookup")
-		slowLookupCounter.Inc()
+		slowLookupCounter.WithLabelValues(prefix(validatedReq.Subject.Namespace)).Inc()
 		return ld.lookupHandler.LookupViaChecks(ctx, validatedReq)
 	}
 
 	return ld.lookupHandler.Lookup(ctx, validatedReq)
+}
+
+func prefix(namespace string) (prefix string) {
+	parts := strings.SplitN(namespace, "/", 2)
+	if len(parts) > 1 {
+		prefix = parts[0]
+	}
+	return prefix
 }
 
 func (ld *localDispatcher) requiresLookupViaChecks(relation *core.Relation) bool {
