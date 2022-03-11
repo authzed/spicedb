@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -32,7 +33,7 @@ func TestNamespace(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 
 	_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
-		Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS},
+		Configs: core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, testfixtures.FolderNS, testfixtures.DocumentNS}),
 	})
 	require.NoError(err)
 
@@ -42,7 +43,7 @@ func TestNamespace(t *testing.T) {
 	require.NoError(err)
 	require.Equal(testfixtures.DocumentNS.Name, readBack.Namespace)
 
-	if diff := cmp.Diff(testfixtures.DocumentNS, readBack.Config, protocmp.Transform()); diff != "" {
+	if diff := cmp.Diff(testfixtures.DocumentNS, core.ToCoreNamespaceDefinition(readBack.Config), protocmp.Transform()); diff != "" {
 		require.Fail("should have read back the same config")
 	}
 
@@ -55,9 +56,9 @@ func TestNamespace(t *testing.T) {
 func TestNamespaceChanged(t *testing.T) {
 	testCases := []struct {
 		name             string
-		initialNamespace *v0.NamespaceDefinition
-		tuples           []*v0.RelationTuple
-		updatedNamespace *v0.NamespaceDefinition
+		initialNamespace *core.NamespaceDefinition
+		tuples           []*core.RelationTuple
+		updatedNamespace *core.NamespaceDefinition
 		expectedError    string
 	}{
 		{
@@ -69,7 +70,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.AllowedRelation("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			ns.Namespace(
 				"folder",
 			),
@@ -84,7 +85,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.AllowedRelation("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{tuple.MustParse("folder:somefolder#viewer@user:someuser#...")},
+			[]*core.RelationTuple{tuple.MustParse("folder:somefolder#viewer@user:someuser#...")},
 			ns.Namespace(
 				"folder",
 			),
@@ -103,7 +104,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.AllowedRelation("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{tuple.MustParse("folder:somefolder#anotherrel@folder:somefolder#viewer")},
+			[]*core.RelationTuple{tuple.MustParse("folder:somefolder#anotherrel@folder:somefolder#viewer")},
 			ns.Namespace(
 				"folder",
 				ns.Relation("anotherrel",
@@ -122,7 +123,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.AllowedRelation("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{tuple.MustParse("folder:somefolder#viewer@user:someuser#...")},
+			[]*core.RelationTuple{tuple.MustParse("folder:somefolder#viewer@user:someuser#...")},
 			ns.Namespace(
 				"folder",
 				ns.Relation("viewer",
@@ -141,7 +142,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.AllowedRelation("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			ns.Namespace(
 				"folder",
 				ns.Relation("viewer",
@@ -160,7 +161,7 @@ func TestNamespaceChanged(t *testing.T) {
 					ns.AllowedRelation("user", "..."),
 				),
 			),
-			[]*v0.RelationTuple{tuple.MustParse("folder:somefolder#viewer@user:someuser#...")},
+			[]*core.RelationTuple{tuple.MustParse("folder:somefolder#viewer@user:someuser#...")},
 			ns.Namespace(
 				"folder",
 				ns.Relation("viewer",
@@ -187,7 +188,7 @@ func TestNamespaceChanged(t *testing.T) {
 			grpcutil.RequireStatus(t, codes.NotFound, err)
 
 			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
-				Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace},
+				Configs: core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace}),
 			})
 			require.NoError(err)
 
@@ -207,7 +208,7 @@ func TestNamespaceChanged(t *testing.T) {
 			require.NoError(err)
 
 			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
-				Configs: []*v0.NamespaceDefinition{tc.updatedNamespace},
+				Configs: core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{tc.updatedNamespace}),
 			})
 
 			if tc.expectedError != "" {
@@ -225,9 +226,9 @@ func TestNamespaceChanged(t *testing.T) {
 func TestDeleteNamespace(t *testing.T) {
 	testCases := []struct {
 		name               string
-		initialNamespace   *v0.NamespaceDefinition
+		initialNamespace   *core.NamespaceDefinition
 		namespacesToDelete []string
-		tuples             []*v0.RelationTuple
+		tuples             []*core.RelationTuple
 		expectedError      string
 	}{
 		{
@@ -240,7 +241,7 @@ func TestDeleteNamespace(t *testing.T) {
 				),
 			),
 			[]string{"folder", "user"},
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			"",
 		},
 		{
@@ -253,7 +254,7 @@ func TestDeleteNamespace(t *testing.T) {
 				),
 			),
 			[]string{"folder"},
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("folder:somefolder#viewer@user:someuser#..."),
 			},
 			"cannot delete definition `folder`, as a relationship exists under it",
@@ -268,7 +269,7 @@ func TestDeleteNamespace(t *testing.T) {
 				),
 			),
 			[]string{"user"},
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("folder:somefolder#viewer@user:someuser#..."),
 			},
 			"cannot delete definition `user`, as a relationship references it",
@@ -289,7 +290,7 @@ func TestDeleteNamespace(t *testing.T) {
 			grpcutil.RequireStatus(t, codes.NotFound, err)
 
 			_, err = nsClient.WriteConfig(context.Background(), &v0.WriteConfigRequest{
-				Configs: []*v0.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace},
+				Configs: core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, tc.initialNamespace}),
 			})
 			require.NoError(err)
 

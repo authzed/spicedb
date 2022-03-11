@@ -11,6 +11,7 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -31,15 +32,30 @@ var (
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
 	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
 // Validate checks the field values on DecodedZookie with the rules defined in
-// the proto definition for this message. If any rules are violated, an error
-// is returned.
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *DecodedZookie) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DecodedZookie with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in DecodedZookieMultiError, or
+// nil if none found.
+func (m *DecodedZookie) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DecodedZookie) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
+
+	var errors []error
 
 	// no validation rules for Version
 
@@ -47,7 +63,26 @@ func (m *DecodedZookie) Validate() error {
 
 	case *DecodedZookie_V1:
 
-		if v, ok := interface{}(m.GetV1()).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(m.GetV1()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DecodedZookieValidationError{
+						field:  "V1",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DecodedZookieValidationError{
+						field:  "V1",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetV1()).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return DecodedZookieValidationError{
 					field:  "V1",
@@ -59,7 +94,26 @@ func (m *DecodedZookie) Validate() error {
 
 	case *DecodedZookie_V2:
 
-		if v, ok := interface{}(m.GetV2()).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(m.GetV2()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DecodedZookieValidationError{
+						field:  "V2",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DecodedZookieValidationError{
+						field:  "V2",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetV2()).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return DecodedZookieValidationError{
 					field:  "V2",
@@ -71,8 +125,29 @@ func (m *DecodedZookie) Validate() error {
 
 	}
 
+	if len(errors) > 0 {
+		return DecodedZookieMultiError(errors)
+	}
+
 	return nil
 }
+
+// DecodedZookieMultiError is an error wrapping multiple validation errors
+// returned by DecodedZookie.ValidateAll() if the designated constraints
+// aren't met.
+type DecodedZookieMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DecodedZookieMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DecodedZookieMultiError) AllErrors() []error { return m }
 
 // DecodedZookieValidationError is the validation error returned by
 // DecodedZookie.Validate if the designated constraints aren't met.
@@ -129,18 +204,51 @@ var _ interface {
 } = DecodedZookieValidationError{}
 
 // Validate checks the field values on DecodedZedToken with the rules defined
-// in the proto definition for this message. If any rules are violated, an
-// error is returned.
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
 func (m *DecodedZedToken) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DecodedZedToken with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DecodedZedTokenMultiError, or nil if none found.
+func (m *DecodedZedToken) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DecodedZedToken) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
+
+	var errors []error
 
 	switch m.VersionOneof.(type) {
 
 	case *DecodedZedToken_DeprecatedV1Zookie:
 
-		if v, ok := interface{}(m.GetDeprecatedV1Zookie()).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(m.GetDeprecatedV1Zookie()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DecodedZedTokenValidationError{
+						field:  "DeprecatedV1Zookie",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DecodedZedTokenValidationError{
+						field:  "DeprecatedV1Zookie",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetDeprecatedV1Zookie()).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return DecodedZedTokenValidationError{
 					field:  "DeprecatedV1Zookie",
@@ -152,7 +260,26 @@ func (m *DecodedZedToken) Validate() error {
 
 	case *DecodedZedToken_V1:
 
-		if v, ok := interface{}(m.GetV1()).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(m.GetV1()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DecodedZedTokenValidationError{
+						field:  "V1",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DecodedZedTokenValidationError{
+						field:  "V1",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetV1()).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return DecodedZedTokenValidationError{
 					field:  "V1",
@@ -164,8 +291,29 @@ func (m *DecodedZedToken) Validate() error {
 
 	}
 
+	if len(errors) > 0 {
+		return DecodedZedTokenMultiError(errors)
+	}
+
 	return nil
 }
+
+// DecodedZedTokenMultiError is an error wrapping multiple validation errors
+// returned by DecodedZedToken.ValidateAll() if the designated constraints
+// aren't met.
+type DecodedZedTokenMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DecodedZedTokenMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DecodedZedTokenMultiError) AllErrors() []error { return m }
 
 // DecodedZedTokenValidationError is the validation error returned by
 // DecodedZedToken.Validate if the designated constraints aren't met.
@@ -222,16 +370,51 @@ var _ interface {
 } = DecodedZedTokenValidationError{}
 
 // Validate checks the field values on DocComment with the rules defined in the
-// proto definition for this message. If any rules are violated, an error is returned.
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *DocComment) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DocComment with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in DocCommentMultiError, or
+// nil if none found.
+func (m *DocComment) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DocComment) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	// no validation rules for Comment
+
+	if len(errors) > 0 {
+		return DocCommentMultiError(errors)
+	}
 
 	return nil
 }
+
+// DocCommentMultiError is an error wrapping multiple validation errors
+// returned by DocComment.ValidateAll() if the designated constraints aren't met.
+type DocCommentMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DocCommentMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DocCommentMultiError) AllErrors() []error { return m }
 
 // DocCommentValidationError is the validation error returned by
 // DocComment.Validate if the designated constraints aren't met.
@@ -288,17 +471,52 @@ var _ interface {
 } = DocCommentValidationError{}
 
 // Validate checks the field values on RelationMetadata with the rules defined
-// in the proto definition for this message. If any rules are violated, an
-// error is returned.
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
 func (m *RelationMetadata) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RelationMetadata with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RelationMetadataMultiError, or nil if none found.
+func (m *RelationMetadata) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RelationMetadata) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	// no validation rules for Kind
+
+	if len(errors) > 0 {
+		return RelationMetadataMultiError(errors)
+	}
 
 	return nil
 }
+
+// RelationMetadataMultiError is an error wrapping multiple validation errors
+// returned by RelationMetadata.ValidateAll() if the designated constraints
+// aren't met.
+type RelationMetadataMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RelationMetadataMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RelationMetadataMultiError) AllErrors() []error { return m }
 
 // RelationMetadataValidationError is the validation error returned by
 // RelationMetadata.Validate if the designated constraints aren't met.
@@ -356,18 +574,53 @@ var _ interface {
 
 // Validate checks the field values on NamespaceAndRevision with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *NamespaceAndRevision) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on NamespaceAndRevision with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// NamespaceAndRevisionMultiError, or nil if none found.
+func (m *NamespaceAndRevision) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *NamespaceAndRevision) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
+
+	var errors []error
 
 	// no validation rules for NamespaceName
 
 	// no validation rules for Revision
 
+	if len(errors) > 0 {
+		return NamespaceAndRevisionMultiError(errors)
+	}
+
 	return nil
 }
+
+// NamespaceAndRevisionMultiError is an error wrapping multiple validation
+// errors returned by NamespaceAndRevision.ValidateAll() if the designated
+// constraints aren't met.
+type NamespaceAndRevisionMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m NamespaceAndRevisionMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m NamespaceAndRevisionMultiError) AllErrors() []error { return m }
 
 // NamespaceAndRevisionValidationError is the validation error returned by
 // NamespaceAndRevision.Validate if the designated constraints aren't met.
@@ -426,17 +679,50 @@ var _ interface {
 } = NamespaceAndRevisionValidationError{}
 
 // Validate checks the field values on V1Alpha1Revision with the rules defined
-// in the proto definition for this message. If any rules are violated, an
-// error is returned.
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
 func (m *V1Alpha1Revision) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on V1Alpha1Revision with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// V1Alpha1RevisionMultiError, or nil if none found.
+func (m *V1Alpha1Revision) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *V1Alpha1Revision) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	for idx, item := range m.GetNsRevisions() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, V1Alpha1RevisionValidationError{
+						field:  fmt.Sprintf("NsRevisions[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, V1Alpha1RevisionValidationError{
+						field:  fmt.Sprintf("NsRevisions[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return V1Alpha1RevisionValidationError{
 					field:  fmt.Sprintf("NsRevisions[%v]", idx),
@@ -448,8 +734,29 @@ func (m *V1Alpha1Revision) Validate() error {
 
 	}
 
+	if len(errors) > 0 {
+		return V1Alpha1RevisionMultiError(errors)
+	}
+
 	return nil
 }
+
+// V1Alpha1RevisionMultiError is an error wrapping multiple validation errors
+// returned by V1Alpha1Revision.ValidateAll() if the designated constraints
+// aren't met.
+type V1Alpha1RevisionMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m V1Alpha1RevisionMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m V1Alpha1RevisionMultiError) AllErrors() []error { return m }
 
 // V1Alpha1RevisionValidationError is the validation error returned by
 // V1Alpha1Revision.Validate if the designated constraints aren't met.
@@ -507,16 +814,51 @@ var _ interface {
 
 // Validate checks the field values on DecodedZookie_V1Zookie with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DecodedZookie_V1Zookie) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DecodedZookie_V1Zookie with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DecodedZookie_V1ZookieMultiError, or nil if none found.
+func (m *DecodedZookie_V1Zookie) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DecodedZookie_V1Zookie) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	// no validation rules for Revision
+
+	if len(errors) > 0 {
+		return DecodedZookie_V1ZookieMultiError(errors)
+	}
 
 	return nil
 }
+
+// DecodedZookie_V1ZookieMultiError is an error wrapping multiple validation
+// errors returned by DecodedZookie_V1Zookie.ValidateAll() if the designated
+// constraints aren't met.
+type DecodedZookie_V1ZookieMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DecodedZookie_V1ZookieMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DecodedZookie_V1ZookieMultiError) AllErrors() []error { return m }
 
 // DecodedZookie_V1ZookieValidationError is the validation error returned by
 // DecodedZookie_V1Zookie.Validate if the designated constraints aren't met.
@@ -576,16 +918,51 @@ var _ interface {
 
 // Validate checks the field values on DecodedZookie_V2Zookie with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DecodedZookie_V2Zookie) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DecodedZookie_V2Zookie with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DecodedZookie_V2ZookieMultiError, or nil if none found.
+func (m *DecodedZookie_V2Zookie) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DecodedZookie_V2Zookie) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	// no validation rules for Revision
+
+	if len(errors) > 0 {
+		return DecodedZookie_V2ZookieMultiError(errors)
+	}
 
 	return nil
 }
+
+// DecodedZookie_V2ZookieMultiError is an error wrapping multiple validation
+// errors returned by DecodedZookie_V2Zookie.ValidateAll() if the designated
+// constraints aren't met.
+type DecodedZookie_V2ZookieMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DecodedZookie_V2ZookieMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DecodedZookie_V2ZookieMultiError) AllErrors() []error { return m }
 
 // DecodedZookie_V2ZookieValidationError is the validation error returned by
 // DecodedZookie_V2Zookie.Validate if the designated constraints aren't met.
@@ -645,16 +1022,51 @@ var _ interface {
 
 // Validate checks the field values on DecodedZedToken_V1Zookie with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DecodedZedToken_V1Zookie) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DecodedZedToken_V1Zookie with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DecodedZedToken_V1ZookieMultiError, or nil if none found.
+func (m *DecodedZedToken_V1Zookie) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DecodedZedToken_V1Zookie) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	// no validation rules for Revision
+
+	if len(errors) > 0 {
+		return DecodedZedToken_V1ZookieMultiError(errors)
+	}
 
 	return nil
 }
+
+// DecodedZedToken_V1ZookieMultiError is an error wrapping multiple validation
+// errors returned by DecodedZedToken_V1Zookie.ValidateAll() if the designated
+// constraints aren't met.
+type DecodedZedToken_V1ZookieMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DecodedZedToken_V1ZookieMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DecodedZedToken_V1ZookieMultiError) AllErrors() []error { return m }
 
 // DecodedZedToken_V1ZookieValidationError is the validation error returned by
 // DecodedZedToken_V1Zookie.Validate if the designated constraints aren't met.
@@ -714,16 +1126,51 @@ var _ interface {
 
 // Validate checks the field values on DecodedZedToken_V1ZedToken with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DecodedZedToken_V1ZedToken) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DecodedZedToken_V1ZedToken with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DecodedZedToken_V1ZedTokenMultiError, or nil if none found.
+func (m *DecodedZedToken_V1ZedToken) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DecodedZedToken_V1ZedToken) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	// no validation rules for Revision
+
+	if len(errors) > 0 {
+		return DecodedZedToken_V1ZedTokenMultiError(errors)
+	}
 
 	return nil
 }
+
+// DecodedZedToken_V1ZedTokenMultiError is an error wrapping multiple
+// validation errors returned by DecodedZedToken_V1ZedToken.ValidateAll() if
+// the designated constraints aren't met.
+type DecodedZedToken_V1ZedTokenMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DecodedZedToken_V1ZedTokenMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DecodedZedToken_V1ZedTokenMultiError) AllErrors() []error { return m }
 
 // DecodedZedToken_V1ZedTokenValidationError is the validation error returned
 // by DecodedZedToken_V1ZedToken.Validate if the designated constraints aren't met.

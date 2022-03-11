@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -33,7 +34,7 @@ func TestChanges(t *testing.T) {
 	type changeEntry struct {
 		revision     uint64
 		relationship string
-		op           v0.RelationTupleUpdate_Operation
+		op           core.RelationTupleUpdate_Operation
 	}
 
 	testCases := []struct {
@@ -49,126 +50,126 @@ func TestChanges(t *testing.T) {
 		{
 			"create",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
 			},
 		},
 		{
 			"delete",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_DELETE},
+				{1, tuple1, core.RelationTupleUpdate_DELETE},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{del(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{del(tuple1)}},
 			},
 		},
 		{
 			"in-order touch",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_DELETE},
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_DELETE},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
 			},
 		},
 		{
 			"reverse-order touch",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1, tuple1, v0.RelationTupleUpdate_DELETE},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_DELETE},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
 			},
 		},
 		{
 			"create and delete",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1, tuple2, v0.RelationTupleUpdate_DELETE},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1, tuple2, core.RelationTupleUpdate_DELETE},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
 			},
 		},
 		{
 			"multiple creates",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1, tuple2, v0.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1, tuple2, core.RelationTupleUpdate_TOUCH},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
 			},
 		},
 		{
 			"duplicates",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
 			},
 		},
 		{
 			"create then touch",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{2, tuple1, v0.RelationTupleUpdate_DELETE},
-				{2, tuple1, v0.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{2, tuple1, core.RelationTupleUpdate_DELETE},
+				{2, tuple1, core.RelationTupleUpdate_TOUCH},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
-				{Revision: rev2, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev2, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
 			},
 		},
 		{
 			"big revision gap",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1_000_000, tuple1, v0.RelationTupleUpdate_DELETE},
-				{1_000_000, tuple1, v0.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1_000_000, tuple1, core.RelationTupleUpdate_DELETE},
+				{1_000_000, tuple1, core.RelationTupleUpdate_TOUCH},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
-				{Revision: revOneMillion, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: revOneMillion, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
 			},
 		},
 		{
 			"out of order",
 			[]changeEntry{
-				{1_000_000, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{1_000_000, tuple1, v0.RelationTupleUpdate_DELETE},
+				{1_000_000, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{1_000_000, tuple1, core.RelationTupleUpdate_DELETE},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
-				{Revision: revOneMillion, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: revOneMillion, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
 			},
 		},
 		{
 			"kitchen sink",
 			[]changeEntry{
-				{1, tuple1, v0.RelationTupleUpdate_TOUCH},
-				{2, tuple1, v0.RelationTupleUpdate_DELETE},
-				{1_000_000, tuple1, v0.RelationTupleUpdate_TOUCH},
+				{1, tuple1, core.RelationTupleUpdate_TOUCH},
+				{2, tuple1, core.RelationTupleUpdate_DELETE},
+				{1_000_000, tuple1, core.RelationTupleUpdate_TOUCH},
 
-				{1, tuple2, v0.RelationTupleUpdate_DELETE},
-				{2, tuple2, v0.RelationTupleUpdate_TOUCH},
-				{1_000_000, tuple2, v0.RelationTupleUpdate_DELETE},
-				{1_000_000, tuple2, v0.RelationTupleUpdate_TOUCH},
+				{1, tuple2, core.RelationTupleUpdate_DELETE},
+				{2, tuple2, core.RelationTupleUpdate_TOUCH},
+				{1_000_000, tuple2, core.RelationTupleUpdate_DELETE},
+				{1_000_000, tuple2, core.RelationTupleUpdate_TOUCH},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
-				{Revision: rev2, Changes: []*v0.RelationTupleUpdate{touch(tuple2), del(tuple1)}},
-				{Revision: revOneMillion, Changes: []*v0.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
+				{Revision: rev2, Changes: []*core.RelationTupleUpdate{touch(tuple2), del(tuple1)}},
+				{Revision: revOneMillion, Changes: []*core.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
 			},
 		},
 	}
@@ -202,63 +203,63 @@ func TestCanonicalize(t *testing.T) {
 		{
 			"single entries",
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1)}},
 			},
 		},
 		{
 			"tuples out of order",
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{del(tuple2), touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{del(tuple2), touch(tuple1)}},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
 			},
 		},
 		{
 			"operations out of order",
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{del(tuple1), touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{del(tuple1), touch(tuple1)}},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), del(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), del(tuple1)}},
 			},
 		},
 		{
 			"equal entries",
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), touch(tuple1)}},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), touch(tuple1)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), touch(tuple1)}},
 			},
 		},
 		{
 			"already canonical",
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
-				{Revision: rev2, Changes: []*v0.RelationTupleUpdate{del(tuple1), touch(tuple2)}},
-				{Revision: revOneMillion, Changes: []*v0.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
+				{Revision: rev2, Changes: []*core.RelationTupleUpdate{del(tuple1), touch(tuple2)}},
+				{Revision: revOneMillion, Changes: []*core.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
-				{Revision: rev2, Changes: []*v0.RelationTupleUpdate{del(tuple1), touch(tuple2)}},
-				{Revision: revOneMillion, Changes: []*v0.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
+				{Revision: rev2, Changes: []*core.RelationTupleUpdate{del(tuple1), touch(tuple2)}},
+				{Revision: revOneMillion, Changes: []*core.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
 			},
 		},
 		{
 			"revisions allowed out of order",
 			[]*datastore.RevisionChanges{
-				{Revision: revOneMillion, Changes: []*v0.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
-				{Revision: rev2, Changes: []*v0.RelationTupleUpdate{del(tuple1), touch(tuple2)}},
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
+				{Revision: revOneMillion, Changes: []*core.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
+				{Revision: rev2, Changes: []*core.RelationTupleUpdate{del(tuple1), touch(tuple2)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
 			},
 			[]*datastore.RevisionChanges{
-				{Revision: revOneMillion, Changes: []*v0.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
-				{Revision: rev2, Changes: []*v0.RelationTupleUpdate{del(tuple1), touch(tuple2)}},
-				{Revision: rev1, Changes: []*v0.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
+				{Revision: revOneMillion, Changes: []*core.RelationTupleUpdate{touch(tuple1), touch(tuple2)}},
+				{Revision: rev2, Changes: []*core.RelationTupleUpdate{del(tuple1), touch(tuple2)}},
+				{Revision: rev1, Changes: []*core.RelationTupleUpdate{touch(tuple1), del(tuple2)}},
 			},
 		},
 	}
@@ -271,16 +272,16 @@ func TestCanonicalize(t *testing.T) {
 	}
 }
 
-func touch(relationship string) *v0.RelationTupleUpdate {
-	return &v0.RelationTupleUpdate{
-		Operation: v0.RelationTupleUpdate_TOUCH,
+func touch(relationship string) *core.RelationTupleUpdate {
+	return &core.RelationTupleUpdate{
+		Operation: core.RelationTupleUpdate_TOUCH,
 		Tuple:     tuple.MustParse(relationship),
 	}
 }
 
-func del(relationship string) *v0.RelationTupleUpdate {
-	return &v0.RelationTupleUpdate{
-		Operation: v0.RelationTupleUpdate_DELETE,
+func del(relationship string) *core.RelationTupleUpdate {
+	return &core.RelationTupleUpdate{
+		Operation: core.RelationTupleUpdate_DELETE,
 		Tuple:     tuple.MustParse(relationship),
 	}
 }
@@ -289,7 +290,7 @@ func canonicalize(in []*datastore.RevisionChanges) []*datastore.RevisionChanges 
 	out := make([]*datastore.RevisionChanges, 0, len(in))
 
 	for _, rev := range in {
-		outChanges := make([]*v0.RelationTupleUpdate, 0, len(rev.Changes))
+		outChanges := make([]*core.RelationTupleUpdate, 0, len(rev.Changes))
 
 		outChanges = append(outChanges, rev.Changes...)
 		sort.Slice(outChanges, func(i, j int) bool {

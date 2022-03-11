@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/dgraph-io/ristretto"
 	"github.com/dustin/go-humanize"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/protobuf/proto"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -63,7 +64,7 @@ func NewNonCachingNamespaceManager() Manager {
 	return &cachingManager{c: noCache{}}
 }
 
-func (nsc *cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*v0.NamespaceDefinition, *NamespaceTypeSystem, error) {
+func (nsc *cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, *NamespaceTypeSystem, error) {
 	nsDef, err := nsc.ReadNamespace(ctx, nsName, revision)
 	if err != nil {
 		return nsDef, nil, err
@@ -74,7 +75,7 @@ func (nsc *cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName str
 	return nsDef, ts, terr
 }
 
-func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*v0.NamespaceDefinition, error) {
+func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, error) {
 	ctx, span := tracer.Start(ctx, "ReadNamespace")
 	defer span.End()
 
@@ -87,7 +88,7 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 	}
 	value, found := nsc.c.Get(nsRevisionKey)
 	if found {
-		return value.(*v0.NamespaceDefinition), nil
+		return value.(*core.NamespaceDefinition), nil
 	}
 
 	// We couldn't use the cached entry, load one
@@ -114,7 +115,7 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 		return nil, err
 	}
 
-	return loadedRaw.(*v0.NamespaceDefinition), nil
+	return loadedRaw.(*core.NamespaceDefinition), nil
 }
 
 func (nsc *cachingManager) CheckNamespaceAndRelation(ctx context.Context, namespace, relation string, allowEllipsis bool, revision decimal.Decimal) error {

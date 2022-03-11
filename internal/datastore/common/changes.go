@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"sort"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -32,8 +33,8 @@ func mustRevisionFromKey(key revisionKey) datastore.Revision {
 type Changes map[revisionKey]*changeRecord
 
 type changeRecord struct {
-	tupleTouches map[string]*v0.RelationTuple
-	tupleDeletes map[string]*v0.RelationTuple
+	tupleTouches map[string]*core.RelationTuple
+	tupleDeletes map[string]*core.RelationTuple
 }
 
 // NewChanges creates a new Changes object for change tracking and de-duplication.
@@ -45,15 +46,15 @@ func NewChanges() Changes {
 func (ch Changes) AddChange(
 	ctx context.Context,
 	rev decimal.Decimal,
-	tpl *v0.RelationTuple,
-	op v0.RelationTupleUpdate_Operation,
+	tpl *core.RelationTuple,
+	op core.RelationTupleUpdate_Operation,
 ) {
 	rk := keyFromRevision(rev)
 	revisionChanges, ok := ch[rk]
 	if !ok {
 		revisionChanges = &changeRecord{
-			tupleTouches: make(map[string]*v0.RelationTuple),
-			tupleDeletes: make(map[string]*v0.RelationTuple),
+			tupleTouches: make(map[string]*core.RelationTuple),
+			tupleDeletes: make(map[string]*core.RelationTuple),
 		}
 		ch[rk] = revisionChanges
 	}
@@ -61,13 +62,13 @@ func (ch Changes) AddChange(
 	tplKey := tuple.String(tpl)
 
 	switch op {
-	case v0.RelationTupleUpdate_TOUCH:
+	case core.RelationTupleUpdate_TOUCH:
 		// If there was a delete for the same tuple at the same revision, drop it
 		delete(revisionChanges.tupleDeletes, tplKey)
 
 		revisionChanges.tupleTouches[tplKey] = tpl
 
-	case v0.RelationTupleUpdate_DELETE:
+	case core.RelationTupleUpdate_DELETE:
 		_, alreadyTouched := revisionChanges.tupleTouches[tplKey]
 		if !alreadyTouched {
 			revisionChanges.tupleDeletes[tplKey] = tpl
@@ -101,14 +102,14 @@ func (ch Changes) AsRevisionChanges() (changes []*datastore.RevisionChanges) {
 
 		revisionChangeRecord := ch[kar.key]
 		for _, tpl := range revisionChangeRecord.tupleTouches {
-			revisionChange.Changes = append(revisionChange.Changes, &v0.RelationTupleUpdate{
-				Operation: v0.RelationTupleUpdate_TOUCH,
+			revisionChange.Changes = append(revisionChange.Changes, &core.RelationTupleUpdate{
+				Operation: core.RelationTupleUpdate_TOUCH,
 				Tuple:     tpl,
 			})
 		}
 		for _, tpl := range revisionChangeRecord.tupleDeletes {
-			revisionChange.Changes = append(revisionChange.Changes, &v0.RelationTupleUpdate{
-				Operation: v0.RelationTupleUpdate_DELETE,
+			revisionChange.Changes = append(revisionChange.Changes, &core.RelationTupleUpdate{
+				Operation: core.RelationTupleUpdate_DELETE,
 				Tuple:     tpl,
 			})
 		}

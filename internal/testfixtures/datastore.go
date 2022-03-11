@@ -3,9 +3,10 @@ package testfixtures
 import (
 	"context"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
@@ -109,7 +110,7 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 	validating := NewValidatingDatastore(ds)
 
 	var lastRevision datastore.Revision
-	for _, namespace := range []*v0.NamespaceDefinition{UserNS, FolderNS, DocumentNS} {
+	for _, namespace := range []*core.NamespaceDefinition{UserNS, FolderNS, DocumentNS} {
 		var err error
 		lastRevision, err = validating.WriteNamespace(ctx, namespace)
 		require.NoError(err)
@@ -143,7 +144,7 @@ type TupleChecker struct {
 	DS      datastore.Datastore
 }
 
-func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) datastore.TupleIterator {
+func (tc TupleChecker) ExactTupleIterator(ctx context.Context, tpl *core.RelationTuple, rev datastore.Revision) datastore.TupleIterator {
 	filter := tuple.MustToFilter(tpl)
 	iter, err := tc.DS.QueryTuples(ctx, filter, rev)
 	tc.Require.NoError(err)
@@ -161,7 +162,7 @@ func (tc TupleChecker) VerifyIteratorCount(iter datastore.TupleIterator, count i
 	tc.Require.Equal(count, foundCount)
 }
 
-func (tc TupleChecker) VerifyIteratorResults(iter datastore.TupleIterator, tpls ...*v0.RelationTuple) {
+func (tc TupleChecker) VerifyIteratorResults(iter datastore.TupleIterator, tpls ...*core.RelationTuple) {
 	defer iter.Close()
 
 	toFind := make(map[string]struct{}, 1024)
@@ -182,12 +183,12 @@ func (tc TupleChecker) VerifyIteratorResults(iter datastore.TupleIterator, tpls 
 	tc.Require.Zero(len(toFind), "did not find some expected tuples: %#v", toFind)
 }
 
-func (tc TupleChecker) TupleExists(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) {
+func (tc TupleChecker) TupleExists(ctx context.Context, tpl *core.RelationTuple, rev datastore.Revision) {
 	iter := tc.ExactTupleIterator(ctx, tpl, rev)
 	tc.VerifyIteratorResults(iter, tpl)
 }
 
-func (tc TupleChecker) NoTupleExists(ctx context.Context, tpl *v0.RelationTuple, rev datastore.Revision) {
+func (tc TupleChecker) NoTupleExists(ctx context.Context, tpl *core.RelationTuple, rev datastore.Revision) {
 	iter := tc.ExactTupleIterator(ctx, tpl, rev)
 	tc.VerifyIteratorResults(iter)
 }

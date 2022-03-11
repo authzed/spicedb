@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -25,7 +26,7 @@ func TestRWOperationErrors(t *testing.T) {
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
-	rev, err = ds.WriteNamespace(ctx, &v0.NamespaceDefinition{Name: "user"})
+	rev, err = ds.WriteNamespace(ctx, &core.NamespaceDefinition{Name: "user"})
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
@@ -131,10 +132,10 @@ func TestReadNamespacePassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	delegate.On("ReadNamespace", "test", expectedRevision).Return(&v0.NamespaceDefinition{}, expectedRevision, nil).Times(1)
+	delegate.On("ReadNamespace", "test", expectedRevision).Return(&core.NamespaceDefinition{}, expectedRevision, nil).Times(1)
 
 	ns, revision, err := ds.ReadNamespace(ctx, "test", expectedRevision)
-	require.Equal(&v0.NamespaceDefinition{}, ns)
+	require.Equal(&core.NamespaceDefinition{}, ns)
 	require.Equal(expectedRevision, revision)
 	require.NoError(err)
 	delegate.AssertExpectations(t)
@@ -177,10 +178,10 @@ func TestListNamespacesPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	delegate.On("ListNamespaces", expectedRevision).Return([]*v0.NamespaceDefinition{}, nil).Times(1)
+	delegate.On("ListNamespaces", expectedRevision).Return([]*core.NamespaceDefinition{}, nil).Times(1)
 
 	nsDefs, err := ds.ListNamespaces(ctx, expectedRevision)
-	require.Equal([]*v0.NamespaceDefinition{}, nsDefs)
+	require.Equal([]*core.NamespaceDefinition{}, nsDefs)
 	require.NoError(err)
 	delegate.AssertExpectations(t)
 }
@@ -213,13 +214,13 @@ func (dm *delegateMock) Watch(ctx context.Context, afterRevision datastore.Revis
 	return args.Get(0).(<-chan *datastore.RevisionChanges), args.Get(1).(<-chan error)
 }
 
-func (dm *delegateMock) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (dm *delegateMock) WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (datastore.Revision, error) {
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*v0.NamespaceDefinition, datastore.Revision, error) {
+func (dm *delegateMock) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, datastore.Revision, error) {
 	args := dm.Called(nsName, revision)
-	return args.Get(0).(*v0.NamespaceDefinition), args.Get(1).(datastore.Revision), args.Error(2)
+	return args.Get(0).(*core.NamespaceDefinition), args.Get(1).(datastore.Revision), args.Error(2)
 }
 
 func (dm *delegateMock) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
@@ -263,9 +264,9 @@ func (dm *delegateMock) CheckRevision(ctx context.Context, revision datastore.Re
 	return args.Error(0)
 }
 
-func (dm *delegateMock) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+func (dm *delegateMock) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	args := dm.Called(revision)
-	return args.Get(0).([]*v0.NamespaceDefinition), args.Error(1)
+	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
 
 func (dm *delegateMock) IsReady(ctx context.Context) (bool, error) {

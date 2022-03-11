@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -79,9 +80,9 @@ func TestSchemaDeleteRelation(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 
@@ -107,9 +108,9 @@ func TestSchemaDeleteRelation(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 
@@ -141,9 +142,9 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 
@@ -155,9 +156,9 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 
@@ -191,9 +192,9 @@ func TestSchemaRemoveWildcard(t *testing.T) {
 
 	// Write the wildcard relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 
@@ -216,9 +217,9 @@ definition example/user {}`
 
 	// Delete the relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 
@@ -253,9 +254,9 @@ func TestSchemaEmpty(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 
@@ -267,9 +268,9 @@ func TestSchemaEmpty(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 

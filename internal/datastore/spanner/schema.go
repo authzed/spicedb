@@ -1,6 +1,8 @@
 package spanner
 
-import v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+import (
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+)
 
 const (
 	tableNamespace     = "namespace_config"
@@ -58,8 +60,8 @@ var allChangelogCols = []string{
 }
 
 // Both creates and touches are emitted as touched to match other datastores.
-var opMap = map[int64]v0.RelationTupleUpdate_Operation{
-	colChangeOpCreate: v0.RelationTupleUpdate_TOUCH,
-	colChangeOpTouch:  v0.RelationTupleUpdate_TOUCH,
-	colChangeOpDelete: v0.RelationTupleUpdate_DELETE,
+var opMap = map[int64]core.RelationTupleUpdate_Operation{
+	colChangeOpCreate: core.RelationTupleUpdate_TOUCH,
+	colChangeOpTouch:  core.RelationTupleUpdate_TOUCH,
+	colChangeOpDelete: core.RelationTupleUpdate_DELETE,
 }

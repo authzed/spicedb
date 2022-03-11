@@ -5,10 +5,13 @@ import (
 	"testing"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
+
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -83,8 +86,8 @@ func TestEditCheck(t *testing.T) {
 	type testCase struct {
 		name               string
 		schema             string
-		relationships      []*v0.RelationTuple
-		checkRelationships []*v0.RelationTuple
+		relationships      []*core.RelationTuple
+		checkRelationships []*core.RelationTuple
 		expectedError      *v0.DeveloperError
 		expectedResults    []*v0.EditCheckResult
 	}
@@ -95,8 +98,8 @@ func TestEditCheck(t *testing.T) {
 			`definition foo {
 				relation bar:
 			}`,
-			[]*v0.RelationTuple{},
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
+			[]*core.RelationTuple{},
 			&v0.DeveloperError{
 				Message: "Expected identifier, found token TokenTypeRightBrace",
 				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
@@ -110,8 +113,8 @@ func TestEditCheck(t *testing.T) {
 		{
 			"invalid namespace name",
 			`definition fo {}`,
-			[]*v0.RelationTuple{},
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
+			[]*core.RelationTuple{},
 			&v0.DeveloperError{
 				Message: "error in object definition fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
@@ -130,8 +133,8 @@ func TestEditCheck(t *testing.T) {
 				permission writer = writer
 			}
 `,
-			[]*v0.RelationTuple{},
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
+			[]*core.RelationTuple{},
 			&v0.DeveloperError{
 				Message: "found duplicate relation/permission name writer",
 				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
@@ -145,8 +148,8 @@ func TestEditCheck(t *testing.T) {
 		{
 			"valid namespace",
 			`definition foos {}`,
-			[]*v0.RelationTuple{},
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
+			[]*core.RelationTuple{},
 			nil,
 			nil,
 		},
@@ -158,16 +161,16 @@ func TestEditCheck(t *testing.T) {
 					relation somerel: user
 				}
 			`,
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
 			},
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("somenamespace:someobj#anotherrel@user:foo"),
 			},
 			nil,
 			[]*v0.EditCheckResult{
 				{
-					Relationship: tuple.MustParse("somenamespace:someobj#anotherrel@user:foo"),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#anotherrel@user:foo")),
 					Error: &v0.DeveloperError{
 						Message: "relation/permission `anotherrel` not found under definition `somenamespace`",
 						Kind:    v0.DeveloperError_UNKNOWN_RELATION,
@@ -185,21 +188,21 @@ func TestEditCheck(t *testing.T) {
 					relation somerel: user
 				}
 			`,
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
 			},
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
 				tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser"),
 			},
 			nil,
 			[]*v0.EditCheckResult{
 				{
-					Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:foo")),
 					IsMember:     true,
 				},
 				{
-					Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser"),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser")),
 					IsMember:     false,
 				},
 			},
@@ -212,21 +215,21 @@ func TestEditCheck(t *testing.T) {
 					relation somerel: user | user:*
 				}
 			`,
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("somenamespace:someobj#somerel@user:*"),
 			},
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
 				tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser"),
 			},
 			nil,
 			[]*v0.EditCheckResult{
 				{
-					Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:foo")),
 					IsMember:     true,
 				},
 				{
-					Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser"),
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#somerel@user:anotheruser")),
 					IsMember:     true,
 				},
 			},
@@ -241,9 +244,9 @@ func TestEditCheck(t *testing.T) {
 			resp, err := srv.EditCheck(context.Background(), &v0.EditCheckRequest{
 				Context: &v0.RequestContext{
 					Schema:        tc.schema,
-					Relationships: tc.relationships,
+					Relationships: core.ToV0RelationTuples(tc.relationships),
 				},
-				CheckRelationships: tc.checkRelationships,
+				CheckRelationships: core.ToV0RelationTuples(tc.checkRelationships),
 			})
 			require.NoError(t, err)
 
@@ -263,7 +266,7 @@ func TestDeveloperValidate(t *testing.T) {
 	type testCase struct {
 		name                   string
 		schema                 string
-		relationships          []*v0.RelationTuple
+		relationships          []*core.RelationTuple
 		validationYaml         string
 		assertionsYaml         string
 		expectedError          *v0.DeveloperError
@@ -274,7 +277,7 @@ func TestDeveloperValidate(t *testing.T) {
 		{
 			"valid namespace",
 			`definition somenamespace {}`,
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			"",
 			"",
 			nil,
@@ -283,7 +286,7 @@ func TestDeveloperValidate(t *testing.T) {
 		{
 			"invalid validation yaml",
 			`definition somenamespace {}`,
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			`asdkjhgasd`,
 			"",
 			&v0.DeveloperError{
@@ -298,7 +301,7 @@ func TestDeveloperValidate(t *testing.T) {
 		{
 			"invalid assertions yaml",
 			`definition somenamespace {}`,
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			"",
 			`asdhasjdkhjasd`,
 			&v0.DeveloperError{
@@ -313,7 +316,7 @@ func TestDeveloperValidate(t *testing.T) {
 		{
 			"assertions yaml with garbage",
 			`definition somenamespace {}`,
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			"",
 			`assertTrue:
 - document:firstdoc#view@user:tom
@@ -332,7 +335,7 @@ assertFalse: garbage
 		{
 			"assertions yaml with indented garbage",
 			`definition somenamespace {}`,
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			"",
 			`assertTrue:
   - document:firstdoc#view@user:tom
@@ -353,7 +356,7 @@ assertFalse: garbage
 		{
 			"invalid assertions true yaml",
 			`definition somenamespace {}`,
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			"",
 			`assertTrue:
 - something`,
@@ -375,7 +378,7 @@ assertFalse: garbage
 					relation viewer: user
 				}
 			`,
-			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#viewer@user:jimmy")},
+			[]*core.RelationTuple{tuple.MustParse("document:somedoc#viewer@user:jimmy")},
 			"",
 			`assertTrue:
 - document:somedoc#viewer@user:jake`,
@@ -397,7 +400,7 @@ assertFalse: garbage
 					relation viewer: user
 				}
 			`,
-			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#viewer@user:jimmy")},
+			[]*core.RelationTuple{tuple.MustParse("document:somedoc#viewer@user:jimmy")},
 			"",
 			`assertFalse:
 - document:somedoc#viewer@user:jimmy`,
@@ -417,7 +420,7 @@ assertFalse: garbage
 				definition user {}
 				definition document {}
 			`,
-			[]*v0.RelationTuple{},
+			[]*core.RelationTuple{},
 			"",
 			`assertFalse:
 - document:somedoc#viewer@user:jimmy`,
@@ -441,7 +444,7 @@ assertFalse: garbage
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
+			[]*core.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":`,
 			`assertTrue:
 - document:somedoc#view@user:jimmy`,
@@ -467,7 +470,7 @@ assertFalse: garbage
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
+			[]*core.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":
 - "[user:jimmy] is <document:somedoc#writer>"
 - "[user:jake] is <document:somedoc#viewer>"`,
@@ -495,7 +498,7 @@ assertFalse: garbage
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
+			[]*core.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":
 - "[user] is <document:somedoc#writer>"`,
 			`assertTrue:
@@ -520,7 +523,7 @@ assertFalse: garbage
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
+			[]*core.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":
 - "[user:jimmy] is <document:som>"`,
 			`assertTrue:
@@ -545,7 +548,7 @@ assertFalse: garbage
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
+			[]*core.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			`"document:somedoc#view":
 - "[user:jimmy] is <document:somedoc#viewer>"`,
 			`assertTrue:
@@ -572,7 +575,7 @@ assertFalse: garbage
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("document:somedoc#writer@user:jimmy"),
 				tuple.MustParse("document:somedoc#viewer@user:jake"),
 			},
@@ -602,7 +605,7 @@ assertFalse:
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("document:somedoc#writer@user:jimmy"),
 				tuple.MustParse("document:somedoc#viewer@user:jimmy"),
 			},
@@ -626,7 +629,7 @@ assertFalse:
 				permission view = viewer + writer
 			}
 			`,
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("document:somedoc#writer@user:jimmy"),
 				tuple.MustParse("document:somedoc#viewer@user:jimmy"),
 			},
@@ -652,7 +655,7 @@ assertFalse:
 			`
 			definition user {}
 			`,
-			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
+			[]*core.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			``,
 			``,
 			&v0.DeveloperError{
@@ -669,7 +672,7 @@ assertFalse:
 			definition user {}
 			definition document {}
 			`,
-			[]*v0.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
+			[]*core.RelationTuple{tuple.MustParse("document:somedoc#writer@user:jimmy")},
 			``,
 			``,
 			&v0.DeveloperError{
@@ -690,7 +693,7 @@ assertFalse:
 		   				permission view = viewer + writer
 		   			}
 		   			`,
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("document:somedoc#writer@user:jimmy"),
 				tuple.MustParse("document:somedoc#viewer@user:*"),
 			},
@@ -719,7 +722,7 @@ assertFalse:
 		   				permission view = viewer - banned
 		   			}
 		   			`,
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("document:somedoc#banned@user:jimmy"),
 				tuple.MustParse("document:somedoc#viewer@user:*"),
 			},
@@ -745,7 +748,7 @@ assertFalse:
 		   				permission view = (viewer - banned) & (viewer - other)
 		   			}
 		   			`,
-			[]*v0.RelationTuple{
+			[]*core.RelationTuple{
 				tuple.MustParse("document:somedoc#other@user:sarah"),
 				tuple.MustParse("document:somedoc#banned@user:jimmy"),
 				tuple.MustParse("document:somedoc#viewer@user:*"),
@@ -774,7 +777,7 @@ assertFalse:
 			resp, err := srv.Validate(context.Background(), &v0.ValidateRequest{
 				Context: &v0.RequestContext{
 					Schema:        tc.schema,
-					Relationships: tc.relationships,
+					Relationships: core.ToV0RelationTuples(tc.relationships),
 				},
 				ValidationYaml:       tc.validationYaml,
 				AssertionsYaml:       tc.assertionsYaml,

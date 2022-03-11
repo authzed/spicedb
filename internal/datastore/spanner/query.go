@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"cloud.google.com/go/spanner"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var queryTuples = sql.Select(
@@ -84,7 +84,7 @@ func queryExecutor(client *spanner.Client) common.ExecuteQueryFunc {
 		revision datastore.Revision,
 		sql string,
 		args []interface{},
-	) ([]*v0.RelationTuple, error) {
+	) ([]*core.RelationTuple, error) {
 		ctx, span := tracer.Start(ctx, "ExecuteQuery")
 		defer span.End()
 		iter := client.
@@ -92,14 +92,14 @@ func queryExecutor(client *spanner.Client) common.ExecuteQueryFunc {
 			WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(revision))).
 			Query(ctx, statementFromSQL(sql, args))
 
-		var tuples []*v0.RelationTuple
+		var tuples []*core.RelationTuple
 
 		if err := iter.Do(func(row *spanner.Row) error {
-			nextTuple := &v0.RelationTuple{
-				ObjectAndRelation: &v0.ObjectAndRelation{},
-				User: &v0.User{
-					UserOneof: &v0.User_Userset{
-						Userset: &v0.ObjectAndRelation{},
+			nextTuple := &core.RelationTuple{
+				ObjectAndRelation: &core.ObjectAndRelation{},
+				User: &core.User{
+					UserOneof: &core.User_Userset{
+						Userset: &core.ObjectAndRelation{},
 					},
 				},
 			}

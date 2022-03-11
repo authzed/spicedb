@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-func (sd spannerDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (sd spannerDatastore) WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
 	defer span.End()
 	serialized, err := proto.Marshal(newConfig)
@@ -38,7 +38,7 @@ func (sd spannerDatastore) WriteNamespace(ctx context.Context, newConfig *v0.Nam
 	return revisionFromTimestamp(ts), nil
 }
 
-func (sd spannerDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*v0.NamespaceDefinition, datastore.Revision, error) {
+func (sd spannerDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "ReadNamespace")
 	defer span.End()
 	ts := timestampFromRevision(revision)
@@ -63,7 +63,7 @@ func (sd spannerDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
-	ns := &v0.NamespaceDefinition{}
+	ns := &core.NamespaceDefinition{}
 	if err := proto.Unmarshal(serialized, ns); err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
@@ -95,7 +95,7 @@ func (sd spannerDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	return revisionFromTimestamp(ts), nil
 }
 
-func (sd spannerDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+func (sd spannerDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	ctx, span := tracer.Start(ctx, "ListNamespaces")
 	defer span.End()
 	ts := timestampFromRevision(revision)
@@ -107,14 +107,14 @@ func (sd spannerDatastore) ListNamespaces(ctx context.Context, revision datastor
 		[]string{colNamespaceConfig},
 	)
 
-	var allNamespaces []*v0.NamespaceDefinition
+	var allNamespaces []*core.NamespaceDefinition
 	if err := iter.Do(func(row *spanner.Row) error {
 		var serialized []byte
 		if err := row.Columns(&serialized); err != nil {
 			return err
 		}
 
-		ns := &v0.NamespaceDefinition{}
+		ns := &core.NamespaceDefinition{}
 		if err := proto.Unmarshal(serialized, ns); err != nil {
 			return err
 		}

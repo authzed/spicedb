@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -41,17 +41,17 @@ type errorWithNode struct {
 }
 
 // Compile compilers the input schema(s) into a set of namespace definition protos.
-func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*v0.NamespaceDefinition, error) {
+func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*core.NamespaceDefinition, error) {
 	mapper := newPositionMapper(schemas)
 
 	// Parse and translate the various schemas.
-	definitions := []*v0.NamespaceDefinition{}
+	definitions := []*core.NamespaceDefinition{}
 	for _, schema := range schemas {
 		root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
 		errs := root.FindAll(dslshape.NodeTypeError)
 		if len(errs) > 0 {
 			err := errorNodeToError(errs[0], mapper)
-			return []*v0.NamespaceDefinition{}, err
+			return []*core.NamespaceDefinition{}, err
 		}
 
 		translatedDefs, err := translate(translationContext{
@@ -63,7 +63,7 @@ func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*v0.NamespaceDe
 				err = toContextError(errorWithNode.error.Error(), "", errorWithNode.node, mapper)
 			}
 
-			return []*v0.NamespaceDefinition{}, err
+			return []*core.NamespaceDefinition{}, err
 		}
 
 		definitions = append(definitions, translatedDefs...)

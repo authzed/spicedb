@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog"
@@ -27,6 +26,7 @@ import (
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	pgraph "github.com/authzed/spicedb/pkg/graph"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -536,7 +536,7 @@ func TestTranslateExpansionTree(t *testing.T) {
 
 	table := []struct {
 		name  string
-		input *v0.RelationTupleTreeNode
+		input *core.RelationTupleTreeNode
 	}{
 		{"simple leaf", pgraph.Leaf(nil, User(ONR("user", "user1", "...")))},
 		{

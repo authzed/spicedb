@@ -3,7 +3,7 @@ package graph
 import (
 	"context"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -51,7 +51,7 @@ func AlwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {
 // ExpandReducer is a type for the functions Any and All which combine check results.
 type ExpandReducer func(
 	ctx context.Context,
-	start *v0.ObjectAndRelation,
+	start *core.ObjectAndRelation,
 	requests []ReduceableExpandFunc,
 ) ExpandResult
 

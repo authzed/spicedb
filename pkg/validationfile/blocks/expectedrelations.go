@@ -5,8 +5,9 @@ import (
 	"regexp"
 	"strings"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	yamlv3 "gopkg.in/yaml.v3"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -43,7 +44,7 @@ type ObjectRelation struct {
 	ObjectRelationString string
 
 	// ObjectAndRelation is the parsed object and relation.
-	ObjectAndRelation *v0.ObjectAndRelation
+	ObjectAndRelation *core.ObjectAndRelation
 
 	// SourcePosition is the position of the expected relations in the file.
 	SourcePosition SourcePosition
@@ -88,7 +89,7 @@ type ExpectedSubject struct {
 	SubjectWithExceptions *SubjectWithExceptions
 
 	// Resources are the resources under which the subject is found.
-	Resources []*v0.ObjectAndRelation
+	Resources []*core.ObjectAndRelation
 
 	// SourcePosition is the position of the expected subject in the file.
 	SourcePosition SourcePosition
@@ -97,10 +98,10 @@ type ExpectedSubject struct {
 // SubjectWithExceptions returns the subject found in a validation string, along with any exceptions.
 type SubjectWithExceptions struct {
 	// Subject is the subject found.
-	Subject *v0.ObjectAndRelation
+	Subject *core.ObjectAndRelation
 
 	// Exceptions are those subjects removed from the subject, if it is a wildcard.
-	Exceptions []*v0.ObjectAndRelation
+	Exceptions []*core.ObjectAndRelation
 }
 
 // UnmarshalYAML is a custom unmarshaller.
@@ -175,7 +176,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *ErrorWithSource) 
 
 		exceptionsString := strings.TrimSpace(result[2])
 		exceptionsStringsSlice := strings.Split(exceptionsString, ",")
-		exceptions := make([]*v0.ObjectAndRelation, 0, len(exceptionsStringsSlice))
+		exceptions := make([]*core.ObjectAndRelation, 0, len(exceptionsStringsSlice))
 		for _, exceptionString := range exceptionsStringsSlice {
 			exceptionONR := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
 			if exceptionONR == nil {
@@ -206,9 +207,9 @@ func (vs ValidationString) ONRStrings() []string {
 }
 
 // ONRS returns the subject ONRs in the ValidationString, if any.
-func (vs ValidationString) ONRS() ([]*v0.ObjectAndRelation, *ErrorWithSource) {
+func (vs ValidationString) ONRS() ([]*core.ObjectAndRelation, *ErrorWithSource) {
 	onrStrings := vs.ONRStrings()
-	onrs := []*v0.ObjectAndRelation{}
+	onrs := []*core.ObjectAndRelation{}
 	for _, onrString := range onrStrings {
 		found := tuple.ParseONR(onrString)
 		if found == nil {

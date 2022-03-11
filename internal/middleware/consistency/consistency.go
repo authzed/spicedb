@@ -14,6 +14,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/authzed/spicedb/internal/datastore"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
@@ -162,7 +164,7 @@ func addRevisionToContextFromAtRevision(ctx context.Context, req hasAtRevision, 
 
 	// Read should attempt to use the exact revision requested
 	if req, ok := req.(*v0.ReadRequest); ok && req.AtRevision != nil {
-		decoded, err := zookie.DecodeRevision(req.AtRevision)
+		decoded, err := zookie.DecodeRevision(core.ToCoreZookie(req.AtRevision))
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "bad request revision: %s", err)
 		}
@@ -172,7 +174,7 @@ func addRevisionToContextFromAtRevision(ctx context.Context, req hasAtRevision, 
 	}
 
 	// all other requests pick a revision
-	revision, err := pickBestRevisionV0(ctx, req.GetAtRevision(), ds)
+	revision, err := pickBestRevisionV0(ctx, core.ToCoreZookie(req.GetAtRevision()), ds)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, err.Error())
 	}
@@ -262,7 +264,7 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 	return databaseRev, nil
 }
 
-func pickBestRevisionV0(ctx context.Context, requested *v0.Zookie, ds datastore.Datastore) (decimal.Decimal, error) {
+func pickBestRevisionV0(ctx context.Context, requested *core.Zookie, ds datastore.Datastore) (decimal.Decimal, error) {
 	// Calculate a revision as we see fit
 	databaseRev, err := ds.OptimizedRevision(ctx)
 	if err != nil {

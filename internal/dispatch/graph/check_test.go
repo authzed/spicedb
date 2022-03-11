@@ -6,8 +6,10 @@ import (
 	"os"
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/dgraph-io/ristretto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -47,7 +49,7 @@ func TestSimple(t *testing.T) {
 	}
 
 	type userset struct {
-		userset  *v0.ObjectAndRelation
+		userset  *core.ObjectAndRelation
 		expected []expected
 	}
 
@@ -207,7 +209,7 @@ func TestCheckMetadata(t *testing.T) {
 	}
 
 	type userset struct {
-		userset  *v0.ObjectAndRelation
+		userset  *core.ObjectAndRelation
 		expected []expected
 	}
 

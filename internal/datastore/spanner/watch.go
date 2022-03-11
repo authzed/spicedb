@@ -7,10 +7,10 @@ import (
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
@@ -84,11 +84,11 @@ func (sd spannerDatastore) loadChanges(
 
 	newTimestamp := afterTimestamp
 	err = rows.Do(func(r *spanner.Row) error {
-		userset := &v0.ObjectAndRelation{}
-		tpl := &v0.RelationTuple{
-			ObjectAndRelation: &v0.ObjectAndRelation{},
-			User: &v0.User{
-				UserOneof: &v0.User_Userset{
+		userset := &core.ObjectAndRelation{}
+		tpl := &core.RelationTuple{
+			ObjectAndRelation: &core.ObjectAndRelation{},
+			User: &core.User{
+				UserOneof: &core.User_Userset{
 					Userset: userset,
 				},
 			},

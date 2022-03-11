@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"sort"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
@@ -110,16 +111,16 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				return
 			}
 
-			oneChange := &v0.RelationTupleUpdate{
-				Tuple: &v0.RelationTuple{
-					ObjectAndRelation: &v0.ObjectAndRelation{
+			oneChange := &core.RelationTupleUpdate{
+				Tuple: &core.RelationTuple{
+					ObjectAndRelation: &core.ObjectAndRelation{
 						Namespace: pkValues[0],
 						ObjectId:  pkValues[1],
 						Relation:  pkValues[2],
 					},
-					User: &v0.User{
-						UserOneof: &v0.User_Userset{
-							Userset: &v0.ObjectAndRelation{
+					User: &core.User{
+						UserOneof: &core.User_Userset{
+							Userset: &core.ObjectAndRelation{
 								Namespace: pkValues[3],
 								ObjectId:  pkValues[4],
 								Relation:  pkValues[5],
@@ -130,9 +131,9 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 			}
 
 			if changeDetails.After == nil {
-				oneChange.Operation = v0.RelationTupleUpdate_DELETE
+				oneChange.Operation = core.RelationTupleUpdate_DELETE
 			} else {
-				oneChange.Operation = v0.RelationTupleUpdate_TOUCH
+				oneChange.Operation = core.RelationTupleUpdate_TOUCH
 			}
 
 			pending, ok := pendingChanges[changeDetails.Updated]

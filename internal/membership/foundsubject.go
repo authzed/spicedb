@@ -5,13 +5,13 @@ import (
 	"sort"
 	"strings"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewFoundSubject creates a new FoundSubject for a subject and a set of its resources.
-func NewFoundSubject(subject *v0.ObjectAndRelation, resources ...*v0.ObjectAndRelation) FoundSubject {
+func NewFoundSubject(subject *core.ObjectAndRelation, resources ...*core.ObjectAndRelation) FoundSubject {
 	return FoundSubject{subject, tuple.NewONRSet(), tuple.NewONRSet(resources...)}
 }
 
@@ -19,7 +19,7 @@ func NewFoundSubject(subject *v0.ObjectAndRelation, resources ...*v0.ObjectAndRe
 // is a member which were found via the ONRs expansion.
 type FoundSubject struct {
 	// subject is the subject found.
-	subject *v0.ObjectAndRelation
+	subject *core.ObjectAndRelation
 
 	// excludedSubjects are any subjects excluded. Only should be set if subject is a wildcard.
 	excludedSubjects *tuple.ONRSet
@@ -30,7 +30,7 @@ type FoundSubject struct {
 }
 
 // Subject returns the Subject of the FoundSubject.
-func (fs FoundSubject) Subject() *v0.ObjectAndRelation {
+func (fs FoundSubject) Subject() *core.ObjectAndRelation {
 	return fs.subject
 }
 
@@ -45,16 +45,16 @@ func (fs FoundSubject) WildcardType() (string, bool) {
 
 // ExcludedSubjectsFromWildcard returns those subjects excluded from the wildcard subject.
 // If not a wildcard subject, returns false.
-func (fs FoundSubject) ExcludedSubjectsFromWildcard() ([]*v0.ObjectAndRelation, bool) {
+func (fs FoundSubject) ExcludedSubjectsFromWildcard() ([]*core.ObjectAndRelation, bool) {
 	if fs.subject.ObjectId == tuple.PublicWildcard {
 		return fs.excludedSubjects.AsSlice(), true
 	}
 
-	return []*v0.ObjectAndRelation{}, false
+	return []*core.ObjectAndRelation{}, false
 }
 
 // Relationships returns all the relationships in which the subject was found as per the expand.
-func (fs FoundSubject) Relationships() []*v0.ObjectAndRelation {
+func (fs FoundSubject) Relationships() []*core.ObjectAndRelation {
 	return fs.relationships.AsSlice()
 }
 
@@ -136,7 +136,7 @@ func (fs FoundSubjects) ListFound() []FoundSubject {
 }
 
 // LookupSubject returns the FoundSubject for a matching subject, if any.
-func (fs FoundSubjects) LookupSubject(subject *v0.ObjectAndRelation) (FoundSubject, bool) {
+func (fs FoundSubjects) LookupSubject(subject *core.ObjectAndRelation) (FoundSubject, bool) {
 	found, ok := fs.subjects[toKey(subject)]
 	return found, ok
 }

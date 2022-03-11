@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -113,12 +114,12 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 }
 
 func TestSchemaReadUpgradeValid(t *testing.T) {
-	_, err := upgrade(t, []*v0.NamespaceDefinition{testfixtures.UserNS})
+	_, err := upgrade(t, []*v0.NamespaceDefinition{core.ToV0NamespaceDefinition(testfixtures.UserNS)})
 	require.NoError(t, err)
 }
 
 func TestSchemaReadUpgradeInvalid(t *testing.T) {
-	_, err := upgrade(t, []*v0.NamespaceDefinition{testfixtures.UserNS, testfixtures.DocumentNS, testfixtures.FolderNS})
+	_, err := upgrade(t, core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, testfixtures.DocumentNS, testfixtures.FolderNS}))
 	require.NoError(t, err)
 }
 
@@ -162,9 +163,9 @@ func TestSchemaDeleteRelation(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Create(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 
@@ -190,9 +191,9 @@ func TestSchemaDeleteRelation(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{tuple.Delete(
+		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
-		)},
+		))},
 	})
 	require.Nil(t, err)
 

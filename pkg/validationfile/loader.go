@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
@@ -19,11 +20,11 @@ import (
 type PopulatedValidationFile struct {
 	// NamespaceDefinitions are the namespaces defined in the validation file, in either
 	// direct or compiled from schema form.
-	NamespaceDefinitions []*v0.NamespaceDefinition
+	NamespaceDefinitions []*core.NamespaceDefinition
 
 	// Tuples are the relation tuples defined in the validation file, either directly
 	// or in the relationships block.
-	Tuples []*v0.RelationTuple
+	Tuples []*core.RelationTuple
 
 	// ParsedFiles are the underlying parsed validation files.
 	ParsedFiles []ValidationFile
@@ -33,8 +34,8 @@ type PopulatedValidationFile struct {
 // the validation file(s) specified.
 func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedValidationFile, decimal.Decimal, error) {
 	var revision decimal.Decimal
-	nsDefs := []*v0.NamespaceDefinition{}
-	tuples := []*v0.RelationTuple{}
+	nsDefs := []*core.NamespaceDefinition{}
+	tuples := []*core.RelationTuple{}
 	files := []ValidationFile{}
 
 	for _, filePath := range filePaths {
@@ -65,7 +66,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 		// Load the namespace configs.
 		log.Info().Str("filePath", filePath).Int("namespaceCount", len(parsed.NamespaceConfigs)).Msg("Loading namespaces")
 		for index, namespaceConfig := range parsed.NamespaceConfigs {
-			nsDef := v0.NamespaceDefinition{}
+			nsDef := core.NamespaceDefinition{}
 			nerr := prototext.Unmarshal([]byte(namespaceConfig), &nsDef)
 			if nerr != nil {
 				return nil, decimal.Zero, fmt.Errorf("error when parsing namespace config #%v from file %s: %w", index, filePath, nerr)

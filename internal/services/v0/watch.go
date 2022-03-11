@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -42,7 +43,7 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 
 	var afterRevision decimal.Decimal
 	if req.StartRevision != nil && req.StartRevision.Token != "" {
-		decodedRevision, err := zookie.DecodeRevision(req.StartRevision)
+		decodedRevision, err := zookie.DecodeRevision(core.ToCoreZookie(req.StartRevision))
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}
@@ -79,8 +80,8 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 				filtered := filter.filterUpdates(update.Changes)
 				if len(filtered) > 0 {
 					if err := stream.Send(&v0.WatchResponse{
-						Updates:     update.Changes,
-						EndRevision: zookie.NewFromRevision(update.Revision),
+						Updates:     core.ToV0RelationTupleUpdates(update.Changes),
+						EndRevision: core.ToV0Zookie(zookie.NewFromRevision(update.Revision)),
 					}); err != nil {
 						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
 					}
@@ -103,8 +104,8 @@ type namespaceFilter struct {
 	namespaces map[string]struct{}
 }
 
-func (nf namespaceFilter) filterUpdates(candidates []*v0.RelationTupleUpdate) []*v0.RelationTupleUpdate {
-	var filtered []*v0.RelationTupleUpdate
+func (nf namespaceFilter) filterUpdates(candidates []*core.RelationTupleUpdate) []*core.RelationTupleUpdate {
+	var filtered []*core.RelationTupleUpdate
 
 	for _, update := range candidates {
 		if _, ok := nf.namespaces[update.Tuple.ObjectAndRelation.Namespace]; ok {

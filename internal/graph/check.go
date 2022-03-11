@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -28,7 +29,7 @@ type ConcurrentChecker struct {
 	nsm namespace.Manager
 }
 
-func onrEqual(lhs, rhs *v0.ObjectAndRelation) bool {
+func onrEqual(lhs, rhs *core.ObjectAndRelation) bool {
 	// Properties are sorted by highest to lowest cardinality to optimize for short-circuiting.
 	return lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation && lhs.Namespace == rhs.Namespace
 }
@@ -41,7 +42,7 @@ type ValidatedCheckRequest struct {
 }
 
 // Check performs a check request with the provided request and context
-func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *v0.Relation) (*v1.DispatchCheckResponse, error) {
+func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) (*v1.DispatchCheckResponse, error) {
 	var directFunc ReduceableCheckFunc
 
 	// TODO(jschorr): Turn into an error once v0 API has been removed.
@@ -73,7 +74,7 @@ func (cc *ConcurrentChecker) dispatch(req ValidatedCheckRequest) ReduceableCheck
 	}
 }
 
-func onrEqualOrWildcard(tpl, target *v0.ObjectAndRelation) bool {
+func onrEqualOrWildcard(tpl, target *core.ObjectAndRelation) bool {
 	return onrEqual(tpl, target) || (tpl.Namespace == target.Namespace && tpl.ObjectId == tuple.PublicWildcard)
 }
 
@@ -122,32 +123,32 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 	}
 }
 
-func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, req ValidatedCheckRequest, usr *v0.UsersetRewrite) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, req ValidatedCheckRequest, usr *core.UsersetRewrite) ReduceableCheckFunc {
 	switch rw := usr.RewriteOperation.(type) {
-	case *v0.UsersetRewrite_Union:
+	case *core.UsersetRewrite_Union:
 		return cc.checkSetOperation(ctx, req, rw.Union, any)
-	case *v0.UsersetRewrite_Intersection:
+	case *core.UsersetRewrite_Intersection:
 		return cc.checkSetOperation(ctx, req, rw.Intersection, all)
-	case *v0.UsersetRewrite_Exclusion:
+	case *core.UsersetRewrite_Exclusion:
 		return cc.checkSetOperation(ctx, req, rw.Exclusion, difference)
 	default:
 		return AlwaysFail
 	}
 }
 
-func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req ValidatedCheckRequest, so *v0.SetOperation, reducer Reducer) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req ValidatedCheckRequest, so *core.SetOperation, reducer Reducer) ReduceableCheckFunc {
 	var requests []ReduceableCheckFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
-		case *v0.SetOperation_Child_XThis:
+		case *core.SetOperation_Child_XThis:
 			// TODO(jschorr): Turn into an error once v0 API has been removed.
 			log.Ctx(ctx).Warn().Stringer("operation", so).Msg("Use of _this is deprecated and will soon be an error! Please switch to using schema!")
 			requests = append(requests, cc.checkDirect(ctx, req))
-		case *v0.SetOperation_Child_ComputedUserset:
+		case *core.SetOperation_Child_ComputedUserset:
 			requests = append(requests, cc.checkComputedUserset(ctx, req, child.ComputedUserset, nil))
-		case *v0.SetOperation_Child_UsersetRewrite:
+		case *core.SetOperation_Child_UsersetRewrite:
 			requests = append(requests, cc.checkUsersetRewrite(ctx, req, child.UsersetRewrite))
-		case *v0.SetOperation_Child_TupleToUserset:
+		case *core.SetOperation_Child_TupleToUserset:
 			requests = append(requests, cc.checkTupleToUserset(ctx, req, child.TupleToUserset))
 		}
 	}
@@ -157,15 +158,15 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req Validate
 	}
 }
 
-func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req ValidatedCheckRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableCheckFunc {
-	var start *v0.ObjectAndRelation
-	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
+func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req ValidatedCheckRequest, cu *core.ComputedUserset, tpl *core.RelationTuple) ReduceableCheckFunc {
+	var start *core.ObjectAndRelation
+	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if tpl == nil {
 			panic("computed userset for tupleset without tuple")
 		}
 
 		start = tpl.User.GetUserset()
-	} else if cu.Object == v0.ComputedUserset_TUPLE_OBJECT {
+	} else if cu.Object == core.ComputedUserset_TUPLE_OBJECT {
 		if tpl != nil {
 			start = tpl.ObjectAndRelation
 		} else {
@@ -173,7 +174,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 		}
 	}
 
-	targetOnr := &v0.ObjectAndRelation{
+	targetOnr := &core.ObjectAndRelation{
 		Namespace: start.Namespace,
 		ObjectId:  start.ObjectId,
 		Relation:  cu.Relation,
@@ -204,7 +205,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 	})
 }
 
-func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req ValidatedCheckRequest, ttu *v0.TupleToUserset) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req ValidatedCheckRequest, ttu *core.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
 		ds := datastoremw.MustFromContext(ctx)

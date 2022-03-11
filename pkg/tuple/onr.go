@@ -5,9 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
@@ -17,8 +18,8 @@ const (
 )
 
 // ObjectAndRelation creates an ONR from string pieces.
-func ObjectAndRelation(ns, oid, rel string) *v0.ObjectAndRelation {
-	return &v0.ObjectAndRelation{
+func ObjectAndRelation(ns, oid, rel string) *core.ObjectAndRelation {
+	return &core.ObjectAndRelation{
 		Namespace: ns,
 		ObjectId:  oid,
 		Relation:  rel,
@@ -26,14 +27,14 @@ func ObjectAndRelation(ns, oid, rel string) *v0.ObjectAndRelation {
 }
 
 // User creates a user wrapping a userset ONR.
-func User(userset *v0.ObjectAndRelation) *v0.User {
-	return &v0.User{UserOneof: &v0.User_Userset{Userset: userset}}
+func User(userset *core.ObjectAndRelation) *core.User {
+	return &core.User{UserOneof: &core.User_Userset{Userset: userset}}
 }
 
 // ParseSubjectONR converts a string representation of a Subject ONR to a proto object. Unlike
 // ParseONR, this method allows for objects without relations. If an object without a relation
 // is given, the relation will be set to ellipsis.
-func ParseSubjectONR(subjectOnr string) *v0.ObjectAndRelation {
+func ParseSubjectONR(subjectOnr string) *core.ObjectAndRelation {
 	groups := subjectRegex.FindStringSubmatch(subjectOnr)
 
 	if len(groups) == 0 {
@@ -46,7 +47,7 @@ func ParseSubjectONR(subjectOnr string) *v0.ObjectAndRelation {
 		relation = groups[subjectRelIndex]
 	}
 
-	return &v0.ObjectAndRelation{
+	return &core.ObjectAndRelation{
 		Namespace: groups[stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectType")],
 		ObjectId:  groups[stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectID")],
 		Relation:  relation,
@@ -54,14 +55,14 @@ func ParseSubjectONR(subjectOnr string) *v0.ObjectAndRelation {
 }
 
 // ParseONR converts a string representation of an ONR to a proto object.
-func ParseONR(onr string) *v0.ObjectAndRelation {
+func ParseONR(onr string) *core.ObjectAndRelation {
 	groups := onrRegex.FindStringSubmatch(onr)
 
 	if len(groups) == 0 {
 		return nil
 	}
 
-	return &v0.ObjectAndRelation{
+	return &core.ObjectAndRelation{
 		Namespace: groups[stringz.SliceIndex(onrRegex.SubexpNames(), "resourceType")],
 		ObjectId:  groups[stringz.SliceIndex(onrRegex.SubexpNames(), "resourceID")],
 		Relation:  groups[stringz.SliceIndex(onrRegex.SubexpNames(), "resourceRel")],
@@ -69,7 +70,7 @@ func ParseONR(onr string) *v0.ObjectAndRelation {
 }
 
 // StringRR converts a RR object to a string.
-func StringRR(rr *v0.RelationReference) string {
+func StringRR(rr *core.RelationReference) string {
 	if rr == nil {
 		return ""
 	}
@@ -78,7 +79,7 @@ func StringRR(rr *v0.RelationReference) string {
 }
 
 // StringONR converts an ONR object to a string.
-func StringONR(onr *v0.ObjectAndRelation) string {
+func StringONR(onr *core.ObjectAndRelation) string {
 	if onr == nil {
 		return ""
 	}
@@ -91,7 +92,7 @@ func StringONR(onr *v0.ObjectAndRelation) string {
 }
 
 // StringsONRs converts ONR objects to a string slice, sorted.
-func StringsONRs(onrs []*v0.ObjectAndRelation) []string {
+func StringsONRs(onrs []*core.ObjectAndRelation) []string {
 	onrstrings := make([]string, 0, len(onrs))
 	for _, onr := range onrs {
 		onrstrings = append(onrstrings, StringONR(onr))

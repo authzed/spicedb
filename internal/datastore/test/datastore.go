@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -48,14 +49,14 @@ var testResourceNS = namespace.Namespace(
 
 var testUserNS = namespace.Namespace(testUserNamespace)
 
-func makeTestTuple(resourceID, userID string) *v0.RelationTuple {
-	return &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
+func makeTestTuple(resourceID, userID string) *core.RelationTuple {
+	return &core.RelationTuple{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: testResourceNamespace,
 			ObjectId:  resourceID,
 			Relation:  testReaderRelation,
 		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 			Namespace: testUserNamespace,
 			ObjectId:  userID,
 			Relation:  ellipsis,

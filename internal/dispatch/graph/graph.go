@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
@@ -18,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	graphwalk "github.com/authzed/spicedb/pkg/graph"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -65,14 +65,14 @@ type localDispatcher struct {
 	nsm namespace.Manager
 }
 
-func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string, revision decimal.Decimal) (*v0.Relation, error) {
+func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string, revision decimal.Decimal) (*core.Relation, error) {
 	// Load namespace and relation from the datastore
 	ns, err := ld.nsm.ReadNamespace(ctx, nsName, revision)
 	if err != nil {
 		return nil, rewriteError(err)
 	}
 
-	var relation *v0.Relation
+	var relation *core.Relation
 	for _, candidate := range ns.Relation {
 		if candidate.Name == relationName {
 			relation = candidate
@@ -88,7 +88,7 @@ func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationNam
 }
 
 type stringableOnr struct {
-	*v0.ObjectAndRelation
+	*core.ObjectAndRelation
 }
 
 func (onr stringableOnr) String() string {
@@ -96,7 +96,7 @@ func (onr stringableOnr) String() string {
 }
 
 type stringableRelRef struct {
-	*v0.RelationReference
+	*core.RelationReference
 }
 
 func (rr stringableRelRef) String() string {
@@ -184,7 +184,7 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	}
 
 	if req.Limit <= 0 {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*v0.ObjectAndRelation{}}, nil
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
 	}
 
 	validatedReq := graph.ValidatedLookupRequest{
@@ -193,7 +193,7 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	}
 	relation, err := ld.loadRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, revision)
 	if err != nil {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*v0.ObjectAndRelation{}}, nil
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
 	}
 
 	if ld.requiresLookupViaChecks(relation) {
@@ -205,26 +205,26 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	return ld.lookupHandler.Lookup(ctx, validatedReq)
 }
 
-func (ld *localDispatcher) requiresLookupViaChecks(relation *v0.Relation) bool {
+func (ld *localDispatcher) requiresLookupViaChecks(relation *core.Relation) bool {
 	// TODO: refactor walker so that we don't have to make two separate checks
 	// check top-level rewrite
 	if rw := relation.GetUsersetRewrite(); rw != nil {
 		switch rw.RewriteOperation.(type) {
-		case *v0.UsersetRewrite_Intersection:
+		case *core.UsersetRewrite_Intersection:
 			return true
-		case *v0.UsersetRewrite_Exclusion:
+		case *core.UsersetRewrite_Exclusion:
 			return true
 		}
 	}
 
 	// check child rewrites
-	childIntersectionExclusion := graphwalk.WalkRewrite(relation.GetUsersetRewrite(), func(childOneof *v0.SetOperation_Child) interface{} {
+	childIntersectionExclusion := graphwalk.WalkRewrite(relation.GetUsersetRewrite(), func(childOneof *core.SetOperation_Child) interface{} {
 		switch child := childOneof.ChildType.(type) {
-		case *v0.SetOperation_Child_UsersetRewrite:
+		case *core.SetOperation_Child_UsersetRewrite:
 			switch child.UsersetRewrite.RewriteOperation.(type) {
-			case *v0.UsersetRewrite_Intersection:
+			case *core.UsersetRewrite_Intersection:
 				return true
-			case *v0.UsersetRewrite_Exclusion:
+			case *core.UsersetRewrite_Exclusion:
 				return true
 			}
 		}

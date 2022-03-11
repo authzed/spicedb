@@ -3,15 +3,16 @@ package tuple
 import (
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 )
 
-func makeTuple(onr *v0.ObjectAndRelation, userset *v0.ObjectAndRelation) *v0.RelationTuple {
-	return &v0.RelationTuple{
+func makeTuple(onr *core.ObjectAndRelation, userset *core.ObjectAndRelation) *core.RelationTuple {
+	return &core.RelationTuple{
 		ObjectAndRelation: onr,
-		User:              &v0.User{UserOneof: &v0.User_Userset{Userset: userset}},
+		User:              &core.User{UserOneof: &core.User_Userset{Userset: userset}},
 	}
 }
 
@@ -35,7 +36,7 @@ func rel(resType, resID, relation, subType, subID, subRel string) *v1.Relationsh
 var testCases = []struct {
 	input          string
 	expectedOutput string
-	tupleFormat    *v0.RelationTuple
+	tupleFormat    *core.RelationTuple
 	relFormat      *v1.Relationship
 }{
 	{

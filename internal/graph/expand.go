@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -42,7 +43,7 @@ type ValidatedExpandRequest struct {
 }
 
 // Expand performs an expand request with the provided request and context.
-func (ce *ConcurrentExpander) Expand(ctx context.Context, req ValidatedExpandRequest, relation *v0.Relation) (*v1.DispatchExpandResponse, error) {
+func (ce *ConcurrentExpander) Expand(ctx context.Context, req ValidatedExpandRequest, relation *core.Relation) (*v1.DispatchExpandResponse, error) {
 	log.Ctx(ctx).Trace().Object("expand", req).Send()
 
 	var directFunc ReduceableExpandFunc
@@ -76,8 +77,8 @@ func (ce *ConcurrentExpander) expandDirect(
 		}
 		defer it.Close()
 
-		var foundNonTerminalUsersets []*v0.User
-		var foundTerminalUsersets []*v0.User
+		var foundNonTerminalUsersets []*core.User
+		var foundTerminalUsersets []*core.User
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 			if tpl.User.GetUserset().Relation == Ellipsis {
 				foundTerminalUsersets = append(foundTerminalUsersets, tpl.User)
@@ -91,7 +92,7 @@ func (ce *ConcurrentExpander) expandDirect(
 		}
 
 		// In some cases (such as _this{} expansion) including the start point is misleading.
-		var start *v0.ObjectAndRelation
+		var start *core.ObjectAndRelation
 		if startBehavior == includeStart {
 			start = req.ObjectAndRelation
 		}
@@ -100,9 +101,9 @@ func (ce *ConcurrentExpander) expandDirect(
 		// nothing more to do.
 		if req.ExpansionMode == v1.DispatchExpandRequest_SHALLOW || len(foundNonTerminalUsersets) == 0 {
 			resultChan <- expandResult(
-				&v0.RelationTupleTreeNode{
-					NodeType: &v0.RelationTupleTreeNode_LeafNode{
-						LeafNode: &v0.DirectUserset{
+				&core.RelationTupleTreeNode{
+					NodeType: &core.RelationTupleTreeNode_LeafNode{
+						LeafNode: &core.DirectUserset{
 							Users: append(foundTerminalUsersets, foundNonTerminalUsersets...),
 						},
 					},
@@ -134,9 +135,9 @@ func (ce *ConcurrentExpander) expandDirect(
 		}
 
 		unionNode := result.Resp.TreeNode.GetIntermediateNode()
-		unionNode.ChildNodes = append(unionNode.ChildNodes, &v0.RelationTupleTreeNode{
-			NodeType: &v0.RelationTupleTreeNode_LeafNode{
-				LeafNode: &v0.DirectUserset{
+		unionNode.ChildNodes = append(unionNode.ChildNodes, &core.RelationTupleTreeNode{
+			NodeType: &core.RelationTupleTreeNode_LeafNode{
+				LeafNode: &core.DirectUserset{
 					Users: append(foundTerminalUsersets, foundNonTerminalUsersets...),
 				},
 			},
@@ -146,15 +147,15 @@ func (ce *ConcurrentExpander) expandDirect(
 	}
 }
 
-func (ce *ConcurrentExpander) expandUsersetRewrite(ctx context.Context, req ValidatedExpandRequest, usr *v0.UsersetRewrite) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandUsersetRewrite(ctx context.Context, req ValidatedExpandRequest, usr *core.UsersetRewrite) ReduceableExpandFunc {
 	switch rw := usr.RewriteOperation.(type) {
-	case *v0.UsersetRewrite_Union:
+	case *core.UsersetRewrite_Union:
 		log.Ctx(ctx).Trace().Msg("union")
 		return ce.expandSetOperation(ctx, req, rw.Union, expandAny)
-	case *v0.UsersetRewrite_Intersection:
+	case *core.UsersetRewrite_Intersection:
 		log.Ctx(ctx).Trace().Msg("intersection")
 		return ce.expandSetOperation(ctx, req, rw.Intersection, expandAll)
-	case *v0.UsersetRewrite_Exclusion:
+	case *core.UsersetRewrite_Exclusion:
 		log.Ctx(ctx).Trace().Msg("exclusion")
 		return ce.expandSetOperation(ctx, req, rw.Exclusion, expandDifference)
 	default:
@@ -162,19 +163,19 @@ func (ce *ConcurrentExpander) expandUsersetRewrite(ctx context.Context, req Vali
 	}
 }
 
-func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req ValidatedExpandRequest, so *v0.SetOperation, reducer ExpandReducer) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req ValidatedExpandRequest, so *core.SetOperation, reducer ExpandReducer) ReduceableExpandFunc {
 	var requests []ReduceableExpandFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
-		case *v0.SetOperation_Child_XThis:
+		case *core.SetOperation_Child_XThis:
 			// TODO(jschorr): Turn into an error once v0 API has been removed.
 			log.Ctx(ctx).Warn().Stringer("operation", so).Msg("Use of _this is deprecated and will soon be an error! Please switch to using schema!")
 			requests = append(requests, ce.expandDirect(ctx, req, excludeStart))
-		case *v0.SetOperation_Child_ComputedUserset:
+		case *core.SetOperation_Child_ComputedUserset:
 			requests = append(requests, ce.expandComputedUserset(ctx, req, child.ComputedUserset, nil))
-		case *v0.SetOperation_Child_UsersetRewrite:
+		case *core.SetOperation_Child_UsersetRewrite:
 			requests = append(requests, ce.expandUsersetRewrite(ctx, req, child.UsersetRewrite))
-		case *v0.SetOperation_Child_TupleToUserset:
+		case *core.SetOperation_Child_TupleToUserset:
 			requests = append(requests, ce.expandTupleToUserset(ctx, req, child.TupleToUserset))
 		}
 	}
@@ -191,17 +192,17 @@ func (ce *ConcurrentExpander) dispatch(req ValidatedExpandRequest) ReduceableExp
 	}
 }
 
-func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req ValidatedExpandRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req ValidatedExpandRequest, cu *core.ComputedUserset, tpl *core.RelationTuple) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Str("relation", cu.Relation).Msg("computed userset")
-	var start *v0.ObjectAndRelation
-	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
+	var start *core.ObjectAndRelation
+	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if tpl == nil {
 			// TODO replace this with something else, AlwaysFail?
 			panic("computed userset for tupleset without tuple")
 		}
 
 		start = tpl.User.GetUserset()
-	} else if cu.Object == v0.ComputedUserset_TUPLE_OBJECT {
+	} else if cu.Object == core.ComputedUserset_TUPLE_OBJECT {
 		if tpl != nil {
 			start = tpl.ObjectAndRelation
 		} else {
@@ -221,7 +222,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 
 	return ce.dispatch(ValidatedExpandRequest{
 		&v1.DispatchExpandRequest{
-			ObjectAndRelation: &v0.ObjectAndRelation{
+			ObjectAndRelation: &core.ObjectAndRelation{
 				Namespace: start.Namespace,
 				ObjectId:  start.ObjectId,
 				Relation:  cu.Relation,
@@ -233,7 +234,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	})
 }
 
-func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req ValidatedExpandRequest, ttu *v0.TupleToUserset) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req ValidatedExpandRequest, ttu *core.TupleToUserset) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx)
 		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
@@ -261,15 +262,15 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req Vali
 }
 
 func setResult(
-	op v0.SetOperationUserset_Operation,
-	start *v0.ObjectAndRelation,
-	children []*v0.RelationTupleTreeNode,
+	op core.SetOperationUserset_Operation,
+	start *core.ObjectAndRelation,
+	children []*core.RelationTupleTreeNode,
 	metadata *v1.ResponseMeta,
 ) ExpandResult {
 	return expandResult(
-		&v0.RelationTupleTreeNode{
-			NodeType: &v0.RelationTupleTreeNode_IntermediateNode{
-				IntermediateNode: &v0.SetOperationUserset{
+		&core.RelationTupleTreeNode{
+			NodeType: &core.RelationTupleTreeNode_IntermediateNode{
+				IntermediateNode: &core.SetOperationUserset{
 					Operation:  op,
 					ChildNodes: children,
 				},
@@ -282,11 +283,11 @@ func setResult(
 
 func expandSetOperation(
 	ctx context.Context,
-	start *v0.ObjectAndRelation,
+	start *core.ObjectAndRelation,
 	requests []ReduceableExpandFunc,
-	op v0.SetOperationUserset_Operation,
+	op core.SetOperationUserset_Operation,
 ) ExpandResult {
-	children := make([]*v0.RelationTupleTreeNode, 0, len(requests))
+	children := make([]*core.RelationTupleTreeNode, 0, len(requests))
 
 	if len(requests) == 0 {
 		return setResult(op, start, children, emptyMetadata)
@@ -320,11 +321,11 @@ func expandSetOperation(
 }
 
 // emptyExpansion returns an empty expansion.
-func emptyExpansion(start *v0.ObjectAndRelation) ReduceableExpandFunc {
+func emptyExpansion(start *core.ObjectAndRelation) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		resultChan <- expandResult(&v0.RelationTupleTreeNode{
-			NodeType: &v0.RelationTupleTreeNode_LeafNode{
-				LeafNode: &v0.DirectUserset{},
+		resultChan <- expandResult(&core.RelationTupleTreeNode{
+			NodeType: &core.RelationTupleTreeNode_LeafNode{
+				LeafNode: &core.DirectUserset{},
 			},
 			Expanded: start,
 		}, emptyMetadata)
@@ -339,18 +340,18 @@ func expandError(err error) ReduceableExpandFunc {
 }
 
 // expandAll returns a tree with all of the children and an intersection node type.
-func expandAll(ctx context.Context, start *v0.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
-	return expandSetOperation(ctx, start, requests, v0.SetOperationUserset_INTERSECTION)
+func expandAll(ctx context.Context, start *core.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
+	return expandSetOperation(ctx, start, requests, core.SetOperationUserset_INTERSECTION)
 }
 
 // expandAny returns a tree with all of the children and a union node type.
-func expandAny(ctx context.Context, start *v0.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
-	return expandSetOperation(ctx, start, requests, v0.SetOperationUserset_UNION)
+func expandAny(ctx context.Context, start *core.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
+	return expandSetOperation(ctx, start, requests, core.SetOperationUserset_UNION)
 }
 
 // expandDifference returns a tree with all of the children and an exclusion node type.
-func expandDifference(ctx context.Context, start *v0.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
-	return expandSetOperation(ctx, start, requests, v0.SetOperationUserset_EXCLUSION)
+func expandDifference(ctx context.Context, start *core.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult {
+	return expandSetOperation(ctx, start, requests, core.SetOperationUserset_EXCLUSION)
 }
 
 // expandOne waits for exactly one response
@@ -375,7 +376,7 @@ func alwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {
 	resultChan <- expandResultError(errAlwaysFailExpand, emptyMetadata)
 }
 
-func expandResult(treeNode *v0.RelationTupleTreeNode, subProblemMetadata *v1.ResponseMeta) ExpandResult {
+func expandResult(treeNode *core.RelationTupleTreeNode, subProblemMetadata *v1.ResponseMeta) ExpandResult {
 	return ExpandResult{
 		&v1.DispatchExpandResponse{
 			Metadata: ensureMetadata(subProblemMetadata),

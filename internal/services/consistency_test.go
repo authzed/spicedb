@@ -31,6 +31,7 @@ import (
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -147,7 +148,7 @@ func runAssertions(t *testing.T,
 			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.String(rel))
 
 			// Ensure the assertion passes Lookup.
-			resolvedObjectIds, err := tester.Lookup(context.Background(), &v0.RelationReference{
+			resolvedObjectIds, err := tester.Lookup(context.Background(), &core.RelationReference{
 				Namespace: rel.ObjectAndRelation.Namespace,
 				Relation:  rel.ObjectAndRelation.Relation,
 			}, rel.User.GetUserset(), revision)
@@ -165,7 +166,7 @@ func runAssertions(t *testing.T,
 			require.False(t, result, "Assertion `%s` returned true; false expected", tuple.String(rel))
 
 			// Ensure the assertion does not pass Lookup.
-			resolvedObjectIds, err := tester.Lookup(context.Background(), &v0.RelationReference{
+			resolvedObjectIds, err := tester.Lookup(context.Background(), &core.RelationReference{
 				Namespace: rel.ObjectAndRelation.Namespace,
 				Relation:  rel.ObjectAndRelation.Relation,
 			}, rel.User.GetUserset(), revision)
@@ -192,7 +193,7 @@ func runCrossVersionTests(t *testing.T,
 				}
 
 				verifyCrossVersion(t, "expand", testers, func(tester serviceTester) (interface{}, error) {
-					return tester.Expand(context.Background(), &v0.ObjectAndRelation{
+					return tester.Expand(context.Background(), &core.ObjectAndRelation{
 						Namespace: nsDef.Name,
 						Relation:  relation.Name,
 						ObjectId:  tpl.ObjectAndRelation.ObjectId,
@@ -200,10 +201,10 @@ func runCrossVersionTests(t *testing.T,
 				})
 
 				verifyCrossVersion(t, "lookup", testers, func(tester serviceTester) (interface{}, error) {
-					return tester.Lookup(context.Background(), &v0.RelationReference{
+					return tester.Lookup(context.Background(), &core.RelationReference{
 						Namespace: nsDef.Name,
 						Relation:  relation.Name,
-					}, &v0.ObjectAndRelation{
+					}, &core.ObjectAndRelation{
 						Namespace: tpl.ObjectAndRelation.Namespace,
 						Relation:  tpl.ObjectAndRelation.Relation,
 						ObjectId:  tpl.ObjectAndRelation.ObjectId,
@@ -258,7 +259,7 @@ func runConsistencyTests(t *testing.T,
 		}
 
 		for _, itpl := range tuples {
-			tpl := itpl.(*v0.RelationTuple)
+			tpl := itpl.(*core.RelationTuple)
 			err := tester.Write(context.Background(), tpl)
 			lrequire.NoError(err, "failed to write %s", tuple.String(tpl))
 		}
@@ -272,7 +273,7 @@ func runConsistencyTests(t *testing.T,
 		objectsPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl.ObjectAndRelation.ObjectId)
 
 		switch m := tpl.User.UserOneof.(type) {
-		case *v0.User_Userset:
+		case *core.User_Userset:
 			// NOTE: we skip adding wildcards as subjects or object IDs.
 			subjects.Add(m.Userset)
 			if m.Userset.ObjectId != tuple.PublicWildcard {
@@ -296,7 +297,7 @@ func runConsistencyTests(t *testing.T,
 				for _, objectID := range allObjectIds {
 					objectIDStr := objectID.(string)
 
-					onr := &v0.ObjectAndRelation{
+					onr := &core.ObjectAndRelation{
 						Namespace: nsDef.Name,
 						Relation:  relation.Name,
 						ObjectId:  objectIDStr,
@@ -354,7 +355,7 @@ func runConsistencyTests(t *testing.T,
 	validateDeveloper(t, dev, vctx)
 }
 
-func accessibleViaWildcardOnly(t *testing.T, ds datastore.Datastore, dispatch dispatch.Dispatcher, onr *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, revision decimal.Decimal) bool {
+func accessibleViaWildcardOnly(t *testing.T, ds datastore.Datastore, dispatch dispatch.Dispatcher, onr *core.ObjectAndRelation, subject *core.ObjectAndRelation, revision decimal.Decimal) bool {
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -389,8 +390,8 @@ type validationContext struct {
 
 func validateDeveloper(t *testing.T, dev v0.DeveloperServiceServer, vctx *validationContext) {
 	reqContext := &v0.RequestContext{
-		LegacyNsConfigs: vctx.fullyResolved.NamespaceDefinitions,
-		Relationships:   vctx.fullyResolved.Tuples,
+		LegacyNsConfigs: core.ToV0NamespaceDefinitions(vctx.fullyResolved.NamespaceDefinitions),
+		Relationships:   core.ToV0RelationTuples(vctx.fullyResolved.Tuples),
 	}
 
 	// Validate edit checks (check watches).
@@ -489,17 +490,17 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					}
 
 					// Add a check relationship for each object ID.
-					var checkRelationships []*v0.RelationTuple
+					var checkRelationships []*core.RelationTuple
 					for _, objectID := range allObjectIds {
 						objectIDStr := objectID.(string)
-						checkRelationships = append(checkRelationships, &v0.RelationTuple{
-							ObjectAndRelation: &v0.ObjectAndRelation{
+						checkRelationships = append(checkRelationships, &core.RelationTuple{
+							ObjectAndRelation: &core.ObjectAndRelation{
 								Namespace: nsDef.Name,
 								Relation:  relation.Name,
 								ObjectId:  objectIDStr,
 							},
-							User: &v0.User{
-								UserOneof: &v0.User_Userset{
+							User: &core.User{
+								UserOneof: &core.User_Userset{
 									Userset: subject,
 								},
 							},
@@ -509,7 +510,7 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					// Ensure that all Checks assert true via the developer API.
 					req := &v0.EditCheckRequest{
 						Context:            reqContext,
-						CheckRelationships: checkRelationships,
+						CheckRelationships: core.ToV0RelationTuples(checkRelationships),
 					}
 
 					resp, err := dev.EditCheck(context.Background(), req)
@@ -517,8 +518,8 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					vrequire.Equal(len(checkRelationships), len(resp.CheckResults))
 					vrequire.Equal(0, len(resp.RequestErrors), "Got unexpected request error from edit check")
 					for _, result := range resp.CheckResults {
-						expectedMember := vctx.accessibilitySet.GetIsMember(result.Relationship.ObjectAndRelation, subject)
-						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard, result.IsMember, "Found unexpected membership difference for %s. Expected %v, Found: %v", tuple.String(result.Relationship), expectedMember, result.IsMember)
+						expectedMember := vctx.accessibilitySet.GetIsMember(core.ToCoreObjectAndRelation(result.Relationship.ObjectAndRelation), subject)
+						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard, result.IsMember, "Found unexpected membership difference for %s. Expected %v, Found: %v", tuple.String(core.ToCoreRelationTuple(result.Relationship)), expectedMember, result.IsMember)
 					}
 				})
 			}
@@ -530,7 +531,7 @@ func validateLookup(t *testing.T, vctx *validationContext) {
 	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
 		for _, relation := range nsDef.Relation {
 			for _, subject := range vctx.subjectsNoWildcard.AsSlice() {
-				objectRelation := &v0.RelationReference{
+				objectRelation := &core.RelationReference{
 					Namespace: nsDef.Name,
 					Relation:  relation.Name,
 				}
@@ -562,7 +563,7 @@ func validateLookup(t *testing.T, vctx *validationContext) {
 					// Ensure that every returned object Checks.
 					for _, resolvedObjectID := range resolvedObjectIds {
 						isMember, err := vctx.tester.Check(context.Background(),
-							&v0.ObjectAndRelation{
+							&core.ObjectAndRelation{
 								Namespace: nsDef.Name,
 								Relation:  relation.Name,
 								ObjectId:  resolvedObjectID,
@@ -600,7 +601,7 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 					vrequire := require.New(t)
 
 					_, err := vctx.tester.Expand(context.Background(),
-						&v0.ObjectAndRelation{
+						&core.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,
@@ -632,7 +633,7 @@ func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *valid
 
 					// Run a non-recursive expansion to verify no errors are raised.
 					_, err := vctx.dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
-						ObjectAndRelation: &v0.ObjectAndRelation{
+						ObjectAndRelation: &core.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,
@@ -647,7 +648,7 @@ func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *valid
 
 					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
 					resp, err := vctx.dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
-						ObjectAndRelation: &v0.ObjectAndRelation{
+						ObjectAndRelation: &core.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,
@@ -681,13 +682,13 @@ func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *valid
 
 							for _, subjectID := range allSubjectObjectIds {
 								subjectIDStr := subjectID.(string)
-								localSubject := &v0.ObjectAndRelation{
+								localSubject := &core.ObjectAndRelation{
 									Namespace: foundSubject.Subject().Namespace,
 									Relation:  foundSubject.Subject().Relation,
 									ObjectId:  subjectIDStr,
 								}
 								isMember, err := vctx.tester.Check(context.Background(),
-									&v0.ObjectAndRelation{
+									&core.ObjectAndRelation{
 										Namespace: nsDef.Name,
 										Relation:  relation.Name,
 										ObjectId:  objectIDStr,
@@ -712,7 +713,7 @@ func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *valid
 						} else {
 							// Otherwise, check directly.
 							isMember, err := vctx.tester.Check(context.Background(),
-								&v0.ObjectAndRelation{
+								&core.ObjectAndRelation{
 									Namespace: nsDef.Name,
 									Relation:  relation.Name,
 									ObjectId:  objectIDStr,
@@ -756,8 +757,8 @@ const (
 )
 
 type checkResult struct {
-	object   *v0.ObjectAndRelation
-	subject  *v0.ObjectAndRelation
+	object   *core.ObjectAndRelation
+	subject  *core.ObjectAndRelation
 	isMember isMemberStatus
 }
 
@@ -773,11 +774,11 @@ func newAccessibilitySet() *accessibilitySet {
 	}
 }
 
-func (rs *accessibilitySet) Set(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, isMember isMemberStatus) {
+func (rs *accessibilitySet) Set(object *core.ObjectAndRelation, subject *core.ObjectAndRelation, isMember isMemberStatus) {
 	rs.results = append(rs.results, checkResult{object: object, subject: subject, isMember: isMember})
 }
 
-func (rs *accessibilitySet) GetIsMember(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation) isMemberStatus {
+func (rs *accessibilitySet) GetIsMember(object *core.ObjectAndRelation, subject *core.ObjectAndRelation) isMemberStatus {
 	objectStr := tuple.StringONR(object)
 	subjectStr := tuple.StringONR(subject)
 
@@ -791,7 +792,7 @@ func (rs *accessibilitySet) GetIsMember(object *v0.ObjectAndRelation, subject *v
 }
 
 // AccessibleObjectIDs returns the set of object IDs accessible for the given subject from the given relation on the namespace.
-func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationName string, subject *v0.ObjectAndRelation) []string {
+func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationName string, subject *core.ObjectAndRelation) []string {
 	var accessibleObjectIDs []string
 	subjectStr := tuple.StringONR(subject)
 	for _, result := range rs.results {

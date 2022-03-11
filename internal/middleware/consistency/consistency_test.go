@@ -18,6 +18,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -148,7 +149,8 @@ func TestAddRevisionToContextV0AtRevision(t *testing.T) {
 	require.NoError(err)
 
 	updated := ContextWithHandle(context.Background())
-	err = AddRevisionToContext(updated, &v0.ReadRequest{AtRevision: zookie.NewFromRevision(databaseRev)}, ds)
+
+	err = AddRevisionToContext(updated, &v0.ReadRequest{AtRevision: core.ToV0Zookie(zookie.NewFromRevision(databaseRev))}, ds)
 	require.NoError(err)
 	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
 }

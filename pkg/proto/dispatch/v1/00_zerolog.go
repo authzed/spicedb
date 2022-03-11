@@ -3,7 +3,8 @@ package dispatchv1
 import (
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/rs/zerolog"
 
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -12,10 +13,10 @@ import (
 // MarshalZerologObject implements zerolog object marshalling.
 func (cr *DispatchCheckRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", cr.Metadata)
-	e.Str("request", tuple.String(&v0.RelationTuple{
+	e.Str("request", tuple.String(&core.RelationTuple{
 		ObjectAndRelation: cr.ObjectAndRelation,
-		User: &v0.User{
-			UserOneof: &v0.User_Userset{
+		User: &core.User{
+			UserOneof: &core.User_Userset{
 				Userset: cr.Subject,
 			},
 		},
@@ -50,9 +51,9 @@ func (lr *DispatchLookupRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Uint32("limit", lr.Limit)
 }
 
-type onArray []*v0.RelationReference
+type onArray []*core.RelationReference
 
-type zerologON v0.RelationReference
+type zerologON core.RelationReference
 
 // MarshalZerologArray implements zerolog array marshalling.
 func (onrs onArray) MarshalZerologArray(a *zerolog.Array) {

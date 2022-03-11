@@ -11,6 +11,7 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -31,24 +32,62 @@ var (
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
 	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
 // Validate checks the field values on DispatchCheckRequest with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DispatchCheckRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DispatchCheckRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DispatchCheckRequestMultiError, or nil if none found.
+func (m *DispatchCheckRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DispatchCheckRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if m.GetMetadata() == nil {
-		return DispatchCheckRequestValidationError{
+		err := DispatchCheckRequestValidationError{
 			field:  "Metadata",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetMetadata()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchCheckRequestValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchCheckRequestValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchCheckRequestValidationError{
 				field:  "Metadata",
@@ -59,13 +98,36 @@ func (m *DispatchCheckRequest) Validate() error {
 	}
 
 	if m.GetObjectAndRelation() == nil {
-		return DispatchCheckRequestValidationError{
+		err := DispatchCheckRequestValidationError{
 			field:  "ObjectAndRelation",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetObjectAndRelation()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetObjectAndRelation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchCheckRequestValidationError{
+					field:  "ObjectAndRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchCheckRequestValidationError{
+					field:  "ObjectAndRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetObjectAndRelation()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchCheckRequestValidationError{
 				field:  "ObjectAndRelation",
@@ -76,13 +138,36 @@ func (m *DispatchCheckRequest) Validate() error {
 	}
 
 	if m.GetSubject() == nil {
-		return DispatchCheckRequestValidationError{
+		err := DispatchCheckRequestValidationError{
 			field:  "Subject",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetSubject()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetSubject()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchCheckRequestValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchCheckRequestValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSubject()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchCheckRequestValidationError{
 				field:  "Subject",
@@ -92,8 +177,29 @@ func (m *DispatchCheckRequest) Validate() error {
 		}
 	}
 
+	if len(errors) > 0 {
+		return DispatchCheckRequestMultiError(errors)
+	}
+
 	return nil
 }
+
+// DispatchCheckRequestMultiError is an error wrapping multiple validation
+// errors returned by DispatchCheckRequest.ValidateAll() if the designated
+// constraints aren't met.
+type DispatchCheckRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DispatchCheckRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DispatchCheckRequestMultiError) AllErrors() []error { return m }
 
 // DispatchCheckRequestValidationError is the validation error returned by
 // DispatchCheckRequest.Validate if the designated constraints aren't met.
@@ -153,13 +259,46 @@ var _ interface {
 
 // Validate checks the field values on DispatchCheckResponse with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DispatchCheckResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DispatchCheckResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DispatchCheckResponseMultiError, or nil if none found.
+func (m *DispatchCheckResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DispatchCheckResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetMetadata()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchCheckResponseValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchCheckResponseValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchCheckResponseValidationError{
 				field:  "Metadata",
@@ -171,8 +310,29 @@ func (m *DispatchCheckResponse) Validate() error {
 
 	// no validation rules for Membership
 
+	if len(errors) > 0 {
+		return DispatchCheckResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// DispatchCheckResponseMultiError is an error wrapping multiple validation
+// errors returned by DispatchCheckResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DispatchCheckResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DispatchCheckResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DispatchCheckResponseMultiError) AllErrors() []error { return m }
 
 // DispatchCheckResponseValidationError is the validation error returned by
 // DispatchCheckResponse.Validate if the designated constraints aren't met.
@@ -232,20 +392,57 @@ var _ interface {
 
 // Validate checks the field values on DispatchExpandRequest with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DispatchExpandRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DispatchExpandRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DispatchExpandRequestMultiError, or nil if none found.
+func (m *DispatchExpandRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DispatchExpandRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if m.GetMetadata() == nil {
-		return DispatchExpandRequestValidationError{
+		err := DispatchExpandRequestValidationError{
 			field:  "Metadata",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetMetadata()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchExpandRequestValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchExpandRequestValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchExpandRequestValidationError{
 				field:  "Metadata",
@@ -256,13 +453,36 @@ func (m *DispatchExpandRequest) Validate() error {
 	}
 
 	if m.GetObjectAndRelation() == nil {
-		return DispatchExpandRequestValidationError{
+		err := DispatchExpandRequestValidationError{
 			field:  "ObjectAndRelation",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetObjectAndRelation()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetObjectAndRelation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchExpandRequestValidationError{
+					field:  "ObjectAndRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchExpandRequestValidationError{
+					field:  "ObjectAndRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetObjectAndRelation()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchExpandRequestValidationError{
 				field:  "ObjectAndRelation",
@@ -274,8 +494,29 @@ func (m *DispatchExpandRequest) Validate() error {
 
 	// no validation rules for ExpansionMode
 
+	if len(errors) > 0 {
+		return DispatchExpandRequestMultiError(errors)
+	}
+
 	return nil
 }
+
+// DispatchExpandRequestMultiError is an error wrapping multiple validation
+// errors returned by DispatchExpandRequest.ValidateAll() if the designated
+// constraints aren't met.
+type DispatchExpandRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DispatchExpandRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DispatchExpandRequestMultiError) AllErrors() []error { return m }
 
 // DispatchExpandRequestValidationError is the validation error returned by
 // DispatchExpandRequest.Validate if the designated constraints aren't met.
@@ -335,13 +576,46 @@ var _ interface {
 
 // Validate checks the field values on DispatchExpandResponse with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DispatchExpandResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DispatchExpandResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DispatchExpandResponseMultiError, or nil if none found.
+func (m *DispatchExpandResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DispatchExpandResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetMetadata()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchExpandResponseValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchExpandResponseValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchExpandResponseValidationError{
 				field:  "Metadata",
@@ -351,7 +625,26 @@ func (m *DispatchExpandResponse) Validate() error {
 		}
 	}
 
-	if v, ok := interface{}(m.GetTreeNode()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetTreeNode()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchExpandResponseValidationError{
+					field:  "TreeNode",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchExpandResponseValidationError{
+					field:  "TreeNode",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTreeNode()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchExpandResponseValidationError{
 				field:  "TreeNode",
@@ -361,8 +654,29 @@ func (m *DispatchExpandResponse) Validate() error {
 		}
 	}
 
+	if len(errors) > 0 {
+		return DispatchExpandResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// DispatchExpandResponseMultiError is an error wrapping multiple validation
+// errors returned by DispatchExpandResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DispatchExpandResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DispatchExpandResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DispatchExpandResponseMultiError) AllErrors() []error { return m }
 
 // DispatchExpandResponseValidationError is the validation error returned by
 // DispatchExpandResponse.Validate if the designated constraints aren't met.
@@ -422,20 +736,57 @@ var _ interface {
 
 // Validate checks the field values on DispatchLookupRequest with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DispatchLookupRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DispatchLookupRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DispatchLookupRequestMultiError, or nil if none found.
+func (m *DispatchLookupRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DispatchLookupRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if m.GetMetadata() == nil {
-		return DispatchLookupRequestValidationError{
+		err := DispatchLookupRequestValidationError{
 			field:  "Metadata",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetMetadata()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchLookupRequestValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchLookupRequestValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchLookupRequestValidationError{
 				field:  "Metadata",
@@ -446,13 +797,36 @@ func (m *DispatchLookupRequest) Validate() error {
 	}
 
 	if m.GetObjectRelation() == nil {
-		return DispatchLookupRequestValidationError{
+		err := DispatchLookupRequestValidationError{
 			field:  "ObjectRelation",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetObjectRelation()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetObjectRelation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchLookupRequestValidationError{
+					field:  "ObjectRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchLookupRequestValidationError{
+					field:  "ObjectRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetObjectRelation()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchLookupRequestValidationError{
 				field:  "ObjectRelation",
@@ -463,13 +837,36 @@ func (m *DispatchLookupRequest) Validate() error {
 	}
 
 	if m.GetSubject() == nil {
-		return DispatchLookupRequestValidationError{
+		err := DispatchLookupRequestValidationError{
 			field:  "Subject",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetSubject()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetSubject()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchLookupRequestValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchLookupRequestValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSubject()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchLookupRequestValidationError{
 				field:  "Subject",
@@ -484,7 +881,26 @@ func (m *DispatchLookupRequest) Validate() error {
 	for idx, item := range m.GetDirectStack() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DispatchLookupRequestValidationError{
+						field:  fmt.Sprintf("DirectStack[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DispatchLookupRequestValidationError{
+						field:  fmt.Sprintf("DirectStack[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return DispatchLookupRequestValidationError{
 					field:  fmt.Sprintf("DirectStack[%v]", idx),
@@ -499,7 +915,26 @@ func (m *DispatchLookupRequest) Validate() error {
 	for idx, item := range m.GetTtuStack() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DispatchLookupRequestValidationError{
+						field:  fmt.Sprintf("TtuStack[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DispatchLookupRequestValidationError{
+						field:  fmt.Sprintf("TtuStack[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return DispatchLookupRequestValidationError{
 					field:  fmt.Sprintf("TtuStack[%v]", idx),
@@ -511,8 +946,29 @@ func (m *DispatchLookupRequest) Validate() error {
 
 	}
 
+	if len(errors) > 0 {
+		return DispatchLookupRequestMultiError(errors)
+	}
+
 	return nil
 }
+
+// DispatchLookupRequestMultiError is an error wrapping multiple validation
+// errors returned by DispatchLookupRequest.ValidateAll() if the designated
+// constraints aren't met.
+type DispatchLookupRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DispatchLookupRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DispatchLookupRequestMultiError) AllErrors() []error { return m }
 
 // DispatchLookupRequestValidationError is the validation error returned by
 // DispatchLookupRequest.Validate if the designated constraints aren't met.
@@ -572,13 +1028,46 @@ var _ interface {
 
 // Validate checks the field values on DispatchLookupResponse with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *DispatchLookupResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DispatchLookupResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DispatchLookupResponseMultiError, or nil if none found.
+func (m *DispatchLookupResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DispatchLookupResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetMetadata()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchLookupResponseValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchLookupResponseValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchLookupResponseValidationError{
 				field:  "Metadata",
@@ -591,7 +1080,26 @@ func (m *DispatchLookupResponse) Validate() error {
 	for idx, item := range m.GetResolvedOnrs() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DispatchLookupResponseValidationError{
+						field:  fmt.Sprintf("ResolvedOnrs[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DispatchLookupResponseValidationError{
+						field:  fmt.Sprintf("ResolvedOnrs[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return DispatchLookupResponseValidationError{
 					field:  fmt.Sprintf("ResolvedOnrs[%v]", idx),
@@ -605,8 +1113,29 @@ func (m *DispatchLookupResponse) Validate() error {
 
 	// no validation rules for NextPageReference
 
+	if len(errors) > 0 {
+		return DispatchLookupResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// DispatchLookupResponseMultiError is an error wrapping multiple validation
+// errors returned by DispatchLookupResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DispatchLookupResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DispatchLookupResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DispatchLookupResponseMultiError) AllErrors() []error { return m }
 
 // DispatchLookupResponseValidationError is the validation error returned by
 // DispatchLookupResponse.Validate if the designated constraints aren't met.
@@ -665,29 +1194,71 @@ var _ interface {
 } = DispatchLookupResponseValidationError{}
 
 // Validate checks the field values on ResolverMeta with the rules defined in
-// the proto definition for this message. If any rules are violated, an error
-// is returned.
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *ResolverMeta) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ResolverMeta with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in ResolverMetaMultiError, or
+// nil if none found.
+func (m *ResolverMeta) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ResolverMeta) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if !_ResolverMeta_AtRevision_Pattern.MatchString(m.GetAtRevision()) {
-		return ResolverMetaValidationError{
+		err := ResolverMetaValidationError{
 			field:  "AtRevision",
 			reason: "value does not match regex pattern \"^[0-9]+(\\\\.[0-9]+)?$\"",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
 	if m.GetDepthRemaining() <= 0 {
-		return ResolverMetaValidationError{
+		err := ResolverMetaValidationError{
 			field:  "DepthRemaining",
 			reason: "value must be greater than 0",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return ResolverMetaMultiError(errors)
 	}
 
 	return nil
 }
+
+// ResolverMetaMultiError is an error wrapping multiple validation errors
+// returned by ResolverMeta.ValidateAll() if the designated constraints aren't met.
+type ResolverMetaMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ResolverMetaMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ResolverMetaMultiError) AllErrors() []error { return m }
 
 // ResolverMetaValidationError is the validation error returned by
 // ResolverMeta.Validate if the designated constraints aren't met.
@@ -746,12 +1317,26 @@ var _ interface {
 var _ResolverMeta_AtRevision_Pattern = regexp.MustCompile("^[0-9]+(\\.[0-9]+)?$")
 
 // Validate checks the field values on ResponseMeta with the rules defined in
-// the proto definition for this message. If any rules are violated, an error
-// is returned.
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *ResponseMeta) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ResponseMeta with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in ResponseMetaMultiError, or
+// nil if none found.
+func (m *ResponseMeta) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ResponseMeta) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
+
+	var errors []error
 
 	// no validation rules for DispatchCount
 
@@ -762,7 +1347,26 @@ func (m *ResponseMeta) Validate() error {
 	for idx, item := range m.GetLookupExcludedDirect() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ResponseMetaValidationError{
+						field:  fmt.Sprintf("LookupExcludedDirect[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ResponseMetaValidationError{
+						field:  fmt.Sprintf("LookupExcludedDirect[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return ResponseMetaValidationError{
 					field:  fmt.Sprintf("LookupExcludedDirect[%v]", idx),
@@ -777,7 +1381,26 @@ func (m *ResponseMeta) Validate() error {
 	for idx, item := range m.GetLookupExcludedTtu() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ResponseMetaValidationError{
+						field:  fmt.Sprintf("LookupExcludedTtu[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ResponseMetaValidationError{
+						field:  fmt.Sprintf("LookupExcludedTtu[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return ResponseMetaValidationError{
 					field:  fmt.Sprintf("LookupExcludedTtu[%v]", idx),
@@ -789,8 +1412,28 @@ func (m *ResponseMeta) Validate() error {
 
 	}
 
+	if len(errors) > 0 {
+		return ResponseMetaMultiError(errors)
+	}
+
 	return nil
 }
+
+// ResponseMetaMultiError is an error wrapping multiple validation errors
+// returned by ResponseMeta.ValidateAll() if the designated constraints aren't met.
+type ResponseMetaMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ResponseMetaMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ResponseMetaMultiError) AllErrors() []error { return m }
 
 // ResponseMetaValidationError is the validation error returned by
 // ResponseMeta.Validate if the designated constraints aren't met.

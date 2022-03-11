@@ -7,6 +7,7 @@ import (
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
@@ -20,7 +21,7 @@ definition document {
 }
 `,
 		Relationships: []*v0.RelationTuple{
-			tuple.MustParse("document:somedoc#viewer@user:someuser"),
+			core.ToV0RelationTuple(tuple.MustParse("document:somedoc#viewer@user:someuser")),
 		},
 	})
 

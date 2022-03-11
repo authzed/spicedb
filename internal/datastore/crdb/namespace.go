@@ -7,10 +7,11 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/jackc/pgx/v4"
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
@@ -40,11 +41,12 @@ var (
 	queryDeleteNamespace = psql.Delete(tableNamespace)
 )
 
-func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (cds *crdbDatastore) WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (datastore.Revision, error) {
 	var hlcNow decimal.Decimal
 	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		keySet := newKeySet()
 		cds.AddOverlapKey(keySet, newConfig.Name)
+
 		serialized, err := proto.Marshal(newConfig)
 		if err != nil {
 			return err
@@ -74,7 +76,7 @@ func (cds *crdbDatastore) ReadNamespace(
 	ctx context.Context,
 	nsName string,
 	revision datastore.Revision,
-) (*v0.NamespaceDefinition, datastore.Revision, error) {
+) (*core.NamespaceDefinition, datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := cds.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
@@ -144,7 +146,7 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 	return hlcNow, nil
 }
 
-func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*v0.NamespaceDefinition, time.Time, error) {
+func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*core.NamespaceDefinition, time.Time, error) {
 	query := queryReadNamespace.Where(sq.Eq{colNamespace: nsName})
 
 	sql, args, err := query.ToSql()
@@ -161,7 +163,7 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*v0.Namespace
 		return nil, time.Time{}, err
 	}
 
-	loaded := &v0.NamespaceDefinition{}
+	loaded := &core.NamespaceDefinition{}
 	err = proto.Unmarshal(config, loaded)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -170,7 +172,7 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*v0.Namespace
 	return loaded, timestamp, nil
 }
 
-func (cds *crdbDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+func (cds *crdbDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := cds.conn.Begin(ctx)
@@ -190,7 +192,7 @@ func (cds *crdbDatastore) ListNamespaces(ctx context.Context, revision datastore
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 
-	var nsDefs []*v0.NamespaceDefinition
+	var nsDefs []*core.NamespaceDefinition
 	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
@@ -204,7 +206,7 @@ func (cds *crdbDatastore) ListNamespaces(ctx context.Context, revision datastore
 			return nil, fmt.Errorf(errUnableToListNamespaces, err)
 		}
 
-		var loaded v0.NamespaceDefinition
+		var loaded core.NamespaceDefinition
 		if err := proto.Unmarshal(config, &loaded); err != nil {
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
