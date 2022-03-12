@@ -81,15 +81,8 @@ brew install authzed/tap/spicedb
 SpiceDB is also available as a container image:
 
 ```sh
-docker pull quay.io/authzed/spicedb:latest
-docker run quay.io/authzed/spicedb serve --grpc-preshared-key "somerandomkeyhere"
-```
-
-SpiceDB supports environment variables. You can replace any command's argument with an environment variable by adding the `SPICEDB` prefix.  
-For example `--log-level` becomes `SPICEDB_LOG_LEVEL`.
-
-```sh
-docker run -e SPICEDB_GRPC_PRESHARED_KEY=somerandomkeyhere quay.io/authzed/spicedb serve
+docker pull ghcr.io/authzed/spicedb:latest
+docker run -p 50051:50051 -p 8080:8080 quay.io/authzed/spicedb serve --grpc-preshared-key 'somerandomkeyhere'
 ```
 
 For production usage, we **highly** recommend using a tag that corresponds to the [latest release], rather than `latest`.
@@ -117,6 +110,15 @@ A [SpiceDB GitHub action] is also available to run SpiceDB as part of your integ
 
 [Bearer Token]: https://docs.authzed.com/reference/api#authentication
 [SpiceDB GitHub action]: https://github.com/authzed/action-spicedb
+
+### Configuring SpiceDB
+
+In addition to CLI flags, SpiceDB also supports configuration via environment variables.
+You can replace any command's argument with an environment variable by converting dashes into underscores and prefixing with `SPICEDB_` (e.g. `--log-level` becomes `SPICEDB_LOG_LEVEL`).
+
+```sh
+SPICEDB_GRPC_PRESHARED_KEY=somerandomkeyhere spicedb serve
+```
 
 ### Developing your own schema
 
