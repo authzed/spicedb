@@ -18,11 +18,16 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 )
 
+func init() {
+	datastore.Engines = append(datastore.Engines, Engine)
+}
+
 // DisableGC is a convenient constant for setting the garbage collection
 // interval high enough that it will never run.
 const DisableGC = time.Duration(math.MaxInt64)
 
 const (
+	Engine            = "memory"
 	tableRelationship = "relationship"
 	tableTransaction  = "transaction"
 	tableNamespace    = "namespaceConfig"

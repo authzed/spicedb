@@ -68,7 +68,9 @@ func NewTestServer(require *require.Assertions,
 	require.NoError(err)
 
 	return conn, func() {
-		require.NoError(conn.Close())
+		if conn != nil {
+			require.NoError(conn.Close())
+		}
 		cancel()
 	}, revision
 }

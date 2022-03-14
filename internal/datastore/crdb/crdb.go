@@ -20,6 +20,10 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 )
 
+func init() {
+	datastore.Engines = append(datastore.Engines, Engine)
+}
+
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
@@ -29,6 +33,7 @@ var (
 )
 
 const (
+	Engine            = "cockroachdb"
 	tableNamespace    = "namespace_config"
 	tableTuple        = "relation_tuple"
 	tableTransactions = "transactions"
@@ -130,12 +135,12 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	}
 
 	ds := &crdbDatastore{
-		&common.RemoteClockRevisions{
-			QuantizationNanos:      config.revisionQuantization.Nanoseconds(),
-			GCWindowNanos:          gcWindowNanos,
-			FollowerReadDelayNanos: config.followerReadDelay.Nanoseconds(),
-			MaxRevisionStaleness:   maxRevisionStaleness,
-		},
+		common.NewRemoteClockRevisions(
+			config.revisionQuantization.Nanoseconds(),
+			gcWindowNanos,
+			config.followerReadDelay.Nanoseconds(),
+			maxRevisionStaleness,
+		),
 		url,
 		conn,
 		config.watchBufferLength,
@@ -144,7 +149,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		keyer,
 	}
 
-	ds.RemoteClockRevisions.NowFunc = ds.HeadRevision
+	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
 
 	return ds, nil
 }

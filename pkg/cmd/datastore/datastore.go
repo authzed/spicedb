@@ -27,7 +27,7 @@ const (
 	SpannerEngine   = "spanner"
 )
 
-var builderForEngine = map[string]engineBuilderFunc{
+var BuilderForEngine = map[string]engineBuilderFunc{
 	CockroachEngine: newCRDBDatastore,
 	PostgresEngine:  newPostgresDatastore,
 	MemoryEngine:    newMemoryDatstore,
@@ -72,6 +72,10 @@ type Config struct {
 
 	// Spanner
 	SpannerCredentialsFile string
+
+	// Internal
+	WatchBufferLength      uint16
+	EnableDatastoreMetrics bool
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
@@ -117,23 +121,24 @@ func DefaultDatastoreConfig() *Config {
 		HealthCheckPeriod:    30 * time.Second,
 		GCInterval:           3 * time.Minute,
 		GCMaxOperationTime:   1 * time.Minute,
+		WatchBufferLength:    128,
 	}
 }
 
 // NewDatastore initializes a datastore given the options
 func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
-	var opts Config
+	opts := DefaultDatastoreConfig()
 	for _, o := range options {
-		o(&opts)
+		o(opts)
 	}
 
-	dsBuilder, ok := builderForEngine[opts.Engine]
+	dsBuilder, ok := BuilderForEngine[opts.Engine]
 	if !ok {
 		return nil, fmt.Errorf("unknown datastore engine type: %s", opts.Engine)
 	}
 	log.Info().Msgf("using %s datastore engine", opts.Engine)
 
-	ds, err := dsBuilder(opts)
+	ds, err := dsBuilder(*opts)
 	if err != nil {
 		return nil, err
 	}
@@ -195,12 +200,12 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.MaxRetries(opts.MaxRetries),
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
+		crdb.WatchBufferLength(opts.WatchBufferLength),
 	)
 }
 
 func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
-	return postgres.NewPostgresDatastore(
-		opts.URI,
+	pgOpts := []postgres.Option{
 		postgres.GCWindow(opts.GCWindow),
 		postgres.RevisionFuzzingTimedelta(opts.RevisionQuantization),
 		postgres.ConnMaxIdleTime(opts.MaxIdleTime),
@@ -211,9 +216,13 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.HealthCheckPeriod(opts.HealthCheckPeriod),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
-		postgres.EnablePrometheusStats(),
 		postgres.EnableTracing(),
-	)
+		postgres.WatchBufferLength(opts.WatchBufferLength),
+	}
+	if opts.EnableDatastoreMetrics {
+		pgOpts = append(pgOpts, postgres.EnablePrometheusStats())
+	}
+	return postgres.NewPostgresDatastore(opts.URI, pgOpts...)
 }
 
 func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
@@ -223,10 +232,11 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.GCInterval(opts.GCInterval),
 		spanner.GCWindow(opts.GCWindow),
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
+		spanner.WatchBufferLength(opts.WatchBufferLength),
 	)
 }
 
 func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
-	return memdb.NewMemdbDatastore(0, opts.RevisionQuantization, opts.GCWindow, 0)
+	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow, 0)
 }

@@ -26,6 +26,12 @@ type DatastoreTester interface {
 	New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 }
 
+type DatastoreTesterFunc func(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+
+func (f DatastoreTesterFunc) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	return f(revisionFuzzingTimedelta, gcWindow, watchBufferLength)
+}
+
 // All runs all generic datastore tests on a DatastoreTester.
 func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })

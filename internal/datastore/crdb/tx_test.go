@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -23,16 +24,6 @@ const (
 )
 
 var testUserNS = namespace.Namespace(testUserNamespace)
-
-// newCRDB creates a new database in crdb, migrates to HEAD, and returns the specific crdb datastore.
-func (st sqlTest) newCRDB() (*crdbDatastore, error) {
-	// Use crdb defaults
-	ds, err := st.New(
-		5*time.Second,
-		24*time.Hour,
-		128)
-	return ds.(*crdbDatastore), err
-}
 
 func executeWithErrors(errors *[]pgconn.PgError, maxRetries int) executeTxRetryFunc {
 	return func(ctx context.Context, conn conn, txOptions pgx.TxOptions, fn transactionFn) (err error) {
@@ -112,10 +103,19 @@ func TestTxReset(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			tester := newTester(crdbContainer, "root:fake", 26257)
-			ds, err := tester.newCRDB()
-			require.NoError(err)
-			ds.execute = executeWithErrors(&tt.errors, tt.maxRetries)
+
+			ds := testdatastore.NewCRDBBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+				ds, err := NewCRDBDatastore(
+					uri,
+					GCWindow(24*time.Hour),
+					RevisionQuantization(5*time.Second),
+					WatchBufferLength(128),
+				)
+				require.NoError(err)
+				return ds
+			})
+			ds.(*crdbDatastore).execute = executeWithErrors(&tt.errors, tt.maxRetries)
+			defer ds.Close()
 
 			ctx := context.Background()
 			ok, err := ds.IsReady(ctx)
@@ -131,9 +131,6 @@ func TestTxReset(t *testing.T) {
 				require.NoError(err)
 				require.True(revision.GreaterThan(decimal.Zero))
 			}
-
-			tester.cleanup()
-			ds.Close()
 		})
 	}
 }

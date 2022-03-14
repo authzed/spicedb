@@ -8,35 +8,44 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 )
 
-var crdbContainer = &dockertest.RunOptions{
-	Repository: "cockroachdb/cockroach",
-	Tag:        "v21.1.3",
-	Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
-}
-
 func TestCRDBPGDatastore(t *testing.T) {
-	tester := newTester(crdbContainer, "root:fake", 26257)
-	defer tester.cleanup()
-
-	test.All(t, tester)
+	b := testdatastore.NewCRDBPGBuilder(t)
+	test.All(t, test.DatastoreTesterFunc(func(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := NewPostgresDatastore(uri,
+				RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+				GCWindow(gcWindow),
+				WatchBufferLength(watchBufferLength),
+			)
+			require.NoError(t, err)
+			return ds
+		})
+		return ds, nil
+	}))
 }
 
 func BenchmarkCRDBQuery(b *testing.B) {
 	req := require.New(b)
 
-	tester := newTester(crdbContainer, "root:fake", 26257)
-	defer tester.cleanup()
-
-	ds, err := tester.New(0, 24*time.Hour, 1)
-	req.NoError(err)
+	ds := testdatastore.NewCRDBBuilder(b).NewDatastore(b, func(engine, uri string) datastore.Datastore {
+		ds, err := NewPostgresDatastore(uri,
+			RevisionFuzzingTimedelta(0),
+			GCWindow(24*time.Hour),
+			WatchBufferLength(1),
+		)
+		require.NoError(b, err)
+		return ds
+	})
 
 	_, revision := testfixtures.StandardDatastoreWithData(ds, req)
 

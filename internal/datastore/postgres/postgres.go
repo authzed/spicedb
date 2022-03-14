@@ -27,7 +27,12 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 )
 
+func init() {
+	datastore.Engines = append(datastore.Engines, Engine)
+}
+
 const (
+	Engine           = "postgres"
 	tableNamespace   = "namespace_config"
 	tableTransaction = "relation_tuple_transaction"
 	tableTuple       = "relation_tuple"
