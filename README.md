@@ -1,6 +1,6 @@
 # SpiceDB
 
-[![Container Image](https://img.shields.io/github/v/release/authzed/spicedb?color=%232496ED&label=container&logo=docker "Container Image")](https://quay.io/repository/authzed/spicedb?tab=tags)
+[![Container Image](https://img.shields.io/github/v/release/authzed/spicedb?color=%232496ED&label=container&logo=docker "Container Image")](https://hub.docker.com/r/authzed/spicedb/tags)
 [![Docs](https://img.shields.io/badge/docs-authzed.com-%234B4B6C "Authzed Documentation")](https://docs.authzed.com)
 [![GoDoc](https://godoc.org/github.com/authzed/spicedb?status.svg "Go documentation")](https://godoc.org/github.com/authzed/spicedb)
 [![Build Status](https://github.com/authzed/spicedb/workflows/Build%20&%20Test/badge.svg "GitHub Actions")](https://github.com/authzed/spicedb/actions)
@@ -81,8 +81,7 @@ brew install authzed/tap/spicedb
 SpiceDB is also available as a container image:
 
 ```sh
-docker pull ghcr.io/authzed/spicedb:latest
-docker run -p 50051:50051 -p 8080:8080 quay.io/authzed/spicedb serve --grpc-preshared-key 'somerandomkeyhere'
+docker run -p 50051:50051 -p 8080:8080 authzed/spicedb:latest serve --grpc-preshared-key 'somerandomkeyhere'
 ```
 
 For production usage, we **highly** recommend using a tag that corresponds to the [latest release], rather than `latest`.
