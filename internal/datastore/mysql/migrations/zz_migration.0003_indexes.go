@@ -20,7 +20,7 @@ func createIndexOnTupleTransactionTimestamp(mysql *MysqlDriver) string {
 }
 
 func init() {
-	err := Manager.Register("indexes", "namespace-tables",
+	err := Manager.Register("indexes", "namespace_tables",
 		newExecutor(
 			createReverseQueryIndex,
 			createReverseCheckIndex,
