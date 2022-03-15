@@ -416,7 +416,7 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 		return 0, fmt.Errorf(errRevision, err)
 	}
 
-	var revision uint64
+	var revision sql.NullInt64
 	err = mds.db.QueryRowContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -424,8 +424,11 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 		}
 		return 0, fmt.Errorf(errRevision, err)
 	}
+	if !revision.Valid {
+		return 0, nil
+	}
 
-	return revision, nil
+	return uint64(revision.Int64), nil
 }
 
 func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInverted time.Duration) (uint64, uint64, error) {
