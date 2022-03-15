@@ -176,6 +176,7 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
+		// TODO(chriskirkland): check this option
 		if opts.BootstrapOverwrite || len(nsDefs) == 0 {
 			log.Info().Msg("initializing datastore from bootstrap files")
 			_, _, err = validationfile.PopulateFromFiles(ds, opts.BootstrapFiles)
