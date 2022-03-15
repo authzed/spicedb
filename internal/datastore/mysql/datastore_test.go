@@ -52,7 +52,6 @@ func newPrefixTester(tablePrefix string) *sqlTest {
 
 func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 	connectStr := setupDatabase()
-	fmt.Printf("using connection string: %s\n", connectStr)
 
 	migrateDatabaseWithPrefix(connectStr, st.tablePrefix)
 
@@ -66,12 +65,9 @@ func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBu
 		return nil, err
 	}
 
-	fmt.Println(">>> seeding revision")
 	if _, err := ds.SeedRevision(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed to seed test datastore revision: %s", err)
 	}
-	fmt.Println(">>> seeding revision complete")
-	time.Sleep(100 * time.Millisecond)
 	return ds, nil
 }
 
@@ -90,14 +86,12 @@ func createMigrationDriverWithPrefix(connectStr string, prefix string) (*migrati
 
 func TestMysqlDatastore(t *testing.T) {
 	tester := newTester()
-	//test.All(t, tester)
-	test.RevisionFuzzingTest(t, tester)
+	test.All(t, tester)
 }
 
 func TestMysqlDatastoreWithTablePrefix(t *testing.T) {
 	tester := newPrefixTester("spicedb_")
-	//test.All(t, tester)
-	test.RevisionFuzzingTest(t, tester)
+	test.All(t, tester)
 }
 
 func TestMySQLMigrations(t *testing.T) {
@@ -623,10 +617,10 @@ func TestMain(m *testing.M) {
 
 	containerCleanup := func() {
 		// When you're done, kill and remove the container
-		//if err := pool.Purge(containerResource); err != nil {
-		//	fmt.Printf("could not purge resource: %s\n", err)
-		//	os.Exit(1)
-		//}
+		if err := pool.Purge(containerResource); err != nil {
+			fmt.Printf("could not purge resource: %s\n", err)
+			os.Exit(1)
+		}
 	}
 
 	containerPort = containerResource.GetPort(fmt.Sprintf("%d/tcp", mysqlPort))

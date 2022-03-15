@@ -375,7 +375,12 @@ func (mds *mysqlDatastore) SeedRevision(ctx context.Context) (datastore.Revision
 	if err != nil {
 		return datastore.NoRevision, err
 	}
-	fmt.Printf(">>> seeded transaction %d\n", txId)
+
+	err = tx.Commit()
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+
 	return common.RevisionFromTransaction(txId), nil
 }
 
