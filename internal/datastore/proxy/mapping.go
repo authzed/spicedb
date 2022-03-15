@@ -93,6 +93,11 @@ func (mp mappingProxy) HeadRevision(ctx context.Context) (datastore.Revision, er
 	return mp.delegate.HeadRevision(ctx)
 }
 
+// SeedRevision initializes the first transaction revision.
+func (mp mappingProxy) SeedRevision(ctx context.Context) (datastore.Revision, error) {
+	return mp.delegate.SeedRevision(ctx)
+}
+
 func (mp mappingProxy) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	changeChan, errChan := mp.delegate.Watch(ctx, afterRevision)
 

@@ -236,6 +236,11 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 	return hlcNow, nil
 }
 
+// SeedRevision initializes the first transaction revision.
+func (mds *crdbDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
+	return datastore.NoRevision, nil
+}
+
 func (cds *crdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()

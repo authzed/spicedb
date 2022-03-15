@@ -206,6 +206,11 @@ func (dm *delegateMock) HeadRevision(ctx context.Context) (datastore.Revision, e
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
+// SeedRevision initializes the first transaction revision.
+func (dm *delegateMock) SeedRevision(ctx context.Context) (datastore.Revision, error) {
+	return datastore.NoRevision, nil
+}
+
 func (dm *delegateMock) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	args := dm.Called(afterRevision)
 

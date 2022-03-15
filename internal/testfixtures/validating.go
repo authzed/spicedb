@@ -76,6 +76,11 @@ func (vd validatingDatastore) HeadRevision(ctx context.Context) (datastore.Revis
 	return vd.delegate.HeadRevision(ctx)
 }
 
+// SeedRevision initializes the first transaction revision.
+func (vd validatingDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
+	return vd.delegate.SeedRevision(ctx)
+}
+
 func (vd validatingDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	return vd.delegate.Watch(ctx, afterRevision)
 }

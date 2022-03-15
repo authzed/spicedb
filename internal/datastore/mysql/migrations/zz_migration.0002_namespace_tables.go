@@ -53,7 +53,6 @@ func init() {
 			createNamespaceConfig,
 			createRelationTuple,
 			createRelationTupleTransaction,
-			//insertFirstTransaction,
 		).migrate,
 	)
 	if err != nil {
