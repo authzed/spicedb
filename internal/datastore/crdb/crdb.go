@@ -236,8 +236,7 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 	return hlcNow, nil
 }
 
-// SeedRevision initializes the first transaction revision.
-func (mds *crdbDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
+func (cds *crdbDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
 	return datastore.NoRevision, nil
 }
 

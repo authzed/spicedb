@@ -401,8 +401,7 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 	return revisionFromTransaction(revision), nil
 }
 
-// SeedRevision initializes the first transaction revision.
-func (mds *pgDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
+func (pgd *pgDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
 	return datastore.NoRevision, nil
 }
 

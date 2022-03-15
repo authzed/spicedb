@@ -72,9 +72,12 @@ func (mysql *MysqlDriver) Version() (string, error) {
 		}
 		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
 	}
+	if rows.Err() != nil {
+		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
+	}
 	cols, err := rows.Columns()
 	if err != nil {
-		return "", fmt.Errorf("failed to get columns: %s", err)
+		return "", fmt.Errorf("failed to get columns: %w", err)
 	}
 
 	return strings.TrimPrefix(cols[0], migrationVersionColumnPrefix), nil
@@ -88,8 +91,7 @@ func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
 		migrationVersionColumnPrefix+replaced,
 		migrationVersionColumnPrefix+version,
 	)
-	_, err := mysql.db.Exec(stmt)
-	if err != nil {
+	if _, err := mysql.db.Exec(stmt); err != nil {
 		return fmt.Errorf("unable to version: %w", err)
 	}
 

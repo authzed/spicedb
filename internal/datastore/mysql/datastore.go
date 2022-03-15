@@ -371,7 +371,7 @@ func (mds *mysqlDatastore) SeedRevision(ctx context.Context) (datastore.Revision
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
 
-	txId, err := mds.createNewTransaction(ctx, tx)
+	txnID, err := mds.createNewTransaction(ctx, tx)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
@@ -381,7 +381,7 @@ func (mds *mysqlDatastore) SeedRevision(ctx context.Context) (datastore.Revision
 		return datastore.NoRevision, err
 	}
 
-	return common.RevisionFromTransaction(txId), nil
+	return common.RevisionFromTransaction(txnID), nil
 }
 
 // CheckRevision checks the specified revision to make sure it's valid and
