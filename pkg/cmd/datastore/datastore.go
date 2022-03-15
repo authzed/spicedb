@@ -171,6 +171,10 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
+		if revision == datastore.NoRevision {
+			// seed the initial revision
+			panic("no revision on startup")
+		}
 
 		nsDefs, err := ds.ListNamespaces(context.Background(), revision)
 		if err != nil {
