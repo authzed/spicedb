@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yamlv3 "gopkg.in/yaml.v3"
 
+	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -34,10 +35,10 @@ func TestParseAssertions(t *testing.T) {
 					{
 						"document:foo#view@user:someone",
 						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
-						SourcePosition{2, 3},
+						commonerrors.SourcePosition{2, 3},
 					},
 				},
-				SourcePosition: SourcePosition{1, 1},
+				SourcePosition: commonerrors.SourcePosition{1, 1},
 			},
 		},
 		{
@@ -53,22 +54,22 @@ assertFalse:
 					{
 						"document:foo#view@user:someone",
 						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
-						SourcePosition{2, 3},
+						commonerrors.SourcePosition{2, 3},
 					},
 					{
 						"document:bar#view@user:sometwo",
 						tuple.MustToRelationship(tuple.MustParse("document:bar#view@user:sometwo")),
-						SourcePosition{3, 3},
+						commonerrors.SourcePosition{3, 3},
 					},
 				},
 				AssertFalse: []Assertion{
 					{
 						"document:foo#write@user:someone",
 						tuple.MustToRelationship(tuple.MustParse("document:foo#write@user:someone")),
-						SourcePosition{5, 3},
+						commonerrors.SourcePosition{5, 3},
 					},
 				},
-				SourcePosition: SourcePosition{1, 1},
+				SourcePosition: commonerrors.SourcePosition{1, 1},
 			},
 		},
 		{

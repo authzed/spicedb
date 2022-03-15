@@ -9,6 +9,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -19,7 +20,7 @@ type ParsedExpectedRelations struct {
 	ValidationMap ValidationMap
 
 	// SourcePosition is the position of the expected relations in the file.
-	SourcePosition SourcePosition
+	SourcePosition commonerrors.SourcePosition
 }
 
 // UnmarshalYAML is a custom unmarshaller.
@@ -29,7 +30,7 @@ func (per *ParsedExpectedRelations) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
-	per.SourcePosition = SourcePosition{node.Line, node.Column}
+	per.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
 	return nil
 }
 
@@ -47,7 +48,7 @@ type ObjectRelation struct {
 	ObjectAndRelation *core.ObjectAndRelation
 
 	// SourcePosition is the position of the expected relations in the file.
-	SourcePosition SourcePosition
+	SourcePosition commonerrors.SourcePosition
 }
 
 // UnmarshalYAML is a custom unmarshaller.
@@ -59,16 +60,16 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 
 	parsed := tuple.ParseONR(ors.ObjectRelationString)
 	if parsed == nil {
-		return ErrorWithSource{
+		return commonerrors.NewErrorWithSource(
 			fmt.Errorf("could not parse %s", ors.ObjectRelationString),
 			ors.ObjectRelationString,
 			uint64(node.Line),
 			uint64(node.Column),
-		}
+		)
 	}
 
 	ors.ObjectAndRelation = parsed
-	ors.SourcePosition = SourcePosition{node.Line, node.Column}
+	ors.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
 	return nil
 }
 
@@ -92,7 +93,7 @@ type ExpectedSubject struct {
 	Resources []*core.ObjectAndRelation
 
 	// SourcePosition is the position of the expected subject in the file.
-	SourcePosition SourcePosition
+	SourcePosition commonerrors.SourcePosition
 }
 
 // SubjectWithExceptions returns the subject found in a validation string, along with any exceptions.
@@ -113,26 +114,26 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 
 	subjectWithExceptions, subErr := es.ValidationString.Subject()
 	if subErr != nil {
-		return ErrorWithSource{
+		return commonerrors.NewErrorWithSource(
 			subErr,
-			subErr.Source,
-			uint64(node.Line) + subErr.LineNumber,
-			uint64(node.Column) + subErr.ColumnPosition,
-		}
+			subErr.SourceCodeString,
+			uint64(node.Line)+subErr.LineNumber,
+			uint64(node.Column)+subErr.ColumnPosition,
+		)
 	}
 
 	onrs, onrErr := es.ValidationString.ONRS()
 	if onrErr != nil {
-		return ErrorWithSource{
+		return commonerrors.NewErrorWithSource(
 			onrErr,
-			onrErr.Source,
-			uint64(node.Line) + onrErr.LineNumber,
-			uint64(node.Column) + onrErr.ColumnPosition,
-		}
+			onrErr.SourceCodeString,
+			uint64(node.Line)+onrErr.LineNumber,
+			uint64(node.Column)+onrErr.ColumnPosition,
+		)
 	}
 
 	es.SubjectWithExceptions = subjectWithExceptions
-	es.SourcePosition = SourcePosition{node.Line, node.Column}
+	es.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
 	es.Resources = onrs
 	return nil
 }
@@ -154,7 +155,7 @@ func (vs ValidationString) SubjectString() (string, bool) {
 
 // Subject returns the subject contained in the ValidationString, if any. If
 // none, returns nil.
-func (vs ValidationString) Subject() (*SubjectWithExceptions, *ErrorWithSource) {
+func (vs ValidationString) Subject() (*SubjectWithExceptions, *commonerrors.ErrorWithSource) {
 	subjectStr, ok := vs.SubjectString()
 	if !ok {
 		return nil, nil
@@ -166,12 +167,12 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *ErrorWithSource) 
 	if strings.HasSuffix(subjectStr, "}") {
 		result := vsSubjectWithExceptionsRegex.FindStringSubmatch(subjectStr)
 		if len(result) != 3 {
-			return nil, &ErrorWithSource{fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0}
+			return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
 		}
 
 		subjectONR := tuple.ParseSubjectONR(strings.TrimSpace(result[1]))
 		if subjectONR == nil {
-			return nil, &ErrorWithSource{fmt.Errorf("invalid subject: `%s`", result[1]), result[1], 0, 0}
+			return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", result[1]), result[1], 0, 0)
 		}
 
 		exceptionsString := strings.TrimSpace(result[2])
@@ -180,7 +181,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *ErrorWithSource) 
 		for _, exceptionString := range exceptionsStringsSlice {
 			exceptionONR := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
 			if exceptionONR == nil {
-				return nil, &ErrorWithSource{fmt.Errorf("invalid subject: `%s`", exceptionString), exceptionString, 0, 0}
+				return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", exceptionString), exceptionString, 0, 0)
 			}
 
 			exceptions = append(exceptions, exceptionONR)
@@ -191,7 +192,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *ErrorWithSource) 
 
 	found := tuple.ParseSubjectONR(subjectStr)
 	if found == nil {
-		return nil, &ErrorWithSource{fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0}
+		return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
 	}
 	return &SubjectWithExceptions{found, nil}, nil
 }
@@ -207,13 +208,13 @@ func (vs ValidationString) ONRStrings() []string {
 }
 
 // ONRS returns the subject ONRs in the ValidationString, if any.
-func (vs ValidationString) ONRS() ([]*core.ObjectAndRelation, *ErrorWithSource) {
+func (vs ValidationString) ONRS() ([]*core.ObjectAndRelation, *commonerrors.ErrorWithSource) {
 	onrStrings := vs.ONRStrings()
 	onrs := []*core.ObjectAndRelation{}
 	for _, onrString := range onrStrings {
 		found := tuple.ParseONR(onrString)
 		if found == nil {
-			return nil, &ErrorWithSource{fmt.Errorf("invalid resource and relation: `%s`", onrString), onrString, 0, 0}
+			return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid resource and relation: `%s`", onrString), onrString, 0, 0)
 		}
 
 		onrs = append(onrs, found)

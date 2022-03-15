@@ -1,12 +1,11 @@
 package validationfile
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/validationfile/blocks"
+	"github.com/authzed/spicedb/pkg/commonerrors"
 )
 
 func TestDecodeValidationFile(t *testing.T) {
@@ -111,8 +110,8 @@ relationships: >-
   document:firstdoc#reader#user:fred
 `))
 
-	var errWithSource blocks.ErrorWithSource
-	require.True(t, errors.As(err, &errWithSource))
+	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdocwriter@user:tom`")
 	require.Equal(t, uint64(5), errWithSource.LineNumber)
@@ -128,8 +127,8 @@ relationships: >-
   document:firstdoc#readeruser:fred
 `))
 
-	var errWithSource blocks.ErrorWithSource
-	require.True(t, errors.As(err, &errWithSource))
+	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`")
 	require.Equal(t, uint64(7), errWithSource.LineNumber)
@@ -151,8 +150,8 @@ relationships: >-
   document:firstdoc#readeruser:fred
 `))
 
-	var errWithSource blocks.ErrorWithSource
-	require.True(t, errors.As(err, &errWithSource))
+	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`")
 	require.Equal(t, uint64(13), errWithSource.LineNumber)
@@ -175,8 +174,8 @@ assertions:
     - document:seconddoc#view@user:fred
 `))
 
-	var errWithSource blocks.ErrorWithSource
-	require.True(t, errors.As(err, &errWithSource))
+	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "unexpected value `asdkjha`")
 	require.Equal(t, uint64(9), errWithSource.LineNumber)
@@ -199,8 +198,8 @@ assertions:
     - document:seconddoc#view@user:fred
 `))
 
-	var errWithSource blocks.ErrorWithSource
-	require.True(t, errors.As(err, &errWithSource))
+	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "unexpected value `asdk`")
 	require.Equal(t, uint64(9), errWithSource.LineNumber)
