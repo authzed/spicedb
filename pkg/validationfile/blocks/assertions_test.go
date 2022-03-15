@@ -35,10 +35,10 @@ func TestParseAssertions(t *testing.T) {
 					{
 						"document:foo#view@user:someone",
 						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
-						commonerrors.SourcePosition{2, 3},
+						commonerrors.SourcePosition{LineNumber: 2, ColumnPosition: 3},
 					},
 				},
-				SourcePosition: commonerrors.SourcePosition{1, 1},
+				SourcePosition: commonerrors.SourcePosition{LineNumber: 1, ColumnPosition: 1},
 			},
 		},
 		{
@@ -54,22 +54,22 @@ assertFalse:
 					{
 						"document:foo#view@user:someone",
 						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
-						commonerrors.SourcePosition{2, 3},
+						commonerrors.SourcePosition{LineNumber: 2, ColumnPosition: 3},
 					},
 					{
 						"document:bar#view@user:sometwo",
 						tuple.MustToRelationship(tuple.MustParse("document:bar#view@user:sometwo")),
-						commonerrors.SourcePosition{3, 3},
+						commonerrors.SourcePosition{LineNumber: 3, ColumnPosition: 3},
 					},
 				},
 				AssertFalse: []Assertion{
 					{
 						"document:foo#write@user:someone",
 						tuple.MustToRelationship(tuple.MustParse("document:foo#write@user:someone")),
-						commonerrors.SourcePosition{5, 3},
+						commonerrors.SourcePosition{LineNumber: 5, ColumnPosition: 3},
 					},
 				},
-				SourcePosition: commonerrors.SourcePosition{1, 1},
+				SourcePosition: commonerrors.SourcePosition{LineNumber: 1, ColumnPosition: 1},
 			},
 		},
 		{

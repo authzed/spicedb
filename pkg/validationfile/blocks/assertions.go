@@ -53,7 +53,7 @@ func (a *Assertions) UnmarshalYAML(node *yamlv3.Node) error {
 
 	a.AssertTrue = ia.AssertTrue
 	a.AssertFalse = ia.AssertFalse
-	a.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
+	a.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }
 
@@ -75,7 +75,7 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	a.Relationship = tuple.MustToRelationship(tpl)
-	a.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
+	a.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }
 

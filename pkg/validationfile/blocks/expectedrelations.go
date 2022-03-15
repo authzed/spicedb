@@ -30,7 +30,7 @@ func (per *ParsedExpectedRelations) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
-	per.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
+	per.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }
 
@@ -69,7 +69,7 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	ors.ObjectAndRelation = parsed
-	ors.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
+	ors.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }
 
@@ -133,7 +133,7 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	es.SubjectWithExceptions = subjectWithExceptions
-	es.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
+	es.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	es.Resources = onrs
 	return nil
 }

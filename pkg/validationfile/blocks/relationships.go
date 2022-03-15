@@ -63,6 +63,6 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	pr.Relationships = relationships
-	pr.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
+	pr.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }

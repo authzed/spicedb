@@ -56,6 +56,7 @@ func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*core.Namespace
 
 		translatedDefs, err := translate(translationContext{
 			objectTypePrefix: objectTypePrefix,
+			mapper:           mapper,
 		}, root)
 		if err != nil {
 			var errorWithNode errorWithNode

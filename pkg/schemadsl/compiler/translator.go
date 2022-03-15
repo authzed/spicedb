@@ -11,10 +11,12 @@ import (
 
 	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 type translationContext struct {
 	objectTypePrefix *string
+	mapper           input.PositionMapper
 }
 
 func (tctx translationContext) namespacePath(namespaceName string) (string, error) {
@@ -89,6 +91,7 @@ func translateDefinition(tctx translationContext, defNode *dslNode) (*core.Names
 
 	ns := namespace.Namespace(nspath, relationsAndPermissions...)
 	ns.Metadata = addComments(ns.Metadata, defNode)
+	ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
 	err = ns.Validate()
 	if err != nil {
@@ -96,6 +99,27 @@ func translateDefinition(tctx translationContext, defNode *dslNode) (*core.Names
 	}
 
 	return ns, nil
+}
+
+func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.SourcePosition {
+	if !dslNode.Has(dslshape.NodePredicateStartRune) {
+		return nil
+	}
+
+	sourceRange, err := dslNode.Range(mapper)
+	if err != nil {
+		return nil
+	}
+
+	line, col, err := sourceRange.Start().LineAndColumn()
+	if err != nil {
+		return nil
+	}
+
+	return &core.SourcePosition{
+		ZeroIndexedLineNumber:     uint64(line),
+		ZeroIndexedColumnPosition: uint64(col),
+	}
 }
 
 func addComments(mdmsg *core.Metadata, dslNode *dslNode) *core.Metadata {
@@ -128,6 +152,7 @@ func translateRelationOrPermission(tctx translationContext, relOrPermNode *dslNo
 			return nil, err
 		}
 		rel.Metadata = addComments(rel.Metadata, relOrPermNode)
+		rel.SourcePosition = getSourcePosition(relOrPermNode, tctx.mapper)
 		return rel, err
 
 	case dslshape.NodeTypePermission:
@@ -136,6 +161,7 @@ func translateRelationOrPermission(tctx translationContext, relOrPermNode *dslNo
 			return nil, err
 		}
 		rel.Metadata = addComments(rel.Metadata, relOrPermNode)
+		rel.SourcePosition = getSourcePosition(relOrPermNode, tctx.mapper)
 		return rel, err
 
 	default:
@@ -218,6 +244,16 @@ func translateBinary(tctx translationContext, expressionNode *dslNode) (*core.Se
 }
 
 func translateExpression(tctx translationContext, expressionNode *dslNode) (*core.UsersetRewrite, error) {
+	translated, err := translateExpressionDirect(tctx, expressionNode)
+	if err != nil {
+		return translated, err
+	}
+
+	translated.SourcePosition = getSourcePosition(expressionNode, tctx.mapper)
+	return translated, nil
+}
+
+func translateExpressionDirect(tctx translationContext, expressionNode *dslNode) (*core.UsersetRewrite, error) {
 	switch expressionNode.GetType() {
 	case dslshape.NodeTypeUnionExpression:
 		leftOperation, rightOperation, err := translateBinary(tctx, expressionNode)
@@ -251,6 +287,16 @@ func translateExpression(tctx translationContext, expressionNode *dslNode) (*cor
 }
 
 func translateExpressionOperation(tctx translationContext, expressionOpNode *dslNode) (*core.SetOperation_Child, error) {
+	translated, err := translateExpressionOperationDirect(tctx, expressionOpNode)
+	if err != nil {
+		return translated, err
+	}
+
+	translated.SourcePosition = getSourcePosition(expressionOpNode, tctx.mapper)
+	return translated, nil
+}
+
+func translateExpressionOperationDirect(tctx translationContext, expressionOpNode *dslNode) (*core.SetOperation_Child, error) {
 	switch expressionOpNode.GetType() {
 	case dslshape.NodeTypeIdentifier:
 		referencedRelationName, err := expressionOpNode.GetString(dslshape.NodeIdentiferPredicateValue)
@@ -355,6 +401,7 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 			return nil, typeRefNode.Errorf("invalid type relation: %w", err)
 		}
 
+		ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
 		return ref, nil
 	}
 
@@ -378,5 +425,6 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		return nil, typeRefNode.Errorf("invalid type relation: %w", err)
 	}
 
+	ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
 	return ref, nil
 }

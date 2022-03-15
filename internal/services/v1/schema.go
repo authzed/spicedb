@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/authzed/spicedb/pkg/commonerrors"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/rs/zerolog/log"
@@ -169,6 +171,11 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 func rewriteSchemaError(ctx context.Context, err error) error {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var errWithContext compiler.ErrorWithContext
+
+	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	if ok {
+		return status.Errorf(codes.InvalidArgument, "%s", errWithSource.Error())
+	}
 
 	switch {
 	case errors.As(err, &nsNotFoundError):

@@ -27,9 +27,14 @@ type ErrorWithSource struct {
 	ColumnPosition uint64
 }
 
+// InnerError returns the inner, wrapped error.
+func (ews *ErrorWithSource) InnerError() error {
+	return ews.error
+}
+
 // NewErrorWithSource creates and returns a new ErrorWithSource.
-func NewErrorWithSource(err error, sourceCodeString string, lineNumber uint64, columnPosition uint64) *ErrorWithSource {
-	return &ErrorWithSource{err, sourceCodeString, lineNumber, columnPosition}
+func NewErrorWithSource(err error, sourceCodeString string, oneIndexedLineNumber uint64, oneIndexedColumnPosition uint64) *ErrorWithSource {
+	return &ErrorWithSource{err, sourceCodeString, oneIndexedLineNumber, oneIndexedColumnPosition}
 }
 
 // AsErrorWithSource returns the error as an ErrorWithSource, if applicable.

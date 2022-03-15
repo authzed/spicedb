@@ -118,7 +118,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 	for _, relation := range existing.Relation {
 		_, ok := existingRels[relation.Name]
 		if ok {
-			return nil, fmt.Errorf("found duplicate relation %s in existing namespace %s", relation.Name, existing.Name)
+			return nil, fmt.Errorf("found duplicate relation %s in existing definition %s", relation.Name, existing.Name)
 		}
 
 		existingRels[relation.Name] = relation
@@ -128,7 +128,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 	for _, relation := range updated.Relation {
 		_, ok := updatedRels[relation.Name]
 		if ok {
-			return nil, fmt.Errorf("found duplicate relation %s in updagted namespace %s", relation.Name, updated.Name)
+			return nil, fmt.Errorf("found duplicate relation %s in updated definition %s", relation.Name, updated.Name)
 		}
 
 		updatedRels[relation.Name] = relation

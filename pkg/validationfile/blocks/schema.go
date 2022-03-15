@@ -57,6 +57,6 @@ func (ps *ParsedSchema) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	ps.Definitions = defs
-	ps.SourcePosition = commonerrors.SourcePosition{node.Line, node.Column}
+	ps.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }

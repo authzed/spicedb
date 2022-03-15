@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/commonerrors"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -200,6 +201,11 @@ func rewriteError(ctx context.Context, err error) error {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var errWithContext compiler.ErrorWithContext
 	var errPreconditionFailure *writeSchemaPreconditionFailure
+
+	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	if ok {
+		return status.Errorf(codes.InvalidArgument, "%s", errWithSource.Error())
+	}
 
 	switch {
 	case errors.As(err, &nsNotFoundError):
