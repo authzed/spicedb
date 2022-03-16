@@ -20,6 +20,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -158,16 +159,22 @@ func TestIsReady(t *testing.T) {
 	store, err := NewMysqlDatastore(connectStr)
 	req.NoError(err)
 
-	ctx := context.Background()
-	ready, err := store.IsReady(ctx)
-	req.NoError(err)
-	req.False(ready)
-
 	migrateDatabase(connectStr)
 
-	ready, err = store.IsReady(ctx)
+	// ensure no revision is seeded by default
+	ctx := context.Background()
+	revision, err := store.HeadRevision(ctx)
+	req.Equal(datastore.NoRevision, revision)
+	req.NoError(err)
+
+	ready, err := store.IsReady(ctx)
 	req.NoError(err)
 	req.True(ready)
+
+	// verify IsReady seeds the revision is if not present
+	revision, err = store.HeadRevision(ctx)
+	req.NoError(err)
+	req.Equal(common.RevisionFromTransaction(1), revision)
 }
 
 func TestGarbageCollection(t *testing.T) {
