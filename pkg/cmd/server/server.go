@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/authzed/grpcutil"
@@ -31,12 +32,6 @@ import (
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
-
-func init() {
-	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
-		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
-	))
-}
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
@@ -128,6 +123,8 @@ func (c *Config) Complete() (RunnableServer, error) {
 			return nil, fmt.Errorf("failed to create namespace manager: %w", err)
 		}
 	}
+
+	enableGRPCHistogram()
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
@@ -363,4 +360,18 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+var promOnce sync.Once
+
+// enableGRPCHistogram enables the standard time history for gRPC requests,
+// ensuring that it is only enabled once
+func enableGRPCHistogram() {
+	// EnableHandlingTimeHistogram is not thread safe and only needs to happen
+	// once
+	promOnce.Do(func() {
+		grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
+			[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
+		))
+	})
 }
