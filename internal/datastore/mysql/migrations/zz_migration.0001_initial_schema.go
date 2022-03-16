@@ -8,12 +8,9 @@ func createMysqlMigrationVersion(mysql *MysqlDriver) string {
 }
 
 func init() {
-	err := Manager.Register("initial", "",
+	mustRegisterMigration("initial", "",
 		newExecutor(
 			createMysqlMigrationVersion,
 		).migrate,
 	)
-	if err != nil {
-		panic("failed to register migration  " + err.Error())
-	}
 }

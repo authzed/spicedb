@@ -44,15 +44,11 @@ func createRelationTupleTransaction(mysql *MysqlDriver) string {
 }
 
 func init() {
-	// TODO(chriskirkland): add validation that migration version names are valid column names (i.e. /[_a-zA-Z]+/)
-	err := Manager.Register("namespace_tables", "initial",
+	mustRegisterMigration("namespace_tables", "initial",
 		newExecutor(
 			createNamespaceConfig,
 			createRelationTuple,
 			createRelationTupleTransaction,
 		).migrate,
 	)
-	if err != nil {
-		panic("failed to register migration  " + err.Error())
-	}
 }
