@@ -196,11 +196,6 @@ func (mds *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	return datastore.NoRevision, nil
 }
 
-// SeedRevision initializes the first transaction revision.
-func (mds *memdbDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
-	return datastore.NoRevision, nil
-}
-
 func (mds *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	mds.RLock()
 	db := mds.db

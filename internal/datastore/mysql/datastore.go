@@ -314,7 +314,47 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	return headRevision == currentRevision, nil
+	if headRevision != currentRevision {
+		return false, nil
+	}
+
+	// seed base transaction if not present
+	revision, err := mds.HeadRevision(ctx)
+	if err != nil {
+		return false, err
+	}
+	if revision == datastore.NoRevision {
+		baseRevision, err := mds.seedBaseTransaction(ctx)
+		if err != nil {
+			return false, err
+		}
+		log.Trace().Uint64("revision", baseRevision.BigInt().Uint64()).Msg("seeded base datastore revision")
+	}
+	return true, nil
+}
+
+// SeedRevision initializes the first transaction revision.
+func (mds *mysqlDatastore) seedBaseTransaction(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "SeedRevision")
+	defer span.End()
+
+	tx, err := mds.db.BeginTx(ctx, nil)
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+	defer common.LogOnError(ctx, tx.Rollback)
+
+	txnID, err := mds.createNewTransaction(ctx, tx)
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+
+	return common.RevisionFromTransaction(txnID), nil
 }
 
 // OptimizedRevision gets a revision that will likely already be replicated
@@ -353,35 +393,12 @@ func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	revision, err := mds.loadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
-	} else if revision == 0 {
+	}
+	if revision == 0 {
 		return datastore.NoRevision, nil
 	}
 
 	return common.RevisionFromTransaction(revision), nil
-}
-
-// SeedRevision initializes the first transaction revision.
-func (mds *mysqlDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "SeedRevision")
-	defer span.End()
-
-	tx, err := mds.db.BeginTx(ctx, nil)
-	if err != nil {
-		return datastore.NoRevision, err
-	}
-	defer common.LogOnError(ctx, tx.Rollback)
-
-	txnID, err := mds.createNewTransaction(ctx, tx)
-	if err != nil {
-		return datastore.NoRevision, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return datastore.NoRevision, err
-	}
-
-	return common.RevisionFromTransaction(txnID), nil
 }
 
 // CheckRevision checks the specified revision to make sure it's valid and

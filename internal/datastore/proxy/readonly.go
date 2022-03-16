@@ -46,11 +46,6 @@ func (rd roDatastore) HeadRevision(ctx context.Context) (datastore.Revision, err
 	return rd.delegate.HeadRevision(ctx)
 }
 
-// SeedRevision initializes the first transaction revision.
-func (rd roDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
-	return datastore.NoRevision, errReadOnly
-}
-
 func (rd roDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	return rd.delegate.Watch(ctx, afterRevision)
 }

@@ -41,9 +41,6 @@ type Datastore interface {
 	// right now.
 	HeadRevision(ctx context.Context) (Revision, error)
 
-	// SeedRevision initializes the first transaction revision.
-	SeedRevision(ctx context.Context) (Revision, error)
-
 	// Watch notifies the caller about all changes to tuples.
 	//
 	// All events following afterRevision will be sent to the caller.

@@ -46,12 +46,6 @@ func (md *MockedDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-// SeedRevision initializes the first transaction revision.
-func (md *MockedDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
-	args := md.Called(ctx)
-	return args.Get(0).(datastore.Revision), args.Error(1)
-}
-
 func (md *MockedDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	args := md.Called(ctx, afterRevision)
 	return args.Get(0).(<-chan *datastore.RevisionChanges), args.Get(1).(<-chan error)

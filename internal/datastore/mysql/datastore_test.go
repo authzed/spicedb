@@ -65,8 +65,9 @@ func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBu
 		return nil, err
 	}
 
-	if _, err := ds.SeedRevision(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to seed test datastore revision: %s", err)
+	// seed the base datastore revision
+	if _, err := ds.IsReady(context.Background()); err != nil {
+		return nil, err
 	}
 	return ds, nil
 }
@@ -586,7 +587,7 @@ func migrateDatabase(connectStr string) {
 func migrateDatabaseWithPrefix(connectStr, tablePrefix string) {
 	migrationDriver, err := createMigrationDriverWithPrefix(connectStr, tablePrefix)
 	if err != nil {
-		log.Fatalf("failed to run migration: %s", err)
+		log.Fatalf("failed to create prefixed migration driver: %s", err)
 	}
 
 	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
@@ -600,6 +601,8 @@ func TestMain(m *testing.M) {
 		Repository: "mysql",
 		Tag:        "5",
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
+		// increase max connections (default 151) to accommodate tests using the same docker container
+		Cmd: []string{"--max-connections=500"},
 	}
 
 	pool, err := dockertest.NewPool("")

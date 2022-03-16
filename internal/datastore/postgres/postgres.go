@@ -401,10 +401,6 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 	return revisionFromTransaction(revision), nil
 }
 
-func (pgd *pgDatastore) SeedRevision(ctx context.Context) (datastore.Revision, error) {
-	return datastore.NoRevision, nil
-}
-
 func (pgd *pgDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()

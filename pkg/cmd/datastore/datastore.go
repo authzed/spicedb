@@ -166,25 +166,16 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 		return nil, err
 	}
 
-	revision, err := ds.HeadRevision(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
-	}
-	log.Debug().Str("Revision", revision.String()).Msg("revision info")
-	if revision == datastore.NoRevision {
-		revision, err = ds.SeedRevision(context.Background())
-		if err != nil {
-			return nil, fmt.Errorf("unable to determine revision state before applying bootstrap data: %w", err)
-		}
-		log.Info().Str("Revision", revision.String()).Msg("seeded revision info")
-	}
-
 	if len(opts.BootstrapFiles) > 0 {
+		revision, err := ds.HeadRevision(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
+		}
+
 		nsDefs, err := ds.ListNamespaces(context.Background(), revision)
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
-		// TODO(chriskirkland): check this option
 		if opts.BootstrapOverwrite || len(nsDefs) == 0 {
 			log.Info().Msg("initializing datastore from bootstrap files")
 			_, _, err = validationfile.PopulateFromFiles(ds, opts.BootstrapFiles)

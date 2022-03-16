@@ -204,11 +204,6 @@ func (hp hedgingProxy) HeadRevision(ctx context.Context) (rev datastore.Revision
 	return
 }
 
-// SeedRevision initializes the first transaction revision.
-func (hp hedgingProxy) SeedRevision(ctx context.Context) (datastore.Revision, error) {
-	return datastore.NoRevision, nil
-}
-
 func (hp hedgingProxy) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (ns *v0.NamespaceDefinition, createdAt datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
