@@ -13,6 +13,7 @@ require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/cncf/udpa/go v0.0.0-20220112060539-c52dc94e7fbe // indirect
 	github.com/cncf/xds/go v0.0.0-20220330162227-eded343319d0 // indirect
+	github.com/dalzilio/rudd v1.1.0
 	github.com/dave/jennifer v1.5.0 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/dlmiddlecote/sqlstats v1.0.2
