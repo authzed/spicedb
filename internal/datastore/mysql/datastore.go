@@ -333,9 +333,9 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// SeedRevision initializes the first transaction revision.
+// seedBaseTransaction initializes the first transaction revision.
 func (mds *mysqlDatastore) seedBaseTransaction(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "SeedRevision")
+	ctx, span := tracer.Start(ctx, "seedBaseTransaction")
 	defer span.End()
 
 	tx, err := mds.db.BeginTx(ctx, nil)
