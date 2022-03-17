@@ -74,7 +74,7 @@ func (mds *mysqlDatastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
 ) (changes []*datastore.RevisionChanges, newRevision uint64, err error) {
-	newRevision, err = mds.loadRevision(ctx)
+	newRevision, err = mds.loadRevision(ctx, nil)
 	if err != nil {
 		return
 	}

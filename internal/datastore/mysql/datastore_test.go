@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -170,6 +171,41 @@ func TestIsReady(t *testing.T) {
 	ready, err := store.IsReady(ctx)
 	req.NoError(err)
 	req.True(ready)
+
+	// verify IsReady seeds the revision is if not present
+	revision, err = store.HeadRevision(ctx)
+	req.NoError(err)
+	req.Equal(common.RevisionFromTransaction(1), revision)
+}
+
+func TestIsReadyRace(t *testing.T) {
+	req := require.New(t)
+
+	connectStr := setupDatabase()
+	store, err := NewMysqlDatastore(connectStr)
+	req.NoError(err)
+
+	migrateDatabase(connectStr)
+
+	ctx := context.Background()
+	revision, err := store.HeadRevision(ctx)
+	req.Equal(datastore.NoRevision, revision)
+	req.NoError(err)
+
+	var wg sync.WaitGroup
+
+	concurrency := 100
+	for i := 1; i <= concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			ready, err := store.IsReady(ctx)
+			req.NoError(err, "goroutine %d", i)
+			req.True(ready, "goroutine %d", i)
+		}()
+	}
+	wg.Wait()
 
 	// verify IsReady seeds the revision is if not present
 	revision, err = store.HeadRevision(ctx)
