@@ -140,6 +140,7 @@ type NamespaceTypeSystem struct {
 	nsDef              *core.NamespaceDefinition
 	relationMap        map[string]*core.Relation
 	wildcardCheckCache map[string]*WildcardTypeReference
+	validated          bool
 }
 
 // HasTypeInformation returns true if the relation with the given name exists and has type
@@ -447,6 +448,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 		}
 	}
 
+	nts.validated = true
 	return nil
 }
 
