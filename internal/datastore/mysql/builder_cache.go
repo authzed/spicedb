@@ -15,6 +15,7 @@ type BuilderCache struct {
 	DeleteNamespaceQuery       sq.UpdateBuilder
 	DeleteNamespaceTuplesQuery sq.UpdateBuilder
 
+	QueryTupleIdsQuery    sq.SelectBuilder
 	QueryTuplesQuery      sq.SelectBuilder
 	DeleteTupleQuery      sq.UpdateBuilder
 	QueryTupleExistsQuery sq.SelectBuilder
@@ -35,6 +36,7 @@ func NewBuilderCache(tableTransaction, tableNamespace, tableTuple string) *Build
 	builder.DeleteNamespaceQuery = deleteNamespace(tableNamespace)
 
 	// tuple builders
+	builder.QueryTupleIdsQuery = queryTupleIds(tableTuple)
 	builder.DeleteNamespaceTuplesQuery = deleteNamespaceTuples(tableTuple)
 	builder.QueryTuplesQuery = queryTuples(tableTuple)
 	builder.DeleteTupleQuery = deleteTuple(tableTuple)
@@ -71,6 +73,12 @@ func deleteNamespace(tableNamespace string) sq.UpdateBuilder {
 
 func deleteNamespaceTuples(tableTuple string) sq.UpdateBuilder {
 	return sb.Update(tableTuple).Where(sq.Eq{common.ColDeletedTxn: liveDeletedTxnID})
+}
+
+func queryTupleIds(tableTuple string) sq.SelectBuilder {
+	return sb.Select(
+		common.ColID,
+	).From(tableTuple)
 }
 
 func queryTuples(tableTuple string) sq.SelectBuilder {
