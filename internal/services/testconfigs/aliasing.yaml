@@ -1,0 +1,23 @@
+---
+schema: >-
+  definition test/user {}
+
+  definition test/resource {
+    relation viewer: test/user
+    relation writer: test/user
+
+    permission both = viewer + writer
+    permission another_both = viewer + writer
+
+    permission view = viewer
+    permission another_view = viewer
+  }
+relationships: |
+  test/resource:first#viewer@test/user:tom
+  test/resource:first#writer@test/user:jill
+assertions:
+  assertTrue:
+    - "test/resource:first#view@test/user:tom"
+    - "test/resource:first#both@test/user:tom"
+    - "test/resource:first#another_view@test/user:tom"
+    - "test/resource:first#another_both@test/user:tom"

@@ -305,7 +305,7 @@ func newLocalDispatcher(require *require.Assertions) (context.Context, dispatch.
 
 	dispatch := NewLocalOnlyDispatcher(nsm)
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(nil, "")
+	cachingDispatcher, err := caching.NewCachingDispatcher(nil, nsm, "")
 	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(err)
 

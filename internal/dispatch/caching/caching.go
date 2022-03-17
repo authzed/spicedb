@@ -9,9 +9,11 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -22,8 +24,9 @@ const (
 )
 
 type Dispatcher struct {
-	d dispatch.Dispatcher
-	c *ristretto.Cache
+	d   dispatch.Dispatcher
+	c   *ristretto.Cache
+	nsm namespace.Manager
 
 	checkTotalCounter      prometheus.Counter
 	checkFromCacheCounter  prometheus.Counter
@@ -53,6 +56,7 @@ var (
 // and caches the responses when possible and desirable.
 func NewCachingDispatcher(
 	cacheConfig *ristretto.Config,
+	nsm namespace.Manager,
 	prometheusSubsystem string,
 ) (*Dispatcher, error) {
 	if cacheConfig == nil {
@@ -163,6 +167,7 @@ func NewCachingDispatcher(
 
 	return &Dispatcher{
 		d:                      fakeDelegate{},
+		nsm:                    nsm,
 		c:                      cache,
 		checkTotalCounter:      checkTotalCounter,
 		checkFromCacheCounter:  checkFromCacheCounter,
@@ -183,7 +188,22 @@ func (cd *Dispatcher) SetDelegate(delegate dispatch.Dispatcher) {
 // DispatchCheck implements dispatch.Check interface
 func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
+
+	// Load the relation to get its computed cache key, if any.
 	requestKey := dispatch.CheckRequestToKey(req)
+	if cd.nsm != nil {
+		revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+		if err != nil {
+			return nil, err
+		}
+
+		_, relation, err := cd.nsm.ReadNamespaceAndRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation, revision)
+		if err != nil {
+			return nil, err
+		}
+
+		requestKey = dispatch.CheckRequestToKeyWithPossibleCanonical(req, relation.CanonicalCacheKey)
+	}
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(checkResultEntry)

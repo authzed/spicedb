@@ -45,7 +45,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, nsm namespace.Manager, o
 		opts.prometheusSubsystem = "dispatch"
 	}
 
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem)
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, nsm, opts.prometheusSubsystem)
 	if err != nil {
 		return nil, err
 	}

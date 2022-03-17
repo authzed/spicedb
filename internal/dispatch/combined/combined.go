@@ -89,7 +89,7 @@ func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatche
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem)
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, nsm, opts.prometheusSubsystem)
 	if err != nil {
 		return nil, err
 	}
