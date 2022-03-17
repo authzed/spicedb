@@ -25,6 +25,14 @@ func TestCanonicalization(t *testing.T) {
 		expectedCacheMap map[string]string
 	}{
 		{
+			"empty canonicalization",
+			ns.Namespace(
+				"document",
+			),
+			"",
+			map[string]string{},
+		},
+		{
 			"basic canonicalization",
 			ns.Namespace(
 				"document",

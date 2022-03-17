@@ -59,6 +59,10 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			return nil, rewriteNamespaceError(ctx, tverr)
 		}
 
+		if err := namespace.AnnotateNamespace(ts); err != nil {
+			return nil, rewriteNamespaceError(ctx, err)
+		}
+
 		// Ensure that the updated namespace does not break the existing tuple data.
 		//
 		// NOTE: We use the datastore here to read the namespace, rather than the namespace manager,

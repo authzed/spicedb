@@ -131,6 +131,10 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			return nil, rewriteError(ctx, err)
 		}
 
+		if err := namespace.AnnotateNamespace(ts); err != nil {
+			return nil, rewriteError(ctx, err)
+		}
+
 		if err := shared.SanityCheckExistingRelationships(ctx, ds, nsdef, headRevision); err != nil {
 			return nil, rewriteError(ctx, err)
 		}
