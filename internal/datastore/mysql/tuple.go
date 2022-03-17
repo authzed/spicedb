@@ -44,17 +44,6 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	for _, mut := range mutations {
 		rel := mut.Relationship
 
-		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
-			query, args, err := mds.DeleteTupleQuery.Where(common.ExactRelationshipClause(rel)).Set(common.ColDeletedTxn, newTxnID).ToSql()
-			if err != nil {
-				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
-			}
-
-			if _, err := tx.ExecContext(ctx, query, args...); err != nil {
-				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
-			}
-		}
-
 		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_CREATE {
 			bulkWrite = bulkWrite.Values(
 				rel.Resource.ObjectType,
@@ -78,6 +67,20 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 		_, err = tx.ExecContext(ctx, query, args...)
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
+		}
+	}
+
+	for _, mut := range mutations {
+		rel := mut.Relationship
+		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
+			query, args, err := mds.DeleteTupleQuery.Where(common.ExactRelationshipClause(rel)).Set(common.ColDeletedTxn, newTxnID).ToSql()
+			if err != nil {
+				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
+			}
+
+			if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
+			}
 		}
 	}
 
