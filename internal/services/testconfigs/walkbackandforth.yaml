@@ -17,16 +17,16 @@ relationships: |
   test/otherdocument:o2#viewer@test/document:d3#viewer
 assertions:
   assertTrue:
-  - "test/document:d1#view@test/user:tom"
-  - "test/document:d1#view@test/user:jill"
-  - "test/document:d1#view@test/user:frank"
-  - "test/otherdocument:o2#view@test/user:jill"
-  - "test/otherdocument:o2#view@test/user:frank"
-  - "test/document:d3#view@test/user:frank"
-  - "test/document:d1#view@test/otherdocument:o2#viewer"
-  - "test/otherdocument:o2#view@test/document:d3#viewer"
-  - "test/document:d1#view@test/document:d3#viewer"
+    - "test/document:d1#view@test/user:tom"
+    - "test/document:d1#view@test/user:jill"
+    - "test/document:d1#view@test/user:frank"
+    - "test/otherdocument:o2#view@test/user:jill"
+    - "test/otherdocument:o2#view@test/user:frank"
+    - "test/document:d3#view@test/user:frank"
+    - "test/document:d1#view@test/otherdocument:o2#viewer"
+    - "test/otherdocument:o2#view@test/document:d3#viewer"
+    - "test/document:d1#view@test/document:d3#viewer"
   assertFalse:
-  - "test/otherdocument:o2#view@test/user:tom"
-  - "test/document:d3#view@test/user:tom"
-  - "test/document:d3#view@test/user:jill"
+    - "test/otherdocument:o2#view@test/user:tom"
+    - "test/document:d3#view@test/user:tom"
+    - "test/document:d3#view@test/user:jill"

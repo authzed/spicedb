@@ -64,9 +64,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 		}
 
 		log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
-		for _, nsDef := range defs {
-			nsDefs = append(nsDefs, nsDef)
-		}
+		nsDefs = append(nsDefs, defs...)
 
 		// Load the namespace configs.
 		log.Info().Str("filePath", filePath).Int("namespaceCount", len(parsed.NamespaceConfigs)).Msg("Loading namespaces")

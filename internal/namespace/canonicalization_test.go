@@ -397,6 +397,7 @@ func TestCanonicalizationComparison(t *testing.T) {
 			defs, err := compiler.Compile([]compiler.InputSchema{
 				{Source: input.Source("schema"), SchemaString: schemaText},
 			}, &empty)
+			require.NoError(err)
 
 			var lastRevision decimal.Decimal
 			ts, err := BuildNamespaceTypeSystemForManager(defs[0], nsm, lastRevision)

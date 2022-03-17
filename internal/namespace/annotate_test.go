@@ -34,6 +34,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	permission other = editor - viewer
 }`},
 	}, &empty)
+	require.NoError(err)
 
 	var lastRevision decimal.Decimal
 	ts, err := BuildNamespaceTypeSystemForManager(defs[0], nsm, lastRevision)
