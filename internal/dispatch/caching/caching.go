@@ -190,8 +190,10 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 	cd.checkTotalCounter.Inc()
 
 	// Load the relation to get its computed cache key, if any.
+	// NOTE: We do not use the canonicalized cache key when checking within the same namespace, as
+	// we may get different results if the subject being checked matches the resource exactly.
 	requestKey := dispatch.CheckRequestToKey(req)
-	if cd.nsm != nil {
+	if cd.nsm != nil && req.ObjectAndRelation.Namespace != req.Subject.Namespace {
 		revision, err := decimal.NewFromString(req.Metadata.AtRevision)
 		if err != nil {
 			return nil, err
