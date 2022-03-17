@@ -99,6 +99,15 @@ func TestTxReset(t *testing.T) {
 			expectError:   true,
 			expectedError: errors.New(errReachedMaxRetry),
 		},
+		{
+			name:       "clockSkew",
+			maxRetries: 1,
+			errors: []pgconn.PgError{
+				{Code: crdbUnknownSQLState, Message: crdbClockSkewMessage},
+			},
+			expectError:   false,
+			expectedError: nil,
+		},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

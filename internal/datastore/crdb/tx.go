@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
@@ -16,6 +17,10 @@ const (
 	crdbRetryErrCode = "40001"
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
 	crdbAmbiguousErrorCode = "40003"
+	// Error when SqlState is unknown
+	crdbUnknownSQLState = "XXUUU"
+	// Error message encountered when crdb nodes have large clock skew
+	crdbClockSkewMessage = "cannot specify timestamp in the future"
 
 	errReachedMaxRetry = "maximum retries reached"
 
@@ -184,9 +189,12 @@ func retriable(ctx context.Context, err error) bool {
 }
 
 func resetable(ctx context.Context, err error) bool {
+	sqlState := sqlErrorCode(ctx, err)
 	// Ambiguous result error includes connection closed errors
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
-	return sqlErrorCode(ctx, err) == crdbAmbiguousErrorCode
+	return sqlState == crdbAmbiguousErrorCode ||
+		// Error encountered when crdb nodes have large clock skew
+		(sqlState == crdbUnknownSQLState && strings.Contains(err.Error(), crdbClockSkewMessage))
 }
 
 // sqlErrorCode attenmpts to extract the crdb error code from the error state.
