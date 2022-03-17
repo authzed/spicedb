@@ -180,19 +180,13 @@ func (cs Cluster) NetworkDelay(ctx context.Context, out io.Writer, node int, dur
 
 // TimeDelay adds a skew to the clock of the given node
 func (cs Cluster) TimeDelay(ctx context.Context, out io.Writer, node int, duration time.Duration) error {
-	sec, nsec := secAndNSecFromDuration(duration)
 	return e2e.Run(ctx, out, out,
 		"sudo",
-		"./watchmaker",
+		"./chaosd",
+		"attack",
+		"clock",
 		fmt.Sprintf("--pid=%d", cs[node].pid),
-		fmt.Sprintf("--sec_delta=%d", sec),
-		fmt.Sprintf("--nsec_delta=%d", nsec),
-		"--clk_ids=CLOCK_REALTIME,CLOCK_MONOTONIC",
+		fmt.Sprintf("--time-offset=%s", duration),
+		"--clock-ids-slice=CLOCK_REALTIME,CLOCK_MONOTONIC",
 	)
-}
-
-func secAndNSecFromDuration(duration time.Duration) (sec int64, nsec int64) {
-	sec = duration.Nanoseconds() / 1e9
-	nsec = duration.Nanoseconds() - (sec * 1e9)
-	return
 }
