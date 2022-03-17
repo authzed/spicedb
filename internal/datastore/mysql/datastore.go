@@ -65,6 +65,10 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		return nil, fmt.Errorf("NewMysqlDatastore: %w", err)
 	}
 
+	// used for seeding the initial relation_tuple_transaction. using INSERT IGNORE on a known
+	// ID value makes this idempotent (i.e. safe to execute concurrently).
+	createBaseTxn := fmt.Sprintf("INSERT IGNORE INTO %s (id) VALUES (1)", tableTransaction)
+
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
 	store := &mysqlDatastore{
@@ -80,6 +84,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		watchBufferLength:         config.watchBufferLength,
 		tablePrefix:               config.tablePrefix,
 		createTxn:                 createTxn,
+		createBaseTxn:             createBaseTxn,
 		BuilderCache:              builderCache,
 		tableNamespace:            tableNamespace,
 		tableTransaction:          tableTransaction,
@@ -117,7 +122,8 @@ type mysqlDatastore struct {
 	tableTransaction string
 	tableTuple       string
 
-	createTxn string
+	createTxn     string
+	createBaseTxn string
 
 	*BuilderCache
 }
@@ -338,40 +344,21 @@ func (mds *mysqlDatastore) seedBaseTransaction(ctx context.Context) (datastore.R
 	ctx, span := tracer.Start(ctx, "seedBaseTransaction")
 	defer span.End()
 
-	/* TODO(chriskirkland): this deadlocks for some reason intermittently -
-		--- FAIL: TestIsReadyRace (0.25s)
-	    datastore_test.go:204:
-	        	Error Trace:	datastore_test.go:204
-	        	            				asm_amd64.s:1581
-	        	Error:      	Received unexpected error:
-	        	            	createNewTransaction: Error 1213: Deadlock found when trying to get lock; try restarting transaction
-	        	Test:       	TestIsReadyRace
-	        	Messages:   	goroutine 101
-		FAIL
-	*/
-
-	// use a serializable transaction to prevent stale reads during concurrent calls, which
-	// leads to duplicate base transactions
-	tx, err := mds.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
 	defer common.LogOnError(ctx, tx.Rollback)
 
-	// re-verify that no transaction exists inside the txn write lock. avoids
-	// a race condition with multiple server instances start simultaneously.
-	revision, err := mds.loadRevision(ctx, tx)
+	// idempotent INSERT IGNORE transaction id=1. safe to be execute concurrently.
+	result, err := tx.ExecContext(ctx, mds.createBaseTxn)
 	if err != nil {
-		return datastore.NoRevision, err
-	}
-	if revision > 0 {
-		// a revision was seeded by another process since our initial last read
-		return common.RevisionFromTransaction(revision), nil
+		return datastore.NoRevision, fmt.Errorf("seedBaseTransaction: %w", err)
 	}
 
-	txnID, err := mds.createNewTransaction(ctx, tx)
+	lastInsertID, err := result.LastInsertId()
 	if err != nil {
-		return datastore.NoRevision, err
+		return datastore.NoRevision, fmt.Errorf("seedBaseTransaction: failed to get last inserted id: %w", err)
 	}
 
 	err = tx.Commit()
@@ -379,7 +366,7 @@ func (mds *mysqlDatastore) seedBaseTransaction(ctx context.Context) (datastore.R
 		return datastore.NoRevision, err
 	}
 
-	return common.RevisionFromTransaction(txnID), nil
+	return common.RevisionFromTransaction(uint64(lastInsertID)), nil
 }
 
 // OptimizedRevision gets a revision that will likely already be replicated
@@ -394,7 +381,7 @@ func (mds *mysqlDatastore) OptimizedRevision(ctx context.Context) (datastore.Rev
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		revision, err := mds.loadRevision(ctx, nil)
+		revision, err := mds.loadRevision(ctx)
 		if err != nil {
 			return datastore.NoRevision, err
 		}
@@ -415,7 +402,7 @@ func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
-	revision, err := mds.loadRevision(ctx, nil)
+	revision, err := mds.loadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
@@ -475,20 +462,9 @@ func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore
 	return nil
 }
 
-func (mds *mysqlDatastore) loadRevision(ctx context.Context, tx *sql.Tx) (uint64, error) {
+func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
-
-	// allows us to dependency inject a *db.Tx in the event that we need to do an
-	// atomic read-then-write (e.g. for base transaction seeding in IsReady)
-	type rowQuerier interface {
-		QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
-	}
-
-	var eq rowQuerier = mds.db
-	if tx != nil {
-		eq = tx
-	}
 
 	query, args, err := mds.GetRevision.ToSql()
 	if err != nil {
@@ -496,7 +472,7 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context, tx *sql.Tx) (uint64
 	}
 
 	var revision sql.NullInt64
-	err = eq.QueryRowContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
+	err = mds.db.QueryRowContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, nil
