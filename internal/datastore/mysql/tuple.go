@@ -40,19 +40,17 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	bulkWrite := mds.WriteTupleQuery
 	bulkWriteHasValues := false
 
+	selectForUpdateQuery := mds.QueryTupleIdsQuery
+
+	clauses := sq.Or{}
+
 	// Process the actual updates
 	for _, mut := range mutations {
 		rel := mut.Relationship
 
+		// Implementation for TOUCH deviates slightly from PostgreSQL datastore to prevent a deadlock in MySQL
 		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
-			query, args, err := mds.DeleteTupleQuery.Where(common.ExactRelationshipClause(rel)).Set(common.ColDeletedTxn, newTxnID).ToSql()
-			if err != nil {
-				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
-			}
-
-			if _, err := tx.ExecContext(ctx, query, args...); err != nil {
-				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
-			}
+			clauses = append(clauses, common.ExactRelationshipClause(rel))
 		}
 
 		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_CREATE {
@@ -66,6 +64,43 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 				newTxnID,
 			)
 			bulkWriteHasValues = true
+		}
+	}
+
+	if len(clauses) > 0 {
+		query, args, err := selectForUpdateQuery.Where(clauses).ToSql()
+		if err != nil {
+			return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
+		}
+
+		res, err := mds.db.QueryContext(ctx, query, args...)
+		if err != nil {
+			return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
+		}
+		defer common.LogOnError(ctx, res.Close)
+
+		tupleIds := make([]int64, 0, len(clauses))
+		for res.Next() {
+			var tupleID int64
+			if err := res.Scan(&tupleID); err != nil {
+				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
+			}
+
+			tupleIds = append(tupleIds, tupleID)
+		}
+
+		if res.Err() != nil {
+			return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, res.Err())
+		}
+
+		if len(tupleIds) > 0 {
+			query, args, err := mds.DeleteTupleQuery.Where(sq.Eq{common.ColID: tupleIds}).Set(common.ColDeletedTxn, newTxnID).ToSql()
+			if err != nil {
+				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
+			}
+			if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
+			}
 		}
 	}
 
