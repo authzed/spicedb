@@ -82,21 +82,13 @@ jobs:
             e2e/newenemy/chaosd
             e2e/newenemy/watchmaker
           # this key will need to be bumped when dependencies are changed
-          key: "cockroach-v21.1.7-chaosd-v1.0.2-2"
+          key: "cockroach-v21.2.7-chaosd-v1.1.1"
       - name: "Install cockroachdb and chaosd"
         if: "steps.cache-binaries.outputs.cache-hit != 'true'"
         working-directory: "e2e/newenemy"
         run: |
-          curl https://binaries.cockroachdb.com/cockroach-v21.1.7.linux-amd64.tgz | tar -xz && mv cockroach-v21.1.7.linux-amd64/cockroach ./cockroach
-          curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.0.2-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.0.2-linux-amd64/chaosd ./chaosd
-
-          # chaosd doesn't yet include time modification, install it separately
-          git clone https://github.com/chaos-mesh/chaos-mesh/
-          pushd chaos-mesh
-          git reset --hard 72d2bc17febc7f2a4a10c97417f11c5eb1d86a13
-          CGO_ENABLED=1 go build ./cmd/watchmaker/
-          popd
-          mv ./chaos-mesh/watchmaker ./watchmaker
+          curl https://binaries.cockroachdb.com/cockroach-v21.2.7.linux-amd64.tgz | tar -xz && mv cockroach-v21.2.7.linux-amd64/cockroach ./cockroach
+          curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.1.1-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.1.1-linux-amd64/chaosd ./chaosd
       - uses: "actions/cache@v2"
         with:
           path: |
