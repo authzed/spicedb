@@ -78,8 +78,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 		}
 		defer common.LogOnError(ctx, res.Close)
 
-		tupleIds := make([]int64, 0)
-
+		tupleIds := make([]int64, 0, len(clauses))
 		for res.Next() {
 			var tupleID int64
 			if err := res.Scan(&tupleID); err != nil {
