@@ -48,6 +48,7 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	for _, mut := range mutations {
 		rel := mut.Relationship
 
+		// Implementation for TOUCH deviates slightly from PostgreSQL datastore to prevent a deadlock in MySQL
 		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
 			clauses = append(clauses, common.ExactRelationshipClause(rel))
 		}
