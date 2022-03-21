@@ -1,8 +1,10 @@
 ---
 name: "Lint"
-on:
+on:  # yamllint disable-line rule:truthy
   push:
-    branches: ["*"]
+    branches:
+      - "!dependabot/*"
+      - "main"
   pull_request:
     branches: ["*"]
 jobs:
@@ -10,44 +12,25 @@ jobs:
     name: "Lint Go"
     runs-on: "ubuntu-latest"
     steps:
-      - uses: "actions/setup-go@v2"
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
         with:
           go-version: "^1.17"
-      - uses: "actions/checkout@v2"
-      - name: "Go Mod Tidy"
-        run: "go mod tidy && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
-      - name: "Formatting (gofumpt)"
-        run: |
-          GOFUMPT_OUTPUT="$(find . -iname '*.go' -type f | grep -v pb.validate.go | grep -v pb.go | grep -v zz_generated | xargs go run mvdan.cc/gofumpt -d)"
-          if [ -n "$GOFUMPT_OUTPUT" ]; then
-            echo "All the following files are not correctly formatted"
-            echo "${GOFUMPT_OUTPUT}"
-            exit 1
-          fi
-      - uses: "golangci/golangci-lint-action@v2"
-        with:
-          version: "v1.43"
-          skip-go-installation: true
-          skip-pkg-cache: true
-          skip-build-cache: false
-      - name: "Go Generate"
-        run: "go generate ./... && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
+      - uses: "authzed/actions/gofumpt@main"
+      - uses: "authzed/actions/go-mod-tidy@main"
+      - uses: "authzed/actions/go-generate@main"
+      - uses: "authzed/actions/golangci-lint@main"
 
   extra-lint:
-    name: "Lint Everything Else"
+    name: "Lint YAML & Markdown"
     runs-on: "ubuntu-latest"
     steps:
-      - uses: "actions/checkout@v2"
-      - uses: "bewuethr/yamllint-action@v1.1.1"
-        with:
-          config-file: ".yamllint"
+      - uses: "actions/checkout@v3"
+      - uses: "authzed/actions/yaml-lint@main"
       - uses: "instrumenta/kubeval-action@5915e4adba5adccac07cb156b82e54c3fed74921"
         with:
           files: "k8s"
-      - uses: "nosborn/github-action-markdown-cli@v2.0.0"
-        with:
-          files: "."
-          config_file: ".markdownlint.yaml"
+      - uses: "authzed/actions/markdown-lint@main"
 
   codeql:
     name: "Analyze with CodeQL"
@@ -61,9 +44,5 @@ jobs:
       matrix:
         language: ["go"]
     steps:
-      - uses: "actions/checkout@v2"
-      - uses: "github/codeql-action/init@v1"
-        with:
-          languages: "${{ matrix.language }}"
-      - uses: "github/codeql-action/autobuild@v1"
-      - uses: "github/codeql-action/analyze@v1"
+      - uses: "actions/checkout@v3"
+      - uses: "authzed/actions/codeql@main"
