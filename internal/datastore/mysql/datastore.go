@@ -10,7 +10,9 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/alecthomas/units"
+	"github.com/dlmiddlecote/sqlstats"
 	_ "github.com/go-sql-driver/mysql" // nolint: blank-imports
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
@@ -51,6 +53,14 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+	if config.enablePrometheusStats {
+		// Create a new collector, the name will be used as a label on the metrics
+		collector := sqlstats.NewStatsCollector("spicedb", db)
+		err := prometheus.Register(collector)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
 	}
 
 	tableNamespace := tableNamespace(config.tablePrefix)

@@ -27,6 +27,7 @@ type mysqlOptions struct {
 	splitAtEstimatedQuerySize units.Base2Bytes
 	watchBufferLength         uint16
 	tablePrefix               string
+	enablePrometheusStats     bool
 }
 
 // Option provides the facility to configure how clients within the
@@ -100,5 +101,14 @@ func GCInterval(interval time.Duration) Option {
 func TablePrefix(prefix string) Option {
 	return func(mo *mysqlOptions) {
 		mo.tablePrefix = prefix
+	}
+}
+
+// EnablePrometheusStats enables Prometheus metrics provided by Go's database/sql package
+//
+// Prometheus metrics are enabled by default.
+func EnablePrometheusStats() Option {
+	return func(mo *mysqlOptions) {
+		mo.enablePrometheusStats = true
 	}
 }
