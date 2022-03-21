@@ -47,8 +47,8 @@ func ServeExample(programName string) string {
 func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 	return cobrautil.CommandStack(
 		cobrautil.SyncViperPreRunE(programName),
-		cobrautil.ZeroLogPreRunE("log", zerolog.InfoLevel),
-		cobrautil.OpenTelemetryPreRunE("otel", zerolog.InfoLevel),
+		cobrautil.ZeroLogRunE("log", zerolog.InfoLevel),
+		cobrautil.OpenTelemetryRunE("otel", zerolog.InfoLevel),
 	)
 }
 
