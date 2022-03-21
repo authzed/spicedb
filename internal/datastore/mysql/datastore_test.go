@@ -194,16 +194,16 @@ func TestIsReadyRace(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	concurrency := 100
-	for i := 1; i <= concurrency; i++ {
+	concurrency := 5
+	for gn := 1; gn <= concurrency; gn++ {
 		wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer wg.Done()
 
 			ready, err := store.IsReady(ctx)
 			req.NoError(err, "goroutine %d", i)
 			req.True(ready, "goroutine %d", i)
-		}()
+		}(gn)
 	}
 	wg.Wait()
 

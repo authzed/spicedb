@@ -56,6 +56,14 @@ func NewMysqlDriver(url string, tablePrefix string) (*MysqlDriver, error) {
 	return &MysqlDriver{db, tablePrefix}, nil
 }
 
+func revisionToColumnName(revision string) string {
+	return migrationVersionColumnPrefix + revision
+}
+
+func columnNameToRevision(columnName string) string {
+	return strings.TrimPrefix(columnName, migrationVersionColumnPrefix)
+}
+
 // Version returns the version of the schema to which the connected database
 // has been migrated.
 func (mysql *MysqlDriver) Version() (string, error) {
@@ -80,16 +88,16 @@ func (mysql *MysqlDriver) Version() (string, error) {
 		return "", fmt.Errorf("failed to get columns: %w", err)
 	}
 
-	return strings.TrimPrefix(cols[0], migrationVersionColumnPrefix), nil
+	return columnNameToRevision(cols[0]), nil
 }
 
-// WriteVersion overwrites the value stored to track the version of the
-// database schema.
+// WriteVersion overwrites the _meta_version_ column name which encodes the version
+// of the database schema.
 func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
 	stmt := fmt.Sprintf("ALTER TABLE %s CHANGE %s %s VARCHAR(255) NOT NULL",
 		mysql.mysqlMigrationVersionTable(),
-		migrationVersionColumnPrefix+replaced,
-		migrationVersionColumnPrefix+version,
+		revisionToColumnName(replaced),
+		revisionToColumnName(version),
 	)
 	if _, err := mysql.db.Exec(stmt); err != nil {
 		return fmt.Errorf("unable to version: %w", err)

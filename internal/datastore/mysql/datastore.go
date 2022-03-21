@@ -334,7 +334,11 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		log.Trace().Uint64("revision", baseRevision.BigInt().Uint64()).Msg("seeded base datastore revision")
+		if baseRevision != datastore.NoRevision {
+			// no revision here indicates that the base transaction was already seeded when this write
+			// was committed.  only log for the process which actually seeds the transaction.
+			log.Info().Uint64("revision", baseRevision.BigInt().Uint64()).Msg("seeded base datastore revision")
+		}
 	}
 	return true, nil
 }
@@ -364,6 +368,12 @@ func (mds *mysqlDatastore) seedBaseTransaction(ctx context.Context) (datastore.R
 	err = tx.Commit()
 	if err != nil {
 		return datastore.NoRevision, err
+	}
+
+	if lastInsertID == 0 {
+		// If there was no error and `lastInsertID` is 0, the insert was ignored.  This indicates the transaction
+		// was already seeded by another processes (race condition).
+		return datastore.NoRevision, nil
 	}
 
 	return common.RevisionFromTransaction(uint64(lastInsertID)), nil
@@ -480,6 +490,7 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 		return 0, fmt.Errorf(errRevision, err)
 	}
 	if !revision.Valid {
+		// there are no rows in the relation tuple transaction table
 		return 0, nil
 	}
 
