@@ -10,6 +10,7 @@ import (
 
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
 	"github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/migration"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
 )
@@ -43,8 +44,9 @@ func main() {
 	rootCmd.AddCommand(versionCmd)
 
 	// Add migration commands
-	migrateCmd := cmd.NewMigrateCommand(rootCmd.Use)
-	cmd.RegisterMigrateFlags(migrateCmd)
+	var migrateConfig migration.Config
+	migrateCmd := cmd.NewMigrateCommand(rootCmd.Use, &migrateConfig)
+	cmd.RegisterMigrateFlags(migrateCmd, &migrateConfig)
 	rootCmd.AddCommand(migrateCmd)
 
 	headCmd := cmd.NewHeadCommand(rootCmd.Use)
