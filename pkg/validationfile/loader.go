@@ -86,12 +86,12 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 			}
 
 			ctx := dsctx.ContextWithDatastore(context.Background(), ds)
-			terr := ts.Validate(ctx)
+			vts, terr := ts.Validate(ctx)
 			if terr != nil {
 				return nil, revision, terr
 			}
 
-			aerr := namespace.AnnotateNamespace(ts)
+			aerr := namespace.AnnotateNamespace(vts)
 			if aerr != nil {
 				return nil, revision, aerr
 			}

@@ -13,7 +13,7 @@ import (
 
 // computeCanonicalCacheKeys computes a map from permission name to associated canonicalized
 // cache key for each non-aliased permission in the given type system's namespace.
-func computeCanonicalCacheKeys(typeSystem *NamespaceTypeSystem, aliasMap map[string]string) (map[string]string, error) {
+func computeCanonicalCacheKeys(typeSystem *ValidatedNamespaceTypeSystem, aliasMap map[string]string) (map[string]string, error) {
 	varMap := buildBddVarMap(typeSystem.nsDef.Relation, aliasMap)
 	if varMap.Len() == 0 {
 		return map[string]string{}, nil

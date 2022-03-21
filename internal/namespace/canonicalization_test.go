@@ -243,7 +243,7 @@ func TestCanonicalization(t *testing.T) {
 			map[string]string{"first": "ecae2c4f917f1f54", "second": "ecae2c4f917f1f54"},
 		},
 		{
-			"canonicalization with diffgerent nested exclusion expressions",
+			"canonicalization with different nested exclusion expressions",
 			ns.Namespace(
 				"document",
 				ns.Relation("owner", nil),
@@ -288,13 +288,13 @@ func TestCanonicalization(t *testing.T) {
 			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
 			require.NoError(err)
 
-			terr := ts.Validate(ctx)
+			vts, terr := ts.Validate(ctx)
 			require.NoError(terr)
 
-			aliases, aerr := computePermissionAliases(ts)
+			aliases, aerr := computePermissionAliases(vts)
 			require.NoError(aerr)
 
-			cacheKeys, cerr := computeCanonicalCacheKeys(ts, aliases)
+			cacheKeys, cerr := computeCanonicalCacheKeys(vts, aliases)
 			require.NoError(cerr)
 			require.Equal(tc.expectedCacheMap, cacheKeys)
 		})
@@ -403,13 +403,13 @@ func TestCanonicalizationComparison(t *testing.T) {
 			ts, err := BuildNamespaceTypeSystemForManager(defs[0], nsm, lastRevision)
 			require.NoError(err)
 
-			terr := ts.Validate(ctx)
+			vts, terr := ts.Validate(ctx)
 			require.NoError(terr)
 
-			aliases, aerr := computePermissionAliases(ts)
+			aliases, aerr := computePermissionAliases(vts)
 			require.NoError(aerr)
 
-			cacheKeys, cerr := computeCanonicalCacheKeys(ts, aliases)
+			cacheKeys, cerr := computeCanonicalCacheKeys(vts, aliases)
 			require.NoError(cerr)
 			require.True((cacheKeys["first"] == cacheKeys["second"]) == tc.expectedSame)
 		})

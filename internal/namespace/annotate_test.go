@@ -32,6 +32,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	permission aliased = viewer
 	permission computed = viewer + editor
 	permission other = editor - viewer
+	permission also_aliased = viewer
 }`},
 	}, &empty)
 	require.NoError(err)
@@ -40,16 +41,18 @@ func TestAnnotateNamespace(t *testing.T) {
 	ts, err := BuildNamespaceTypeSystemForManager(defs[0], nsm, lastRevision)
 	require.NoError(err)
 
-	terr := ts.Validate(ctx)
+	vts, terr := ts.Validate(ctx)
 	require.NoError(terr)
 
-	aerr := AnnotateNamespace(ts)
+	aerr := AnnotateNamespace(vts)
 	require.NoError(aerr)
 
 	require.NotEmpty(ts.relationMap["aliased"].AliasingRelation)
+	require.NotEmpty(ts.relationMap["also_aliased"].AliasingRelation)
 	require.Empty(ts.relationMap["computed"].AliasingRelation)
 	require.Empty(ts.relationMap["other"].AliasingRelation)
 
+	require.NotEmpty(ts.relationMap["also_aliased"].CanonicalCacheKey)
 	require.NotEmpty(ts.relationMap["aliased"].CanonicalCacheKey)
 	require.NotEmpty(ts.relationMap["computed"].CanonicalCacheKey)
 	require.NotEmpty(ts.relationMap["other"].CanonicalCacheKey)

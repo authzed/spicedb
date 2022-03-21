@@ -85,7 +85,7 @@ func TestConsistency(t *testing.T) {
 								_, ts, err := ns.ReadNamespaceAndTypes(dsCtx, nsDef.Name, revision)
 								lrequire.NoError(err)
 
-								err = ts.Validate(dsCtx)
+								_, err = ts.Validate(dsCtx)
 								lrequire.NoError(err)
 							}
 

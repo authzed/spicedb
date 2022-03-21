@@ -41,6 +41,29 @@ func TestAliasing(t *testing.T) {
 			},
 		},
 		{
+			"multiple aliasing",
+			ns.Namespace(
+				"document",
+				ns.Relation("owner", nil),
+				ns.Relation("viewer", nil),
+				ns.Relation("edit", ns.Union(
+					ns.ComputedUserset("owner"),
+				)),
+				ns.Relation("view", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.ComputedUserset("edit"),
+				)),
+				ns.Relation("another_viewer", ns.Union(
+					ns.ComputedUserset("viewer"),
+				)),
+			),
+			"",
+			map[string]string{
+				"edit":           "owner",
+				"another_viewer": "viewer",
+			},
+		},
+		{
 			"alias cycle",
 			ns.Namespace(
 				"document",
@@ -77,6 +100,9 @@ func TestAliasing(t *testing.T) {
 				"document",
 				ns.Relation("owner", nil),
 				ns.Relation("viewer", nil),
+				ns.Relation("cool_viewer", ns.Union(
+					ns.ComputedUserset("viewer"),
+				)),
 				ns.Relation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
@@ -100,6 +126,7 @@ func TestAliasing(t *testing.T) {
 				"edit":        "owner",
 				"admin":       "owner",
 				"reallyadmin": "owner",
+				"cool_viewer": "viewer",
 			},
 		},
 		{
@@ -162,10 +189,10 @@ func TestAliasing(t *testing.T) {
 			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
 			require.NoError(err)
 
-			terr := ts.Validate(ctx)
+			vts, terr := ts.Validate(ctx)
 			require.NoError(terr)
 
-			computed, aerr := computePermissionAliases(ts)
+			computed, aerr := computePermissionAliases(vts)
 			if tc.expectedError != "" {
 				require.Equal(tc.expectedError, aerr.Error())
 			} else {

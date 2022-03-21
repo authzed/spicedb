@@ -54,12 +54,12 @@ func (nss *nsServer) WriteConfig(ctx context.Context, req *v0.WriteConfigRequest
 			return nil, rewriteNamespaceError(ctx, terr)
 		}
 
-		tverr := ts.Validate(ctx)
+		vts, tverr := ts.Validate(ctx)
 		if tverr != nil {
 			return nil, rewriteNamespaceError(ctx, tverr)
 		}
 
-		if err := namespace.AnnotateNamespace(ts); err != nil {
+		if err := namespace.AnnotateNamespace(vts); err != nil {
 			return nil, rewriteNamespaceError(ctx, err)
 		}
 
