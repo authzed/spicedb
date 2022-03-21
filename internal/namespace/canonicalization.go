@@ -13,6 +13,38 @@ import (
 
 // computeCanonicalCacheKeys computes a map from permission name to associated canonicalized
 // cache key for each non-aliased permission in the given type system's namespace.
+//
+// Canonicalization works by taking each permission's userset rewrite expression and transforming
+// it into a Binary Decision Diagram (BDD) via the `rudd` library.
+//
+// Each access of a relation or arrow is assigned a unique integer ID within the *namespace*,
+// and the operations (+, -, &) are converted into binary operations.
+//
+// For example, for the namespace:
+//   definition somenamespace {
+//	    relation first: ...
+//      relation second: ...
+//      permission someperm = second + (first - third->something)
+//   }
+//
+// We begin by assigning a unique integer index to each relation and arrow found for all
+// expressions in the namespace:
+//   definition somenamespace {
+//	    relation first: ...
+//               ^ index 0
+//      relation second: ...
+//               ^ index 1
+//      permission someperm = second + (first - third->something)
+//                            ^ 1       ^ 0     ^ index 2
+//   }
+//
+// These indexes are then used with the rudd library to build the expression:
+//    someperm => `bdd.And(bdd.Ithvar(1), bdd.Or(bdd.Ithvar(0), bdd.NIthvar(2)))`
+//
+// The `rudd` library automatically handles associativity, and produces a hash representing the
+// canonical representation of the binary expression. These hashes can then be used for caching,
+// representing the same *logical* expressions for a permission, even if the relations have
+// different names.
 func computeCanonicalCacheKeys(typeSystem *ValidatedNamespaceTypeSystem, aliasMap map[string]string) (map[string]string, error) {
 	varMap := buildBddVarMap(typeSystem.nsDef.Relation, aliasMap)
 	if varMap.Len() == 0 {
