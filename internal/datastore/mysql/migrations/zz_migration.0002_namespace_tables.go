@@ -43,20 +43,12 @@ func createRelationTupleTransaction(mysql *MysqlDriver) string {
 	);`
 }
 
-func insertFirstTransaction(mysql *MysqlDriver) string {
-	return fmt.Sprintf("INSERT INTO %s VALUES();", mysql.tableTransaction())
-}
-
 func init() {
-	err := Manager.Register("namespace-tables", "initial",
+	mustRegisterMigration("namespace_tables", "initial",
 		newExecutor(
 			createNamespaceConfig,
 			createRelationTuple,
 			createRelationTupleTransaction,
-			insertFirstTransaction,
 		).migrate,
 	)
-	if err != nil {
-		panic("failed to register migration  " + err.Error())
-	}
 }

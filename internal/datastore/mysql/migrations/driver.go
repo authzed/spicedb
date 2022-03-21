@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 
@@ -17,6 +18,8 @@ import (
 const (
 	errUnableToInstantiate       = "unable to instantiate MysqlDriver: %w"
 	mysqlMissingTableErrorNumber = 1146
+
+	migrationVersionColumnPrefix = "_meta_version_"
 )
 
 var sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
@@ -53,47 +56,51 @@ func NewMysqlDriver(url string, tablePrefix string) (*MysqlDriver, error) {
 	return &MysqlDriver{db, tablePrefix}, nil
 }
 
+func revisionToColumnName(revision string) string {
+	return migrationVersionColumnPrefix + revision
+}
+
+func columnNameToRevision(columnName string) string {
+	return strings.TrimPrefix(columnName, migrationVersionColumnPrefix)
+}
+
 // Version returns the version of the schema to which the connected database
 // has been migrated.
 func (mysql *MysqlDriver) Version() (string, error) {
-	var loaded string
-
-	query, args, err := sb.Select("version_num").From(mysql.mysqlMigrationVersionTable()).ToSql()
+	query, args, err := sb.Select("*").From(mysql.mysqlMigrationVersionTable()).ToSql()
 	if err != nil {
 		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
 	}
 
-	if err := mysql.db.QueryRow(query, args...).Scan(&loaded); err != nil {
+	rows, err := mysql.db.Query(query, args...)
+	if err != nil {
 		var mysqlError *sqlDriver.MySQLError
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
 			return "", nil
 		}
 		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
 	}
+	if rows.Err() != nil {
+		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
+	}
+	cols, err := rows.Columns()
+	if err != nil {
+		return "", fmt.Errorf("failed to get columns: %w", err)
+	}
 
-	return loaded, nil
+	return columnNameToRevision(cols[0]), nil
 }
 
-// WriteVersion overwrites the value stored to track the version of the
-// database schema.
+// WriteVersion overwrites the _meta_version_ column name which encodes the version
+// of the database schema.
 func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
-	updateSQL, args, err := sb.Update(mysql.mysqlMigrationVersionTable()).Set("version_num", version).Where("version_num = ?", replaced).ToSql()
-	if err != nil {
-		return fmt.Errorf("unable to update version row: %w", err)
-	}
-
-	result, err := mysql.db.Exec(updateSQL, args...)
-	if err != nil {
-		return fmt.Errorf("unable to update version row: %w", err)
-	}
-
-	updatedCount, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("unable to compute number of rows affected: %w", err)
-	}
-
-	if updatedCount != 1 {
-		return fmt.Errorf("writing version update affected %d rows, should be 1", updatedCount)
+	stmt := fmt.Sprintf("ALTER TABLE %s CHANGE %s %s VARCHAR(255) NOT NULL",
+		mysql.mysqlMigrationVersionTable(),
+		revisionToColumnName(replaced),
+		revisionToColumnName(version),
+	)
+	if _, err := mysql.db.Exec(stmt); err != nil {
+		return fmt.Errorf("unable to version: %w", err)
 	}
 
 	return nil

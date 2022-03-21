@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -55,13 +57,21 @@ func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBu
 
 	migrateDatabaseWithPrefix(connectStr, st.tablePrefix)
 
-	return NewMysqlDatastore(connectStr,
+	ds, err := NewMysqlDatastore(connectStr,
 		RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
 		GCWindow(gcWindow),
 		GCInterval(0*time.Second), // Disable auto GC
 		SplitAtEstimatedQuerySize(st.splitAtEstimatedQuerySize),
-		TablePrefix(st.tablePrefix),
-	)
+		TablePrefix(st.tablePrefix))
+	if err != nil {
+		return nil, err
+	}
+
+	// seed the base datastore revision
+	if _, err := ds.IsReady(context.Background()); err != nil {
+		return nil, err
+	}
+	return ds, nil
 }
 
 func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
@@ -150,16 +160,57 @@ func TestIsReady(t *testing.T) {
 	store, err := NewMysqlDatastore(connectStr)
 	req.NoError(err)
 
+	migrateDatabase(connectStr)
+
+	// ensure no revision is seeded by default
 	ctx := context.Background()
+	revision, err := store.HeadRevision(ctx)
+	req.Equal(datastore.NoRevision, revision)
+	req.NoError(err)
+
 	ready, err := store.IsReady(ctx)
 	req.NoError(err)
-	req.False(ready)
+	req.True(ready)
+
+	// verify IsReady seeds the revision is if not present
+	revision, err = store.HeadRevision(ctx)
+	req.NoError(err)
+	req.Equal(common.RevisionFromTransaction(1), revision)
+}
+
+func TestIsReadyRace(t *testing.T) {
+	req := require.New(t)
+
+	connectStr := setupDatabase()
+	store, err := NewMysqlDatastore(connectStr)
+	req.NoError(err)
 
 	migrateDatabase(connectStr)
 
-	ready, err = store.IsReady(ctx)
+	ctx := context.Background()
+	revision, err := store.HeadRevision(ctx)
+	req.Equal(datastore.NoRevision, revision)
 	req.NoError(err)
-	req.True(ready)
+
+	var wg sync.WaitGroup
+
+	concurrency := 5
+	for gn := 1; gn <= concurrency; gn++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+
+			ready, err := store.IsReady(ctx)
+			req.NoError(err, "goroutine %d", i)
+			req.True(ready, "goroutine %d", i)
+		}(gn)
+	}
+	wg.Wait()
+
+	// verify IsReady seeds the revision is if not present
+	revision, err = store.HeadRevision(ctx)
+	req.NoError(err)
+	req.Equal(common.RevisionFromTransaction(1), revision)
 }
 
 func TestGarbageCollection(t *testing.T) {
@@ -579,7 +630,7 @@ func migrateDatabase(connectStr string) {
 func migrateDatabaseWithPrefix(connectStr, tablePrefix string) {
 	migrationDriver, err := createMigrationDriverWithPrefix(connectStr, tablePrefix)
 	if err != nil {
-		log.Fatalf("failed to run migration: %s", err)
+		log.Fatalf("failed to create prefixed migration driver: %s", err)
 	}
 
 	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
@@ -593,6 +644,8 @@ func TestMain(m *testing.M) {
 		Repository: "mysql",
 		Tag:        "5",
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
+		// increase max connections (default 151) to accommodate tests using the same docker container
+		Cmd: []string{"--max-connections=500"},
 	}
 
 	pool, err := dockertest.NewPool("")

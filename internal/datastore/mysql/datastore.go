@@ -65,6 +65,10 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		return nil, fmt.Errorf("NewMysqlDatastore: %w", err)
 	}
 
+	// used for seeding the initial relation_tuple_transaction. using INSERT IGNORE on a known
+	// ID value makes this idempotent (i.e. safe to execute concurrently).
+	createBaseTxn := fmt.Sprintf("INSERT IGNORE INTO %s (id) VALUES (1)", tableTransaction)
+
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
 	store := &mysqlDatastore{
@@ -80,6 +84,7 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 		watchBufferLength:         config.watchBufferLength,
 		tablePrefix:               config.tablePrefix,
 		createTxn:                 createTxn,
+		createBaseTxn:             createBaseTxn,
 		BuilderCache:              builderCache,
 		tableNamespace:            tableNamespace,
 		tableTransaction:          tableTransaction,
@@ -117,7 +122,8 @@ type mysqlDatastore struct {
 	tableTransaction string
 	tableTuple       string
 
-	createTxn string
+	createTxn     string
+	createBaseTxn string
 
 	*BuilderCache
 }
@@ -314,7 +320,63 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	return headRevision == currentRevision, nil
+	if headRevision != currentRevision {
+		return false, nil
+	}
+
+	// seed base transaction if not present
+	revision, err := mds.HeadRevision(ctx)
+	if err != nil {
+		return false, err
+	}
+	if revision == datastore.NoRevision {
+		baseRevision, err := mds.seedBaseTransaction(ctx)
+		if err != nil {
+			return false, err
+		}
+		if baseRevision != datastore.NoRevision {
+			// no revision here indicates that the base transaction was already seeded when this write
+			// was committed.  only log for the process which actually seeds the transaction.
+			log.Info().Uint64("revision", baseRevision.BigInt().Uint64()).Msg("seeded base datastore revision")
+		}
+	}
+	return true, nil
+}
+
+// seedBaseTransaction initializes the first transaction revision.
+func (mds *mysqlDatastore) seedBaseTransaction(ctx context.Context) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "seedBaseTransaction")
+	defer span.End()
+
+	tx, err := mds.db.BeginTx(ctx, nil)
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+	defer common.LogOnError(ctx, tx.Rollback)
+
+	// idempotent INSERT IGNORE transaction id=1. safe to be execute concurrently.
+	result, err := tx.ExecContext(ctx, mds.createBaseTxn)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf("seedBaseTransaction: %w", err)
+	}
+
+	lastInsertID, err := result.LastInsertId()
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf("seedBaseTransaction: failed to get last inserted id: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+
+	if lastInsertID == 0 {
+		// If there was no error and `lastInsertID` is 0, the insert was ignored.  This indicates the transaction
+		// was already seeded by another processes (race condition).
+		return datastore.NoRevision, nil
+	}
+
+	return common.RevisionFromTransaction(uint64(lastInsertID)), nil
 }
 
 // OptimizedRevision gets a revision that will likely already be replicated
@@ -353,6 +415,9 @@ func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	revision, err := mds.loadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
+	}
+	if revision == 0 {
+		return datastore.NoRevision, nil
 	}
 
 	return common.RevisionFromTransaction(revision), nil
@@ -416,7 +481,7 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 		return 0, fmt.Errorf(errRevision, err)
 	}
 
-	var revision uint64
+	var revision sql.NullInt64
 	err = mds.db.QueryRowContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -424,8 +489,12 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 		}
 		return 0, fmt.Errorf(errRevision, err)
 	}
+	if !revision.Valid {
+		// there are no rows in the relation tuple transaction table
+		return 0, nil
+	}
 
-	return revision, nil
+	return uint64(revision.Int64), nil
 }
 
 func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInverted time.Duration) (uint64, uint64, error) {

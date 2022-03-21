@@ -20,14 +20,11 @@ func createIndexOnTupleTransactionTimestamp(mysql *MysqlDriver) string {
 }
 
 func init() {
-	err := Manager.Register("indexes", "namespace-tables",
+	mustRegisterMigration("indexes", "namespace_tables",
 		newExecutor(
 			createReverseQueryIndex,
 			createReverseCheckIndex,
 			createIndexOnTupleTransactionTimestamp,
 		).migrate,
 	)
-	if err != nil {
-		panic("failed to register migration  " + err.Error())
-	}
 }
