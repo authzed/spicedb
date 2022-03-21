@@ -13,7 +13,7 @@ require (
 	github.com/containerd/continuity v0.2.1 // indirect
 	github.com/dave/jennifer v1.4.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
-	github.com/dlmiddlecote/sqlstats v1.0.2 // indirect
+	github.com/dlmiddlecote/sqlstats v1.0.2
 	github.com/docker/docker v20.10.9+incompatible // indirect
 	github.com/ecordell/optgen v0.0.5-0.20211217170453-18cdce036e35
 	github.com/emirpasic/gods v1.12.0
