@@ -33,7 +33,7 @@ func TestRESTGateway(t *testing.T) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	require.NoError(err)
-	require.Equal(`{"code":5,"message":"Not Found","details":[]}`, string(body))
+	require.JSONEq(`{"code":5,"message":"Not Found","details":[]}`, string(body))
 
 	// Attempt to read schema without a valid Auth header.
 	readUrl := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.httpPort)
