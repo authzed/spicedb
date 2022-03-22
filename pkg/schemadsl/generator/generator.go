@@ -154,6 +154,9 @@ func (sg *sourceGenerator) emitSetOpChild(setOpChild *core.SetOperation_Child) {
 	case *core.SetOperation_Child_XThis:
 		sg.appendIssue("_this unsupported here. Please rewrite into a relation and permission")
 
+	case *core.SetOperation_Child_XNil:
+		sg.append("nil")
+
 	case *core.SetOperation_Child_ComputedUserset:
 		sg.append(child.ComputedUserset.Relation)
 

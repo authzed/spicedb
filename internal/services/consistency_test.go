@@ -385,8 +385,16 @@ type validationContext struct {
 }
 
 func validateDeveloper(t *testing.T, dev v0.DeveloperServiceServer, vctx *validationContext) {
+	// If there is a valid schema, use it. Otherwise, use the legacy definitions.
+	schema := vctx.fullyResolved.Schema
+	legacyConfigs := core.ToV0NamespaceDefinitions(vctx.fullyResolved.NamespaceDefinitions)
+	if len(schema) > 0 {
+		legacyConfigs = nil
+	}
+
 	reqContext := &v0.RequestContext{
-		LegacyNsConfigs: core.ToV0NamespaceDefinitions(vctx.fullyResolved.NamespaceDefinitions),
+		LegacyNsConfigs: legacyConfigs,
+		Schema:          schema,
 		Relationships:   core.ToV0RelationTuples(vctx.fullyResolved.Tuples),
 	}
 

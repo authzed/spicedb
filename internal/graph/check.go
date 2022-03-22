@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
@@ -150,6 +151,10 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req Validate
 			requests = append(requests, cc.checkUsersetRewrite(ctx, req, child.UsersetRewrite))
 		case *core.SetOperation_Child_TupleToUserset:
 			requests = append(requests, cc.checkTupleToUserset(ctx, req, child.TupleToUserset))
+		case *core.SetOperation_Child_XNil:
+			requests = append(requests, notMember())
+		default:
+			return checkError(fmt.Errorf("unknown set operation child `%T` in check", child))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- CheckResult) {

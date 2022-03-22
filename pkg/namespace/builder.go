@@ -127,9 +127,18 @@ func setOperation(firstChild *core.SetOperation_Child, rest []*core.SetOperation
 }
 
 // This creates a child for a set operation that references only direct usersets with the parent relation.
+//
+// TODO(jschorr): Remove once v0 is fully removed.
 func This() *core.SetOperation_Child {
 	return &core.SetOperation_Child{
 		ChildType: &core.SetOperation_Child_XThis{},
+	}
+}
+
+// Nil creates a child for a set operation that references the empty set.
+func Nil() *core.SetOperation_Child {
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_XNil{},
 	}
 }
 

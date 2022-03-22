@@ -57,6 +57,7 @@ var keywords = map[string]bool{
 	"definition": true,
 	"relation":   true,
 	"permission": true,
+	"nil":        true,
 }
 
 // syntheticPredecessors contains the full set of token types after which, if a newline is found,

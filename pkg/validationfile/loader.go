@@ -18,6 +18,9 @@ import (
 
 // PopulatedValidationFile contains the fully parsed information from a validation file.
 type PopulatedValidationFile struct {
+	// Schema is the entered schema text, if any.
+	Schema string
+
 	// NamespaceDefinitions are the namespaces defined in the validation file, in either
 	// direct or compiled from schema form.
 	NamespaceDefinitions []*core.NamespaceDefinition
@@ -35,6 +38,7 @@ type PopulatedValidationFile struct {
 func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedValidationFile, decimal.Decimal, error) {
 	var revision decimal.Decimal
 	nsDefs := []*core.NamespaceDefinition{}
+	schema := ""
 	tuples := []*core.RelationTuple{}
 	files := []ValidationFile{}
 
@@ -53,6 +57,10 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 
 		// Add schema-based namespace definitions.
 		defs := parsed.Schema.Definitions
+		if len(defs) > 0 {
+			schema += parsed.Schema.Schema + "\n\n"
+		}
+
 		log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
 		for index, nsDef := range defs {
 			nsDefs = append(nsDefs, nsDef)
@@ -121,5 +129,5 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 		revision = wrevision
 	}
 
-	return &PopulatedValidationFile{nsDefs, tuples, files}, revision, nil
+	return &PopulatedValidationFile{schema, nsDefs, tuples, files}, revision, nil
 }

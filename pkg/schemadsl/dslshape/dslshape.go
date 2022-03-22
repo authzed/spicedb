@@ -26,7 +26,8 @@ const (
 
 	NodeTypeArrowExpression // A TTU in arrow form.
 
-	NodeTypeIdentifier // An identifier under an expression.
+	NodeTypeIdentifier    // An identifier under an expression.
+	NodeTypeNilExpression // A nil keyword
 )
 
 const (
