@@ -214,6 +214,18 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	// Configure the gateway to serve HTTP
+	if len(c.HTTPGatewayUpstreamAddr) == 0 {
+		c.HTTPGatewayUpstreamAddr = c.GRPCServer.Address
+	} else {
+		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("Overriding REST gateway upstream")
+	}
+
+	if len(c.HTTPGatewayUpstreamTLSCertPath) == 0 {
+		c.HTTPGatewayUpstreamTLSCertPath = c.GRPCServer.TLSCertPath
+	} else {
+		log.Info().Str("cert-path", c.HTTPGatewayUpstreamTLSCertPath).Msg("Overriding REST gateway upstream TLS")
+	}
+
 	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
@@ -227,6 +239,10 @@ func (c *Config) Complete() (RunnableServer, error) {
 			AllowedHeaders:   []string{"Authorization", "Content-Type"},
 			Debug:            log.Debug().Enabled(),
 		}).Handler(gatewayHandler)
+	}
+
+	if c.HTTPGateway.Enabled {
+		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("starting REST gateway")
 	}
 
 	gatewayServer, err := c.HTTPGateway.Complete(zerolog.InfoLevel, gatewayHandler)
