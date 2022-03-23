@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 
@@ -227,6 +228,53 @@ func TestPostgresGarbageCollection(t *testing.T) {
 
 	// Ensure the relationship is still present.
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
+}
+
+func TestPostgresTransactionTimestamps(t *testing.T) {
+	require := require.New(t)
+
+	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := NewPostgresDatastore(uri,
+			RevisionFuzzingTimedelta(0),
+			GCWindow(time.Millisecond*1),
+			WatchBufferLength(1),
+		)
+		require.NoError(err)
+		return ds
+	})
+	defer ds.Close()
+
+	ctx := context.Background()
+	ok, err := ds.IsReady(ctx)
+	require.NoError(err)
+	require.True(ok)
+
+	// Setting db default time zone to before UTC
+	pgd := ds.(*pgDatastore)
+	_, err = pgd.dbpool.Exec(ctx, "SET TIME ZONE 'America/New_York';")
+	require.NoError(err)
+
+	// Get timestamp in UTC as reference
+	startTimeUTC, err := pgd.getNow(ctx)
+	require.NoError(err)
+
+	// Transaction timestamp should not be stored in system time zone
+	tx, err := pgd.dbpool.Begin(ctx)
+	txId, err := createNewTransaction(ctx, tx)
+	err = tx.Commit(ctx)
+	require.NoError(err)
+
+	var ts time.Time
+	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"id": txId}).ToSql()
+	require.NoError(err)
+	err = pgd.dbpool.QueryRow(
+		datastore.SeparateContextWithTracing(ctx), sql, args...,
+	).Scan(&ts)
+	require.NoError(err)
+
+	// Transaction timestamp will be before the reference time if it was stored
+	// in the default time zone and reinterpreted
+	require.True(startTimeUTC.Before(ts))
 }
 
 func TestPostgresGarbageCollectionByTime(t *testing.T) {

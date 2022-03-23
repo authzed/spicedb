@@ -17,7 +17,7 @@ import (
 
 var postgresContainer = &dockertest.RunOptions{
 	Repository: "postgres",
-	Tag:        "9.6",
+	Tag:        "10.20",
 	Env:        []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},
 }
 
