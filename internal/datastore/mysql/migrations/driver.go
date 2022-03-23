@@ -85,6 +85,7 @@ func (mysql *MysqlDriver) Version() (string, error) {
 		}
 		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
 	}
+	defer common.LogOnError(context.Background(), rows.Close)
 	if rows.Err() != nil {
 		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
 	}

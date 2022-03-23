@@ -104,6 +104,7 @@ func (mds *mysqlDatastore) loadChanges(
 		}
 		return
 	}
+	defer common.LogOnError(ctx, rows.Close)
 
 	stagedChanges := common.NewChanges()
 
