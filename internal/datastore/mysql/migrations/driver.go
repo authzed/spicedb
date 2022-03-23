@@ -65,8 +65,11 @@ func revisionToColumnName(revision string) string {
 	return migrationVersionColumnPrefix + revision
 }
 
-func columnNameToRevision(columnName string) string {
-	return strings.TrimPrefix(columnName, migrationVersionColumnPrefix)
+func columnNameToRevision(columnName string) (string, bool) {
+	if !strings.HasPrefix(columnName, migrationVersionColumnPrefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(columnName, migrationVersionColumnPrefix), true
 }
 
 // Version returns the version of the schema to which the connected database
@@ -94,7 +97,12 @@ func (mysql *MysqlDriver) Version() (string, error) {
 		return "", fmt.Errorf("failed to get columns: %w", err)
 	}
 
-	return columnNameToRevision(cols[0]), nil
+	for _, col := range cols {
+		if revision, ok := columnNameToRevision(col); ok {
+			return revision, nil
+		}
+	}
+	return "", errors.New("no migration version detected")
 }
 
 // WriteVersion overwrites the _meta_version_ column name which encodes the version
