@@ -181,7 +181,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.Relation("member", nil, ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
 				),
 			},
-			"for relation `viewer`: relation/permission `group#member` includes wildcardtype `user` via relation `group#member`: wildcard relations cannot be transitively included",
+			"for relation `viewer`: relation/permission `group#member` includes wildcard type `user` via relation `group#member`: wildcard relations cannot be transitively included",
 		},
 		{
 			"ttu wildcard type check",
@@ -195,7 +195,7 @@ func TestTypeSystem(t *testing.T) {
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 			},
-			"for arrow under relation `viewer`: relation `folder#parent` includes wildcardtype `folder` via relation `folder#parent`: wildcard relations cannot be used on the left side of arrows",
+			"for arrow under relation `viewer`: relation `folder#parent` includes wildcard type `folder` via relation `folder#parent`: wildcard relations cannot be used on the left side of arrows",
 		},
 		{
 			"recursive transitive wildcard type check",
@@ -211,7 +211,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.Relation("manager", nil, ns.AllowedRelation("group", "member"), ns.AllowedPublicNamespace("user")),
 				),
 			},
-			"for relation `viewer`: relation/permission `group#member` includes wildcardtype `user` via relation `group#manager`: wildcard relations cannot be transitively included",
+			"for relation `viewer`: relation/permission `group#member` includes wildcard type `user` via relation `group#manager`: wildcard relations cannot be transitively included",
 		},
 	}
 

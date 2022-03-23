@@ -20,6 +20,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/commonerrors"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -199,6 +200,19 @@ func loadNamespaces(
 		coreNamespaces := core.ToCoreNamespaceDefinitions(namespaces)
 		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(coreNsDef, coreNamespaces)
 		if terr != nil {
+			errWithSource, ok := commonerrors.AsErrorWithSource(terr)
+			if ok {
+				errors = append(errors, &v0.DeveloperError{
+					Message: terr.Error(),
+					Kind:    v0.DeveloperError_SCHEMA_ISSUE,
+					Source:  v0.DeveloperError_SCHEMA,
+					Context: errWithSource.SourceCodeString,
+					Line:    uint32(errWithSource.LineNumber),
+					Column:  uint32(errWithSource.ColumnPosition),
+				})
+				continue
+			}
+
 			errors = append(errors, &v0.DeveloperError{
 				Message: terr.Error(),
 				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
@@ -218,12 +232,24 @@ func loadNamespaces(
 			continue
 		}
 
-		errors = append(errors, &v0.DeveloperError{
-			Message: tverr.Error(),
-			Kind:    v0.DeveloperError_SCHEMA_ISSUE,
-			Source:  v0.DeveloperError_SCHEMA,
-			Context: nsDef.Name,
-		})
+		errWithSource, ok := commonerrors.AsErrorWithSource(tverr)
+		if ok {
+			errors = append(errors, &v0.DeveloperError{
+				Message: tverr.Error(),
+				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
+				Source:  v0.DeveloperError_SCHEMA,
+				Context: errWithSource.SourceCodeString,
+				Line:    uint32(errWithSource.LineNumber),
+				Column:  uint32(errWithSource.ColumnPosition),
+			})
+		} else {
+			errors = append(errors, &v0.DeveloperError{
+				Message: tverr.Error(),
+				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
+				Source:  v0.DeveloperError_SCHEMA,
+				Context: nsDef.Name,
+			})
+		}
 	}
 
 	return errors, lastRevision, nil

@@ -130,18 +130,17 @@ func TestEditCheck(t *testing.T) {
 			
 			definition resource {
 				relation writer: user
-				permission writer = writer
-			}
-`,
+				 permission writer = writer
+			}`,
 			[]*core.RelationTuple{},
 			[]*core.RelationTuple{},
 			&v0.DeveloperError{
-				Message: "found duplicate relation/permission name writer",
+				Message: "found duplicate relation/permission name `writer`",
 				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
 				Source:  v0.DeveloperError_SCHEMA,
-				Line:    0,
-				Column:  0,
-				Context: "resource",
+				Line:    5,
+				Column:  6,
+				Context: "writer",
 			},
 			nil,
 		},

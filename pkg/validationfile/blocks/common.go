@@ -6,32 +6,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/authzed/spicedb/pkg/commonerrors"
 )
-
-// SourcePosition is a position in the input source.
-type SourcePosition struct {
-	// LineNumber is the 1-indexed line number in the input source.
-	LineNumber int
-
-	// ColumnPosition is the 1-indexed column position in the input source.
-	ColumnPosition int
-}
-
-// ErrorWithSource is an error that includes the source text and position
-// information.
-type ErrorWithSource struct {
-	error
-
-	// Source is the source text for the error.
-	Source string
-
-	// LineNumber is the (1-indexed) line number of the error, or 0 if unknown.
-	LineNumber uint64
-
-	// ColumnPosition is the (1-indexed) column position of the error, or 0 if
-	// unknown.
-	ColumnPosition uint64
-}
 
 var (
 	yamlLineRegex      = regexp.MustCompile(`line ([0-9]+): (.+)`)
@@ -58,12 +35,12 @@ func convertYamlError(err error) error {
 			message = fmt.Sprintf("unexpected value `%s`", source)
 		}
 
-		return ErrorWithSource{
+		return commonerrors.NewErrorWithSource(
 			errors.New(message),
 			source,
 			lineNumber,
 			0,
-		}
+		)
 	}
 
 	return err

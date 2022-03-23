@@ -5,4 +5,5 @@ package corev1
 var _Metadata_MetadataMessage_InLookup = map[string]struct{}{
 	"type.googleapis.com/impl.v1.DocComment":       {},
 	"type.googleapis.com/impl.v1.RelationMetadata": {},
+	"type.googleapis.com/impl.v1.SourcePosition":   {},
 }

@@ -5,9 +5,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
@@ -494,8 +496,32 @@ func TestCompile(t *testing.T) {
 				require.Equal(test.expectedError, err.Error())
 			} else {
 				require.Nil(err)
-				require.Equal(test.expectedProto, defs)
+				require.Equal(len(test.expectedProto), len(defs))
+				for index, def := range defs {
+					filterSourcePositions(def.ProtoReflect())
+					require.True(proto.Equal(test.expectedProto[index], def))
+				}
 			}
 		})
 	}
+}
+
+func filterSourcePositions(m protoreflect.Message) {
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		if fd.Kind() == protoreflect.MessageKind {
+			if fd.IsList() {
+				l := v.List()
+				for i := 0; i < l.Len(); i++ {
+					filterSourcePositions(l.Get(i).Message())
+				}
+			} else {
+				if string(fd.Message().Name()) == "SourcePosition" {
+					m.Clear(fd)
+				} else {
+					filterSourcePositions(v.Message())
+				}
+			}
+		}
+		return true
+	})
 }

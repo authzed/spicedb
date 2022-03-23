@@ -8,6 +8,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
@@ -18,7 +19,7 @@ type ParsedSchema struct {
 	Schema string
 
 	// SourcePosition is the position of the schema in the file.
-	SourcePosition SourcePosition
+	SourcePosition commonerrors.SourcePosition
 
 	// Definitions are the compiled definitions for the schema.
 	Definitions []*core.NamespaceDefinition
@@ -44,18 +45,18 @@ func (ps *ParsedSchema) UnmarshalYAML(node *yamlv3.Node) error {
 				return lerr
 			}
 
-			return ErrorWithSource{
+			return commonerrors.NewErrorWithSource(
 				fmt.Errorf("error when parsing schema: %s", errWithContext.BaseMessage),
 				errWithContext.ErrorSourceCode,
-				uint64(line + 1), // source line is 0-indexed
-				uint64(col + 1),  // source col is 0-indexed
-			}
+				uint64(line+1), // source line is 0-indexed
+				uint64(col+1),  // source col is 0-indexed
+			)
 		}
 
 		return fmt.Errorf("error when parsing schema: %w", err)
 	}
 
 	ps.Definitions = defs
-	ps.SourcePosition = SourcePosition{node.Line, node.Column}
+	ps.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }

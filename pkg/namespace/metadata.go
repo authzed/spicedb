@@ -8,6 +8,11 @@ import (
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
+// WithSourcePosition defines an interface for proto messages in core with SourcePosition information attached.
+type WithSourcePosition interface {
+	GetSourcePosition() *core.SourcePosition
+}
+
 // userDefinedMetadataTypeUrls are the type URLs of any user-defined metadata found
 //  in the namespace proto. If placed here, FilterUserDefinedMetadataInPlace will remove the
 // metadata when called on the namespace.

@@ -1672,6 +1672,35 @@ func (m *NamespaceDefinition) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetSourcePosition()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, NamespaceDefinitionValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, NamespaceDefinitionValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSourcePosition()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return NamespaceDefinitionValidationError{
+				field:  "SourcePosition",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return NamespaceDefinitionMultiError(errors)
 	}
@@ -1879,6 +1908,35 @@ func (m *Relation) validate(all bool) error {
 		if err := v.Validate(); err != nil {
 			return RelationValidationError{
 				field:  "Metadata",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetSourcePosition()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RelationValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RelationValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSourcePosition()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RelationValidationError{
+				field:  "SourcePosition",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
@@ -2142,6 +2200,35 @@ func (m *AllowedRelation) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
+	if all {
+		switch v := interface{}(m.GetSourcePosition()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, AllowedRelationValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, AllowedRelationValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSourcePosition()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return AllowedRelationValidationError{
+				field:  "SourcePosition",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	switch m.RelationOrWildcard.(type) {
 
 	case *AllowedRelation_Relation:
@@ -2304,6 +2391,35 @@ func (m *UsersetRewrite) validate(all bool) error {
 	}
 
 	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetSourcePosition()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UsersetRewriteValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UsersetRewriteValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSourcePosition()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UsersetRewriteValidationError{
+				field:  "SourcePosition",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	switch m.RewriteOperation.(type) {
 
@@ -2780,6 +2896,35 @@ func (m *TupleToUserset) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetSourcePosition()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TupleToUsersetValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TupleToUsersetValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSourcePosition()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TupleToUsersetValidationError{
+				field:  "SourcePosition",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return TupleToUsersetMultiError(errors)
 	}
@@ -2913,6 +3058,35 @@ func (m *ComputedUserset) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
+	if all {
+		switch v := interface{}(m.GetSourcePosition()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ComputedUsersetValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ComputedUsersetValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSourcePosition()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ComputedUsersetValidationError{
+				field:  "SourcePosition",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return ComputedUsersetMultiError(errors)
 	}
@@ -2992,6 +3166,110 @@ var _ interface {
 } = ComputedUsersetValidationError{}
 
 var _ComputedUserset_Relation_Pattern = regexp.MustCompile("^[a-z][a-z0-9_]{1,62}[a-z0-9]$")
+
+// Validate checks the field values on SourcePosition with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *SourcePosition) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SourcePosition with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in SourcePositionMultiError,
+// or nil if none found.
+func (m *SourcePosition) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SourcePosition) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ZeroIndexedLineNumber
+
+	// no validation rules for ZeroIndexedColumnPosition
+
+	if len(errors) > 0 {
+		return SourcePositionMultiError(errors)
+	}
+
+	return nil
+}
+
+// SourcePositionMultiError is an error wrapping multiple validation errors
+// returned by SourcePosition.ValidateAll() if the designated constraints
+// aren't met.
+type SourcePositionMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SourcePositionMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SourcePositionMultiError) AllErrors() []error { return m }
+
+// SourcePositionValidationError is the validation error returned by
+// SourcePosition.Validate if the designated constraints aren't met.
+type SourcePositionValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SourcePositionValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SourcePositionValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SourcePositionValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SourcePositionValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SourcePositionValidationError) ErrorName() string { return "SourcePositionValidationError" }
+
+// Error satisfies the builtin error interface
+func (e SourcePositionValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSourcePosition.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SourcePositionValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SourcePositionValidationError{}
 
 // Validate checks the field values on AllowedRelation_PublicWildcard with the
 // rules defined in the proto definition for this message. If any rules are
@@ -3117,6 +3395,35 @@ func (m *SetOperation_Child) validate(all bool) error {
 	}
 
 	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetSourcePosition()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, SetOperation_ChildValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, SetOperation_ChildValidationError{
+					field:  "SourcePosition",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSourcePosition()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return SetOperation_ChildValidationError{
+				field:  "SourcePosition",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	switch m.ChildType.(type) {
 
