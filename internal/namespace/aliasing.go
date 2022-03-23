@@ -11,7 +11,7 @@ import (
 func computePermissionAliases(typeSystem *ValidatedNamespaceTypeSystem) (map[string]string, error) {
 	aliases := map[string]string{}
 	done := map[string]struct{}{}
-	workingSet := map[string]string{}
+	unresolvedAliases := map[string]string{}
 
 	for _, rel := range typeSystem.nsDef.Relation {
 		// Ensure the relation has a rewrite...
@@ -49,12 +49,12 @@ func computePermissionAliases(typeSystem *ValidatedNamespaceTypeSystem) (map[str
 		}
 
 		// Otherwise, add the permission to the working set.
-		workingSet[rel.Name] = aliasedPermOrRel
+		unresolvedAliases[rel.Name] = aliasedPermOrRel
 	}
 
-	for len(workingSet) > 0 {
-		startingCount := len(workingSet)
-		for relName, aliasedPermission := range workingSet {
+	for len(unresolvedAliases) > 0 {
+		startingCount := len(unresolvedAliases)
+		for relName, aliasedPermission := range unresolvedAliases {
 			if _, ok := done[aliasedPermission]; ok {
 				done[relName] = struct{}{}
 
@@ -63,13 +63,13 @@ func computePermissionAliases(typeSystem *ValidatedNamespaceTypeSystem) (map[str
 				} else {
 					aliases[relName] = aliasedPermission
 				}
-				delete(workingSet, relName)
+				delete(unresolvedAliases, relName)
 				continue
 			}
 		}
-		if len(workingSet) == startingCount {
-			keys := make([]string, 0, len(workingSet))
-			for key := range workingSet {
+		if len(unresolvedAliases) == startingCount {
+			keys := make([]string, 0, len(unresolvedAliases))
+			for key := range unresolvedAliases {
 				keys = append(keys, key)
 			}
 			sort.Strings(keys)

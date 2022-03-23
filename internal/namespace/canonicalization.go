@@ -24,6 +24,7 @@ import (
 //   definition somenamespace {
 //	    relation first: ...
 //      relation second: ...
+//      relation third: ...
 //      permission someperm = second + (first - third->something)
 //   }
 //
@@ -34,12 +35,14 @@ import (
 //               ^ index 0
 //      relation second: ...
 //               ^ index 1
+//      relation third: ...
+//               ^ index 2
 //      permission someperm = second + (first - third->something)
-//                            ^ 1       ^ 0     ^ index 2
+//                            ^ 1       ^ 0     ^ index 3
 //   }
 //
 // These indexes are then used with the rudd library to build the expression:
-//    someperm => `bdd.And(bdd.Ithvar(1), bdd.Or(bdd.Ithvar(0), bdd.NIthvar(2)))`
+//    someperm => `bdd.Or(bdd.Ithvar(1), bdd.And(bdd.Ithvar(0), bdd.NIthvar(2)))`
 //
 // The `rudd` library automatically handles associativity, and produces a hash representing the
 // canonical representation of the binary expression. These hashes can then be used for caching,
@@ -85,7 +88,7 @@ func convertRewriteToBdd(relation *core.Relation, bdd *rudd.BDD, rewrite *core.U
 		}, varMap)
 
 	case *core.UsersetRewrite_Exclusion:
-		return convertToBdd(relation, bdd, rw.Exclusion, bdd.Or, func(childIndex int, varIndex int) rudd.Node {
+		return convertToBdd(relation, bdd, rw.Exclusion, bdd.And, func(childIndex int, varIndex int) rudd.Node {
 			if childIndex == 0 {
 				return bdd.Ithvar(varIndex)
 			}

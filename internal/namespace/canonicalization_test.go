@@ -160,7 +160,7 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "60d847d0d7349127", "second": "c4be69de0d88b140"},
+			map[string]string{"first": "cccb3550c3e4308a", "second": "13f60a574fda4175"},
 		},
 		{
 			"canonicalization with arrow expressions",
@@ -269,7 +269,7 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "eec1e7c6b1beb0d6", "second": "cf8b9b0d14b1fd05"},
+			map[string]string{"first": "d9ad6ec22b2d896c", "second": "e1e754805fda025f"},
 		},
 	}
 

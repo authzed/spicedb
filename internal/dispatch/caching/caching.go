@@ -204,7 +204,9 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 			return nil, err
 		}
 
-		requestKey = dispatch.CheckRequestToKeyWithPossibleCanonical(req, relation.CanonicalCacheKey)
+		if relation.CanonicalCacheKey != "" {
+			requestKey = dispatch.CheckRequestToKeyWithCanonical(req, relation.CanonicalCacheKey)
+		}
 	}
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {

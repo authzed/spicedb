@@ -70,16 +70,15 @@ func CheckRequestToKey(req *v1.DispatchCheckRequest) string {
 	return fmt.Sprintf("check//relation/%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }
 
-// CheckRequestToKeyWithPossibleCanonical converts a check request into a cache key based possibly
-// on the canonical key, or the relation name if the canonical key is empty
-func CheckRequestToKeyWithPossibleCanonical(req *v1.DispatchCheckRequest, possibleCanonicalKey string) string {
-	if possibleCanonicalKey == "" {
-		return CheckRequestToKey(req)
+// CheckRequestToKeyWithCanonical converts a check request into a cache key based
+// on the canonical key.
+func CheckRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey string) string {
+	if canonicalKey == "" {
+		panic("given empty canonical key")
 	}
 
-	// NOTE: canonical cache keys are only unique *within* a version of a namespace, so they used
-	// essentially as a new relation name in the cache key.
-	return fmt.Sprintf("check//canonical/%s:%s#%s@%s@%s", req.ObjectAndRelation.Namespace, req.ObjectAndRelation.ObjectId, possibleCanonicalKey, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+	// NOTE: canonical cache keys are only unique *within* a version of a namespace.
+	return fmt.Sprintf("check//canonical/%s:%s#%s@%s@%s", req.ObjectAndRelation.Namespace, req.ObjectAndRelation.ObjectId, canonicalKey, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }
 
 // LookupRequestToKey converts a lookup request into a cache key
