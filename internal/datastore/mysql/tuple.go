@@ -73,24 +73,24 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 			return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 		}
 
-		res, err := mds.db.QueryContext(ctx, query, args...)
+		rows, err := mds.db.QueryContext(ctx, query, args...)
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 		}
-		defer common.LogOnError(ctx, res.Close)
+		defer common.LogOnError(ctx, rows.Close)
 
 		tupleIds := make([]int64, 0, len(clauses))
-		for res.Next() {
+		for rows.Next() {
 			var tupleID int64
-			if err := res.Scan(&tupleID); err != nil {
+			if err := rows.Scan(&tupleID); err != nil {
 				return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, err)
 			}
 
 			tupleIds = append(tupleIds, tupleID)
 		}
 
-		if res.Err() != nil {
-			return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, res.Err())
+		if rows.Err() != nil {
+			return datastore.NoRevision, fmt.Errorf(common.ErrUnableToWriteTuples, rows.Err())
 		}
 
 		if len(tupleIds) > 0 {
