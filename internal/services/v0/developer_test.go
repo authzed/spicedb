@@ -233,6 +233,31 @@ func TestEditCheck(t *testing.T) {
 				},
 			},
 		},
+		{
+			"valid nil checks",
+			`
+				definition user {}
+				definition somenamespace {
+					permission empty = nil
+				}
+			`,
+			[]*core.RelationTuple{},
+			[]*core.RelationTuple{
+				tuple.MustParse("somenamespace:someobj#empty@user:foo"),
+				tuple.MustParse("somenamespace:someobj#empty@user:anotheruser"),
+			},
+			nil,
+			[]*v0.EditCheckResult{
+				{
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#empty@user:foo")),
+					IsMember:     false,
+				},
+				{
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("somenamespace:someobj#empty@user:anotheruser")),
+					IsMember:     false,
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -763,6 +788,33 @@ assertFalse:
 			`document:somedoc#view:
 - '[user:* - {user:jimmy, user:sarah}] is <document:somedoc#viewer>'
 `,
+		},
+		{
+			"nil handling",
+			`
+		   			definition user {}
+		   			definition document {
+		   				relation viewer: user
+		   				permission view = viewer
+						permission empty = nil
+		   			}
+		   			`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:somedoc#viewer@user:jill"),
+				tuple.MustParse("document:somedoc#viewer@user:tom"),
+			},
+			`"document:somedoc#view":
+- "[user:jill] is <document:somedoc#viewer>"
+- "[user:tom] is <document:somedoc#viewer>"
+"document:somedoc#empty": []`,
+			`assertTrue:
+- document:somedoc#view@user:jill
+- document:somedoc#view@user:tom
+assertFalse:
+- document:somedoc#empty@user:jill
+- document:somedoc#empty@user:tom`,
+			nil,
+			"document:somedoc#empty: []\ndocument:somedoc#view:\n- '[user:jill] is <document:somedoc#viewer>'\n- '[user:tom] is <document:somedoc#viewer>'\n",
 		},
 	}
 

@@ -69,6 +69,26 @@ func TestGenerator(t *testing.T) {
 			true,
 		},
 		{
+			"complex permission with nil",
+			namespace.Namespace("foos/test",
+				namespace.Relation("someperm", namespace.Union(
+					namespace.Rewrite(
+						namespace.Exclusion(
+							namespace.ComputedUserset("rela"),
+							namespace.ComputedUserset("relb"),
+							namespace.TupleToUserset("rely", "relz"),
+							namespace.Nil(),
+						),
+					),
+					namespace.ComputedUserset("relc"),
+				)),
+			),
+			`definition foos/test {
+	permission someperm = (rela - relb - rely->relz - nil) + relc
+}`,
+			true,
+		},
+		{
 			"legacy relation",
 			namespace.Namespace("foos/test",
 				namespace.Relation("somerel", namespace.Union(

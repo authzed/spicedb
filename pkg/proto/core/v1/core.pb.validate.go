@@ -3584,6 +3584,37 @@ func (m *SetOperation_Child) validate(all bool) error {
 			}
 		}
 
+	case *SetOperation_Child_XNil:
+
+		if all {
+			switch v := interface{}(m.GetXNil()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, SetOperation_ChildValidationError{
+						field:  "XNil",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, SetOperation_ChildValidationError{
+						field:  "XNil",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetXNil()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return SetOperation_ChildValidationError{
+					field:  "XNil",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	default:
 		err := SetOperation_ChildValidationError{
 			field:  "ChildType",
@@ -3777,6 +3808,108 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = SetOperation_Child_ThisValidationError{}
+
+// Validate checks the field values on SetOperation_Child_Nil with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SetOperation_Child_Nil) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SetOperation_Child_Nil with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// SetOperation_Child_NilMultiError, or nil if none found.
+func (m *SetOperation_Child_Nil) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SetOperation_Child_Nil) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return SetOperation_Child_NilMultiError(errors)
+	}
+
+	return nil
+}
+
+// SetOperation_Child_NilMultiError is an error wrapping multiple validation
+// errors returned by SetOperation_Child_Nil.ValidateAll() if the designated
+// constraints aren't met.
+type SetOperation_Child_NilMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SetOperation_Child_NilMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SetOperation_Child_NilMultiError) AllErrors() []error { return m }
+
+// SetOperation_Child_NilValidationError is the validation error returned by
+// SetOperation_Child_Nil.Validate if the designated constraints aren't met.
+type SetOperation_Child_NilValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SetOperation_Child_NilValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SetOperation_Child_NilValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SetOperation_Child_NilValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SetOperation_Child_NilValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SetOperation_Child_NilValidationError) ErrorName() string {
+	return "SetOperation_Child_NilValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SetOperation_Child_NilValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSetOperation_Child_Nil.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SetOperation_Child_NilValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SetOperation_Child_NilValidationError{}
 
 // Validate checks the field values on TupleToUserset_Tupleset with the rules
 // defined in the proto definition for this message. If any rules are

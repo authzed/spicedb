@@ -21,11 +21,12 @@ func _() {
 	_ = x[NodeTypeExclusionExpression-10]
 	_ = x[NodeTypeArrowExpression-11]
 	_ = x[NodeTypeIdentifier-12]
+	_ = x[NodeTypeNilExpression-13]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifier"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpression"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 74, 92, 113, 142, 165, 192, 219, 242, 260}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 74, 92, 113, 142, 165, 192, 219, 242, 260, 281}
 
 func (i NodeType) String() string {
 	if i < 0 || i >= NodeType(len(_NodeType_index)-1) {

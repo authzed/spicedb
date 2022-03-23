@@ -298,6 +298,7 @@ func (p *sourceParser) tryConsumeArrowExpression() (AstNode, bool) {
 // ```(foo + bar)```
 // ```(foo)```
 // ```foo```
+// ```nil```
 func (p *sourceParser) tryConsumeBaseExpression() (AstNode, bool) {
 	switch {
 	// Nested expression.
@@ -313,7 +314,11 @@ func (p *sourceParser) tryConsumeBaseExpression() (AstNode, bool) {
 
 		return exprNode, true
 
-		// Identifier.
+	// Nil expression.
+	case p.isKeyword("nil"):
+		return p.tryConsumeNilExpression()
+
+	// Identifier.
 	case p.isToken(lexer.TokenTypeIdentifier):
 		return p.tryConsumeIdentifierLiteral()
 	}
@@ -336,4 +341,15 @@ func (p *sourceParser) tryConsumeIdentifierLiteral() (AstNode, bool) {
 	identifier, _ := p.consumeIdentifier()
 	identNode.Decorate(dslshape.NodeIdentiferPredicateValue, identifier)
 	return identNode, true
+}
+
+func (p *sourceParser) tryConsumeNilExpression() (AstNode, bool) {
+	if !p.isKeyword("nil") {
+		return nil, false
+	}
+
+	node := p.startNode(dslshape.NodeTypeNilExpression)
+	p.consumeKeyword("nil")
+	defer p.finishNode()
+	return node, true
 }

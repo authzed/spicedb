@@ -306,6 +306,9 @@ func translateExpressionOperationDirect(tctx translationContext, expressionOpNod
 
 		return namespace.ComputedUserset(referencedRelationName), nil
 
+	case dslshape.NodeTypeNilExpression:
+		return namespace.Nil(), nil
+
 	case dslshape.NodeTypeArrowExpression:
 		leftChild, err := expressionOpNode.Lookup(dslshape.NodeExpressionPredicateLeftExpr)
 		if err != nil {

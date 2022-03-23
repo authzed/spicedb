@@ -331,7 +331,7 @@ func TestCompile(t *testing.T) {
 			"expression permission",
 			&someTenant,
 			`definition expressioned {
-				permission foos = ((arel->brel) + crel) - drel
+				permission foos = ((arel->brel) + nil) - drel
 			}`,
 			"",
 			[]*core.NamespaceDefinition{
@@ -341,7 +341,7 @@ func TestCompile(t *testing.T) {
 							namespace.Rewrite(
 								namespace.Union(
 									namespace.TupleToUserset("arel", "brel"),
-									namespace.ComputedUserset("crel"),
+									namespace.Nil(),
 								),
 							),
 							namespace.ComputedUserset("drel"),
@@ -383,6 +383,29 @@ func TestCompile(t *testing.T) {
 					namespace.Relation("fourth",
 						namespace.Union(
 							namespace.TupleToUserset("bars", "bazs"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"permission with nil",
+			&someTenant,
+			`definition simple {
+				permission foos = aaaa + nil + bbbb;
+			}`,
+			"",
+			[]*core.NamespaceDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.Relation("foos",
+						namespace.Union(
+							namespace.Rewrite(
+								namespace.Union(
+									namespace.ComputedUserset("aaaa"),
+									namespace.Nil(),
+								),
+							),
+							namespace.ComputedUserset("bbbb"),
 						),
 					),
 				),

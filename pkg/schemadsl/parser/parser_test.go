@@ -108,6 +108,7 @@ func TestParser(t *testing.T) {
 		{"multiple parens test", "multiparen"},
 		{"wildcard test", "wildcard"},
 		{"broken wildcard test", "brokenwildcard"},
+		{"nil test", "nil"},
 	}
 
 	for _, test := range parserTests {

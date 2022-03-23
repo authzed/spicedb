@@ -172,6 +172,7 @@ message UsersetRewrite {
 message SetOperation {
   message Child {
     message This {}
+    message Nil {}
 
     oneof child_type {
       option (validate.required) = true;
@@ -183,6 +184,7 @@ message SetOperation {
       [ (validate.rules).message.required = true ];
       UsersetRewrite userset_rewrite = 4
       [ (validate.rules).message.required = true ];
+      Nil _nil = 6;
     }
 
     SourcePosition source_position = 5;

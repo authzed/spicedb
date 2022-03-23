@@ -501,13 +501,21 @@ func (cl *ConcurrentLookup) processSetOperation(ctx context.Context, req Validat
 			requests = append(requests, cl.processRewrite(ctx, req, nsdef, typeSystem, child.UsersetRewrite))
 		case *core.SetOperation_Child_TupleToUserset:
 			requests = append(requests, cl.processTupleToUserset(ctx, req, nsdef, typeSystem, child.TupleToUserset))
+		case *core.SetOperation_Child_XNil:
+			requests = append(requests, emptyLookup(ctx, req))
 		default:
-			return returnResult(lookupResultError(req, fmt.Errorf("unknown set operation child"), emptyMetadata))
+			return returnResult(lookupResultError(req, fmt.Errorf("unknown set operation child `%T` in check", child), emptyMetadata))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- LookupResult) {
 		log.Ctx(ctx).Trace().Object("setOperation", req).Stringer("operation", so).Send()
 		resultChan <- reducer(ctx, req, req.Limit, requests)
+	}
+}
+
+func emptyLookup(ctx context.Context, req ValidatedLookupRequest) ReduceableLookupFunc {
+	return func(ctx context.Context, resultChan chan<- LookupResult) {
+		resultChan <- lookupResult(req, []*core.ObjectAndRelation{}, emptyMetadata)
 	}
 }
 
