@@ -536,8 +536,14 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 	}
 
 	var lower, upper dbsql.NullInt64
+	// Setting QuerySimpleProtocol to true bypasses the pgx statement prep and caching.
+	// Using a non-prepared statement prevents the automatic plan selection behavior that can lead Postgres selecting
+	// a poor performing general plan after 5 custom plan queries. Non-prepared statements will use a custom plan each time.
+	// https://github.com/authzed/spicedb/issues/486
 	err = pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
+		datastore.SeparateContextWithTracing(ctx),
+		sql,
+		append([]interface{}{pgx.QuerySimpleProtocol(true)}, args...)...,
 	).Scan(&lower, &upper)
 	if err != nil {
 		return 0, 0, err
