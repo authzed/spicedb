@@ -12,7 +12,6 @@ import (
 	"github.com/alecthomas/units"
 	"github.com/dlmiddlecote/sqlstats"
 	"github.com/go-sql-driver/mysql"
-	_ "github.com/go-sql-driver/mysql" // nolint: blank-imports
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"

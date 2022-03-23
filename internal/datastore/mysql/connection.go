@@ -29,7 +29,7 @@ var (
 	connectCount = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
-		Name:      "mysql_connect_count",
+		Name:      "mysql_connect_count_total",
 		Help:      "number of mysql connections opened.",
 	}, []string{"error"})
 )
