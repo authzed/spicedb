@@ -276,6 +276,7 @@ func newMysqlDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.GCInterval(opts.GCInterval),
 		mysql.RevisionFuzzingTimedelta(opts.RevisionQuantization),
 		mysql.TablePrefix(opts.TablePrefix),
+		mysql.EnablePrometheusStats(),
 	)
 }
 

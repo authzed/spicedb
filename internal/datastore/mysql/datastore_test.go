@@ -15,6 +15,7 @@ import (
 
 	"github.com/alecthomas/units"
 	"github.com/ory/dockertest/v3"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
@@ -211,6 +212,26 @@ func TestIsReadyRace(t *testing.T) {
 	revision, err = store.HeadRevision(ctx)
 	req.NoError(err)
 	req.Equal(common.RevisionFromTransaction(1), revision)
+}
+
+func TestPrometheusCollector(t *testing.T) {
+	req := require.New(t)
+
+	connectStr := setupDatabase()
+	store, err := NewMysqlDatastore(connectStr, EnablePrometheusStats())
+	req.NoError(err)
+	_, err = store.IsReady(context.Background())
+	req.NoError(err)
+
+	metrics, err := prometheus.DefaultGatherer.Gather()
+	req.NoError(err, metrics)
+	var found bool
+	for _, metric := range metrics {
+		if "go_sql_stats_connections_open" == metric.GetName() {
+			found = true
+		}
+	}
+	req.True(found, "mysql datastore did not issue prometheus metrics")
 }
 
 func TestGarbageCollection(t *testing.T) {
