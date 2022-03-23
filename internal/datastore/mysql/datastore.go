@@ -11,6 +11,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/alecthomas/units"
 	"github.com/dlmiddlecote/sqlstats"
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql" // nolint: blank-imports
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
@@ -46,10 +47,15 @@ type sqlFilter interface {
 }
 
 func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, error) {
-	db, err := sql.Open("mysql", url)
+	connector, err := mysql.MySQLDriver{}.OpenConnector(url)
 	if err != nil {
-		return nil, fmt.Errorf("NewMysqlDatastore: failed to open database: %w", err)
+		return nil, fmt.Errorf("NewMysqlDatastore: failed to create connector: %w", err)
 	}
+	connector, err = instrumentConnector(connector)
+	if err != nil {
+		return nil, fmt.Errorf("NewMysqlDatastore: unable to instrument connector: %w", err)
+	}
+	db := sql.OpenDB(connector)
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
