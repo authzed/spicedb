@@ -80,7 +80,7 @@ func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
 }
 
 func createMigrationDriverWithPrefix(connectStr string, prefix string) (*migrations.MysqlDriver, error) {
-	migrationDriver, err := migrations.NewMysqlDriver(connectStr, prefix)
+	migrationDriver, err := migrations.NewMysqlDriverFromDSN(connectStr, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
 	}
@@ -148,7 +148,7 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 
 	for rows.Next() {
 		var tbl string
-		rows.Scan(&tbl)
+		req.NoError(rows.Scan(&tbl))
 		req.Contains(tbl, "spicedb_")
 	}
 	req.NoError(rows.Err())

@@ -119,7 +119,7 @@ func datastoreManagerAndDriver(datastoreEngine, dbURL string, tablePrefix string
 
 		migrationManager = psqlmigrations.Manager
 	} else if datastoreEngine == "mysql" {
-		migrationDriver, err = mysqlmigrations.NewMysqlDriver(dbURL, tablePrefix)
+		migrationDriver, err = mysqlmigrations.NewMysqlDriverFromDSN(dbURL, tablePrefix)
 		if err != nil {
 			return nil, nil, err
 		}

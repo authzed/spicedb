@@ -37,8 +37,8 @@ type MysqlDriver struct {
    Connectors that support DNS SRV can use the mysqlx+srv scheme (see Connections Using DNS SRV Records). */
 // schema: The default database for the connection. If no database is specified, the connection has no default database.
 
-// NewMysqlDriver creates a new driver with active connections to the database specified.
-func NewMysqlDriver(url string, tablePrefix string) (*MysqlDriver, error) {
+// NewMysqlDriverFromDSN creates a new migration driver with a connection pool to the database DSN specified.
+func NewMysqlDriverFromDSN(url string, tablePrefix string) (*MysqlDriver, error) {
 	// TODO: we're currently using a DSN here, not a URI
 	dbConfig, err := sqlDriver.ParseDSN(url)
 	if err != nil {
@@ -53,7 +53,12 @@ func NewMysqlDriver(url string, tablePrefix string) (*MysqlDriver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
 	}
-	return &MysqlDriver{db, tablePrefix}, nil
+	return NewMysqlDriverFromDB(db, tablePrefix), nil
+}
+
+// NewMysqlDriverFromDB creates a new migration driver with a connection pool specified upfront.
+func NewMysqlDriverFromDB(db *sql.DB, tablePrefix string) *MysqlDriver {
+	return &MysqlDriver{db, tablePrefix}
 }
 
 func revisionToColumnName(revision string) string {

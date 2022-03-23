@@ -315,11 +315,7 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	driver, err := migrations.NewMysqlDriver(mds.url, mds.tablePrefix)
-	if err != nil {
-		return false, err
-	}
-
+	driver := migrations.NewMysqlDriverFromDB(mds.db, mds.tablePrefix)
 	currentRevision, err := driver.Version()
 	if err != nil {
 		return false, err
