@@ -56,6 +56,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.StreamingMiddleware = c.StreamingMiddleware
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
+		to.TelemetryEndpoint = c.TelemetryEndpoint
 	}
 }
 
@@ -309,5 +310,12 @@ func WithDispatchStreamingMiddleware(dispatchStreamingMiddleware grpc.StreamServ
 func SetDispatchStreamingMiddleware(dispatchStreamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
 	return func(c *Config) {
 		c.DispatchStreamingMiddleware = dispatchStreamingMiddleware
+	}
+}
+
+// WithTelemetryEndpoint returns an option that can set TelemetryEndpoint on a Config
+func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
+	return func(c *Config) {
+		c.TelemetryEndpoint = telemetryEndpoint
 	}
 }

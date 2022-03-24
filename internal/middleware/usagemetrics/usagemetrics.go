@@ -12,40 +12,17 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
+	"github.com/authzed/spicedb/internal/telemetry"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-var dispatchBuckets = []float64{1, 5, 10, 25, 50, 100, 250}
-
 var dispatchedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "spicedb",
-	Subsystem: "services",
-	Name:      "dispatched_count",
-	Help:      "dispatch count per api call distribution in seconds.",
-	Buckets:   dispatchBuckets,
-}, []string{"method"})
-
-var cachedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "services",
-	Name:      "cached_count",
-	Help:      "dispatches avoid by caching per api call in seconds.",
-	Buckets:   dispatchBuckets,
-}, []string{"method"})
-
-var dispatchedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "services",
-	Name:      "dispatched_total",
-	Help:      "dispatch counts.",
-}, []string{"method"})
-
-var cachedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "services",
-	Name:      "cached_total",
-	Help:      "dispatches avoid by caching.",
-}, []string{"method"})
+	Subsystem: "telemetry",
+	Name:      "dispatches",
+	Help:      "Histogram of cluster dispatches performed by the instance.",
+	Buckets:   []float64{1, 5, 10, 25, 50, 100, 250},
+}, []string{"cluster_id", "node_id", "method", "cached"})
 
 type reporter struct{}
 
@@ -88,11 +65,8 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 }
 
 func annotateAndReportForMetadata(ctx context.Context, methodName string, metadata *dispatch.ResponseMeta) error {
-	dispatchedCountHistogram.WithLabelValues(methodName).Observe(float64(metadata.DispatchCount))
-	cachedCountHistogram.WithLabelValues(methodName).Observe(float64(metadata.CachedDispatchCount))
-
-	dispatchedCounter.WithLabelValues(methodName).Add(float64(metadata.DispatchCount))
-	cachedCounter.WithLabelValues(methodName).Add(float64(metadata.CachedDispatchCount))
+	dispatchedCountHistogram.WithLabelValues(telemetry.ClusterID, telemetry.NodeID, methodName, "false").Observe(float64(metadata.DispatchCount))
+	dispatchedCountHistogram.WithLabelValues(methodName, "true").Observe(float64(metadata.CachedDispatchCount))
 
 	return responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
 		responsemeta.DispatchedOperationsCount: strconv.Itoa(int(metadata.DispatchCount)),
