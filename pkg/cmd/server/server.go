@@ -28,6 +28,7 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/balancer"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
@@ -85,6 +86,9 @@ type Config struct {
 	// Middleware for dispatch
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor
+
+	// Telemetry Endpoint
+	TelemetryEndpoint string
 }
 
 // Complete validates the config and fills out defaults.
@@ -265,6 +269,17 @@ func (c *Config) Complete() (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to initialize dashboard server: %w", err)
 	}
 
+	if err := telemetry.ValidateEndpoint(c.TelemetryEndpoint); err != nil {
+		return nil, fmt.Errorf("failed to initialize telemetry reporter: %w", err)
+	}
+
+	telemetry.InitializeLabels(
+		c.DispatchUpstreamAddr,
+		c.DatastoreConfig.URI,
+		c.DatastoreConfig.Engine,
+	)
+	telemetry.RegisterTelemetryCollector(ds)
+
 	return &completedServerConfig{
 		gRPCServer:          grpcServer,
 		dispatchGRPCServer:  dispatchGrpcServer,
@@ -274,6 +289,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		unaryMiddleware:     c.UnaryMiddleware,
 		streamingMiddleware: c.StreamingMiddleware,
 		presharedKey:        c.PresharedKey,
+		telemetryEndpoint:   c.TelemetryEndpoint,
 		closeFunc: func() {
 			if err := ds.Close(); err != nil {
 				log.Warn().Err(err).Msg("couldn't close datastore")
@@ -309,6 +325,7 @@ type completedServerConfig struct {
 	gatewayServer      util.RunnableHTTPServer
 	metricsServer      util.RunnableHTTPServer
 	dashboardServer    util.RunnableHTTPServer
+	telemetryEndpoint  string
 
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
@@ -368,6 +385,8 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 
 	g.Go(c.dashboardServer.ListenAndServe)
 	g.Go(stopOnCancel(c.dashboardServer.Close))
+
+	g.Go(func() error { return telemetry.ReportForever(ctx, c.telemetryEndpoint) })
 
 	g.Go(stopOnCancel(c.closeFunc))
 

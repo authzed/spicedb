@@ -9,6 +9,7 @@ require (
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/aws/aws-sdk-go v1.43.11
 	github.com/benbjohnson/clock v1.3.0
+	github.com/cenkalti/backoff/v4 v4.1.2
 	github.com/cespare/xxhash v1.1.0
 	github.com/containerd/continuity v0.2.1 // indirect
 	github.com/dave/jennifer v1.4.1 // indirect
@@ -22,6 +23,7 @@ require (
 	github.com/fatih/structs v1.1.0
 	github.com/go-co-op/gocron v1.13.0
 	github.com/gogo/protobuf v1.3.2
+	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.7
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
@@ -44,6 +46,9 @@ require (
 	github.com/ngrok/sqlmw v0.0.0-20211220175533-9d16fdc47b31
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.32.1
+	github.com/prometheus/prometheus v2.5.0+incompatible
 	github.com/rs/cors v1.8.2
 	github.com/rs/zerolog v1.26.1
 	github.com/scylladb/go-set v1.0.2
