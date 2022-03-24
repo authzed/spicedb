@@ -30,8 +30,8 @@ import (
 
 func RegisterDevtoolsFlags(cmd *cobra.Command) {
 	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "grpc", "gRPC", ":50051", true)
-	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
-	cobrautil.RegisterHttpServerFlags(cmd.Flags(), "http", "download", ":8443", false)
+	cobrautil.RegisterHTTPServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
+	cobrautil.RegisterHTTPServerFlags(cmd.Flags(), "http", "download", ":8443", false)
 
 	cmd.Flags().String("share-store", "inmemory", "kind of share store to use")
 	cmd.Flags().String("share-store-salt", "", "salt for share store hashing")
@@ -77,19 +77,19 @@ func runfunc(cmd *cobra.Command, args []string) error {
 	}()
 
 	// Start the metrics endpoint.
-	metricsSrv := cobrautil.HttpServerFromFlags(cmd, "metrics")
+	metricsSrv := cobrautil.HTTPServerFromFlags(cmd, "metrics")
 	metricsSrv.Handler = server.MetricsHandler()
 	go func() {
-		if err := cobrautil.HttpListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
+		if err := cobrautil.HTTPListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
 
 	// start the http download api
-	downloadSrv := cobrautil.HttpServerFromFlags(cmd, "http")
+	downloadSrv := cobrautil.HTTPServerFromFlags(cmd, "http")
 	downloadSrv.Handler = v0svc.NewHTTPDownloadServer(cobrautil.MustGetString(cmd, "http-addr"), shareStore).Handler
 	go func() {
-		if err := cobrautil.HttpListenFromFlags(cmd, "http", downloadSrv, zerolog.InfoLevel); err != nil {
+		if err := cobrautil.HTTPListenFromFlags(cmd, "http", downloadSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving download http api")
 		}
 	}()
