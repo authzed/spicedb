@@ -356,7 +356,7 @@ func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highes
 }
 
 func (pgd *pgDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
-	sql, args, err := psql.Select("id").From(tableName).Where(filter).ToSql()
+	sql, args, err := psql.Select("id").From(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
 	}
