@@ -34,6 +34,7 @@ type GRPCServerConfig struct {
 	Enabled      bool
 	BufferSize   int
 	ClientCAPath string
+	MaxWorkers   uint32
 
 	flagPrefix string
 }
@@ -56,6 +57,7 @@ func RegisterGRPCServerFlags(flags *pflag.FlagSet, config *GRPCServerConfig, fla
 	flags.StringVar(&config.TLSKeyPath, flagPrefix+"-tls-key-path", "", "local path to the TLS key used to serve "+serviceName)
 	flags.DurationVar(&config.MaxConnAge, flagPrefix+"-max-conn-age", 30*time.Second, "how long a connection serving "+serviceName+" should be able to live")
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" gRPC server")
+	flags.Uint32Var(&config.MaxWorkers, flagPrefix+"-max-workers", 0, "set the number of workers for this server (0 value means 1 worker per request)")
 }
 
 type (
@@ -73,7 +75,8 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 	}
 	opts = append(opts, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge: c.MaxConnAge,
-	}))
+	}), grpc.NumStreamWorkers(c.MaxWorkers))
+
 	tlsOpts, err := c.tlsOpts()
 	if err != nil {
 		return nil, err
@@ -90,7 +93,7 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		return nil, fmt.Errorf("failed to listen on addr for gRPC server: %w", err)
 	}
 	log.WithLevel(level).Str("addr", c.Address).Str("network", c.Network).
-		Str("prefix", c.flagPrefix).Msg("grpc server started listening")
+		Str("prefix", c.flagPrefix).Uint32("workers", c.MaxWorkers).Msg("grpc server started listening")
 
 	srv := grpc.NewServer(opts...)
 	svcRegistrationFn(srv)
