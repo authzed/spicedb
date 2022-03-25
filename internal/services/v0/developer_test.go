@@ -816,6 +816,35 @@ assertFalse:
 			nil,
 			"document:somedoc#empty: []\ndocument:somedoc#view:\n- '[user:jill] is <document:somedoc#viewer>'\n- '[user:tom] is <document:somedoc#viewer>'\n",
 		},
+		{
+			"no expected subject or relation",
+			`
+		   			definition user {}
+		   			definition document {
+		   				relation viewer: user
+		   				permission view = viewer
+		   			}
+		   			`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:somedoc#viewer@user:jill"),
+				tuple.MustParse("document:somedoc#viewer@user:tom"),
+			},
+			`"document:somedoc#view":
+- "is <document:somedoc#viewer>"
+- "[user:tom] is "`,
+			`assertTrue:
+- document:somedoc#view@user:jill
+- document:somedoc#view@user:tom`,
+			&v0.DeveloperError{
+				Message: "For object and permission/relation `document:somedoc#view`, no expected subject specified in `is <document:somedoc#viewer>`",
+				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
+				Source:  v0.DeveloperError_VALIDATION_YAML,
+				Context: `is <document:somedoc#viewer>`,
+				Line:    2,
+				Column:  3,
+			},
+			"document:somedoc#view:\n- '[user:jill] is <document:somedoc#viewer>'\n- '[user:tom] is <document:somedoc#viewer>'\n",
+		},
 	}
 
 	for _, tc := range tests {
