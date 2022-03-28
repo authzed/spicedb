@@ -15,8 +15,10 @@ const (
 	defaultGarbageCollectionWindow           = 24 * time.Hour
 	defaultGarbageCollectionInterval         = time.Minute * 3
 	defaultGarbageCollectionMaxOperationTime = time.Minute
-
-	defaultWatchBufferLength = 128
+	maxOpenConns                             = 20
+	defaultConnMaxIdleTime                   = 30 * time.Minute
+	defaultConnMaxLifetime                   = 30 * time.Minute
+	defaultWatchBufferLength                 = 128
 )
 
 type mysqlOptions struct {
@@ -28,6 +30,9 @@ type mysqlOptions struct {
 	watchBufferLength         uint16
 	tablePrefix               string
 	enablePrometheusStats     bool
+	maxOpenConns              int
+	connMaxIdleTime           time.Duration
+	connMaxLifetime           time.Duration
 }
 
 // Option provides the facility to configure how clients within the
@@ -41,6 +46,9 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		gcMaxOperationTime:        defaultGarbageCollectionMaxOperationTime,
 		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
 		watchBufferLength:         defaultWatchBufferLength,
+		maxOpenConns:              maxOpenConns,
+		connMaxIdleTime:           defaultConnMaxIdleTime,
+		connMaxLifetime:           defaultConnMaxLifetime,
 	}
 
 	for _, option := range options {
@@ -110,5 +118,37 @@ func TablePrefix(prefix string) Option {
 func EnablePrometheusStats() Option {
 	return func(mo *mysqlOptions) {
 		mo.enablePrometheusStats = true
+	}
+}
+
+// ConnMaxIdleTime is the duration after which an idle connection will be
+// automatically closed.
+// See https://pkg.go.dev/database/sql#DB.SetConnMaxIdleTime/
+//
+// This value defaults to having no maximum.
+func ConnMaxIdleTime(idle time.Duration) Option {
+	return func(po *mysqlOptions) {
+		po.connMaxIdleTime = idle
+	}
+}
+
+// ConnMaxLifetime is the duration since creation after which a connection will
+// be automatically closed.
+// See https://pkg.go.dev/database/sql#DB.SetConnMaxLifetime
+//
+// This value defaults to having no maximum.
+func ConnMaxLifetime(lifetime time.Duration) Option {
+	return func(po *mysqlOptions) {
+		po.connMaxLifetime = lifetime
+	}
+}
+
+// MaxOpenConns is the maximum size of the connection pool.
+// See https://pkg.go.dev/database/sql#DB.SetMaxOpenConns
+//
+// This value defaults to having no maximum.
+func MaxOpenConns(conns int) Option {
+	return func(po *mysqlOptions) {
+		po.maxOpenConns = conns
 	}
 }

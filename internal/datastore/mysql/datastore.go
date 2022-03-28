@@ -67,6 +67,10 @@ func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, erro
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 	}
+	db.SetConnMaxLifetime(config.connMaxLifetime)
+	db.SetConnMaxIdleTime(config.connMaxIdleTime)
+	db.SetMaxOpenConns(config.maxOpenConns)
+	db.SetMaxIdleConns(config.maxOpenConns)
 
 	tableNamespace := tableNamespace(config.tablePrefix)
 	tableTransaction := tableTransaction(config.tablePrefix)
