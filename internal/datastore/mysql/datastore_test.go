@@ -225,13 +225,17 @@ func TestPrometheusCollector(t *testing.T) {
 
 	metrics, err := prometheus.DefaultGatherer.Gather()
 	req.NoError(err, metrics)
-	var found bool
+	var collectorStatsFound, connectorStatsFound bool
 	for _, metric := range metrics {
 		if "go_sql_stats_connections_open" == metric.GetName() {
-			found = true
+			collectorStatsFound = true
+		}
+		if "spicedb_datastore_mysql_connect_count_total" == metric.GetName() {
+			connectorStatsFound = true
 		}
 	}
-	req.True(found, "mysql datastore did not issue prometheus metrics")
+	req.True(collectorStatsFound, "mysql datastore did not issue prometheus metrics")
+	req.True(connectorStatsFound, "mysql datastore connector did not issue prometheus metrics")
 }
 
 func TestGarbageCollection(t *testing.T) {
