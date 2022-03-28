@@ -89,6 +89,18 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects,
 	encounteredSubjects := map[string]struct{}{}
 	for _, expectedSubject := range expectedSubjects {
 		subjectWithExceptions := expectedSubject.SubjectWithExceptions
+		if subjectWithExceptions == nil {
+			failures = append(failures, &v0.DeveloperError{
+				Message: fmt.Sprintf("For object and permission/relation `%s`, no expected subject specified in `%s`", tuple.StringONR(onr), expectedSubject.ValidationString),
+				Source:  v0.DeveloperError_VALIDATION_YAML,
+				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
+				Context: string(expectedSubject.ValidationString),
+				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
+				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
+			})
+			continue
+		}
+
 		encounteredSubjects[tuple.StringONR(subjectWithExceptions.Subject)] = struct{}{}
 
 		subject, ok := fs.LookupSubject(subjectWithExceptions.Subject)

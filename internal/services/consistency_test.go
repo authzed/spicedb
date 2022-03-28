@@ -435,6 +435,7 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 		for _, expectedSubject := range expectedSubjects {
 			onr := onrKey.ObjectAndRelation
 			subjectWithExceptions := expectedSubject.SubjectWithExceptions
+			require.NotNil(t, subjectWithExceptions, "Found expected relation without subject: %s", expectedSubject.ValidationString)
 			require.Nil(t, err)
 			require.True(t,
 				(vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject) == isMember ||

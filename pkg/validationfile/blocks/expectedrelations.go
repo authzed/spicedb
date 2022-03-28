@@ -86,7 +86,7 @@ type ExpectedSubject struct {
 	// Example: `[tenant/user:someuser#...] is <tenant/document:example#viewer>`
 	ValidationString ValidationString
 
-	// Subject is the subject expected.
+	// Subject is the subject expected. May be nil if not defined in the line.
 	SubjectWithExceptions *SubjectWithExceptions
 
 	// Resources are the resources under which the subject is found.
