@@ -1,6 +1,6 @@
 ---
 name: "Build & Test"
-on:
+on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
@@ -33,46 +33,58 @@ on:
       - "proto/**"
 jobs:
   build:
-    name: "Build"
+    name: "Build Binary"
     runs-on: "ubuntu-latest"
     steps:
-      - uses: "actions/checkout@v2"
-      - uses: "actions/setup-go@v2"
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
         with:
           go-version: "^1.17"
-      - name: "Build"
-        run: "go build ./cmd/..."
+      - uses: "authzed/actions/go-build@main"
+
+  image-build:
+    name: "Build Container Image"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
+        with:
+          go-version: "^1.17"
+      - uses: "authzed/actions/docker-build@main"
+      - uses: "authzed/actions/go-test@main"
+        with:
+          tags: "docker"
 
   unit:
     name: "Unit"
     runs-on: "ubuntu-latest"
     steps:
-      - uses: "actions/checkout@v2"
-      - uses: "actions/setup-go@v2"
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
         with:
           go-version: "^1.17"
-      - name: "Test"
-        run: "go test -race -timeout 20m ./..."
+      - uses: "authzed/actions/go-test@main"
 
   integration:
     name: "Integration"
     runs-on: "ubuntu-latest"
     steps:
-      - uses: "actions/checkout@v2"
-      - uses: "actions/setup-go@v2"
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
         with:
           go-version: "^1.17"
-      - name: "Full Datastore Integration Tests"
-        run: "go test -tags ci ./..."
+      - uses: "authzed/actions/go-test@main"
+        with:
+          tags: "ci"
 
   e2e:
     name: "E2E"
     runs-on: "ubuntu-latest"
     steps:
-      - uses: "actions/checkout@v2"
-      - uses: "actions/setup-go@v2"
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
         with:
-          go-version: "^1.16"
+          go-version: "^1.17"
       - name: "Cache Binaries"
         id: "cache-binaries"
         uses: "actions/cache@v2"
@@ -117,8 +129,8 @@ jobs:
     name: "Generate Protobufs"
     runs-on: "ubuntu-latest"
     steps:
-      - uses: "actions/checkout@v2"
-      - uses: "actions/setup-go@v2"
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
         with:
           go-version: "^1.17"
       - name: "Install Go Protobuf plugins"
@@ -126,11 +138,7 @@ jobs:
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
           go install github.com/envoyproxy/protoc-gen-validate@v0.6.7
-      - uses: "bufbuild/buf-setup-action@v0.6.0"
-        with:
-          version: "1.1.0"
-      - name: "Generate & Diff Protos"
-        run: "./buf.gen.yaml && git diff --text && bash -c '[ $(git status --porcelain | tee /dev/fd/2 | wc -c) -eq 0 ]'"
+      - uses: "authzed/actions/buf-generate@main"
       - uses: "bufbuild/buf-breaking-action@v0.4.0"
         if: "github.event_name == 'pull_request'"
         env:
@@ -140,24 +148,3 @@ jobs:
           input: "proto/internal"
           against: "https://github.com/authzed/spicedb.git#branch=main,subdir=proto/internal"
           buf_token: "${{ secrets.BUF_REGISTRY_TOKEN }}"
-
-  image-build:
-    name: "Verify Image"
-    runs-on: "ubuntu-latest"
-    steps:
-      - name: "Check out the repo"
-        uses: "actions/checkout@v2"
-      - uses: "docker/setup-qemu-action@v1"
-      - uses: "docker/setup-buildx-action@v1"
-        with:
-          driver-opts: "image=moby/buildkit:master"
-      - name: "Build the container image"
-        uses: "docker/build-push-action@v1"
-        with:
-          push: false
-          tags: "latest"
-      - uses: "actions/setup-go@v2"
-        with:
-          go-version: "^1.17"
-      - name: "Test with image"
-        run: "go test -tags docker cmd/spicedb/*_test.go"
