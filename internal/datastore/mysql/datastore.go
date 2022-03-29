@@ -46,27 +46,34 @@ type sqlFilter interface {
 }
 
 func NewMysqlDatastore(url string, options ...Option) (datastore.Datastore, error) {
-	connector, err := mysql.MySQLDriver{}.OpenConnector(url)
-	if err != nil {
-		return nil, fmt.Errorf("NewMysqlDatastore: failed to create connector: %w", err)
-	}
-	connector, err = instrumentConnector(connector)
-	if err != nil {
-		return nil, fmt.Errorf("NewMysqlDatastore: unable to instrument connector: %w", err)
-	}
-	db := sql.OpenDB(connector)
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
+	connector, err := mysql.MySQLDriver{}.OpenConnector(url)
+	if err != nil {
+		return nil, fmt.Errorf("NewMysqlDatastore: failed to create connector: %w", err)
+	}
+	var db *sql.DB
 	if config.enablePrometheusStats {
+		connector, err = instrumentConnector(connector)
+		if err != nil {
+			return nil, fmt.Errorf("NewMysqlDatastore: unable to instrument connector: %w", err)
+		}
+		db = sql.OpenDB(connector)
 		// Create a new collector, the name will be used as a label on the metrics
 		collector := sqlstats.NewStatsCollector("spicedb", db)
 		err := prometheus.Register(collector)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
+	} else {
+		db = sql.OpenDB(connector)
 	}
+	db.SetConnMaxLifetime(config.connMaxLifetime)
+	db.SetConnMaxIdleTime(config.connMaxIdleTime)
+	db.SetMaxOpenConns(config.maxOpenConns)
+	db.SetMaxIdleConns(config.maxOpenConns)
 
 	tableNamespace := tableNamespace(config.tablePrefix)
 	tableTransaction := tableTransaction(config.tablePrefix)
