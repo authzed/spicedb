@@ -159,6 +159,15 @@ func (m *Manager) HeadRevision() (string, error) {
 	return allHeads[0], nil
 }
 
+func (m *Manager) IsHeadCompatible(revision string) (bool, error) {
+	headRevision, err := m.HeadRevision()
+	if err != nil {
+		return false, err
+	}
+	migration := m.migrations[headRevision]
+	return revision == migration.version || revision == migration.replaces, nil
+}
+
 func collectMigrationsInRange(starting, through string, all map[string]migration) ([]migration, error) {
 	var found []migration
 
