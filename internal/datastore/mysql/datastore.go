@@ -328,34 +328,33 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 	}
 
 	driver := migrations.NewMysqlDriverFromDB(mds.db, mds.tablePrefix)
-	currentRevision, err := driver.Version()
+	currentMigrationRevision, err := driver.Version()
 	if err != nil {
 		return false, err
 	}
 
-	headRevision, err := migrations.Manager.HeadRevision()
+	compatible, err := migrations.Manager.IsHeadCompatible(currentMigrationRevision)
 	if err != nil {
 		return false, err
 	}
-
-	if headRevision != currentRevision {
+	if !compatible {
 		return false, nil
 	}
 
 	// seed base transaction if not present
-	revision, err := mds.HeadRevision(ctx)
+	txRevision, err := mds.HeadRevision(ctx)
 	if err != nil {
 		return false, err
 	}
-	if revision == datastore.NoRevision {
+	if txRevision == datastore.NoRevision {
 		baseRevision, err := mds.seedBaseTransaction(ctx)
 		if err != nil {
 			return false, err
 		}
 		if baseRevision != datastore.NoRevision {
-			// no revision here indicates that the base transaction was already seeded when this write
+			// no txRevision here indicates that the base transaction was already seeded when this write
 			// was committed.  only log for the process which actually seeds the transaction.
-			log.Info().Uint64("revision", baseRevision.BigInt().Uint64()).Msg("seeded base datastore revision")
+			log.Info().Uint64("txRevision", baseRevision.BigInt().Uint64()).Msg("seeded base datastore txRevision")
 		}
 	}
 	return true, nil

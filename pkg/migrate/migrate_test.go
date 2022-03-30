@@ -126,6 +126,33 @@ func TestComputeHeadRevision(t *testing.T) {
 	}
 }
 
+func TestIsHeadCompatible(t *testing.T) {
+	testCases := []struct {
+		migrations       map[string]migration
+		currentMigration string
+		expectedResult   bool
+		expectError      bool
+	}{
+		{noMigrations, "", false, true},
+		{simpleMigrations, "123", true, false},
+		{singleHeadedChain, "789", true, false},
+		{singleHeadedChain, "456", true, false},
+		{singleHeadedChain, "123", false, false},
+		{multiHeadedChain, "", false, true},
+		{missingEarlyMigrations, "10", true, false},
+		{missingEarlyMigrations, "789", true, false},
+		{missingEarlyMigrations, "456", false, false},
+	}
+
+	req := require.New(t)
+	for _, tc := range testCases {
+		m := Manager{migrations: tc.migrations}
+		compatible, err := m.IsHeadCompatible(tc.currentMigration)
+		req.Equal(compatible, tc.expectedResult)
+		req.Equal(tc.expectError, err != nil, err)
+	}
+}
+
 var noMigrations = map[string]migration{}
 
 var simpleMigrations = map[string]migration{
