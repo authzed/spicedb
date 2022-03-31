@@ -173,3 +173,7 @@ func (vd validatingDatastore) ListNamespaces(
 func (vd validatingDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
 	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
 }
+
+func (vd validatingDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	return vd.delegate.Statistics(ctx)
+}

@@ -114,4 +114,8 @@ func (md *MockedDatastore) ListNamespaces(ctx context.Context, revision datastor
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
 
+func (md *MockedDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	return datastore.Stats{}, nil
+}
+
 var _ datastore.Datastore = &MockedDatastore{}
