@@ -227,6 +227,11 @@ func (dm *delegateMock) DeleteNamespace(ctx context.Context, nsName string) (dat
 	panic("shouldn't ever call write method on delegate")
 }
 
+func (dm *delegateMock) Statistics(ctx context.Context) (datastore.Stats, error) {
+	args := dm.Called()
+	return args.Get(0).(datastore.Stats), args.Error(1)
+}
+
 func (dm *delegateMock) QueryTuples(
 	ctx context.Context,
 	filter *v1.RelationshipFilter,

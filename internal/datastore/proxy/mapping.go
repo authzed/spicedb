@@ -283,6 +283,10 @@ func (mp mappingProxy) CheckRevision(ctx context.Context, revision datastore.Rev
 	return mp.delegate.CheckRevision(ctx, revision)
 }
 
+func (mp mappingProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
+	return mp.delegate.Statistics(ctx)
+}
+
 func (mp mappingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	nsDefs, err := mp.delegate.ListNamespaces(ctx, revision)
 	if err != nil {
