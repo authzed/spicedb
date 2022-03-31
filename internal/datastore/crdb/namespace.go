@@ -126,18 +126,24 @@ func (cds *crdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (d
 		}
 
 		deleteTupleSQL, deleteTupleArgs, err := queryDeleteTuples.
-			Suffix(queryReturningTimestamp).
 			Where(sq.Eq{colNamespace: nsName}).
 			ToSql()
 		if err != nil {
 			return err
 		}
 
-		rerr := tx.QueryRow(ctx, deleteTupleSQL, deleteTupleArgs...).Scan(&hlcNow)
-		if errors.Is(rerr, pgx.ErrNoRows) {
+		modified, rerr := tx.Exec(ctx, deleteTupleSQL, deleteTupleArgs...)
+		if rerr != nil {
+			return rerr
+		}
+
+		numRowsDeleted := modified.RowsAffected()
+		if numRowsDeleted == 0 {
 			return nil
 		}
-		return rerr
+
+		hlcNow, err = updateCounter(ctx, tx, -1*numRowsDeleted)
+		return err
 	}); err != nil {
 		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return datastore.NoRevision, err
@@ -187,17 +193,26 @@ func (cds *crdbDatastore) ListNamespaces(ctx context.Context, revision datastore
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 
+	nsDefs, err := loadAllNamespaces(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	return nsDefs, nil
+}
+
+func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]*core.NamespaceDefinition, error) {
 	query := queryReadNamespace
 
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+		return nil, err
 	}
 
 	var nsDefs []*core.NamespaceDefinition
 	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -205,7 +220,7 @@ func (cds *crdbDatastore) ListNamespaces(ctx context.Context, revision datastore
 		var config []byte
 		var timestamp time.Time
 		if err := rows.Scan(&config, &timestamp); err != nil {
-			return nil, fmt.Errorf(errUnableToListNamespaces, err)
+			return nil, err
 		}
 
 		var loaded core.NamespaceDefinition
