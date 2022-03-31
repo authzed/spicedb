@@ -218,7 +218,18 @@ func (pgd *pgDatastore) ListNamespaces(ctx context.Context, revision datastore.R
 	}
 	defer tx.Rollback(ctx)
 
-	sql, args, err := filterToLivingObjects(readNamespace, revision).ToSql()
+	query := filterToLivingObjects(readNamespace, revision)
+
+	nsDefs, err := loadAllNamespaces(ctx, tx, query)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	return nsDefs, err
+}
+
+func loadAllNamespaces(ctx context.Context, tx pgx.Tx, query sq.SelectBuilder) ([]*core.NamespaceDefinition, error) {
+	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +246,7 @@ func (pgd *pgDatastore) ListNamespaces(ctx context.Context, revision datastore.R
 		var config []byte
 		var version datastore.Revision
 		if err := rows.Scan(&config, &version); err != nil {
-			return nil, fmt.Errorf(errUnableToListNamespaces, err)
+			return nil, err
 		}
 
 		var loaded core.NamespaceDefinition

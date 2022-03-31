@@ -184,6 +184,7 @@ func NewPostgresDatastore(
 		gcWindowInverted:         -1 * config.gcWindow,
 		gcInterval:               config.gcInterval,
 		gcMaxOperationTime:       config.gcMaxOperationTime,
+		analyzeBeforeStatistics:  config.analyzeBeforeStatistics,
 		querySplitter:            querySplitter,
 		gcCtx:                    gcCtx,
 		cancelGc:                 cancelGc,
@@ -209,6 +210,7 @@ type pgDatastore struct {
 	gcInterval               time.Duration
 	gcMaxOperationTime       time.Duration
 	querySplitter            common.TupleQuerySplitter
+	analyzeBeforeStatistics  bool
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context

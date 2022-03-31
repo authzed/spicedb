@@ -19,7 +19,8 @@ type postgresOptions struct {
 	gcMaxOperationTime       time.Duration
 	splitAtUsersetCount      uint16
 
-	enablePrometheusStats bool
+	enablePrometheusStats   bool
+	analyzeBeforeStatistics bool
 
 	logger *tracingLogger
 }
@@ -187,5 +188,16 @@ func EnablePrometheusStats() Option {
 func EnableTracing() Option {
 	return func(po *postgresOptions) {
 		po.logger = &tracingLogger{}
+	}
+}
+
+// DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
+// run Analyze on the database before returning statistics. This should only be
+// used for debug and testing.
+//
+// Disabled by default.
+func DebugAnalyzeBeforeStatistics() Option {
+	return func(po *postgresOptions) {
+		po.analyzeBeforeStatistics = true
 	}
 }
