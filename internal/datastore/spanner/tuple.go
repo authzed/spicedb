@@ -27,17 +27,22 @@ func (sd spannerDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 
 		changeUUID := uuid.New().String()
 
+		var rowCountChange int64
+
 		for _, mutation := range mutations {
 			var txnMut *spanner.Mutation
 			var op int
 			switch mutation.Operation {
 			case v1.RelationshipUpdate_OPERATION_TOUCH:
+				rowCountChange++
 				txnMut = spanner.InsertOrUpdate(tableRelationship, allRelationshipCols, upsertVals(mutation.Relationship))
 				op = colChangeOpTouch
 			case v1.RelationshipUpdate_OPERATION_CREATE:
+				rowCountChange++
 				txnMut = spanner.Insert(tableRelationship, allRelationshipCols, upsertVals(mutation.Relationship))
 				op = colChangeOpCreate
 			case v1.RelationshipUpdate_OPERATION_DELETE:
+				rowCountChange--
 				txnMut = spanner.Delete(tableRelationship, keyFromRelationship(mutation.Relationship))
 				op = colChangeOpDelete
 			default:
@@ -49,6 +54,10 @@ func (sd spannerDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 			if err := rwt.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
 				return err
 			}
+		}
+
+		if err := updateCounter(ctx, rwt, rowCountChange); err != nil {
+			return fmt.Errorf("unable to update counters: %w", err)
 		}
 
 		return nil
@@ -143,8 +152,7 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 		return err
 	}
 
-	_, err = rwt.Update(ctx, statementFromSQL(isql, iargs))
-	if err != nil {
+	if _, err = rwt.Update(ctx, statementFromSQL(isql, iargs)); err != nil {
 		return err
 	}
 
@@ -153,8 +161,12 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 		return err
 	}
 
-	_, err = rwt.Update(ctx, statementFromSQL(sql, args))
+	numDeleted, err := rwt.Update(ctx, statementFromSQL(sql, args))
 	if err != nil {
+		return err
+	}
+
+	if err := updateCounter(ctx, rwt, -1*numDeleted); err != nil {
 		return err
 	}
 

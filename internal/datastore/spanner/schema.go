@@ -30,6 +30,13 @@ const (
 	colChangeUsersetObjectID  = "userset_object_id"
 	colChangeUsersetRelation  = "userset_relation"
 
+	tableMetadata = "metadata"
+	colUniqueID   = "unique_id"
+
+	tableCounters = "relationship_estimate_counters"
+	colID         = "id"
+	colCount      = "count"
+
 	colChangeOpCreate = 1
 	colChangeOpTouch  = 2
 	colChangeOpDelete = 3
