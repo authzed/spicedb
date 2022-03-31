@@ -15,3 +15,6 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "authzed/actions/cla-check@main"
+        with:
+          github_token: "${{ secrets.GITHUB_TOKEN }}"
+          cla_assistant_token: "${{ secrets.CLA_ASSISTANT_ACCESS_TOKEN }}"
