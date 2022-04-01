@@ -31,6 +31,9 @@ jobs:
         with:
           files: "k8s"
       - uses: "authzed/actions/markdown-lint@main"
+      - uses: "ludeeus/action-shellcheck@1.1.0"
+        with:
+          scandir: "./hack"
 
   codeql:
     name: "Analyze with CodeQL"
