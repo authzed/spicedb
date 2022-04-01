@@ -9,6 +9,7 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 	"github.com/shopspring/decimal"
@@ -338,6 +339,7 @@ type memdbDatastore struct {
 	revisionFuzzingTimedelta time.Duration
 	gcWindowInverted         time.Duration
 	simulatedLatency         time.Duration
+	uniqueID                 string
 }
 
 // NewMemdbDatastore creates a new Datastore compliant datastore backed by memdb.
@@ -377,6 +379,8 @@ func NewMemdbDatastore(
 		watchBufferLength = defaultWatchBufferLength
 	}
 
+	uniqueID := uuid.NewString()
+
 	return &memdbDatastore{
 		db:                       db,
 		watchBufferLength:        watchBufferLength,
@@ -384,6 +388,7 @@ func NewMemdbDatastore(
 
 		gcWindowInverted: -1 * gcWindow,
 		simulatedLatency: simulatedLatency,
+		uniqueID:         uniqueID,
 	}, nil
 }
 

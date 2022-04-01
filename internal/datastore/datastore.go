@@ -71,8 +71,35 @@ type Datastore interface {
 	// NamespaceCacheKey returns a string key for use in a NamespaceManager's cache
 	NamespaceCacheKey(namespaceName string, revision Revision) (string, error)
 
+	// Statistics returns relevant values about the data contained in this cluster.
+	Statistics(ctx context.Context) (Stats, error)
+
 	// Close closes the data store.
 	Close() error
+}
+
+// ObjectTypeStat represents statistics for a single object type (namespace).
+type ObjectTypeStat struct {
+	// NumRelations is the number of relations defined in a single object type.
+	NumRelations uint32
+
+	// NumPermissions is the number of permissions defined in a single object type.
+	NumPermissions uint32
+}
+
+// Stats represents statistics for the entire datastore.
+type Stats struct {
+	// UniqueID is a unique string for a single datastore.
+	UniqueID string
+
+	// EstimatedRelationshipCount is a best-guess estimate of the number of relationships
+	// in the datstore. Computing it should use a lightweight method such as reading
+	// table statistics.
+	EstimatedRelationshipCount uint64
+
+	// ObjectTypeStatistics returns a slice element for each object type (namespace)
+	// stored in the datastore.
+	ObjectTypeStatistics []ObjectTypeStat
 }
 
 // GraphDatastore is a subset of the datastore interface that is passed to

@@ -32,6 +32,7 @@ func TestPostgresDatastore(t *testing.T) {
 				RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
 				GCWindow(gcWindow),
 				WatchBufferLength(watchBufferLength),
+				DebugAnalyzeBeforeStatistics(),
 			)
 			require.NoError(t, err)
 			return ds
@@ -49,6 +50,7 @@ func TestPostgresDatastoreWithSplit(t *testing.T) {
 				RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
 				GCWindow(gcWindow),
 				WatchBufferLength(watchBufferLength),
+				DebugAnalyzeBeforeStatistics(),
 				SplitAtUsersetCount(1), // 1 userset
 			)
 			require.NoError(t, err)

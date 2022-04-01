@@ -310,3 +310,7 @@ func (hp hedgingProxy) CheckRevision(ctx context.Context, revision datastore.Rev
 func (hp hedgingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	return hp.delegate.ListNamespaces(ctx, revision)
 }
+
+func (hp hedgingProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
+	return hp.delegate.Statistics(ctx)
+}

@@ -92,3 +92,7 @@ func (rd roDatastore) CheckRevision(ctx context.Context, revision datastore.Revi
 func (rd roDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	return rd.delegate.ListNamespaces(ctx, revision)
 }
+
+func (rd roDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	return rd.delegate.Statistics(ctx)
+}

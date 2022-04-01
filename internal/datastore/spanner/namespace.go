@@ -107,6 +107,15 @@ func (sd spannerDatastore) ListNamespaces(ctx context.Context, revision datastor
 		[]string{colNamespaceConfig},
 	)
 
+	allNamespaces, err := readAllNamespaces(iter)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	return allNamespaces, nil
+}
+
+func readAllNamespaces(iter *spanner.RowIterator) ([]*core.NamespaceDefinition, error) {
 	var allNamespaces []*core.NamespaceDefinition
 	if err := iter.Do(func(row *spanner.Row) error {
 		var serialized []byte
@@ -123,7 +132,7 @@ func (sd spannerDatastore) ListNamespaces(ctx context.Context, revision datastor
 
 		return nil
 	}); err != nil {
-		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+		return nil, err
 	}
 
 	return allNamespaces, nil
