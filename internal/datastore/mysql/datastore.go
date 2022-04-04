@@ -519,7 +519,7 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 	defer span.End()
 
 	// .6f supports up to microsecond resolution window
-	timestampQuery := fmt.Sprintf("%s >= UTC_TIMESTAMP(6) + %.6f", common.ColTimestamp, windowInverted.Seconds())
+	timestampQuery := fmt.Sprintf("%s >= CAST((UTC_TIMESTAMP(6) + %.6f) AS DATETIME(6))", common.ColTimestamp, windowInverted.Seconds())
 	query, args, err := mds.GetRevisionRange.Where(timestampQuery).ToSql()
 	if err != nil {
 		return 0, 0, err
