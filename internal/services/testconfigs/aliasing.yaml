@@ -14,6 +14,11 @@ schema: >-
 
     permission one = view
     permission two = one
+
+    permission emptyone = nil
+    permission emptytwo = nil
+
+    permission viewandempty = view + nil
   }
 relationships: |
   test/resource:first#viewer@test/user:tom
@@ -21,6 +26,7 @@ relationships: |
 assertions:
   assertTrue:
     - "test/resource:first#view@test/user:tom"
+    - "test/resource:first#viewandempty@test/user:tom"
     - "test/resource:first#both@test/user:tom"
     - "test/resource:first#one@test/user:tom"
     - "test/resource:first#two@test/user:tom"
@@ -30,6 +36,9 @@ assertions:
     - "test/resource:first#another_view@test/resource:first#another_view"
     - "test/resource:first#one@test/resource:first#one"
     - "test/resource:first#two@test/resource:first#two"
+    - "test/resource:first#viewandempty@test/resource:first#view"
   assertFalse:
+    - "test/resource:first#emptyone@test/user:tom"
+    - "test/resource:first#emptytwo@test/user:tom"
     - "test/resource:first#view@test/resource:first#another_view"
     - "test/resource:first#another_view@test/resource:first#view"

@@ -48,7 +48,7 @@ func TestCanonicalization(t *testing.T) {
 			),
 			"",
 			map[string]string{
-				"edit": "596a8660f9a0c085", "view": "865dfa6397c4ea1c",
+				"edit": "596a8660f9a0c085", "view": "cb51da20fc9f20f",
 			},
 		},
 		{
@@ -103,7 +103,7 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "cb51da20fc9f20f", "second": "cb51da20fc9f20f"},
+			map[string]string{"first": "62152badef526205", "second": "62152badef526205"},
 		},
 		{
 			"canonicalization with same union expressions due to aliasing",
@@ -124,7 +124,7 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"edit": "596a8660f9a0c085", "first": "cb51da20fc9f20f", "second": "cb51da20fc9f20f"},
+			map[string]string{"edit": "596a8660f9a0c085", "first": "62152badef526205", "second": "62152badef526205"},
 		},
 		{
 			"canonicalization with same intersection expressions",
@@ -142,7 +142,7 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "715c00bf909cba72", "second": "715c00bf909cba72"},
+			map[string]string{"first": "18cf8af8ff02bad0", "second": "18cf8af8ff02bad0"},
 		},
 		{
 			"canonicalization with different expressions",
@@ -160,7 +160,7 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "cccb3550c3e4308a", "second": "13f60a574fda4175"},
+			map[string]string{"first": "2cd554a00f7f2d94", "second": "69d4722141f74043"},
 		},
 		{
 			"canonicalization with arrow expressions",
@@ -211,7 +211,7 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "cbbd2c2ca8cc5d06", "second": "cbbd2c2ca8cc5d06"},
+			map[string]string{"first": "4c49627fbdbaf248", "second": "4c49627fbdbaf248"},
 		},
 		{
 			"canonicalization with same nested intersection expressions",
@@ -240,7 +240,7 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "ecae2c4f917f1f54", "second": "ecae2c4f917f1f54"},
+			map[string]string{"first": "7c52666bb7593f0a", "second": "7c52666bb7593f0a"},
 		},
 		{
 			"canonicalization with different nested exclusion expressions",
@@ -269,7 +269,45 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "d9ad6ec22b2d896c", "second": "e1e754805fda025f"},
+			map[string]string{"first": "bb955307170373ae", "second": "6ccf7bece2e540a1"},
+		},
+		{
+			"canonicalization with nil expressions",
+			ns.Namespace(
+				"document",
+				ns.Relation("owner", nil),
+				ns.Relation("editor", nil),
+				ns.Relation("viewer", nil),
+				ns.Relation("first", ns.Union(
+					ns.ComputedUserset("owner"),
+					ns.Nil(),
+				)),
+				ns.Relation("second", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.Nil(),
+				)),
+			),
+			"",
+			map[string]string{"first": "95f5633117d42867", "second": "f786018d066f37b4"},
+		},
+		{
+			"canonicalization with same expressions with nil expressions",
+			ns.Namespace(
+				"document",
+				ns.Relation("owner", nil),
+				ns.Relation("editor", nil),
+				ns.Relation("viewer", nil),
+				ns.Relation("first", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.Nil(),
+				)),
+				ns.Relation("second", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.Nil(),
+				)),
+			),
+			"",
+			map[string]string{"first": "bfc8d945d7030961", "second": "bfc8d945d7030961"},
 		},
 	}
 
@@ -378,6 +416,24 @@ func TestCanonicalizationComparison(t *testing.T) {
 			"viewer - (owner - editor)",
 			"viewer - owner - editor",
 			false,
+		},
+		{
+			"nested exclusion non-associativity with nil",
+			"viewer - (owner - nil)",
+			"viewer - owner - nil",
+			false,
+		},
+		{
+			"nested intersection associativity with nil",
+			"(viewer & owner) & nil",
+			"(owner & viewer) & nil",
+			true,
+		},
+		{
+			"nested intersection associativity with nil 2",
+			"(nil & owner) & editor",
+			"(owner & nil) & editor",
+			true,
 		},
 	}
 

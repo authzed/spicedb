@@ -172,6 +172,23 @@ func TestAliasing(t *testing.T) {
 			"",
 			map[string]string{},
 		},
+		{
+			"non-aliasing with nil",
+			ns.Namespace(
+				"document",
+				ns.Relation("owner", nil),
+				ns.Relation("viewer", nil),
+				ns.Relation("view", ns.Union(
+					ns.ComputedUserset("viewer"),
+					ns.Nil(),
+				)),
+				ns.Relation("another", ns.Union(
+					ns.Nil(),
+				)),
+			),
+			"",
+			map[string]string{},
+		},
 	}
 
 	for _, tc := range testCases {

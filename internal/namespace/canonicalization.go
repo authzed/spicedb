@@ -119,6 +119,10 @@ func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation,
 			values = append(values, convertRewriteToBdd(relation, bdd, child.UsersetRewrite, varMap))
 		case *core.SetOperation_Child_TupleToUserset:
 			values = append(values, builder(index, varMap.GetArrow(child.TupleToUserset.Tupleset.Relation, child.TupleToUserset.ComputedUserset.Relation)))
+		case *core.SetOperation_Child_XNil:
+			values = append(values, builder(index, varMap.Nil()))
+		default:
+			panic(fmt.Sprintf("Unknown set operation child %T", child))
 		}
 	}
 	return combiner(values...)
@@ -138,6 +142,10 @@ func (bvm bddVarMap) GetArrow(tuplesetName string, relName string) int {
 	return index
 }
 
+func (bvm bddVarMap) Nil() int {
+	return len(bvm.varMap)
+}
+
 func (bvm bddVarMap) Get(relName string) int {
 	if alias, ok := bvm.aliasMap[relName]; ok {
 		return bvm.Get(alias)
@@ -151,7 +159,7 @@ func (bvm bddVarMap) Get(relName string) int {
 }
 
 func (bvm bddVarMap) Len() int {
-	return len(bvm.varMap)
+	return len(bvm.varMap) + 1 // +1 for `nil`
 }
 
 func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) bddVarMap {
