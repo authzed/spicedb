@@ -518,16 +518,9 @@ func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInver
 	ctx, span := tracer.Start(ctx, "computeRevisionRange")
 	defer span.End()
 
-	now, err := mds.getNow(ctx)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	span.AddEvent("DB returned value for NOW()")
-
-	lowerBound := now.Add(windowInverted)
-
-	query, args, err := mds.GetRevisionRange.Where(sq.GtOrEq{common.ColTimestamp: lowerBound}).ToSql()
+	// .6f supports up to microsecond resolution window
+	timestampQuery := fmt.Sprintf("%s >= CAST((UTC_TIMESTAMP(6) + %.6f) AS DATETIME(6))", common.ColTimestamp, windowInverted.Seconds())
+	query, args, err := mds.GetRevisionRange.Where(timestampQuery).Limit(1).ToSql()
 	if err != nil {
 		return 0, 0, err
 	}

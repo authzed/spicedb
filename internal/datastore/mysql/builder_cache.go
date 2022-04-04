@@ -48,7 +48,7 @@ func NewBuilderCache(tableTransaction, tableNamespace, tableTuple string) *Build
 }
 
 func getRevision(tableTransaction string) sq.SelectBuilder {
-	return sb.Select("MAX(id)").From(tableTransaction)
+	return sb.Select("MAX(id)").From(tableTransaction).Limit(1)
 }
 
 func getRevisionRange(tableTransaction string) sq.SelectBuilder {
