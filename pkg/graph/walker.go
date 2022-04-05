@@ -1,6 +1,8 @@
 package graph
 
 import (
+	"fmt"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -23,8 +25,9 @@ func WalkRewrite(rewrite *core.UsersetRewrite, handler WalkHandler) interface{} 
 		return walkRewriteChildren(rw.Intersection, handler)
 	case *core.UsersetRewrite_Exclusion:
 		return walkRewriteChildren(rw.Exclusion, handler)
+	default:
+		panic(fmt.Sprintf("unknown type of rewrite operation in walker: %T", rw))
 	}
-	return nil
 }
 
 // HasThis returns true if there exists a `_this` node anywhere within the given rewrite. If
