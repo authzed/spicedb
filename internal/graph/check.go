@@ -280,6 +280,7 @@ func notMember() ReduceableCheckFunc {
 }
 
 // any returns whether any one of the lazy checks pass, and is used for union.
+// nolint: predeclared
 func any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	if len(requests) == 0 {
 		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, emptyMetadata)

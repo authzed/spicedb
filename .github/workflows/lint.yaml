@@ -26,7 +26,7 @@ jobs:
           fi
       - uses: "golangci/golangci-lint-action@v2"
         with:
-          version: "v1.43"
+          version: "v1.45.2"
           skip-go-installation: true
           skip-pkg-cache: true
           skip-build-cache: false
