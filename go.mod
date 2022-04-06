@@ -15,7 +15,6 @@ require (
 	github.com/cncf/xds/go v0.0.0-20220330162227-eded343319d0 // indirect
 	github.com/dalzilio/rudd v1.1.0
 	github.com/dave/jennifer v1.5.0 // indirect
-	github.com/dalzilio/rudd v1.1.0
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/dlmiddlecote/sqlstats v1.0.2
 	github.com/docker/docker v20.10.14+incompatible // indirect
