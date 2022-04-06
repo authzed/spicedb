@@ -62,7 +62,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 		directFunc = cc.checkUsersetRewrite(ctx, req, relation.UsersetRewrite)
 	}
 
-	resolved := any(ctx, []ReduceableCheckFunc{directFunc})
+	resolved := union(ctx, []ReduceableCheckFunc{directFunc})
 	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
 	return resolved.Resp, resolved.Err
 }
@@ -120,14 +120,14 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 			resultChan <- checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
 			return
 		}
-		resultChan <- any(ctx, requestsToDispatch)
+		resultChan <- union(ctx, requestsToDispatch)
 	}
 }
 
 func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, req ValidatedCheckRequest, usr *core.UsersetRewrite) ReduceableCheckFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
-		return cc.checkSetOperation(ctx, req, rw.Union, any)
+		return cc.checkSetOperation(ctx, req, rw.Union, union)
 	case *core.UsersetRewrite_Intersection:
 		return cc.checkSetOperation(ctx, req, rw.Intersection, all)
 	case *core.UsersetRewrite_Exclusion:
@@ -234,7 +234,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req Valida
 			return
 		}
 
-		resultChan <- any(ctx, requestsToDispatch)
+		resultChan <- union(ctx, requestsToDispatch)
 	}
 }
 
@@ -293,8 +293,8 @@ func notMember() ReduceableCheckFunc {
 	}
 }
 
-// any returns whether any one of the lazy checks pass, and is used for union.
-func any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
+// union returns whether any one of the lazy checks pass, and is used for union.
+func union(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	if len(requests) == 0 {
 		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, emptyMetadata)
 	}
