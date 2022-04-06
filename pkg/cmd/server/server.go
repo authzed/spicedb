@@ -87,8 +87,11 @@ type Config struct {
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor
 
-	// Telemetry Endpoint
-	TelemetryEndpoint string
+	// Telemetry
+	SilentlyDisableTelemetry bool
+	TelemetryCAOverridePath  string
+	TelemetryEndpoint        string
+	TelemetryInterval        time.Duration
 }
 
 // Complete validates the config and fills out defaults.
@@ -254,11 +257,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
 
-	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler())
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
-	}
-
 	dashboardServer, err := c.DashboardAPI.Complete(zerolog.InfoLevel, dashboard.NewHandler(
 		c.GRPCServer.Address,
 		c.GRPCServer.TLSKeyPath != "" || c.GRPCServer.TLSCertPath != "",
@@ -269,16 +267,28 @@ func (c *Config) Complete() (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to initialize dashboard server: %w", err)
 	}
 
-	if err := telemetry.ValidateEndpoint(c.TelemetryEndpoint); err != nil {
-		return nil, fmt.Errorf("failed to initialize telemetry reporter: %w", err)
+	registry, err := telemetry.RegisterTelemetryCollector(c.DatastoreConfig.Engine, ds)
+	if err != nil {
+		log.Warn().Err(err).Msg("unable to initialize telemetry collector")
 	}
 
-	telemetry.InitializeLabels(
-		c.DispatchUpstreamAddr,
-		c.DatastoreConfig.URI,
-		c.DatastoreConfig.Engine,
-	)
-	telemetry.RegisterTelemetryCollector(ds)
+	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler(registry))
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
+	}
+
+	reporter := telemetry.DisabledReporter
+	if c.SilentlyDisableTelemetry {
+		reporter = telemetry.SilentlyDisabledReporter
+	} else if c.TelemetryEndpoint != "" {
+		var err error
+		reporter, err = telemetry.RemoteReporter(
+			registry, c.TelemetryEndpoint, c.TelemetryCAOverridePath, c.TelemetryInterval,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("unable to initialize metrics reporter: %w", err)
+		}
+	}
 
 	return &completedServerConfig{
 		gRPCServer:          grpcServer,
@@ -289,7 +299,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		unaryMiddleware:     c.UnaryMiddleware,
 		streamingMiddleware: c.StreamingMiddleware,
 		presharedKey:        c.PresharedKey,
-		telemetryEndpoint:   c.TelemetryEndpoint,
+		telemetryReporter:   reporter,
 		closeFunc: func() {
 			if err := ds.Close(); err != nil {
 				log.Warn().Err(err).Msg("couldn't close datastore")
@@ -325,7 +335,7 @@ type completedServerConfig struct {
 	gatewayServer      util.RunnableHTTPServer
 	metricsServer      util.RunnableHTTPServer
 	dashboardServer    util.RunnableHTTPServer
-	telemetryEndpoint  string
+	telemetryReporter  telemetry.Reporter
 
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
@@ -386,7 +396,7 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	g.Go(c.dashboardServer.ListenAndServe)
 	g.Go(stopOnCancel(c.dashboardServer.Close))
 
-	g.Go(func() error { return telemetry.ReportForever(ctx, c.telemetryEndpoint) })
+	g.Go(func() error { return c.telemetryReporter(ctx) })
 
 	g.Go(stopOnCancel(c.closeFunc))
 

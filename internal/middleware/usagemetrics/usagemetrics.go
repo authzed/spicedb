@@ -12,17 +12,25 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/telemetry"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-var dispatchedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "telemetry",
-	Name:      "dispatches",
-	Help:      "Histogram of cluster dispatches performed by the instance.",
-	Buckets:   []float64{1, 5, 10, 25, 50, 100, 250},
-}, []string{"cluster_id", "node_id", "method", "cached"})
+var (
+	// DispatchedCountLabels are the labels that DispatchedCountHistogram will
+	// have have by default.
+	DispatchedCountLabels = []string{"method", "cached"}
+
+	// DispatchedCountHistogram is the metric that SpiceDB uses to keep track
+	// of the number of downstream dispatches that are performed to answer a
+	// single query.
+	DispatchedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "spicedb",
+		Subsystem: "services",
+		Name:      "dispatches",
+		Help:      "Histogram of cluster dispatches performed by the instance.",
+		Buckets:   []float64{1, 5, 10, 25, 50, 100, 250},
+	}, DispatchedCountLabels)
+)
 
 type reporter struct{}
 
@@ -65,8 +73,8 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 }
 
 func annotateAndReportForMetadata(ctx context.Context, methodName string, metadata *dispatch.ResponseMeta) error {
-	dispatchedCountHistogram.WithLabelValues(telemetry.ClusterID, telemetry.NodeID, methodName, "false").Observe(float64(metadata.DispatchCount))
-	dispatchedCountHistogram.WithLabelValues(methodName, "true").Observe(float64(metadata.CachedDispatchCount))
+	DispatchedCountHistogram.WithLabelValues(methodName, "false").Observe(float64(metadata.DispatchCount))
+	DispatchedCountHistogram.WithLabelValues(methodName, "true").Observe(float64(metadata.CachedDispatchCount))
 
 	return responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
 		responsemeta.DispatchedOperationsCount: strconv.Itoa(int(metadata.DispatchCount)),

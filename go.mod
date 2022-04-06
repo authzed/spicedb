@@ -54,7 +54,6 @@ require (
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.33.0
-	github.com/prometheus/prometheus v2.5.0+incompatible
 	github.com/rs/cors v1.8.2
 	github.com/rs/zerolog v1.26.1
 	github.com/scylladb/go-set v1.0.2
@@ -68,6 +67,7 @@ require (
 	github.com/stretchr/objx v0.3.0 // indirect
 	github.com/stretchr/testify v1.7.1
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
+	go.buf.build/protocolbuffers/go/prometheus/prometheus v1.2.2
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.31.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.31.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.6.0 // indirect

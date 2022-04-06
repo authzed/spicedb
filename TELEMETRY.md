@@ -23,15 +23,22 @@ Information about the SpiceDB environment.
 - vCPUs: number of CPUs reported by the Go runtime
 - OS: operating system family as reported by the Go Runtime
 - Datastore Engine: datastore engine configured
-- Cluster ID: unique identifier for a cluster calculated by a SHA512_256_HMAC(SPICEDB_DATASTORE_CONN_URI, SPICEDB_DISPATCH_UPSTREAM_ADDR)
-- NodeID: unique identifier for the node generated at start-up
+- Cluster ID: unique identifier for a cluster's datastore
+- NodeID: unique identifier for the node, usually the hostname
 
-### spicedb_telemetry_object_definitions_total (Counter)
+### spicedb_telemetry_object_definitions_total (Gauge)
 
 Count of the number of objects defined by the schema.
 
-- Cluster ID: unique identifier for a cluster calculated by a SHA512_256_HMAC(SPICEDB_DATASTORE_CONN_URI, SPICEDB_DISPATCH_UPSTREAM_ADDR)
-- NodeID: unique identifier for the node generated at start-up
+- Cluster ID: unique identifier for a cluster's datastore
+- NodeID: unique identifier for the node, usually the hostname
+
+### spicedb_telemetry_relationships_estimate_total (Gauge)
+
+Rough estimate of the number of relationships stored in the datastore.
+
+- Cluster ID: unique identifier for a cluster's datastore
+- NodeID: unique identifier for the node, usually the hostname
 
 ### spicedb_telemetry_dispatches (Histogram)
 
@@ -39,5 +46,5 @@ Histogram of cluster dispatches performed by the instance.
 
 - Method: gRPC method of the dispatch request
 - Cached: boolean of whether or not the dispatch was a cache hit
-- Cluster ID: unique identifier for a cluster calculated by a SHA512_256 HMAC(SPICEDB_DATASTORE_CONN_URI, SPICEDB_DISPATCH_UPSTREAM_ADDR)
-- NodeID: unique identifier for the node generated at start-up
+- Cluster ID: unique identifier for a cluster's datastore
+- NodeID: unique identifier for the node, usually the hostname
