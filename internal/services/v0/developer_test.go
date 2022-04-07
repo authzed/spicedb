@@ -258,6 +258,33 @@ func TestEditCheck(t *testing.T) {
 				},
 			},
 		},
+		{
+			"recursive check",
+			`
+				definition user {}
+				definition document {
+					relation viewer: user | document#viewer
+				}
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:someobj#viewer@document:someobj#viewer"),
+			},
+			[]*core.RelationTuple{
+				tuple.MustParse("document:someobj#viewer@user:foo"),
+			},
+			nil,
+			[]*v0.EditCheckResult{
+				{
+					Relationship: core.ToV0RelationTuple(tuple.MustParse("document:someobj#viewer@user:foo")),
+					Error: &v0.DeveloperError{
+						Message: "max depth exceeded: this usually indicates a recursive or too deep data dependency",
+						Kind:    v0.DeveloperError_MAXIMUM_RECURSION,
+						Source:  v0.DeveloperError_CHECK_WATCH,
+						Context: "document:someobj#viewer@user:foo",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {

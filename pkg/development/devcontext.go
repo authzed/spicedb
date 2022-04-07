@@ -265,6 +265,17 @@ func distinguishGraphError(ctx context.Context, dispatchError error, source v0.D
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
 
+	if errors.Is(dispatchError, dispatch.ErrMaxDepth) {
+		return &v0.DeveloperError{
+			Message: dispatchError.Error(),
+			Source:  source,
+			Kind:    v0.DeveloperError_MAXIMUM_RECURSION,
+			Line:    line,
+			Column:  column,
+			Context: context,
+		}, nil
+	}
+
 	if errors.As(dispatchError, &nsNotFoundError) {
 		return &v0.DeveloperError{
 			Message: dispatchError.Error(),

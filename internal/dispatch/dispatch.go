@@ -13,7 +13,7 @@ import (
 )
 
 // ErrMaxDepth is returned from CheckDepth when the max depth is exceeded.
-var ErrMaxDepth = errors.New("max depth exceeded")
+var ErrMaxDepth = errors.New("max depth exceeded: this usually indicates a recursive or too deep data dependency")
 
 // Dispatcher interface describes a method for passing subchecks off to additional machines.
 type Dispatcher interface {
