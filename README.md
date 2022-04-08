@@ -1,13 +1,13 @@
 # SpiceDB
 
-[![Container Image](https://img.shields.io/github/v/release/authzed/spicedb?color=%232496ED&label=container&logo=docker "Container Image")](https://quay.io/repository/authzed/spicedb?tab=tags)
+[![Container Image](https://img.shields.io/github/v/release/authzed/spicedb?color=%232496ED&label=container&logo=docker "Container Image")](https://hub.docker.com/r/authzed/spicedb/tags)
 [![Docs](https://img.shields.io/badge/docs-authzed.com-%234B4B6C "Authzed Documentation")](https://docs.authzed.com)
 [![GoDoc](https://godoc.org/github.com/authzed/spicedb?status.svg "Go documentation")](https://godoc.org/github.com/authzed/spicedb)
 [![Build Status](https://github.com/authzed/spicedb/workflows/Build%20&%20Test/badge.svg "GitHub Actions")](https://github.com/authzed/spicedb/actions)
 [![Discord Server](https://img.shields.io/discord/844600078504951838?color=7289da&logo=discord "Discord Server")](https://discord.gg/jTysUaxXzM)
 [![Twitter](https://img.shields.io/twitter/follow/authzed?color=%23179CF0&logo=twitter&style=flat-square "@authzed on Twitter")](https://twitter.com/authzed)
 
-SpiceDB is a database system for managing security-critical application permissions.
+SpiceDB is a [Zanzibar]-inspired open source database system for managing security-critical application permissions.
 
 Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
@@ -17,13 +17,14 @@ Features that distinguish SpiceDB from other systems include:
 - An architecture faithful to [Google's Zanzibar paper], including resistance to the [New Enemy Problem]
 - An intuitive and expressive [schema language] complete with a [playground] dev environment
 - A powerful graph engine that supports distributed, parallel evaluation
-- Pluggable storage that supports [in-memory], [PostgreSQL], and [CockroachDB]
+- Pluggable storage that supports [in-memory], [PostgreSQL], [CockroachDB] and [Cloud Spanner] (beta)
 - Deep observability with [Prometheus metrics], structured logging, and [distributed tracing]
 
 See [CONTRIBUTING.md] for instructions on how to contribute and perform common tasks like building the project and running tests.
 
 [client library]: https://docs.authzed.com/reference/api#client-libraries
 [gRPC]: https://buf.build/authzed/api
+[Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [HTTP]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/authzed/authzed-go/main/proto/apidocs.swagger.json
 [Google's Zanzibar paper]: https://authzed.com/blog/what-is-zanzibar/
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
@@ -32,6 +33,7 @@ See [CONTRIBUTING.md] for instructions on how to contribute and perform common t
 [in-memory]: https://github.com/hashicorp/go-memdb
 [PostgreSQL]: https://www.postgresql.org
 [CockroachDB]: https://github.com/cockroachdb/cockroach
+[Cloud Spanner]: https://cloud.google.com/spanner
 [Prometheus metrics]: https://prometheus.io
 [distributed tracing]: https://opentelemetry.io
 [CONTRIBUTING.md]: CONTRIBUTING.md
@@ -79,15 +81,7 @@ brew install authzed/tap/spicedb
 SpiceDB is also available as a container image:
 
 ```sh
-docker pull quay.io/authzed/spicedb:latest
-docker run quay.io/authzed/spicedb serve --grpc-preshared-key "somerandomkeyhere"
-```
-
-SpiceDB supports environment variables. You can replace any command's argument with an environment variable by adding the `SPICEDB` prefix.  
-For example `--log-level` becomes `SPICEDB_LOG_LEVEL`.
-
-```sh
-docker run -e SPICEDB_GRPC_PRESHARED_KEY=somerandomkeyhere quay.io/authzed/spicedb serve
+docker run -p 50051:50051 -p 8080:8080 authzed/spicedb:latest serve --grpc-preshared-key 'somerandomkeyhere'
 ```
 
 For production usage, we **highly** recommend using a tag that corresponds to the [latest release], rather than `latest`.
@@ -116,6 +110,15 @@ A [SpiceDB GitHub action] is also available to run SpiceDB as part of your integ
 [Bearer Token]: https://docs.authzed.com/reference/api#authentication
 [SpiceDB GitHub action]: https://github.com/authzed/action-spicedb
 
+### Configuring SpiceDB
+
+In addition to CLI flags, SpiceDB also supports configuration via environment variables.
+You can replace any command's argument with an environment variable by converting dashes into underscores and prefixing with `SPICEDB_` (e.g. `--log-level` becomes `SPICEDB_LOG_LEVEL`).
+
+```sh
+SPICEDB_GRPC_PRESHARED_KEY=somerandomkeyhere spicedb serve
+```
+
 ### Developing your own schema
 
 - Follow the guide for [developing a schema]
@@ -137,3 +140,7 @@ A [SpiceDB GitHub action] is also available to run SpiceDB as part of your integ
 [Protecting Your First App]: https://docs.authzed.com/guides/first-app
 [Buf Registry]: https://buf.build/authzed/api/docs
 [Install zed]: https://github.com/authzed/zed
+
+## Have questions?
+
+Engage with the community and Authzed team in the [SpiceDB Discord](https://authzed.com/discord)

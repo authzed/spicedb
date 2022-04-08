@@ -1,0 +1,27 @@
+---
+schema: >-
+  definition test/user {}
+
+  definition test/resource {
+    relation viewer: test/user
+    relation banned: test/user | test/user:*
+
+    permission view = viewer - banned
+  }
+relationships: |
+  test/resource:first#banned@test/user:*
+  test/resource:first#viewer@test/user:somegal
+
+  test/resource:second#banned@test/user:otherperson
+  test/resource:second#viewer@test/user:somegal
+assertions:
+  assertTrue:
+    - "test/resource:first#viewer@test/user:somegal"
+    - "test/resource:second#viewer@test/user:somegal"
+  assertFalse:
+    - "test/resource:first#view@test/user:editordude"
+    - "test/resource:first#view@test/user:anotheruser"
+    - "test/resource:first#view@test/user:aseconduser"
+    - "test/resource:first#view@test/user:athirduser"
+    - "test/resource:first#view@test/user:somegal"
+    - "test/resource:second#view@test/user:otherperson"

@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	zookie "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
@@ -24,7 +25,7 @@ const (
 var ErrNilZookie = errors.New("zookie pointer was nil")
 
 // NewFromRevision generates an encoded zookie from an integral revision.
-func NewFromRevision(revision decimal.Decimal) *v0.Zookie {
+func NewFromRevision(revision decimal.Decimal) *core.Zookie {
 	toEncode := &zookie.DecodedZookie{
 		Version: 2,
 		VersionOneof: &zookie.DecodedZookie_V2{
@@ -43,18 +44,18 @@ func NewFromRevision(revision decimal.Decimal) *v0.Zookie {
 }
 
 // Encode converts a decoded zookie to its opaque version.
-func Encode(decoded *zookie.DecodedZookie) (*v0.Zookie, error) {
+func Encode(decoded *zookie.DecodedZookie) (*core.Zookie, error) {
 	marshalled, err := proto.Marshal(decoded)
 	if err != nil {
 		return nil, fmt.Errorf(errEncodeError, err)
 	}
-	return &v0.Zookie{
+	return &core.Zookie{
 		Token: base64.StdEncoding.EncodeToString(marshalled),
 	}, nil
 }
 
 // Decode converts an encoded zookie to its decoded version.
-func Decode(encoded *v0.Zookie) (*zookie.DecodedZookie, error) {
+func Decode(encoded *core.Zookie) (*zookie.DecodedZookie, error) {
 	if encoded == nil {
 		return nil, fmt.Errorf(errDecodeError, ErrNilZookie)
 	}
@@ -71,7 +72,7 @@ func Decode(encoded *v0.Zookie) (*zookie.DecodedZookie, error) {
 }
 
 // DecodeRevision converts and extracts the revision from a zookie.
-func DecodeRevision(encoded *v0.Zookie) (decimal.Decimal, error) {
+func DecodeRevision(encoded *core.Zookie) (decimal.Decimal, error) {
 	decoded, err := Decode(encoded)
 	if err != nil {
 		return decimal.Zero, err

@@ -1,0 +1,85 @@
+---
+schema: >-
+  definition test/user {}
+
+
+  definition test/team {
+      relation parent: test/organization | test/team
+
+      relation maintainer: test/user
+      relation direct_member: test/user
+
+      permission member = maintainer + direct_member
+
+      permission change_name = maintainer + parent->change_team_name + parent->change_name
+  }
+
+
+  definition test/organization {
+      relation owner: test/user
+      relation member: test/user
+      relation billing_manager: test/user
+      relation team_maintainer: test/user
+
+      // Repository actions
+      permission create_repository = owner + member
+
+      // Organization settings
+      permission manage_billing = owner + billing_manager
+      permission user_seat = owner + member + team_maintainer
+
+      // Team permissions
+      permission change_team_name = team_maintainer + owner
+  }
+
+
+  definition test/repository {
+      relation organization: test/organization
+
+      // Repository roles
+      relation reader: test/user | test/team#member
+      relation triager: test/user | test/team#member
+      relation writer: test/user | test/team#member
+      relation maintainer: test/user | test/team#member
+      relation admin: test/user | test/team#member
+
+      // Git Actions
+    	permission clone = reader + triager + push
+      permission push = writer + maintainer + admin + organization->owner
+
+      // Web actions
+      permission read = reader + triager + writer + maintainer + admin + organization->owner
+      permission delete_repository = admin + organization->owner
+
+      // Issues
+      permission create_issue = read
+      permission close_issue = triager + writer + maintainer + admin + organization->owner
+
+      // Pull requests
+      permission create_pull_request = read
+      permission merge_pull_request = maintainer + organization->owner
+      permission close_pull_request = triager + writer + maintainer + admin + organization->owner
+
+      // Coarse grained
+      permission manage_setting = maintainer + admin + organization->owner
+      permission manage_sensitive_setting = admin + organization->owner
+  }
+relationships: |
+  test/repository:authzed_go#organization@test/organization:authzed#...
+  test/repository:authzed_go#reader@test/user:jake#...
+  test/repository:authzed_go#admin@test/user:jimmy#...
+  test/repository:authzed_go#triager@test/user:jessica#...
+  test/repository:authzed_go#maintainer@test/team:support_engineers#member
+  test/organization:authzed#owner@test/user:jake#...
+  test/organization:authzed#owner@test/user:jimmy#...
+  test/team:support_engineers#maintainer@test/user:ivan#...
+  test/team:support_engineers#direct_member@test/user:ian#...
+  test/team:support_engineers#parent@test/organization:authzed#...
+  test/team:emea_support_engineers#direct_member@test/user:iona#...
+  test/team:emea_support_engineers#parent@test/team:support_engineers#...
+assertions:
+  assertTrue:
+    - "test/repository:authzed_go#read@test/user:jake#..."
+    - "test/repository:authzed_go#read@test/user:jimmy#..."
+  assertFalse:
+    - "test/repository:authzed_go#admin@test/user:jake#..."

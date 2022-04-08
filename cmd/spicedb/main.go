@@ -11,6 +11,7 @@ import (
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
 	"github.com/authzed/spicedb/pkg/cmd"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/cmd/testserver"
 )
 
 const (
@@ -37,7 +38,7 @@ func main() {
 	cmd.RegisterRootFlags(rootCmd)
 
 	// Add a version command
-	versionCmd := cmd.NewRootCommand(rootCmd.Use)
+	versionCmd := cmd.NewVersionCommand(rootCmd.Use)
 	cmd.RegisterVersionFlags(versionCmd)
 	rootCmd.AddCommand(versionCmd)
 
@@ -60,8 +61,9 @@ func main() {
 	cmd.RegisterDevtoolsFlags(devtoolsCmd)
 	rootCmd.AddCommand(devtoolsCmd)
 
-	testingCmd := cmd.NewTestingCommand(rootCmd.Use)
-	cmd.RegisterTestingFlags(testingCmd)
+	var testServerConfig testserver.Config
+	testingCmd := cmd.NewTestingCommand(rootCmd.Use, &testServerConfig)
+	cmd.RegisterTestingFlags(testingCmd, &testServerConfig)
 	rootCmd.AddCommand(testingCmd)
 
 	_ = rootCmd.Execute()

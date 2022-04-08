@@ -1,0 +1,253 @@
+---
+namespace_configs:
+  - |
+    name: "quay/user"
+
+  - |
+    name: "quay/namespace"
+
+    relation {
+      name: "parent"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/namespace"
+          relation: "..."
+        }
+        allowed_direct_relations {
+          namespace: "quay/organization"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "admin"
+
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child {
+            tuple_to_userset {
+              tupleset { relation: "parent" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT
+                relation: "admin"
+              }
+            }
+          }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/user"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "creator"
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child { computed_userset { relation: "admin" } }
+          child {
+            tuple_to_userset {
+              tupleset { relation: "parent" }
+              computed_userset {
+                  object: TUPLE_USERSET_OBJECT
+                  relation: "creator"
+              }
+            }
+          }
+        }
+      }
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/user"
+          relation: "..."
+        }
+      }
+    }
+  - |
+    name: "quay/organization"
+
+    relation {
+      name: "admin"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/user"
+          relation: "..."
+        }
+        allowed_direct_relations {
+          namespace: "quay/team"
+          relation: "member"
+        }
+      }
+    }
+
+    relation {
+      name: "creator"
+
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child { computed_userset { relation: "admin" } }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/user"
+          relation: "..."
+        }
+        allowed_direct_relations {
+          namespace: "quay/team"
+          relation: "member"
+        }
+      }
+    }
+
+    relation {
+      name: "member"
+
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child { computed_userset { relation: "creator" } }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/user"
+          relation: "..."
+        }
+      }
+    }
+  - |
+    name: "quay/repo"
+
+    relation {
+      name: "parent"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/namespace"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "admin"
+
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child {
+            tuple_to_userset {
+              tupleset { relation: "parent" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT
+                relation: "admin"
+              }
+            }
+          }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/user"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "writers"
+
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child { computed_userset { relation: "admin" } }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/user"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "readers"
+
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child { computed_userset { relation: "writers" } }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/user"
+          relation: "..."
+        }
+      }
+    }
+  - |
+    name: "quay/team"
+
+    relation {
+      name: "parent_org"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/organization"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "member"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "quay/user"
+          relation: "..."
+        }
+      }
+    }
+
+validation_tuples:
+  - "quay/organization:megacorp#admin@quay/user:cto#..."
+
+  - "quay/team:owners#member@quay/user:cto#..."
+  - "quay/team:owners#member@quay/user:ceo#..."
+  - "quay/team:owners#parent_org@quay/organization:megacorp#..."
+  - "quay/organization:megacorp#admin@quay/team:owners#member"
+
+  - "quay/team:creator#member@quay/user:eng_director#..."
+  - "quay/team:creator#parent_org@quay/organization:megacorp#..."
+  - "quay/organization:megacorp#creator@quay/team:creator#member"
+
+  - "quay/namespace:buynlarge#parent@quay/organization:megacorp#..."
+  - "quay/namespace:buynlarge#admin@quay/user:eng_manager#..."
+  - "quay/repo:buynlarge/orgrepo#parent@quay/namespace:buynlarge#..."
+  - "quay/repo:buynlarge/orgrepo#admin@quay/user:eng_manager#..."
+  - "quay/repo:buynlarge/orgrepo#writers@quay/user:engineer#..."
+  - "quay/repo:buynlarge/orgrepo#readers@quay/user:test_engineer#..."
+
+  - "quay/namespace:purnkleen#parent@quay/organization:megacorp#..."
+  - "quay/namespace:purnkleen#admin@quay/user:eng_director#..."
+
+  - "quay/organization:villainorg#admin@quay/user:villain#..."

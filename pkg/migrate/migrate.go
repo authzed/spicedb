@@ -31,6 +31,9 @@ type Driver interface {
 
 	// WriteVersion records the newly migrated version to the backing datastore.
 	WriteVersion(version, replaced string) error
+
+	// Close frees up any resources in use by the driver.
+	Close() error
 }
 
 type migration struct {

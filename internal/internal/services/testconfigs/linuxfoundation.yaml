@@ -1,0 +1,232 @@
+---
+namespace_configs:
+  - |
+    name: "linux/user"
+
+  - |
+    name: "linux/list"
+
+    relation {
+      name: "member"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "linux/user"
+          relation: "..."
+        }
+      }
+    }
+
+  - |
+    name: "linux/talk"
+
+    relation {
+      name: "speaker"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "linux/user"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "positivefeedback"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "linux/user"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "negativefeedback"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "linux/user"
+          relation: "..."
+        }
+      }
+    }
+
+  - |
+    name: "linux/event"
+
+    relation {
+      name: "attendee"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "linux/user"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "speaker"
+
+      userset_rewrite {
+        union {
+          child {
+            tuple_to_userset {
+              tupleset { relation: "talk" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT # event talks
+                relation: "speaker"
+              }
+            }
+          }
+        }
+      }
+    }
+
+    relation {
+      name: "positivelyratedspeaker"
+
+      userset_rewrite {
+        union {
+          child {
+            tuple_to_userset {
+              tupleset { relation: "talk" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT # event talks
+                relation: "positivefeedback"
+              }
+            }
+          }
+        }
+      }
+    }
+
+
+    relation {
+      name: "talk"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "linux/talk"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "relatedevent"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "linux/event"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "blacklist"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "linux/list"
+          relation: "member"
+        }
+      }
+    }
+
+    relation {
+      name: "renegadespeaker"
+
+      userset_rewrite {
+        intersection {
+          child {
+            tuple_to_userset {
+              tupleset { relation: "relatedevent" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT # related events
+                relation: "positivelyratedspeaker"
+              }
+            }
+          }
+          child {
+            tuple_to_userset {
+              tupleset { relation: "blacklist" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT # blacklist linux/list
+                relation: "member"
+              }
+            }
+          }
+        }
+      }
+    }
+
+    relation {
+      name: "invitee"
+
+      userset_rewrite {
+        exclusion {
+          child {
+            userset_rewrite {
+              union {
+                child { _this {} }  # Directly invited
+                child {
+                  tuple_to_userset {
+                    tupleset { relation: "relatedevent" }
+                    computed_userset {
+                      object: TUPLE_USERSET_OBJECT # related events
+                      relation: "speaker"
+                    }
+                  }
+                }
+              }
+            }
+          }
+          child {
+            tuple_to_userset {
+              tupleset { relation: "blacklist" }
+              computed_userset {
+                object: TUPLE_USERSET_OBJECT # blacklist linux/list
+                relation: "member"
+              }
+            }
+          }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "linux/user"
+          relation: "..."
+        }
+      }
+    }
+
+validation_tuples:
+  - "linux/event:kubecon19#attendee@linux/user:well_rated_speaker#..."
+  - "linux/event:kubecon19#attendee@linux/user:poorly_rated_speaker#..."
+  - "linux/event:kubecon19#attendee@linux/user:previous_attendee#..."
+
+  - "linux/event:kubecon19#talk@linux/talk:k8sintro#..."
+  - "linux/talk:k8sintro#speaker@linux/user:well_rated_speaker#..."
+  - "linux/talk:k8sintro#positivefeedback@linux/user:well_rated_speaker#..."
+  - "linux/talk:k8sintro#speaker@linux/user:poorly_rated_speaker#..."
+  - "linux/talk:k8sintro#negativefeedback@linux/user:poorly_rated_speaker#..."
+
+  - "linux/event:kubecon20#relatedevent@linux/event:kubecon19#..."
+  - "linux/event:kubecon20#invitee@linux/user:directly_invited#..."
+  - "linux/event:kubecon20#invitee@linux/user:villain#..."
+
+  - "linux/event:kubecon20#talk@linux/talk:advancedk8s#..."
+  - "linux/talk:advancedk8s#speaker@linux/user:well_rated_speaker#..."
+
+  - "linux/event:kubecon19#blacklist@linux/list:globalblacklist#member"
+  - "linux/event:kubecon20#blacklist@linux/list:globalblacklist#member"
+  - "linux/list:globalblacklist#member@linux/user:villain#..."
+
+  - "linux/event:kubecon19#talk@linux/talk:blackhat#..."
+  - "linux/talk:blackhat#speaker@linux/user:villain#..."
+  - "linux/talk:blackhat#positivefeedback@linux/user:villain#..."

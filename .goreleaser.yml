@@ -13,7 +13,7 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       - "-s -w"
-      - "-X {{ .ModulePath }}/pkg/cmd/version.Version={{ .Version }}"
+      - "-X github.com/jzelinskie/cobrautil.Version={{ .Version }}"
 nfpms:
   - vendor: "authzed inc."
     homepage: "https://spicedb.io"
@@ -49,25 +49,29 @@ brews:
       system "#{bin}/spicedb version"
     install: |
       if !File.exists? "spicedb"
-        system "go build --ldflags \"-s -w -X github.com/authzed/spicedb/pkg/cmd/version.Version=$(git describe --always --abbrev=7 --dirty)\" ./cmd/spicedb"
+        system "go build --ldflags \"-s -w -X github.com/jzelinskie/cobrautil.Version=$(git describe --always --abbrev=7 --dirty)\" ./cmd/spicedb"
       end
       bin.install "spicedb"
       (bash_completion/"spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "bash")
       (zsh_completion/"_spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "zsh")
       (fish_completion/"spicedb.fish").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "fish")
 dockers:
+  # AMD64
   - image_templates:
-      - &amd_image "quay.io/authzed/spicedb:v{{ .Version }}-amd64"
+      - &amd_image_quay "quay.io/authzed/spicedb:v{{ .Version }}-amd64"
       - &amd_image_gh "ghcr.io/authzed/spicedb:v{{ .Version }}-amd64"
+      - &amd_image_dh "authzed/spicedb:v{{ .Version }}-amd64"
     dockerfile: &dockerfile "Dockerfile.release"
     goos: "linux"
     goarch: "amd64"
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/amd64"
+  # ARM64
   - image_templates:
-      - &arm_image "quay.io/authzed/spicedb:v{{ .Version }}-arm64"
+      - &arm_image_quay "quay.io/authzed/spicedb:v{{ .Version }}-arm64"
       - &arm_image_gh "ghcr.io/authzed/spicedb:v{{ .Version }}-arm64"
+      - &arm_image_dh "authzed/spicedb:v{{ .Version }}-arm64"
     dockerfile: *dockerfile
     goos: "linux"
     goarch: "arm64"
@@ -75,22 +79,21 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64"
 docker_manifests:
+  # Quay
   - name_template: "quay.io/authzed/spicedb:v{{ .Version }}"
-    image_templates:
-      - *amd_image
-      - *arm_image
+    image_templates: [*amd_image_quay, *arm_image_quay]
   - name_template: "quay.io/authzed/spicedb:latest"
-    image_templates:
-      - *amd_image
-      - *arm_image
+    image_templates: [*amd_image_quay, *arm_image_quay]
+  # GitHub Registry
   - name_template: "ghcr.io/authzed/spicedb:v{{ .Version }}"
-    image_templates:
-      - *amd_image_gh
-      - *arm_image_gh
+    image_templates: [*amd_image_gh, *arm_image_gh]
   - name_template: "ghcr.io/authzed/spicedb:latest"
-    image_templates:
-      - *amd_image_gh
-      - *arm_image_gh
+    image_templates: [*amd_image_gh, *arm_image_gh]
+  # Docker Hub
+  - name_template: "authzed/spicedb:v{{ .Version }}"
+    image_templates: [*amd_image_dh, *arm_image_dh]
+  - name_template: "authzed/spicedb:latest"
+    image_templates: [*amd_image_dh, *arm_image_dh]
 checksum:
   name_template: "checksums.txt"
 snapshot:
@@ -103,4 +106,4 @@ release:
   prerelease: "auto"
   footer: |
     ## Docker Images
-    This release is available at `quay.io/authzed/spicedb:v{{ .Version }}` and `ghcr.io/authzed/spicedb:v{{ .Version }}`
+    This release is available at `authzed/spicedb:v{{ .Version }}`, `quay.io/authzed/spicedb:v{{ .Version }}`, `ghcr.io/authzed/spicedb:v{{ .Version }}`

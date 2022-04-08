@@ -4,29 +4,30 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// FullyParsedValidationFile contains the fully parsed information from a validation file.
-type FullyParsedValidationFile struct {
+// PopulatedValidationFile contains the fully parsed information from a validation file.
+type PopulatedValidationFile struct {
+	// Schema is the entered schema text, if any.
+	Schema string
+
 	// NamespaceDefinitions are the namespaces defined in the validation file, in either
 	// direct or compiled from schema form.
-	NamespaceDefinitions []*v0.NamespaceDefinition
+	NamespaceDefinitions []*core.NamespaceDefinition
 
 	// Tuples are the relation tuples defined in the validation file, either directly
 	// or in the relationships block.
-	Tuples []*v0.RelationTuple
+	Tuples []*core.RelationTuple
 
 	// ParsedFiles are the underlying parsed validation files.
 	ParsedFiles []ValidationFile
@@ -34,10 +35,11 @@ type FullyParsedValidationFile struct {
 
 // PopulateFromFiles populates the given datastore with the namespaces and tuples found in
 // the validation file(s) specified.
-func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsedValidationFile, decimal.Decimal, error) {
+func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedValidationFile, decimal.Decimal, error) {
 	var revision decimal.Decimal
-	nsDefs := []*v0.NamespaceDefinition{}
-	tuples := []*v0.RelationTuple{}
+	nsDefs := []*core.NamespaceDefinition{}
+	schema := ""
+	tuples := []*core.RelationTuple{}
 	files := []ValidationFile{}
 
 	for _, filePath := range filePaths {
@@ -46,38 +48,33 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 			return nil, decimal.Zero, err
 		}
 
-		parsed, err := ParseValidationFile(fileContents)
+		parsed, err := DecodeValidationFile(fileContents)
 		if err != nil {
 			return nil, decimal.Zero, fmt.Errorf("error when parsing config file %s: %w", filePath, err)
 		}
 
-		files = append(files, parsed)
+		files = append(files, *parsed)
 
-		// Parse the schema, if any.
-		if parsed.Schema != "" {
-			defs, err := compiler.Compile([]compiler.InputSchema{{
-				Source:       input.Source(filePath),
-				SchemaString: parsed.Schema,
-			}}, nil)
-			if err != nil {
-				return nil, decimal.Zero, fmt.Errorf("error when parsing schema in config file %s: %w", filePath, err)
-			}
+		// Add schema-based namespace definitions.
+		defs := parsed.Schema.Definitions
+		if len(defs) > 0 {
+			schema += parsed.Schema.Schema + "\n\n"
+		}
 
-			log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
-			for index, nsDef := range defs {
-				nsDefs = append(nsDefs, nsDef)
-				log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
-				_, lnerr := ds.WriteNamespace(context.Background(), nsDef)
-				if lnerr != nil {
-					return nil, decimal.Zero, fmt.Errorf("error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
-				}
+		log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
+		for index, nsDef := range defs {
+			nsDefs = append(nsDefs, nsDef)
+			log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
+			_, lnerr := ds.WriteNamespace(context.Background(), nsDef)
+			if lnerr != nil {
+				return nil, decimal.Zero, fmt.Errorf("error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
 			}
 		}
 
 		// Load the namespace configs.
 		log.Info().Str("filePath", filePath).Int("namespaceCount", len(parsed.NamespaceConfigs)).Msg("Loading namespaces")
 		for index, namespaceConfig := range parsed.NamespaceConfigs {
-			nsDef := v0.NamespaceDefinition{}
+			nsDef := core.NamespaceDefinition{}
 			nerr := prototext.Unmarshal([]byte(namespaceConfig), &nsDef)
 			if nerr != nil {
 				return nil, decimal.Zero, fmt.Errorf("error when parsing namespace config #%v from file %s: %w", index, filePath, nerr)
@@ -94,33 +91,14 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 		// Load the validation tuples/relationships.
 		var updates []*v1.RelationshipUpdate
 		seenTuples := map[string]bool{}
-
-		relationships := parsed.Relationships
-		if relationships != "" {
-			lines := strings.Split(relationships, "\n")
-			for index, line := range lines {
-				trimmed := strings.TrimSpace(line)
-				if len(trimmed) == 0 || strings.HasPrefix(trimmed, "//") {
-					continue
-				}
-
-				tpl := tuple.Parse(trimmed)
-				if tpl == nil {
-					return nil, decimal.Zero, fmt.Errorf("error parsing relationship #%v: %s", index, trimmed)
-				}
-
-				_, ok := seenTuples[tuple.String(tpl)]
-				if ok {
-					continue
-				}
-				seenTuples[tuple.String(tpl)] = true
-
-				tuples = append(tuples, tpl)
-				updates = append(updates, &v1.RelationshipUpdate{
-					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-					Relationship: tuple.MustToRelationship(tpl),
-				})
-			}
+		for _, rel := range parsed.Relationships.Relationships {
+			updates = append(updates, &v1.RelationshipUpdate{
+				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+				Relationship: rel,
+			})
+			tpl := tuple.MustFromRelationship(rel)
+			tuples = append(tuples, tpl)
+			seenTuples[tuple.String(tpl)] = true
 		}
 
 		log.Info().Str("filePath", filePath).Int("tupleCount", len(updates)+len(parsed.ValidationTuples)).Msg("Loading test data")
@@ -151,5 +129,5 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*FullyParsed
 		revision = wrevision
 	}
 
-	return &FullyParsedValidationFile{nsDefs, tuples, files}, revision, nil
+	return &PopulatedValidationFile{schema, nsDefs, tuples, files}, revision, nil
 }

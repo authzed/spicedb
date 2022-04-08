@@ -1,0 +1,37 @@
+---
+schema: >-
+  definition test/user {}
+
+  definition test/anotherkindofuser {}
+
+  definition test/resource {
+    relation editor: test/user
+    relation viewer: test/user | test/user:* | test/anotherkindofuser | test/anotherkindofuser:*
+
+    permission view = viewer + editor
+  }
+relationships: |
+  test/resource:first#editor@test/user:editordude
+  test/resource:first#viewer@test/user:somegal
+  test/resource:first#viewer@test/user:*
+  test/resource:first#viewer@test/anotherkindofuser:editordude
+assertions:
+  assertTrue:
+    - "test/resource:first#view@test/user:editordude"
+    - "test/resource:first#editor@test/user:editordude"
+    - "test/resource:first#view@test/user:somegal"
+    - "test/resource:first#view@test/user:editordude"
+    - "test/resource:first#view@test/user:anotheruser"
+    - "test/resource:first#view@test/user:aseconduser"
+    - "test/resource:first#view@test/user:athirduser"
+  assertFalse:
+    - "test/resource:second#view@test/user:editordude"
+    - "test/resource:second#view@test/user:anotheruser"
+    - "test/resource:second#view@test/user:aseconduser"
+    - "test/resource:second#view@test/user:athirduser"
+    - "test/resource:first#editor@test/user:somegal"
+    - "test/resource:first#editor@test/user:anotheruser"
+    - "test/resource:first#editor@test/anotherkindofuser:editordude"
+    - "test/resource:first#viewer@test/anotherkindofuser:anotheruser"
+    - "test/resource:first#viewer@test/anotherkindofuser:aseconduser"
+    - "test/resource:first#viewer@test/anotherkindofuser:athirduser"

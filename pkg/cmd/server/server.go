@@ -3,8 +3,12 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
+	"sync"
 	"time"
 
+	"github.com/authzed/grpcutil"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
@@ -13,13 +17,18 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
+	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/dispatch"
+	clusterdispatch "github.com/authzed/spicedb/internal/dispatch/cluster"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	"github.com/authzed/spicedb/pkg/balancer"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
@@ -28,6 +37,7 @@ import (
 type Config struct {
 	// API config
 	GRPCServer          util.GRPCServerConfig
+	GRPCAuthFunc        grpc_auth.AuthFunc
 	PresharedKey        string
 	ShutdownGracePeriod time.Duration
 
@@ -39,19 +49,27 @@ type Config struct {
 	HTTPGatewayCorsAllowedOrigins  []string
 
 	// Datastore
-	Datastore datastorecfg.Config
+	DatastoreConfig datastorecfg.Config
+	Datastore       datastore.Datastore
 
 	// Namespace cache
-	NamespaceCacheExpiration time.Duration
+	NamespaceManager     namespace.Manager
+	NamespaceCacheConfig CacheConfig
 
 	// Schema options
 	SchemaPrefixesRequired bool
 
 	// Dispatch options
-	DispatchServer         util.GRPCServerConfig
-	DispatchMaxDepth       uint32
-	DispatchUpstreamAddr   string
-	DispatchUpstreamCAPath string
+	DispatchServer               util.GRPCServerConfig
+	DispatchMaxDepth             uint32
+	DispatchUpstreamAddr         string
+	DispatchUpstreamCAPath       string
+	DispatchClientMetricsPrefix  string
+	DispatchClusterMetricsPrefix string
+	Dispatcher                   dispatch.Dispatcher
+
+	DispatchCacheConfig        CacheConfig
+	ClusterDispatchCacheConfig CacheConfig
 
 	// API Behavior
 	DisableV1SchemaAPI bool
@@ -60,7 +78,7 @@ type Config struct {
 	DashboardAPI util.HTTPServerConfig
 	MetricsAPI   util.HTTPServerConfig
 
-	//  Middleware for grpc
+	// Middleware for grpc
 	UnaryMiddleware     []grpc.UnaryServerInterceptor
 	StreamingMiddleware []grpc.StreamServerInterceptor
 
@@ -73,45 +91,88 @@ type Config struct {
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
 func (c *Config) Complete() (RunnableServer, error) {
-	if len(c.PresharedKey) < 1 {
+	if len(c.PresharedKey) < 1 && c.GRPCAuthFunc == nil {
 		return nil, fmt.Errorf("a preshared key must be provided to authenticate API requests")
 	}
 
-	ds, err := datastorecfg.NewDatastore(c.Datastore.ToOption())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create datastore: %w", err)
+	if c.GRPCAuthFunc == nil {
+		log.Trace().Int("preshared-key-length", len(c.PresharedKey)).Msg("using gRPC auth with preshared key")
+		c.GRPCAuthFunc = auth.RequirePresharedKey(c.PresharedKey)
+	} else {
+		log.Trace().Msg("using preconfigured auth function")
 	}
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, c.NamespaceCacheExpiration, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+	ds := c.Datastore
+	if ds == nil {
+		var err error
+		ds, err = datastorecfg.NewDatastore(c.DatastoreConfig.ToOption())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create datastore: %w", err)
+		}
 	}
 
-	grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
-		[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
-	))
+	nsm := c.NamespaceManager
+	if nsm == nil {
+		nscc, err := c.NamespaceCacheConfig.Complete()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+		}
 
-	dispatcher, err := combineddispatch.NewDispatcher(nsm, ds,
-		combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
-		combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
-		combineddispatch.GrpcPresharedKey(c.PresharedKey),
-		combineddispatch.GrpcDialOpts(
-			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-			grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"consistent-hashring"}`),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+		nsm, err = namespace.NewCachingNamespaceManager(nscc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+		}
+	}
+
+	enableGRPCHistogram()
+
+	dispatcher := c.Dispatcher
+	if dispatcher == nil {
+		var err error
+		cc, cerr := c.DispatchCacheConfig.Complete()
+		if cerr != nil {
+			return nil, fmt.Errorf("failed to create dispatcher: %w", cerr)
+		}
+
+		dispatcher, err = combineddispatch.NewDispatcher(nsm,
+			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
+			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
+			combineddispatch.GrpcPresharedKey(c.PresharedKey),
+			combineddispatch.GrpcDialOpts(
+				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+				grpc.WithDefaultServiceConfig(balancer.BalancerServiceConfig),
+			),
+			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
+			combineddispatch.CacheConfig(cc),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
+		}
 	}
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
-		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultMiddleware(log.Logger, c.PresharedKey, dispatcher, ds)
+		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey), ds)
 	}
 
-	cachingClusterDispatch, err := combineddispatch.NewClusterDispatcher(dispatcher, nsm, ds)
-	if err != nil {
-		return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
+	var cachingClusterDispatch dispatch.Dispatcher
+	if c.DispatchServer.Enabled {
+		cdcc, cerr := c.ClusterDispatchCacheConfig.Complete()
+		if cerr != nil {
+			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", cerr)
+		}
+
+		var err error
+		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
+			dispatcher,
+			nsm,
+			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
+			clusterdispatch.CacheConfig(cdcc),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
+		}
 	}
+
 	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			dispatchSvc.RegisterGrpcServices(server, cachingClusterDispatch)
@@ -129,18 +190,17 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	v1SchemaServiceOption := services.V1SchemaServiceEnabled
-	if !c.DisableV1SchemaAPI {
+	if c.DisableV1SchemaAPI {
 		v1SchemaServiceOption = services.V1SchemaServiceDisabled
 	}
 
 	if len(c.UnaryMiddleware) == 0 && len(c.StreamingMiddleware) == 0 {
-		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.PresharedKey, dispatcher, ds)
+		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, dispatcher, ds)
 	}
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
 				server,
-				ds,
 				nsm,
 				dispatcher,
 				c.DispatchMaxDepth,
@@ -154,6 +214,18 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	// Configure the gateway to serve HTTP
+	if len(c.HTTPGatewayUpstreamAddr) == 0 {
+		c.HTTPGatewayUpstreamAddr = c.GRPCServer.Address
+	} else {
+		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("Overriding REST gateway upstream")
+	}
+
+	if len(c.HTTPGatewayUpstreamTLSCertPath) == 0 {
+		c.HTTPGatewayUpstreamTLSCertPath = c.GRPCServer.TLSCertPath
+	} else {
+		log.Info().Str("cert-path", c.HTTPGatewayUpstreamTLSCertPath).Msg("Overriding REST gateway upstream TLS")
+	}
+
 	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
@@ -169,6 +241,10 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}).Handler(gatewayHandler)
 	}
 
+	if c.HTTPGateway.Enabled {
+		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("starting REST gateway")
+	}
+
 	gatewayServer, err := c.HTTPGateway.Complete(zerolog.InfoLevel, gatewayHandler)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
@@ -182,7 +258,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	dashboardServer, err := c.DashboardAPI.Complete(zerolog.InfoLevel, dashboard.NewHandler(
 		c.GRPCServer.Address,
 		c.GRPCServer.TLSKeyPath != "" || c.GRPCServer.TLSCertPath != "",
-		c.Datastore.Engine,
+		c.DatastoreConfig.Engine,
 		ds,
 	))
 	if err != nil {
@@ -197,6 +273,21 @@ func (c *Config) Complete() (RunnableServer, error) {
 		dashboardServer:     dashboardServer,
 		unaryMiddleware:     c.UnaryMiddleware,
 		streamingMiddleware: c.StreamingMiddleware,
+		presharedKey:        c.PresharedKey,
+		closeFunc: func() {
+			if err := ds.Close(); err != nil {
+				log.Warn().Err(err).Msg("couldn't close datastore")
+			}
+			if err := dispatcher.Close(); err != nil {
+				log.Warn().Err(err).Msg("couldn't close dispatcher")
+			}
+			if cachingClusterDispatch == nil {
+				return
+			}
+			if err := cachingClusterDispatch.Close(); err != nil {
+				log.Warn().Err(err).Msg("couldn't close cluster dispatcher")
+			}
+		},
 	}, nil
 }
 
@@ -205,6 +296,8 @@ type RunnableServer interface {
 	Run(ctx context.Context) error
 	Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor)
 	SetMiddleware(unaryInterceptors []grpc.UnaryServerInterceptor, streamingInterceptors []grpc.StreamServerInterceptor) RunnableServer
+	GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error)
 }
 
 // completedServerConfig holds the full configuration to run a spicedb server,
@@ -219,6 +312,8 @@ type completedServerConfig struct {
 
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
+	presharedKey        string
+	closeFunc           func()
 }
 
 func (c *completedServerConfig) Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
@@ -229,6 +324,22 @@ func (c *completedServerConfig) SetMiddleware(unaryInterceptors []grpc.UnaryServ
 	c.unaryMiddleware = unaryInterceptors
 	c.streamingMiddleware = streamingInterceptors
 	return c
+}
+
+func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	if len(c.presharedKey) == 0 {
+		return c.gRPCServer.DialContext(ctx, opts...)
+	}
+	if c.gRPCServer.Insecure() {
+		opts = append(opts, grpcutil.WithInsecureBearerToken(c.presharedKey))
+	} else {
+		opts = append(opts, grpcutil.WithBearerToken(c.presharedKey))
+	}
+	return c.gRPCServer.DialContext(ctx, opts...)
+}
+
+func (c *completedServerConfig) DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error) {
+	return c.dispatchGRPCServer.NetDialContext(ctx, s)
 }
 
 func (c *completedServerConfig) Run(ctx context.Context) error {
@@ -258,9 +369,25 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	g.Go(c.dashboardServer.ListenAndServe)
 	g.Go(stopOnCancel(c.dashboardServer.Close))
 
+	g.Go(stopOnCancel(c.closeFunc))
+
 	if err := g.Wait(); err != nil {
 		log.Warn().Err(err).Msg("error shutting down servers")
 	}
 
 	return nil
+}
+
+var promOnce sync.Once
+
+// enableGRPCHistogram enables the standard time history for gRPC requests,
+// ensuring that it is only enabled once
+func enableGRPCHistogram() {
+	// EnableHandlingTimeHistogram is not thread safe and only needs to happen
+	// once
+	promOnce.Do(func() {
+		grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
+			[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
+		))
+	})
 }

@@ -28,15 +28,18 @@ NodeTypeFile
                     NodeTypeError
                       end-rune = 33
                       error-message = Expected identifier, found token TokenTypeRightBrace
+                      error-source = }
                       input-source = relation missing type test
                       start-rune = 35
         NodeTypeError
           end-rune = 33
           error-message = Expected end of statement or definition, found: TokenTypeRightBrace
+          error-source = }
           input-source = relation missing type test
           start-rune = 35
     NodeTypeError
       end-rune = 33
       error-message = Unexpected token at root level: TokenTypeRightBrace
+      error-source = }
       input-source = relation missing type test
       start-rune = 35

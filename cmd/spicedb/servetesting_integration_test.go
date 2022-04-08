@@ -12,12 +12,13 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
+	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 )
@@ -32,11 +33,12 @@ func TestTestServer(t *testing.T) {
 			Cmd:          []string{"serve-testing", "--log-level", "debug"},
 			ExposedPorts: []string{"50051/tcp", "50052/tcp"},
 		},
+		"",
 	)
 	require.NoError(err)
 	defer tester.cleanup()
 
-	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), grpc.WithInsecure())
+	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(err)
 	defer conn.Close()
 
@@ -44,7 +46,7 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 
-	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithInsecure())
+	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(err)
 	defer roConn.Close()
 
@@ -135,10 +137,11 @@ func TestTestServer(t *testing.T) {
 type spicedbHandle struct {
 	port         string
 	readonlyPort string
+	httpPort     string
 	cleanup      func()
 }
 
-func newTester(t *testing.T, containerOpts *dockertest.RunOptions) (*spicedbHandle, error) {
+func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string) (*spicedbHandle, error) {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return nil, fmt.Errorf("Could not connect to docker: %w", err)
@@ -151,6 +154,7 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions) (*spicedbHand
 
 	port := resource.GetPort("50051/tcp")
 	readonlyPort := resource.GetPort("50052/tcp")
+	httpPort := resource.GetPort("8443/tcp")
 
 	cleanup := func() {
 		// When you're done, kill and remove the container
@@ -161,7 +165,11 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions) (*spicedbHand
 
 	// Give the service time to boot.
 	require.Eventually(t, func() bool {
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", port), grpc.WithInsecure())
+		conn, err := grpc.Dial(
+			fmt.Sprintf("localhost:%s", port),
+			grpc.WithInsecure(),
+			grpcutil.WithInsecureBearerToken(token),
+		)
 		if err != nil {
 			return false
 		}
@@ -184,5 +192,5 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions) (*spicedbHand
 		return err == nil
 	}, 1*time.Second, 10*time.Millisecond, "could not start test server")
 
-	return &spicedbHandle{port: port, readonlyPort: readonlyPort, cleanup: cleanup}, nil
+	return &spicedbHandle{port: port, readonlyPort: readonlyPort, httpPort: httpPort, cleanup: cleanup}, nil
 }

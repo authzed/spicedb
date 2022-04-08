@@ -1,0 +1,41 @@
+---
+namespace_configs:
+  - |
+    name: "example/user"
+
+  - |
+    name: "example/document"
+
+    relation {
+      name: "writer"
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "example/user"
+          relation: "..."
+        }
+      }
+    }
+
+    relation {
+      name: "reader"
+
+      userset_rewrite {
+        union {
+          child { _this {} }
+          child { computed_userset { relation: "writer" } }
+        }
+      }
+
+      type_information {
+        allowed_direct_relations {
+          namespace: "example/user"
+          relation: "..."
+        }
+      }
+    }
+
+validation_tuples:
+  - "example/document:firstdoc#writer@example/user:tom#..."
+  - "example/document:firstdoc#reader@example/user:fred#..."
+  - "example/document:seconddoc#reader@example/user:tom#..."
