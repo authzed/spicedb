@@ -127,6 +127,12 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 	req.NoError(rows.Err())
 }
 
+func TestMySQLMigrationsWithUnsupportedPrefix(t *testing.T) {
+	req := require.New(t)
+	err := registerMigration("888", "", struct{}{})
+	req.Error(err)
+}
+
 func TestMain(m *testing.M) {
 	mysqlContainerRunOpts := &dockertest.RunOptions{
 		Repository: "mysql",
