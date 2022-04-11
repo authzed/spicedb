@@ -56,6 +56,10 @@ func (c *Config) ToOption() ConfigOption {
 		to.StreamingMiddleware = c.StreamingMiddleware
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
+		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
+		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
+		to.TelemetryEndpoint = c.TelemetryEndpoint
+		to.TelemetryInterval = c.TelemetryInterval
 	}
 }
 
@@ -309,5 +313,33 @@ func WithDispatchStreamingMiddleware(dispatchStreamingMiddleware grpc.StreamServ
 func SetDispatchStreamingMiddleware(dispatchStreamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
 	return func(c *Config) {
 		c.DispatchStreamingMiddleware = dispatchStreamingMiddleware
+	}
+}
+
+// WithSilentlyDisableTelemetry returns an option that can set SilentlyDisableTelemetry on a Config
+func WithSilentlyDisableTelemetry(silentlyDisableTelemetry bool) ConfigOption {
+	return func(c *Config) {
+		c.SilentlyDisableTelemetry = silentlyDisableTelemetry
+	}
+}
+
+// WithTelemetryCAOverridePath returns an option that can set TelemetryCAOverridePath on a Config
+func WithTelemetryCAOverridePath(telemetryCAOverridePath string) ConfigOption {
+	return func(c *Config) {
+		c.TelemetryCAOverridePath = telemetryCAOverridePath
+	}
+}
+
+// WithTelemetryEndpoint returns an option that can set TelemetryEndpoint on a Config
+func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
+	return func(c *Config) {
+		c.TelemetryEndpoint = telemetryEndpoint
+	}
+}
+
+// WithTelemetryInterval returns an option that can set TelemetryInterval on a Config
+func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.TelemetryInterval = telemetryInterval
 	}
 }

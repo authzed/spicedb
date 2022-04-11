@@ -10,6 +10,7 @@ import (
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -25,6 +26,8 @@ import (
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 )
+
+var DisableTelemetryHandler *prometheus.Registry
 
 // ServeExample creates an example usage string with the provided program name.
 func ServeExample(programName string) string {
@@ -54,7 +57,7 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 
 // MetricsHandler sets up an HTTP server that handles serving Prometheus
 // metrics and pprof endpoints.
-func MetricsHandler() http.Handler {
+func MetricsHandler(telemetryRegistry *prometheus.Registry) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
@@ -62,6 +65,9 @@ func MetricsHandler() http.Handler {
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	if telemetryRegistry != nil {
+		mux.Handle("/telemetry", promhttp.HandlerFor(telemetryRegistry, promhttp.HandlerOpts{}))
+	}
 	return mux
 }
 

@@ -10,6 +10,7 @@ require (
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/aws/aws-sdk-go v1.43.31
 	github.com/benbjohnson/clock v1.3.0
+	github.com/cenkalti/backoff/v4 v4.1.2
 	github.com/cespare/xxhash v1.1.0
 	github.com/cncf/udpa/go v0.0.0-20220112060539-c52dc94e7fbe // indirect
 	github.com/cncf/xds/go v0.0.0-20220330162227-eded343319d0 // indirect
@@ -28,6 +29,7 @@ require (
 	github.com/go-co-op/gocron v1.13.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gogo/protobuf v1.3.2
+	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.7
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
@@ -52,7 +54,8 @@ require (
 	github.com/opencontainers/runc v1.1.1 // indirect
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/prometheus/client_golang v1.12.1
-	github.com/prometheus/common v0.33.0 // indirect
+	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.33.0
 	github.com/rs/cors v1.8.2
 	github.com/rs/zerolog v1.26.1
 	github.com/scylladb/go-set v1.0.2
@@ -66,6 +69,7 @@ require (
 	github.com/stretchr/objx v0.3.0 // indirect
 	github.com/stretchr/testify v1.7.1
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
+	go.buf.build/protocolbuffers/go/prometheus/prometheus v1.2.2
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.31.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.31.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.6.0 // indirect

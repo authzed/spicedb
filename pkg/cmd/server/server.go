@@ -28,6 +28,7 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/balancer"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
@@ -85,6 +86,12 @@ type Config struct {
 	// Middleware for dispatch
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor
+
+	// Telemetry
+	SilentlyDisableTelemetry bool
+	TelemetryCAOverridePath  string
+	TelemetryEndpoint        string
+	TelemetryInterval        time.Duration
 }
 
 // Complete validates the config and fills out defaults.
@@ -250,11 +257,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
 	}
 
-	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler())
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
-	}
-
 	dashboardServer, err := c.DashboardAPI.Complete(zerolog.InfoLevel, dashboard.NewHandler(
 		c.GRPCServer.Address,
 		c.GRPCServer.TLSKeyPath != "" || c.GRPCServer.TLSCertPath != "",
@@ -263,6 +265,29 @@ func (c *Config) Complete() (RunnableServer, error) {
 	))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize dashboard server: %w", err)
+	}
+
+	registry, err := telemetry.RegisterTelemetryCollector(c.DatastoreConfig.Engine, ds)
+	if err != nil {
+		log.Warn().Err(err).Msg("unable to initialize telemetry collector")
+	}
+
+	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler(registry))
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
+	}
+
+	reporter := telemetry.DisabledReporter
+	if c.SilentlyDisableTelemetry {
+		reporter = telemetry.SilentlyDisabledReporter
+	} else if c.TelemetryEndpoint != "" {
+		var err error
+		reporter, err = telemetry.RemoteReporter(
+			registry, c.TelemetryEndpoint, c.TelemetryCAOverridePath, c.TelemetryInterval,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("unable to initialize metrics reporter: %w", err)
+		}
 	}
 
 	return &completedServerConfig{
@@ -274,6 +299,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		unaryMiddleware:     c.UnaryMiddleware,
 		streamingMiddleware: c.StreamingMiddleware,
 		presharedKey:        c.PresharedKey,
+		telemetryReporter:   reporter,
 		closeFunc: func() {
 			if err := ds.Close(); err != nil {
 				log.Warn().Err(err).Msg("couldn't close datastore")
@@ -309,6 +335,7 @@ type completedServerConfig struct {
 	gatewayServer      util.RunnableHTTPServer
 	metricsServer      util.RunnableHTTPServer
 	dashboardServer    util.RunnableHTTPServer
+	telemetryReporter  telemetry.Reporter
 
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
@@ -368,6 +395,8 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 
 	g.Go(c.dashboardServer.ListenAndServe)
 	g.Go(stopOnCancel(c.dashboardServer.Close))
+
+	g.Go(func() error { return c.telemetryReporter(ctx) })
 
 	g.Go(stopOnCancel(c.closeFunc))
 
