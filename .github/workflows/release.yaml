@@ -5,7 +5,7 @@ on:  # yamllint disable-line rule:truthy
     tags:
       - "*"
 permissions:
-  contents: "write"
+  packages: "write"
 jobs:
   goreleaser:
     runs-on: "ubuntu-latest"
