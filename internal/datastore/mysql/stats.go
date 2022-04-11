@@ -10,8 +10,18 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	informationSchemaTableRowsColumn = "table_rows"
+	informationSchemaTablesTable     = "INFORMATION_SCHEMA.TABLES"
+	informationSchemaTableNameColumn = "table_name"
+)
+
 func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	query, args, err := sb.Select("table_rows").From("INFORMATION_SCHEMA.TABLES").Where(squirrel.Eq{"table_name": mds.driver.RelationTuple()}).ToSql()
+	query, args, err := sb.
+		Select(informationSchemaTableRowsColumn).
+		From(informationSchemaTablesTable).
+		Where(squirrel.Eq{informationSchemaTableNameColumn: mds.driver.RelationTuple()}).
+		ToSql()
 	if err != nil {
 		return datastore.Stats{}, err
 	}
