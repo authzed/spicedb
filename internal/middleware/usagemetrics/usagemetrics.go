@@ -15,37 +15,22 @@ import (
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-var dispatchBuckets = []float64{1, 5, 10, 25, 50, 100, 250}
+var (
+	// DispatchedCountLabels are the labels that DispatchedCountHistogram will
+	// have have by default.
+	DispatchedCountLabels = []string{"method", "cached"}
 
-var dispatchedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "services",
-	Name:      "dispatched_count",
-	Help:      "dispatch count per api call distribution in seconds.",
-	Buckets:   dispatchBuckets,
-}, []string{"method"})
-
-var cachedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "spicedb",
-	Subsystem: "services",
-	Name:      "cached_count",
-	Help:      "dispatches avoid by caching per api call in seconds.",
-	Buckets:   dispatchBuckets,
-}, []string{"method"})
-
-var dispatchedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "services",
-	Name:      "dispatched_total",
-	Help:      "dispatch counts.",
-}, []string{"method"})
-
-var cachedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "services",
-	Name:      "cached_total",
-	Help:      "dispatches avoid by caching.",
-}, []string{"method"})
+	// DispatchedCountHistogram is the metric that SpiceDB uses to keep track
+	// of the number of downstream dispatches that are performed to answer a
+	// single query.
+	DispatchedCountHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "spicedb",
+		Subsystem: "services",
+		Name:      "dispatches",
+		Help:      "Histogram of cluster dispatches performed by the instance.",
+		Buckets:   []float64{1, 5, 10, 25, 50, 100, 250},
+	}, DispatchedCountLabels)
+)
 
 type reporter struct{}
 
@@ -88,11 +73,8 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 }
 
 func annotateAndReportForMetadata(ctx context.Context, methodName string, metadata *dispatch.ResponseMeta) error {
-	dispatchedCountHistogram.WithLabelValues(methodName).Observe(float64(metadata.DispatchCount))
-	cachedCountHistogram.WithLabelValues(methodName).Observe(float64(metadata.CachedDispatchCount))
-
-	dispatchedCounter.WithLabelValues(methodName).Add(float64(metadata.DispatchCount))
-	cachedCounter.WithLabelValues(methodName).Add(float64(metadata.CachedDispatchCount))
+	DispatchedCountHistogram.WithLabelValues(methodName, "false").Observe(float64(metadata.DispatchCount))
+	DispatchedCountHistogram.WithLabelValues(methodName, "true").Observe(float64(metadata.CachedDispatchCount))
 
 	return responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
 		responsemeta.DispatchedOperationsCount: strconv.Itoa(int(metadata.DispatchCount)),
