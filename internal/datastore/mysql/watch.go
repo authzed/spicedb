@@ -20,7 +20,7 @@ const (
 // Watch notifies the caller about all changes to tuples.
 //
 // All events following afterRevision will be sent to the caller.
-func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (mds *Datastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errs := make(chan error, 1)
 
@@ -71,7 +71,7 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	return updates, errs
 }
 
-func (mds *mysqlDatastore) loadChanges(
+func (mds *Datastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
 ) (changes []*datastore.RevisionChanges, newRevision uint64, err error) {

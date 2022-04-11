@@ -19,7 +19,7 @@ var schema = common.SchemaInformation{
 	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (mds *mysqlDatastore) QueryTuples(
+func (mds *Datastore) QueryTuples(
 	ctx context.Context,
 	filter *v1.RelationshipFilter,
 	revision datastore.Revision,
@@ -43,7 +43,7 @@ func (mds *mysqlDatastore) QueryTuples(
 	return mds.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, revision, opts...)
 }
 
-func (mds *mysqlDatastore) ReverseQueryTuples(
+func (mds *Datastore) ReverseQueryTuples(
 	ctx context.Context,
 	subjectFilter *v1.SubjectFilter,
 	revision datastore.Revision,

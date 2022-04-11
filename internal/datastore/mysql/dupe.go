@@ -10,9 +10,11 @@ package mysql
 // reconciled with upstream
 
 import (
-	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/internal/datastore"
+
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jzelinskie/stringz"
 	"github.com/shopspring/decimal"
 )
@@ -32,14 +34,14 @@ const (
 )
 
 var (
-	ErrUnableToQueryTuples  = "unable to query tuples: %w"
-	ErrUnableToWriteTuples  = "unable to write tuples: %w"
-	ErrUnableToDeleteTuples = "unable to delete tuples: %w"
+	errUnableToQueryTuples  = "unable to query tuples: %w"
+	errUnableToWriteTuples  = "unable to write tuples: %w"
+	errUnableToDeleteTuples = "unable to delete tuples: %w"
 
-	ErrUnableToWriteConfig    = "unable to write namespace config: %w"
-	ErrUnableToReadConfig     = "unable to read namespace config: %w"
-	ErrUnableToDeleteConfig   = "unable to delete namespace config: %w"
-	ErrUnableToListNamespaces = "unable to list namespaces: %w"
+	errUnableToWriteConfig    = "unable to write namespace config: %w"
+	errUnableToReadConfig     = "unable to read namespace config: %w"
+	errUnableToDeleteConfig   = "unable to delete namespace config: %w"
+	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
 
 func FilterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {

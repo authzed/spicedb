@@ -6,36 +6,36 @@ import (
 	"errors"
 	"fmt"
 
-	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+
+	sq "github.com/Masterminds/squirrel"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
-
-	"github.com/authzed/spicedb/internal/datastore"
 )
 
 // WriteTuples takes a list of existing tuples that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified
 // namespace.
-func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+func (mds *Datastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
 
 	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
 	if err := mds.checkPreconditions(ctx, tx, preconditions); err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	newTxnID, err := mds.createNewTransaction(ctx, tx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	bulkWrite := mds.WriteTupleQuery
@@ -71,12 +71,12 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	if len(clauses) > 0 {
 		query, args, err := selectForUpdateQuery.Where(clauses).ToSql()
 		if err != nil {
-			return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
 		rows, err := mds.db.QueryContext(ctx, query, args...)
 		if err != nil {
-			return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 		defer migrations.LogOnError(ctx, rows.Close)
 
@@ -84,23 +84,23 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 		for rows.Next() {
 			var tupleID int64
 			if err := rows.Scan(&tupleID); err != nil {
-				return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 
 			tupleIds = append(tupleIds, tupleID)
 		}
 
 		if rows.Err() != nil {
-			return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, rows.Err())
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, rows.Err())
 		}
 
 		if len(tupleIds) > 0 {
 			query, args, err := mds.DeleteTupleQuery.Where(sq.Eq{colID: tupleIds}).Set(colDeletedTxn, newTxnID).ToSql()
 			if err != nil {
-				return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 			if _, err := tx.ExecContext(ctx, query, args...); err != nil {
-				return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+				return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 			}
 		}
 	}
@@ -108,25 +108,25 @@ func (mds *mysqlDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	if bulkWriteHasValues {
 		query, args, err := bulkWrite.ToSql()
 		if err != nil {
-			return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 
 		_, err = tx.ExecContext(ctx, query, args...)
 		if err != nil {
-			return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+			return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 		}
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	return revisionFromTransaction(newTxnID), nil
 }
 
 // NOTE(chriskirkland): ErrNoRows needs to be configured/dependency injected per sql-driver type
-func (mds *mysqlDatastore) checkPreconditions(ctx context.Context, tx *sql.Tx, preconditions []*v1.Precondition) error {
+func (mds *Datastore) checkPreconditions(ctx context.Context, tx *sql.Tx, preconditions []*v1.Precondition) error {
 	ctx, span := tracer.Start(ctx, "checkPreconditions")
 	defer span.End()
 
@@ -162,7 +162,7 @@ func (mds *mysqlDatastore) checkPreconditions(ctx context.Context, tx *sql.Tx, p
 }
 
 // NOTE(chriskirkland): this is all generic other than the squirrel templating for `queryTupleExists`
-func (mds *mysqlDatastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
+func (mds *Datastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
 	query := mds.QueryTupleExistsQuery.Where(sq.Eq{colNamespace: filter.ResourceType})
 
 	if filter.OptionalResourceId != "" {
@@ -185,18 +185,18 @@ func (mds *mysqlDatastore) selectQueryForFilter(filter *v1.RelationshipFilter) s
 	return query
 }
 
-func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (mds *Datastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 
 	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
 	if err := mds.checkPreconditions(ctx, tx, preconditions); err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	// Add clauses for the ResourceFilter
@@ -229,23 +229,23 @@ func (mds *mysqlDatastore) DeleteRelationships(ctx context.Context, precondition
 
 	newTxnID, err := mds.createNewTransaction(ctx, tx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	query = query.Set(colDeletedTxn, newTxnID)
 
 	querySQL, args, err := query.ToSql()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
 	}
 
 	if _, err := tx.ExecContext(ctx, querySQL, args...); err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteTuples, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
 	return revisionFromTransaction(newTxnID), nil

@@ -6,24 +6,24 @@ import (
 	"errors"
 	"fmt"
 
-	sq "github.com/Masterminds/squirrel"
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
+	sq "github.com/Masterminds/squirrel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
-func (mds *mysqlDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+func (mds *Datastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
 	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
 }
 
 // WriteNamespace takes a proto namespace definition and persists it,
 // returning the version of the namespace that was created.
-func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *core.NamespaceDefinition) (datastore.Revision, error) {
+func (mds *Datastore) WriteNamespace(ctx context.Context, newNamespace *core.NamespaceDefinition) (datastore.Revision, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
@@ -46,7 +46,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *cor
 
 	newTxnID, err := mds.createNewTransaction(ctx, tx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	span.AddEvent("Model transaction created")
 
@@ -55,28 +55,28 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *cor
 		Where(sq.Eq{colNamespace: newNamespace.Name, colDeletedTxn: liveDeletedTxnID}).
 		ToSql()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
 	_, err = tx.ExecContext(datastore.SeparateContextWithTracing(ctx), delSQL, delArgs...)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
 	query, args, err := mds.WriteNamespaceQuery.Values(newNamespace.Name, serialized, newTxnID).ToSql()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
 	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	span.AddEvent("Namespace config written")
 
 	err = tx.Commit()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToWriteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	span.AddEvent("Namespace config committed")
 
@@ -85,7 +85,7 @@ func (mds *mysqlDatastore) WriteNamespace(ctx context.Context, newNamespace *cor
 
 // ReadNamespace reads a namespace definition and version and returns it, and the revision at
 // which it was created or last written, if found.
-func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (mds *Datastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
@@ -93,7 +93,7 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 
 	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(ErrUnableToReadConfig, err)
+		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
@@ -104,12 +104,12 @@ func (mds *mysqlDatastore) ReadNamespace(ctx context.Context, nsName string, rev
 	case err == nil:
 		return loaded, version, nil
 	default:
-		return nil, datastore.NoRevision, fmt.Errorf(ErrUnableToReadConfig, err)
+		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 }
 
 // DeleteNamespace deletes a namespace and any associated tuples.
-func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
+func (mds *Datastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
@@ -118,7 +118,7 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 
 	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
@@ -130,12 +130,12 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 	case err == nil:
 		break
 	default:
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	newTxnID, err := mds.createNewTransaction(ctx, tx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	delSQL, delArgs, err := mds.DeleteNamespaceQuery.
@@ -143,12 +143,12 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 		Where(sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt}).
 		ToSql()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	_, err = tx.ExecContext(ctx, delSQL, delArgs...)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	deleteTupleSQL, deleteTupleArgs, err := mds.DeleteNamespaceTuplesQuery.
@@ -156,24 +156,24 @@ func (mds *mysqlDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 		Where(sq.Eq{colNamespace: nsName}).
 		ToSql()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	_, err = tx.ExecContext(ctx, deleteTupleSQL, deleteTupleArgs...)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(ErrUnableToDeleteConfig, err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
 	return revisionFromTransaction(newTxnID), nil
 }
 
 // ListNamespaces lists all namespaces defined.
-func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
+func (mds *Datastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := mds.db.BeginTx(ctx, nil)
@@ -199,12 +199,12 @@ func (mds *mysqlDatastore) ListNamespaces(ctx context.Context, revision datastor
 		var config []byte
 		var version datastore.Revision
 		if err := rows.Scan(&config, &version); err != nil {
-			return nil, fmt.Errorf(ErrUnableToListNamespaces, err)
+			return nil, fmt.Errorf(errUnableToListNamespaces, err)
 		}
 
 		var loaded core.NamespaceDefinition
 		if err := proto.Unmarshal(config, &loaded); err != nil {
-			return nil, fmt.Errorf(ErrUnableToReadConfig, err)
+			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
 		nsDefs = append(nsDefs, &loaded)
@@ -270,10 +270,13 @@ func loadAllNamespaces(ctx context.Context, db *sql.DB, queryBuilder sq.SelectBu
 
 		var loaded core.NamespaceDefinition
 		if err := proto.Unmarshal(config, &loaded); err != nil {
-			return nil, fmt.Errorf(ErrUnableToReadConfig, err)
+			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
 		nsDefs = append(nsDefs, &loaded)
+	}
+	if rows.Err() != nil {
+		return nil, err
 	}
 
 	return nsDefs, nil

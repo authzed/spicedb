@@ -1,8 +1,9 @@
 package mysql
 
 import (
-	sq "github.com/Masterminds/squirrel"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+
+	sq "github.com/Masterminds/squirrel"
 )
 
 type QueryBuilder struct {

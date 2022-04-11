@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Masterminds/squirrel"
 	"github.com/authzed/spicedb/internal/datastore"
+
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 )
 
-func (mds *mysqlDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	query, args, err := sb.Select("table_rows").From("INFORMATION_SCHEMA.TABLES").Where(squirrel.Eq{"table_name": mds.driver.RelationTuple()}).ToSql()
 	if err != nil {
 		return datastore.Stats{}, err

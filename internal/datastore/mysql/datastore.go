@@ -8,8 +8,12 @@ import (
 	"math/rand"
 	"time"
 
-	sq "github.com/Masterminds/squirrel"
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
+	sq "github.com/Masterminds/squirrel"
 	"github.com/dlmiddlecote/sqlstats"
 	"github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,10 +22,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 )
 
 const (
@@ -54,7 +54,7 @@ type sqlFilter interface {
 	ToSql() (string, []interface{}, error)
 }
 
-func NewMysqlDatastore(url string, options ...Option) (*mysqlDatastore, error) {
+func NewMysqlDatastore(url string, options ...Option) (*Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -102,7 +102,7 @@ func NewMysqlDatastore(url string, options ...Option) (*mysqlDatastore, error) {
 		UsersetBatchSize: config.splitAtUsersetCount,
 	}
 
-	store := &mysqlDatastore{
+	store := &Datastore{
 		db:                       db,
 		driver:                   driver,
 		url:                      url,
@@ -137,7 +137,7 @@ func NewMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
 
 		rows, err := db.QueryContext(ctx, sqlQuery, args...)
 		if err != nil {
-			return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
+			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
 		defer migrations.LogOnError(ctx, rows.Close)
 
@@ -163,20 +163,20 @@ func NewMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
 				&userset.Relation,
 			)
 			if err != nil {
-				return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
+				return nil, fmt.Errorf(errUnableToQueryTuples, err)
 			}
 
 			tuples = append(tuples, nextTuple)
 		}
 		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf(ErrUnableToQueryTuples, err)
+			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
 		span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 		return tuples, nil
 	}
 }
 
-type mysqlDatastore struct {
+type Datastore struct {
 	db            *sql.DB
 	driver        *migrations.MysqlDriver
 	querySplitter *common.TupleQuerySplitter
@@ -199,7 +199,7 @@ type mysqlDatastore struct {
 }
 
 // Close closes the data store.
-func (mds *mysqlDatastore) Close() error {
+func (mds *Datastore) Close() error {
 	mds.cancelGc()
 	if mds.gcGroup != nil {
 		if err := mds.gcGroup.Wait(); err != nil {
@@ -209,7 +209,7 @@ func (mds *mysqlDatastore) Close() error {
 	return mds.db.Close()
 }
 
-func (mds *mysqlDatastore) runGarbageCollector() error {
+func (mds *Datastore) runGarbageCollector() error {
 	log.Info().Dur("interval", mds.gcInterval).Msg("garbage collection worker started for mysql driver")
 
 	for {
@@ -227,7 +227,7 @@ func (mds *mysqlDatastore) runGarbageCollector() error {
 	}
 }
 
-func (mds *mysqlDatastore) getNow(ctx context.Context) (time.Time, error) {
+func (mds *Datastore) getNow(ctx context.Context) (time.Time, error) {
 	// Retrieve the `now` time from the database.
 	nowSQL, nowArgs, err := getNow.ToSql()
 	if err != nil {
@@ -247,7 +247,7 @@ func (mds *mysqlDatastore) getNow(ctx context.Context) (time.Time, error) {
 	return now, nil
 }
 
-func (mds *mysqlDatastore) collectGarbage() error {
+func (mds *Datastore) collectGarbage() error {
 	ctx, cancel := context.WithTimeout(context.Background(), mds.gcMaxOperationTime)
 	defer cancel()
 
@@ -274,7 +274,7 @@ func (mds *mysqlDatastore) collectGarbage() error {
 	return err
 }
 
-func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
+func (mds *Datastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
 	// Find the highest transaction ID before the GC window.
 	query, args, err := mds.GetRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
 	if err != nil {
@@ -300,7 +300,7 @@ func (mds *mysqlDatastore) collectGarbageBefore(ctx context.Context, before time
 	return mds.collectGarbageForTransaction(ctx, highest)
 }
 
-func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
+func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	relCount, err := mds.batchDelete(ctx, mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: highest})
 	if err != nil {
@@ -319,7 +319,7 @@ func (mds *mysqlDatastore) collectGarbageForTransaction(ctx context.Context, hig
 	return relCount, transactionCount, nil
 }
 
-func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
+func (mds *Datastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
 	query, args, err := sb.Delete(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
@@ -345,7 +345,7 @@ func (mds *mysqlDatastore) batchDelete(ctx context.Context, tableName string, fi
 	return deletedCount, nil
 }
 
-func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
+func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
@@ -370,7 +370,7 @@ func (mds *mysqlDatastore) createNewTransaction(ctx context.Context, tx *sql.Tx)
 // IsReady returns whether the datastore is ready to accept data. Datastores that require
 // database schema creation will return false until the migrations have been run to create
 // the necessary tables.
-func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
+func (mds *Datastore) IsReady(ctx context.Context) (bool, error) {
 	if err := mds.db.PingContext(ctx); err != nil {
 		return false, err
 	}
@@ -408,7 +408,7 @@ func (mds *mysqlDatastore) IsReady(ctx context.Context) (bool, error) {
 }
 
 // seedBaseTransaction initializes the first transaction revision.
-func (mds *mysqlDatastore) seedBaseTransaction(ctx context.Context) (datastore.Revision, error) {
+func (mds *Datastore) seedBaseTransaction(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "seedBaseTransaction")
 	defer span.End()
 
@@ -445,7 +445,7 @@ func (mds *mysqlDatastore) seedBaseTransaction(ctx context.Context) (datastore.R
 
 // OptimizedRevision gets a revision that will likely already be replicated
 // and will likely be shared amongst many queries.
-func (mds *mysqlDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (mds *Datastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()
 
@@ -472,7 +472,7 @@ func (mds *mysqlDatastore) OptimizedRevision(ctx context.Context) (datastore.Rev
 
 // HeadRevision gets a revision that is guaranteed to be at least as fresh as
 // right now.
-func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
@@ -489,7 +489,7 @@ func (mds *mysqlDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 
 // CheckRevision checks the specified revision to make sure it's valid and
 // hasn't been garbage collected.
-func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
 
@@ -536,7 +536,7 @@ func (mds *mysqlDatastore) CheckRevision(ctx context.Context, revision datastore
 	return nil
 }
 
-func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
+func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
@@ -561,7 +561,7 @@ func (mds *mysqlDatastore) loadRevision(ctx context.Context) (uint64, error) {
 	return uint64(revision.Int64), nil
 }
 
-func (mds *mysqlDatastore) computeRevisionRange(ctx context.Context, windowInverted time.Duration) (uint64, uint64, error) {
+func (mds *Datastore) computeRevisionRange(ctx context.Context, windowInverted time.Duration) (uint64, uint64, error) {
 	ctx, span := tracer.Start(ctx, "computeRevisionRange")
 	defer span.End()
 
