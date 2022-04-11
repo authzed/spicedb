@@ -1,13 +1,11 @@
 package mysql
 
-// this file is stuff that was generalized into common package
-// in an attempt to reduce the duplication between psql and mysql
+// this file is stuff that were initially generalized into the datastore/common
+// package in an attempt to reduce the duplication between psql and mysql
 //
-// in order to make the merge-upstream a tractable
-// problem, this file captures things that
-// we attempted to generalize into the common package
-// and should be considered after our fork has been
-// reconciled with upstream
+// in order to minimize merge conflicts caused by the high volume of changes in
+// spicedb's main branch, this file captures code that is a good candidate
+// to be shared between datastore implementations.
 
 import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
