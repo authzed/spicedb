@@ -98,19 +98,7 @@ func (snd selectAndDelete) Where(pred interface{}, args ...interface{}) selectAn
 }
 
 func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter) error {
-	selectDeleted := sql.Select().Column(fmt.Sprintf("%s, \"%s\", %d, %s, %s, %s, %s, %s, %s",
-		funcPendingCommitTimestamp,
-		uuid.New(),
-		colChangeOpDelete,
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-	)).From(tableRelationship)
-
-	queries := selectAndDelete{selectDeleted, sql.Delete(tableRelationship)}
+	queries := selectAndDelete{queryTuples, sql.Delete(tableRelationship)}
 
 	// Add clauses for the ResourceFilter
 	queries = queries.Where(sq.Eq{colNamespace: filter.ResourceType})
@@ -132,27 +120,48 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 		}
 	}
 
-	insertSel := queries.sel.Prefix("(").Suffix(")")
-	insertQuery := sql.
-		Insert(tableChangelog).
-		Columns(
-			colChangeTS,
-			colChangeUUID,
-			colChangeOp,
-			colChangeNamespace,
-			colChangeObjectID,
-			colChangeRelation,
-			colChangeUsersetNamespace,
-			colChangeUsersetObjectID,
-			colChangeUsersetRelation,
-		).Select(insertSel)
-
-	isql, iargs, err := insertQuery.ToSql()
+	ssql, sargs, err := queries.sel.ToSql()
 	if err != nil {
 		return err
 	}
 
-	if _, err = rwt.Update(ctx, statementFromSQL(isql, iargs)); err != nil {
+	toDelete := rwt.Query(ctx, statementFromSQL(ssql, sargs))
+
+	changeUUID := uuid.NewString()
+
+	// Pre-allocate a single relationship
+	rel := v1.Relationship{
+		Resource: &v1.ObjectReference{},
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{},
+		},
+	}
+
+	var changelogMutations []*spanner.Mutation
+	if err := toDelete.Do(func(row *spanner.Row) error {
+		err := row.Columns(
+			&rel.Resource.ObjectType,
+			&rel.Resource.ObjectId,
+			&rel.Relation,
+			&rel.Subject.Object.ObjectType,
+			&rel.Subject.Object.ObjectId,
+			&rel.Subject.OptionalRelation,
+		)
+		if err != nil {
+			return err
+		}
+
+		changelogMutations = append(changelogMutations, spanner.Insert(
+			tableChangelog,
+			allChangelogCols,
+			changeVals(changeUUID, colChangeOpDelete, &rel),
+		))
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := rwt.BufferWrite(changelogMutations); err != nil {
 		return err
 	}
 
