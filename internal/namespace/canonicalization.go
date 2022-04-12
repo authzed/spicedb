@@ -11,6 +11,8 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
+const computedKeyPrefix = "%"
+
 // computeCanonicalCacheKeys computes a map from permission name to associated canonicalized
 // cache key for each non-aliased permission in the given type system's namespace.
 //
@@ -22,7 +24,7 @@ import (
 //
 // For example, for the namespace:
 //   definition somenamespace {
-//	    relation first: ...
+//      relation first: ...
 //      relation second: ...
 //      relation third: ...
 //      permission someperm = second + (first - third->something)
@@ -64,12 +66,15 @@ func computeCanonicalCacheKeys(typeSystem *ValidatedNamespaceTypeSystem, aliasMa
 	for _, rel := range typeSystem.nsDef.Relation {
 		rewrite := rel.GetUsersetRewrite()
 		if rewrite == nil {
+			// If the relation has no rewrite (making it a pure relation), then its canonical
+			// key is simply the relation's name.
+			cacheKeys[rel.Name] = rel.Name
 			continue
 		}
 
 		hasher := fnv.New64a()
 		bdd.Print(hasher, convertRewriteToBdd(rel, bdd, rewrite, varMap))
-		cacheKeys[rel.Name] = fmt.Sprintf("%x", hasher.Sum64())
+		cacheKeys[rel.Name] = fmt.Sprintf("%s%x", computedKeyPrefix, hasher.Sum64())
 	}
 
 	return cacheKeys, nil

@@ -2,8 +2,6 @@ package namespace
 
 // AnnotateNamespace annotates the namespace in the type system with computed aliasing and cache key
 // metadata for more efficient dispatching.
-//
-// NOTE: The type system passed in must be Validate'd before this method is called.
 func AnnotateNamespace(ts *ValidatedNamespaceTypeSystem) error {
 	aliases, aerr := computePermissionAliases(ts)
 	if aerr != nil {

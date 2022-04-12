@@ -48,7 +48,10 @@ func TestCanonicalization(t *testing.T) {
 			),
 			"",
 			map[string]string{
-				"edit": "596a8660f9a0c085", "view": "cb51da20fc9f20f",
+				"owner":  "owner",
+				"viewer": "viewer",
+				"edit":   computedKeyPrefix + "596a8660f9a0c085",
+				"view":   computedKeyPrefix + "cb51da20fc9f20f",
 			},
 		},
 		{
@@ -66,7 +69,10 @@ func TestCanonicalization(t *testing.T) {
 			),
 			"",
 			map[string]string{
-				"edit": "596a8660f9a0c085", "other_edit": "596a8660f9a0c085",
+				"owner":      "owner",
+				"viewer":     "viewer",
+				"edit":       computedKeyPrefix + "596a8660f9a0c085",
+				"other_edit": computedKeyPrefix + "596a8660f9a0c085",
 			},
 		},
 		{
@@ -84,7 +90,10 @@ func TestCanonicalization(t *testing.T) {
 			),
 			"",
 			map[string]string{
-				"edit": "596a8660f9a0c085", "other_edit": "596a8660f9a0c085",
+				"owner":      "owner",
+				"viewer":     "viewer",
+				"edit":       computedKeyPrefix + "596a8660f9a0c085",
+				"other_edit": computedKeyPrefix + "596a8660f9a0c085",
 			},
 		},
 		{
@@ -103,7 +112,12 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "62152badef526205", "second": "62152badef526205"},
+			map[string]string{
+				"owner":  "owner",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "62152badef526205",
+				"second": computedKeyPrefix + "62152badef526205",
+			},
 		},
 		{
 			"canonicalization with same union expressions due to aliasing",
@@ -124,7 +138,13 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"edit": "596a8660f9a0c085", "first": "62152badef526205", "second": "62152badef526205"},
+			map[string]string{
+				"owner":  "owner",
+				"viewer": "viewer",
+				"edit":   computedKeyPrefix + "596a8660f9a0c085",
+				"first":  computedKeyPrefix + "62152badef526205",
+				"second": computedKeyPrefix + "62152badef526205",
+			},
 		},
 		{
 			"canonicalization with same intersection expressions",
@@ -142,7 +162,12 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "18cf8af8ff02bad0", "second": "18cf8af8ff02bad0"},
+			map[string]string{
+				"owner":  "owner",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "18cf8af8ff02bad0",
+				"second": computedKeyPrefix + "18cf8af8ff02bad0",
+			},
 		},
 		{
 			"canonicalization with different expressions",
@@ -160,7 +185,12 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "2cd554a00f7f2d94", "second": "69d4722141f74043"},
+			map[string]string{
+				"owner":  "owner",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "2cd554a00f7f2d94",
+				"second": computedKeyPrefix + "69d4722141f74043",
+			},
 		},
 		{
 			"canonicalization with arrow expressions",
@@ -182,7 +212,14 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "9fd2b03cabeb2e42", "second": "9fd2b03cabeb2e42", "diffrel": "ab86f3a255f31908", "difftuple": "dddc650e89a7bf1a"},
+			map[string]string{
+				"owner":     "owner",
+				"viewer":    "viewer",
+				"first":     computedKeyPrefix + "9fd2b03cabeb2e42",
+				"second":    computedKeyPrefix + "9fd2b03cabeb2e42",
+				"diffrel":   computedKeyPrefix + "ab86f3a255f31908",
+				"difftuple": computedKeyPrefix + "dddc650e89a7bf1a",
+			},
 		},
 		{
 			"canonicalization with same nested union expressions",
@@ -211,7 +248,13 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "4c49627fbdbaf248", "second": "4c49627fbdbaf248"},
+			map[string]string{
+				"owner":  "owner",
+				"editor": "editor",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "4c49627fbdbaf248",
+				"second": computedKeyPrefix + "4c49627fbdbaf248",
+			},
 		},
 		{
 			"canonicalization with same nested intersection expressions",
@@ -240,7 +283,13 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "7c52666bb7593f0a", "second": "7c52666bb7593f0a"},
+			map[string]string{
+				"owner":  "owner",
+				"editor": "editor",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "7c52666bb7593f0a",
+				"second": computedKeyPrefix + "7c52666bb7593f0a",
+			},
 		},
 		{
 			"canonicalization with different nested exclusion expressions",
@@ -269,7 +318,13 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "bb955307170373ae", "second": "6ccf7bece2e540a1"},
+			map[string]string{
+				"owner":  "owner",
+				"editor": "editor",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "bb955307170373ae",
+				"second": computedKeyPrefix + "6ccf7bece2e540a1",
+			},
 		},
 		{
 			"canonicalization with nil expressions",
@@ -288,7 +343,13 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "95f5633117d42867", "second": "f786018d066f37b4"},
+			map[string]string{
+				"owner":  "owner",
+				"editor": "editor",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "95f5633117d42867",
+				"second": computedKeyPrefix + "f786018d066f37b4",
+			},
 		},
 		{
 			"canonicalization with same expressions with nil expressions",
@@ -307,7 +368,13 @@ func TestCanonicalization(t *testing.T) {
 				)),
 			),
 			"",
-			map[string]string{"first": "bfc8d945d7030961", "second": "bfc8d945d7030961"},
+			map[string]string{
+				"owner":  "owner",
+				"editor": "editor",
+				"viewer": "viewer",
+				"first":  computedKeyPrefix + "bfc8d945d7030961",
+				"second": computedKeyPrefix + "bfc8d945d7030961",
+			},
 		},
 	}
 

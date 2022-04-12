@@ -9,10 +9,10 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
-	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -23,10 +23,12 @@ const (
 	prometheusNamespace = "spicedb"
 )
 
+// Dispatcher is a dispatcher with built-in caching.
 type Dispatcher struct {
-	d   dispatch.Dispatcher
-	c   *ristretto.Cache
-	nsm namespace.Manager
+	d          dispatch.Dispatcher
+	c          *ristretto.Cache
+	nsm        namespace.Manager
+	keyHandler keys.Handler
 
 	checkTotalCounter      prometheus.Counter
 	checkFromCacheCounter  prometheus.Counter
@@ -58,6 +60,7 @@ func NewCachingDispatcher(
 	cacheConfig *ristretto.Config,
 	nsm namespace.Manager,
 	prometheusSubsystem string,
+	keyHandler keys.Handler,
 ) (*Dispatcher, error) {
 	if cacheConfig == nil {
 		cacheConfig = &ristretto.Config{
@@ -165,10 +168,15 @@ func NewCachingDispatcher(
 		}
 	}
 
+	if keyHandler == nil {
+		keyHandler = &keys.DirectKeyHandler{}
+	}
+
 	return &Dispatcher{
 		d:                      fakeDelegate{},
 		nsm:                    nsm,
 		c:                      cache,
+		keyHandler:             keyHandler,
 		checkTotalCounter:      checkTotalCounter,
 		checkFromCacheCounter:  checkFromCacheCounter,
 		lookupTotalCounter:     lookupTotalCounter,
@@ -189,24 +197,9 @@ func (cd *Dispatcher) SetDelegate(delegate dispatch.Dispatcher) {
 func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
 
-	// Load the relation to get its computed cache key, if any.
-	// NOTE: We do not use the canonicalized cache key when checking within the same namespace, as
-	// we may get different results if the subject being checked matches the resource exactly.
-	requestKey := dispatch.CheckRequestToKey(req)
-	if cd.nsm != nil && req.ObjectAndRelation.Namespace != req.Subject.Namespace {
-		revision, err := decimal.NewFromString(req.Metadata.AtRevision)
-		if err != nil {
-			return nil, err
-		}
-
-		_, relation, err := cd.nsm.ReadNamespaceAndRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation, revision)
-		if err != nil {
-			return nil, err
-		}
-
-		if relation.CanonicalCacheKey != "" {
-			requestKey = dispatch.CheckRequestToKeyWithCanonical(req, relation.CanonicalCacheKey)
-		}
+	requestKey, err := cd.keyHandler.ComputeCheckKey(ctx, req, cd.nsm)
+	if err != nil {
+		return nil, err
 	}
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {

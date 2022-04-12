@@ -74,7 +74,7 @@ func CheckRequestToKey(req *v1.DispatchCheckRequest) string {
 // on the canonical key.
 func CheckRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey string) string {
 	if canonicalKey == "" {
-		panic("given empty canonical key")
+		panic(fmt.Sprintf("given empty canonical key for request: %s => %s", req.ObjectAndRelation, tuple.StringONR(req.Subject)))
 	}
 
 	// NOTE: canonical cache keys are only unique *within* a version of a namespace.
