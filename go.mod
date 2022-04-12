@@ -17,6 +17,7 @@ require (
 	github.com/containerd/continuity v0.2.2 // indirect
 	github.com/dave/jennifer v1.5.0 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
+	github.com/dlmiddlecote/sqlstats v1.0.2
 	github.com/docker/cli v20.10.14+incompatible // indirect
 	github.com/docker/docker v20.10.14+incompatible // indirect
 	github.com/dustin/go-humanize v1.0.0
