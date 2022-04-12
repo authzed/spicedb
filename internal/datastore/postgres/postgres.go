@@ -561,7 +561,7 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 }
 
 func createNewTransaction(ctx context.Context, tx pgx.Tx) (newTxnID uint64, err error) {
-	ctx, span := tracer.Start(ctx, "computeNewTransaction")
+	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
 	err = tx.QueryRow(ctx, createTxn).Scan(&newTxnID)
