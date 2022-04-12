@@ -1,4 +1,4 @@
-package services
+package services_test
 
 import (
 	"context"
@@ -13,22 +13,25 @@ import (
 	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/jwangsadinata/go-multimap/slicemultimap"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	yamlv2 "gopkg.in/yaml.v2"
 
+	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/membership"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
-	v1svc "github.com/authzed/spicedb/internal/services/v1"
-	"github.com/authzed/spicedb/internal/testfixtures"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/internal/testserver"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -60,25 +63,29 @@ func TestConsistency(t *testing.T) {
 				t.Run(path.Base(filePath), func(t *testing.T) {
 					for _, dispatcherKind := range []string{"local", "caching"} {
 						t.Run(dispatcherKind, func(t *testing.T) {
+							t.Parallel()
 							lrequire := require.New(t)
 
-							unvalidated, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
-							lrequire.NoError(err)
-
-							ds := testfixtures.NewValidatingDatastore(unvalidated)
+							ds, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
+							require.NoError(t, err)
 
 							fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
+							require.NoError(t, err)
+							conn, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
+							t.Cleanup(cleanup)
+
+							ns, err := namespace.NewCachingNamespaceManager(nil)
 							lrequire.NoError(err)
 
-							ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
-							lrequire.NoError(err)
+							dsCtx := datastoremw.ContextWithHandle(context.Background())
+							lrequire.NoError(datastoremw.SetInContext(dsCtx, ds))
 
 							// Validate the type system for each namespace.
 							for _, nsDef := range fullyResolved.NamespaceDefinitions {
-								_, ts, err := ns.ReadNamespaceAndTypes(context.Background(), nsDef.Name, revision)
+								_, ts, err := ns.ReadNamespaceAndTypes(dsCtx, nsDef.Name, revision)
 								lrequire.NoError(err)
 
-								err = ts.Validate(context.Background())
+								err = ts.Validate(dsCtx)
 								lrequire.NoError(err)
 							}
 
@@ -89,29 +96,28 @@ func TestConsistency(t *testing.T) {
 							}
 
 							// Run the consistency tests for each service.
-							dispatcher := graph.NewLocalOnlyDispatcher(ns, ds)
+							dispatcher := graph.NewLocalOnlyDispatcher(ns)
 							if dispatcherKind == "caching" {
 								cachingDispatcher, err := caching.NewCachingDispatcher(nil, "")
 								lrequire.NoError(err)
 
-								localDispatcher := graph.NewDispatcher(cachingDispatcher, ns, ds)
+								localDispatcher := graph.NewDispatcher(cachingDispatcher, ns)
 								defer localDispatcher.Close()
 								cachingDispatcher.SetDelegate(localDispatcher)
 								dispatcher = cachingDispatcher
 							}
 							defer dispatcher.Close()
 
-							v1permclient, _ := v1svc.RunForTesting(t, ds, ns, dispatcher, 50)
 							testers := []serviceTester{
-								v0ServiceTester{v0svc.NewACLServer(ds, ns, dispatcher, 50)},
-								v1ServiceTester{v1permclient},
+								v0ServiceTester{v0.NewACLServiceClient(conn[0])},
+								v1ServiceTester{v1.NewPermissionsServiceClient(conn[0])},
 							}
 
-							runCrossVersionTests(t, testers, dispatcher, fullyResolved, tuplesPerNamespace, revision)
+							runCrossVersionTests(t, testers, fullyResolved, revision)
 
 							for _, tester := range testers {
 								t.Run(tester.Name(), func(t *testing.T) {
-									runConsistencyTests(t, tester, dispatcher, fullyResolved, tuplesPerNamespace, revision)
+									runConsistencyTests(t, tester, ds, dispatcher, fullyResolved, tuplesPerNamespace, revision)
 									runAssertions(t, tester, dispatcher, fullyResolved, revision)
 								})
 							}
@@ -126,21 +132,19 @@ func TestConsistency(t *testing.T) {
 func runAssertions(t *testing.T,
 	tester serviceTester,
 	dispatch dispatch.Dispatcher,
-	fullyResolved *validationfile.FullyParsedValidationFile,
+	fullyResolved *validationfile.PopulatedValidationFile,
 	revision decimal.Decimal,
 ) {
 	for _, parsedFile := range fullyResolved.ParsedFiles {
-		for _, assertTrueRel := range parsedFile.Assertions.AssertTrue {
-			rel := tuple.Parse(assertTrueRel)
-			require.NotNil(t, rel)
-
+		for _, assertTrue := range parsedFile.Assertions.AssertTrue {
 			// Ensure the assertion passes Check.
+			rel := tuple.MustFromRelationship(assertTrue.Relationship)
 			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
 			require.NoError(t, err)
 			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.String(rel))
 
 			// Ensure the assertion passes Lookup.
-			resolvedObjectIds, err := tester.Lookup(context.Background(), &v0.RelationReference{
+			resolvedObjectIds, err := tester.Lookup(context.Background(), &core.RelationReference{
 				Namespace: rel.ObjectAndRelation.Namespace,
 				Relation:  rel.ObjectAndRelation.Relation,
 			}, rel.User.GetUserset(), revision)
@@ -148,9 +152,9 @@ func runAssertions(t *testing.T,
 			require.Contains(t, resolvedObjectIds, rel.ObjectAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ObjectAndRelation, rel)
 		}
 
-		for _, assertFalseRel := range parsedFile.Assertions.AssertFalse {
-			rel := tuple.Parse(assertFalseRel)
-			require.NotNil(t, rel)
+		for _, assertFalse := range parsedFile.Assertions.AssertFalse {
+			// Ensure the assertion passes Check.
+			rel := tuple.MustFromRelationship(assertFalse.Relationship)
 
 			// Ensure the assertion does not pass Check.
 			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
@@ -158,7 +162,7 @@ func runAssertions(t *testing.T,
 			require.False(t, result, "Assertion `%s` returned true; false expected", tuple.String(rel))
 
 			// Ensure the assertion does not pass Lookup.
-			resolvedObjectIds, err := tester.Lookup(context.Background(), &v0.RelationReference{
+			resolvedObjectIds, err := tester.Lookup(context.Background(), &core.RelationReference{
 				Namespace: rel.ObjectAndRelation.Namespace,
 				Relation:  rel.ObjectAndRelation.Relation,
 			}, rel.User.GetUserset(), revision)
@@ -170,9 +174,7 @@ func runAssertions(t *testing.T,
 
 func runCrossVersionTests(t *testing.T,
 	testers []serviceTester,
-	dispatch dispatch.Dispatcher,
-	fullyResolved *validationfile.FullyParsedValidationFile,
-	tuplesPerNamespace *slicemultimap.MultiMap,
+	fullyResolved *validationfile.PopulatedValidationFile,
 	revision decimal.Decimal,
 ) {
 	for _, nsDef := range fullyResolved.NamespaceDefinitions {
@@ -187,7 +189,7 @@ func runCrossVersionTests(t *testing.T,
 				}
 
 				verifyCrossVersion(t, "expand", testers, func(tester serviceTester) (interface{}, error) {
-					return tester.Expand(context.Background(), &v0.ObjectAndRelation{
+					return tester.Expand(context.Background(), &core.ObjectAndRelation{
 						Namespace: nsDef.Name,
 						Relation:  relation.Name,
 						ObjectId:  tpl.ObjectAndRelation.ObjectId,
@@ -195,10 +197,10 @@ func runCrossVersionTests(t *testing.T,
 				})
 
 				verifyCrossVersion(t, "lookup", testers, func(tester serviceTester) (interface{}, error) {
-					return tester.Lookup(context.Background(), &v0.RelationReference{
+					return tester.Lookup(context.Background(), &core.RelationReference{
 						Namespace: nsDef.Name,
 						Relation:  relation.Name,
-					}, &v0.ObjectAndRelation{
+					}, &core.ObjectAndRelation{
 						Namespace: tpl.ObjectAndRelation.Namespace,
 						Relation:  tpl.ObjectAndRelation.Relation,
 						ObjectId:  tpl.ObjectAndRelation.ObjectId,
@@ -228,8 +230,9 @@ func verifyCrossVersion(t *testing.T, name string, testers []serviceTester, runA
 
 func runConsistencyTests(t *testing.T,
 	tester serviceTester,
+	ds datastore.Datastore,
 	dispatch dispatch.Dispatcher,
-	fullyResolved *validationfile.FullyParsedValidationFile,
+	fullyResolved *validationfile.PopulatedValidationFile,
 	tuplesPerNamespace *slicemultimap.MultiMap,
 	revision decimal.Decimal,
 ) {
@@ -252,7 +255,7 @@ func runConsistencyTests(t *testing.T,
 		}
 
 		for _, itpl := range tuples {
-			tpl := itpl.(*v0.RelationTuple)
+			tpl := itpl.(*core.RelationTuple)
 			err := tester.Write(context.Background(), tpl)
 			lrequire.NoError(err, "failed to write %s", tuple.String(tpl))
 		}
@@ -266,7 +269,7 @@ func runConsistencyTests(t *testing.T,
 		objectsPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl.ObjectAndRelation.ObjectId)
 
 		switch m := tpl.User.UserOneof.(type) {
-		case *v0.User_Userset:
+		case *core.User_Userset:
 			// NOTE: we skip adding wildcards as subjects or object IDs.
 			subjects.Add(m.Userset)
 			if m.Userset.ObjectId != tuple.PublicWildcard {
@@ -290,7 +293,7 @@ func runConsistencyTests(t *testing.T,
 				for _, objectID := range allObjectIds {
 					objectIDStr := objectID.(string)
 
-					onr := &v0.ObjectAndRelation{
+					onr := &core.ObjectAndRelation{
 						Namespace: nsDef.Name,
 						Relation:  relation.Name,
 						ObjectId:  objectIDStr,
@@ -305,7 +308,7 @@ func runConsistencyTests(t *testing.T,
 					require.NoError(t, err)
 
 					// If a member, check if due to a wildcard only.
-					if hasPermission && accessibleViaWildcardOnly(t, dispatch, onr, subject, revision) {
+					if hasPermission && accessibleViaWildcardOnly(t, ds, dispatch, onr, subject, revision) {
 						accessibilitySet.Set(onr, subject, isMemberViaWildcard)
 						continue
 					}
@@ -335,7 +338,7 @@ func runConsistencyTests(t *testing.T,
 	validateExpansion(t, vctx)
 
 	// Run a fully recursive expand on each relation and ensure all terminal subjects are reached.
-	validateExpansionSubjects(t, vctx)
+	validateExpansionSubjects(t, ds, vctx)
 
 	// For each relation in each namespace, for each user, collect the objects accessible
 	// to that user and then verify the lookup returns the same set of objects.
@@ -348,14 +351,17 @@ func runConsistencyTests(t *testing.T,
 	validateDeveloper(t, dev, vctx)
 }
 
-func accessibleViaWildcardOnly(t *testing.T, dispatch dispatch.Dispatcher, onr *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, revision decimal.Decimal) bool {
-	resp, err := dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
+func accessibleViaWildcardOnly(t *testing.T, ds datastore.Datastore, dispatch dispatch.Dispatcher, onr *core.ObjectAndRelation, subject *core.ObjectAndRelation, revision decimal.Decimal) bool {
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(t, datastoremw.SetInContext(ctx, ds))
+
+	resp, err := dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
 		ObjectAndRelation: onr,
-		Metadata: &v1.ResolverMeta{
+		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 100,
 		},
-		ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
+		ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 	})
 	require.NoError(t, err)
 
@@ -365,7 +371,7 @@ func accessibleViaWildcardOnly(t *testing.T, dispatch dispatch.Dispatcher, onr *
 }
 
 type validationContext struct {
-	fullyResolved *validationfile.FullyParsedValidationFile
+	fullyResolved *validationfile.PopulatedValidationFile
 
 	objectsPerNamespace *setmultimap.MultiMap
 	subjects            *tuple.ONRSet
@@ -379,9 +385,17 @@ type validationContext struct {
 }
 
 func validateDeveloper(t *testing.T, dev v0.DeveloperServiceServer, vctx *validationContext) {
+	// If there is a valid schema, use it. Otherwise, use the legacy definitions.
+	schema := vctx.fullyResolved.Schema
+	legacyConfigs := core.ToV0NamespaceDefinitions(vctx.fullyResolved.NamespaceDefinitions)
+	if len(schema) > 0 {
+		legacyConfigs = nil
+	}
+
 	reqContext := &v0.RequestContext{
-		LegacyNsConfigs: vctx.fullyResolved.NamespaceDefinitions,
-		Relationships:   vctx.fullyResolved.Tuples,
+		LegacyNsConfigs: legacyConfigs,
+		Schema:          schema,
+		Relationships:   core.ToV0RelationTuples(vctx.fullyResolved.Tuples),
 	}
 
 	// Validate edit checks (check watches).
@@ -400,7 +414,7 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 		}
 	}
 
-	expectedRelations, err := yaml.Marshal(expectedMap)
+	expectedRelations, err := yamlv2.Marshal(expectedMap)
 	require.NoError(t, err, "Could not marshal expected relations map")
 
 	// Run validation with the expected map, to generate the full expected relations YAML string.
@@ -414,21 +428,20 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 
 	// Parse the full validation YAML, and ensure every referenced subject is, in fact, allowed.
 	updatedValidationYaml := resp.UpdatedValidationYaml
-	validationMap, err := validationfile.ParseValidationBlock([]byte(updatedValidationYaml))
+	validationMap, err := validationfile.ParseExpectedRelationsBlock([]byte(updatedValidationYaml))
 	require.NoError(t, err)
 
-	for onrStr, validationStrings := range validationMap {
-		onr, err := onrStr.ONR()
-		require.Nil(t, err)
-
-		for _, validationStr := range validationStrings {
-			foundSubject, err := validationStr.Subject()
+	for onrKey, expectedSubjects := range validationMap.ValidationMap {
+		for _, expectedSubject := range expectedSubjects {
+			onr := onrKey.ObjectAndRelation
+			subjectWithExceptions := expectedSubject.SubjectWithExceptions
+			require.NotNil(t, subjectWithExceptions, "Found expected relation without subject: %s", expectedSubject.ValidationString)
 			require.Nil(t, err)
 			require.True(t,
-				(vctx.accessibilitySet.GetIsMember(onr, foundSubject.Subject) == isMember ||
-					vctx.accessibilitySet.GetIsMember(onr, foundSubject.Subject) == isWildcard),
+				(vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject) == isMember ||
+					vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject) == isWildcard),
 				"Generated expected relations returned inaccessible member %s for %s",
-				tuple.StringONR(foundSubject.Subject),
+				tuple.StringONR(subjectWithExceptions.Subject),
 				tuple.StringONR(onr))
 		}
 	}
@@ -449,7 +462,7 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 		"assertTrue":  trueAssertions,
 		"assertFalse": falseAssertions,
 	}
-	assertions, err := yaml.Marshal(assertionsMap)
+	assertions, err := yamlv2.Marshal(assertionsMap)
 	require.NoError(t, err, "Could not marshal assertions map")
 
 	// Run validation with the assertions and the updated YAML.
@@ -482,17 +495,17 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					}
 
 					// Add a check relationship for each object ID.
-					var checkRelationships []*v0.RelationTuple
+					var checkRelationships []*core.RelationTuple
 					for _, objectID := range allObjectIds {
 						objectIDStr := objectID.(string)
-						checkRelationships = append(checkRelationships, &v0.RelationTuple{
-							ObjectAndRelation: &v0.ObjectAndRelation{
+						checkRelationships = append(checkRelationships, &core.RelationTuple{
+							ObjectAndRelation: &core.ObjectAndRelation{
 								Namespace: nsDef.Name,
 								Relation:  relation.Name,
 								ObjectId:  objectIDStr,
 							},
-							User: &v0.User{
-								UserOneof: &v0.User_Userset{
+							User: &core.User{
+								UserOneof: &core.User_Userset{
 									Userset: subject,
 								},
 							},
@@ -502,7 +515,7 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					// Ensure that all Checks assert true via the developer API.
 					req := &v0.EditCheckRequest{
 						Context:            reqContext,
-						CheckRelationships: checkRelationships,
+						CheckRelationships: core.ToV0RelationTuples(checkRelationships),
 					}
 
 					resp, err := dev.EditCheck(context.Background(), req)
@@ -510,8 +523,8 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					vrequire.Equal(len(checkRelationships), len(resp.CheckResults))
 					vrequire.Equal(0, len(resp.RequestErrors), "Got unexpected request error from edit check")
 					for _, result := range resp.CheckResults {
-						expectedMember := vctx.accessibilitySet.GetIsMember(result.Relationship.ObjectAndRelation, subject)
-						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard, result.IsMember, "Found unexpected membership difference for %s. Expected %v, Found: %v", tuple.String(result.Relationship), expectedMember, result.IsMember)
+						expectedMember := vctx.accessibilitySet.GetIsMember(core.ToCoreObjectAndRelation(result.Relationship.ObjectAndRelation), subject)
+						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard, result.IsMember, "Found unexpected membership difference for %s. Expected %v, Found: %v", tuple.String(core.ToCoreRelationTuple(result.Relationship)), expectedMember, result.IsMember)
 					}
 				})
 			}
@@ -523,7 +536,7 @@ func validateLookup(t *testing.T, vctx *validationContext) {
 	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
 		for _, relation := range nsDef.Relation {
 			for _, subject := range vctx.subjectsNoWildcard.AsSlice() {
-				objectRelation := &v0.RelationReference{
+				objectRelation := &core.RelationReference{
 					Namespace: nsDef.Name,
 					Relation:  relation.Name,
 				}
@@ -555,7 +568,7 @@ func validateLookup(t *testing.T, vctx *validationContext) {
 					// Ensure that every returned object Checks.
 					for _, resolvedObjectID := range resolvedObjectIds {
 						isMember, err := vctx.tester.Check(context.Background(),
-							&v0.ObjectAndRelation{
+							&core.ObjectAndRelation{
 								Namespace: nsDef.Name,
 								Relation:  relation.Name,
 								ObjectId:  resolvedObjectID,
@@ -593,7 +606,7 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 					vrequire := require.New(t)
 
 					_, err := vctx.tester.Expand(context.Background(),
-						&v0.ObjectAndRelation{
+						&core.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,
@@ -607,7 +620,9 @@ func validateExpansion(t *testing.T, vctx *validationContext) {
 	}
 }
 
-func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
+func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *validationContext) {
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
 		allObjectIds, ok := vctx.objectsPerNamespace.Get(nsDef.Name)
 		if !ok {
@@ -622,32 +637,32 @@ func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
 					accessibleTerminalSubjects := vctx.accessibilitySet.AccessibleTerminalSubjects(nsDef.Name, relation.Name, objectIDStr)
 
 					// Run a non-recursive expansion to verify no errors are raised.
-					_, err := vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
-						ObjectAndRelation: &v0.ObjectAndRelation{
+					_, err := vctx.dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
+						ObjectAndRelation: &core.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,
 						},
-						Metadata: &v1.ResolverMeta{
+						Metadata: &dispatchv1.ResolverMeta{
 							AtRevision:     vctx.revision.String(),
 							DepthRemaining: 100,
 						},
-						ExpansionMode: v1.DispatchExpandRequest_SHALLOW,
+						ExpansionMode: dispatchv1.DispatchExpandRequest_SHALLOW,
 					})
 					vrequire.NoError(err)
 
 					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
-					resp, err := vctx.dispatch.DispatchExpand(context.Background(), &v1.DispatchExpandRequest{
-						ObjectAndRelation: &v0.ObjectAndRelation{
+					resp, err := vctx.dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
+						ObjectAndRelation: &core.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,
 						},
-						Metadata: &v1.ResolverMeta{
+						Metadata: &dispatchv1.ResolverMeta{
 							AtRevision:     vctx.revision.String(),
 							DepthRemaining: 100,
 						},
-						ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
+						ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 					})
 					vrequire.NoError(err)
 
@@ -672,13 +687,13 @@ func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
 
 							for _, subjectID := range allSubjectObjectIds {
 								subjectIDStr := subjectID.(string)
-								localSubject := &v0.ObjectAndRelation{
+								localSubject := &core.ObjectAndRelation{
 									Namespace: foundSubject.Subject().Namespace,
 									Relation:  foundSubject.Subject().Relation,
 									ObjectId:  subjectIDStr,
 								}
 								isMember, err := vctx.tester.Check(context.Background(),
-									&v0.ObjectAndRelation{
+									&core.ObjectAndRelation{
 										Namespace: nsDef.Name,
 										Relation:  relation.Name,
 										ObjectId:  objectIDStr,
@@ -703,7 +718,7 @@ func validateExpansionSubjects(t *testing.T, vctx *validationContext) {
 						} else {
 							// Otherwise, check directly.
 							isMember, err := vctx.tester.Check(context.Background(),
-								&v0.ObjectAndRelation{
+								&core.ObjectAndRelation{
 									Namespace: nsDef.Name,
 									Relation:  relation.Name,
 									ObjectId:  objectIDStr,
@@ -747,8 +762,8 @@ const (
 )
 
 type checkResult struct {
-	object   *v0.ObjectAndRelation
-	subject  *v0.ObjectAndRelation
+	object   *core.ObjectAndRelation
+	subject  *core.ObjectAndRelation
 	isMember isMemberStatus
 }
 
@@ -764,11 +779,11 @@ func newAccessibilitySet() *accessibilitySet {
 	}
 }
 
-func (rs *accessibilitySet) Set(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation, isMember isMemberStatus) {
+func (rs *accessibilitySet) Set(object *core.ObjectAndRelation, subject *core.ObjectAndRelation, isMember isMemberStatus) {
 	rs.results = append(rs.results, checkResult{object: object, subject: subject, isMember: isMember})
 }
 
-func (rs *accessibilitySet) GetIsMember(object *v0.ObjectAndRelation, subject *v0.ObjectAndRelation) isMemberStatus {
+func (rs *accessibilitySet) GetIsMember(object *core.ObjectAndRelation, subject *core.ObjectAndRelation) isMemberStatus {
 	objectStr := tuple.StringONR(object)
 	subjectStr := tuple.StringONR(subject)
 
@@ -782,7 +797,7 @@ func (rs *accessibilitySet) GetIsMember(object *v0.ObjectAndRelation, subject *v
 }
 
 // AccessibleObjectIDs returns the set of object IDs accessible for the given subject from the given relation on the namespace.
-func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationName string, subject *v0.ObjectAndRelation) []string {
+func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationName string, subject *core.ObjectAndRelation) []string {
 	var accessibleObjectIDs []string
 	subjectStr := tuple.StringONR(subject)
 	for _, result := range rs.results {

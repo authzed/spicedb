@@ -3,9 +3,10 @@ package namespace
 import (
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/scylladb/go-set/strset"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -40,17 +41,17 @@ const (
 
 	// RelationDirectWildcardTypeAdded indicates that an allowed relation wildcard type has been added to
 	// the relation.
-	RelationDirectWildcardTypeAdded DeltaType = "relation-direct-type-added"
+	RelationDirectWildcardTypeAdded DeltaType = "relation-wildcard-type-added"
 
 	// RelationDirectWildcardTypeRemoved indicates that an allowed relation wildcard type has been removed from
 	// the relation.
-	RelationDirectWildcardTypeRemoved DeltaType = "relation-direct-type-removed"
+	RelationDirectWildcardTypeRemoved DeltaType = "relation-wildcard-type-removed"
 )
 
 // NamespaceDiff holds the diff between two namespaces.
 type NamespaceDiff struct {
-	existing *v0.NamespaceDefinition
-	updated  *v0.NamespaceDefinition
+	existing *core.NamespaceDefinition
+	updated  *core.NamespaceDefinition
 	deltas   []Delta
 }
 
@@ -67,7 +68,7 @@ type Delta struct {
 	RelationName string
 
 	// DirectType is the direct relation type added or removed, if any.
-	DirectType *v0.RelationReference
+	DirectType *core.RelationReference
 
 	// WildcardType is the wildcard type added or removed, if any.
 	WildcardType string
@@ -75,7 +76,7 @@ type Delta struct {
 
 // DiffNamespaces performs a diff between two namespace definitions. One or both of the definitions
 // can be `nil`, which will be treated as an add/remove as applicable.
-func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefinition) (*NamespaceDiff, error) {
+func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceDefinition) (*NamespaceDiff, error) {
 	// Check for the namespaces themselves.
 	if existing == nil && updated == nil {
 		return &NamespaceDiff{existing, updated, []Delta{}}, nil
@@ -108,16 +109,16 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 	// Collect up relations and check.
 	deltas := []Delta{}
 
-	existingRels := map[string]*v0.Relation{}
+	existingRels := map[string]*core.Relation{}
 	existingRelNames := strset.New()
 
-	updatedRels := map[string]*v0.Relation{}
+	updatedRels := map[string]*core.Relation{}
 	updatedRelNames := strset.New()
 
 	for _, relation := range existing.Relation {
 		_, ok := existingRels[relation.Name]
 		if ok {
-			return nil, fmt.Errorf("found duplicate relation %s in existing namespace %s", relation.Name, existing.Name)
+			return nil, fmt.Errorf("found duplicate relation %s in existing definition %s", relation.Name, existing.Name)
 		}
 
 		existingRels[relation.Name] = relation
@@ -127,7 +128,7 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 	for _, relation := range updated.Relation {
 		_, ok := updatedRels[relation.Name]
 		if ok {
-			return nil, fmt.Errorf("found duplicate relation %s in updagted namespace %s", relation.Name, updated.Name)
+			return nil, fmt.Errorf("found duplicate relation %s in updated definition %s", relation.Name, updated.Name)
 		}
 
 		updatedRels[relation.Name] = relation
@@ -166,12 +167,12 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 		// Compare type information.
 		existingTypeInfo := existingRel.TypeInformation
 		if existingTypeInfo == nil {
-			existingTypeInfo = &v0.TypeInformation{}
+			existingTypeInfo = &core.TypeInformation{}
 		}
 
 		updatedTypeInfo := updatedRel.TypeInformation
 		if updatedTypeInfo == nil {
-			updatedTypeInfo = &v0.TypeInformation{}
+			updatedTypeInfo = &core.TypeInformation{}
 		}
 
 		existingAllowedRels := tuple.NewONRSet()
@@ -179,7 +180,7 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 
 		for _, existingAllowed := range existingTypeInfo.AllowedDirectRelations {
 			if existingAllowed.GetRelation() != "" {
-				existingAllowedRels.Add(&v0.ObjectAndRelation{
+				existingAllowedRels.Add(&core.ObjectAndRelation{
 					Namespace: existingAllowed.Namespace,
 					Relation:  existingAllowed.GetRelation(),
 					ObjectId:  "",
@@ -187,7 +188,7 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 			}
 
 			if existingAllowed.GetPublicWildcard() != nil {
-				existingAllowedRels.Add(&v0.ObjectAndRelation{
+				existingAllowedRels.Add(&core.ObjectAndRelation{
 					Namespace: existingAllowed.Namespace,
 					Relation:  "-",
 					ObjectId:  tuple.PublicWildcard,
@@ -197,7 +198,7 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 
 		for _, updatedAllowed := range updatedTypeInfo.AllowedDirectRelations {
 			if updatedAllowed.GetRelation() != "" {
-				updatedAllowedRels.Add(&v0.ObjectAndRelation{
+				updatedAllowedRels.Add(&core.ObjectAndRelation{
 					Namespace: updatedAllowed.Namespace,
 					Relation:  updatedAllowed.GetRelation(),
 					ObjectId:  "",
@@ -205,7 +206,7 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 			}
 
 			if updatedAllowed.GetPublicWildcard() != nil {
-				updatedAllowedRels.Add(&v0.ObjectAndRelation{
+				updatedAllowedRels.Add(&core.ObjectAndRelation{
 					Namespace: updatedAllowed.Namespace,
 					Relation:  "-",
 					ObjectId:  tuple.PublicWildcard,
@@ -224,7 +225,7 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 				deltas = append(deltas, Delta{
 					Type:         RelationDirectTypeRemoved,
 					RelationName: shared,
-					DirectType: &v0.RelationReference{
+					DirectType: &core.RelationReference{
 						Namespace: removed.Namespace,
 						Relation:  removed.Relation,
 					},
@@ -243,7 +244,7 @@ func DiffNamespaces(existing *v0.NamespaceDefinition, updated *v0.NamespaceDefin
 				deltas = append(deltas, Delta{
 					Type:         RelationDirectTypeAdded,
 					RelationName: shared,
-					DirectType: &v0.RelationReference{
+					DirectType: &core.RelationReference{
 						Namespace: added.Namespace,
 						Relation:  added.Relation,
 					},

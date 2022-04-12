@@ -4,19 +4,19 @@ import (
 	"fmt"
 )
 
-func createReverseQueryIndex(mysql *MysqlDriver) string {
+func createReverseQueryIndex(driver *MysqlDriver) string {
 	return fmt.Sprintf("CREATE INDEX ix_relation_tuple_by_subject ON %s (userset_object_id, userset_namespace, userset_relation, namespace, relation)",
-		mysql.tableTuple())
+		driver.RelationTuple())
 }
 
-func createReverseCheckIndex(mysql *MysqlDriver) string {
+func createReverseCheckIndex(driver *MysqlDriver) string {
 	return fmt.Sprintf("CREATE INDEX ix_relation_tuple_by_subject_relation ON %s (userset_namespace, userset_relation, namespace, relation)",
-		mysql.tableTuple())
+		driver.RelationTuple())
 }
 
-func createIndexOnTupleTransactionTimestamp(mysql *MysqlDriver) string {
+func createIndexOnTupleTransactionTimestamp(driver *MysqlDriver) string {
 	return fmt.Sprintf("CREATE INDEX ix_relation_tuple_transaction_by_timestamp on %s (timestamp)",
-		mysql.tableTransaction())
+		driver.RelationTupleTransaction())
 }
 
 func init() {

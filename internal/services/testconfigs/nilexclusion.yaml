@@ -1,0 +1,17 @@
+---
+schema: >-
+  definition test/user {}
+
+  definition test/resource {
+    relation viewer: test/user
+    permission view = viewer - nil
+    permission empty = nil - viewer
+  }
+relationships: |
+  test/resource:first#viewer@test/user:tom
+assertions:
+  assertTrue:
+    - "test/resource:first#view@test/user:tom"
+  assertFalse:
+    - "test/resource:first#view@test/user:someotheruser"
+    - "test/resource:first#empty@test/user:tom"

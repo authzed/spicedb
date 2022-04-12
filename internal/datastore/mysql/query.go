@@ -11,21 +11,21 @@ import (
 )
 
 var schema = common.SchemaInformation{
-	ColNamespace:        common.ColNamespace,
-	ColObjectID:         common.ColObjectID,
-	ColRelation:         common.ColRelation,
-	ColUsersetNamespace: common.ColUsersetNamespace,
-	ColUsersetObjectID:  common.ColUsersetObjectID,
-	ColUsersetRelation:  common.ColUsersetRelation,
+	ColNamespace:        colNamespace,
+	ColObjectID:         colObjectID,
+	ColRelation:         colRelation,
+	ColUsersetNamespace: colUsersetNamespace,
+	ColUsersetObjectID:  colUsersetObjectID,
+	ColUsersetRelation:  colUsersetRelation,
 }
 
-func (mds *mysqlDatastore) QueryTuples(
+func (mds *Datastore) QueryTuples(
 	ctx context.Context,
 	filter *v1.RelationshipFilter,
 	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.QueryTuplesQuery, revision, liveDeletedTxnID)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, FilterToLivingObjects(mds.QueryTuplesQuery, revision)).
 		FilterToResourceType(filter.ResourceType)
 
 	if filter.OptionalResourceId != "" {
@@ -40,32 +40,16 @@ func (mds *mysqlDatastore) QueryTuples(
 		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
 	}
 
-	queryOpts := options.NewQueryOptionsWithOptions(opts...)
-
-	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       NewMysqlTransactionBeginner(mds.db),
-		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: 0,
-
-		FilteredQueryBuilder: qBuilder,
-		Revision:             revision,
-		Limit:                queryOpts.Limit,
-		Usersets:             queryOpts.Usersets,
-
-		Tracer:    tracer,
-		DebugName: "QueryTuples",
-	}
-
-	return ctq.SplitAndExecute(ctx)
+	return mds.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, revision, opts...)
 }
 
-func (mds *mysqlDatastore) ReverseQueryTuples(
+func (mds *Datastore) ReverseQueryTuples(
 	ctx context.Context,
 	subjectFilter *v1.SubjectFilter,
 	revision datastore.Revision,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, common.FilterToLivingObjects(mds.QueryTuplesQuery, revision, liveDeletedTxnID)).
+	qBuilder := common.NewSchemaQueryFilterer(schema, FilterToLivingObjects(mds.QueryTuplesQuery, revision)).
 		FilterToSubjectFilter(subjectFilter)
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
@@ -75,20 +59,9 @@ func (mds *mysqlDatastore) ReverseQueryTuples(
 			FilterToResourceType(queryOpts.ResRelation.Namespace).
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
-
-	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       NewMysqlTransactionBeginner(mds.db),
-		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: 0,
-
-		FilteredQueryBuilder: qBuilder,
-		Revision:             revision,
-		Limit:                queryOpts.ReverseLimit,
-		Usersets:             nil,
-
-		Tracer:    tracer,
-		DebugName: "ReverseQueryTuples",
-	}
-
-	return ctq.SplitAndExecute(ctx)
+	return mds.querySplitter.SplitAndExecuteQuery(ctx,
+		qBuilder,
+		revision,
+		options.WithLimit(queryOpts.ReverseLimit),
+	)
 }

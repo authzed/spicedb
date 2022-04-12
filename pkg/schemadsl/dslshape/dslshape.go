@@ -26,7 +26,8 @@ const (
 
 	NodeTypeArrowExpression // A TTU in arrow form.
 
-	NodeTypeIdentifier // An identifier under an expression.
+	NodeTypeIdentifier    // An identifier under an expression.
+	NodeTypeNilExpression // A nil keyword
 )
 
 const (
@@ -52,6 +53,9 @@ const (
 
 	// The message for the parsing error.
 	NodePredicateErrorMessage = "error-message"
+
+	// The (optional) source to highlight for the parsing error.
+	NodePredicateErrorSource = "error-source"
 
 	//
 	// NodeTypeComment

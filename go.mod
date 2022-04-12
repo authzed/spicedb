@@ -3,73 +3,98 @@ module github.com/authzed/spicedb
 go 1.16
 
 require (
+	cloud.google.com/go/spanner v1.30.1
 	github.com/Masterminds/squirrel v1.5.2
-	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a
-	github.com/authzed/authzed-go v0.4.1
-	github.com/authzed/grpcutil v0.0.0-20211020204402-aba1876830e6
-	github.com/aws/aws-sdk-go v1.42.25
+	github.com/Microsoft/go-winio v0.5.2 // indirect
+	github.com/authzed/authzed-go v0.5.1-0.20220303182356-243e79ca06fa
+	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
+	github.com/aws/aws-sdk-go v1.43.31
 	github.com/benbjohnson/clock v1.3.0
+	github.com/cenkalti/backoff/v4 v4.1.2
 	github.com/cespare/xxhash v1.1.0
-	github.com/containerd/continuity v0.2.1 // indirect
-	github.com/dave/jennifer v1.4.1 // indirect
+	github.com/cncf/udpa/go v0.0.0-20220112060539-c52dc94e7fbe // indirect
+	github.com/cncf/xds/go v0.0.0-20220330162227-eded343319d0 // indirect
+	github.com/containerd/continuity v0.2.2 // indirect
+	github.com/dave/jennifer v1.5.0 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/dlmiddlecote/sqlstats v1.0.2
-	github.com/docker/docker v20.10.9+incompatible // indirect
-	github.com/ecordell/optgen v0.0.5-0.20211217170453-18cdce036e35
+	github.com/docker/cli v20.10.14+incompatible // indirect
+	github.com/docker/docker v20.10.14+incompatible // indirect
+	github.com/dustin/go-humanize v1.0.0
+	github.com/ecordell/optgen v0.0.6
 	github.com/emirpasic/gods v1.12.0
-	github.com/envoyproxy/protoc-gen-validate v0.6.2
+	github.com/envoyproxy/protoc-gen-validate v0.6.7
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
-	github.com/go-sql-driver/mysql v1.6.0
+	github.com/go-co-op/gocron v1.13.0
+	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gogo/protobuf v1.3.2
-	github.com/google/go-cmp v0.5.6
+	github.com/golang/snappy v0.0.4
+	github.com/google/go-cmp v0.5.7
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2 v2.0.0-rc.2.0.20210831071041-dd1540ef8252
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2.0.20210831071041-dd1540ef8252
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.2
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.10.0
 	github.com/hashicorp/go-memdb v1.3.2
 	github.com/influxdata/tdigest v0.0.1
-	github.com/jackc/pgconn v1.10.1
-	github.com/jackc/pgtype v1.9.1
-	github.com/jackc/pgx/v4 v4.14.1
+	github.com/jackc/pgconn v1.11.0
+	github.com/jackc/pgtype v1.10.0
+	github.com/jackc/pgx/v4 v4.15.0
 	github.com/jmoiron/sqlx v1.3.4
-	github.com/johannesboyne/gofakes3 v0.0.0-20210608054100-92d5d4af5fde
+	github.com/johannesboyne/gofakes3 v0.0.0-20220314170512-33c13122505e
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
-	github.com/jzelinskie/cobrautil v0.0.8
+	github.com/jzelinskie/cobrautil v0.0.10
 	github.com/jzelinskie/stringz v0.0.1
 	github.com/lib/pq v1.10.4
+	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
-	github.com/ngrok/sqlmw v0.0.0-20210819213940-241da6c2def4
+	github.com/ngrok/sqlmw v0.0.0-20211220175533-9d16fdc47b31
+	github.com/opencontainers/runc v1.1.1 // indirect
 	github.com/ory/dockertest/v3 v3.8.1
-	github.com/prometheus/client_golang v1.11.0
-	github.com/prometheus/common v0.32.1 // indirect
-	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.33.0
 	github.com/rs/cors v1.8.2
 	github.com/rs/zerolog v1.26.1
 	github.com/scylladb/go-set v1.0.2
 	github.com/sercand/kuberesolver/v3 v3.1.0
+	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/shopspring/decimal v1.3.1
-	github.com/spf13/cobra v1.3.0
+	github.com/spf13/afero v1.8.2 // indirect
+	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
+	github.com/spf13/viper v1.10.1 // indirect
 	github.com/stretchr/objx v0.3.0 // indirect
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.28.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.28.0
-	go.opentelemetry.io/otel v1.3.0
-	go.opentelemetry.io/otel/trace v1.3.0
+	go.buf.build/protocolbuffers/go/prometheus/prometheus v1.2.2
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.31.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.31.0
+	go.opentelemetry.io/contrib/propagators/b3 v1.6.0 // indirect
+	go.opentelemetry.io/contrib/propagators/ot v1.6.0 // indirect
+	go.opentelemetry.io/otel v1.6.1
+	go.opentelemetry.io/otel/exporters/jaeger v1.6.1 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.6.1 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.6.1 // indirect
+	go.opentelemetry.io/otel/trace v1.6.1
+	go.opentelemetry.io/proto/otlp v0.15.0 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/goleak v1.1.12
+	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29 // indirect
+	golang.org/x/net v0.0.0-20220401154927-543a649e0bdd // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
-	golang.org/x/tools v0.1.8
-	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
-	google.golang.org/grpc v1.43.0
-	google.golang.org/protobuf v1.27.1
+	golang.org/x/sys v0.0.0-20220330033206-e17cdc41300f // indirect
+	golang.org/x/tools v0.1.10
+	google.golang.org/api v0.74.0
+	google.golang.org/genproto v0.0.0-20220401170504-314d38edb7de
+	google.golang.org/grpc v1.45.0
+	google.golang.org/protobuf v1.28.0
+	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
-	mvdan.cc/gofumpt v0.2.1
+	mvdan.cc/gofumpt v0.3.1
 )
 
 // TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged

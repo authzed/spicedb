@@ -3,7 +3,6 @@ package v1
 import (
 	"errors"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/shopspring/decimal"
@@ -11,8 +10,10 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -21,14 +22,11 @@ import (
 type watchServer struct {
 	v1.UnimplementedWatchServiceServer
 	shared.WithStreamServiceSpecificInterceptor
-
-	ds datastore.Datastore
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(ds datastore.Datastore) v1.WatchServiceServer {
+func NewWatchServer() v1.WatchServiceServer {
 	s := &watchServer{
-		ds: ds,
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
 			Stream: grpcvalidate.StreamServerInterceptor(),
 		},
@@ -38,6 +36,7 @@ func NewWatchServer(ds datastore.Datastore) v1.WatchServiceServer {
 
 func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchServer) error {
 	ctx := stream.Context()
+	ds := datastoremw.MustFromContext(ctx)
 
 	objectTypesMap := make(map[string]struct{})
 	for _, objectType := range req.GetOptionalObjectTypes() {
@@ -54,7 +53,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		afterRevision = decodedRevision
 	} else {
 		var err error
-		afterRevision, err = ws.ds.OptimizedRevision(ctx)
+		afterRevision, err = ds.OptimizedRevision(ctx)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
@@ -64,7 +63,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		DispatchCount: 1,
 	})
 
-	updates, errchan := ws.ds.Watch(ctx, afterRevision)
+	updates, errchan := ds.Watch(ctx, afterRevision)
 	for {
 		select {
 		case update, ok := <-updates:
@@ -92,7 +91,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 	}
 }
 
-func filterUpdates(objectTypes map[string]struct{}, candidates []*v0.RelationTupleUpdate) []*v1.RelationshipUpdate {
+func filterUpdates(objectTypes map[string]struct{}, candidates []*core.RelationTupleUpdate) []*v1.RelationshipUpdate {
 	updates := tuple.UpdatesToRelationshipUpdates(candidates)
 
 	if len(objectTypes) == 0 {

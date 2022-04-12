@@ -3,13 +3,14 @@ package testfixtures
 import (
 	"context"
 	"errors"
+	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 type validatingDatastore struct {
@@ -80,7 +81,7 @@ func (vd validatingDatastore) Watch(ctx context.Context, afterRevision datastore
 	return vd.delegate.Watch(ctx, afterRevision)
 }
 
-func (vd validatingDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (vd validatingDatastore) WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (datastore.Revision, error) {
 	if err := newConfig.Validate(); err != nil {
 		return datastore.NoRevision, err
 	}
@@ -91,7 +92,7 @@ func (vd validatingDatastore) ReadNamespace(
 	ctx context.Context,
 	nsName string,
 	revision datastore.Revision,
-) (*v0.NamespaceDefinition, datastore.Revision, error) {
+) (*core.NamespaceDefinition, datastore.Revision, error) {
 	read, createdAt, err := vd.delegate.ReadNamespace(ctx, nsName, revision)
 	if err != nil {
 		return read, createdAt, err
@@ -153,7 +154,7 @@ func (vd validatingDatastore) CheckRevision(ctx context.Context, revision datast
 func (vd validatingDatastore) ListNamespaces(
 	ctx context.Context,
 	revision datastore.Revision,
-) ([]*v0.NamespaceDefinition, error) {
+) ([]*core.NamespaceDefinition, error) {
 	read, err := vd.delegate.ListNamespaces(ctx, revision)
 	if err != nil {
 		return read, err
@@ -167,4 +168,12 @@ func (vd validatingDatastore) ListNamespaces(
 	}
 
 	return read, err
+}
+
+func (vd validatingDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
+}
+
+func (vd validatingDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	return vd.delegate.Statistics(ctx)
 }

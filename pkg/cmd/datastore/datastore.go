@@ -6,27 +6,35 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alecthomas/units"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/mysql"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/internal/datastore/spanner"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
 type engineBuilderFunc func(options Config) (datastore.Datastore, error)
 
-var builderForEngine = map[string]engineBuilderFunc{
-	"cockroachdb": newCRDBDatastore,
-	"postgres":    newPostgresDatastore,
-	"memory":      newMemoryDatstore,
-	"mysql":       newMysqlDatastore,
+const (
+	MemoryEngine    = "memory"
+	PostgresEngine  = "postgres"
+	CockroachEngine = "cockroachdb"
+	SpannerEngine   = "spanner"
+	MySQLEngine     = "mysql"
+)
+
+var BuilderForEngine = map[string]engineBuilderFunc{
+	CockroachEngine: newCRDBDatastore,
+	PostgresEngine:  newPostgresDatastore,
+	MemoryEngine:    newMemoryDatstore,
+	SpannerEngine:   newSpannerDatastore,
+	MySQLEngine:     newMySQLDatastore,
 }
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
@@ -37,12 +45,12 @@ type Config struct {
 	RevisionQuantization time.Duration
 
 	// Options
-	MaxIdleTime    time.Duration
-	MaxLifetime    time.Duration
-	MaxOpenConns   int
-	MinOpenConns   int
-	SplitQuerySize string
-	ReadOnly       bool
+	MaxIdleTime     time.Duration
+	MaxLifetime     time.Duration
+	MaxOpenConns    int
+	MinOpenConns    int
+	SplitQueryCount uint16
+	ReadOnly        bool
 
 	// Bootstrap
 	BootstrapFiles     []string
@@ -65,46 +73,20 @@ type Config struct {
 	GCInterval         time.Duration
 	GCMaxOperationTime time.Duration
 
+	// Spanner
+	SpannerCredentialsFile string
+
+	// Internal
+	WatchBufferLength      uint16
+	EnableDatastoreMetrics bool
+
 	// MySQL
 	TablePrefix string
 }
 
-type processedOptions struct {
-	SplitQuerySize units.Base2Bytes
-}
-
-func (o *Config) ToOption() ConfigOption {
-	return func(to *Config) {
-		to.Engine = o.Engine
-		to.URI = o.URI
-		to.GCWindow = o.GCWindow
-		to.RevisionQuantization = o.RevisionQuantization
-		to.MaxLifetime = o.MaxLifetime
-		to.MaxIdleTime = o.MaxIdleTime
-		to.MaxOpenConns = o.MaxOpenConns
-		to.MinOpenConns = o.MinOpenConns
-		to.SplitQuerySize = o.SplitQuerySize
-		to.ReadOnly = o.ReadOnly
-		to.BootstrapFiles = o.BootstrapFiles
-		to.BootstrapOverwrite = o.BootstrapOverwrite
-		to.RequestHedgingEnabled = o.RequestHedgingEnabled
-		to.RequestHedgingInitialSlowValue = o.RequestHedgingInitialSlowValue
-		to.RequestHedgingMaxRequests = o.RequestHedgingMaxRequests
-		to.RequestHedgingQuantile = o.RequestHedgingQuantile
-		to.FollowerReadDelay = o.FollowerReadDelay
-		to.MaxRetries = o.MaxRetries
-		to.OverlapKey = o.OverlapKey
-		to.OverlapStrategy = o.OverlapStrategy
-		to.HealthCheckPeriod = o.HealthCheckPeriod
-		to.GCInterval = o.GCInterval
-		to.GCMaxOperationTime = o.GCMaxOperationTime
-		to.TablePrefix = o.TablePrefix
-	}
-}
-
 // RegisterDatastoreFlags adds datastore flags to a cobra command
 func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
-	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb", "mysql")`)
+	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb", "spanner")`)
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
 	cmd.Flags().IntVar(&opts.MinOpenConns, "datastore-conn-min-open", 10, "number of minimum concurrent connections open in a remote datastore's connection pool")
@@ -124,11 +106,12 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().Float64Var(&opts.RequestHedgingQuantile, "datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	cmd.Flags().DurationVar(&opts.FollowerReadDelay, "datastore-follower-read-delay-duration", 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
-	cmd.Flags().StringVar(&opts.SplitQuerySize, "datastore-query-split-size", common.DefaultSplitAtEstimatedQuerySize.String(), "estimated number of bytes at which a query is split when using a remote datastore")
+	cmd.Flags().Uint16Var(&opts.SplitQueryCount, "datastore-query-userset-batch-size", 1024, "number of usersets after which a relationship query will be split into multiple queries")
 	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 50, "number of times a retriable transaction should be retried (cockroach driver only)")
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
-	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-table-prefix", "", "prefix to add to the name of all SpiceDB database tables (mysql driver only)")
+	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
+	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-mysql-table-prefix", "", "prefix to add to the name of all SpiceDB database tables")
 }
 
 func DefaultDatastoreConfig() *Config {
@@ -139,29 +122,30 @@ func DefaultDatastoreConfig() *Config {
 		MaxIdleTime:          30 * time.Minute,
 		MaxOpenConns:         20,
 		MinOpenConns:         10,
-		SplitQuerySize:       common.DefaultSplitAtEstimatedQuerySize.String(),
+		SplitQueryCount:      1024,
 		MaxRetries:           50,
 		OverlapStrategy:      "prefix",
 		HealthCheckPeriod:    30 * time.Second,
 		GCInterval:           3 * time.Minute,
 		GCMaxOperationTime:   1 * time.Minute,
+		WatchBufferLength:    128,
 	}
 }
 
 // NewDatastore initializes a datastore given the options
 func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
-	var opts Config
+	opts := DefaultDatastoreConfig()
 	for _, o := range options {
-		o(&opts)
+		o(opts)
 	}
 
-	dsBuilder, ok := builderForEngine[opts.Engine]
+	dsBuilder, ok := BuilderForEngine[opts.Engine]
 	if !ok {
 		return nil, fmt.Errorf("unknown datastore engine type: %s", opts.Engine)
 	}
 	log.Info().Msgf("using %s datastore engine", opts.Engine)
 
-	ds, err := dsBuilder(opts)
+	ds, err := dsBuilder(*opts)
 	if err != nil {
 		return nil, err
 	}
@@ -210,11 +194,6 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 }
 
 func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
-	options, err := processConfigOptions(opts)
-	if err != nil {
-		return nil, err
-	}
-
 	return crdb.NewCRDBDatastore(
 		opts.URI,
 		crdb.GCWindow(opts.GCWindow),
@@ -223,54 +202,49 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.ConnMaxLifetime(opts.MaxLifetime),
 		crdb.MaxOpenConns(opts.MaxOpenConns),
 		crdb.MinOpenConns(opts.MinOpenConns),
-		crdb.SplitAtEstimatedQuerySize(options.SplitQuerySize),
+		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
 		crdb.MaxRetries(opts.MaxRetries),
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
+		crdb.WatchBufferLength(opts.WatchBufferLength),
 	)
 }
 
 func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
-	options, err := processConfigOptions(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	return postgres.NewPostgresDatastore(
-		opts.URI,
+	pgOpts := []postgres.Option{
 		postgres.GCWindow(opts.GCWindow),
 		postgres.RevisionFuzzingTimedelta(opts.RevisionQuantization),
 		postgres.ConnMaxIdleTime(opts.MaxIdleTime),
 		postgres.ConnMaxLifetime(opts.MaxLifetime),
 		postgres.MaxOpenConns(opts.MaxOpenConns),
 		postgres.MinOpenConns(opts.MinOpenConns),
-		postgres.SplitAtEstimatedQuerySize(options.SplitQuerySize),
+		postgres.SplitAtUsersetCount(opts.SplitQueryCount),
 		postgres.HealthCheckPeriod(opts.HealthCheckPeriod),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
-		postgres.EnablePrometheusStats(),
 		postgres.EnableTracing(),
+		postgres.WatchBufferLength(opts.WatchBufferLength),
+	}
+	if opts.EnableDatastoreMetrics {
+		pgOpts = append(pgOpts, postgres.EnablePrometheusStats())
+	}
+	return postgres.NewPostgresDatastore(opts.URI, pgOpts...)
+}
+
+func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
+	return spanner.NewSpannerDatastore(
+		opts.URI,
+		spanner.FollowerReadDelay(opts.FollowerReadDelay),
+		spanner.GCInterval(opts.GCInterval),
+		spanner.GCWindow(opts.GCWindow),
+		spanner.CredentialsFile(opts.SpannerCredentialsFile),
+		spanner.WatchBufferLength(opts.WatchBufferLength),
 	)
 }
 
-func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
-	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
-	_, err := processConfigOptions(opts)
-	if err != nil {
-		return nil, err
-	}
-	return memdb.NewMemdbDatastore(0, opts.RevisionQuantization, opts.GCWindow, 0)
-}
-
-func newMysqlDatastore(opts Config) (datastore.Datastore, error) {
-	_, err := processConfigOptions(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	return mysql.NewMysqlDatastore(
-		opts.URI,
+func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
+	mysqlOpts := []mysql.Option{
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCWindow(opts.GCWindow),
 		mysql.GCInterval(opts.GCInterval),
@@ -280,21 +254,11 @@ func newMysqlDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.RevisionFuzzingTimedelta(opts.RevisionQuantization),
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.EnablePrometheusStats(),
-	)
+	}
+	return mysql.NewMysqlDatastore(opts.URI, mysqlOpts...)
 }
 
-func processConfigOptions(opts Config) (*processedOptions, error) {
-	var options processedOptions
-
-	if opts.Engine != "mysql" && opts.TablePrefix != "" {
-		return nil, fmt.Errorf("table-prefix option is not compatible with the %s datastore", opts.Engine)
-	} else if opts.Engine == "postgres" || opts.Engine == "cockroachdb" {
-		var err error
-		options.SplitQuerySize, err = units.ParseBase2Bytes(opts.SplitQuerySize)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse split query size: %w", err)
-		}
-	}
-
-	return &options, nil
+func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
+	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
+	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow, 0)
 }

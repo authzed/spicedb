@@ -8,20 +8,27 @@ import (
 	"sync"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 	"github.com/shopspring/decimal"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/authzed/spicedb/internal/datastore"
 )
+
+func init() {
+	datastore.Engines = append(datastore.Engines, Engine)
+}
 
 // DisableGC is a convenient constant for setting the garbage collection
 // interval high enough that it will never run.
 const DisableGC = time.Duration(math.MaxInt64)
 
 const (
+	Engine            = "memory"
 	tableRelationship = "relationship"
 	tableTransaction  = "transaction"
 	tableNamespace    = "namespaceConfig"
@@ -125,14 +132,14 @@ func (r relationship) Relationship() *v1.Relationship {
 	}
 }
 
-func (r relationship) RelationTuple() *v0.RelationTuple {
-	return &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
+func (r relationship) RelationTuple() *core.RelationTuple {
+	return &core.RelationTuple{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: r.namespace,
 			ObjectId:  r.resourceID,
 			Relation:  r.relation,
 		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 			Namespace: r.subjectNamespace,
 			ObjectId:  r.subjectObjectID,
 			Relation:  r.subjectRelation,
@@ -332,6 +339,7 @@ type memdbDatastore struct {
 	revisionFuzzingTimedelta time.Duration
 	gcWindowInverted         time.Duration
 	simulatedLatency         time.Duration
+	uniqueID                 string
 }
 
 // NewMemdbDatastore creates a new Datastore compliant datastore backed by memdb.
@@ -371,6 +379,8 @@ func NewMemdbDatastore(
 		watchBufferLength = defaultWatchBufferLength
 	}
 
+	uniqueID := uuid.NewString()
+
 	return &memdbDatastore{
 		db:                       db,
 		watchBufferLength:        watchBufferLength,
@@ -378,11 +388,16 @@ func NewMemdbDatastore(
 
 		gcWindowInverted: -1 * gcWindow,
 		simulatedLatency: simulatedLatency,
+		uniqueID:         uniqueID,
 	}, nil
 }
 
 func (mds *memdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	return true, nil
+}
+
+func (mds *memdbDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
 }
 
 func revisionFromVersion(version uint64) datastore.Revision {

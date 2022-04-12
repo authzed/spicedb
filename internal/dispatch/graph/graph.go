@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -15,6 +17,8 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
+	graphwalk "github.com/authzed/spicedb/pkg/graph"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -23,16 +27,20 @@ const errDispatch = "error dispatching request: %w"
 
 var tracer = otel.Tracer("spicedb/internal/dispatch/local")
 
+var slowLookupCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "spicedb_dispatch_slow_lookup_total",
+	Help: "count of how many times the slow lookup path is taken",
+}, []string{"prefix"})
+
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
 func NewLocalOnlyDispatcher(
 	nsm namespace.Manager,
-	ds datastore.Datastore,
 ) dispatch.Dispatcher {
 	d := &localDispatcher{nsm: nsm}
 
-	d.checker = graph.NewConcurrentChecker(d, ds, nsm)
-	d.expander = graph.NewConcurrentExpander(d, ds, nsm)
-	d.lookupHandler = graph.NewConcurrentLookup(d, ds, nsm)
+	d.checker = graph.NewConcurrentChecker(d, nsm)
+	d.expander = graph.NewConcurrentExpander(d, nsm)
+	d.lookupHandler = graph.NewConcurrentLookup(d, d, nsm)
 
 	return d
 }
@@ -42,11 +50,10 @@ func NewLocalOnlyDispatcher(
 func NewDispatcher(
 	redispatcher dispatch.Dispatcher,
 	nsm namespace.Manager,
-	ds datastore.Datastore,
 ) dispatch.Dispatcher {
-	checker := graph.NewConcurrentChecker(redispatcher, ds, nsm)
-	expander := graph.NewConcurrentExpander(redispatcher, ds, nsm)
-	lookupHandler := graph.NewConcurrentLookup(redispatcher, ds, nsm)
+	checker := graph.NewConcurrentChecker(redispatcher, nsm)
+	expander := graph.NewConcurrentExpander(redispatcher, nsm)
+	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, nsm)
 
 	return &localDispatcher{checker, expander, lookupHandler, nsm}
 }
@@ -59,14 +66,14 @@ type localDispatcher struct {
 	nsm namespace.Manager
 }
 
-func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string, revision decimal.Decimal) (*v0.Relation, error) {
+func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string, revision decimal.Decimal) (*core.Relation, error) {
 	// Load namespace and relation from the datastore
 	ns, err := ld.nsm.ReadNamespace(ctx, nsName, revision)
 	if err != nil {
 		return nil, rewriteError(err)
 	}
 
-	var relation *v0.Relation
+	var relation *core.Relation
 	for _, candidate := range ns.Relation {
 		if candidate.Name == relationName {
 			relation = candidate
@@ -82,7 +89,7 @@ func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationNam
 }
 
 type stringableOnr struct {
-	*v0.ObjectAndRelation
+	*core.ObjectAndRelation
 }
 
 func (onr stringableOnr) String() string {
@@ -90,7 +97,7 @@ func (onr stringableOnr) String() string {
 }
 
 type stringableRelRef struct {
-	*v0.RelationReference
+	*core.RelationReference
 }
 
 func (rr stringableRelRef) String() string {
@@ -178,15 +185,61 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	}
 
 	if req.Limit <= 0 {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*v0.ObjectAndRelation{}}, nil
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
 	}
 
 	validatedReq := graph.ValidatedLookupRequest{
 		DispatchLookupRequest: req,
 		Revision:              revision,
 	}
+	relation, err := ld.loadRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, revision)
+	if err != nil {
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
+	}
+
+	if ld.requiresLookupViaChecks(relation) {
+		log.Warn().Msg("slow path dispatch lookup")
+		slowLookupCounter.WithLabelValues(prefix(validatedReq.Subject.Namespace)).Inc()
+		return ld.lookupHandler.LookupViaChecks(ctx, validatedReq)
+	}
 
 	return ld.lookupHandler.Lookup(ctx, validatedReq)
+}
+
+func prefix(namespace string) (prefix string) {
+	parts := strings.SplitN(namespace, "/", 2)
+	if len(parts) > 1 {
+		prefix = parts[0]
+	}
+	return prefix
+}
+
+func (ld *localDispatcher) requiresLookupViaChecks(relation *core.Relation) bool {
+	// TODO: refactor walker so that we don't have to make two separate checks
+	// check top-level rewrite
+	if rw := relation.GetUsersetRewrite(); rw != nil {
+		switch rw.RewriteOperation.(type) {
+		case *core.UsersetRewrite_Intersection:
+			return true
+		case *core.UsersetRewrite_Exclusion:
+			return true
+		}
+	}
+
+	// check child rewrites
+	childIntersectionExclusion := graphwalk.WalkRewrite(relation.GetUsersetRewrite(), func(childOneof *core.SetOperation_Child) interface{} {
+		switch child := childOneof.ChildType.(type) {
+		case *core.SetOperation_Child_UsersetRewrite:
+			switch child.UsersetRewrite.RewriteOperation.(type) {
+			case *core.UsersetRewrite_Intersection:
+				return true
+			case *core.UsersetRewrite_Exclusion:
+				return true
+			}
+		}
+		return nil
+	})
+	return childIntersectionExclusion != nil
 }
 
 func (ld *localDispatcher) Close() error {

@@ -23,7 +23,7 @@ const (
 
 var (
 	upsertTupleSuffix = fmt.Sprintf(
-		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now() %s",
+		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now()",
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -31,10 +31,9 @@ var (
 		colUsersetObjectID,
 		colUsersetRelation,
 		colTimestamp,
-		queryReturningTimestamp,
 	)
 
-	baseInsertQuery = psql.Insert(tableTuple).Columns(
+	queryWriteTuple = psql.Insert(tableTuple).Columns(
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -43,9 +42,7 @@ var (
 		colUsersetRelation,
 	)
 
-	queryWriteTuple = baseInsertQuery.Suffix(queryReturningTimestamp)
-
-	queryTouchTuple = baseInsertQuery.Suffix(upsertTupleSuffix)
+	queryTouchTuple = queryWriteTuple.Suffix(upsertTupleSuffix)
 
 	queryDeleteTuples = psql.Delete(tableTuple)
 
@@ -139,6 +136,7 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 		var bulkTouchCount int64
 
 		// Process the actual updates
+		var tupleCountChange int64
 		for _, mutation := range mutations {
 			rel := mutation.Relationship
 			cds.AddOverlapKey(keySet, rel.Resource.ObjectType)
@@ -146,6 +144,7 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 
 			switch mutation.Operation {
 			case v1.RelationshipUpdate_OPERATION_TOUCH:
+				tupleCountChange++
 				bulkTouch = bulkTouch.Values(
 					rel.Resource.ObjectType,
 					rel.Resource.ObjectId,
@@ -156,6 +155,7 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 				)
 				bulkTouchCount++
 			case v1.RelationshipUpdate_OPERATION_CREATE:
+				tupleCountChange++
 				bulkWrite = bulkWrite.Values(
 					rel.Resource.ObjectType,
 					rel.Resource.ObjectId,
@@ -166,6 +166,7 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 				)
 				bulkWriteCount++
 			case v1.RelationshipUpdate_OPERATION_DELETE:
+				tupleCountChange--
 				sql, args, err := queryDeleteTuples.Where(exactRelationshipClause(rel)).ToSql()
 				if err != nil {
 					return err
@@ -194,17 +195,14 @@ func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.P
 				return err
 			}
 
-			if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
+			if _, err := tx.Exec(ctx, sql, args...); err != nil {
 				return err
 			}
 		}
 
-		if len(bulkUpdateQueries) == 0 {
-			var err error
-			nowRevision, err = readCRDBNow(ctx, tx)
-			if err != nil {
-				return err
-			}
+		var counterErr error
+		if nowRevision, counterErr = updateCounter(ctx, tx, tupleCountChange); counterErr != nil {
+			return counterErr
 		}
 
 		// Touching the transaction key happens last so that the "write intent" for
@@ -246,7 +244,7 @@ func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions
 		}
 
 		// Add clauses for the ResourceFilter
-		query := queryDeleteTuples.Suffix(queryReturningTimestamp).Where(sq.Eq{colNamespace: filter.ResourceType})
+		query := queryDeleteTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
 		tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
 		if filter.OptionalResourceId != "" {
 			query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
@@ -278,17 +276,16 @@ func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions
 			return err
 		}
 
-		if err := tx.QueryRow(ctx, sql, args...).Scan(&nowRevision); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				// CRDB doesn't return the cluster_logical_timestamp if no rows were deleted
-				// so we have to read it manually in the same transaction.
-				nowRevision, err = readCRDBNow(ctx, tx)
-				if err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
+		modified, err := tx.Exec(ctx, sql, args...)
+		if err != nil {
+			return err
+		}
+
+		numDeleted := modified.RowsAffected()
+
+		nowRevision, err = updateCounter(ctx, tx, -1*numDeleted)
+		if err != nil {
+			return err
 		}
 
 		return nil

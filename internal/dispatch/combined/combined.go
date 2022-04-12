@@ -6,11 +6,11 @@ import (
 	"os"
 
 	"github.com/authzed/grpcutil"
+	"github.com/dgraph-io/ristretto"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -23,10 +23,19 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	upstreamAddr     string
-	upstreamCAPath   string
-	grpcPresharedKey string
-	grpcDialOpts     []grpc.DialOption
+	prometheusSubsystem string
+	upstreamAddr        string
+	upstreamCAPath      string
+	grpcPresharedKey    string
+	grpcDialOpts        []grpc.DialOption
+	cacheConfig         *ristretto.Config
+}
+
+// PrometheusSubsystem sets the subsystem name for the prometheus metrics
+func PrometheusSubsystem(name string) Option {
+	return func(state *optionState) {
+		state.prometheusSubsystem = name
+	}
 }
 
 // UpstreamAddr sets the optional cluster dispatching upstream address.
@@ -36,7 +45,7 @@ func UpstreamAddr(addr string) Option {
 	}
 }
 
-// UpstreamAddr sets the optional cluster dispatching upstream certificate
+// UpstreamCAPath sets the optional cluster dispatching upstream certificate
 // authority.
 func UpstreamCAPath(path string) Option {
 	return func(state *optionState) {
@@ -60,21 +69,32 @@ func GrpcDialOpts(opts ...grpc.DialOption) Option {
 	}
 }
 
+// CacheConfig sets the configuration for the local dispatcher's cache.
+func CacheConfig(config *ristretto.Config) Option {
+	return func(state *optionState) {
+		state.cacheConfig = config
+	}
+}
+
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
-func NewDispatcher(nsm namespace.Manager, ds datastore.Datastore, options ...Option) (dispatch.Dispatcher, error) {
+func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatcher, error) {
 	var opts optionState
 	for _, fn := range options {
 		fn(&opts)
 	}
 	log.Debug().Str("upstream", opts.upstreamAddr).Msg("configured combined dispatcher")
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(nil, "dispatch_client")
+	if opts.prometheusSubsystem == "" {
+		opts.prometheusSubsystem = "dispatch_client"
+	}
+
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem)
 	if err != nil {
 		return nil, err
 	}
 
-	redispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
+	redispatch := graph.NewDispatcher(cachingRedispatch, nsm)
 
 	// If an upstream is specified, create a cluster dispatcher.
 	if opts.upstreamAddr != "" {
@@ -100,17 +120,4 @@ func NewDispatcher(nsm namespace.Manager, ds datastore.Datastore, options ...Opt
 	cachingRedispatch.SetDelegate(redispatch)
 
 	return cachingRedispatch, nil
-}
-
-// NewClusterDispatcher takes a caching redispatcher (such as one created by
-// NewDispatcher) and returns a cluster dispatcher suitable for use as the
-// dispatcher for the dispatch grpc server.
-func NewClusterDispatcher(cachingRedispatch dispatch.Dispatcher, nsm namespace.Manager, ds datastore.Datastore) (dispatch.Dispatcher, error) {
-	clusterDispatch := graph.NewDispatcher(cachingRedispatch, nsm, ds)
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(nil, "dispatch")
-	if err != nil {
-		return nil, err
-	}
-	cachingClusterDispatch.SetDelegate(clusterDispatch)
-	return cachingClusterDispatch, nil
 }

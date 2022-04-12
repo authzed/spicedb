@@ -2,8 +2,12 @@
 package server
 
 import (
+	datastore1 "github.com/authzed/spicedb/internal/datastore"
+	dispatch "github.com/authzed/spicedb/internal/dispatch"
+	namespace "github.com/authzed/spicedb/internal/namespace"
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
+	auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc "google.golang.org/grpc"
 	"time"
 )
@@ -19,6 +23,46 @@ func NewConfigWithOptions(opts ...ConfigOption) *Config {
 	return c
 }
 
+// ToOption returns a new ConfigOption that sets the values from the passed in Config
+func (c *Config) ToOption() ConfigOption {
+	return func(to *Config) {
+		to.GRPCServer = c.GRPCServer
+		to.GRPCAuthFunc = c.GRPCAuthFunc
+		to.PresharedKey = c.PresharedKey
+		to.ShutdownGracePeriod = c.ShutdownGracePeriod
+		to.HTTPGateway = c.HTTPGateway
+		to.HTTPGatewayUpstreamAddr = c.HTTPGatewayUpstreamAddr
+		to.HTTPGatewayUpstreamTLSCertPath = c.HTTPGatewayUpstreamTLSCertPath
+		to.HTTPGatewayCorsEnabled = c.HTTPGatewayCorsEnabled
+		to.HTTPGatewayCorsAllowedOrigins = c.HTTPGatewayCorsAllowedOrigins
+		to.DatastoreConfig = c.DatastoreConfig
+		to.Datastore = c.Datastore
+		to.NamespaceManager = c.NamespaceManager
+		to.NamespaceCacheConfig = c.NamespaceCacheConfig
+		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
+		to.DispatchServer = c.DispatchServer
+		to.DispatchMaxDepth = c.DispatchMaxDepth
+		to.DispatchUpstreamAddr = c.DispatchUpstreamAddr
+		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
+		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
+		to.DispatchClusterMetricsPrefix = c.DispatchClusterMetricsPrefix
+		to.Dispatcher = c.Dispatcher
+		to.DispatchCacheConfig = c.DispatchCacheConfig
+		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
+		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
+		to.DashboardAPI = c.DashboardAPI
+		to.MetricsAPI = c.MetricsAPI
+		to.UnaryMiddleware = c.UnaryMiddleware
+		to.StreamingMiddleware = c.StreamingMiddleware
+		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
+		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
+		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
+		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
+		to.TelemetryEndpoint = c.TelemetryEndpoint
+		to.TelemetryInterval = c.TelemetryInterval
+	}
+}
+
 // ConfigWithOptions configures an existing Config with the passed in options set
 func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
 	for _, o := range opts {
@@ -31,6 +75,13 @@ func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
 func WithGRPCServer(gRPCServer util.GRPCServerConfig) ConfigOption {
 	return func(c *Config) {
 		c.GRPCServer = gRPCServer
+	}
+}
+
+// WithGRPCAuthFunc returns an option that can set GRPCAuthFunc on a Config
+func WithGRPCAuthFunc(gRPCAuthFunc auth.AuthFunc) ConfigOption {
+	return func(c *Config) {
+		c.GRPCAuthFunc = gRPCAuthFunc
 	}
 }
 
@@ -90,17 +141,31 @@ func SetHTTPGatewayCorsAllowedOrigins(hTTPGatewayCorsAllowedOrigins []string) Co
 	}
 }
 
+// WithDatastoreConfig returns an option that can set DatastoreConfig on a Config
+func WithDatastoreConfig(datastoreConfig datastore.Config) ConfigOption {
+	return func(c *Config) {
+		c.DatastoreConfig = datastoreConfig
+	}
+}
+
 // WithDatastore returns an option that can set Datastore on a Config
-func WithDatastore(datastore datastore.Config) ConfigOption {
+func WithDatastore(datastore datastore1.Datastore) ConfigOption {
 	return func(c *Config) {
 		c.Datastore = datastore
 	}
 }
 
-// WithNamespaceCacheExpiration returns an option that can set NamespaceCacheExpiration on a Config
-func WithNamespaceCacheExpiration(namespaceCacheExpiration time.Duration) ConfigOption {
+// WithNamespaceManager returns an option that can set NamespaceManager on a Config
+func WithNamespaceManager(namespaceManager namespace.Manager) ConfigOption {
 	return func(c *Config) {
-		c.NamespaceCacheExpiration = namespaceCacheExpiration
+		c.NamespaceManager = namespaceManager
+	}
+}
+
+// WithNamespaceCacheConfig returns an option that can set NamespaceCacheConfig on a Config
+func WithNamespaceCacheConfig(namespaceCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.NamespaceCacheConfig = namespaceCacheConfig
 	}
 }
 
@@ -136,6 +201,41 @@ func WithDispatchUpstreamAddr(dispatchUpstreamAddr string) ConfigOption {
 func WithDispatchUpstreamCAPath(dispatchUpstreamCAPath string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchUpstreamCAPath = dispatchUpstreamCAPath
+	}
+}
+
+// WithDispatchClientMetricsPrefix returns an option that can set DispatchClientMetricsPrefix on a Config
+func WithDispatchClientMetricsPrefix(dispatchClientMetricsPrefix string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchClientMetricsPrefix = dispatchClientMetricsPrefix
+	}
+}
+
+// WithDispatchClusterMetricsPrefix returns an option that can set DispatchClusterMetricsPrefix on a Config
+func WithDispatchClusterMetricsPrefix(dispatchClusterMetricsPrefix string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchClusterMetricsPrefix = dispatchClusterMetricsPrefix
+	}
+}
+
+// WithDispatcher returns an option that can set Dispatcher on a Config
+func WithDispatcher(dispatcher dispatch.Dispatcher) ConfigOption {
+	return func(c *Config) {
+		c.Dispatcher = dispatcher
+	}
+}
+
+// WithDispatchCacheConfig returns an option that can set DispatchCacheConfig on a Config
+func WithDispatchCacheConfig(dispatchCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.DispatchCacheConfig = dispatchCacheConfig
+	}
+}
+
+// WithClusterDispatchCacheConfig returns an option that can set ClusterDispatchCacheConfig on a Config
+func WithClusterDispatchCacheConfig(clusterDispatchCacheConfig CacheConfig) ConfigOption {
+	return func(c *Config) {
+		c.ClusterDispatchCacheConfig = clusterDispatchCacheConfig
 	}
 }
 
@@ -213,5 +313,33 @@ func WithDispatchStreamingMiddleware(dispatchStreamingMiddleware grpc.StreamServ
 func SetDispatchStreamingMiddleware(dispatchStreamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
 	return func(c *Config) {
 		c.DispatchStreamingMiddleware = dispatchStreamingMiddleware
+	}
+}
+
+// WithSilentlyDisableTelemetry returns an option that can set SilentlyDisableTelemetry on a Config
+func WithSilentlyDisableTelemetry(silentlyDisableTelemetry bool) ConfigOption {
+	return func(c *Config) {
+		c.SilentlyDisableTelemetry = silentlyDisableTelemetry
+	}
+}
+
+// WithTelemetryCAOverridePath returns an option that can set TelemetryCAOverridePath on a Config
+func WithTelemetryCAOverridePath(telemetryCAOverridePath string) ConfigOption {
+	return func(c *Config) {
+		c.TelemetryCAOverridePath = telemetryCAOverridePath
+	}
+}
+
+// WithTelemetryEndpoint returns an option that can set TelemetryEndpoint on a Config
+func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
+	return func(c *Config) {
+		c.TelemetryEndpoint = telemetryEndpoint
+	}
+}
+
+// WithTelemetryInterval returns an option that can set TelemetryInterval on a Config
+func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.TelemetryInterval = telemetryInterval
 	}
 }

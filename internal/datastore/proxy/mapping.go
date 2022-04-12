@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -32,6 +33,14 @@ func NewMappingProxy(delegate datastore.Datastore, mapper namespace.Mapper, watc
 	}
 
 	return mappingProxy{delegate, mapper, watchBufferLength}
+}
+
+func (mp mappingProxy) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	mapped, err := mp.mapper.Encode(namespaceName)
+	if err != nil {
+		return "", err
+	}
+	return mp.delegate.NamespaceCacheKey(mapped, revision)
 }
 
 func (mp mappingProxy) Close() error {
@@ -107,13 +116,13 @@ func (mp mappingProxy) Watch(ctx context.Context, afterRevision datastore.Revisi
 			select {
 			case change, ok := <-changeChan:
 				if ok {
-					translatedChanges := make([]*v0.RelationTupleUpdate, 0, len(change.Changes))
+					translatedChanges := make([]*core.RelationTupleUpdate, 0, len(change.Changes))
 					for _, update := range change.Changes {
 						translatedTuple, err := translateTuple(update.Tuple, mp.mapper.Reverse)
 						if err != nil {
 							newErrChan <- fmt.Errorf(errTranslation, err)
 						}
-						translatedChanges = append(translatedChanges, &v0.RelationTupleUpdate{
+						translatedChanges = append(translatedChanges, &core.RelationTupleUpdate{
 							Operation: update.Operation,
 							Tuple:     translatedTuple,
 						})
@@ -138,20 +147,20 @@ func (mp mappingProxy) Watch(ctx context.Context, afterRevision datastore.Revisi
 	return newChangeChan, newErrChan
 }
 
-func (mp mappingProxy) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (mp mappingProxy) WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (datastore.Revision, error) {
 	translatedNamespaceName, err := mp.mapper.Encode(newConfig.Name)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errTranslation, err)
 	}
 
-	return mp.delegate.WriteNamespace(ctx, &v0.NamespaceDefinition{
+	return mp.delegate.WriteNamespace(ctx, &core.NamespaceDefinition{
 		Name:     translatedNamespaceName,
 		Relation: newConfig.Relation,
 		Metadata: newConfig.Metadata,
 	})
 }
 
-func (mp mappingProxy) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*v0.NamespaceDefinition, datastore.Revision, error) {
+func (mp mappingProxy) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, datastore.Revision, error) {
 	storedNamespaceName, err := mp.mapper.Encode(nsName)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errTranslation, err)
@@ -206,7 +215,7 @@ func (mp mappingProxy) QueryTuples(
 	}
 
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
-	translatedUsersets := make([]*v0.ObjectAndRelation, 0, len(queryOpts.Usersets))
+	translatedUsersets := make([]*core.ObjectAndRelation, 0, len(queryOpts.Usersets))
 	for _, userset := range queryOpts.Usersets {
 		translatedUserset, err := translateONR(userset, mp.mapper.Encode)
 		if err != nil {
@@ -274,7 +283,11 @@ func (mp mappingProxy) CheckRevision(ctx context.Context, revision datastore.Rev
 	return mp.delegate.CheckRevision(ctx, revision)
 }
 
-func (mp mappingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+func (mp mappingProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
+	return mp.delegate.Statistics(ctx)
+}
+
+func (mp mappingProxy) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	nsDefs, err := mp.delegate.ListNamespaces(ctx, revision)
 	if err != nil {
 		return nil, err
@@ -296,7 +309,7 @@ type mappingTupleIterator struct {
 	err      error
 }
 
-func (mti *mappingTupleIterator) Next() *v0.RelationTuple {
+func (mti *mappingTupleIterator) Next() *core.RelationTuple {
 	nextTuple := mti.delegate.Next()
 	if nextTuple != nil {
 		translated, err := translateTuple(nextTuple, mti.mapper.Reverse)
@@ -352,7 +365,7 @@ func translateRelationship(in *v1.Relationship, mapper MapperFunc) (*v1.Relation
 	}, nil
 }
 
-func translateTuple(in *v0.RelationTuple, mapper MapperFunc) (*v0.RelationTuple, error) {
+func translateTuple(in *core.RelationTuple, mapper MapperFunc) (*core.RelationTuple, error) {
 	translatedObject, err := translateONR(in.ObjectAndRelation, mapper)
 	if err != nil {
 		return nil, err
@@ -364,23 +377,23 @@ func translateTuple(in *v0.RelationTuple, mapper MapperFunc) (*v0.RelationTuple,
 		return nil, err
 	}
 
-	return &v0.RelationTuple{
+	return &core.RelationTuple{
 		ObjectAndRelation: translatedObject,
-		User: &v0.User{
-			UserOneof: &v0.User_Userset{
+		User: &core.User{
+			UserOneof: &core.User_Userset{
 				Userset: translatedUserset,
 			},
 		},
 	}, nil
 }
 
-func translateONR(in *v0.ObjectAndRelation, mapper MapperFunc) (*v0.ObjectAndRelation, error) {
+func translateONR(in *core.ObjectAndRelation, mapper MapperFunc) (*core.ObjectAndRelation, error) {
 	newNamespace, err := mapper(in.Namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	return &v0.ObjectAndRelation{
+	return &core.ObjectAndRelation{
 		Namespace: newNamespace,
 		ObjectId:  in.ObjectId,
 		Relation:  in.Relation,

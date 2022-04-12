@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/benbjohnson/clock"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/test"
@@ -46,8 +47,8 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		{
 			"ReadNamespace",
 			[]interface{}{mock.Anything, nsKnown, datastore.NoRevision},
-			[]interface{}{&v0.NamespaceDefinition{}, revisionKnown, errKnown},
-			[]interface{}{&v0.NamespaceDefinition{}, anotherRevisionKnown, errKnown},
+			[]interface{}{&core.NamespaceDefinition{}, revisionKnown, errKnown},
+			[]interface{}{&core.NamespaceDefinition{}, anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
 				_, rev, err := proxy.ReadNamespace(context.Background(), nsKnown, datastore.NoRevision)
@@ -274,16 +275,16 @@ func TestDatastoreE2E(t *testing.T) {
 		delegateDatastore, slowQueryTime, maxSampleCount, quantile, mockTime,
 	)
 
-	expectedTuples := []*v0.RelationTuple{
+	expectedTuples := []*core.RelationTuple{
 		{
-			ObjectAndRelation: &v0.ObjectAndRelation{
+			ObjectAndRelation: &core.ObjectAndRelation{
 				Namespace: "test",
 				ObjectId:  "test",
 				Relation:  "test",
 			},
-			User: &v0.User{
-				UserOneof: &v0.User_Userset{
-					Userset: &v0.ObjectAndRelation{
+			User: &core.User{
+				UserOneof: &core.User_Userset{
+					Userset: &core.ObjectAndRelation{
 						Namespace: "test",
 						ObjectId:  "test",
 						Relation:  "test",

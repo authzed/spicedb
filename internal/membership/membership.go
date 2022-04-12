@@ -3,7 +3,7 @@ package membership
 import (
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -33,7 +33,7 @@ func NewMembershipSet() *Set {
 // AddExpansion adds the expansion of an ONR to the membership set. Returns false if the ONR was already added.
 //
 // NOTE: The expansion tree *should* be the fully recursive expansion.
-func (ms *Set) AddExpansion(onr *v0.ObjectAndRelation, expansion *v0.RelationTupleTreeNode) (FoundSubjects, bool, error) {
+func (ms *Set) AddExpansion(onr *core.ObjectAndRelation, expansion *core.RelationTupleTreeNode) (FoundSubjects, bool, error) {
 	onrString := tuple.StringONR(onr)
 	existing, ok := ms.objectsAndRelations[onrString]
 	if ok {
@@ -51,20 +51,20 @@ func (ms *Set) AddExpansion(onr *v0.ObjectAndRelation, expansion *v0.RelationTup
 }
 
 // AccessibleExpansionSubjects returns a TrackingSubjectSet representing the set of accessible subjects in the expansion.
-func AccessibleExpansionSubjects(treeNode *v0.RelationTupleTreeNode) (TrackingSubjectSet, error) {
+func AccessibleExpansionSubjects(treeNode *core.RelationTupleTreeNode) (TrackingSubjectSet, error) {
 	return populateFoundSubjects(treeNode.Expanded, treeNode)
 }
 
-func populateFoundSubjects(rootONR *v0.ObjectAndRelation, treeNode *v0.RelationTupleTreeNode) (TrackingSubjectSet, error) {
+func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.RelationTupleTreeNode) (TrackingSubjectSet, error) {
 	resource := rootONR
 	if treeNode.Expanded != nil {
 		resource = treeNode.Expanded
 	}
 
 	switch typed := treeNode.NodeType.(type) {
-	case *v0.RelationTupleTreeNode_IntermediateNode:
+	case *core.RelationTupleTreeNode_IntermediateNode:
 		switch typed.IntermediateNode.Operation {
-		case v0.SetOperationUserset_UNION:
+		case core.SetOperationUserset_UNION:
 			toReturn := NewTrackingSubjectSet()
 			for _, child := range typed.IntermediateNode.ChildNodes {
 				tss, err := populateFoundSubjects(resource, child)
@@ -76,7 +76,7 @@ func populateFoundSubjects(rootONR *v0.ObjectAndRelation, treeNode *v0.RelationT
 			}
 			return toReturn, nil
 
-		case v0.SetOperationUserset_INTERSECTION:
+		case core.SetOperationUserset_INTERSECTION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
 				return nil, fmt.Errorf("found intersection with no children")
 			}
@@ -98,7 +98,7 @@ func populateFoundSubjects(rootONR *v0.ObjectAndRelation, treeNode *v0.RelationT
 			}
 			return toReturn, nil
 
-		case v0.SetOperationUserset_EXCLUSION:
+		case core.SetOperationUserset_EXCLUSION:
 			if len(typed.IntermediateNode.ChildNodes) == 0 {
 				return nil, fmt.Errorf("found exclusion with no children")
 			}
@@ -125,7 +125,7 @@ func populateFoundSubjects(rootONR *v0.ObjectAndRelation, treeNode *v0.RelationT
 			panic("unknown expand operation")
 		}
 
-	case *v0.RelationTupleTreeNode_LeafNode:
+	case *core.RelationTupleTreeNode_LeafNode:
 		toReturn := NewTrackingSubjectSet()
 		for _, user := range typed.LeafNode.Users {
 			fs := NewFoundSubject(user.GetUserset())

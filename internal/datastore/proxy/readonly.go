@@ -3,8 +3,9 @@ package proxy
 import (
 	"context"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -20,6 +21,10 @@ type roDatastore struct {
 // datastore.
 func NewReadonlyDatastore(delegate datastore.Datastore) datastore.Datastore {
 	return roDatastore{delegate: delegate}
+}
+
+func (rd roDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return rd.delegate.NamespaceCacheKey(namespaceName, revision)
 }
 
 func (rd roDatastore) Close() error {
@@ -50,11 +55,11 @@ func (rd roDatastore) Watch(ctx context.Context, afterRevision datastore.Revisio
 	return rd.delegate.Watch(ctx, afterRevision)
 }
 
-func (rd roDatastore) WriteNamespace(ctx context.Context, newConfig *v0.NamespaceDefinition) (datastore.Revision, error) {
+func (rd roDatastore) WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (datastore.Revision, error) {
 	return datastore.NoRevision, errReadOnly
 }
 
-func (rd roDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*v0.NamespaceDefinition, datastore.Revision, error) {
+func (rd roDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, datastore.Revision, error) {
 	return rd.delegate.ReadNamespace(ctx, nsName, revision)
 }
 
@@ -84,6 +89,10 @@ func (rd roDatastore) CheckRevision(ctx context.Context, revision datastore.Revi
 	return rd.delegate.CheckRevision(ctx, revision)
 }
 
-func (rd roDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*v0.NamespaceDefinition, error) {
+func (rd roDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
 	return rd.delegate.ListNamespaces(ctx, revision)
+}
+
+func (rd roDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	return rd.delegate.Statistics(ctx)
 }

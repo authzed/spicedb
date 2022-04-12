@@ -1,6 +1,9 @@
 package util
 
 import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -13,16 +16,25 @@ import (
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/test/bufconn"
+
+	"github.com/authzed/spicedb/pkg/x509util"
 )
 
+const BufferedNetwork string = "buffnet"
+
 type GRPCServerConfig struct {
-	Address     string
-	Network     string
-	TLSCertPath string
-	TLSKeyPath  string
-	MaxConnAge  time.Duration
-	Enabled     bool
+	Address      string
+	Network      string
+	TLSCertPath  string
+	TLSKeyPath   string
+	MaxConnAge   time.Duration
+	Enabled      bool
+	BufferSize   int
+	ClientCAPath string
+	MaxWorkers   uint32
 
 	flagPrefix string
 }
@@ -45,29 +57,43 @@ func RegisterGRPCServerFlags(flags *pflag.FlagSet, config *GRPCServerConfig, fla
 	flags.StringVar(&config.TLSKeyPath, flagPrefix+"-tls-key-path", "", "local path to the TLS key used to serve "+serviceName)
 	flags.DurationVar(&config.MaxConnAge, flagPrefix+"-max-conn-age", 30*time.Second, "how long a connection serving "+serviceName+" should be able to live")
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" gRPC server")
+	flags.Uint32Var(&config.MaxWorkers, flagPrefix+"-max-workers", 0, "set the number of workers for this server (0 value means 1 worker per request)")
 }
+
+type (
+	DialFunc    func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	NetDialFunc func(ctx context.Context, s string) (net.Conn, error)
+)
 
 // Complete takes a set of default options and returns a completed server
 func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(server *grpc.Server), opts ...grpc.ServerOption) (RunnableGRPCServer, error) {
+	if !c.Enabled {
+		return &disabledGrpcServer{}, nil
+	}
+	if c.BufferSize == 0 {
+		c.BufferSize = 1024 * 1024
+	}
 	opts = append(opts, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge: c.MaxConnAge,
-	}))
-	switch {
-	case c.TLSCertPath == "" && c.TLSKeyPath == "":
-		log.Warn().Str("prefix", c.flagPrefix).Msg("grpc server serving plaintext")
-	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		creds, err := credentials.NewServerTLSFromFile(c.TLSCertPath, c.TLSKeyPath)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, grpc.Creds(creds))
+	}), grpc.NumStreamWorkers(c.MaxWorkers))
+
+	tlsOpts, err := c.tlsOpts()
+	if err != nil {
+		return nil, err
 	}
-	l, err := net.Listen(c.Network, c.Address)
+	opts = append(opts, tlsOpts...)
+
+	clientCreds, err := c.clientCreds()
+	if err != nil {
+		return nil, err
+	}
+
+	l, dial, netDial, err := c.listenerAndDialer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on addr for gRPC server: %w", err)
 	}
 	log.WithLevel(level).Str("addr", c.Address).Str("network", c.Network).
-		Str("prefix", c.flagPrefix).Msg("grpc server started listening")
+		Str("prefix", c.flagPrefix).Uint32("workers", c.MaxWorkers).Msg("grpc server started listening")
 
 	srv := grpc.NewServer(opts...)
 	svcRegistrationFn(srv)
@@ -78,29 +104,96 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		listenFunc: func() error {
 			return srv.Serve(l)
 		},
+		dial:    dial,
+		netDial: netDial,
 		prestopFunc: func() {
 			log.WithLevel(level).Str("addr", c.Address).Str("network", c.Network).
 				Str("prefix", c.flagPrefix).Msg("grpc server stopped listening")
 		},
 		stopFunc: srv.GracefulStop,
-		enabled:  c.Enabled,
+		creds:    clientCreds,
 	}, nil
+}
+
+func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialFunc, error) {
+	if c.Network == BufferedNetwork {
+		bl := bufconn.Listen(c.BufferSize)
+		return bl, func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+				opts = append(opts, grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+					return bl.DialContext(ctx)
+				}))
+
+				return grpc.DialContext(ctx, BufferedNetwork, opts...)
+			}, func(ctx context.Context, s string) (net.Conn, error) {
+				return bl.DialContext(ctx)
+			}, nil
+	}
+	l, err := net.Listen(c.Network, c.Address)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return l, func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		return grpc.DialContext(ctx, c.Address, opts...)
+	}, nil, nil
+}
+
+func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, error) {
+	switch {
+	case c.TLSCertPath == "" && c.TLSKeyPath == "":
+		log.Warn().Str("prefix", c.flagPrefix).Msg("grpc server serving plaintext")
+		return nil, nil
+	case c.TLSCertPath != "" && c.TLSKeyPath != "":
+		creds, err := credentials.NewServerTLSFromFile(c.TLSCertPath, c.TLSKeyPath)
+		if err != nil {
+			return nil, err
+		}
+		return []grpc.ServerOption{grpc.Creds(creds)}, nil
+	default:
+		return nil, nil
+	}
+}
+
+func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, error) {
+	switch {
+	case c.TLSCertPath == "" && c.TLSKeyPath == "":
+		return insecure.NewCredentials(), nil
+	case c.TLSCertPath != "" && c.TLSKeyPath != "":
+		var err error
+		var pool *x509.CertPool
+		if c.ClientCAPath != "" {
+			pool, err = x509util.CustomCertPool(c.ClientCAPath)
+		} else {
+			pool, err = x509.SystemCertPool()
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		return credentials.NewTLS(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}), nil
+	default:
+		return nil, nil
+	}
 }
 
 type RunnableGRPCServer interface {
 	WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer
 	Listen() error
+	DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	NetDialContext(ctx context.Context, s string) (net.Conn, error)
+	Insecure() bool
 	GracefulStop()
 }
 
 type completedGRPCServer struct {
 	opts              []grpc.ServerOption
 	listener          net.Listener
-	svcRegistrationFn func(server *grpc.Server)
+	svcRegistrationFn func(*grpc.Server)
 	listenFunc        func() error
 	prestopFunc       func()
 	stopFunc          func()
-	enabled           bool
+	dial              func(context.Context, ...grpc.DialOption) (*grpc.ClientConn, error)
+	netDial           func(ctx context.Context, s string) (net.Conn, error)
+	creds             credentials.TransportCredentials
 }
 
 // WithOpts adds to the options for running the server
@@ -117,10 +210,23 @@ func (c *completedGRPCServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCSe
 
 // Listen runs a configured server
 func (c *completedGRPCServer) Listen() error {
-	if !c.enabled {
-		return nil
-	}
 	return c.listenFunc()
+}
+
+// DialContext starts a connection to grpc server
+func (c *completedGRPCServer) DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	opts = append(opts, grpc.WithTransportCredentials(c.creds))
+	return c.dial(ctx, opts...)
+}
+
+// NetDialContext returns a low level net.Conn connection to the server
+func (c *completedGRPCServer) NetDialContext(ctx context.Context, s string) (net.Conn, error) {
+	return c.netDial(ctx, s)
+}
+
+// Insecure returns true if the server is configured without TLS enabled
+func (c *completedGRPCServer) Insecure() bool {
+	return c.creds.Info().SecurityProtocol == "insecure"
 }
 
 // GracefulStop stops a running server
@@ -128,6 +234,36 @@ func (c *completedGRPCServer) GracefulStop() {
 	c.prestopFunc()
 	c.stopFunc()
 }
+
+type disabledGrpcServer struct{}
+
+// WithOpts adds to the options for running the server
+func (d *disabledGrpcServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer {
+	return d
+}
+
+// Listen runs a configured server
+func (d *disabledGrpcServer) Listen() error {
+	return nil
+}
+
+// Insecure returns true if the server is configured without TLS enabled
+func (d *disabledGrpcServer) Insecure() bool {
+	return true
+}
+
+// DialContext starts a connection to grpc server
+func (d *disabledGrpcServer) DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	return nil, nil
+}
+
+// NetDialContext starts a connection to grpc server
+func (d *disabledGrpcServer) NetDialContext(ctx context.Context, s string) (net.Conn, error) {
+	return nil, nil
+}
+
+// GracefulStop stops a running server
+func (d *disabledGrpcServer) GracefulStop() {}
 
 type HTTPServerConfig struct {
 	Address     string
@@ -139,6 +275,9 @@ type HTTPServerConfig struct {
 }
 
 func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (RunnableHTTPServer, error) {
+	if !c.Enabled {
+		return &disabledHTTPServer{}, nil
+	}
 	srv := &http.Server{
 		Addr:    c.Address,
 		Handler: handler,
@@ -203,7 +342,7 @@ func (c *completedHTTPServer) Close() {
 }
 
 // RegisterHTTPServerFlags adds the following flags for use with
-// HTTPServerFromFlags:
+// HttpServerFromFlags:
 // - "$PREFIX-addr"
 // - "$PREFIX-tls-cert-path"
 // - "$PREFIX-tls-key-path"
@@ -218,3 +357,11 @@ func RegisterHTTPServerFlags(flags *pflag.FlagSet, config *HTTPServerConfig, fla
 	flags.StringVar(&config.TLSKeyPath, flagPrefix+"-tls-key-path", "", "local path to the TLS key used to serve "+serviceName)
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" http server")
 }
+
+type disabledHTTPServer struct{}
+
+func (d *disabledHTTPServer) ListenAndServe() error {
+	return nil
+}
+
+func (d *disabledHTTPServer) Close() {}

@@ -1,36 +1,32 @@
-package v1
+package v1_test
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/dispatch/graph"
-	"github.com/authzed/spicedb/internal/namespace"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testserver"
 	pgraph "github.com/authzed/spicedb/pkg/graph"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -250,8 +246,9 @@ func TestCheckPermissions(t *testing.T) {
 					tc.subject.OptionalRelation,
 				), func(t *testing.T) {
 					require := require.New(t)
-					client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
-					defer stop()
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					client := v1.NewPermissionsServiceClient(conn)
+					t.Cleanup(cleanup)
 
 					var trailer metadata.MD
 					checkResp, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
@@ -410,9 +407,12 @@ func TestLookupResources(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
 					require := require.New(t)
-					client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
-					defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
-					defer stop()
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					client := v1.NewPermissionsServiceClient(conn)
+					t.Cleanup(func() {
+						goleak.VerifyNone(t, goleak.IgnoreCurrent())
+					})
+					t.Cleanup(cleanup)
 
 					var trailer metadata.MD
 					lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
@@ -478,8 +478,9 @@ func TestExpand(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s:%s#%s", tc.startObjectType, tc.startObjectID, tc.startPermission), func(t *testing.T) {
 					require := require.New(t)
-					client, stop, revision := newPermissionsServicer(require, delta, memdb.DisableGC, 0)
-					defer stop()
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					client := v1.NewPermissionsServiceClient(conn)
+					t.Cleanup(cleanup)
 
 					var trailer metadata.MD
 					expanded, err := client.ExpandPermissionTree(context.Background(), &v1.ExpandPermissionTreeRequest{
@@ -527,42 +528,6 @@ func countLeafs(node *v1.PermissionRelationshipTree) int {
 	}
 }
 
-func newPermissionsServicer(
-	require *require.Assertions,
-	revisionFuzzingTimedelta time.Duration,
-	gcWindow time.Duration,
-	simulatedLatency time.Duration,
-) (v1.PermissionsServiceClient, func(), decimal.Decimal) {
-	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
-	require.NoError(err)
-
-	ds, revision := tf.StandardDatastoreWithData(emptyDS, require)
-
-	ns, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, nil)
-	require.NoError(err)
-
-	dispatch := graph.NewLocalOnlyDispatcher(ns, ds)
-	lis := bufconn.Listen(1024 * 1024)
-	s := tf.NewTestServer()
-	v1.RegisterPermissionsServiceServer(s, NewPermissionsServer(ds, ns, dispatch, 50))
-	go func() {
-		if err := s.Serve(lis); err != nil {
-			panic("failed to shutdown cleanly: " + err.Error())
-		}
-	}()
-
-	conn, err := grpc.Dial("", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(err)
-
-	return v1.NewPermissionsServiceClient(conn), func() {
-		require.NoError(conn.Close())
-		s.Stop()
-		require.NoError(lis.Close())
-	}, revision
-}
-
 func TestTranslateExpansionTree(t *testing.T) {
 	var (
 		ONR  = tuple.ObjectAndRelation
@@ -571,7 +536,7 @@ func TestTranslateExpansionTree(t *testing.T) {
 
 	table := []struct {
 		name  string
-		input *v0.RelationTupleTreeNode
+		input *core.RelationTupleTreeNode
 	}{
 		{"simple leaf", pgraph.Leaf(nil, User(ONR("user", "user1", "...")))},
 		{
@@ -638,7 +603,7 @@ func TestTranslateExpansionTree(t *testing.T) {
 
 	for _, tt := range table {
 		t.Run(tt.name, func(t *testing.T) {
-			out := TranslateRelationshipTree(translateExpansionTree(tt.input))
+			out := v1svc.TranslateRelationshipTree(v1svc.TranslateExpansionTree(tt.input))
 			require.Equal(t, tt.input, out)
 		})
 	}

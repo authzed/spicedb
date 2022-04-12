@@ -3,10 +3,6 @@ package mysql
 import (
 	"fmt"
 	"time"
-
-	"github.com/alecthomas/units"
-
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const (
@@ -15,24 +11,25 @@ const (
 	defaultGarbageCollectionWindow           = 24 * time.Hour
 	defaultGarbageCollectionInterval         = time.Minute * 3
 	defaultGarbageCollectionMaxOperationTime = time.Minute
-	maxOpenConns                             = 20
+	defaultMaxOpenConns                      = 20
 	defaultConnMaxIdleTime                   = 30 * time.Minute
 	defaultConnMaxLifetime                   = 30 * time.Minute
 	defaultWatchBufferLength                 = 128
+	defaultUsersetBatchSize                  = 1024
 )
 
 type mysqlOptions struct {
-	revisionFuzzingTimedelta  time.Duration
-	gcWindow                  time.Duration
-	gcInterval                time.Duration
-	gcMaxOperationTime        time.Duration
-	splitAtEstimatedQuerySize units.Base2Bytes
-	watchBufferLength         uint16
-	tablePrefix               string
-	enablePrometheusStats     bool
-	maxOpenConns              int
-	connMaxIdleTime           time.Duration
-	connMaxLifetime           time.Duration
+	revisionFuzzingTimedelta time.Duration
+	gcWindow                 time.Duration
+	gcInterval               time.Duration
+	gcMaxOperationTime       time.Duration
+	watchBufferLength        uint16
+	tablePrefix              string
+	enablePrometheusStats    bool
+	maxOpenConns             int
+	connMaxIdleTime          time.Duration
+	connMaxLifetime          time.Duration
+	splitAtUsersetCount      int
 }
 
 // Option provides the facility to configure how clients within the
@@ -41,14 +38,14 @@ type Option func(*mysqlOptions)
 
 func generateConfig(options []Option) (mysqlOptions, error) {
 	computed := mysqlOptions{
-		gcWindow:                  defaultGarbageCollectionWindow,
-		gcInterval:                defaultGarbageCollectionInterval,
-		gcMaxOperationTime:        defaultGarbageCollectionMaxOperationTime,
-		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
-		watchBufferLength:         defaultWatchBufferLength,
-		maxOpenConns:              maxOpenConns,
-		connMaxIdleTime:           defaultConnMaxIdleTime,
-		connMaxLifetime:           defaultConnMaxLifetime,
+		gcWindow:            defaultGarbageCollectionWindow,
+		gcInterval:          defaultGarbageCollectionInterval,
+		gcMaxOperationTime:  defaultGarbageCollectionMaxOperationTime,
+		watchBufferLength:   defaultWatchBufferLength,
+		maxOpenConns:        defaultMaxOpenConns,
+		connMaxIdleTime:     defaultConnMaxIdleTime,
+		connMaxLifetime:     defaultConnMaxLifetime,
+		splitAtUsersetCount: defaultUsersetBatchSize,
 	}
 
 	for _, option := range options {
@@ -65,16 +62,6 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 	}
 
 	return computed, nil
-}
-
-// SplitAtEstimatedQuerySize is the query size at which it is split into two
-// (or more) queries.
-//
-// This value defaults to `common.DefaultSplitAtEstimatedQuerySize`.
-func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) Option {
-	return func(mo *mysqlOptions) {
-		mo.splitAtEstimatedQuerySize = splitAtEstimatedQuerySize
-	}
 }
 
 // RevisionFuzzingTimedelta is the time bucket size to which advertised

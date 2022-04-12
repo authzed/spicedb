@@ -4,7 +4,7 @@ package dispatch.v1;
 option go_package = "github.com/authzed/spicedb/pkg/proto/dispatch/v1";
 
 import "validate/validate.proto";
-import "authzed/api/v0/core.proto";
+import "core/v1/core.proto";
 
 service DispatchService {
   rpc DispatchCheck(DispatchCheckRequest) returns (DispatchCheckResponse) {}
@@ -17,9 +17,9 @@ service DispatchService {
 message DispatchCheckRequest {
   ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
 
-  authzed.api.v0.ObjectAndRelation object_and_relation = 2
+  core.v1.ObjectAndRelation object_and_relation = 2
       [ (validate.rules).message.required = true ];
-  authzed.api.v0.ObjectAndRelation subject = 3
+  core.v1.ObjectAndRelation subject = 3
       [ (validate.rules).message.required = true ];
 }
 
@@ -42,32 +42,32 @@ message DispatchExpandRequest {
 
   ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
 
-  authzed.api.v0.ObjectAndRelation object_and_relation = 2
+  core.v1.ObjectAndRelation object_and_relation = 2
       [ (validate.rules).message.required = true ];
   ExpansionMode expansion_mode = 3;
 }
 
 message DispatchExpandResponse {
   ResponseMeta metadata = 1;
-  authzed.api.v0.RelationTupleTreeNode tree_node = 2;
+  core.v1.RelationTupleTreeNode tree_node = 2;
 }
 
 message DispatchLookupRequest {
   ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
 
-  authzed.api.v0.RelationReference object_relation = 2
+  core.v1.RelationReference object_relation = 2
       [ (validate.rules).message.required = true ];
-  authzed.api.v0.ObjectAndRelation subject = 3
+  core.v1.ObjectAndRelation subject = 3
       [ (validate.rules).message.required = true ];
   uint32 limit = 4;
-  repeated authzed.api.v0.RelationReference direct_stack = 5;
-  repeated authzed.api.v0.RelationReference ttu_stack = 6;
+  repeated core.v1.RelationReference direct_stack = 5;
+  repeated core.v1.RelationReference ttu_stack = 6;
 }
 
 message DispatchLookupResponse {
   ResponseMeta metadata = 1;
 
-  repeated authzed.api.v0.ObjectAndRelation resolved_onrs = 2;
+  repeated core.v1.ObjectAndRelation resolved_onrs = 2;
   string next_page_reference = 3;
 }
 
@@ -83,6 +83,6 @@ message ResponseMeta {
   uint32 depth_required = 2;
   uint32 cached_dispatch_count = 3;
 
-  repeated authzed.api.v0.RelationReference lookup_excluded_direct = 4;
-  repeated authzed.api.v0.RelationReference lookup_excluded_ttu = 5;
+  repeated core.v1.RelationReference lookup_excluded_direct = 4;
+  repeated core.v1.RelationReference lookup_excluded_ttu = 5;
 }

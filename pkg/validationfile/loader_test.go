@@ -3,7 +3,8 @@ package validationfile
 import (
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -14,12 +15,12 @@ func TestPopulateFromFiles(t *testing.T) {
 	tests := []struct {
 		name      string
 		filePaths []string
-		want      []*v0.RelationTuple
+		want      []*core.RelationTuple
 	}{
 		{
 			name:      "no comment",
 			filePaths: []string{"testdata/loader_no_comment.yaml"},
-			want: []*v0.RelationTuple{
+			want: []*core.RelationTuple{
 				tuple.Parse("example/project:pied_piper#owner@example/user:milburga"),
 				tuple.Parse("example/project:pied_piper#reader@example/user:tarben"),
 				tuple.Parse("example/project:pied_piper#writer@example/user:freyja"),
@@ -28,7 +29,7 @@ func TestPopulateFromFiles(t *testing.T) {
 		{
 			name:      "with comment",
 			filePaths: []string{"testdata/loader_with_comment.yaml"},
-			want: []*v0.RelationTuple{
+			want: []*core.RelationTuple{
 				tuple.Parse("example/project:pied_piper#owner@example/user:milburga"),
 				tuple.Parse("example/project:pied_piper#reader@example/user:tarben"),
 				tuple.Parse("example/project:pied_piper#writer@example/user:freyja"),

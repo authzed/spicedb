@@ -3,33 +3,34 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/authzed/spicedb/internal/dispatch"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
-func NewConcurrentChecker(d dispatch.Check, ds datastore.GraphDatastore, nsm namespace.Manager) *ConcurrentChecker {
-	return &ConcurrentChecker{d: d, ds: ds, nsm: nsm}
+func NewConcurrentChecker(d dispatch.Check, nsm namespace.Manager) *ConcurrentChecker {
+	return &ConcurrentChecker{d: d, nsm: nsm}
 }
 
 // ConcurrentChecker exposes a method to perform Check requests, and delegates subproblems to the
 // provided dispatch.Check instance.
 type ConcurrentChecker struct {
 	d   dispatch.Check
-	ds  datastore.GraphDatastore
 	nsm namespace.Manager
 }
 
-func onrEqual(lhs, rhs *v0.ObjectAndRelation) bool {
+func onrEqual(lhs, rhs *core.ObjectAndRelation) bool {
 	// Properties are sorted by highest to lowest cardinality to optimize for short-circuiting.
 	return lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation && lhs.Namespace == rhs.Namespace
 }
@@ -42,8 +43,13 @@ type ValidatedCheckRequest struct {
 }
 
 // Check performs a check request with the provided request and context
-func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *v0.Relation) (*v1.DispatchCheckResponse, error) {
+func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) (*v1.DispatchCheckResponse, error) {
 	var directFunc ReduceableCheckFunc
+
+	// TODO(jschorr): Turn into an error once v0 API has been removed.
+	if relation.GetTypeInformation() == nil && relation.GetUsersetRewrite() == nil {
+		log.Ctx(ctx).Warn().Str("relation", relation.Name).Msg("Found relation without type information. Please switch to using schema. This will be an error in the future!")
+	}
 
 	if req.Subject.ObjectId == tuple.PublicWildcard {
 		directFunc = checkError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")))
@@ -56,7 +62,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 		directFunc = cc.checkUsersetRewrite(ctx, req, relation.UsersetRewrite)
 	}
 
-	resolved := any(ctx, []ReduceableCheckFunc{directFunc})
+	resolved := union(ctx, []ReduceableCheckFunc{directFunc})
 	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
 	return resolved.Resp, resolved.Err
 }
@@ -69,16 +75,17 @@ func (cc *ConcurrentChecker) dispatch(req ValidatedCheckRequest) ReduceableCheck
 	}
 }
 
-func onrEqualOrWildcard(tpl, target *v0.ObjectAndRelation) bool {
+func onrEqualOrWildcard(tpl, target *core.ObjectAndRelation) bool {
 	return onrEqual(tpl, target) || (tpl.Namespace == target.Namespace && tpl.ObjectId == tuple.PublicWildcard)
 }
 
 func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("direct", req).Send()
+		ds := datastoremw.MustFromContext(ctx)
 
 		// TODO(jschorr): Use type information to further optimize this query.
-		it, err := cc.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   req.ObjectAndRelation.Relation,
@@ -113,35 +120,41 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 			resultChan <- checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
 			return
 		}
-		resultChan <- any(ctx, requestsToDispatch)
+		resultChan <- union(ctx, requestsToDispatch)
 	}
 }
 
-func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, req ValidatedCheckRequest, usr *v0.UsersetRewrite) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, req ValidatedCheckRequest, usr *core.UsersetRewrite) ReduceableCheckFunc {
 	switch rw := usr.RewriteOperation.(type) {
-	case *v0.UsersetRewrite_Union:
-		return cc.checkSetOperation(ctx, req, rw.Union, any)
-	case *v0.UsersetRewrite_Intersection:
+	case *core.UsersetRewrite_Union:
+		return cc.checkSetOperation(ctx, req, rw.Union, union)
+	case *core.UsersetRewrite_Intersection:
 		return cc.checkSetOperation(ctx, req, rw.Intersection, all)
-	case *v0.UsersetRewrite_Exclusion:
+	case *core.UsersetRewrite_Exclusion:
 		return cc.checkSetOperation(ctx, req, rw.Exclusion, difference)
 	default:
 		return AlwaysFail
 	}
 }
 
-func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req ValidatedCheckRequest, so *v0.SetOperation, reducer Reducer) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req ValidatedCheckRequest, so *core.SetOperation, reducer Reducer) ReduceableCheckFunc {
 	var requests []ReduceableCheckFunc
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
-		case *v0.SetOperation_Child_XThis:
+		case *core.SetOperation_Child_XThis:
+			// TODO(jschorr): Turn into an error once v0 API has been removed.
+			log.Ctx(ctx).Warn().Stringer("operation", so).Msg("Use of _this is deprecated and will soon be an error! Please switch to using schema!")
 			requests = append(requests, cc.checkDirect(ctx, req))
-		case *v0.SetOperation_Child_ComputedUserset:
+		case *core.SetOperation_Child_ComputedUserset:
 			requests = append(requests, cc.checkComputedUserset(ctx, req, child.ComputedUserset, nil))
-		case *v0.SetOperation_Child_UsersetRewrite:
+		case *core.SetOperation_Child_UsersetRewrite:
 			requests = append(requests, cc.checkUsersetRewrite(ctx, req, child.UsersetRewrite))
-		case *v0.SetOperation_Child_TupleToUserset:
+		case *core.SetOperation_Child_TupleToUserset:
 			requests = append(requests, cc.checkTupleToUserset(ctx, req, child.TupleToUserset))
+		case *core.SetOperation_Child_XNil:
+			requests = append(requests, notMember())
+		default:
+			return checkError(fmt.Errorf("unknown set operation child `%T` in check", child))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
@@ -150,15 +163,15 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req Validate
 	}
 }
 
-func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req ValidatedCheckRequest, cu *v0.ComputedUserset, tpl *v0.RelationTuple) ReduceableCheckFunc {
-	var start *v0.ObjectAndRelation
-	if cu.Object == v0.ComputedUserset_TUPLE_USERSET_OBJECT {
+func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req ValidatedCheckRequest, cu *core.ComputedUserset, tpl *core.RelationTuple) ReduceableCheckFunc {
+	var start *core.ObjectAndRelation
+	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if tpl == nil {
 			panic("computed userset for tupleset without tuple")
 		}
 
 		start = tpl.User.GetUserset()
-	} else if cu.Object == v0.ComputedUserset_TUPLE_OBJECT {
+	} else if cu.Object == core.ComputedUserset_TUPLE_OBJECT {
 		if tpl != nil {
 			start = tpl.ObjectAndRelation
 		} else {
@@ -166,7 +179,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 		}
 	}
 
-	targetOnr := &v0.ObjectAndRelation{
+	targetOnr := &core.ObjectAndRelation{
 		Namespace: start.Namespace,
 		ObjectId:  start.ObjectId,
 		Relation:  cu.Relation,
@@ -197,10 +210,11 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 	})
 }
 
-func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req ValidatedCheckRequest, ttu *v0.TupleToUserset) ReduceableCheckFunc {
+func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req ValidatedCheckRequest, ttu *core.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
-		it, err := cc.ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		ds := datastoremw.MustFromContext(ctx)
+		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   ttu.Tupleset.Relation,
@@ -220,7 +234,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req Valida
 			return
 		}
 
-		resultChan <- any(ctx, requestsToDispatch)
+		resultChan <- union(ctx, requestsToDispatch)
 	}
 }
 
@@ -279,9 +293,8 @@ func notMember() ReduceableCheckFunc {
 	}
 }
 
-// any returns whether any one of the lazy checks pass, and is used for union.
-// nolint: predeclared
-func any(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
+// union returns whether any one of the lazy checks pass, and is used for union.
+func union(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	if len(requests) == 0 {
 		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, emptyMetadata)
 	}

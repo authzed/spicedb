@@ -6,7 +6,8 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -116,11 +117,11 @@ func (pgd *pgDatastore) loadChanges(
 	stagedChanges := common.NewChanges()
 
 	for rows.Next() {
-		userset := &v0.ObjectAndRelation{}
-		tpl := &v0.RelationTuple{
-			ObjectAndRelation: &v0.ObjectAndRelation{},
-			User: &v0.User{
-				UserOneof: &v0.User_Userset{
+		userset := &core.ObjectAndRelation{}
+		tpl := &core.RelationTuple{
+			ObjectAndRelation: &core.ObjectAndRelation{},
+			User: &core.User{
+				UserOneof: &core.User_Userset{
 					Userset: userset,
 				},
 			},
@@ -143,11 +144,11 @@ func (pgd *pgDatastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			stagedChanges.AddChange(ctx, createdTxn, tpl, v0.RelationTupleUpdate_TOUCH)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(createdTxn), tpl, core.RelationTupleUpdate_TOUCH)
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			stagedChanges.AddChange(ctx, deletedTxn, tpl, v0.RelationTupleUpdate_DELETE)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(deletedTxn), tpl, core.RelationTupleUpdate_DELETE)
 		}
 	}
 	if err = rows.Err(); err != nil {

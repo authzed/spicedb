@@ -6,10 +6,11 @@ import (
 	"runtime"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -102,7 +103,7 @@ type memdbTupleIterator struct {
 }
 
 func filterFuncForFilters(optionalObjectType, optionalObjectID, optionalRelation string,
-	optionalSubjectFilter *v1.SubjectFilter, usersets []*v0.ObjectAndRelation,
+	optionalSubjectFilter *v1.SubjectFilter, usersets []*core.ObjectAndRelation,
 ) memdb.FilterFunc {
 	return func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*relationship)
@@ -144,7 +145,7 @@ func filterFuncForFilters(optionalObjectType, optionalObjectID, optionalRelation
 	}
 }
 
-func (mti *memdbTupleIterator) Next() *v0.RelationTuple {
+func (mti *memdbTupleIterator) Next() *core.RelationTuple {
 	foundRaw := mti.it.Next()
 	if foundRaw == nil {
 		return nil

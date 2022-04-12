@@ -12,7 +12,7 @@ linters-settings:
       - "github.com/jackc/pgx"
   gosec:
     excludes:
-      - "G404" # Allow the usage of math/rand
+      - "G404"  # Allow the usage of math/rand
 linters:
   enable:
     - "bidichk"
@@ -57,3 +57,20 @@ issues:
     - text: "tx.Rollback()"
       linters:
         - "errcheck"
+    # NOTE: temporarily disable deprecation checks for v0.
+    - path: "internal/services/"
+      linters:
+        - "staticcheck"
+      text: "SA1019"
+    - path: "internal/middleware/consistency/"
+      linters:
+        - "staticcheck"
+      text: "SA1019"
+    - path: "pkg/proto/core/v1/core.pb.validate.manual.go"  # Ignore manual definition of metadata map
+      linters:
+        - "stylecheck"
+      text: "ST1003"
+    - path: "pkg/proto/core/v1/core.pb.validate.manual.go"  # Ignore manual definition of metadata map
+      linters:
+        - "revive"
+      text: "var-naming"

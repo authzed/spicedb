@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/jackc/pgx/v4"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
-	"github.com/authzed/spicedb/internal/datastore/postgres"
 )
 
 const (
@@ -55,23 +55,7 @@ func (cds *crdbDatastore) QueryTuples(
 		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
 	}
 
-	queryOpts := options.NewQueryOptionsWithOptions(opts...)
-
-	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       postgres.NewPostgresTransactionBeginner(cds.conn),
-		PrepareTransaction:        prepareTransaction,
-		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
-
-		FilteredQueryBuilder: qBuilder,
-		Revision:             revision,
-		Limit:                queryOpts.Limit,
-		Usersets:             queryOpts.Usersets,
-
-		Tracer:    tracer,
-		DebugName: "QueryTuples",
-	}
-
-	return ctq.SplitAndExecute(ctx)
+	return cds.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, revision, opts...)
 }
 
 func (cds *crdbDatastore) ReverseQueryTuples(
@@ -91,24 +75,16 @@ func (cds *crdbDatastore) ReverseQueryTuples(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	ctq := common.TupleQuerySplitter{
-		TransactionBeginner:       postgres.NewPostgresTransactionBeginner(cds.conn),
-		PrepareTransaction:        nil,
-		SplitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
-
-		FilteredQueryBuilder: qBuilder,
-		Revision:             revision,
-		Limit:                queryOpts.ReverseLimit,
-		Usersets:             nil,
-
-		Tracer:    tracer,
-		DebugName: "ReverseQueryTuples",
-	}
-
-	return ctq.SplitAndExecute(ctx)
+	return cds.querySplitter.SplitAndExecuteQuery(
+		ctx,
+		qBuilder,
+		revision,
+		options.WithLimit(queryOpts.ReverseLimit),
+	)
 }
 
-func prepareTransaction(ctx context.Context, tx common.Transaction, revision datastore.Revision) error {
+func prepareTransaction(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error {
 	setTxTime := fmt.Sprintf(querySetTransactionTime, revision)
-	return tx.Exec(ctx, setTxTime)
+	_, err := tx.Exec(ctx, setTxTime)
+	return err
 }

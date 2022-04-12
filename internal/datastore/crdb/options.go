@@ -3,10 +3,6 @@ package crdb
 import (
 	"fmt"
 	"time"
-
-	"github.com/alecthomas/units"
-
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 type crdbOptions struct {
@@ -21,7 +17,7 @@ type crdbOptions struct {
 	maxRevisionStalenessPercent float64
 	gcWindow                    time.Duration
 	maxRetries                  int
-	splitAtEstimatedQuerySize   units.Base2Bytes
+	splitAtUsersetCount         uint16
 	overlapStrategy             string
 	overlapKey                  string
 }
@@ -37,6 +33,7 @@ const (
 	defaultFollowerReadDelay           = 0 * time.Second
 	defaultMaxRevisionStalenessPercent = 0.1
 	defaultWatchBufferLength           = 128
+	defaultSplitSize                   = 1024
 
 	defaultMaxRetries      = 50
 	defaultOverlapKey      = "defaultsynckey"
@@ -54,7 +51,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
-		splitAtEstimatedQuerySize:   common.DefaultSplitAtEstimatedQuerySize,
+		splitAtUsersetCount:         defaultSplitSize,
 		maxRetries:                  defaultMaxRetries,
 		overlapKey:                  defaultOverlapKey,
 		overlapStrategy:             defaultOverlapStrategy,
@@ -76,13 +73,13 @@ func generateConfig(options []Option) (crdbOptions, error) {
 	return computed, nil
 }
 
-// SplitAtEstimatedQuerySize is the query size at which it is split into two
-// (or more) queries.
+// SplitAtUsersetCount is the batch size for which userset queries will be
+// split into smaller queries.
 //
-// This value defaults to `common.DefaultSplitAtEstimatedQuerySize`.
-func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) Option {
+// This defaults to 1024.
+func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
 	return func(po *crdbOptions) {
-		po.splitAtEstimatedQuerySize = splitAtEstimatedQuerySize
+		po.splitAtUsersetCount = splitAtUsersetCount
 	}
 }
 

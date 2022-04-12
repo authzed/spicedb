@@ -6,7 +6,7 @@ managed:
   go_package_prefix:
     default: "github.com/authzed/spicedb/pkg/proto"
     except:
-      - "buf.build/beta/protoc-gen-validate"
+      - "buf.build/envoyproxy/protoc-gen-validate"
       - "buf.build/authzed/api"
 plugins:
   - name: "go"

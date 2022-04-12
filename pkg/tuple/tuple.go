@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"regexp"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 )
@@ -20,8 +21,8 @@ const (
 
 const (
 	namespaceNameExpr = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]"
-	resourceIDExpr    = "[a-zA-Z0-9_][a-zA-Z0-9/_-]{0,127}"
-	subjectIDExpr     = "([a-zA-Z0-9_][a-zA-Z0-9/_-]{0,127})|\\*"
+	resourceIDExpr    = "[a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127}"
+	subjectIDExpr     = "([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*"
 	relationExpr      = "[a-z][a-z0-9_]{1,62}[a-z0-9]"
 )
 
@@ -73,7 +74,7 @@ func ValidateSubjectID(subjectID string) error {
 }
 
 // String converts a tuple to a string. If the tuple is nil or empty, returns empty string.
-func String(tpl *v0.RelationTuple) string {
+func String(tpl *core.RelationTuple) string {
 	if tpl == nil || tpl.ObjectAndRelation == nil || tpl.User == nil || tpl.User.GetUserset() == nil {
 		return ""
 	}
@@ -89,7 +90,7 @@ func MustRelString(tpl *v1.Relationship) string {
 
 // MustParse wraps Parse such that any failures panic rather than returning
 // nil.
-func MustParse(tpl string) *v0.RelationTuple {
+func MustParse(tpl string) *core.RelationTuple {
 	if parsed := Parse(tpl); parsed != nil {
 		return parsed
 	}
@@ -105,7 +106,7 @@ func RelString(tpl *v1.Relationship) string {
 // failure.
 //
 // This function treats both missing and Ellipsis relations equally.
-func Parse(tpl string) *v0.RelationTuple {
+func Parse(tpl string) *core.RelationTuple {
 	groups := parserRegex.FindStringSubmatch(tpl)
 	if len(groups) == 0 {
 		return nil
@@ -117,13 +118,13 @@ func Parse(tpl string) *v0.RelationTuple {
 		subjectRelation = groups[subjectRelIndex]
 	}
 
-	return &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
+	return &core.RelationTuple{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceType")],
 			ObjectId:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceID")],
 			Relation:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceRel")],
 		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectType")],
 			ObjectId:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectID")],
 			Relation:  subjectRelation,
@@ -139,30 +140,30 @@ func ParseRel(rel string) *v1.Relationship {
 	return ToRelationship(tpl)
 }
 
-func Create(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
-	return &v0.RelationTupleUpdate{
-		Operation: v0.RelationTupleUpdate_CREATE,
+func Create(tpl *core.RelationTuple) *core.RelationTupleUpdate {
+	return &core.RelationTupleUpdate{
+		Operation: core.RelationTupleUpdate_CREATE,
 		Tuple:     tpl,
 	}
 }
 
-func Touch(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
-	return &v0.RelationTupleUpdate{
-		Operation: v0.RelationTupleUpdate_TOUCH,
+func Touch(tpl *core.RelationTuple) *core.RelationTupleUpdate {
+	return &core.RelationTupleUpdate{
+		Operation: core.RelationTupleUpdate_TOUCH,
 		Tuple:     tpl,
 	}
 }
 
-func Delete(tpl *v0.RelationTuple) *v0.RelationTupleUpdate {
-	return &v0.RelationTupleUpdate{
-		Operation: v0.RelationTupleUpdate_DELETE,
+func Delete(tpl *core.RelationTuple) *core.RelationTupleUpdate {
+	return &core.RelationTupleUpdate{
+		Operation: core.RelationTupleUpdate_DELETE,
 		Tuple:     tpl,
 	}
 }
 
 // MustToRelationship converts a RelationTuple into a Relationship. Will panic if
 // the RelationTuple does not validate.
-func MustToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
+func MustToRelationship(tpl *core.RelationTuple) *v1.Relationship {
 	if err := tpl.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid tuple: %#v %s", tpl, err))
 	}
@@ -171,7 +172,7 @@ func MustToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 }
 
 // ToRelationship converts a RelationTuple into a Relationship.
-func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
+func ToRelationship(tpl *core.RelationTuple) *v1.Relationship {
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
 			ObjectType: tpl.ObjectAndRelation.Namespace,
@@ -190,7 +191,7 @@ func ToRelationship(tpl *v0.RelationTuple) *v1.Relationship {
 
 // MustToFilter converts a RelationTuple into a RelationshipFilter. Will panic if
 // the RelationTuple does not validate.
-func MustToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
+func MustToFilter(tpl *core.RelationTuple) *v1.RelationshipFilter {
 	if err := tpl.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid tuple: %#v %s", tpl, err))
 	}
@@ -199,7 +200,7 @@ func MustToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 }
 
 // ToFilter converts a RelationTuple into a RelationshipFilter.
-func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
+func ToFilter(tpl *core.RelationTuple) *v1.RelationshipFilter {
 	return &v1.RelationshipFilter{
 		ResourceType:          tpl.ObjectAndRelation.Namespace,
 		OptionalResourceId:    tpl.ObjectAndRelation.ObjectId,
@@ -209,7 +210,7 @@ func ToFilter(tpl *v0.RelationTuple) *v1.RelationshipFilter {
 }
 
 // UsersetToSubjectFilter converts a userset to the equivalent exact SubjectFilter.
-func UsersetToSubjectFilter(userset *v0.ObjectAndRelation) *v1.SubjectFilter {
+func UsersetToSubjectFilter(userset *core.ObjectAndRelation) *v1.SubjectFilter {
 	return &v1.SubjectFilter{
 		SubjectType:       userset.Namespace,
 		OptionalSubjectId: userset.ObjectId,
@@ -247,7 +248,7 @@ func RelToFilter(rel *v1.Relationship) *v1.RelationshipFilter {
 
 // UpdatesToRelationshipUpdates converts a slice of RelationTupleUpdate into a
 // slice of RelationshipUpdate.
-func UpdatesToRelationshipUpdates(updates []*v0.RelationTupleUpdate) []*v1.RelationshipUpdate {
+func UpdatesToRelationshipUpdates(updates []*core.RelationTupleUpdate) []*v1.RelationshipUpdate {
 	relationshipUpdates := make([]*v1.RelationshipUpdate, 0, len(updates))
 
 	for _, update := range updates {
@@ -259,14 +260,14 @@ func UpdatesToRelationshipUpdates(updates []*v0.RelationTupleUpdate) []*v1.Relat
 
 // UpdateToRelationshipUpdate converts a RelationTupleUpdate into a
 // RelationshipUpdate.
-func UpdateToRelationshipUpdate(update *v0.RelationTupleUpdate) *v1.RelationshipUpdate {
+func UpdateToRelationshipUpdate(update *core.RelationTupleUpdate) *v1.RelationshipUpdate {
 	var op v1.RelationshipUpdate_Operation
 	switch update.Operation {
-	case v0.RelationTupleUpdate_CREATE:
+	case core.RelationTupleUpdate_CREATE:
 		op = v1.RelationshipUpdate_OPERATION_CREATE
-	case v0.RelationTupleUpdate_DELETE:
+	case core.RelationTupleUpdate_DELETE:
 		op = v1.RelationshipUpdate_OPERATION_DELETE
-	case v0.RelationTupleUpdate_TOUCH:
+	case core.RelationTupleUpdate_TOUCH:
 		op = v1.RelationshipUpdate_OPERATION_TOUCH
 	default:
 		panic("unknown tuple mutation")
@@ -279,7 +280,7 @@ func UpdateToRelationshipUpdate(update *v0.RelationTupleUpdate) *v1.Relationship
 }
 
 // MustFromRelationship converts a Relationship into a RelationTuple.
-func MustFromRelationship(r *v1.Relationship) *v0.RelationTuple {
+func MustFromRelationship(r *v1.Relationship) *core.RelationTuple {
 	if err := r.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid relationship: %#v %s", r, err))
 	}
@@ -287,14 +288,14 @@ func MustFromRelationship(r *v1.Relationship) *v0.RelationTuple {
 }
 
 // FromRelationship converts a Relationship into a RelationTuple.
-func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
-	return &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
+func FromRelationship(r *v1.Relationship) *core.RelationTuple {
+	return &core.RelationTuple{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: r.Resource.ObjectType,
 			ObjectId:  r.Resource.ObjectId,
 			Relation:  r.Relation,
 		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 			Namespace: r.Subject.Object.ObjectType,
 			ObjectId:  r.Subject.Object.ObjectId,
 			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, Ellipsis),
@@ -304,20 +305,20 @@ func FromRelationship(r *v1.Relationship) *v0.RelationTuple {
 
 // UpdateFromRelationshipUpdate converts a RelationshipUpdate into a
 // RelationTupleUpdate.
-func UpdateFromRelationshipUpdate(update *v1.RelationshipUpdate) *v0.RelationTupleUpdate {
-	var op v0.RelationTupleUpdate_Operation
+func UpdateFromRelationshipUpdate(update *v1.RelationshipUpdate) *core.RelationTupleUpdate {
+	var op core.RelationTupleUpdate_Operation
 	switch update.Operation {
 	case v1.RelationshipUpdate_OPERATION_CREATE:
-		op = v0.RelationTupleUpdate_CREATE
+		op = core.RelationTupleUpdate_CREATE
 	case v1.RelationshipUpdate_OPERATION_DELETE:
-		op = v0.RelationTupleUpdate_DELETE
+		op = core.RelationTupleUpdate_DELETE
 	case v1.RelationshipUpdate_OPERATION_TOUCH:
-		op = v0.RelationTupleUpdate_TOUCH
+		op = core.RelationTupleUpdate_TOUCH
 	default:
 		panic("unknown tuple mutation")
 	}
 
-	return &v0.RelationTupleUpdate{
+	return &core.RelationTupleUpdate{
 		Operation: op,
 		Tuple:     FromRelationship(update.Relationship),
 	}

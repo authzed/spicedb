@@ -2,7 +2,7 @@ package migrations
 
 import "fmt"
 
-func createMysqlMigrationVersion(mysql *MysqlDriver) string {
+func createMysqlMigrationVersion(driver *MysqlDriver) string {
 	// we need the additional primary key column because github.com/github/gh-ost requires a shared, not-null
 	// key between the _to_ and _from_ table schemas to perform a schema migration.
 	// -- https://github.com/github/gh-ost/blob/master/doc/shared-key.md
@@ -10,7 +10,7 @@ func createMysqlMigrationVersion(mysql *MysqlDriver) string {
 		`( id int(11) NOT NULL PRIMARY KEY,
 		_meta_version_ VARCHAR(255) NOT NULL
 		);`,
-		mysql.mysqlMigrationVersionTable())
+		driver.migrationVersion())
 }
 
 func init() {

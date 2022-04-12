@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -57,20 +58,29 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			require.Zero(len(errchan))
 
 			var testUpdates [][]*v1.RelationshipUpdate
+			var bulkDeletes []*v1.RelationshipUpdate
 			for i := 0; i < tc.numTuples; i++ {
+				newRelationship := makeTestRelationship(fmt.Sprintf("relation%d", i), "test_user")
 				newUpdate := &v1.RelationshipUpdate{
 					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-					Relationship: makeTestRelationship(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)),
+					Relationship: newRelationship,
 				}
 				batch := []*v1.RelationshipUpdate{newUpdate}
 				testUpdates = append(testUpdates, batch)
 				_, err := ds.WriteTuples(ctx, nil, batch)
 				require.NoError(err)
+
+				if i != 0 {
+					bulkDeletes = append(bulkDeletes, &v1.RelationshipUpdate{
+						Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
+						Relationship: newRelationship,
+					})
+				}
 			}
 
 			updateUpdate := &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-				Relationship: makeTestRelationship("relation0", "user0"),
+				Relationship: makeTestRelationship("relation0", "test_user"),
 			}
 			createUpdate := &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
@@ -82,12 +92,26 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			deleteUpdate := &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-				Relationship: makeTestRelationship("relation0", "user0"),
+				Relationship: makeTestRelationship("relation0", "test_user"),
 			}
 			_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{deleteUpdate})
 			require.NoError(err)
 
 			testUpdates = append(testUpdates, batch, []*v1.RelationshipUpdate{deleteUpdate})
+
+			_, err = ds.DeleteRelationships(ctx, nil, &v1.RelationshipFilter{
+				ResourceType:     testResourceNamespace,
+				OptionalRelation: testReaderRelation,
+				OptionalSubjectFilter: &v1.SubjectFilter{
+					SubjectType:       testUserNamespace,
+					OptionalSubjectId: "test_user",
+				},
+			})
+			require.NoError(err)
+
+			if len(bulkDeletes) > 0 {
+				testUpdates = append(testUpdates, bulkDeletes)
+			}
 
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
@@ -124,9 +148,14 @@ func verifyUpdates(
 
 			expectedChangeSet := setOfChangesRel(expected)
 			actualChangeSet := setOfChanges(change.Changes)
-			require.True(expectedChangeSet.IsEqual(actualChangeSet))
+
+			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
+			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)
+
+			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
+			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
 		case <-changeWait.C:
-			require.Fail("Timed out")
+			require.Fail("Timed out", "waiting for changes: %s", expected)
 		}
 	}
 
@@ -141,7 +170,7 @@ func setOfChangesRel(changes []*v1.RelationshipUpdate) *strset.Set {
 	return changeSet
 }
 
-func setOfChanges(changes []*v0.RelationTupleUpdate) *strset.Set {
+func setOfChanges(changes []*core.RelationTupleUpdate) *strset.Set {
 	changeSet := strset.NewWithSize(len(changes))
 	for _, change := range changes {
 		changeSet.Add(fmt.Sprintf("OPERATION_%s(%s)", change.Operation, tuple.String(change.Tuple)))
@@ -177,7 +206,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 		case created, ok := <-changes:
 			if ok {
 				require.Equal(
-					[]*v0.RelationTupleUpdate{tuple.Touch(makeTestTuple("test", "test"))},
+					[]*core.RelationTupleUpdate{tuple.Touch(makeTestTuple("test", "test"))},
 					created.Changes,
 				)
 				require.True(created.Revision.GreaterThan(datastore.NoRevision))

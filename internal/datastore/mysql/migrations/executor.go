@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 type driverExecutor func(mysqlDriver *MysqlDriver) string
@@ -20,19 +18,19 @@ func newExecutor(statements ...driverExecutor) executor {
 	}
 }
 
-func (e executor) migrate(mysql *MysqlDriver) error {
+func (e executor) migrate(driver *MysqlDriver) error {
 	if len(e.statements) == 0 {
 		return errors.New("executor.migrate: No statements to migrate")
 	}
 
-	tx, err := mysql.db.Begin()
+	tx, err := driver.db.Begin()
 	if err != nil {
 		return err
 	}
-	defer common.LogOnError(context.Background(), tx.Rollback)
+	defer LogOnError(context.Background(), tx.Rollback)
 
 	for _, stmt := range e.statements {
-		_, err := tx.Exec(stmt(mysql))
+		_, err := tx.Exec(stmt(driver))
 		if err != nil {
 			return fmt.Errorf("executor.migrate: failed to run statement: %w", err)
 		}

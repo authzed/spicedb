@@ -3,9 +3,10 @@ package namespace
 import (
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
@@ -23,12 +24,12 @@ func TestMetadata(t *testing.T) {
 	})
 	require.Nil(err)
 
-	ns := &v0.NamespaceDefinition{
+	ns := &core.NamespaceDefinition{
 		Name: "somens",
-		Relation: []*v0.Relation{
+		Relation: []*core.Relation{
 			{
 				Name: "somerelation",
-				Metadata: &v0.Metadata{
+				Metadata: &core.Metadata{
 					MetadataMessage: []*anypb.Any{
 						marshalledKind, marshalled,
 					},
@@ -38,7 +39,7 @@ func TestMetadata(t *testing.T) {
 				Name: "anotherrelation",
 			},
 		},
-		Metadata: &v0.Metadata{
+		Metadata: &core.Metadata{
 			MetadataMessage: []*anypb.Any{
 				marshalled,
 			},
@@ -54,13 +55,9 @@ func TestMetadata(t *testing.T) {
 
 	require.Equal([]string{}, GetComments(ns.Relation[1].Metadata))
 
-	filtered := FilterUserDefinedMetadata(ns)
-	require.Equal([]string{}, GetComments(filtered.Metadata))
-	require.Equal([]string{}, GetComments(filtered.Relation[0].Metadata))
+	FilterUserDefinedMetadataInPlace(ns)
+	require.Equal([]string{}, GetComments(ns.Metadata))
+	require.Equal([]string{}, GetComments(ns.Relation[0].Metadata))
 
-	require.Equal([]string{"Hi there"}, GetComments(ns.Metadata))
-	require.Equal([]string{"Hi there"}, GetComments(ns.Relation[0].Metadata))
-
-	require.Equal(iv1.RelationMetadata_PERMISSION, GetRelationKind(filtered.Relation[0]))
 	require.Equal(iv1.RelationMetadata_PERMISSION, GetRelationKind(ns.Relation[0]))
 }

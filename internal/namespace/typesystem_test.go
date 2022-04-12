@@ -3,21 +3,22 @@ package namespace
 import (
 	"context"
 	"testing"
-	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 )
 
 func TestTypeSystem(t *testing.T) {
 	testCases := []struct {
 		name            string
-		toCheck         *v0.NamespaceDefinition
-		otherNamespaces []*v0.NamespaceDefinition
+		toCheck         *core.NamespaceDefinition
+		otherNamespaces []*core.NamespaceDefinition
 		expectedError   string
 	}{
 		{
@@ -37,7 +38,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parent", "viewer"),
 				)),
 			),
-			[]*v0.NamespaceDefinition{},
+			[]*core.NamespaceDefinition{},
 			"under permission `viewer`: relation/permission `editors` was not found",
 		},
 		{
@@ -57,7 +58,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parents", "viewer"),
 				)),
 			),
-			[]*v0.NamespaceDefinition{},
+			[]*core.NamespaceDefinition{},
 			"under permission `viewer`: relation `parents` was not found",
 		},
 		{
@@ -74,7 +75,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("editor", "viewer"),
 				)),
 			),
-			[]*v0.NamespaceDefinition{},
+			[]*core.NamespaceDefinition{},
 			"under permission `viewer`: permissions cannot be used on the left hand side of an arrow (found `editor`)",
 		},
 		{
@@ -86,7 +87,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("document", "owner")),
 			),
-			[]*v0.NamespaceDefinition{},
+			[]*core.NamespaceDefinition{},
 			"direct relations are not allowed under relation `editor`",
 		},
 		{
@@ -106,7 +107,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parent", "viewer"),
 				)),
 			),
-			[]*v0.NamespaceDefinition{},
+			[]*core.NamespaceDefinition{},
 			"could not lookup definition `someinvalidns` for relation `owner`: object definition `someinvalidns` not found",
 		},
 		{
@@ -126,7 +127,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parent", "viewer"),
 				)),
 			),
-			[]*v0.NamespaceDefinition{
+			[]*core.NamespaceDefinition{
 				ns.Namespace(
 					"anotherns",
 				),
@@ -157,7 +158,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parent", "viewer"),
 				), ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
 			),
-			[]*v0.NamespaceDefinition{
+			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 				ns.Namespace(
 					"folder",
@@ -173,14 +174,14 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelation("group", "member")),
 			),
-			[]*v0.NamespaceDefinition{
+			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 				ns.Namespace(
 					"group",
 					ns.Relation("member", nil, ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
 				),
 			},
-			"for relation `viewer`: relation/permission `group#member` includes wildcardtype `user` via relation `group#member`: wildcard relations cannot be transitively included",
+			"for relation `viewer`: relation/permission `group#member` includes wildcard type `user` via relation `group#member`: wildcard relations cannot be transitively included",
 		},
 		{
 			"ttu wildcard type check",
@@ -191,10 +192,10 @@ func TestTypeSystem(t *testing.T) {
 					ns.TupleToUserset("parent", "viewer"),
 				)),
 			),
-			[]*v0.NamespaceDefinition{
+			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 			},
-			"for arrow under relation `viewer`: relation `folder#parent` includes wildcardtype `folder` via relation `folder#parent`: wildcard relations cannot be used on the left side of arrows",
+			"for arrow under relation `viewer`: relation `folder#parent` includes wildcard type `folder` via relation `folder#parent`: wildcard relations cannot be used on the left side of arrows",
 		},
 		{
 			"recursive transitive wildcard type check",
@@ -202,7 +203,7 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelation("group", "member")),
 			),
-			[]*v0.NamespaceDefinition{
+			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 				ns.Namespace(
 					"group",
@@ -210,7 +211,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.Relation("manager", nil, ns.AllowedRelation("group", "member"), ns.AllowedPublicNamespace("user")),
 				),
 			},
-			"for relation `viewer`: relation/permission `group#member` includes wildcardtype `user` via relation `group#manager`: wildcard relations cannot be transitively included",
+			"for relation `viewer`: relation/permission `group#member` includes wildcard type `user` via relation `group#manager`: wildcard relations cannot be transitively included",
 		},
 	}
 
@@ -221,20 +222,21 @@ func TestTypeSystem(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 			require.NoError(err)
 
-			nsm, err := NewCachingNamespaceManager(ds, 0*time.Second, nil)
+			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
+			nsm, err := NewCachingNamespaceManager(nil)
 			require.NoError(err)
 
 			var lastRevision decimal.Decimal
 			for _, otherNS := range tc.otherNamespaces {
 				var err error
-				lastRevision, err = ds.WriteNamespace(context.Background(), otherNS)
+				lastRevision, err = ds.WriteNamespace(ctx, otherNS)
 				require.NoError(err)
 			}
 
 			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
 			require.NoError(err)
 
-			terr := ts.Validate(context.Background())
+			terr := ts.Validate(ctx)
 			if tc.expectedError == "" {
 				require.NoError(terr)
 			} else {

@@ -11,7 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/alecthomas/units"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
@@ -24,10 +23,16 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 )
 
+func init() {
+	datastore.Engines = append(datastore.Engines, Engine)
+}
+
 const (
+	Engine           = "postgres"
 	tableNamespace   = "namespace_config"
 	tableTransaction = "relation_tuple_transaction"
 	tableTuple       = "relation_tuple"
@@ -166,17 +171,23 @@ func NewPostgresDatastore(
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
+	querySplitter := common.TupleQuerySplitter{
+		Executor:         common.NewPGXExecutor(dbpool, nil),
+		UsersetBatchSize: int(config.splitAtUsersetCount),
+	}
+
 	datastore := &pgDatastore{
-		dburl:                     url,
-		dbpool:                    dbpool,
-		watchBufferLength:         config.watchBufferLength,
-		revisionFuzzingTimedelta:  config.revisionFuzzingTimedelta,
-		gcWindowInverted:          -1 * config.gcWindow,
-		gcInterval:                config.gcInterval,
-		gcMaxOperationTime:        config.gcMaxOperationTime,
-		splitAtEstimatedQuerySize: config.splitAtEstimatedQuerySize,
-		gcCtx:                     gcCtx,
-		cancelGc:                  cancelGc,
+		dburl:                    url,
+		dbpool:                   dbpool,
+		watchBufferLength:        config.watchBufferLength,
+		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
+		gcWindowInverted:         -1 * config.gcWindow,
+		gcInterval:               config.gcInterval,
+		gcMaxOperationTime:       config.gcMaxOperationTime,
+		analyzeBeforeStatistics:  config.analyzeBeforeStatistics,
+		querySplitter:            querySplitter,
+		gcCtx:                    gcCtx,
+		cancelGc:                 cancelGc,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -191,18 +202,23 @@ func NewPostgresDatastore(
 }
 
 type pgDatastore struct {
-	dburl                     string
-	dbpool                    *pgxpool.Pool
-	watchBufferLength         uint16
-	revisionFuzzingTimedelta  time.Duration
-	gcWindowInverted          time.Duration
-	gcInterval                time.Duration
-	gcMaxOperationTime        time.Duration
-	splitAtEstimatedQuerySize units.Base2Bytes
+	dburl                    string
+	dbpool                   *pgxpool.Pool
+	watchBufferLength        uint16
+	revisionFuzzingTimedelta time.Duration
+	gcWindowInverted         time.Duration
+	gcInterval               time.Duration
+	gcMaxOperationTime       time.Duration
+	querySplitter            common.TupleQuerySplitter
+	analyzeBeforeStatistics  bool
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
+}
+
+func (pgd *pgDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
 }
 
 func (pgd *pgDatastore) Close() error {
@@ -342,15 +358,15 @@ func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highes
 }
 
 func (pgd *pgDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
-	sql, args, err := psql.Select("id").From(tableName).Where(filter).ToSql()
+	sql, args, err := psql.Select("id").From(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
 	}
 
-	query := fmt.Sprintf(`WITH rows AS (%s LIMIT %d)
+	query := fmt.Sprintf(`WITH rows AS (%s)
 		  DELETE FROM %s
 		  WHERE id IN (SELECT id FROM rows);
-	`, sql, batchDeleteSize, tableName)
+	`, sql, tableName)
 
 	var deletedCount int64
 	for {
@@ -370,7 +386,7 @@ func (pgd *pgDatastore) batchDelete(ctx context.Context, tableName string, filte
 }
 
 func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
-	headMigration, err := migrations.Manager.HeadRevision()
+	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
 	if err != nil {
 		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
@@ -379,7 +395,7 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer currentRevision.Dispose()
+	defer currentRevision.Close()
 
 	version, err := currentRevision.Version()
 	if err != nil {
@@ -522,8 +538,14 @@ func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted
 	}
 
 	var lower, upper dbsql.NullInt64
+	// Setting QuerySimpleProtocol to true bypasses the pgx statement prep and caching.
+	// Using a non-prepared statement prevents the automatic plan selection behavior that can lead Postgres selecting
+	// a poor performing general plan after 5 custom plan queries. Non-prepared statements will use a custom plan each time.
+	// https://github.com/authzed/spicedb/issues/486
 	err = pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
+		datastore.SeparateContextWithTracing(ctx),
+		sql,
+		append([]interface{}{pgx.QuerySimpleProtocol(true)}, args...)...,
 	).Scan(&lower, &upper)
 	if err != nil {
 		return 0, 0, err

@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/shopspring/decimal"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
+	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/graph"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
@@ -48,12 +50,12 @@ const (
 )
 
 // LookupNamespace is a function used to lookup a namespace.
-type LookupNamespace func(ctx context.Context, name string) (*v0.NamespaceDefinition, error)
+type LookupNamespace func(ctx context.Context, name string) (*core.NamespaceDefinition, error)
 
 // BuildNamespaceTypeSystemWithFallback constructs a type system view of a namespace definition, with automatic lookup
 // via the additional defs first, and then the namespace manager as a fallback.
-func BuildNamespaceTypeSystemWithFallback(nsDef *v0.NamespaceDefinition, manager Manager, additionalDefs []*v0.NamespaceDefinition, revision decimal.Decimal) (*NamespaceTypeSystem, error) {
-	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, namespaceName string) (*v0.NamespaceDefinition, error) {
+func BuildNamespaceTypeSystemWithFallback(nsDef *core.NamespaceDefinition, manager Manager, additionalDefs []*core.NamespaceDefinition, revision decimal.Decimal) (*NamespaceTypeSystem, error) {
+	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, namespaceName string) (*core.NamespaceDefinition, error) {
 		// NOTE: Order is important here: We always check the new definitions before the existing
 		// ones.
 
@@ -72,8 +74,8 @@ func BuildNamespaceTypeSystemWithFallback(nsDef *v0.NamespaceDefinition, manager
 
 // BuildNamespaceTypeSystemForManager constructs a type system view of a namespace definition, with automatic lookup
 // via the namespace manager.
-func BuildNamespaceTypeSystemForManager(nsDef *v0.NamespaceDefinition, manager Manager, revision decimal.Decimal) (*NamespaceTypeSystem, error) {
-	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*v0.NamespaceDefinition, error) {
+func BuildNamespaceTypeSystemForManager(nsDef *core.NamespaceDefinition, manager Manager, revision decimal.Decimal) (*NamespaceTypeSystem, error) {
+	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*core.NamespaceDefinition, error) {
 		nsDef, err := manager.ReadNamespace(ctx, nsName, revision)
 		return nsDef, err
 	})
@@ -81,8 +83,8 @@ func BuildNamespaceTypeSystemForManager(nsDef *v0.NamespaceDefinition, manager M
 
 // BuildNamespaceTypeSystemForDefs constructs a type system view of a namespace definition, with lookup in the
 // list of definitions given.
-func BuildNamespaceTypeSystemForDefs(nsDef *v0.NamespaceDefinition, allDefs []*v0.NamespaceDefinition) (*NamespaceTypeSystem, error) {
-	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*v0.NamespaceDefinition, error) {
+func BuildNamespaceTypeSystemForDefs(nsDef *core.NamespaceDefinition, allDefs []*core.NamespaceDefinition) (*NamespaceTypeSystem, error) {
+	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*core.NamespaceDefinition, error) {
 		for _, def := range allDefs {
 			if def.Name == nsName {
 				return def, nil
@@ -93,13 +95,32 @@ func BuildNamespaceTypeSystemForDefs(nsDef *v0.NamespaceDefinition, allDefs []*v
 	})
 }
 
+func newErrorWithSource(withSource nspkg.WithSourcePosition, sourceCodeString string, message string, args ...interface{}) error {
+	sourcePosition := withSource.GetSourcePosition()
+	if sourcePosition != nil {
+		return commonerrors.NewErrorWithSource(
+			fmt.Errorf(message, args...),
+			sourceCodeString,
+			sourcePosition.ZeroIndexedLineNumber+1,     // +1 to make 1-indexed
+			sourcePosition.ZeroIndexedColumnPosition+1, // +1 to make 1-indexed
+		)
+	}
+
+	return commonerrors.NewErrorWithSource(
+		fmt.Errorf(message, args...),
+		sourceCodeString,
+		0,
+		0,
+	)
+}
+
 // BuildNamespaceTypeSystem constructs a type system view of a namespace definition.
-func BuildNamespaceTypeSystem(nsDef *v0.NamespaceDefinition, lookupNamespace LookupNamespace) (*NamespaceTypeSystem, error) {
-	relationMap := map[string]*v0.Relation{}
+func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace LookupNamespace) (*NamespaceTypeSystem, error) {
+	relationMap := map[string]*core.Relation{}
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
 		if existing {
-			return nil, fmt.Errorf("found duplicate relation/permission name %s", relation.Name)
+			return nil, newErrorWithSource(relation, relation.Name, "found duplicate relation/permission name `%s`", relation.Name)
 		}
 
 		relationMap[relation.Name] = relation
@@ -116,8 +137,8 @@ func BuildNamespaceTypeSystem(nsDef *v0.NamespaceDefinition, lookupNamespace Loo
 // NamespaceTypeSystem represents typing information found in a namespace.
 type NamespaceTypeSystem struct {
 	lookupNamespace    LookupNamespace
-	nsDef              *v0.NamespaceDefinition
-	relationMap        map[string]*v0.Relation
+	nsDef              *core.NamespaceDefinition
+	relationMap        map[string]*core.Relation
 	wildcardCheckCache map[string]*WildcardTypeReference
 }
 
@@ -192,15 +213,15 @@ func (nts *NamespaceTypeSystem) IsAllowedDirectRelation(sourceRelationName strin
 
 // AllowedDirectRelationsAndWildcards returns the allowed subject relations for a source relation. Note that this function will return
 // wildcards.
-func (nts *NamespaceTypeSystem) AllowedDirectRelationsAndWildcards(sourceRelationName string) ([]*v0.AllowedRelation, error) {
+func (nts *NamespaceTypeSystem) AllowedDirectRelationsAndWildcards(sourceRelationName string) ([]*core.AllowedRelation, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
-		return []*v0.AllowedRelation{}, fmt.Errorf("unknown relation/permission `%s` under permissions system `%s`", sourceRelationName, nts.nsDef.Name)
+		return []*core.AllowedRelation{}, fmt.Errorf("unknown relation/permission `%s` under permissions system `%s`", sourceRelationName, nts.nsDef.Name)
 	}
 
 	typeInfo := found.GetTypeInformation()
 	if typeInfo == nil {
-		return []*v0.AllowedRelation{}, nil
+		return []*core.AllowedRelation{}, nil
 	}
 
 	return typeInfo.GetAllowedDirectRelations(), nil
@@ -208,13 +229,13 @@ func (nts *NamespaceTypeSystem) AllowedDirectRelationsAndWildcards(sourceRelatio
 
 // AllowedSubjectRelations returns the allowed subject relations for a source relation. Note that this function will *not*
 // return wildcards.
-func (nts *NamespaceTypeSystem) AllowedSubjectRelations(sourceRelationName string) ([]*v0.RelationReference, error) {
+func (nts *NamespaceTypeSystem) AllowedSubjectRelations(sourceRelationName string) ([]*core.RelationReference, error) {
 	allowedDirect, err := nts.AllowedDirectRelationsAndWildcards(sourceRelationName)
 	if err != nil {
-		return []*v0.RelationReference{}, err
+		return []*core.RelationReference{}, err
 	}
 
-	filtered := make([]*v0.RelationReference, 0, len(allowedDirect))
+	filtered := make([]*core.RelationReference, 0, len(allowedDirect))
 	for _, allowed := range allowedDirect {
 		if allowed.GetPublicWildcard() != nil {
 			continue
@@ -224,7 +245,7 @@ func (nts *NamespaceTypeSystem) AllowedSubjectRelations(sourceRelationName strin
 			panic("Got an empty relation for a non-wildcard type definition under namespace")
 		}
 
-		filtered = append(filtered, &v0.RelationReference{
+		filtered = append(filtered, &core.RelationReference{
 			Namespace: allowed.GetNamespace(),
 			Relation:  allowed.GetRelation(),
 		})
@@ -235,10 +256,10 @@ func (nts *NamespaceTypeSystem) AllowedSubjectRelations(sourceRelationName strin
 // WildcardTypeReference represents a relation that references a wildcard type.
 type WildcardTypeReference struct {
 	// ReferencingRelation is the relation referencing the wildcard type.
-	ReferencingRelation *v0.RelationReference
+	ReferencingRelation *core.RelationReference
 
 	// WildcardType is the wildcard type referenced.
-	WildcardType *v0.AllowedRelation
+	WildcardType *core.AllowedRelation
 }
 
 // ReferencesWildcardType returns true if the relation references a wildcard type, either directly or via
@@ -277,7 +298,7 @@ func (nts *NamespaceTypeSystem) computeReferencesWildcardType(ctx context.Contex
 	for _, allowedRelation := range allowedRels {
 		if allowedRelation.GetPublicWildcard() != nil {
 			return &WildcardTypeReference{
-				ReferencingRelation: &v0.RelationReference{
+				ReferencingRelation: &core.RelationReference{
 					Namespace: nts.nsDef.Name,
 					Relation:  relationName,
 				},
@@ -322,15 +343,15 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 	for _, relation := range nts.relationMap {
 		// Validate the usersets's.
 		usersetRewrite := relation.GetUsersetRewrite()
-		rerr := graph.WalkRewrite(usersetRewrite, func(childOneof *v0.SetOperation_Child) interface{} {
+		rerr := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) interface{} {
 			switch child := childOneof.ChildType.(type) {
-			case *v0.SetOperation_Child_ComputedUserset:
+			case *core.SetOperation_Child_ComputedUserset:
 				relationName := child.ComputedUserset.GetRelation()
 				_, ok := nts.relationMap[relationName]
 				if !ok {
-					return fmt.Errorf("under permission `%s`: relation/permission `%s` was not found", relation.Name, relationName)
+					return newErrorWithSource(childOneof, relationName, "under permission `%s`: relation/permission `%s` was not found", relation.Name, relationName)
 				}
-			case *v0.SetOperation_Child_TupleToUserset:
+			case *core.SetOperation_Child_TupleToUserset:
 				ttu := child.TupleToUserset
 				if ttu == nil {
 					return nil
@@ -344,11 +365,11 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 				relationName := tupleset.GetRelation()
 				found, ok := nts.relationMap[relationName]
 				if !ok {
-					return fmt.Errorf("under permission `%s`: relation `%s` was not found", relation.Name, relationName)
+					return newErrorWithSource(childOneof, relationName, "under permission `%s`: relation `%s` was not found", relation.Name, relationName)
 				}
 
 				if nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION {
-					return fmt.Errorf("under permission `%s`: permissions cannot be used on the left hand side of an arrow (found `%s`)", relation.Name, relationName)
+					return newErrorWithSource(childOneof, relationName, "under permission `%s`: permissions cannot be used on the left hand side of an arrow (found `%s`)", relation.Name, relationName)
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
@@ -358,7 +379,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 				}
 
 				if referencedWildcard != nil {
-					return fmt.Errorf("for arrow under relation `%s`: relation `%s#%s` includes wildcardtype `%s` via relation `%s`: wildcard relations cannot be used on the left side of arrows", relation.Name, nts.nsDef.Name, relationName, referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
+					return newErrorWithSource(childOneof, relationName, "for arrow under relation `%s`: relation `%s#%s` includes wildcard type `%s` via relation `%s`: wildcard relations cannot be used on the left side of arrows", relation.Name, nts.nsDef.Name, relationName, referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
 				}
 			}
 			return nil
@@ -381,11 +402,11 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 
 		if usersetRewrite == nil || hasThis {
 			if len(allowedDirectRelations) == 0 {
-				return fmt.Errorf("at least one allowed relation/permission is required in relation `%s`", relation.Name)
+				return newErrorWithSource(relation, relation.Name, "at least one allowed relation/permission is required in relation `%s`", relation.Name)
 			}
 		} else {
 			if len(allowedDirectRelations) != 0 {
-				return fmt.Errorf("direct relations are not allowed under relation `%s`", relation.Name)
+				return newErrorWithSource(relation, relation.Name, "direct relations are not allowed under relation `%s`", relation.Name)
 			}
 		}
 
@@ -396,20 +417,20 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 				if allowedRelation.GetPublicWildcard() == nil && allowedRelation.GetRelation() != tuple.Ellipsis {
 					_, ok := nts.relationMap[allowedRelation.GetRelation()]
 					if !ok {
-						return fmt.Errorf("for relation `%s`: relation/permission `%s` was not found under definition `%s`", relation.Name, allowedRelation.GetRelation(), allowedRelation.GetNamespace())
+						return newErrorWithSource(allowedRelation, allowedRelation.GetRelation(), "for relation `%s`: relation/permission `%s` was not found under definition `%s`", relation.Name, allowedRelation.GetRelation(), allowedRelation.GetNamespace())
 					}
 				}
 			} else {
 				subjectTS, err := nts.typeSystemForNamespace(ctx, allowedRelation.GetNamespace())
 				if err != nil {
-					return fmt.Errorf("could not lookup definition `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err)
+					return newErrorWithSource(allowedRelation, allowedRelation.GetNamespace(), "could not lookup definition `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err)
 				}
 
 				if allowedRelation.GetPublicWildcard() == nil && allowedRelation.GetRelation() != tuple.Ellipsis {
 					// Ensure the relation exists.
 					ok := subjectTS.HasRelation(allowedRelation.GetRelation())
 					if !ok {
-						return fmt.Errorf("for relation `%s`: relation/permission `%s` was not found under definition `%s`", relation.Name, allowedRelation.GetRelation(), allowedRelation.GetNamespace())
+						return newErrorWithSource(allowedRelation, allowedRelation.GetRelation(), "for relation `%s`: relation/permission `%s` was not found under definition `%s`", relation.Name, allowedRelation.GetRelation(), allowedRelation.GetNamespace())
 					}
 
 					// Ensure the relation doesn't itself import wildcard.
@@ -419,7 +440,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) error {
 					}
 
 					if referencedWildcard != nil {
-						return fmt.Errorf("for relation `%s`: relation/permission `%s#%s` includes wildcardtype `%s` via relation `%s`: wildcard relations cannot be transitively included", relation.Name, allowedRelation.GetNamespace(), allowedRelation.GetRelation(), referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
+						return newErrorWithSource(allowedRelation, allowedRelation.GetNamespace()+"#"+allowedRelation.GetRelation(), "for relation `%s`: relation/permission `%s#%s` includes wildcard type `%s` via relation `%s`: wildcard relations cannot be transitively included", relation.Name, allowedRelation.GetNamespace(), allowedRelation.GetRelation(), referencedWildcard.WildcardType.GetNamespace(), tuple.StringRR(referencedWildcard.ReferencingRelation))
 					}
 				}
 			}

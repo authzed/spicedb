@@ -1,36 +1,36 @@
 package namespace
 
 import (
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
 // Namespace creates a namespace definition with one or more defined relations.
-func Namespace(name string, relations ...*v0.Relation) *v0.NamespaceDefinition {
-	return &v0.NamespaceDefinition{
+func Namespace(name string, relations ...*core.Relation) *core.NamespaceDefinition {
+	return &core.NamespaceDefinition{
 		Name:     name,
 		Relation: relations,
 	}
 }
 
 // NamespaceWithComment creates a namespace definition with one or more defined relations.
-func NamespaceWithComment(name string, comment string, relations ...*v0.Relation) *v0.NamespaceDefinition {
+func NamespaceWithComment(name string, comment string, relations ...*core.Relation) *core.NamespaceDefinition {
 	nd := Namespace(name, relations...)
 	nd.Metadata, _ = AddComment(nd.Metadata, comment)
 	return nd
 }
 
 // Relation creates a relation definition with an optional rewrite definition.
-func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ...*v0.AllowedRelation) *v0.Relation {
-	var typeInfo *v0.TypeInformation
+func Relation(name string, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
+	var typeInfo *core.TypeInformation
 	if len(allowedDirectRelations) > 0 {
-		typeInfo = &v0.TypeInformation{
+		typeInfo = &core.TypeInformation{
 			AllowedDirectRelations: allowedDirectRelations,
 		}
 	}
 
-	rel := &v0.Relation{
+	rel := &core.Relation{
 		Name:            name,
 		UsersetRewrite:  rewrite,
 		TypeInformation: typeInfo,
@@ -57,53 +57,53 @@ func Relation(name string, rewrite *v0.UsersetRewrite, allowedDirectRelations ..
 }
 
 // RelationWithComment creates a relation definition with an optional rewrite definition.
-func RelationWithComment(name string, comment string, rewrite *v0.UsersetRewrite, allowedDirectRelations ...*v0.AllowedRelation) *v0.Relation {
+func RelationWithComment(name string, comment string, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
 	rel := Relation(name, rewrite, allowedDirectRelations...)
 	rel.Metadata, _ = AddComment(rel.Metadata, comment)
 	return rel
 }
 
 // AllowedRelation creates a relation reference to an allowed relation.
-func AllowedRelation(namespaceName string, relationName string) *v0.AllowedRelation {
-	return &v0.AllowedRelation{
+func AllowedRelation(namespaceName string, relationName string) *core.AllowedRelation {
+	return &core.AllowedRelation{
 		Namespace: namespaceName,
-		RelationOrWildcard: &v0.AllowedRelation_Relation{
+		RelationOrWildcard: &core.AllowedRelation_Relation{
 			Relation: relationName,
 		},
 	}
 }
 
 // AllowedPublicNamespace creates a relation reference to an allowed public namespace.
-func AllowedPublicNamespace(namespaceName string) *v0.AllowedRelation {
-	return &v0.AllowedRelation{
+func AllowedPublicNamespace(namespaceName string) *core.AllowedRelation {
+	return &core.AllowedRelation{
 		Namespace: namespaceName,
-		RelationOrWildcard: &v0.AllowedRelation_PublicWildcard_{
-			PublicWildcard: &v0.AllowedRelation_PublicWildcard{},
+		RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
+			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
 		},
 	}
 }
 
 // RelationReference creates a relation reference.
-func RelationReference(namespaceName string, relationName string) *v0.RelationReference {
-	return &v0.RelationReference{
+func RelationReference(namespaceName string, relationName string) *core.RelationReference {
+	return &core.RelationReference{
 		Namespace: namespaceName,
 		Relation:  relationName,
 	}
 }
 
 // Union creates a rewrite definition that combines/considers usersets in all children.
-func Union(firstChild *v0.SetOperation_Child, rest ...*v0.SetOperation_Child) *v0.UsersetRewrite {
-	return &v0.UsersetRewrite{
-		RewriteOperation: &v0.UsersetRewrite_Union{
+func Union(firstChild *core.SetOperation_Child, rest ...*core.SetOperation_Child) *core.UsersetRewrite {
+	return &core.UsersetRewrite{
+		RewriteOperation: &core.UsersetRewrite_Union{
 			Union: setOperation(firstChild, rest),
 		},
 	}
 }
 
 // Intersection creates a rewrite definition that returns/considers only usersets present in all children.
-func Intersection(firstChild *v0.SetOperation_Child, rest ...*v0.SetOperation_Child) *v0.UsersetRewrite {
-	return &v0.UsersetRewrite{
-		RewriteOperation: &v0.UsersetRewrite_Intersection{
+func Intersection(firstChild *core.SetOperation_Child, rest ...*core.SetOperation_Child) *core.UsersetRewrite {
+	return &core.UsersetRewrite{
+		RewriteOperation: &core.UsersetRewrite_Intersection{
 			Intersection: setOperation(firstChild, rest),
 		},
 	}
@@ -111,33 +111,42 @@ func Intersection(firstChild *v0.SetOperation_Child, rest ...*v0.SetOperation_Ch
 
 // Exclusion creates a rewrite definition that starts with the usersets of the first child
 // and iteratively removes usersets that appear in the remaining children.
-func Exclusion(firstChild *v0.SetOperation_Child, rest ...*v0.SetOperation_Child) *v0.UsersetRewrite {
-	return &v0.UsersetRewrite{
-		RewriteOperation: &v0.UsersetRewrite_Exclusion{
+func Exclusion(firstChild *core.SetOperation_Child, rest ...*core.SetOperation_Child) *core.UsersetRewrite {
+	return &core.UsersetRewrite{
+		RewriteOperation: &core.UsersetRewrite_Exclusion{
 			Exclusion: setOperation(firstChild, rest),
 		},
 	}
 }
 
-func setOperation(firstChild *v0.SetOperation_Child, rest []*v0.SetOperation_Child) *v0.SetOperation {
-	children := append([]*v0.SetOperation_Child{firstChild}, rest...)
-	return &v0.SetOperation{
+func setOperation(firstChild *core.SetOperation_Child, rest []*core.SetOperation_Child) *core.SetOperation {
+	children := append([]*core.SetOperation_Child{firstChild}, rest...)
+	return &core.SetOperation{
 		Child: children,
 	}
 }
 
 // This creates a child for a set operation that references only direct usersets with the parent relation.
-func This() *v0.SetOperation_Child {
-	return &v0.SetOperation_Child{
-		ChildType: &v0.SetOperation_Child_XThis{},
+//
+// TODO(jschorr): Remove once v0 is fully removed.
+func This() *core.SetOperation_Child {
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_XThis{},
+	}
+}
+
+// Nil creates a child for a set operation that references the empty set.
+func Nil() *core.SetOperation_Child {
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_XNil{},
 	}
 }
 
 // ComputesUserset creates a child for a set operation that follows a relation on the given starting object.
-func ComputedUserset(relation string) *v0.SetOperation_Child {
-	return &v0.SetOperation_Child{
-		ChildType: &v0.SetOperation_Child_ComputedUserset{
-			ComputedUserset: &v0.ComputedUserset{
+func ComputedUserset(relation string) *core.SetOperation_Child {
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_ComputedUserset{
+			ComputedUserset: &core.ComputedUserset{
 				Relation: relation,
 			},
 		},
@@ -147,16 +156,16 @@ func ComputedUserset(relation string) *v0.SetOperation_Child {
 // TupleToUserset creates a child which first loads all tuples with the specific relation,
 // and then unions all children on the usersets found by following a relation on those loaded
 // tuples.
-func TupleToUserset(tuplesetRelation, usersetRelation string) *v0.SetOperation_Child {
-	return &v0.SetOperation_Child{
-		ChildType: &v0.SetOperation_Child_TupleToUserset{
-			TupleToUserset: &v0.TupleToUserset{
-				Tupleset: &v0.TupleToUserset_Tupleset{
+func TupleToUserset(tuplesetRelation, usersetRelation string) *core.SetOperation_Child {
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_TupleToUserset{
+			TupleToUserset: &core.TupleToUserset{
+				Tupleset: &core.TupleToUserset_Tupleset{
 					Relation: tuplesetRelation,
 				},
-				ComputedUserset: &v0.ComputedUserset{
+				ComputedUserset: &core.ComputedUserset{
 					Relation: usersetRelation,
-					Object:   v0.ComputedUserset_TUPLE_USERSET_OBJECT,
+					Object:   core.ComputedUserset_TUPLE_USERSET_OBJECT,
 				},
 			},
 		},
@@ -164,9 +173,9 @@ func TupleToUserset(tuplesetRelation, usersetRelation string) *v0.SetOperation_C
 }
 
 // Rewrite wraps a rewrite as a set operation child of another rewrite.
-func Rewrite(rewrite *v0.UsersetRewrite) *v0.SetOperation_Child {
-	return &v0.SetOperation_Child{
-		ChildType: &v0.SetOperation_Child_UsersetRewrite{
+func Rewrite(rewrite *core.UsersetRewrite) *core.SetOperation_Child {
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_UsersetRewrite{
 			UsersetRewrite: rewrite,
 		},
 	}

@@ -4,34 +4,32 @@ import (
 	"context"
 	"errors"
 
-	"github.com/authzed/grpcutil"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/services/shared"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 type dispatchServer struct {
 	dispatchv1.UnimplementedDispatchServiceServer
+	shared.WithServiceSpecificInterceptors
 
 	localDispatch dispatch.Dispatcher
-}
-
-// RegisterDispatchServer adds the Dispatch Server to a grpc service registrar
-// This is preferred over manually registering the service; it will add required middleware
-func RegisterDispatchServer(r grpc.ServiceRegistrar, s dispatchv1.DispatchServiceServer) *grpc.ServiceDesc {
-	r.RegisterService(grpcutil.WrapMethods(dispatchv1.DispatchService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
-	return &dispatchv1.DispatchService_ServiceDesc
 }
 
 // NewDispatchServer creates a server which can be called for internal dispatch.
 func NewDispatchServer(localDispatch dispatch.Dispatcher) dispatchv1.DispatchServiceServer {
 	return &dispatchServer{
 		localDispatch: localDispatch,
+		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
+			Unary:  grpcvalidate.UnaryServerInterceptor(),
+			Stream: grpcvalidate.StreamServerInterceptor(),
+		},
 	}
 }
 

@@ -10,7 +10,7 @@ const (
 )
 
 func init() {
-	if err := Manager.Register("add-transactions-table", "initial", func(apd *CRDBDriver) error {
+	if err := CRDBMigrations.Register("add-transactions-table", "initial", func(apd *CRDBDriver) error {
 		ctx := context.Background()
 
 		tx, err := apd.db.Begin(ctx)

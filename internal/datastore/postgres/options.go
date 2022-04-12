@@ -3,10 +3,6 @@ package postgres
 import (
 	"fmt"
 	"time"
-
-	"github.com/alecthomas/units"
-
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 type postgresOptions struct {
@@ -16,14 +12,15 @@ type postgresOptions struct {
 	maxOpenConns      *int
 	minOpenConns      *int
 
-	watchBufferLength         uint16
-	revisionFuzzingTimedelta  time.Duration
-	gcWindow                  time.Duration
-	gcInterval                time.Duration
-	gcMaxOperationTime        time.Duration
-	splitAtEstimatedQuerySize units.Base2Bytes
+	watchBufferLength        uint16
+	revisionFuzzingTimedelta time.Duration
+	gcWindow                 time.Duration
+	gcInterval               time.Duration
+	gcMaxOperationTime       time.Duration
+	splitAtUsersetCount      uint16
 
-	enablePrometheusStats bool
+	enablePrometheusStats   bool
+	analyzeBeforeStatistics bool
 
 	logger *tracingLogger
 }
@@ -35,6 +32,7 @@ const (
 	defaultGarbageCollectionWindow           = 24 * time.Hour
 	defaultGarbageCollectionInterval         = time.Minute * 3
 	defaultGarbageCollectionMaxOperationTime = time.Minute
+	defaultUsersetBatchSize                  = 1024
 )
 
 // Option provides the facility to configure how clients within the
@@ -43,11 +41,11 @@ type Option func(*postgresOptions)
 
 func generateConfig(options []Option) (postgresOptions, error) {
 	computed := postgresOptions{
-		gcWindow:                  defaultGarbageCollectionWindow,
-		gcInterval:                defaultGarbageCollectionInterval,
-		gcMaxOperationTime:        defaultGarbageCollectionMaxOperationTime,
-		watchBufferLength:         defaultWatchBufferLength,
-		splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize,
+		gcWindow:            defaultGarbageCollectionWindow,
+		gcInterval:          defaultGarbageCollectionInterval,
+		gcMaxOperationTime:  defaultGarbageCollectionMaxOperationTime,
+		watchBufferLength:   defaultWatchBufferLength,
+		splitAtUsersetCount: defaultUsersetBatchSize,
 	}
 
 	for _, option := range options {
@@ -66,13 +64,13 @@ func generateConfig(options []Option) (postgresOptions, error) {
 	return computed, nil
 }
 
-// SplitAtEstimatedQuerySize is the query size at which it is split into two
-// (or more) queries.
+// SplitAtUsersetCount is the batch size for which userset queries will be
+// split into smaller queries.
 //
-// This value defaults to `common.DefaultSplitAtEstimatedQuerySize`.
-func SplitAtEstimatedQuerySize(splitAtEstimatedQuerySize units.Base2Bytes) Option {
+// This defaults to 1024.
+func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
 	return func(po *postgresOptions) {
-		po.splitAtEstimatedQuerySize = splitAtEstimatedQuerySize
+		po.splitAtUsersetCount = splitAtUsersetCount
 	}
 }
 
@@ -190,5 +188,16 @@ func EnablePrometheusStats() Option {
 func EnableTracing() Option {
 	return func(po *postgresOptions) {
 		po.logger = &tracingLogger{}
+	}
+}
+
+// DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
+// run Analyze on the database before returning statistics. This should only be
+// used for debug and testing.
+//
+// Disabled by default.
+func DebugAnalyzeBeforeStatistics() Option {
+	return func(po *postgresOptions) {
+		po.analyzeBeforeStatistics = true
 	}
 }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/validationfile"
+	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
 func TestToValidationString(t *testing.T) {
@@ -55,7 +55,7 @@ func TestToValidationString(t *testing.T) {
 			require := require.New(t)
 			require.Equal(tc.expected, tc.fs.ToValidationString())
 
-			sub, err := validationfile.ValidationString(fmt.Sprintf("[%s]", tc.expected)).Subject()
+			sub, err := blocks.ValidationString(fmt.Sprintf("[%s]", tc.expected)).Subject()
 			require.Nil(err)
 			require.NotNil(sub)
 		})

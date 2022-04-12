@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"google.golang.org/protobuf/proto"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
 )
@@ -21,7 +22,7 @@ const (
 
 func (mds *memdbDatastore) WriteNamespace(
 	ctx context.Context,
-	newConfig *v0.NamespaceDefinition,
+	newConfig *core.NamespaceDefinition,
 ) (datastore.Revision, error) {
 	mds.RLock()
 	db := mds.db
@@ -80,7 +81,7 @@ func (mds *memdbDatastore) ReadNamespace(
 	ctx context.Context,
 	nsName string,
 	revision datastore.Revision,
-) (*v0.NamespaceDefinition, datastore.Revision, error) {
+) (*core.NamespaceDefinition, datastore.Revision, error) {
 	mds.RLock()
 	db := mds.db
 	mds.RUnlock()
@@ -105,7 +106,7 @@ func (mds *memdbDatastore) ReadNamespace(
 
 	found := foundRaw.(*namespace)
 
-	var loaded v0.NamespaceDefinition
+	var loaded core.NamespaceDefinition
 	if err := proto.Unmarshal(found.configBytes, &loaded); err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
@@ -169,7 +170,7 @@ func (mds *memdbDatastore) DeleteNamespace(ctx context.Context, nsName string) (
 func (mds *memdbDatastore) ListNamespaces(
 	ctx context.Context,
 	revision datastore.Revision,
-) ([]*v0.NamespaceDefinition, error) {
+) ([]*core.NamespaceDefinition, error) {
 	mds.RLock()
 	db := mds.db
 	mds.RUnlock()
@@ -177,7 +178,7 @@ func (mds *memdbDatastore) ListNamespaces(
 		return nil, fmt.Errorf("memdb closed")
 	}
 
-	var nsDefs []*v0.NamespaceDefinition
+	var nsDefs []*core.NamespaceDefinition
 
 	txn := db.Txn(false)
 	defer txn.Abort()
@@ -196,7 +197,7 @@ func (mds *memdbDatastore) ListNamespaces(
 		}
 
 		found := foundRaw.(*namespace)
-		var loaded v0.NamespaceDefinition
+		var loaded core.NamespaceDefinition
 		if err := proto.Unmarshal(found.configBytes, &loaded); err != nil {
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}

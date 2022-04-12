@@ -6,106 +6,73 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"log"
 	"testing"
 	"time"
 
-	"github.com/alecthomas/units"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	"github.com/authzed/spicedb/pkg/migrate"
+	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
-	"github.com/authzed/spicedb/pkg/secrets"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-type sqlTest struct {
-	dbpool                    *pgxpool.Pool
-	port                      string
-	creds                     string
-	splitAtEstimatedQuerySize units.Base2Bytes
-	cleanup                   func()
-}
-
-var postgresContainer = &dockertest.RunOptions{
-	Repository: "postgres",
-	Tag:        "9.6",
-	Env:        []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},
-}
-
-func (st sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	uniquePortion, err := secrets.TokenHex(4)
-	if err != nil {
-		return nil, err
-	}
-
-	newDBName := "db" + uniquePortion
-
-	_, err = st.dbpool.Exec(context.Background(), "CREATE DATABASE "+newDBName)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create database: %w", err)
-	}
-
-	connectStr := fmt.Sprintf(
-		"postgres://%s@localhost:%s/%s?sslmode=disable",
-		st.creds,
-		st.port,
-		newDBName,
-	)
-
-	migrationDriver, err := migrations.NewAlembicPostgresDriver(connectStr)
-	if err != nil {
-		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
-	}
-
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
-	if err != nil {
-		return nil, fmt.Errorf("unable to migrate database: %w", err)
-	}
-
-	return NewPostgresDatastore(
-		connectStr,
-		RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
-		GCWindow(gcWindow),
-		GCInterval(0*time.Second), // Disable auto GC
-		WatchBufferLength(watchBufferLength),
-		SplitAtEstimatedQuerySize(st.splitAtEstimatedQuerySize),
-	)
-}
-
 func TestPostgresDatastore(t *testing.T) {
-	tester := newTester(postgresContainer, "postgres:secret", 5432)
-	defer tester.cleanup()
+	b := testdatastore.NewPostgresBuilder(t)
 
-	test.All(t, tester)
+	test.All(t, test.DatastoreTesterFunc(func(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := NewPostgresDatastore(uri,
+				RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+				GCWindow(gcWindow),
+				WatchBufferLength(watchBufferLength),
+				DebugAnalyzeBeforeStatistics(),
+			)
+			require.NoError(t, err)
+			return ds
+		})
+		return ds, nil
+	}))
 }
 
 func TestPostgresDatastoreWithSplit(t *testing.T) {
+	b := testdatastore.NewPostgresBuilder(t)
 	// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
-	tester := newTester(postgresContainer, "postgres:secret", 5432)
-	tester.splitAtEstimatedQuerySize = 1 // bytes
-	defer tester.cleanup()
+	test.All(t, test.DatastoreTesterFunc(func(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := NewPostgresDatastore(uri,
+				RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+				GCWindow(gcWindow),
+				WatchBufferLength(watchBufferLength),
+				DebugAnalyzeBeforeStatistics(),
+				SplitAtUsersetCount(1), // 1 userset
+			)
+			require.NoError(t, err)
+			return ds
+		})
 
-	test.All(t, tester)
+		return ds, nil
+	}))
 }
 
 func TestPostgresGarbageCollection(t *testing.T) {
 	require := require.New(t)
 
-	tester := newTester(postgresContainer, "postgres:secret", 5432)
-	defer tester.cleanup()
-
-	ds, err := tester.New(0, time.Millisecond*1, 1)
-	require.NoError(err)
+	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := NewPostgresDatastore(uri,
+			RevisionFuzzingTimedelta(0),
+			GCWindow(time.Millisecond*1),
+			WatchBufferLength(1),
+		)
+		require.NoError(err)
+		return ds
+	})
 	defer ds.Close()
 
 	ctx := context.Background()
@@ -131,13 +98,13 @@ func TestPostgresGarbageCollection(t *testing.T) {
 	require.NoError(err)
 
 	// Write a relationship.
-	tpl := &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
+	tpl := &core.RelationTuple{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: "resource",
 			ObjectId:  "someresource",
 			Relation:  "reader",
 		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 			Namespace: "user",
 			ObjectId:  "someuser",
 			Relation:  "...",
@@ -265,14 +232,65 @@ func TestPostgresGarbageCollection(t *testing.T) {
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
 }
 
+func TestPostgresTransactionTimestamps(t *testing.T) {
+	require := require.New(t)
+
+	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := NewPostgresDatastore(uri,
+			RevisionFuzzingTimedelta(0),
+			GCWindow(time.Millisecond*1),
+			WatchBufferLength(1),
+		)
+		require.NoError(err)
+		return ds
+	})
+	defer ds.Close()
+
+	ctx := context.Background()
+	ok, err := ds.IsReady(ctx)
+	require.NoError(err)
+	require.True(ok)
+
+	// Setting db default time zone to before UTC
+	pgd := ds.(*pgDatastore)
+	_, err = pgd.dbpool.Exec(ctx, "SET TIME ZONE 'America/New_York';")
+	require.NoError(err)
+
+	// Get timestamp in UTC as reference
+	startTimeUTC, err := pgd.getNow(ctx)
+	require.NoError(err)
+
+	// Transaction timestamp should not be stored in system time zone
+	tx, err := pgd.dbpool.Begin(ctx)
+	txId, err := createNewTransaction(ctx, tx)
+	err = tx.Commit(ctx)
+	require.NoError(err)
+
+	var ts time.Time
+	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"id": txId}).ToSql()
+	require.NoError(err)
+	err = pgd.dbpool.QueryRow(
+		datastore.SeparateContextWithTracing(ctx), sql, args...,
+	).Scan(&ts)
+	require.NoError(err)
+
+	// Transaction timestamp will be before the reference time if it was stored
+	// in the default time zone and reinterpreted
+	require.True(startTimeUTC.Before(ts))
+}
+
 func TestPostgresGarbageCollectionByTime(t *testing.T) {
 	require := require.New(t)
 
-	tester := newTester(postgresContainer, "postgres:secret", 5432)
-	defer tester.cleanup()
-
-	ds, err := tester.New(0, time.Millisecond*1, 1)
-	require.NoError(err)
+	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := NewPostgresDatastore(uri,
+			RevisionFuzzingTimedelta(0),
+			GCWindow(time.Millisecond*1),
+			WatchBufferLength(1),
+		)
+		require.NoError(err)
+		return ds
+	})
 	defer ds.Close()
 
 	ctx := context.Background()
@@ -296,13 +314,13 @@ func TestPostgresGarbageCollectionByTime(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Write a relationship.
-	tpl := &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
+	tpl := &core.RelationTuple{
+		ObjectAndRelation: &core.ObjectAndRelation{
 			Namespace: "resource",
 			ObjectId:  "someresource",
 			Relation:  "reader",
 		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 			Namespace: "user",
 			ObjectId:  "someuser",
 			Relation:  "...",
@@ -365,11 +383,15 @@ const chunkRelationshipCount = 2000
 func TestPostgresChunkedGarbageCollection(t *testing.T) {
 	require := require.New(t)
 
-	tester := newTester(postgresContainer, "postgres:secret", 5432)
-	defer tester.cleanup()
-
-	ds, err := tester.New(0, time.Millisecond*1, 1)
-	require.NoError(err)
+	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := NewPostgresDatastore(uri,
+			RevisionFuzzingTimedelta(0),
+			GCWindow(time.Millisecond*1),
+			WatchBufferLength(1),
+		)
+		require.NoError(err)
+		return ds
+	})
 	defer ds.Close()
 
 	ctx := context.Background()
@@ -390,15 +412,15 @@ func TestPostgresChunkedGarbageCollection(t *testing.T) {
 	pds := ds.(*pgDatastore)
 
 	// Prepare relationships to write.
-	var tpls []*v0.RelationTuple
+	var tpls []*core.RelationTuple
 	for i := 0; i < chunkRelationshipCount; i++ {
-		tpl := &v0.RelationTuple{
-			ObjectAndRelation: &v0.ObjectAndRelation{
+		tpl := &core.RelationTuple{
+			ObjectAndRelation: &core.ObjectAndRelation{
 				Namespace: "resource",
 				ObjectId:  fmt.Sprintf("resource-%d", i),
 				Relation:  "reader",
 			},
-			User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
+			User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
 				Namespace: "user",
 				ObjectId:  "someuser",
 				Relation:  "...",
@@ -480,12 +502,16 @@ func TestPostgresChunkedGarbageCollection(t *testing.T) {
 func BenchmarkPostgresQuery(b *testing.B) {
 	req := require.New(b)
 
-	tester := newTester(postgresContainer, "postgres:secret", 5432)
-	defer tester.cleanup()
-
-	ds, err := tester.New(0, 24*time.Hour, 1)
-	req.NoError(err)
-
+	ds := testdatastore.NewPostgresBuilder(b).NewDatastore(b, func(engine, uri string) datastore.Datastore {
+		ds, err := NewPostgresDatastore(uri,
+			RevisionFuzzingTimedelta(0),
+			GCWindow(time.Millisecond*1),
+			WatchBufferLength(1),
+		)
+		require.NoError(b, err)
+		return ds
+	})
+	defer ds.Close()
 	_, revision := testfixtures.StandardDatastoreWithData(ds, req)
 
 	b.Run("benchmark checks", func(b *testing.B) {
@@ -505,38 +531,4 @@ func BenchmarkPostgresQuery(b *testing.B) {
 			require.NoError(iter.Err())
 		}
 	})
-}
-
-func newTester(containerOpts *dockertest.RunOptions, creds string, portNum uint16) *sqlTest {
-	pool, err := dockertest.NewPool("")
-	if err != nil {
-		log.Fatalf("Could not connect to docker: %s", err)
-	}
-
-	resource, err := pool.RunWithOptions(containerOpts)
-	if err != nil {
-		log.Fatalf("Could not start resource: %s", err)
-	}
-
-	var dbpool *pgxpool.Pool
-	port := resource.GetPort(fmt.Sprintf("%d/tcp", portNum))
-	if err = pool.Retry(func() error {
-		var err error
-		dbpool, err = pgxpool.Connect(context.Background(), fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", creds, port))
-		if err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		log.Fatalf("Could not connect to docker: %s", err)
-	}
-
-	cleanup := func() {
-		// When you're done, kill and remove the container
-		if err = pool.Purge(resource); err != nil {
-			log.Fatalf("Could not purge resource: %s", err)
-		}
-	}
-
-	return &sqlTest{dbpool: dbpool, port: port, cleanup: cleanup, creds: creds, splitAtEstimatedQuerySize: common.DefaultSplitAtEstimatedQuerySize}
 }

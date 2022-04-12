@@ -8,9 +8,6 @@ import (
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
-
-	"github.com/authzed/spicedb/internal/datastore/common"
-
 	sqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/rs/zerolog/log"
 )
@@ -25,8 +22,8 @@ const (
 var sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 
 type MysqlDriver struct {
-	db          *sql.DB
-	tablePrefix string
+	db *sql.DB
+	*tables
 }
 
 // https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
@@ -58,7 +55,7 @@ func NewMysqlDriverFromDSN(url string, tablePrefix string) (*MysqlDriver, error)
 
 // NewMysqlDriverFromDB creates a new migration driver with a connection pool specified upfront.
 func NewMysqlDriverFromDB(db *sql.DB, tablePrefix string) *MysqlDriver {
-	return &MysqlDriver{db, tablePrefix}
+	return &MysqlDriver{db, newTables(tablePrefix)}
 }
 
 func revisionToColumnName(revision string) string {
@@ -74,23 +71,23 @@ func columnNameToRevision(columnName string) (string, bool) {
 
 // Version returns the version of the schema to which the connected database
 // has been migrated.
-func (mysql *MysqlDriver) Version() (string, error) {
-	query, args, err := sb.Select("*").From(mysql.mysqlMigrationVersionTable()).ToSql()
+func (driver *MysqlDriver) Version() (string, error) {
+	query, args, err := sb.Select("*").From(driver.migrationVersion()).ToSql()
 	if err != nil {
-		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
+		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}
 
-	rows, err := mysql.db.Query(query, args...)
+	rows, err := driver.db.Query(query, args...)
 	if err != nil {
 		var mysqlError *sqlDriver.MySQLError
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
 			return "", nil
 		}
-		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
+		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}
-	defer common.LogOnError(context.Background(), rows.Close)
+	defer LogOnError(context.Background(), rows.Close)
 	if rows.Err() != nil {
-		return "", fmt.Errorf("unable to load mysql migration revision: %w", err)
+		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}
 	cols, err := rows.Columns()
 	if err != nil {
@@ -107,35 +104,27 @@ func (mysql *MysqlDriver) Version() (string, error) {
 
 // WriteVersion overwrites the _meta_version_ column name which encodes the version
 // of the database schema.
-func (mysql *MysqlDriver) WriteVersion(version, replaced string) error {
+func (driver *MysqlDriver) WriteVersion(version, replaced string) error {
 	stmt := fmt.Sprintf("ALTER TABLE %s CHANGE %s %s VARCHAR(255) NOT NULL",
-		mysql.mysqlMigrationVersionTable(),
+		driver.migrationVersion(),
 		revisionToColumnName(replaced),
 		revisionToColumnName(version),
 	)
-	if _, err := mysql.db.Exec(stmt); err != nil {
+	if _, err := driver.db.Exec(stmt); err != nil {
 		return fmt.Errorf("unable to version: %w", err)
 	}
 
 	return nil
 }
 
-func (mysql *MysqlDriver) Dispose() {
-	defer common.LogOnError(context.Background(), mysql.db.Close)
+func (driver *MysqlDriver) Close() error {
+	return driver.db.Close()
 }
 
-func (mysql *MysqlDriver) mysqlMigrationVersionTable() string {
-	return fmt.Sprintf("%s%s", mysql.tablePrefix, "mysql_migration_version")
-}
-
-func (mysql *MysqlDriver) tableTransaction() string {
-	return fmt.Sprintf("%s%s", mysql.tablePrefix, common.TableTransactionDefault)
-}
-
-func (mysql *MysqlDriver) tableTuple() string {
-	return fmt.Sprintf("%s%s", mysql.tablePrefix, common.TableTupleDefault)
-}
-
-func (mysql *MysqlDriver) tableNamespace() string {
-	return fmt.Sprintf("%s%s", mysql.tablePrefix, common.TableNamespaceDefault)
+// LogOnError executes the function and logs the error.
+// Useful to avoid silently ignoring errors in defer statements
+func LogOnError(ctx context.Context, f func() error) {
+	if err := f(); err != nil {
+		log.Ctx(ctx).Error().Err(err)
+	}
 }

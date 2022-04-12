@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -22,9 +22,17 @@ type InputSchema struct {
 
 // ErrorWithContext defines an error which contains contextual information.
 type ErrorWithContext struct {
+	BaseCompilerError
+	SourceRange     input.SourceRange
+	Source          input.Source
+	ErrorSourceCode string
+}
+
+// BaseCompilerError defines an error with contains the base message of the issue
+// that occurred.
+type BaseCompilerError struct {
 	error
-	SourceRange input.SourceRange
-	Source      input.Source
+	BaseMessage string
 }
 
 type errorWithNode struct {
@@ -33,29 +41,30 @@ type errorWithNode struct {
 }
 
 // Compile compilers the input schema(s) into a set of namespace definition protos.
-func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*v0.NamespaceDefinition, error) {
+func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*core.NamespaceDefinition, error) {
 	mapper := newPositionMapper(schemas)
 
 	// Parse and translate the various schemas.
-	definitions := []*v0.NamespaceDefinition{}
+	definitions := []*core.NamespaceDefinition{}
 	for _, schema := range schemas {
 		root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
 		errs := root.FindAll(dslshape.NodeTypeError)
 		if len(errs) > 0 {
 			err := errorNodeToError(errs[0], mapper)
-			return []*v0.NamespaceDefinition{}, err
+			return []*core.NamespaceDefinition{}, err
 		}
 
 		translatedDefs, err := translate(translationContext{
 			objectTypePrefix: objectTypePrefix,
+			mapper:           mapper,
 		}, root)
 		if err != nil {
 			var errorWithNode errorWithNode
 			if errors.As(err, &errorWithNode) {
-				err = toContextError(errorWithNode.error.Error(), errorWithNode.node, mapper)
+				err = toContextError(errorWithNode.error.Error(), "", errorWithNode.node, mapper)
 			}
 
-			return []*v0.NamespaceDefinition{}, err
+			return []*core.NamespaceDefinition{}, err
 		}
 
 		definitions = append(definitions, translatedDefs...)
@@ -74,10 +83,20 @@ func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {
 		return fmt.Errorf("could not get error message for error node: %w", err)
 	}
 
-	return toContextError(errMessage, node, mapper)
+	errorSourceCode := ""
+	if node.Has(dslshape.NodePredicateErrorSource) {
+		es, err := node.GetString(dslshape.NodePredicateErrorSource)
+		if err != nil {
+			return fmt.Errorf("could not get error source for error node: %w", err)
+		}
+
+		errorSourceCode = es
+	}
+
+	return toContextError(errMessage, errorSourceCode, node, mapper)
 }
 
-func toContextError(errMessage string, node *dslNode, mapper input.PositionMapper) error {
+func toContextError(errMessage string, errorSourceCode string, node *dslNode, mapper input.PositionMapper) error {
 	sourceRange, err := node.Range(mapper)
 	if err != nil {
 		return fmt.Errorf("could not get range for error node: %w", err)
@@ -94,9 +113,13 @@ func toContextError(errMessage string, node *dslNode, mapper input.PositionMappe
 	}
 
 	return ErrorWithContext{
-		error:       fmt.Errorf("parse error in %s: %s", formattedRange, errMessage),
-		SourceRange: sourceRange,
-		Source:      input.Source(source),
+		BaseCompilerError: BaseCompilerError{
+			error:       fmt.Errorf("parse error in %s: %s", formattedRange, errMessage),
+			BaseMessage: errMessage,
+		},
+		SourceRange:     sourceRange,
+		Source:          input.Source(source),
+		ErrorSourceCode: errorSourceCode,
 	}
 }
 

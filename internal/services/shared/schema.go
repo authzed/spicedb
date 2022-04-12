@@ -4,15 +4,17 @@ import (
 	"context"
 	"errors"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // EnsureNoRelationshipsExist ensures that no relationships exist within the namespace with the given name.
@@ -56,7 +58,7 @@ func EnsureNoRelationshipsExist(ctx context.Context, ds datastore.Datastore, nam
 
 // SanityCheckExistingRelationships ensures that a namespace definition being written does not result
 // in relationships without associated defined schema object definitions and relations.
-func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastore, nsdef *v0.NamespaceDefinition, revision decimal.Decimal) error {
+func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastore, nsdef *core.NamespaceDefinition, revision decimal.Decimal) error {
 	// Ensure that the updated namespace does not break the existing tuple data.
 	//
 	// NOTE: We use the datastore here to read the namespace, rather than the namespace manager,
@@ -105,6 +107,30 @@ func SanityCheckExistingRelationships(ctx context.Context, ds datastore.Datastor
 				qy,
 				qyErr,
 				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship references it", delta.RelationName, nsdef.Name)
+			if err != nil {
+				return err
+			}
+
+		case namespace.RelationDirectWildcardTypeRemoved:
+			qy, qyErr := ds.ReverseQueryTuples(
+				ctx,
+				&v1.SubjectFilter{
+					SubjectType:       delta.WildcardType,
+					OptionalSubjectId: tuple.PublicWildcard,
+				},
+				headRevision,
+				options.WithResRelation(&options.ResourceRelation{
+					Namespace: nsdef.Name,
+					Relation:  delta.RelationName,
+				}),
+				options.WithReverseLimit(options.LimitOne),
+			)
+			err = ErrorIfTupleIteratorReturnsTuples(
+				ctx,
+				qy,
+				qyErr,
+				"cannot remove allowed wildcard type `%s:*` from Relation `%s` in Object Definition `%s`, as a Relationship exists with it",
+				delta.WildcardType, delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
 			}

@@ -78,7 +78,7 @@ func runfunc(cmd *cobra.Command, args []string) error {
 
 	// Start the metrics endpoint.
 	metricsSrv := cobrautil.HTTPServerFromFlags(cmd, "metrics")
-	metricsSrv.Handler = server.MetricsHandler()
+	metricsSrv.Handler = server.MetricsHandler(server.DisableTelemetryHandler)
 	go func() {
 		if err := cobrautil.HTTPListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")

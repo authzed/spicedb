@@ -8,20 +8,22 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func RR(namespaceName string, relationName string) *v0.RelationReference {
-	return &v0.RelationReference{
+func RR(namespaceName string, relationName string) *core.RelationReference {
+	return &core.RelationReference{
 		Namespace: namespaceName,
 		Relation:  relationName,
 	}
@@ -36,23 +38,23 @@ func init() {
 
 func TestSimpleLookup(t *testing.T) {
 	testCases := []struct {
-		start                 *v0.RelationReference
-		target                *v0.ObjectAndRelation
-		resolvedObjects       []*v0.ObjectAndRelation
+		start                 *core.RelationReference
+		target                *core.ObjectAndRelation
+		resolvedObjects       []*core.ObjectAndRelation
 		expectedDispatchCount int
 		expectedDepthRequired int
 	}{
 		{
 			RR("document", "viewer"),
 			ONR("user", "unknown", "..."),
-			[]*v0.ObjectAndRelation{},
+			[]*core.ObjectAndRelation{},
 			9,
 			5,
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "eng_lead", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("document", "masterplan", "viewer"),
 			},
 			18,
@@ -61,7 +63,7 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "owner"),
 			ONR("user", "product_manager", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("document", "masterplan", "owner"),
 			},
 			2,
@@ -70,7 +72,7 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "viewer"),
 			ONR("user", "legal", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("document", "companyplan", "viewer"),
 				ONR("document", "masterplan", "viewer"),
 			},
@@ -80,16 +82,16 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "viewer_and_editor"),
 			ONR("user", "multiroleguy", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("document", "specialplan", "viewer_and_editor"),
 			},
 			8,
-			4,
+			2,
 		},
 		{
 			RR("folder", "viewer"),
 			ONR("user", "owner", "..."),
-			[]*v0.ObjectAndRelation{
+			[]*core.ObjectAndRelation{
 				ONR("folder", "strategy", "viewer"),
 				ONR("folder", "company", "viewer"),
 			},
@@ -109,9 +111,9 @@ func TestSimpleLookup(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
 
-			dispatch, revision := newLocalDispatcher(require)
+			ctx, dispatch, revision := newLocalDispatcher(require)
 
-			lookupResult, err := dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+			lookupResult, err := dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
 				ObjectRelation: tc.start,
 				Subject:        tc.target,
 				Metadata: &v1.ResolverMeta{
@@ -165,12 +167,14 @@ func TestMaxDepthLookup(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	nsm, err := namespace.NewCachingNamespaceManager(ds, 1*time.Second, testCacheConfig)
+	nsm, err := namespace.NewCachingNamespaceManager(testCacheConfig)
 	require.NoError(err)
 
-	dispatch := NewLocalOnlyDispatcher(nsm, ds)
+	dispatch := NewLocalOnlyDispatcher(nsm)
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	_, err = dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+	_, err = dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
 		ObjectRelation: RR("document", "viewer"),
 		Subject:        ONR("user", "legal", "..."),
 		Metadata: &v1.ResolverMeta{
@@ -185,7 +189,7 @@ func TestMaxDepthLookup(t *testing.T) {
 	require.Error(err)
 }
 
-type OrderedResolved []*v0.ObjectAndRelation
+type OrderedResolved []*core.ObjectAndRelation
 
 func (a OrderedResolved) Len() int { return len(a) }
 
@@ -194,3 +198,30 @@ func (a OrderedResolved) Less(i, j int) bool {
 }
 
 func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func TestPrefix(t *testing.T) {
+	tests := []struct {
+		ns         string
+		wantPrefix string
+	}{
+		{
+			ns:         "test",
+			wantPrefix: "",
+		},
+		{
+			ns:         "prefix/test",
+			wantPrefix: "prefix",
+		},
+		{
+			ns:         "prefix1/prefix2/test",
+			wantPrefix: "prefix1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.ns+tt.wantPrefix, func(t *testing.T) {
+			if gotPrefix := prefix(tt.ns); gotPrefix != tt.wantPrefix {
+				t.Errorf("prefix() = %v, want %v", gotPrefix, tt.wantPrefix)
+			}
+		})
+	}
+}

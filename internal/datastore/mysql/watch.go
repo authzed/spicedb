@@ -7,9 +7,10 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 // Watch notifies the caller about all changes to tuples.
 //
 // All events following afterRevision will be sent to the caller.
-func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (mds *Datastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errs := make(chan error, 1)
 
@@ -27,7 +28,7 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 		defer close(updates)
 		defer close(errs)
 
-		currentTxn := common.TransactionFromRevision(afterRevision)
+		currentTxn := transactionFromRevision(afterRevision)
 
 		for {
 			var stagedUpdates []*datastore.RevisionChanges
@@ -70,7 +71,7 @@ func (mds *mysqlDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	return updates, errs
 }
 
-func (mds *mysqlDatastore) loadChanges(
+func (mds *Datastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
 ) (changes []*datastore.RevisionChanges, newRevision uint64, err error) {
@@ -85,12 +86,12 @@ func (mds *mysqlDatastore) loadChanges(
 
 	sql, args, err := mds.QueryChangedQuery.Where(sq.Or{
 		sq.And{
-			sq.Gt{common.ColCreatedTxn: afterRevision},
-			sq.LtOrEq{common.ColCreatedTxn: newRevision},
+			sq.Gt{colCreatedTxn: afterRevision},
+			sq.LtOrEq{colCreatedTxn: newRevision},
 		},
 		sq.And{
-			sq.Gt{common.ColDeletedTxn: afterRevision},
-			sq.LtOrEq{common.ColDeletedTxn: newRevision},
+			sq.Gt{colDeletedTxn: afterRevision},
+			sq.LtOrEq{colDeletedTxn: newRevision},
 		},
 	}).ToSql()
 	if err != nil {
@@ -104,16 +105,16 @@ func (mds *mysqlDatastore) loadChanges(
 		}
 		return
 	}
-	defer common.LogOnError(ctx, rows.Close)
+	defer migrations.LogOnError(ctx, rows.Close)
 
 	stagedChanges := common.NewChanges()
 
 	for rows.Next() {
-		userset := &v0.ObjectAndRelation{}
-		tpl := &v0.RelationTuple{
-			ObjectAndRelation: &v0.ObjectAndRelation{},
-			User: &v0.User{
-				UserOneof: &v0.User_Userset{
+		userset := &corev1.ObjectAndRelation{}
+		tpl := &corev1.RelationTuple{
+			ObjectAndRelation: &corev1.ObjectAndRelation{},
+			User: &corev1.User{
+				UserOneof: &corev1.User_Userset{
 					Userset: userset,
 				},
 			},
@@ -136,11 +137,11 @@ func (mds *mysqlDatastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			stagedChanges.AddChange(ctx, createdTxn, tpl, v0.RelationTupleUpdate_TOUCH)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(createdTxn), tpl, corev1.RelationTupleUpdate_TOUCH)
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			stagedChanges.AddChange(ctx, deletedTxn, tpl, v0.RelationTupleUpdate_DELETE)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(deletedTxn), tpl, corev1.RelationTupleUpdate_DELETE)
 		}
 	}
 	if err = rows.Err(); err != nil {

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
@@ -22,12 +20,16 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -36,7 +38,6 @@ type aclServer struct {
 	v0.UnimplementedACLServiceServer
 	shared.WithUnaryServiceSpecificInterceptor
 
-	ds           datastore.Datastore
 	nsm          namespace.Manager
 	dispatch     dispatch.Dispatcher
 	defaultDepth uint32
@@ -50,7 +51,7 @@ const (
 var errInvalidZookie = errors.New("invalid revision requested")
 
 // NewACLServer creates an instance of the ACL server.
-func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
+func NewACLServer(nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
 	middleware := []grpc.UnaryServerInterceptor{
 		usagemetrics.UnaryServerInterceptor(),
 		handwrittenvalidation.UnaryServerInterceptor,
@@ -59,7 +60,6 @@ func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispat
 	middleware = append(middleware, grpcutil.DefaultUnaryMiddleware...)
 
 	s := &aclServer{
-		ds:           ds,
 		nsm:          nsm,
 		dispatch:     dispatch,
 		defaultDepth: defaultDepth,
@@ -71,10 +71,7 @@ func NewACLServer(ds datastore.Datastore, nsm namespace.Manager, dispatch dispat
 }
 
 func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.WriteResponse, error) {
-	atRevision, err := as.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewriteACLError(ctx, err)
-	}
+	atRevision, _ := consistency.MustRevisionFromContext(ctx)
 
 	for _, mutation := range req.Updates {
 		err := validateTupleWrite(ctx, mutation.Tuple, as.nsm, atRevision)
@@ -87,13 +84,13 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 	for _, cond := range req.WriteConditions {
 		preconditions = append(preconditions, &v1.Precondition{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
-			Filter:    tuple.MustToFilter(cond),
+			Filter:    tuple.MustToFilter(core.ToCoreRelationTuple(cond)),
 		})
 	}
 
 	mutations := make([]*v1.RelationshipUpdate, 0, len(req.Updates))
 	for _, mut := range req.Updates {
-		mutations = append(mutations, tuple.UpdateToRelationshipUpdate(mut))
+		mutations = append(mutations, tuple.UpdateToRelationshipUpdate(core.ToCoreRelationTupleUpdate(mut)))
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -101,34 +98,20 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 		DispatchCount: uint32(len(preconditions)) + 1,
 	})
 
-	revision, err := as.ds.WriteTuples(ctx, preconditions, mutations)
+	ds := datastoremw.MustFromContext(ctx)
+	revision, err := ds.WriteTuples(ctx, preconditions, mutations)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
 
 	return &v0.WriteResponse{
-		Revision: zookie.NewFromRevision(revision),
+		Revision: core.ToV0Zookie(zookie.NewFromRevision(revision)),
 	}, nil
 }
 
 func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadResponse, error) {
-	var atRevision decimal.Decimal
-	if req.AtRevision != nil {
-		// Read should attempt to use the exact revision requested
-		decoded, err := zookie.DecodeRevision(req.AtRevision)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "bad request revision: %s", err)
-		}
-
-		atRevision = decoded
-	} else {
-		// No revision provided, we'll pick one
-		var err error
-		atRevision, err = as.ds.OptimizedRevision(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to pick request revision: %s", err)
-		}
-	}
+	atRevision, _ := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx)
 
 	errG, groupCtx := errgroup.WithContext(ctx)
 	for _, tuplesetFilter := range req.Tuplesets {
@@ -193,7 +176,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 	}
 
 	errG.Go(func() error {
-		return as.ds.CheckRevision(groupCtx, atRevision)
+		return ds.CheckRevision(groupCtx, atRevision)
 	})
 	if err := errG.Wait(); err != nil {
 		return nil, rewriteACLError(ctx, err)
@@ -215,13 +198,13 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 				case v0.RelationTupleFilter_RELATION:
 					queryFilter.OptionalRelation = tuplesetFilter.Relation
 				case v0.RelationTupleFilter_USERSET:
-					queryFilter.OptionalSubjectFilter = tuple.UsersetToSubjectFilter(tuplesetFilter.Userset)
+					queryFilter.OptionalSubjectFilter = tuple.UsersetToSubjectFilter(core.ToCoreObjectAndRelation(tuplesetFilter.Userset))
 				default:
 					return status.Errorf(codes.InvalidArgument, "unknown tupleset filter type: %s", filter)
 				}
 			}
 
-			tupleIterator, err := as.ds.QueryTuples(queryCtx, queryFilter, atRevision)
+			tupleIterator, err := ds.QueryTuples(queryCtx, queryFilter, atRevision)
 			if err != nil {
 				return err
 			}
@@ -230,7 +213,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 
 			tuplesetResult := &v0.ReadResponse_Tupleset{}
 			for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
-				tuplesetResult.Tuples = append(tuplesetResult.Tuples, tuple)
+				tuplesetResult.Tuples = append(tuplesetResult.Tuples, core.ToV0RelationTuple(tuple))
 			}
 			if tupleIterator.Err() != nil {
 				return status.Errorf(codes.Internal, "error when reading tuples: %s", err)
@@ -253,33 +236,27 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 
 	return &v0.ReadResponse{
 		Tuplesets: allTuplesetResults,
-		Revision:  zookie.NewFromRevision(atRevision),
+		Revision:  core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 	}, nil
 }
 
 func (as *aclServer) Check(ctx context.Context, req *v0.CheckRequest) (*v0.CheckResponse, error) {
-	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
-	if err != nil {
-		return nil, rewriteACLError(ctx, err)
-	}
-
-	return as.commonCheck(ctx, atRevision, req.TestUserset, req.User.GetUserset())
+	atRevision, _ := consistency.MustRevisionFromContext(ctx)
+	return as.commonCheck(ctx, atRevision, core.ToCoreObjectAndRelation(req.TestUserset), core.ToCoreObjectAndRelation(req.User.GetUserset()))
 }
 
 func (as *aclServer) ContentChangeCheck(ctx context.Context, req *v0.ContentChangeCheckRequest) (*v0.CheckResponse, error) {
-	atRevision, err := as.ds.HeadRevision(ctx)
-	if err != nil {
-		return nil, rewriteACLError(ctx, err)
-	}
-
-	return as.commonCheck(ctx, atRevision, req.TestUserset, req.User.GetUserset())
+	// the implementation is the same as `Check`, but the consistency middleware will set the revision to the head
+	// revision for this request, so it is always fully consistent.
+	atRevision, _ := consistency.MustRevisionFromContext(ctx)
+	return as.commonCheck(ctx, atRevision, core.ToCoreObjectAndRelation(req.TestUserset), core.ToCoreObjectAndRelation(req.User.GetUserset()))
 }
 
 func (as *aclServer) commonCheck(
 	ctx context.Context,
 	atRevision decimal.Decimal,
-	start *v0.ObjectAndRelation,
-	goal *v0.ObjectAndRelation,
+	start *core.ObjectAndRelation,
+	goal *core.ObjectAndRelation,
 ) (*v0.CheckResponse, error) {
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
@@ -331,18 +308,15 @@ func (as *aclServer) commonCheck(
 
 	return &v0.CheckResponse{
 		IsMember:   membership == v0.CheckResponse_MEMBER,
-		Revision:   zookie.NewFromRevision(atRevision),
+		Revision:   core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 		Membership: membership,
 	}, nil
 }
 
 func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.ExpandResponse, error) {
-	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
-	if err != nil {
-		return nil, rewriteACLError(ctx, err)
-	}
+	atRevision, _ := consistency.MustRevisionFromContext(ctx)
 
-	err = as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false, atRevision)
+	err := as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false, atRevision)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -352,7 +326,7 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
 		},
-		ObjectAndRelation: req.Userset,
+		ObjectAndRelation: core.ToCoreObjectAndRelation(req.Userset),
 		ExpansionMode:     dispatchv1.DispatchExpandRequest_SHALLOW,
 	})
 	usagemetrics.SetInContext(ctx, resp.Metadata)
@@ -361,18 +335,15 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 	}
 
 	return &v0.ExpandResponse{
-		TreeNode: resp.TreeNode,
-		Revision: zookie.NewFromRevision(atRevision),
+		TreeNode: core.ToV0RelationTupleTreeNode(resp.TreeNode),
+		Revision: core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 	}, nil
 }
 
 func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.LookupResponse, error) {
-	atRevision, err := as.pickBestRevision(ctx, req.AtRevision)
-	if err != nil {
-		return nil, rewriteACLError(ctx, err)
-	}
+	atRevision, _ := consistency.MustRevisionFromContext(ctx)
 
-	err = as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true, atRevision)
+	err := as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true, atRevision)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -394,8 +365,8 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 			AtRevision:     atRevision.String(),
 			DepthRemaining: as.defaultDepth,
 		},
-		ObjectRelation: req.ObjectRelation,
-		Subject:        req.User,
+		ObjectRelation: core.ToCoreRelationReference(req.ObjectRelation),
+		Subject:        core.ToCoreObjectAndRelation(req.User),
 		Limit:          limit,
 		DirectStack:    nil,
 		TtuStack:       nil,
@@ -418,31 +389,9 @@ func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.Loo
 	}
 
 	return &v0.LookupResponse{
-		Revision:          zookie.NewFromRevision(atRevision),
+		Revision:          core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
 		ResolvedObjectIds: resolvedObjectIDs,
 	}, nil
-}
-
-func (as *aclServer) pickBestRevision(ctx context.Context, requested *v0.Zookie) (decimal.Decimal, error) {
-	// Calculate a revision as we see fit
-	databaseRev, err := as.ds.OptimizedRevision(ctx)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	if requested != nil {
-		requestedRev, err := zookie.DecodeRevision(requested)
-		if err != nil {
-			return decimal.Zero, errInvalidZookie
-		}
-
-		if requestedRev.GreaterThan(databaseRev) {
-			return requestedRev, nil
-		}
-		return databaseRev, nil
-	}
-
-	return databaseRev, nil
 }
 
 func rewriteACLError(ctx context.Context, err error) error {

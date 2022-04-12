@@ -28,15 +28,18 @@ NodeTypeFile
                     NodeTypeError
                       end-rune = 33
                       error-message = Expected identifier, found token TokenTypeMinus
+                      error-source = -
                       input-source = relation invalid type test
                       start-rune = 35
         NodeTypeError
           end-rune = 33
           error-message = Expected end of statement or definition, found: TokenTypeMinus
+          error-source = -
           input-source = relation invalid type test
           start-rune = 35
     NodeTypeError
       end-rune = 33
       error-message = Unexpected token at root level: TokenTypeMinus
+      error-source = -
       input-source = relation invalid type test
       start-rune = 35

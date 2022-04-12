@@ -10,9 +10,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -21,27 +23,27 @@ type watchServer struct {
 	v0.UnimplementedWatchServiceServer
 	shared.WithStreamServiceSpecificInterceptor
 
-	ds  datastore.Datastore
 	nsm namespace.Manager
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(ds datastore.Datastore, nsm namespace.Manager) v0.WatchServiceServer {
+func NewWatchServer(nsm namespace.Manager) v0.WatchServiceServer {
 	s := &watchServer{
-		ds: ds,
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
 			Stream: grpcvalidate.StreamServerInterceptor(),
 		},
+		nsm: nsm,
 	}
 	return s
 }
 
 func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchServer) error {
 	ctx := stream.Context()
+	ds := datastoremw.MustFromContext(ctx)
 
 	var afterRevision decimal.Decimal
 	if req.StartRevision != nil && req.StartRevision.Token != "" {
-		decodedRevision, err := zookie.DecodeRevision(req.StartRevision)
+		decodedRevision, err := zookie.DecodeRevision(core.ToCoreZookie(req.StartRevision))
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}
@@ -49,7 +51,7 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 		afterRevision = decodedRevision
 	} else {
 		var err error
-		afterRevision, err = ws.ds.OptimizedRevision(ctx)
+		afterRevision, err = ds.OptimizedRevision(ctx)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
@@ -70,7 +72,7 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 		DispatchCount: 1,
 	})
 
-	updates, errchan := ws.ds.Watch(ctx, afterRevision)
+	updates, errchan := ds.Watch(ctx, afterRevision)
 	for {
 		select {
 		case update, ok := <-updates:
@@ -78,8 +80,8 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 				filtered := filter.filterUpdates(update.Changes)
 				if len(filtered) > 0 {
 					if err := stream.Send(&v0.WatchResponse{
-						Updates:     update.Changes,
-						EndRevision: zookie.NewFromRevision(update.Revision),
+						Updates:     core.ToV0RelationTupleUpdates(update.Changes),
+						EndRevision: core.ToV0Zookie(zookie.NewFromRevision(update.Revision)),
 					}); err != nil {
 						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
 					}
@@ -102,8 +104,8 @@ type namespaceFilter struct {
 	namespaces map[string]struct{}
 }
 
-func (nf namespaceFilter) filterUpdates(candidates []*v0.RelationTupleUpdate) []*v0.RelationTupleUpdate {
-	var filtered []*v0.RelationTupleUpdate
+func (nf namespaceFilter) filterUpdates(candidates []*core.RelationTupleUpdate) []*core.RelationTupleUpdate {
+	var filtered []*core.RelationTupleUpdate
 
 	for _, update := range candidates {
 		if _, ok := nf.namespaces[update.Tuple.ObjectAndRelation.Namespace]; ok {

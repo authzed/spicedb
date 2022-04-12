@@ -3,24 +3,24 @@ package datastore
 import (
 	"errors"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var errClosedIterator = errors.New("unable to iterate: iterator closed")
 
 // NewSliceTupleIterator creates a datastore.TupleIterator instance from a materialized slice of tuples.
-func NewSliceTupleIterator(tuples []*v0.RelationTuple) TupleIterator {
+func NewSliceTupleIterator(tuples []*core.RelationTuple) TupleIterator {
 	return &sliceTupleIterator{tuples: tuples}
 }
 
 type sliceTupleIterator struct {
-	tuples []*v0.RelationTuple
+	tuples []*core.RelationTuple
 	closed bool
 	err    error
 }
 
 // Next implements TupleIterator
-func (sti *sliceTupleIterator) Next() *v0.RelationTuple {
+func (sti *sliceTupleIterator) Next() *core.RelationTuple {
 	if sti.closed {
 		sti.err = errClosedIterator
 		return nil

@@ -2,26 +2,20 @@ package v0
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"
-	"github.com/google/go-cmp/cmp"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 
-	"github.com/authzed/spicedb/internal/membership"
-	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/development"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
 type devServer struct {
@@ -30,8 +24,6 @@ type devServer struct {
 
 	shareStore ShareStore
 }
-
-const maxDepth = 25
 
 // RegisterDeveloperServer adds the Developer Server to a grpc service registrar
 // This is preferred over manually registering the service; it will add required middleware
@@ -48,7 +40,7 @@ func NewDeveloperServer(store ShareStore) v0.DeveloperServiceServer {
 }
 
 func (ds *devServer) FormatSchema(ctx context.Context, req *v0.FormatSchemaRequest) (*v0.FormatSchemaResponse, error) {
-	namespaces, devError, err := compile(req.Schema)
+	namespaces, devError, err := development.CompileSchema(req.Schema)
 	if err != nil {
 		return nil, err
 	}
@@ -139,48 +131,49 @@ func (ds *devServer) LookupShared(ctx context.Context, req *v0.LookupShareReques
 }
 
 func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*v0.EditCheckResponse, error) {
-	devContext, ok, err := NewDevContext(ctx, req.Context)
+	devContext, devErr, err := development.NewDevContext(ctx, req.Context)
 	if err != nil {
 		return nil, err
 	}
 
-	if !ok {
+	if devErr != nil {
 		return &v0.EditCheckResponse{
-			RequestErrors: devContext.RequestErrors,
+			RequestErrors: devErr.InputErrors,
 		}, nil
 	}
-	defer devContext.dispose()
+	defer devContext.Dispose()
 
 	// Run the checks and store their output.
 	results := make([]*v0.EditCheckResult, 0, len(req.CheckRelationships))
 	for _, checkTpl := range req.CheckRelationships {
-		cr, err := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ObjectAndRelation: checkTpl.ObjectAndRelation,
-			Subject:           checkTpl.User.GetUserset(),
-			Metadata: &v1.ResolverMeta{
-				AtRevision:     devContext.Revision.String(),
-				DepthRemaining: maxDepth,
-			},
-		})
+		cr, err := development.RunCheck(
+			devContext,
+			core.ToCoreObjectAndRelation(checkTpl.ObjectAndRelation),
+			core.ToCoreObjectAndRelation(checkTpl.User.GetUserset()),
+		)
 		if err != nil {
-			requestErrors, wireErr := rewriteGraphError(ctx, v0.DeveloperError_CHECK_WATCH, 0, 0, tuple.String(checkTpl), err)
-			if len(requestErrors) == 1 {
-				results = append(results, &v0.EditCheckResult{
-					Relationship: checkTpl,
-					IsMember:     false,
-					Error:        requestErrors[0],
-				})
-				continue
+			devErr, wireErr := development.DistinguishGraphError(
+				devContext,
+				err,
+				v0.DeveloperError_CHECK_WATCH,
+				0, 0,
+				tuple.String(core.ToCoreRelationTuple(checkTpl)),
+			)
+			if wireErr != nil {
+				return nil, wireErr
 			}
 
-			return &v0.EditCheckResponse{
-				RequestErrors: requestErrors,
-			}, wireErr
+			results = append(results, &v0.EditCheckResult{
+				Relationship: checkTpl,
+				IsMember:     false,
+				Error:        devErr,
+			})
+			continue
 		}
 
 		results = append(results, &v0.EditCheckResult{
 			Relationship: checkTpl,
-			IsMember:     cr.Membership == v1.DispatchCheckResponse_MEMBER,
+			IsMember:     cr == v1.DispatchCheckResponse_MEMBER,
 		})
 	}
 
@@ -190,446 +183,87 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 }
 
 func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0.ValidateResponse, error) {
-	devContext, ok, err := NewDevContext(ctx, req.Context)
+	devContext, devErrs, err := development.NewDevContext(ctx, req.Context)
 	if err != nil {
 		return nil, err
 	}
 
-	if !ok {
+	if devErrs != nil {
 		return &v0.ValidateResponse{
-			RequestErrors: devContext.RequestErrors,
+			RequestErrors: devErrs.InputErrors,
 		}, nil
 	}
-	defer devContext.dispose()
-
-	// Parse the validation YAML.
-	validation, err := validationfile.ParseValidationBlock([]byte(req.ValidationYaml))
-	if err != nil {
-		return &v0.ValidateResponse{
-			RequestErrors: []*v0.DeveloperError{
-				convertYamlError(v0.DeveloperError_VALIDATION_YAML, err),
-			},
-		}, nil
-	}
+	defer devContext.Dispose()
 
 	// Parse the assertions YAML.
-	assertions, err := validationfile.ParseAssertionsBlock([]byte(req.AssertionsYaml))
-	if err != nil {
-		var serr validationfile.ErrorWithSource
-		if errors.As(err, &serr) {
-			return &v0.ValidateResponse{
-				RequestErrors: []*v0.DeveloperError{
-					convertSourceError(v0.DeveloperError_ASSERTION, &serr),
-				},
-			}, nil
-		}
-
+	assertions, devErr := development.ParseAssertionsYAML(req.AssertionsYaml)
+	if devErr != nil {
 		return &v0.ValidateResponse{
-			RequestErrors: []*v0.DeveloperError{
-				convertYamlError(v0.DeveloperError_ASSERTION, err),
-			},
+			RequestErrors: []*v0.DeveloperError{devErr},
+		}, nil
+	}
+
+	// Parse the expected relations YAML.
+	expectedRelationsMap, devErr := development.ParseExpectedRelationsYAML(req.ValidationYaml)
+	if devErr != nil {
+		return &v0.ValidateResponse{
+			RequestErrors: []*v0.DeveloperError{devErr},
 		}, nil
 	}
 
 	// Run assertions.
-	assertTrueRelationships, aerr := assertions.AssertTrueRelationships()
+	var failures []*v0.DeveloperError
+	assertDevErrs, aerr := development.RunAllAssertions(devContext, assertions)
 	if aerr != nil {
-		return &v0.ValidateResponse{
-			RequestErrors: []*v0.DeveloperError{
-				convertSourceError(v0.DeveloperError_ASSERTION, aerr),
-			},
-		}, nil
+		return nil, aerr
 	}
 
-	assertFalseRelationships, aerr := assertions.AssertFalseRelationships()
-	if aerr != nil {
-		return &v0.ValidateResponse{
-			RequestErrors: []*v0.DeveloperError{
-				convertSourceError(v0.DeveloperError_ASSERTION, aerr),
-			},
-		}, nil
+	if assertDevErrs != nil {
+		if len(assertDevErrs.InputErrors) > 0 {
+			return &v0.ValidateResponse{
+				RequestErrors: assertDevErrs.InputErrors,
+			}, nil
+		}
+
+		failures = append(failures, assertDevErrs.ValidationErrors...)
 	}
 
-	trueFailures, err := runAssertions(ctx, devContext, assertTrueRelationships, true, "Expected relation or permission %s to exist")
-	if err != nil {
-		return nil, err
-	}
-
-	falseFailures, err := runAssertions(ctx, devContext, assertFalseRelationships, false, "Expected relation or permission %s to not exist")
-	if err != nil {
-		return nil, err
-	}
-
-	failures := append(trueFailures, falseFailures...)
-
-	// Run validation.
-	membershipSet, validationFailures, wireErr := runValidation(ctx, devContext, validation)
+	// Run expected relations validation.
+	membershipSet, erDevErrs, wireErr := development.RunValidation(devContext, expectedRelationsMap)
 	if wireErr != nil {
 		return nil, wireErr
 	}
 
-	// If requested, regenerate the validation YAML.
+	if erDevErrs != nil {
+		if len(erDevErrs.InputErrors) > 0 {
+			return &v0.ValidateResponse{
+				RequestErrors: erDevErrs.InputErrors,
+			}, nil
+		}
+
+		failures = append(failures, erDevErrs.ValidationErrors...)
+	}
+
+	// If requested, regenerate the expected relations YAML.
 	updatedValidationYaml := ""
 	if membershipSet != nil && req.UpdateValidationYaml {
-		updatedValidationYaml, err = generateValidation(membershipSet)
-		if err != nil {
-			return nil, err
+		generatedValidationYaml, gerr := development.GenerateValidation(membershipSet)
+		if gerr != nil {
+			return nil, gerr
 		}
+		updatedValidationYaml = generatedValidationYaml
 	}
 
 	return &v0.ValidateResponse{
-		ValidationErrors:      append(failures, validationFailures...),
+		ValidationErrors:      failures,
 		UpdatedValidationYaml: updatedValidationYaml,
 	}, nil
-}
-
-func runAssertions(ctx context.Context, devContext *DevContext, assertions []validationfile.ParsedAssertion, expected bool, fmtString string) ([]*v0.DeveloperError, error) {
-	var failures []*v0.DeveloperError
-	for _, assertion := range assertions {
-		cr, err := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ObjectAndRelation: assertion.Relationship.ObjectAndRelation,
-			Subject:           assertion.Relationship.User.GetUserset(),
-			Metadata: &v1.ResolverMeta{
-				AtRevision:     devContext.Revision.String(),
-				DepthRemaining: maxDepth,
-			},
-		})
-		if err != nil {
-			validationErrs, wireErr := rewriteGraphError(
-				ctx,
-				v0.DeveloperError_ASSERTION,
-				assertion.LineNumber,
-				assertion.ColumnPosition,
-				tuple.String(assertion.Relationship),
-				err,
-			)
-			failures = append(failures, validationErrs...)
-			if wireErr != nil {
-				return nil, wireErr
-			}
-		} else if (cr.Membership == v1.DispatchCheckResponse_MEMBER) != expected {
-			failures = append(failures, &v0.DeveloperError{
-				Message: fmt.Sprintf(fmtString, tuple.String(assertion.Relationship)),
-				Source:  v0.DeveloperError_ASSERTION,
-				Kind:    v0.DeveloperError_ASSERTION_FAILED,
-				Context: tuple.String(assertion.Relationship),
-				Line:    assertion.LineNumber,
-				Column:  assertion.ColumnPosition,
-			})
-		}
-	}
-
-	return failures, nil
-}
-
-func generateValidation(membershipSet *membership.Set) (string, error) {
-	validationMap := validationfile.ValidationMap{}
-	subjectsByONR := membershipSet.SubjectsByONR()
-
-	onrStrings := make([]string, 0, len(subjectsByONR))
-	for onrString := range subjectsByONR {
-		onrStrings = append(onrStrings, onrString)
-	}
-
-	// Sort to ensure stability of output.
-	sort.Strings(onrStrings)
-
-	for _, onrString := range onrStrings {
-		foundSubjects := subjectsByONR[onrString]
-		var strs []string
-		for _, fs := range foundSubjects.ListFound() {
-			strs = append(strs,
-				fmt.Sprintf("[%s] is %s",
-					fs.ToValidationString(),
-					strings.Join(wrapRelationships(tuple.StringsONRs(fs.Relationships())), "/"),
-				))
-		}
-
-		// Sort to ensure stability of output.
-		sort.Strings(strs)
-
-		var validationStrings []validationfile.ValidationString
-		for _, s := range strs {
-			validationStrings = append(validationStrings, validationfile.ValidationString(s))
-		}
-
-		validationMap[validationfile.ObjectRelationString(onrString)] = validationStrings
-	}
-
-	return validationMap.AsYAML()
-}
-
-func runValidation(ctx context.Context, devContext *DevContext, validation validationfile.ValidationMap) (*membership.Set, []*v0.DeveloperError, error) {
-	var failures []*v0.DeveloperError
-	membershipSet := membership.NewMembershipSet()
-
-	for onrKey, validationStrings := range validation {
-		// Unmarshal the ONR to expand from its string form.
-		onr, err := onrKey.ONR()
-		if err != nil {
-			failures = append(failures,
-				&v0.DeveloperError{
-					Message: err.Error(),
-					Source:  v0.DeveloperError_VALIDATION_YAML,
-					Kind:    v0.DeveloperError_PARSE_ERROR,
-					Context: err.Source,
-				},
-			)
-			continue
-		}
-
-		// Run a full recursive expansion over the ONR.
-		er, dispatchErr := devContext.Dispatcher.DispatchExpand(ctx, &v1.DispatchExpandRequest{
-			ObjectAndRelation: onr,
-			Metadata: &v1.ResolverMeta{
-				AtRevision:     devContext.Revision.String(),
-				DepthRemaining: maxDepth,
-			},
-			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
-		})
-		if dispatchErr != nil {
-			validationErrs, wireErr := rewriteGraphError(ctx, v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), dispatchErr)
-			if validationErrs != nil {
-				failures = append(failures, validationErrs...)
-				return nil, failures, nil
-			}
-
-			return nil, nil, wireErr
-		}
-
-		// Add the ONR and its expansion to the membership set.
-		foundSubjects, _, aerr := membershipSet.AddExpansion(onr, er.TreeNode)
-		if aerr != nil {
-			validationErrs, wireErr := rewriteGraphError(ctx, v0.DeveloperError_VALIDATION_YAML, 0, 0, string(onrKey), aerr)
-			if validationErrs != nil {
-				failures = append(failures, validationErrs...)
-				continue
-			}
-
-			return nil, nil, wireErr
-		}
-
-		// Compare the terminal subjects found to those specified.
-		errs := validateSubjects(onr, foundSubjects, validationStrings)
-		failures = append(failures, errs...)
-	}
-
-	return membershipSet, failures, nil
-}
-
-func wrapRelationships(onrStrings []string) []string {
-	wrapped := make([]string, 0, len(onrStrings))
-	for _, str := range onrStrings {
-		wrapped = append(wrapped, fmt.Sprintf("<%s>", str))
-	}
-
-	// Sort to ensure stability.
-	sort.Strings(wrapped)
-	return wrapped
-}
-
-func validateSubjects(onr *v0.ObjectAndRelation, fs membership.FoundSubjects, validationStrings []validationfile.ValidationString) []*v0.DeveloperError {
-	var failures []*v0.DeveloperError
-
-	// Verify that every referenced subject is found in the membership.
-	encounteredSubjects := map[string]struct{}{}
-	for _, validationString := range validationStrings {
-		expectedSubject, err := validationString.Subject()
-		if err != nil {
-			failures = append(failures, &v0.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, %s", tuple.StringONR(onr), err.Error()),
-				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Kind:    v0.DeveloperError_PARSE_ERROR,
-				Context: fmt.Sprintf("[%s]", err.Source),
-			})
-			continue
-		}
-
-		if expectedSubject == nil {
-			continue
-		}
-
-		subjectONR := expectedSubject.Subject
-		encounteredSubjects[tuple.StringONR(subjectONR)] = struct{}{}
-
-		expectedRelationships, err := validationString.ONRS()
-		if err != nil {
-			failures = append(failures, &v0.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, %s", tuple.StringONR(onr), err.Error()),
-				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Kind:    v0.DeveloperError_PARSE_ERROR,
-				Context: fmt.Sprintf("<%s>", err.Source),
-			})
-			continue
-		}
-
-		subject, ok := fs.LookupSubject(subjectONR)
-		if !ok {
-			failures = append(failures, &v0.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, missing expected subject `%s`", tuple.StringONR(onr), tuple.StringONR(subjectONR)),
-				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
-				Context: tuple.StringONR(subjectONR),
-			})
-			continue
-		}
-
-		foundRelationships := subject.Relationships()
-
-		// Verify that the relationships are the same.
-		expectedONRStrings := tuple.StringsONRs(expectedRelationships)
-		foundONRStrings := tuple.StringsONRs(foundRelationships)
-		if !cmp.Equal(expectedONRStrings, foundONRStrings) {
-			failures = append(failures, &v0.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, found different relationships for subject `%s`: Specified: `%s`, Computed: `%s`",
-					tuple.StringONR(onr),
-					tuple.StringONR(subjectONR),
-					strings.Join(wrapRelationships(expectedONRStrings), "/"),
-					strings.Join(wrapRelationships(foundONRStrings), "/"),
-				),
-				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
-				Context: string(validationString),
-			})
-		}
-
-		// Verify exclusions are the same, if any.
-		foundExcludedSubjects, isWildcard := subject.ExcludedSubjectsFromWildcard()
-		expectedExcludedSubjects := expectedSubject.Exceptions
-		if isWildcard {
-			expectedExcludedONRStrings := tuple.StringsONRs(expectedExcludedSubjects)
-			foundExcludedONRStrings := tuple.StringsONRs(foundExcludedSubjects)
-			if !cmp.Equal(expectedExcludedONRStrings, foundExcludedONRStrings) {
-				failures = append(failures, &v0.DeveloperError{
-					Message: fmt.Sprintf("For object and permission/relation `%s`, found different excluded subjects for subject `%s`: Specified: `%s`, Computed: `%s`",
-						tuple.StringONR(onr),
-						tuple.StringONR(subjectONR),
-						strings.Join(wrapRelationships(expectedExcludedONRStrings), ", "),
-						strings.Join(wrapRelationships(foundExcludedONRStrings), ", "),
-					),
-					Source:  v0.DeveloperError_VALIDATION_YAML,
-					Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
-					Context: string(validationString),
-				})
-			}
-		} else {
-			if len(expectedExcludedSubjects) > 0 {
-				failures = append(failures, &v0.DeveloperError{
-					Message: fmt.Sprintf("For object and permission/relation `%s`, found unexpected excluded subjects",
-						tuple.StringONR(onr),
-					),
-					Source:  v0.DeveloperError_VALIDATION_YAML,
-					Kind:    v0.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
-					Context: string(validationString),
-				})
-			}
-		}
-	}
-
-	// Verify that every subject found was referenced.
-	for _, foundSubject := range fs.ListFound() {
-		_, ok := encounteredSubjects[tuple.StringONR(foundSubject.Subject())]
-		if !ok {
-			failures = append(failures, &v0.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, subject `%s` found but missing from specified",
-					tuple.StringONR(onr),
-					tuple.StringONR(foundSubject.Subject()),
-				),
-				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Kind:    v0.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
-				Context: tuple.StringONR(onr),
-			})
-		}
-	}
-
-	return failures
-}
-
-func rewriteGraphError(ctx context.Context, source v0.DeveloperError_Source, line uint32, column uint32, context string, checkError error) ([]*v0.DeveloperError, error) {
-	var nsNotFoundError sharederrors.UnknownNamespaceError
-	var relNotFoundError sharederrors.UnknownRelationError
-
-	if errors.As(checkError, &nsNotFoundError) {
-		return []*v0.DeveloperError{
-			{
-				Message: checkError.Error(),
-				Source:  source,
-				Kind:    v0.DeveloperError_UNKNOWN_OBJECT_TYPE,
-				Line:    line,
-				Column:  column,
-				Context: context,
-			},
-		}, nil
-	}
-
-	if errors.As(checkError, &relNotFoundError) {
-		return []*v0.DeveloperError{
-			{
-				Message: checkError.Error(),
-				Source:  source,
-				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
-				Line:    line,
-				Column:  column,
-				Context: context,
-			},
-		}, nil
-	}
-
-	var ire invalidRelationError
-	if errors.As(checkError, &ire) {
-		return []*v0.DeveloperError{
-			{
-				Message: checkError.Error(),
-				Source:  source,
-				Kind:    v0.DeveloperError_UNKNOWN_RELATION,
-				Line:    line,
-				Column:  column,
-				Context: context,
-			},
-		}, nil
-	}
-
-	return nil, rewriteACLError(ctx, checkError)
-}
-
-func convertSourceError(source v0.DeveloperError_Source, err *validationfile.ErrorWithSource) *v0.DeveloperError {
-	return &v0.DeveloperError{
-		Message: err.Error(),
-		Kind:    v0.DeveloperError_PARSE_ERROR,
-		Source:  source,
-		Line:    err.LineNumber,
-		Column:  err.ColumnPosition,
-		Context: err.Source,
-	}
-}
-
-var yamlLineRegex = regexp.MustCompile(`line ([0-9]+): (.+)`)
-
-func convertYamlError(source v0.DeveloperError_Source, err error) *v0.DeveloperError {
-	devErr := &v0.DeveloperError{
-		Message: err.Error(),
-		Kind:    v0.DeveloperError_PARSE_ERROR,
-		Source:  source,
-		Line:    0,
-	}
-
-	pieces := yamlLineRegex.FindStringSubmatch(devErr.Message)
-	if len(pieces) == 3 {
-		lineNumber, parseErr := strconv.ParseUint(pieces[1], 10, 32)
-		if parseErr != nil {
-			lineNumber = 0
-		}
-		devErr.Line = uint32(lineNumber)
-		devErr.Message = pieces[2]
-	}
-
-	return devErr
 }
 
 func upgradeSchema(configs []string) (string, error) {
 	schema := ""
 	for _, config := range configs {
-		nsDef := v0.NamespaceDefinition{}
+		nsDef := core.NamespaceDefinition{}
 		nerr := prototext.Unmarshal([]byte(config), &nsDef)
 		if nerr != nil {
 			return "", fmt.Errorf("could not upgrade schema due to parse error: %w", nerr)
