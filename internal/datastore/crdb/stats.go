@@ -22,7 +22,7 @@ const (
 
 var (
 	queryReadUniqueID         = psql.Select(colUniqueID).From(tableMetadata)
-	queryRelationshipEstimate = fmt.Sprintf("SELECT SUM(%s) FROM %s", colCount, tableCounters)
+	queryRelationshipEstimate = fmt.Sprintf("SELECT COALESCE(SUM(%s), 0) FROM %s", colCount, tableCounters)
 
 	upsertCounterQuery = psql.Insert(tableCounters).Columns(
 		colID,

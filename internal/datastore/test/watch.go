@@ -58,20 +58,29 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			require.Zero(len(errchan))
 
 			var testUpdates [][]*v1.RelationshipUpdate
+			var bulkDeletes []*v1.RelationshipUpdate
 			for i := 0; i < tc.numTuples; i++ {
+				newRelationship := makeTestRelationship(fmt.Sprintf("relation%d", i), "test_user")
 				newUpdate := &v1.RelationshipUpdate{
 					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-					Relationship: makeTestRelationship(fmt.Sprintf("relation%d", i), fmt.Sprintf("user%d", i)),
+					Relationship: newRelationship,
 				}
 				batch := []*v1.RelationshipUpdate{newUpdate}
 				testUpdates = append(testUpdates, batch)
 				_, err := ds.WriteTuples(ctx, nil, batch)
 				require.NoError(err)
+
+				if i != 0 {
+					bulkDeletes = append(bulkDeletes, &v1.RelationshipUpdate{
+						Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
+						Relationship: newRelationship,
+					})
+				}
 			}
 
 			updateUpdate := &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-				Relationship: makeTestRelationship("relation0", "user0"),
+				Relationship: makeTestRelationship("relation0", "test_user"),
 			}
 			createUpdate := &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
@@ -83,12 +92,26 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			deleteUpdate := &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-				Relationship: makeTestRelationship("relation0", "user0"),
+				Relationship: makeTestRelationship("relation0", "test_user"),
 			}
 			_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{deleteUpdate})
 			require.NoError(err)
 
 			testUpdates = append(testUpdates, batch, []*v1.RelationshipUpdate{deleteUpdate})
+
+			_, err = ds.DeleteRelationships(ctx, nil, &v1.RelationshipFilter{
+				ResourceType:     testResourceNamespace,
+				OptionalRelation: testReaderRelation,
+				OptionalSubjectFilter: &v1.SubjectFilter{
+					SubjectType:       testUserNamespace,
+					OptionalSubjectId: "test_user",
+				},
+			})
+			require.NoError(err)
+
+			if len(bulkDeletes) > 0 {
+				testUpdates = append(testUpdates, bulkDeletes)
+			}
 
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
@@ -125,9 +148,14 @@ func verifyUpdates(
 
 			expectedChangeSet := setOfChangesRel(expected)
 			actualChangeSet := setOfChanges(change.Changes)
-			require.True(expectedChangeSet.IsEqual(actualChangeSet))
+
+			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
+			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)
+
+			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
+			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
 		case <-changeWait.C:
-			require.Fail("Timed out")
+			require.Fail("Timed out", "waiting for changes: %s", expected)
 		}
 	}
 

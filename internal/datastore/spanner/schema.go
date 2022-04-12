@@ -40,8 +40,6 @@ const (
 	colChangeOpCreate = 1
 	colChangeOpTouch  = 2
 	colChangeOpDelete = 3
-
-	funcPendingCommitTimestamp = "PENDING_COMMIT_TIMESTAMP()"
 )
 
 var allRelationshipCols = []string{
