@@ -42,6 +42,7 @@ func (d *instrumentedConnector) Connect(ctx context.Context) (driver.Conn, error
 	defer func() {
 		connectHistogram.Observe(time.Since(startTime).Seconds())
 	}()
+
 	conn, err := d.conn.Connect(ctx)
 	connectCount.WithLabelValues(strconv.FormatBool(err != nil)).Inc()
 	if err != nil {
