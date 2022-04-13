@@ -230,7 +230,7 @@ type Datastore struct {
 
 // Close closes the data store.
 func (mds *Datastore) Close() error {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	mds.cancelGc()
 	if mds.gcGroup != nil {
 		if err := mds.gcGroup.Wait(); err != nil {
@@ -240,7 +240,7 @@ func (mds *Datastore) Close() error {
 	return mds.db.Close()
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) runGarbageCollector() error {
 	log.Info().Dur("interval", mds.gcInterval).Msg("garbage collection worker started for mysql driver")
 
@@ -259,7 +259,7 @@ func (mds *Datastore) runGarbageCollector() error {
 	}
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) getNow(ctx context.Context) (time.Time, error) {
 	// Retrieve the `now` time from the database.
 	nowSQL, nowArgs, err := getNow.ToSql()
@@ -280,7 +280,7 @@ func (mds *Datastore) getNow(ctx context.Context) (time.Time, error) {
 	return now, nil
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - this implementation does not have metrics yet
 // - an additional useful logging message is added
 // - context is removed from logger because zerolog expects logger in the context
@@ -311,7 +311,7 @@ func (mds *Datastore) collectGarbage() error {
 	return err
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - main difference is how the PSQL driver handles null values
 func (mds *Datastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
 	// Find the highest transaction ID before the GC window.
@@ -339,7 +339,7 @@ func (mds *Datastore) collectGarbageBefore(ctx context.Context, before time.Time
 	return mds.collectGarbageForTransaction(ctx, highest)
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - implementation misses metrics
 func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
@@ -360,7 +360,7 @@ func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest 
 	return relCount, transactionCount, nil
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - query was reworked to make it compatible with Vitess
 // - API differences with PSQL driver
 func (mds *Datastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
@@ -488,7 +488,7 @@ func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, err
 }
 
 func (mds *Datastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()
 
@@ -514,7 +514,7 @@ func (mds *Datastore) OptimizedRevision(ctx context.Context) (datastore.Revision
 }
 
 func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
 
@@ -562,7 +562,7 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revi
 }
 
 func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// slightly changed to support no revisions at all, needed for runtime seeding of first transaction
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
@@ -640,17 +640,17 @@ func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (new
 	return uint64(lastInsertID), nil
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func revisionFromTransaction(txID uint64) datastore.Revision {
 	return decimal.NewFromInt(int64(txID))
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func transactionFromRevision(revision datastore.Revision) uint64 {
 	return uint64(revision.IntPart())
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {
 	return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 		Where(sq.Or{

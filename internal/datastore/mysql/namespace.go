@@ -25,12 +25,12 @@ const (
 )
 
 func (mds *Datastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
 }
 
 func (mds *Datastore) WriteNamespace(ctx context.Context, newNamespace *core.NamespaceDefinition) (datastore.Revision, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
@@ -91,7 +91,7 @@ func (mds *Datastore) WriteNamespace(ctx context.Context, newNamespace *core.Nam
 }
 
 func (mds *Datastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, datastore.Revision, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
@@ -115,7 +115,7 @@ func (mds *Datastore) ReadNamespace(ctx context.Context, nsName string, revision
 }
 
 func (mds *Datastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
@@ -179,7 +179,7 @@ func (mds *Datastore) DeleteNamespace(ctx context.Context, nsName string) (datas
 }
 
 func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery sq.SelectBuilder) (*core.NamespaceDefinition, datastore.Revision, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "loadNamespace")
@@ -210,7 +210,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 }
 
 func (mds *Datastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, err := mds.db.BeginTx(ctx, nil)
@@ -230,7 +230,7 @@ func (mds *Datastore) ListNamespaces(ctx context.Context, revision datastore.Rev
 }
 
 func loadAllNamespaces(ctx context.Context, db *sql.DB, queryBuilder sq.SelectBuilder) ([]*core.NamespaceDefinition, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
