@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
-	"github.com/shopspring/decimal"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
@@ -398,10 +397,6 @@ func (mds *memdbDatastore) IsReady(ctx context.Context) (bool, error) {
 
 func (mds *memdbDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
 	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
-}
-
-func revisionFromVersion(version uint64) datastore.Revision {
-	return decimal.NewFromInt(int64(version))
 }
 
 func (mds *memdbDatastore) Close() error {
