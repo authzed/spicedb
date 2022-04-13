@@ -415,59 +415,55 @@ func (mds *Datastore) IsReady(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	// seed base transaction if not present
-	txRevision, err := mds.HeadRevision(ctx)
+	err = mds.seedBaseTransaction(ctx)
 	if err != nil {
 		return false, err
-	}
-	if txRevision == datastore.NoRevision {
-		baseRevision, err := mds.seedBaseTransaction(ctx)
-		if err != nil {
-			return false, err
-		}
-		if baseRevision != datastore.NoRevision {
-			// no txRevision here indicates that the base transaction was already seeded when this write
-			// was committed.  only log for the process which actually seeds the transaction.
-			log.Info().Uint64("txRevision", baseRevision.BigInt().Uint64()).Msg("seeded base datastore txRevision")
-		}
 	}
 	return true, nil
 }
 
-// seedBaseTransaction initializes the first transaction revision.
-func (mds *Datastore) seedBaseTransaction(ctx context.Context) (datastore.Revision, error) {
+// seedBaseTransaction initializes the first transaction revision if necessary.
+func (mds *Datastore) seedBaseTransaction(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "seedBaseTransaction")
 	defer span.End()
 
+	// check if already seeded
+	headRevision, err := mds.HeadRevision(ctx)
+	if err != nil {
+		return err
+	}
+	if headRevision != datastore.NoRevision {
+		return nil
+	}
 	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
-		return datastore.NoRevision, err
+		return err
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
 	// idempotent INSERT IGNORE transaction id=1. safe to be execute concurrently.
 	result, err := tx.ExecContext(ctx, mds.createBaseTxn)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf("seedBaseTransaction: %w", err)
+		return fmt.Errorf("seedBaseTransaction: %w", err)
 	}
 
 	lastInsertID, err := result.LastInsertId()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf("seedBaseTransaction: failed to get last inserted id: %w", err)
+		return fmt.Errorf("seedBaseTransaction: failed to get last inserted id: %w", err)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return datastore.NoRevision, err
+		return err
 	}
 
-	if lastInsertID == 0 {
-		// If there was no error and `lastInsertID` is 0, the insert was ignored.  This indicates the transaction
-		// was already seeded by another processes (race condition).
-		return datastore.NoRevision, nil
+	if lastInsertID != 0 {
+		// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
+		// was already seeded by another processes (i.e. race condition).
+		log.Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore headRevision")
 	}
 
-	return revisionFromTransaction(uint64(lastInsertID)), nil
+	return nil
 }
 
 func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
