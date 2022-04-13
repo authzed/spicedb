@@ -23,7 +23,7 @@ type QueryBuilder struct {
 	QueryChangedQuery     sq.SelectBuilder
 }
 
-func NewQueryBuilder(driver *migrations.MysqlDriver) *QueryBuilder {
+func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder := QueryBuilder{}
 
 	// transaction builders

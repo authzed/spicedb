@@ -93,7 +93,7 @@ func (mb *mysqlBuilder) setupDatabase(t testing.TB) string {
 }
 
 func (mb *mysqlBuilder) runMigrate(t testing.TB, dsn string) {
-	driver, err := migrations.NewMysqlDriverFromDSN(dsn, mb.options.Prefix)
+	driver, err := migrations.NewMySQLDriverFromDSN(dsn, mb.options.Prefix)
 	require.NoError(t, err, "failed to create migration driver: %s", err)
 	err = migrations.Manager.Run(driver, migrate.Head, migrate.LiveRun)
 	require.NoError(t, err, "failed to run migration: %s", err)

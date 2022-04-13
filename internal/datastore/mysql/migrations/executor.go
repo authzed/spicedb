@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-type driverExecutor func(mysqlDriver *MysqlDriver) string
+type driverExecutor func(mysqlDriver *MySQLDriver) string
 
 type executor struct {
 	statements []driverExecutor
@@ -18,7 +18,7 @@ func newExecutor(statements ...driverExecutor) executor {
 	}
 }
 
-func (e executor) migrate(driver *MysqlDriver) error {
+func (e executor) migrate(driver *MySQLDriver) error {
 	if len(e.statements) == 0 {
 		return errors.New("executor.migrate: No statements to migrate")
 	}
