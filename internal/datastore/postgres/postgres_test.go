@@ -26,10 +26,10 @@ import (
 func TestPostgresDatastore(t *testing.T) {
 	b := testdatastore.NewPostgresBuilder(t)
 
-	test.All(t, test.DatastoreTesterFunc(func(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewPostgresDatastore(uri,
-				RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+				RevisionQuantization(revisionQuantization),
 				GCWindow(gcWindow),
 				WatchBufferLength(watchBufferLength),
 				DebugAnalyzeBeforeStatistics(),
@@ -44,10 +44,10 @@ func TestPostgresDatastore(t *testing.T) {
 func TestPostgresDatastoreWithSplit(t *testing.T) {
 	b := testdatastore.NewPostgresBuilder(t)
 	// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
-	test.All(t, test.DatastoreTesterFunc(func(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewPostgresDatastore(uri,
-				RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+				RevisionQuantization(revisionQuantization),
 				GCWindow(gcWindow),
 				WatchBufferLength(watchBufferLength),
 				DebugAnalyzeBeforeStatistics(),
@@ -66,7 +66,7 @@ func TestPostgresGarbageCollection(t *testing.T) {
 
 	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ds, err := NewPostgresDatastore(uri,
-			RevisionFuzzingTimedelta(0),
+			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),
 		)
@@ -237,7 +237,7 @@ func TestPostgresTransactionTimestamps(t *testing.T) {
 
 	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ds, err := NewPostgresDatastore(uri,
-			RevisionFuzzingTimedelta(0),
+			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),
 		)
@@ -288,7 +288,7 @@ func TestPostgresGarbageCollectionByTime(t *testing.T) {
 
 	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ds, err := NewPostgresDatastore(uri,
-			RevisionFuzzingTimedelta(0),
+			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),
 		)
@@ -389,7 +389,7 @@ func TestPostgresChunkedGarbageCollection(t *testing.T) {
 
 	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ds, err := NewPostgresDatastore(uri,
-			RevisionFuzzingTimedelta(0),
+			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),
 		)
@@ -508,7 +508,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 
 	ds := testdatastore.NewPostgresBuilder(b).NewDatastore(b, func(engine, uri string) datastore.Datastore {
 		ds, err := NewPostgresDatastore(uri,
-			RevisionFuzzingTimedelta(0),
+			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),
 		)
