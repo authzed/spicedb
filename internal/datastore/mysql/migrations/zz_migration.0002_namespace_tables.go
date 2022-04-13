@@ -15,8 +15,8 @@ func createNamespaceConfig(driver *MySQLDriver) string {
 		CONSTRAINT uq_namespace_living UNIQUE (namespace, deleted_transaction));`
 }
 
-// relationship max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L33
-// object id max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L45
+// relationship max size: https://buf.build/authzed/api/file/main:authzed/api/v1/core.proto#L33
+// object id max size: https://buf.build/authzed/api/file/main:authzed/api/v1/core.proto#L45
 func createRelationTuple(driver *MySQLDriver) string {
 	return fmt.Sprintf("CREATE TABLE %s ", driver.RelationTuple()) +
 		`(id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
