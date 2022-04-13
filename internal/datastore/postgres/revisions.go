@@ -21,7 +21,7 @@ const (
 	// transaction.
 	querySelectRevision = `
 	SELECT COALESCE(
-		(SELECT MIN(%[1]s) FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM NOW()) * 1000000000 / %[4]d) * %[4]d / 1000000000)),
+		(SELECT MIN(%[1]s) FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 / %[4]d) * %[4]d / 1000000000)),
 		(SELECT MAX(%[1]s) FROM %[2]s)
 	);`
 
