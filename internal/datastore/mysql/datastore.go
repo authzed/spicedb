@@ -82,8 +82,8 @@ func NewMySQLDatastore(url string, options ...Option) (*Datastore, error) {
 		if err != nil {
 			return nil, fmt.Errorf("NewMySQLDatastore: unable to instrument connector: %w", err)
 		}
+
 		db = sql.OpenDB(connector)
-		// Create a new collector, the name will be used as a label on the metrics
 		collector := sqlstats.NewStatsCollector("spicedb", db)
 		err := prometheus.Register(collector)
 		if err != nil {
@@ -92,6 +92,7 @@ func NewMySQLDatastore(url string, options ...Option) (*Datastore, error) {
 	} else {
 		db = sql.OpenDB(connector)
 	}
+
 	db.SetConnMaxLifetime(config.connMaxLifetime)
 	db.SetConnMaxIdleTime(config.connMaxIdleTime)
 	db.SetMaxOpenConns(config.maxOpenConns)
