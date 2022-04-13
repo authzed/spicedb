@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
 	query := mds.QueryTupleExistsQuery.Where(sq.Eq{colNamespace: filter.ResourceType})
 
@@ -40,7 +40,7 @@ func (mds *Datastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.Sel
 	return query
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) checkPreconditions(ctx context.Context, tx *sql.Tx, preconditions []*v1.Precondition) error {
 	ctx, span := tracer.Start(ctx, "checkPreconditions")
 	defer span.End()
@@ -80,7 +80,7 @@ func (mds *Datastore) checkPreconditions(ctx context.Context, tx *sql.Tx, precon
 // tuple mutations and applies it to the datastore for the specified
 // namespace.
 func (mds *Datastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// there are some fundamental changes introduced to prevent a deadlock in MySQL
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
@@ -187,7 +187,7 @@ func (mds *Datastore) WriteTuples(ctx context.Context, preconditions []*v1.Preco
 	return revisionFromTransaction(newTxnID), nil
 }
 
-// FIXME dupe from postgres datastore - need to refactor
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func exactRelationshipClause(r *v1.Relationship) sq.Eq {
 	return sq.Eq{
 		colNamespace:        r.Resource.ObjectType,
@@ -200,7 +200,7 @@ func exactRelationshipClause(r *v1.Relationship) sq.Eq {
 }
 
 func (mds *Datastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
-	// FIXME dupe from postgres datastore - need to refactor
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 

@@ -39,7 +39,7 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	}
 
 	return datastore.Stats{
-		UniqueID:                   uuid.NewString(), // FIXME actually persist a uniqueID in the DB
+		UniqueID:                   uuid.NewString(), // TODO (@vroldanbet) actually persist a uniqueID in the DB
 		ObjectTypeStatistics:       datastore.ComputeObjectTypeStats(nsDefs),
 		EstimatedRelationshipCount: count,
 	}, nil
