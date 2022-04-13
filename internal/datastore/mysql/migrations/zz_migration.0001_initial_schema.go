@@ -7,9 +7,8 @@ func createMysqlMigrationVersion(driver *MySQLDriver) string {
 	// key between the _to_ and _from_ table schemas to perform a schema migration.
 	// -- https://github.com/github/gh-ost/blob/master/doc/shared-key.md
 	return fmt.Sprintf("CREATE TABLE %s "+
-		`( id int(11) NOT NULL PRIMARY KEY,
-		_meta_version_ VARCHAR(255) NOT NULL
-		);`,
+		`(id int(11) NOT NULL PRIMARY KEY,
+		_meta_version_ VARCHAR(255) NOT NULL);`,
 		driver.migrationVersion())
 }
 
