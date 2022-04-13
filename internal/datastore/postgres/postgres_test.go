@@ -262,12 +262,16 @@ func TestPostgresTransactionTimestamps(t *testing.T) {
 
 	// Transaction timestamp should not be stored in system time zone
 	tx, err := pgd.dbpool.Begin(ctx)
-	txId, err := createNewTransaction(ctx, tx)
+	require.NoError(err)
+
+	txID, err := createNewTransaction(ctx, tx)
+	require.NoError(err)
+
 	err = tx.Commit(ctx)
 	require.NoError(err)
 
 	var ts time.Time
-	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"id": txId}).ToSql()
+	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"id": txID}).ToSql()
 	require.NoError(err)
 	err = pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
@@ -430,7 +434,7 @@ func TestPostgresChunkedGarbageCollection(t *testing.T) {
 	}
 
 	// Write a large number of relationships.
-	var updates []*v1.RelationshipUpdate
+	updates := make([]*v1.RelationshipUpdate, 0, len(tpls))
 	for _, tpl := range tpls {
 		relationship := tuple.ToRelationship(tpl)
 		updates = append(updates, &v1.RelationshipUpdate{
@@ -465,7 +469,7 @@ func TestPostgresChunkedGarbageCollection(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Delete all the relationships.
-	var deletes []*v1.RelationshipUpdate
+	deletes := make([]*v1.RelationshipUpdate, 0, len(tpls))
 	for _, tpl := range tpls {
 		relationship := tuple.ToRelationship(tpl)
 		deletes = append(deletes, &v1.RelationshipUpdate{
