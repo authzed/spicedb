@@ -144,11 +144,22 @@ func NewMySQLDatastore(url string, options ...Option) (*Datastore, error) {
 	return store, nil
 }
 
-// unlike PSQL, this implementation does not create a transaction - not needed
-// prepared statements are also not used given they perform poorly
-// on environments where connections have short lifetime (e.g.
-// to gracefully handle load-balancer connection drain)
 func newMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
+	// This implementation does not create a transaction because it's redundant for single statements, and it avoids
+	// the network overhead and reduce contention on the connection pool. From MySQL docs:
+	//
+	// https://dev.mysql.com/doc/refman/5.7/en/commit.html
+	// "By default, MySQL runs with autocommit mode enabled. This means that, when not otherwise inside a transaction,
+	// each statement is atomic, as if it were surrounded by START TRANSACTION and COMMIT."
+	//
+	// https://dev.mysql.com/doc/refman/5.7/en/innodb-consistent-read.html
+	// "Consistent read is the default mode in which InnoDB processes SELECT statements in READ COMMITTED and
+	// REPEATABLE READ isolation levels. A consistent read does not set any locks on the tables it accesses,
+	// and therefore other sessions are free to modify those tables at the same time a consistent read
+	// is being performed on the table."
+	//
+	// Prepared statements are also not used given they perform poorly on environments where connections have
+	// short lifetime (e.g. to gracefully handle load-balancer connection drain)
 	return func(ctx context.Context, revision datastore.Revision, sqlQuery string, args []interface{}) ([]*core.RelationTuple, error) {
 		ctx = datastore.SeparateContextWithTracing(ctx)
 
