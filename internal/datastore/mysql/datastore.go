@@ -273,8 +273,7 @@ func (mds *Datastore) getNow(ctx context.Context) (time.Time, error) {
 		return time.Now(), err
 	}
 
-	// RelationTupleTransaction is not timezone aware
-	// Explicitly use UTC before using as a query arg
+	// Just for convenience while debugging - MySQL and the driver do properly handle timezones
 	now = now.UTC()
 
 	return now, nil
