@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-func createDeletedTransactionsIndex(driver *MysqlDriver) string {
+func createDeletedTransactionsIndex(driver *MySQLDriver) string {
 	return fmt.Sprintf("CREATE INDEX ix_relation_tuple_by_deleted_transaction ON %s (deleted_transaction)",
 		driver.RelationTuple())
 }

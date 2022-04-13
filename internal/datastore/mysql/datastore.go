@@ -98,7 +98,7 @@ func NewMySQLDatastore(url string, options ...Option) (*Datastore, error) {
 	db.SetMaxOpenConns(config.maxOpenConns)
 	db.SetMaxIdleConns(config.maxOpenConns)
 
-	driver := migrations.NewMysqlDriverFromDB(db, config.tablePrefix)
+	driver := migrations.NewMySQLDriverFromDB(db, config.tablePrefix)
 	queryBuilder := NewQueryBuilder(driver)
 
 	createTxn, _, err := sb.Insert(driver.RelationTupleTransaction()).Values().ToSql()
@@ -208,7 +208,7 @@ func newMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
 
 type Datastore struct {
 	db            *sql.DB
-	driver        *migrations.MysqlDriver
+	driver        *migrations.MySQLDriver
 	querySplitter *common.TupleQuerySplitter
 	url           string
 

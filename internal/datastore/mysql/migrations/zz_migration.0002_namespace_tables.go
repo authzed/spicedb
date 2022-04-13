@@ -5,7 +5,7 @@ import (
 )
 
 // namespace max size: https://buf.build/authzed/api/file/main/authzed/api/v0/core.proto#L29
-func createNamespaceConfig(driver *MysqlDriver) string {
+func createNamespaceConfig(driver *MySQLDriver) string {
 	return fmt.Sprintf("CREATE TABLE %s", driver.Namespace()) +
 		` ( namespace VARCHAR(128) NOT NULL,
 		serialized_config BLOB NOT NULL,
@@ -18,7 +18,7 @@ func createNamespaceConfig(driver *MysqlDriver) string {
 
 // relationship max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L33
 // object id max size: https://buf.build/authzed/api/file/main/authzed/api/v1/core.proto#L45
-func createRelationTuple(driver *MysqlDriver) string {
+func createRelationTuple(driver *MySQLDriver) string {
 	return fmt.Sprintf("CREATE TABLE %s", driver.RelationTuple()) +
 		` ( id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 		namespace VARCHAR(128) NOT NULL,
@@ -35,7 +35,7 @@ func createRelationTuple(driver *MysqlDriver) string {
 	);`
 }
 
-func createRelationTupleTransaction(driver *MysqlDriver) string {
+func createRelationTupleTransaction(driver *MySQLDriver) string {
 	return fmt.Sprintf("CREATE TABLE %s", driver.RelationTupleTransaction()) +
 		` ( id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 		timestamp DATETIME(6) DEFAULT NOW(6) NOT NULL,
