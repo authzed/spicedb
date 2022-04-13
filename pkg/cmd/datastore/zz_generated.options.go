@@ -43,6 +43,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
 		to.WatchBufferLength = c.WatchBufferLength
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
+		to.TablePrefix = c.TablePrefix
 	}
 }
 
@@ -240,5 +241,12 @@ func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 func WithEnableDatastoreMetrics(enableDatastoreMetrics bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableDatastoreMetrics = enableDatastoreMetrics
+	}
+}
+
+// WithTablePrefix returns an option that can set TablePrefix on a Config
+func WithTablePrefix(tablePrefix string) ConfigOption {
+	return func(c *Config) {
+		c.TablePrefix = tablePrefix
 	}
 }

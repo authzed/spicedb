@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
+	mysqlmigrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	spannermigrations "github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -16,9 +17,10 @@ import (
 )
 
 func RegisterMigrateFlags(cmd *cobra.Command) {
-	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb")`)
+	cmd.Flags().String("datastore-engine", "memory", `type of datastore to initialize ("memory", "postgres", "cockroachdb", "mysql")`)
 	cmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().String("datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
+	cmd.Flags().String("datastore-mysql-table-prefix", "", "prefix to add to the name of all mysql database tables")
 }
 
 func NewMigrateCommand(programName string) *cobra.Command {
@@ -67,6 +69,19 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
 		manager = spannermigrations.SpannerMigrations
+	} else if datastoreEngine == "mysql" {
+		log.Info().Msg("migrating mysql datastore")
+
+		var err error
+		tablePrefix, err := cmd.Flags().GetString("datastore-mysql-table-prefix")
+		if err != nil {
+			log.Fatal().Msg(fmt.Sprintf("unable to get table prefix: %s", err))
+		}
+
+		migrationDriver, err = mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to create migration driver")
+		}
 	} else {
 		return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 	}
@@ -86,7 +101,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 }
 
 func RegisterHeadFlags(cmd *cobra.Command) {
-	cmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory")
+	cmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory, mysql")
 }
 
 func NewHeadCommand(programName string) *cobra.Command {
@@ -113,6 +128,8 @@ func HeadRevision(engine string) (string, error) {
 		return crdbmigrations.CRDBMigrations.HeadRevision()
 	case "postgres":
 		return migrations.DatabaseMigrations.HeadRevision()
+	case "mysql":
+		return mysqlmigrations.Manager.HeadRevision()
 	default:
 		return "", fmt.Errorf("cannot migrate datastore engine type: %s", engine)
 	}
