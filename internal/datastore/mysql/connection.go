@@ -50,6 +50,7 @@ func (d *instrumentedConnector) Connect(ctx context.Context) (driver.Conn, error
 		log.Ctx(ctx).Error().Err(err).Msg("failed to open mysql connection")
 		return nil, fmt.Errorf("failed to open connection to mysql: %w", err)
 	}
+
 	return conn, nil
 }
 
@@ -62,13 +63,14 @@ func instrumentConnector(c driver.Connector) (driver.Connector, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to register metric: %w", err)
 	}
+
 	err = prometheus.Register(connectCount)
 	if err != nil {
 		return nil, fmt.Errorf("unable to register metric: %w", err)
 	}
-	connector := &instrumentedConnector{
+
+	return &instrumentedConnector{
 		conn: c,
 		drv:  c.Driver(),
-	}
-	return connector, nil
+	}, nil
 }
