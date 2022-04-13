@@ -6,6 +6,8 @@ import (
 	sq "github.com/Masterminds/squirrel"
 )
 
+// QueryBuilder captures all parameterizable queries used
+// by the MySQL datastore implementation
 type QueryBuilder struct {
 	GetRevision      sq.SelectBuilder
 	GetRevisionRange sq.SelectBuilder
@@ -23,6 +25,8 @@ type QueryBuilder struct {
 	QueryChangedQuery     sq.SelectBuilder
 }
 
+// NewQueryBuilder returns a new QueryBuilder instance. The migration
+// driver is used to determine the names of the tables.
 func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder := QueryBuilder{}
 

@@ -93,6 +93,9 @@ func GCInterval(interval time.Duration) Option {
 	}
 }
 
+// TablePrefix allows defining a MySQL table name prefix.
+//
+// No prefix is set by default
 func TablePrefix(prefix string) Option {
 	return func(mo *mysqlOptions) {
 		mo.tablePrefix = prefix

@@ -35,17 +35,20 @@ type mysqlBuilder struct {
 	options MySQLBuilderOptions
 }
 
+// MySQLBuilderOptions allows tweaking the behaviour of the builder for the MySQL datastore
 type MySQLBuilderOptions struct {
 	Prefix  string
 	Migrate bool
 }
 
 // NewMySQLBuilder returns a TestDatastoreBuilder for the mysql driver
-// backed by a MySQL instance
+// backed by a MySQL instance with default options - no prefix is added, and datastore migration is run.
 func NewMySQLBuilder(t testing.TB) TestDatastoreBuilder {
 	return NewMySQLBuilderWithOptions(t, MySQLBuilderOptions{Prefix: "", Migrate: true})
 }
 
+// NewMySQLBuilderWithOptions returns a TestDatastoreBuilder for the mysql driver
+// backed by a MySQL instance, while allowing options to be forwarded
 func NewMySQLBuilderWithOptions(t testing.TB, options MySQLBuilderOptions) TestDatastoreBuilder {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
