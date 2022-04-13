@@ -21,6 +21,7 @@ const (
 
 var sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 
+// MySQLDriver is an implementation of migrate.Driver for MySQL
 type MySQLDriver struct {
 	db *sql.DB
 	*tables
