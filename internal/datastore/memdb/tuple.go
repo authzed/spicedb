@@ -3,7 +3,6 @@ package memdb
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -207,23 +206,20 @@ func (mds *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Rev
 	txn := db.Txn(false)
 	defer txn.Abort()
 
-	lowerBound := uint64(time.Now().Add(-1 * mds.revisionFuzzingTimedelta).UnixNano())
+	rounded := uint64(time.Now().Round(mds.revisionQuantization).UnixNano())
 
 	time.Sleep(mds.simulatedLatency)
-	iter, err := txn.LowerBound(tableTransaction, indexTimestamp, lowerBound)
+	iter, err := txn.LowerBound(tableTransaction, indexTimestamp, rounded)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
-	var candidates []datastore.Revision
-	for oneChange := iter.Next(); oneChange != nil; oneChange = iter.Next() {
-		candidates = append(candidates, revisionFromVersion(oneChange.(*transaction).id))
+	selected := iter.Next()
+	if selected == nil {
+		return mds.HeadRevision(ctx)
 	}
 
-	if len(candidates) > 0 {
-		return candidates[rand.Intn(len(candidates))], nil
-	}
-	return mds.HeadRevision(ctx)
+	return revisionFromVersion(selected.(*transaction).id), nil
 }
 
 func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {

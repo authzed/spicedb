@@ -334,12 +334,12 @@ var schema = &memdb.DBSchema{
 
 type memdbDatastore struct {
 	sync.RWMutex
-	db                       *memdb.MemDB
-	watchBufferLength        uint16
-	revisionFuzzingTimedelta time.Duration
-	gcWindowInverted         time.Duration
-	simulatedLatency         time.Duration
-	uniqueID                 string
+	db                   *memdb.MemDB
+	watchBufferLength    uint16
+	revisionQuantization time.Duration
+	gcWindowInverted     time.Duration
+	simulatedLatency     time.Duration
+	uniqueID             string
 }
 
 // NewMemdbDatastore creates a new Datastore compliant datastore backed by memdb.
@@ -347,14 +347,14 @@ type memdbDatastore struct {
 // If the watchBufferLength value of 0 is set then a default value of 128 will be used.
 func NewMemdbDatastore(
 	watchBufferLength uint16,
-	revisionFuzzingTimedelta,
+	revisionQuantization,
 	gcWindow time.Duration,
 	simulatedLatency time.Duration,
 ) (datastore.Datastore, error) {
-	if revisionFuzzingTimedelta > gcWindow {
+	if revisionQuantization > gcWindow {
 		return nil, fmt.Errorf(
 			errUnableToInstantiateTuplestore,
-			errors.New("gc window must be larger than fuzzing window"),
+			errors.New("gc window must be larger than quantization interval"),
 		)
 	}
 
@@ -382,9 +382,9 @@ func NewMemdbDatastore(
 	uniqueID := uuid.NewString()
 
 	return &memdbDatastore{
-		db:                       db,
-		watchBufferLength:        watchBufferLength,
-		revisionFuzzingTimedelta: revisionFuzzingTimedelta,
+		db:                   db,
+		watchBufferLength:    watchBufferLength,
+		revisionQuantization: revisionQuantization,
 
 		gcWindowInverted: -1 * gcWindow,
 		simulatedLatency: simulatedLatency,
