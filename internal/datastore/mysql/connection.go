@@ -28,7 +28,7 @@ var (
 )
 
 // instrumentedConnector wraps the default MySQL driver connector
-// to get metrics and tracing out of the process of creating a new connection
+// to get metrics and tracing when creating a new connection
 type instrumentedConnector struct {
 	conn driver.Connector
 	drv  driver.Driver
