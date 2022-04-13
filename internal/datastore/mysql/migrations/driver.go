@@ -53,8 +53,9 @@ func NewMySQLDriverFromDB(db *sql.DB, tablePrefix string) *MySQLDriver {
 	return &MySQLDriver{db, newTables(tablePrefix)}
 }
 
+// revisionToColumnName generates the column name that will denote a given migration revision
 func revisionToColumnName(revision string) string {
-	return migrationVersionColumnPrefix + revision
+	return fmt.Sprintf("%s%s", migrationVersionColumnPrefix, revision)
 }
 
 func columnNameToRevision(columnName string) (string, bool) {
