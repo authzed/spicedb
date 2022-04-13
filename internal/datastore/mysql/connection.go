@@ -24,7 +24,7 @@ var (
 		Subsystem: "datastore",
 		Name:      "mysql_connect_count_total",
 		Help:      "number of mysql connections opened.",
-	}, []string{"error"})
+	}, []string{"success"})
 )
 
 // instrumentedConnector wraps the default MySQL driver connector
@@ -44,7 +44,7 @@ func (d *instrumentedConnector) Connect(ctx context.Context) (driver.Conn, error
 	}()
 
 	conn, err := d.conn.Connect(ctx)
-	connectCount.WithLabelValues(strconv.FormatBool(err != nil)).Inc()
+	connectCount.WithLabelValues(strconv.FormatBool(err == nil)).Inc()
 	if err != nil {
 		span.RecordError(err)
 		log.Ctx(ctx).Error().Err(err).Msg("failed to open mysql connection")
