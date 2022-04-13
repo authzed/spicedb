@@ -46,6 +46,7 @@ const (
 	errUnableToDeleteTuples = "unable to delete tuples: %w"
 	liveDeletedTxnID        = uint64(9223372036854775807)
 	batchDeleteSize         = 1000
+	noLastInsertID          = 0
 )
 
 var (
@@ -457,7 +458,7 @@ func (mds *Datastore) seedBaseTransaction(ctx context.Context) error {
 		return err
 	}
 
-	if lastInsertID != 0 {
+	if lastInsertID != noLastInsertID {
 		// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
 		// was already seeded by another processes (i.e. race condition).
 		log.Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore headRevision")
