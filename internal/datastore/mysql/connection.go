@@ -11,13 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// instrumentedConnector wraps the default MySQL driver connector
-// to get metrics and tracing out of the process of creating a new connection
-type instrumentedConnector struct {
-	conn driver.Connector
-	drv  driver.Driver
-}
-
 var (
 	connectHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "spicedb",
@@ -33,6 +26,13 @@ var (
 		Help:      "number of mysql connections opened.",
 	}, []string{"error"})
 )
+
+// instrumentedConnector wraps the default MySQL driver connector
+// to get metrics and tracing out of the process of creating a new connection
+type instrumentedConnector struct {
+	conn driver.Connector
+	drv  driver.Driver
+}
 
 func (d *instrumentedConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	ctx, span := tracer.Start(ctx, "openMySQLConnection")
