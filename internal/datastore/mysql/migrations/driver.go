@@ -30,7 +30,7 @@ type MySQLDriver struct {
 // NewMySQLDriverFromDSN creates a new migration driver with a connection pool to the database DSN specified.
 //
 // URI: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
-// See // https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
+// See https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
 func NewMySQLDriverFromDSN(url string, tablePrefix string) (*MySQLDriver, error) {
 	dbConfig, err := sqlDriver.ParseDSN(url)
 	if err != nil {
