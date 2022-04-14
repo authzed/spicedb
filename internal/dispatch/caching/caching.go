@@ -12,6 +12,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -21,9 +23,12 @@ const (
 	prometheusNamespace = "spicedb"
 )
 
+// Dispatcher is a dispatcher with built-in caching.
 type Dispatcher struct {
-	d dispatch.Dispatcher
-	c *ristretto.Cache
+	d          dispatch.Dispatcher
+	c          *ristretto.Cache
+	nsm        namespace.Manager
+	keyHandler keys.Handler
 
 	checkTotalCounter      prometheus.Counter
 	checkFromCacheCounter  prometheus.Counter
@@ -53,7 +58,9 @@ var (
 // and caches the responses when possible and desirable.
 func NewCachingDispatcher(
 	cacheConfig *ristretto.Config,
+	nsm namespace.Manager,
 	prometheusSubsystem string,
+	keyHandler keys.Handler,
 ) (*Dispatcher, error) {
 	if cacheConfig == nil {
 		cacheConfig = &ristretto.Config{
@@ -161,9 +168,15 @@ func NewCachingDispatcher(
 		}
 	}
 
+	if keyHandler == nil {
+		keyHandler = &keys.DirectKeyHandler{}
+	}
+
 	return &Dispatcher{
 		d:                      fakeDelegate{},
+		nsm:                    nsm,
 		c:                      cache,
+		keyHandler:             keyHandler,
 		checkTotalCounter:      checkTotalCounter,
 		checkFromCacheCounter:  checkFromCacheCounter,
 		lookupTotalCounter:     lookupTotalCounter,
@@ -183,7 +196,11 @@ func (cd *Dispatcher) SetDelegate(delegate dispatch.Dispatcher) {
 // DispatchCheck implements dispatch.Check interface
 func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
-	requestKey := dispatch.CheckRequestToKey(req)
+
+	requestKey, err := cd.keyHandler.ComputeCheckKey(ctx, req, cd.nsm)
+	if err != nil {
+		return nil, err
+	}
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(checkResultEntry)

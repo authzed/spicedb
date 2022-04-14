@@ -65,9 +65,20 @@ func CheckDepth(ctx context.Context, req HasMetadata) error {
 	return nil
 }
 
-// CheckRequestToKey converts a check request into a cache key
+// CheckRequestToKey converts a check request into a cache key based on the relation
 func CheckRequestToKey(req *v1.DispatchCheckRequest) string {
-	return fmt.Sprintf("check//%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+	return fmt.Sprintf("check//relation/%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+}
+
+// CheckRequestToKeyWithCanonical converts a check request into a cache key based
+// on the canonical key.
+func CheckRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey string) string {
+	if canonicalKey == "" {
+		panic(fmt.Sprintf("given empty canonical key for request: %s => %s", req.ObjectAndRelation, tuple.StringONR(req.Subject)))
+	}
+
+	// NOTE: canonical cache keys are only unique *within* a version of a namespace.
+	return fmt.Sprintf("check//canonical/%s:%s#%s@%s@%s", req.ObjectAndRelation.Namespace, req.ObjectAndRelation.ObjectId, canonicalKey, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }
 
 // LookupRequestToKey converts a lookup request into a cache key

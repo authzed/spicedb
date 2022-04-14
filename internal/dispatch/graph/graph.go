@@ -66,13 +66,17 @@ type localDispatcher struct {
 	nsm namespace.Manager
 }
 
-func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationName string, revision decimal.Decimal) (*core.Relation, error) {
+func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, error) {
 	// Load namespace and relation from the datastore
 	ns, err := ld.nsm.ReadNamespace(ctx, nsName, revision)
 	if err != nil {
 		return nil, rewriteError(err)
 	}
 
+	return ns, err
+}
+
+func (ld *localDispatcher) lookupRelation(ctx context.Context, ns *core.NamespaceDefinition, relationName string, revision decimal.Decimal) (*core.Relation, error) {
 	var relation *core.Relation
 	for _, candidate := range ns.Relation {
 		if candidate.Name == relationName {
@@ -82,7 +86,7 @@ func (ld *localDispatcher) loadRelation(ctx context.Context, nsName, relationNam
 	}
 
 	if relation == nil {
-		return nil, NewRelationNotFoundErr(nsName, relationName)
+		return nil, NewRelationNotFoundErr(ns.Name, relationName)
 	}
 
 	return relation, nil
@@ -122,9 +126,41 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation, revision)
+	ns, err := ld.loadNamespace(ctx, req.ObjectAndRelation.Namespace, revision)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+	}
+
+	relation, err := ld.lookupRelation(ctx, ns, req.ObjectAndRelation.Relation, revision)
+	if err != nil {
+		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+	}
+
+	// If the relation is aliasing another one and the subject does not have the same type as
+	// resource, load the aliased relation and dispatch to it. We cannot use the alias if the
+	// resource and subject types are the same because a check on the *exact same* resource and
+	// subject must pass, and we don't know how many intermediate steps may hit that case.
+	if relation.AliasingRelation != "" && req.ObjectAndRelation.Namespace != req.Subject.Namespace {
+		relation, err := ld.lookupRelation(ctx, ns, relation.AliasingRelation, revision)
+		if err != nil {
+			return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		}
+
+		// Rewrite the request over the aliased relation.
+		validatedReq := graph.ValidatedCheckRequest{
+			DispatchCheckRequest: &v1.DispatchCheckRequest{
+				ObjectAndRelation: &core.ObjectAndRelation{
+					Namespace: req.ObjectAndRelation.Namespace,
+					ObjectId:  req.ObjectAndRelation.ObjectId,
+					Relation:  relation.Name,
+				},
+				Subject:  req.Subject,
+				Metadata: req.Metadata,
+			},
+			Revision: revision,
+		}
+
+		return ld.checker.Check(ctx, validatedReq, relation)
 	}
 
 	validatedReq := graph.ValidatedCheckRequest{
@@ -152,7 +188,12 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	relation, err := ld.loadRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation, revision)
+	ns, err := ld.loadNamespace(ctx, req.ObjectAndRelation.Namespace, revision)
+	if err != nil {
+		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
+	}
+
+	relation, err := ld.lookupRelation(ctx, ns, req.ObjectAndRelation.Relation, revision)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
@@ -192,7 +233,13 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 		DispatchLookupRequest: req,
 		Revision:              revision,
 	}
-	relation, err := ld.loadRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, revision)
+
+	ns, err := ld.loadNamespace(ctx, req.ObjectRelation.Namespace, revision)
+	if err != nil {
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
+	}
+
+	relation, err := ld.lookupRelation(ctx, ns, req.ObjectRelation.Relation, revision)
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
 	}

@@ -1943,6 +1943,10 @@ func (m *Relation) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for AliasingRelation
+
+	// no validation rules for CanonicalCacheKey
+
 	if len(errors) > 0 {
 		return RelationMultiError(errors)
 	}

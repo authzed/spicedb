@@ -6,6 +6,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/namespace"
 )
 
@@ -45,7 +46,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, nsm namespace.Manager, o
 		opts.prometheusSubsystem = "dispatch"
 	}
 
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem)
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, nsm, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}

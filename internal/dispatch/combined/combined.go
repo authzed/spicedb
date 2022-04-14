@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -89,7 +90,7 @@ func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatche
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem)
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, nsm, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +115,7 @@ func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatche
 		if err != nil {
 			return nil, err
 		}
-		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn))
+		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), &keys.CanonicalKeyHandler{}, nsm)
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)

@@ -6,6 +6,8 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/balancer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -18,12 +20,18 @@ type clusterClient interface {
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
-func NewClusterDispatcher(client clusterClient) dispatch.Dispatcher {
-	return &clusterDispatcher{client}
+func NewClusterDispatcher(client clusterClient, keyHandler keys.Handler, nsm namespace.Manager) dispatch.Dispatcher {
+	if keyHandler == nil {
+		keyHandler = &keys.DirectKeyHandler{}
+	}
+
+	return &clusterDispatcher{client, keyHandler, nsm}
 }
 
 type clusterDispatcher struct {
 	clusterClient clusterClient
+	keyHandler    keys.Handler
+	nsm           namespace.Manager
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -31,7 +39,13 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
-	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.CheckRequestToKey(req)))
+
+	requestKey, err := cr.keyHandler.ComputeCheckKey(ctx, req, cr.nsm)
+	if err != nil {
+		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+	}
+
+	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(requestKey))
 	resp, err := cr.clusterClient.DispatchCheck(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err

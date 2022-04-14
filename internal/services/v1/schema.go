@@ -108,7 +108,12 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 			return nil, rewriteSchemaError(ctx, err)
 		}
 
-		if err := ts.Validate(ctx); err != nil {
+		vts, err := ts.Validate(ctx)
+		if err != nil {
+			return nil, rewriteSchemaError(ctx, err)
+		}
+
+		if err := namespace.AnnotateNamespace(vts); err != nil {
 			return nil, rewriteSchemaError(ctx, err)
 		}
 

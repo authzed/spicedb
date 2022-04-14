@@ -236,7 +236,7 @@ func TestTypeSystem(t *testing.T) {
 			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
 			require.NoError(err)
 
-			terr := ts.Validate(ctx)
+			_, terr := ts.Validate(ctx)
 			if tc.expectedError == "" {
 				require.NoError(terr)
 			} else {
