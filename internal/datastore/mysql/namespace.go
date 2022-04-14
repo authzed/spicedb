@@ -1,20 +1,20 @@
-package postgres
+package mysql
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
 )
 
 const (
@@ -24,71 +24,64 @@ const (
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
 
-var (
-	writeNamespace = psql.Insert(tableNamespace).Columns(
-		colNamespace,
-		colConfig,
-		colCreatedTxn,
-	)
+func (mds *Datastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
+}
 
-	readNamespace   = psql.Select(colConfig, colCreatedTxn).From(tableNamespace)
-	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
-
-	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
-)
-
-func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (datastore.Revision, error) {
+func (mds *Datastore) WriteNamespace(ctx context.Context, newNamespace *core.NamespaceDefinition) (datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
 	defer span.End()
 
-	span.SetAttributes(common.ObjNamespaceNameKey.String(newConfig.Name))
+	span.SetAttributes(common.ObjNamespaceNameKey.String(newNamespace.Name))
 
-	serialized, err := proto.Marshal(newConfig)
+	serialized, err := proto.Marshal(newNamespace)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	span.AddEvent("Serialized namespace config")
 
-	tx, err := pgd.dbpool.Begin(ctx)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
-	defer tx.Rollback(ctx)
-	span.AddEvent("DB transaction established")
+	defer migrations.LogOnError(ctx, tx.Rollback)
+	span.AddEvent("begin DB transaction")
 
-	newTxnID, err := createNewTransaction(ctx, tx)
+	newTxnID, err := mds.createNewTransaction(ctx, tx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	span.AddEvent("Model transaction created")
 
-	delSQL, delArgs, err := deleteNamespace.
+	delSQL, delArgs, err := mds.DeleteNamespaceQuery.
 		Set(colDeletedTxn, newTxnID).
-		Where(sq.Eq{colNamespace: newConfig.Name, colDeletedTxn: liveDeletedTxnID}).
+		Where(sq.Eq{colNamespace: newNamespace.Name, colDeletedTxn: liveDeletedTxnID}).
 		ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	_, err = tx.Exec(datastore.SeparateContextWithTracing(ctx), delSQL, delArgs...)
+	_, err = tx.ExecContext(datastore.SeparateContextWithTracing(ctx), delSQL, delArgs...)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	sql, args, err := writeNamespace.Values(newConfig.Name, serialized, newTxnID).ToSql()
+	query, args, err := mds.WriteNamespaceQuery.Values(newNamespace.Name, serialized, newTxnID).ToSql()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	_, err = tx.Exec(ctx, sql, args...)
+	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	span.AddEvent("Namespace config written")
 
-	err = tx.Commit(ctx)
+	err = tx.Commit()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
@@ -97,19 +90,20 @@ func (pgd *pgDatastore) WriteNamespace(ctx context.Context, newConfig *core.Name
 	return revisionFromTransaction(newTxnID), nil
 }
 
-func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (mds *Datastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
 	defer span.End()
 
-	tx, err := pgd.dbpool.Begin(ctx)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
-	defer tx.Rollback(ctx)
+	defer migrations.LogOnError(ctx, tx.Rollback)
 
-	loaded, version, err := loadNamespace(ctx, nsName, tx, filterToLivingObjects(readNamespace, revision))
+	loaded, version, err := loadNamespace(ctx, nsName, tx, filterToLivingObjects(mds.ReadNamespaceQuery, revision))
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
@@ -120,16 +114,21 @@ func (pgd *pgDatastore) ReadNamespace(ctx context.Context, nsName string, revisi
 	}
 }
 
-func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
+func (mds *Datastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	ctx, span := tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
+		attribute.String("name", nsName),
+	))
+	defer span.End()
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	tx, err := pgd.dbpool.Begin(ctx)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
-	defer tx.Rollback(ctx)
+	defer migrations.LogOnError(ctx, tx.Rollback)
 
-	baseQuery := readNamespace.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	baseQuery := mds.ReadNamespaceQuery.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 	_, createdAt, err := loadNamespace(ctx, nsName, tx, baseQuery)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
@@ -140,12 +139,12 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (dat
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	newTxnID, err := createNewTransaction(ctx, tx)
+	newTxnID, err := mds.createNewTransaction(ctx, tx)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	delSQL, delArgs, err := deleteNamespace.
+	delSQL, delArgs, err := mds.DeleteNamespaceQuery.
 		Set(colDeletedTxn, newTxnID).
 		Where(sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt}).
 		ToSql()
@@ -153,12 +152,12 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (dat
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	_, err = tx.Exec(ctx, delSQL, delArgs...)
+	_, err = tx.ExecContext(ctx, delSQL, delArgs...)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
+	deleteTupleSQL, deleteTupleArgs, err := mds.DeleteNamespaceTuplesQuery.
 		Set(colDeletedTxn, newTxnID).
 		Where(sq.Eq{colNamespace: nsName}).
 		ToSql()
@@ -166,12 +165,12 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (dat
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	_, err = tx.Exec(ctx, deleteTupleSQL, deleteTupleArgs...)
+	_, err = tx.ExecContext(ctx, deleteTupleSQL, deleteTupleArgs...)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	err = tx.Commit(ctx)
+	err = tx.Commit()
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -179,22 +178,23 @@ func (pgd *pgDatastore) DeleteNamespace(ctx context.Context, nsName string) (dat
 	return revisionFromTransaction(newTxnID), nil
 }
 
-func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, baseQuery sq.SelectBuilder) (*core.NamespaceDefinition, datastore.Revision, error) {
+func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery sq.SelectBuilder) (*core.NamespaceDefinition, datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
-	sql, args, err := baseQuery.Where(sq.Eq{colNamespace: namespace}).ToSql()
+	query, args, err := baseQuery.Where(sq.Eq{colNamespace: namespace}).ToSql()
 	if err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
 	var config []byte
 	var version datastore.Revision
-	err = tx.QueryRow(ctx, sql, args...).Scan(&config, &version)
+	err = tx.QueryRowContext(ctx, query, args...).Scan(&config, &version)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = datastore.NewNamespaceNotFoundErr(namespace)
 		}
 		return nil, datastore.NoRevision, err
@@ -209,18 +209,19 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, baseQuery s
 	return loaded, version, nil
 }
 
-func (pgd *pgDatastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
+func (mds *Datastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	tx, err := pgd.dbpool.Begin(ctx)
+	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer migrations.LogOnError(ctx, tx.Rollback)
 
-	query := filterToLivingObjects(readNamespace, revision)
+	query := filterToLivingObjects(mds.ReadNamespaceQuery, revision)
 
-	nsDefs, err := loadAllNamespaces(ctx, tx, query)
+	nsDefs, err := loadAllNamespaces(ctx, mds.db, query)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -228,19 +229,20 @@ func (pgd *pgDatastore) ListNamespaces(ctx context.Context, revision datastore.R
 	return nsDefs, err
 }
 
-func loadAllNamespaces(ctx context.Context, tx pgx.Tx, query sq.SelectBuilder) ([]*core.NamespaceDefinition, error) {
-	sql, args, err := query.ToSql()
+func loadAllNamespaces(ctx context.Context, db *sql.DB, queryBuilder sq.SelectBuilder) ([]*core.NamespaceDefinition, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
 	}
 
 	var nsDefs []*core.NamespaceDefinition
 
-	rows, err := tx.Query(ctx, sql, args...)
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer migrations.LogOnError(ctx, rows.Close)
 
 	for rows.Next() {
 		var config []byte
