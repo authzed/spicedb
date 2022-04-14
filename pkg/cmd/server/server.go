@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"sync"
 	"time"
@@ -92,6 +93,15 @@ type Config struct {
 	TelemetryCAOverridePath  string
 	TelemetryEndpoint        string
 	TelemetryInterval        time.Duration
+
+	// Experimental
+	Experimental ExperimentalConfig
+}
+
+// ExperimentalConfig contains configuration options that are not guaranteed to remain
+// stable, even within a major version.
+type ExperimentalConfig struct {
+	StaticSchemaFilename string
 }
 
 // Complete validates the config and fills out defaults.
@@ -120,14 +130,27 @@ func (c *Config) Complete() (RunnableServer, error) {
 
 	nsm := c.NamespaceManager
 	if nsm == nil {
-		nscc, err := c.NamespaceCacheConfig.Complete()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create namespace manager: %w", err)
-		}
+		staticSchema := c.Experimental.StaticSchemaFilename
+		if staticSchema != "" {
+			schema, err := ioutil.ReadFile(staticSchema)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read static schema file `%s`: %w", staticSchema, err)
+			}
 
-		nsm, err = namespace.NewCachingNamespaceManager(nscc)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+			nsm, err = namespace.NewStaticManager(string(schema))
+			if err != nil {
+				return nil, fmt.Errorf("unable to create static namespace manager: %w", err)
+			}
+		} else {
+			nscc, err := c.NamespaceCacheConfig.Complete()
+			if err != nil {
+				return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+			}
+
+			nsm, err = namespace.NewCachingNamespaceManager(nscc)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create namespace manager: %w", err)
+			}
 		}
 	}
 

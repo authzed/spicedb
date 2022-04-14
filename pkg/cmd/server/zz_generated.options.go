@@ -60,6 +60,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
 		to.TelemetryInterval = c.TelemetryInterval
+		to.Experimental = c.Experimental
 	}
 }
 
@@ -341,5 +342,12 @@ func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
 func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.TelemetryInterval = telemetryInterval
+	}
+}
+
+// WithExperimental returns an option that can set Experimental on a Config
+func WithExperimental(experimental ExperimentalConfig) ConfigOption {
+	return func(c *Config) {
+		c.Experimental = experimental
 	}
 }

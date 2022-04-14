@@ -52,7 +52,8 @@ func main() {
 	rootCmd.AddCommand(headCmd)
 
 	// Add server commands
-	var serverConfig cmdutil.Config
+	experimental := cmdutil.ExperimentalConfig{}
+	serverConfig := cmdutil.Config{Experimental: experimental}
 	serveCmd := cmd.NewServeCommand(rootCmd.Use, &serverConfig)
 	cmd.RegisterServeFlags(serveCmd, &serverConfig)
 	rootCmd.AddCommand(serveCmd)

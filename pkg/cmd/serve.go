@@ -32,6 +32,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 		panic("failed to mark flag hidden: " + err.Error())
 	}
 	server.RegisterCacheConfigFlags(cmd.Flags(), &config.NamespaceCacheConfig, "ns-cache")
+	cmd.Flags().StringVar(&config.Experimental.StaticSchemaFilename, "static-schema-filename-experiment", "", "Specify a file which contains an unchanging schema for the lifetime of the server")
 
 	// Flags for parsing and validating schemas.
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
