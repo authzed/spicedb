@@ -17,6 +17,7 @@ import (
 var mysqlContainerRunOpts = &dockertest.RunOptions{
 	Repository: "mysql",
 	Tag:        "5",
+	Platform:   "linux/amd64", // required because the mysql:5 image does not have arm support
 	Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
 	// increase max connections (default 151) to accommodate tests using the same docker container
 	Cmd: []string{"--max-connections=500"},
