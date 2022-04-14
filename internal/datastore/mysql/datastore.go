@@ -79,12 +79,12 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
-  
+
 	connector, err := mysql.MySQLDriver{}.OpenConnector(uri)
 	if err != nil {
 		return nil, fmt.Errorf("NewMySQLDatastore: failed to create connector: %w", err)
 	}
-  
+
 	var db *sql.DB
 	if config.enablePrometheusStats {
 		connector, err = instrumentConnector(connector)
