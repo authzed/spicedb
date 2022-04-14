@@ -39,41 +39,76 @@ func TestPostgresDatastore(t *testing.T) {
 		})
 		return ds, nil
 	}))
+
+	t.Run("WithSplit", func(t *testing.T) {
+		// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
+		test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+				ds, err := NewPostgresDatastore(uri,
+					RevisionQuantization(revisionQuantization),
+					GCWindow(gcWindow),
+					WatchBufferLength(watchBufferLength),
+					DebugAnalyzeBeforeStatistics(),
+					SplitAtUsersetCount(1), // 1 userset
+				)
+				require.NoError(t, err)
+				return ds
+			})
+
+			return ds, nil
+		}))
+	})
+
+	t.Run("GarbageCollection", createDatastoreTest(
+		b,
+		GarbageCollectionTest,
+		RevisionQuantization(0),
+		GCWindow(1*time.Millisecond),
+		WatchBufferLength(1),
+	))
+
+	t.Run("TransactionTimestamps", createDatastoreTest(
+		b,
+		TransactionTimestampsTest,
+		RevisionQuantization(0),
+		GCWindow(1*time.Millisecond),
+		WatchBufferLength(1),
+	))
+
+	t.Run("GarbageCollectionByTime", createDatastoreTest(
+		b,
+		GarbageCollectionByTimeTest,
+		RevisionQuantization(0),
+		GCWindow(1*time.Millisecond),
+		WatchBufferLength(1),
+	))
+
+	t.Run("ChunkedGarbageCollection", createDatastoreTest(
+		b,
+		ChunkedGarbageCollectionTest,
+		RevisionQuantization(0),
+		GCWindow(1*time.Millisecond),
+		WatchBufferLength(1),
+	))
 }
 
-func TestPostgresDatastoreWithSplit(t *testing.T) {
-	b := testdatastore.NewPostgresBuilder(t)
-	// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
-	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
+
+func createDatastoreTest(b testdatastore.TestDatastoreBuilder, tf datastoreTestFunc, options ...Option) func(*testing.T) {
+	return func(t *testing.T) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewPostgresDatastore(uri,
-				RevisionQuantization(revisionQuantization),
-				GCWindow(gcWindow),
-				WatchBufferLength(watchBufferLength),
-				DebugAnalyzeBeforeStatistics(),
-				SplitAtUsersetCount(1), // 1 userset
-			)
+			ds, err := NewPostgresDatastore(uri, options...)
 			require.NoError(t, err)
 			return ds
 		})
+		defer ds.Close()
 
-		return ds, nil
-	}))
+		tf(t, ds)
+	}
 }
 
-func TestPostgresGarbageCollection(t *testing.T) {
+func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
-
-	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
-		ds, err := NewPostgresDatastore(uri,
-			RevisionQuantization(0),
-			GCWindow(time.Millisecond*1),
-			WatchBufferLength(1),
-		)
-		require.NoError(err)
-		return ds
-	})
-	defer ds.Close()
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -283,19 +318,8 @@ func TestPostgresTransactionTimestamps(t *testing.T) {
 	require.True(startTimeUTC.Before(ts))
 }
 
-func TestPostgresGarbageCollectionByTime(t *testing.T) {
+func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
-
-	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
-		ds, err := NewPostgresDatastore(uri,
-			RevisionQuantization(0),
-			GCWindow(time.Millisecond*1),
-			WatchBufferLength(1),
-		)
-		require.NoError(err)
-		return ds
-	})
-	defer ds.Close()
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -384,19 +408,8 @@ func TestPostgresGarbageCollectionByTime(t *testing.T) {
 
 const chunkRelationshipCount = 2000
 
-func TestPostgresChunkedGarbageCollection(t *testing.T) {
+func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
-
-	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
-		ds, err := NewPostgresDatastore(uri,
-			RevisionQuantization(0),
-			GCWindow(time.Millisecond*1),
-			WatchBufferLength(1),
-		)
-		require.NoError(err)
-		return ds
-	})
-	defer ds.Close()
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
