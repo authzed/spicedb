@@ -11,6 +11,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -90,6 +91,10 @@ func TestPostgresDatastore(t *testing.T) {
 		GCWindow(1*time.Millisecond),
 		WatchBufferLength(1),
 	))
+
+	t.Run("QuantizedRevisions", func(t *testing.T) {
+		QuantizedRevisionTest(t, b)
+	})
 }
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
@@ -267,19 +272,8 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
 }
 
-func TestPostgresTransactionTimestamps(t *testing.T) {
+func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
-
-	ds := testdatastore.NewPostgresBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
-		ds, err := NewPostgresDatastore(uri,
-			RevisionQuantization(0),
-			GCWindow(time.Millisecond*1),
-			WatchBufferLength(1),
-		)
-		require.NoError(err)
-		return ds
-	})
-	defer ds.Close()
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -514,6 +508,108 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Equal(int64(chunkRelationshipCount), relsDeleted)
 	require.Equal(int64(1), transactionsDeleted)
 	require.NoError(err)
+}
+
+func QuantizedRevisionTest(t *testing.T, b testdatastore.TestDatastoreBuilder) {
+	testCases := []struct {
+		testName         string
+		quantization     time.Duration
+		relativeTimes    []time.Duration
+		expectedRevision uint64
+	}{
+		{
+			"DefaultRevision",
+			1 * time.Second,
+			[]time.Duration{},
+			1,
+		},
+		{
+			"OnlyPastRevisions",
+			1 * time.Second,
+			[]time.Duration{-2 * time.Second},
+			2,
+		},
+		{
+			"OnlyFutureRevisions",
+			1 * time.Second,
+			[]time.Duration{2 * time.Second},
+			2,
+		},
+		{
+			"QuantizedLower",
+			1 * time.Second,
+			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
+			3,
+		},
+		{
+			"QuantizationDisabled",
+			1 * time.Nanosecond,
+			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
+			4,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			require := require.New(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			var conn *pgx.Conn
+			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+				var err error
+				conn, err = pgx.Connect(ctx, uri)
+				require.NoError(err)
+
+				ds, err := NewPostgresDatastore(
+					uri,
+					RevisionQuantization(5*time.Second),
+					GCWindow(24*time.Hour),
+					WatchBufferLength(1),
+				)
+				require.NoError(err)
+
+				return ds
+			})
+			defer ds.Close()
+
+			tx, err := conn.Begin(ctx)
+			require.NoError(err)
+
+			var dbNow time.Time
+			err = tx.QueryRow(ctx, "SELECT (NOW() AT TIME ZONE 'utc')").Scan(&dbNow)
+			require.NoError(err)
+
+			if len(tc.relativeTimes) > 0 {
+				psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+				bulkWrite := psql.Insert(tableTransaction).Columns(colTimestamp)
+
+				for _, offset := range tc.relativeTimes {
+					bulkWrite = bulkWrite.Values(dbNow.Add(offset))
+				}
+
+				sql, args, err := bulkWrite.ToSql()
+				require.NoError(err)
+
+				_, err = tx.Exec(ctx, sql, args...)
+				require.NoError(err)
+			}
+
+			queryRevision := fmt.Sprintf(
+				querySelectRevision,
+				colID,
+				tableTransaction,
+				colTimestamp,
+				tc.quantization.Nanoseconds(),
+			)
+
+			var revision uint64
+			err = tx.QueryRow(ctx, queryRevision).Scan(&revision)
+			require.NoError(err)
+
+			require.Equal(tc.expectedRevision, revision)
+		})
+	}
 }
 
 func BenchmarkPostgresQuery(b *testing.B) {

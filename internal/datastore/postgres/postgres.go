@@ -168,7 +168,7 @@ func NewPostgresDatastore(
 		UsersetBatchSize: int(config.splitAtUsersetCount),
 	}
 
-	quantizationPeriodNanos := int64(config.revisionQuantization)
+	quantizationPeriodNanos := config.revisionQuantization.Nanoseconds()
 	if quantizationPeriodNanos < 1 {
 		quantizationPeriodNanos = 1
 	}
