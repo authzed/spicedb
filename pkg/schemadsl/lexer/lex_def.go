@@ -52,8 +52,8 @@ const (
 	TokenTypeStar       // *
 )
 
-// keywords contains the full set of keywords supported.
-var keywords = map[string]bool{
+// Keywords contains the full set of Keywords supported.
+var Keywords = map[string]bool{
 	"definition": true,
 	"relation":   true,
 	"permission": true,
@@ -208,7 +208,7 @@ func lexIdentifierOrKeyword(l *Lexer) stateFn {
 		l.next()
 	}
 
-	_, isKeyword := keywords[l.value()]
+	_, isKeyword := Keywords[l.value()]
 
 	switch {
 	case isKeyword:
