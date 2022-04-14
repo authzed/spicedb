@@ -76,12 +76,12 @@ type Config struct {
 	// Spanner
 	SpannerCredentialsFile string
 
+	// MySQL
+	TablePrefix string
+
 	// Internal
 	WatchBufferLength      uint16
 	EnableDatastoreMetrics bool
-
-	// MySQL
-	TablePrefix string
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
