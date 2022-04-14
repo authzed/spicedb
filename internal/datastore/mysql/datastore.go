@@ -68,15 +68,23 @@ type sqlFilter interface {
 	ToSql() (string, []interface{}, error)
 }
 
-func NewMySQLDatastore(url string, options ...Option) (*Datastore, error) {
+// NewMySQLDatastore creates a new mysql.Datastore value configured with the MySQL instance
+// specified in through the URI parameter. Supports customization via the various options available
+// in this package.
+//
+// URI: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
+// See https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
+func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
-	connector, err := mysql.MySQLDriver{}.OpenConnector(url)
+  
+	connector, err := mysql.MySQLDriver{}.OpenConnector(uri)
 	if err != nil {
 		return nil, fmt.Errorf("NewMySQLDatastore: failed to create connector: %w", err)
 	}
+  
 	var db *sql.DB
 	if config.enablePrometheusStats {
 		connector, err = instrumentConnector(connector)
@@ -120,7 +128,7 @@ func NewMySQLDatastore(url string, options ...Option) (*Datastore, error) {
 	store := &Datastore{
 		db:                       db,
 		driver:                   driver,
-		url:                      url,
+		url:                      uri,
 		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
 		gcWindowInverted:         -1 * config.gcWindow,
 		gcInterval:               config.gcInterval,
@@ -207,6 +215,7 @@ func newMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
 	}
 }
 
+// Datastore is a MySQL-based implementation of the datastore.Datastore interface
 type Datastore struct {
 	db            *sql.DB
 	driver        *migrations.MySQLDriver
