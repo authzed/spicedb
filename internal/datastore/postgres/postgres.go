@@ -3,23 +3,19 @@ package postgres
 import (
 	"context"
 	dbsql "database/sql"
-	"errors"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/ngrok/sqlmw"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
 	"github.com/authzed/spicedb/internal/datastore"
@@ -50,8 +46,6 @@ const (
 	colUsersetRelation  = "userset_relation"
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
-	errRevision            = "unable to find revision: %w"
-	errCheckRevision       = "unable to check revision: %w"
 
 	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES RETURNING id"
 
@@ -95,8 +89,6 @@ var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	getRevision = psql.Select("MAX(id)").From(tableTransaction)
-
-	getRevisionRange = psql.Select("MIN(id)", "MAX(id)").From(tableTransaction)
 
 	getNow = psql.Select("NOW()")
 
@@ -176,18 +168,39 @@ func NewPostgresDatastore(
 		UsersetBatchSize: int(config.splitAtUsersetCount),
 	}
 
+	quantizationPeriodNanos := config.revisionQuantization.Nanoseconds()
+	if quantizationPeriodNanos < 1 {
+		quantizationPeriodNanos = 1
+	}
+	revisionQuery := fmt.Sprintf(
+		querySelectRevision,
+		colID,
+		tableTransaction,
+		colTimestamp,
+		quantizationPeriodNanos,
+	)
+
+	validTransactionQuery := fmt.Sprintf(
+		queryValidTransaction,
+		colID,
+		tableTransaction,
+		colTimestamp,
+		config.gcWindow.Seconds(),
+	)
+
 	datastore := &pgDatastore{
-		dburl:                    url,
-		dbpool:                   dbpool,
-		watchBufferLength:        config.watchBufferLength,
-		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
-		gcWindowInverted:         -1 * config.gcWindow,
-		gcInterval:               config.gcInterval,
-		gcMaxOperationTime:       config.gcMaxOperationTime,
-		analyzeBeforeStatistics:  config.analyzeBeforeStatistics,
-		querySplitter:            querySplitter,
-		gcCtx:                    gcCtx,
-		cancelGc:                 cancelGc,
+		dburl:                   url,
+		dbpool:                  dbpool,
+		watchBufferLength:       config.watchBufferLength,
+		optimizedRevisionQuery:  revisionQuery,
+		validTransactionQuery:   validTransactionQuery,
+		gcWindowInverted:        -1 * config.gcWindow,
+		gcInterval:              config.gcInterval,
+		gcMaxOperationTime:      config.gcMaxOperationTime,
+		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
+		querySplitter:           querySplitter,
+		gcCtx:                   gcCtx,
+		cancelGc:                cancelGc,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -202,15 +215,16 @@ func NewPostgresDatastore(
 }
 
 type pgDatastore struct {
-	dburl                    string
-	dbpool                   *pgxpool.Pool
-	watchBufferLength        uint16
-	revisionFuzzingTimedelta time.Duration
-	gcWindowInverted         time.Duration
-	gcInterval               time.Duration
-	gcMaxOperationTime       time.Duration
-	querySplitter            common.TupleQuerySplitter
-	analyzeBeforeStatistics  bool
+	dburl                   string
+	dbpool                  *pgxpool.Pool
+	watchBufferLength       uint16
+	optimizedRevisionQuery  string
+	validTransactionQuery   string
+	gcWindowInverted        time.Duration
+	gcInterval              time.Duration
+	gcMaxOperationTime      time.Duration
+	querySplitter           common.TupleQuerySplitter
+	analyzeBeforeStatistics bool
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
@@ -403,177 +417,6 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	}
 
 	return version == headMigration, nil
-}
-
-func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "HeadRevision")
-	defer span.End()
-
-	revision, err := pgd.loadRevision(ctx)
-	if err != nil {
-		return datastore.NoRevision, err
-	}
-
-	return revisionFromTransaction(revision), nil
-}
-
-func (pgd *pgDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "OptimizedRevision")
-	defer span.End()
-
-	lower, upper, err := pgd.computeRevisionRange(ctx, -1*pgd.revisionFuzzingTimedelta)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
-	}
-
-	if errors.Is(err, pgx.ErrNoRows) {
-		revision, err := pgd.loadRevision(ctx)
-		if err != nil {
-			return datastore.NoRevision, err
-		}
-
-		return revisionFromTransaction(revision), nil
-	}
-
-	if upper-lower == 0 {
-		return revisionFromTransaction(upper), nil
-	}
-
-	return revisionFromTransaction(uint64(rand.Intn(int(upper-lower))) + lower), nil
-}
-
-func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	ctx, span := tracer.Start(ctx, "CheckRevision")
-	defer span.End()
-
-	revisionTx := transactionFromRevision(revision)
-
-	lower, upper, err := pgd.computeRevisionRange(ctx, pgd.gcWindowInverted)
-	if err == nil {
-		if revisionTx < lower {
-			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
-		} else if revisionTx > upper {
-			return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
-		}
-
-		return nil
-	}
-
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf(errCheckRevision, err)
-	}
-
-	// There are no unexpired rows
-	sql, args, err := getRevision.ToSql()
-	if err != nil {
-		return fmt.Errorf(errCheckRevision, err)
-	}
-
-	var highest uint64
-	err = pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
-	).Scan(&highest)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
-	}
-	if err != nil {
-		return fmt.Errorf(errCheckRevision, err)
-	}
-
-	if revisionTx < highest {
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
-	} else if revisionTx > highest {
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
-	}
-
-	return nil
-}
-
-func (pgd *pgDatastore) loadRevision(ctx context.Context) (uint64, error) {
-	ctx, span := tracer.Start(ctx, "loadRevision")
-	defer span.End()
-
-	sql, args, err := getRevision.ToSql()
-	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
-	}
-
-	var revision uint64
-	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), sql, args...).Scan(&revision)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, nil
-		}
-		return 0, fmt.Errorf(errRevision, err)
-	}
-
-	return revision, nil
-}
-
-func (pgd *pgDatastore) computeRevisionRange(ctx context.Context, windowInverted time.Duration) (uint64, uint64, error) {
-	ctx, span := tracer.Start(ctx, "computeRevisionRange")
-	defer span.End()
-
-	nowSQL, nowArgs, err := getNow.ToSql()
-	if err != nil {
-		return 0, 0, err
-	}
-
-	var now time.Time
-	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
-	if err != nil {
-		return 0, 0, err
-	}
-	// RelationTupleTransaction is not timezone aware
-	// Explicitly use UTC before using as a query arg
-	now = now.UTC()
-
-	span.AddEvent("DB returned value for NOW()")
-
-	lowerBound := now.Add(windowInverted)
-
-	sql, args, err := getRevisionRange.Where(sq.GtOrEq{colTimestamp: lowerBound}).ToSql()
-	if err != nil {
-		return 0, 0, err
-	}
-
-	var lower, upper dbsql.NullInt64
-	// Setting QuerySimpleProtocol to true bypasses the pgx statement prep and caching.
-	// Using a non-prepared statement prevents the automatic plan selection behavior that can lead Postgres selecting
-	// a poor performing general plan after 5 custom plan queries. Non-prepared statements will use a custom plan each time.
-	// https://github.com/authzed/spicedb/issues/486
-	err = pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx),
-		sql,
-		append([]interface{}{pgx.QuerySimpleProtocol(true)}, args...)...,
-	).Scan(&lower, &upper)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	span.AddEvent("DB returned revision range")
-
-	if !lower.Valid || !upper.Valid {
-		return 0, 0, pgx.ErrNoRows
-	}
-
-	return uint64(lower.Int64), uint64(upper.Int64), nil
-}
-
-func createNewTransaction(ctx context.Context, tx pgx.Tx) (newTxnID uint64, err error) {
-	ctx, span := tracer.Start(ctx, "createNewTransaction")
-	defer span.End()
-
-	err = tx.QueryRow(ctx, createTxn).Scan(&newTxnID)
-	return
-}
-
-func revisionFromTransaction(txID uint64) datastore.Revision {
-	return decimal.NewFromInt(int64(txID))
-}
-
-func transactionFromRevision(revision datastore.Revision) uint64 {
-	return uint64(revision.IntPart())
 }
 
 func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {

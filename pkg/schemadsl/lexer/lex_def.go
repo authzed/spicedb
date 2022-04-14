@@ -53,11 +53,17 @@ const (
 )
 
 // keywords contains the full set of keywords supported.
-var keywords = map[string]bool{
-	"definition": true,
-	"relation":   true,
-	"permission": true,
-	"nil":        true,
+var keywords = map[string]struct{}{
+	"definition": {},
+	"relation":   {},
+	"permission": {},
+	"nil":        {},
+}
+
+// IsKeyword returns whether the specified input string is a reserved keyword.
+func IsKeyword(candidate string) bool {
+	_, ok := keywords[candidate]
+	return ok
 }
 
 // syntheticPredecessors contains the full set of token types after which, if a newline is found,
