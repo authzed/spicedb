@@ -496,8 +496,8 @@ github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7V
 github.com/julienschmidt/httprouter v1.3.0/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6 h1:OzCtZaD1uI5Fc1C+4oNAp7kZ4ibh5OIgxI29moH/IbE=
 github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6/go.mod h1:CEusGbCRDFcHX9EgEhPsgJX33kpp9CfSFRBAoSGOems=
-github.com/jzelinskie/cobrautil v0.0.11-0.20220414205624-f164bfecae2e h1:f8hIJrlbl0ii8UDaQbG1Q9rFtbGkIoXai09SRsFqqO0=
-github.com/jzelinskie/cobrautil v0.0.11-0.20220414205624-f164bfecae2e/go.mod h1:9tPpSZKwXyHMxcrIGH+u+8J3YiRlqqfpe4esM0ZYJzI=
+github.com/jzelinskie/cobrautil v0.0.11-0.20220415151552-ec5ba7d00338 h1:XyOeZU+h+uzb8d5lRZFk77uNGc/thnjK1L9bk3GOfPg=
+github.com/jzelinskie/cobrautil v0.0.11-0.20220415151552-ec5ba7d00338/go.mod h1:9tPpSZKwXyHMxcrIGH+u+8J3YiRlqqfpe4esM0ZYJzI=
 github.com/jzelinskie/stringz v0.0.0-20210414224931-d6a8ce844a70/go.mod h1:hHYbgxJuNLRw91CmpuFsYEOyQqpDVFg8pvEh23vy4P0=
 github.com/jzelinskie/stringz v0.0.1 h1:IahR+y8ct2nyj7B6i8UtFsGFj4ex1SX27iKFYsAheLk=
 github.com/jzelinskie/stringz v0.0.1/go.mod h1:hHYbgxJuNLRw91CmpuFsYEOyQqpDVFg8pvEh23vy4P0=
