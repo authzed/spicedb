@@ -101,7 +101,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 }
 
 func RegisterHeadFlags(cmd *cobra.Command) {
-	cmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory, mysql")
+	cmd.Flags().String("datastore-engine", "postgres", "type of datastore to initialize (e.g. postgres, cockroachdb, memory, mysql, spanner")
 }
 
 func NewHeadCommand(programName string) *cobra.Command {
