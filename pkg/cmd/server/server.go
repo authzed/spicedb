@@ -39,7 +39,7 @@ type Config struct {
 	// API config
 	GRPCServer          util.GRPCServerConfig
 	GRPCAuthFunc        grpc_auth.AuthFunc
-	PresharedKey        string
+	PresharedKey        []string
 	ShutdownGracePeriod time.Duration
 
 	// GRPC Gateway config
@@ -103,7 +103,15 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	if c.GRPCAuthFunc == nil {
-		log.Trace().Int("preshared-key-length", len(c.PresharedKey)).Msg("using gRPC auth with preshared key")
+		log.Trace().Int("preshared-keys-count", len(c.PresharedKey)).Msg("using gRPC auth with preshared key(s)")
+		for index, presharedKey := range c.PresharedKey {
+			if len(presharedKey) == 0 {
+				return nil, fmt.Errorf("preshared key #%d is empty", index+1)
+			}
+
+			log.Trace().Int(fmt.Sprintf("preshared-key-%d-length", index+1), len(presharedKey)).Msg("preshared key configured")
+		}
+
 		c.GRPCAuthFunc = auth.RequirePresharedKey(c.PresharedKey)
 	} else {
 		log.Trace().Msg("using preconfigured auth function")
@@ -141,10 +149,15 @@ func (c *Config) Complete() (RunnableServer, error) {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", cerr)
 		}
 
+		dispatchPresharedKey := ""
+		if len(c.PresharedKey) > 0 {
+			dispatchPresharedKey = c.PresharedKey[0]
+		}
+
 		dispatcher, err = combineddispatch.NewDispatcher(nsm,
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
-			combineddispatch.GrpcPresharedKey(c.PresharedKey),
+			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 				grpc.WithDefaultServiceConfig(balancer.BalancerServiceConfig),
@@ -158,7 +171,11 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
-		c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey), ds)
+		if c.GRPCAuthFunc == nil {
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey), ds)
+		} else {
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds)
+		}
 	}
 
 	var cachingClusterDispatch dispatch.Dispatcher
@@ -298,7 +315,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		dashboardServer:     dashboardServer,
 		unaryMiddleware:     c.UnaryMiddleware,
 		streamingMiddleware: c.StreamingMiddleware,
-		presharedKey:        c.PresharedKey,
+		presharedKeys:       c.PresharedKey,
 		telemetryReporter:   reporter,
 		closeFunc: func() {
 			if err := ds.Close(); err != nil {
@@ -339,7 +356,7 @@ type completedServerConfig struct {
 
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
-	presharedKey        string
+	presharedKeys       []string
 	closeFunc           func()
 }
 
@@ -354,13 +371,13 @@ func (c *completedServerConfig) SetMiddleware(unaryInterceptors []grpc.UnaryServ
 }
 
 func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	if len(c.presharedKey) == 0 {
+	if len(c.presharedKeys) == 0 {
 		return c.gRPCServer.DialContext(ctx, opts...)
 	}
 	if c.gRPCServer.Insecure() {
-		opts = append(opts, grpcutil.WithInsecureBearerToken(c.presharedKey))
+		opts = append(opts, grpcutil.WithInsecureBearerToken(c.presharedKeys[0]))
 	} else {
-		opts = append(opts, grpcutil.WithBearerToken(c.presharedKey))
+		opts = append(opts, grpcutil.WithBearerToken(c.presharedKeys[0]))
 	}
 	return c.gRPCServer.DialContext(ctx, opts...)
 }

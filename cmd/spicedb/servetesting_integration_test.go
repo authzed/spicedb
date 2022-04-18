@@ -189,8 +189,13 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string)
 			}
 			`,
 		})
+
+		if err != nil {
+			s, ok := status.FromError(err)
+			require.True(t, !ok || s.Code() == codes.Unavailable, fmt.Sprintf("Found unexpected error: %v", err))
+		}
 		return err == nil
-	}, 1*time.Second, 10*time.Millisecond, "could not start test server")
+	}, 3*time.Second, 10*time.Millisecond, "could not start test server")
 
 	return &spicedbHandle{port: port, readonlyPort: readonlyPort, httpPort: httpPort, cleanup: cleanup}, nil
 }
