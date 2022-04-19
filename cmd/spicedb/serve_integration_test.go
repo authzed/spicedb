@@ -66,7 +66,12 @@ func TestServe(t *testing.T) {
 			} else {
 				s, ok := status.FromError(err)
 				require.True(ok)
-				require.Equal(codes.Unknown, s.Code())
+
+				if key == "" {
+					require.Equal(codes.Unauthenticated, s.Code())
+				} else {
+					require.Equal(codes.PermissionDenied, s.Code())
+				}
 			}
 		})
 	}
