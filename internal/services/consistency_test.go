@@ -83,7 +83,7 @@ func TestConsistency(t *testing.T) {
 
 							// Validate the type system for each namespace.
 							for _, nsDef := range fullyResolved.NamespaceDefinitions {
-								_, ts, err := ns.ReadNamespaceAndTypes(dsCtx, nsDef.Name, revision)
+								_, ts, err := namespace.ReadNamespaceAndTypes(dsCtx, nsDef.Name, revision, ns)
 								lrequire.NoError(err)
 
 								_, err = ts.Validate(dsCtx)

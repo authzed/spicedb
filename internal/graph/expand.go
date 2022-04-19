@@ -216,7 +216,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	err := ce.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, req.Revision)
+	err := namespace.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, req.Revision, ce.nsm)
 	if err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
 			return emptyExpansion(req.ObjectAndRelation)

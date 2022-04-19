@@ -42,7 +42,7 @@ func (c *CanonicalKeyHandler) ComputeCheckKey(ctx context.Context, req *v1.Dispa
 			return "", err
 		}
 
-		_, relation, err := nsm.ReadNamespaceAndRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation, revision)
+		_, relation, err := namespace.ReadNamespaceAndRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation, revision, nsm)
 		if err != nil {
 			return "", err
 		}

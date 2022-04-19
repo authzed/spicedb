@@ -196,7 +196,7 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req ValidatedLoo
 		objSet.Add(req.Subject)
 	}
 
-	nsdef, typeSystem, err := cl.nsm.ReadNamespaceAndTypes(ctx, req.ObjectRelation.Namespace, req.Revision)
+	nsdef, typeSystem, err := namespace.ReadNamespaceAndTypes(ctx, req.ObjectRelation.Namespace, req.Revision, cl.nsm)
 	if err != nil {
 		return returnResult(lookupResultError(req, err, emptyMetadata))
 	}
@@ -556,7 +556,7 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req Valid
 			continue
 		}
 
-		_, directRelTypeSystem, err := cl.nsm.ReadNamespaceAndTypes(ctx, directRelation.Namespace, req.Revision)
+		_, directRelTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, directRelation.Namespace, req.Revision, cl.nsm)
 		if err != nil {
 			return returnResult(lookupResultError(req, err, emptyMetadata))
 		}

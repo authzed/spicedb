@@ -33,12 +33,13 @@ func validateTupleWrite(
 		return err
 	}
 
-	if err := nsm.CheckNamespaceAndRelation(
+	if err := namespace.CheckNamespaceAndRelation(
 		ctx,
 		tpl.ObjectAndRelation.Namespace,
 		tpl.ObjectAndRelation.Relation,
 		false, // Disallow ellipsis
 		revision,
+		nsm,
 	); err != nil {
 		return err
 	}
@@ -54,17 +55,18 @@ func validateTupleWrite(
 		}
 	}
 
-	if err := nsm.CheckNamespaceAndRelation(
+	if err := namespace.CheckNamespaceAndRelation(
 		ctx,
 		tpl.User.GetUserset().Namespace,
 		tpl.User.GetUserset().Relation,
 		true, // Allow Ellipsis
 		revision,
+		nsm,
 	); err != nil {
 		return err
 	}
 
-	_, ts, err := nsm.ReadNamespaceAndTypes(ctx, tpl.ObjectAndRelation.Namespace, revision)
+	_, ts, err := namespace.ReadNamespaceAndTypes(ctx, tpl.ObjectAndRelation.Namespace, revision, nsm)
 	if err != nil {
 		return err
 	}

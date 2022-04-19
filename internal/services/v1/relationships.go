@@ -66,7 +66,7 @@ type permissionServer struct {
 func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string, revision decimal.Decimal) error {
 	relationToTest := stringz.DefaultEmpty(optionalRelation, datastore.Ellipsis)
 	allowEllipsis := optionalRelation == ""
-	return ps.nsm.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, revision)
+	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, revision, ps.nsm)
 }
 
 func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter, revision decimal.Decimal) error {
@@ -169,27 +169,29 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				return err
 			}
 
-			if err := ps.nsm.CheckNamespaceAndRelation(
+			if err := namespace.CheckNamespaceAndRelation(
 				groupCtx,
 				update.Relationship.Resource.ObjectType,
 				update.Relationship.Relation,
 				false,
 				readRevision,
+				ps.nsm,
 			); err != nil {
 				return err
 			}
 
-			if err := ps.nsm.CheckNamespaceAndRelation(
+			if err := namespace.CheckNamespaceAndRelation(
 				groupCtx,
 				update.Relationship.Subject.Object.ObjectType,
 				stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
 				true,
 				readRevision,
+				ps.nsm,
 			); err != nil {
 				return err
 			}
 
-			_, ts, err := ps.nsm.ReadNamespaceAndTypes(groupCtx, update.Relationship.Resource.ObjectType, readRevision)
+			_, ts, err := namespace.ReadNamespaceAndTypes(groupCtx, update.Relationship.Resource.ObjectType, readRevision, ps.nsm)
 			if err != nil {
 				return err
 			}

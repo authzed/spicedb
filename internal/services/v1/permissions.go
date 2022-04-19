@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -21,21 +22,23 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
 	errG.Go(func() error {
-		return ps.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			req.Resource.ObjectType,
 			req.Permission,
 			false,
 			atRevision,
+			ps.nsm,
 		)
 	})
 	errG.Go(func() error {
-		return ps.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			req.Subject.Object.ObjectType,
 			normalizeSubjectRelation(req.Subject),
 			true,
 			atRevision,
+			ps.nsm,
 		)
 	})
 	if err := errG.Wait(); err != nil {
@@ -82,7 +85,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
 	atRevision, expandedAt := consistency.MustRevisionFromContext(ctx)
 
-	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, atRevision)
+	err := namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, atRevision, ps.nsm)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -266,16 +269,17 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
 	errG.Go(func() error {
-		return ps.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			req.Subject.Object.ObjectType,
 			normalizeSubjectRelation(req.Subject),
 			true,
 			atRevision,
+			ps.nsm,
 		)
 	})
 	errG.Go(func() error {
-		return ps.nsm.CheckNamespaceAndRelation(ctx, req.ResourceObjectType, req.Permission, false, atRevision)
+		return namespace.CheckNamespaceAndRelation(ctx, req.ResourceObjectType, req.Permission, false, atRevision, ps.nsm)
 	})
 	if err := errG.Wait(); err != nil {
 		return rewritePermissionsError(ctx, err)

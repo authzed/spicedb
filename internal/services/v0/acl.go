@@ -134,12 +134,13 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 							"relation filter specified but not relation provided.",
 						)
 					}
-					if err := as.nsm.CheckNamespaceAndRelation(
+					if err := namespace.CheckNamespaceAndRelation(
 						groupCtx,
 						tuplesetFilter.Namespace,
 						tuplesetFilter.Relation,
 						false, // Disallow ellipsis
 						atRevision,
+						as.nsm,
 					); err != nil {
 						return err
 					}
@@ -161,12 +162,13 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 			}
 
 			if !checkedRelation {
-				if err := as.nsm.CheckNamespaceAndRelation(
+				if err := namespace.CheckNamespaceAndRelation(
 					groupCtx,
 					tuplesetFilter.Namespace,
 					datastore.Ellipsis,
 					true, // Allow ellipsis
 					atRevision,
+					as.nsm,
 				); err != nil {
 					return err
 				}
@@ -261,21 +263,23 @@ func (as *aclServer) commonCheck(
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
 	errG.Go(func() error {
-		return as.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			start.Namespace,
 			start.Relation,
 			false,
 			atRevision,
+			as.nsm,
 		)
 	})
 	errG.Go(func() error {
-		return as.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			goal.Namespace,
 			goal.Relation,
 			true,
 			atRevision,
+			as.nsm,
 		)
 	})
 	if err := errG.Wait(); err != nil {
@@ -316,7 +320,7 @@ func (as *aclServer) commonCheck(
 func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.ExpandResponse, error) {
 	atRevision, _ := consistency.MustRevisionFromContext(ctx)
 
-	err := as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false, atRevision)
+	err := namespace.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false, atRevision, as.nsm)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -343,12 +347,12 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.LookupResponse, error) {
 	atRevision, _ := consistency.MustRevisionFromContext(ctx)
 
-	err := as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true, atRevision)
+	err := namespace.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true, atRevision, as.nsm)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	err = as.nsm.CheckNamespaceAndRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, false, atRevision)
+	err = namespace.CheckNamespaceAndRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, false, atRevision, as.nsm)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}

@@ -64,17 +64,6 @@ func NewNonCachingNamespaceManager() Manager {
 	return &cachingManager{c: noCache{}}
 }
 
-func (nsc *cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, *NamespaceTypeSystem, error) {
-	nsDef, err := nsc.ReadNamespace(ctx, nsName, revision)
-	if err != nil {
-		return nsDef, nil, err
-	}
-
-	// TODO(jschorr): Cache the type system too
-	ts, terr := BuildNamespaceTypeSystemForManager(nsDef, nsc, revision)
-	return nsDef, ts, terr
-}
-
 func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, error) {
 	ctx, span := tracer.Start(ctx, "ReadNamespace")
 	defer span.End()
@@ -116,40 +105,6 @@ func (nsc *cachingManager) ReadNamespace(ctx context.Context, nsName string, rev
 	}
 
 	return loadedRaw.(*core.NamespaceDefinition), nil
-}
-
-func (nsc *cachingManager) ReadNamespaceAndRelation(ctx context.Context, namespace, relation string, revision decimal.Decimal) (*core.NamespaceDefinition, *core.Relation, error) {
-	config, err := nsc.ReadNamespace(ctx, namespace, revision)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	for _, rel := range config.Relation {
-		if rel.Name == relation {
-			return config, rel, nil
-		}
-	}
-
-	return nil, nil, NewRelationNotFoundErr(namespace, relation)
-}
-
-func (nsc *cachingManager) CheckNamespaceAndRelation(ctx context.Context, namespace, relation string, allowEllipsis bool, revision decimal.Decimal) error {
-	config, err := nsc.ReadNamespace(ctx, namespace, revision)
-	if err != nil {
-		return err
-	}
-
-	if allowEllipsis && relation == datastore.Ellipsis {
-		return nil
-	}
-
-	for _, rel := range config.Relation {
-		if rel.Name == relation {
-			return nil
-		}
-	}
-
-	return NewRelationNotFoundErr(namespace, relation)
 }
 
 func (nsc *cachingManager) Close() error {

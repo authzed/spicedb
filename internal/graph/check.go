@@ -191,7 +191,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	err := cc.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, req.Revision)
+	err := namespace.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, req.Revision, cc.nsm)
 	if err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
 			return notMember()
