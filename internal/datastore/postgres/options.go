@@ -12,12 +12,12 @@ type postgresOptions struct {
 	maxOpenConns      *int
 	minOpenConns      *int
 
-	watchBufferLength        uint16
-	revisionFuzzingTimedelta time.Duration
-	gcWindow                 time.Duration
-	gcInterval               time.Duration
-	gcMaxOperationTime       time.Duration
-	splitAtUsersetCount      uint16
+	watchBufferLength    uint16
+	revisionQuantization time.Duration
+	gcWindow             time.Duration
+	gcInterval           time.Duration
+	gcMaxOperationTime   time.Duration
+	splitAtUsersetCount  uint16
 
 	enablePrometheusStats   bool
 	analyzeBeforeStatistics bool
@@ -26,13 +26,14 @@ type postgresOptions struct {
 }
 
 const (
-	errFuzzingTooLarge = "revision fuzzing timedelta (%s) must be less than GC window (%s)"
+	errQuantizationTooLarge = "revision quantization interval (%s) must be less than GC window (%s)"
 
 	defaultWatchBufferLength                 = 128
 	defaultGarbageCollectionWindow           = 24 * time.Hour
 	defaultGarbageCollectionInterval         = time.Minute * 3
 	defaultGarbageCollectionMaxOperationTime = time.Minute
 	defaultUsersetBatchSize                  = 1024
+	defaultQuantization                      = 5 * time.Second
 )
 
 // Option provides the facility to configure how clients within the
@@ -41,11 +42,12 @@ type Option func(*postgresOptions)
 
 func generateConfig(options []Option) (postgresOptions, error) {
 	computed := postgresOptions{
-		gcWindow:            defaultGarbageCollectionWindow,
-		gcInterval:          defaultGarbageCollectionInterval,
-		gcMaxOperationTime:  defaultGarbageCollectionMaxOperationTime,
-		watchBufferLength:   defaultWatchBufferLength,
-		splitAtUsersetCount: defaultUsersetBatchSize,
+		gcWindow:             defaultGarbageCollectionWindow,
+		gcInterval:           defaultGarbageCollectionInterval,
+		gcMaxOperationTime:   defaultGarbageCollectionMaxOperationTime,
+		watchBufferLength:    defaultWatchBufferLength,
+		splitAtUsersetCount:  defaultUsersetBatchSize,
+		revisionQuantization: defaultQuantization,
 	}
 
 	for _, option := range options {
@@ -53,10 +55,10 @@ func generateConfig(options []Option) (postgresOptions, error) {
 	}
 
 	// Run any checks on the config that need to be done
-	if computed.revisionFuzzingTimedelta >= computed.gcWindow {
+	if computed.revisionQuantization >= computed.gcWindow {
 		return computed, fmt.Errorf(
-			errFuzzingTooLarge,
-			computed.revisionFuzzingTimedelta,
+			errQuantizationTooLarge,
+			computed.revisionQuantization,
 			computed.gcWindow,
 		)
 	}
@@ -132,13 +134,13 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 	}
 }
 
-// RevisionFuzzingTimedelta is the time bucket size to which advertised
+// RevisionQuantization is the time bucket size to which advertised
 // revisions will be rounded.
 //
 // This value defaults to 5 seconds.
-func RevisionFuzzingTimedelta(delta time.Duration) Option {
+func RevisionQuantization(quantization time.Duration) Option {
 	return func(po *postgresOptions) {
-		po.revisionFuzzingTimedelta = delta
+		po.revisionQuantization = quantization
 	}
 }
 

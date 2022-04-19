@@ -1,0 +1,32 @@
+---
+schema: >-
+  definition test/user {}
+  definition test/otherdocument {
+    relation viewer: test/user | test/document#viewer
+    permission view = viewer
+  }
+  definition test/document {
+    relation viewer: test/user | test/otherdocument#viewer
+    permission view = viewer
+  }
+relationships: |
+  test/document:d1#viewer@test/user:tom
+  test/otherdocument:o2#viewer@test/user:jill
+  test/document:d3#viewer@test/user:frank
+  test/document:d1#viewer@test/otherdocument:o2#viewer
+  test/otherdocument:o2#viewer@test/document:d3#viewer
+assertions:
+  assertTrue:
+    - "test/document:d1#view@test/user:tom"
+    - "test/document:d1#view@test/user:jill"
+    - "test/document:d1#view@test/user:frank"
+    - "test/otherdocument:o2#view@test/user:jill"
+    - "test/otherdocument:o2#view@test/user:frank"
+    - "test/document:d3#view@test/user:frank"
+    - "test/document:d1#view@test/otherdocument:o2#viewer"
+    - "test/otherdocument:o2#view@test/document:d3#viewer"
+    - "test/document:d1#view@test/document:d3#viewer"
+  assertFalse:
+    - "test/otherdocument:o2#view@test/user:tom"
+    - "test/document:d3#view@test/user:tom"
+    - "test/document:d3#view@test/user:jill"

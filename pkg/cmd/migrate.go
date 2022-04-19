@@ -74,7 +74,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Fatal().Msg(fmt.Sprintf("unable to get table prefix: %s", err))
 		}
-		migrationDriver, err = mysqlmigrations.NewMysqlDriverFromDSN(dbURL, tablePrefix)
+		migrationDriver, err = mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix)
 		if err != nil {
 			return err
 		}

@@ -214,7 +214,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 	pgOpts := []postgres.Option{
 		postgres.GCWindow(opts.GCWindow),
-		postgres.RevisionFuzzingTimedelta(opts.RevisionQuantization),
+		postgres.RevisionQuantization(opts.RevisionQuantization),
 		postgres.ConnMaxIdleTime(opts.MaxIdleTime),
 		postgres.ConnMaxLifetime(opts.MaxLifetime),
 		postgres.MaxOpenConns(opts.MaxOpenConns),
@@ -255,7 +255,7 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.EnablePrometheusStats(),
 	}
-	return mysql.NewMysqlDatastore(opts.URI, mysqlOpts...)
+	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
 }
 
 func newMemoryDatstore(opts Config) (datastore.Datastore, error) {

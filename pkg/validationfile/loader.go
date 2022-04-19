@@ -13,6 +13,8 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -62,14 +64,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 		}
 
 		log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
-		for index, nsDef := range defs {
-			nsDefs = append(nsDefs, nsDef)
-			log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
-			_, lnerr := ds.WriteNamespace(context.Background(), nsDef)
-			if lnerr != nil {
-				return nil, decimal.Zero, fmt.Errorf("error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
-			}
-		}
+		nsDefs = append(nsDefs, defs...)
 
 		// Load the namespace configs.
 		log.Info().Str("filePath", filePath).Int("namespaceCount", len(parsed.NamespaceConfigs)).Msg("Loading namespaces")
@@ -77,15 +72,36 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 			nsDef := core.NamespaceDefinition{}
 			nerr := prototext.Unmarshal([]byte(namespaceConfig), &nsDef)
 			if nerr != nil {
-				return nil, decimal.Zero, fmt.Errorf("error when parsing namespace config #%v from file %s: %w", index, filePath, nerr)
+				return nil, revision, fmt.Errorf("error when parsing namespace config #%v from file %s: %w", index, filePath, nerr)
 			}
 			nsDefs = append(nsDefs, &nsDef)
+		}
+
+		// Load the namespaces and type check.
+		nsm := namespace.NewNonCachingNamespaceManager()
+		for _, nsDef := range nsDefs {
+			ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsDef, nsm, nsDefs, revision)
+			if err != nil {
+				return nil, revision, err
+			}
+
+			ctx := dsctx.ContextWithDatastore(context.Background(), ds)
+			vts, terr := ts.Validate(ctx)
+			if terr != nil {
+				return nil, revision, terr
+			}
+
+			aerr := namespace.AnnotateNamespace(vts)
+			if aerr != nil {
+				return nil, revision, aerr
+			}
 
 			log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
-			_, lnerr := ds.WriteNamespace(context.Background(), &nsDef)
+			rev, lnerr := ds.WriteNamespace(context.Background(), nsDef)
 			if lnerr != nil {
-				return nil, decimal.Zero, fmt.Errorf("error when loading namespace config #%v from file %s: %w", index, filePath, lnerr)
+				return nil, revision, fmt.Errorf("error when loading namespace %s: %w", nsDef.Name, lnerr)
 			}
+			revision = rev
 		}
 
 		// Load the validation tuples/relationships.

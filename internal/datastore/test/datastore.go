@@ -23,19 +23,19 @@ const veryLargeGCWindow = 90000 * time.Second
 // a particular datastore.
 type DatastoreTester interface {
 	// New creates a new datastore instance for a single test.
-	New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+	New(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 }
 
-type DatastoreTesterFunc func(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+type DatastoreTesterFunc func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 
-func (f DatastoreTesterFunc) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	return f(revisionFuzzingTimedelta, gcWindow, watchBufferLength)
+func (f DatastoreTesterFunc) New(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	return f(revisionQuantization, gcWindow, watchBufferLength)
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
 func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
-	t.Run("TestRevisionFuzzing", func(t *testing.T) { RevisionFuzzingTest(t, tester) })
+	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 	t.Run("TestWritePreconditions", func(t *testing.T) { WritePreconditionsTest(t, tester) })
 	t.Run("TestDeletePreconditions", func(t *testing.T) { DeletePreconditionsTest(t, tester) })
 	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })

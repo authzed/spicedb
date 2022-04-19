@@ -222,7 +222,7 @@ func loadNamespaces(
 			continue
 		}
 
-		tverr := ts.Validate(ctx)
+		_, tverr := ts.Validate(ctx)
 		if tverr == nil {
 			var err error
 			lastRevision, err = ds.WriteNamespace(ctx, coreNsDef)

@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/options"
 )
 
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 var schema = common.SchemaInformation{
 	ColNamespace:        colNamespace,
 	ColObjectID:         colObjectID,
@@ -25,7 +26,8 @@ func (mds *Datastore) QueryTuples(
 	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, FilterToLivingObjects(mds.QueryTuplesQuery, revision)).
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(mds.QueryTuplesQuery, revision)).
 		FilterToResourceType(filter.ResourceType)
 
 	if filter.OptionalResourceId != "" {
@@ -49,7 +51,8 @@ func (mds *Datastore) ReverseQueryTuples(
 	revision datastore.Revision,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.TupleIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, FilterToLivingObjects(mds.QueryTuplesQuery, revision)).
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	qBuilder := common.NewSchemaQueryFilterer(schema, filterToLivingObjects(mds.QueryTuplesQuery, revision)).
 		FilterToSubjectFilter(subjectFilter)
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
@@ -59,6 +62,7 @@ func (mds *Datastore) ReverseQueryTuples(
 			FilterToResourceType(queryOpts.ResRelation.Namespace).
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
+
 	return mds.querySplitter.SplitAndExecuteQuery(ctx,
 		qBuilder,
 		revision,
