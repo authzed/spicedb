@@ -25,7 +25,7 @@ func TestServe(t *testing.T) {
 	tester, err := newTester(t,
 		&dockertest.RunOptions{
 			Repository:   "authzed/spicedb",
-			Tag:          "latest",
+			Tag:          "ci",
 			Cmd:          []string{"serve", "--log-level", "debug", "--grpc-preshared-key", "firstkey", "--grpc-preshared-key", "secondkey"},
 			ExposedPorts: []string{"50051/tcp"},
 		},

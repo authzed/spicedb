@@ -29,7 +29,7 @@ func TestTestServer(t *testing.T) {
 	tester, err := newTester(t,
 		&dockertest.RunOptions{
 			Repository:   "authzed/spicedb",
-			Tag:          "latest",
+			Tag:          "ci",
 			Cmd:          []string{"serve-testing", "--log-level", "debug"},
 			ExposedPorts: []string{"50051/tcp", "50052/tcp"},
 		},

@@ -19,7 +19,7 @@ func TestRESTGateway(t *testing.T) {
 	tester, err := newTester(t,
 		&dockertest.RunOptions{
 			Repository:   "authzed/spicedb",
-			Tag:          "latest",
+			Tag:          "ci",
 			Cmd:          []string{"serve", "--log-level", "debug", "--grpc-preshared-key", "somerandomkeyhere", "--http-enabled"},
 			ExposedPorts: []string{"50051/tcp", "8443/tcp"},
 		},
