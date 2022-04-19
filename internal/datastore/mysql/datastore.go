@@ -47,6 +47,7 @@ const (
 	liveDeletedTxnID        = uint64(9223372036854775807)
 	batchDeleteSize         = 1000
 	noLastInsertID          = 0
+	seedingTimeout          = 10 * time.Second
 )
 
 var (
@@ -140,7 +141,9 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 		querySplitter:            &querySplitter,
 	}
 
-	err = store.seedDatabase(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), seedingTimeout)
+	defer cancel()
+	err = store.seedDatabase(ctx)
 	if err != nil {
 		return nil, err
 	}
