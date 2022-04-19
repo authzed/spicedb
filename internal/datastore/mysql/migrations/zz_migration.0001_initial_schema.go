@@ -60,7 +60,7 @@ func createRelationTupleTransaction(driver *MySQLDriver) string {
 }
 
 func init() {
-	mustRegisterMigration("initial", "",
+	mustRegisterMigration("indexed_gc", "",
 		newExecutor(
 			createMigrationVersion,
 			createNamespaceConfig,
