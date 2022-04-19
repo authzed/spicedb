@@ -9,6 +9,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/namespace"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -110,10 +111,22 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 	validating := NewValidatingDatastore(ds)
 
 	var lastRevision datastore.Revision
-	for _, namespace := range []*core.NamespaceDefinition{UserNS, FolderNS, DocumentNS} {
-		var err error
-		lastRevision, err = validating.WriteNamespace(ctx, namespace)
+	allDefs := []*core.NamespaceDefinition{UserNS, FolderNS, DocumentNS}
+	manager := namespace.NewNonCachingNamespaceManager()
+
+	for _, nsDef := range allDefs {
+		ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsDef, manager, allDefs, lastRevision)
 		require.NoError(err)
+
+		vts, err := ts.Validate(ctx)
+		require.NoError(err)
+
+		aerr := namespace.AnnotateNamespace(vts)
+		require.NoError(aerr)
+
+		rev, err := validating.WriteNamespace(ctx, nsDef)
+		require.NoError(err)
+		lastRevision = rev
 	}
 
 	return validating, lastRevision

@@ -59,8 +59,8 @@ func (tam testAutoMapper) Reverse(id string) (string, error) {
 	return "", fmt.Errorf(errIDNotFound, id)
 }
 
-func (mt mappingTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	delegate, err := memdb.NewMemdbDatastore(watchBufferLength, revisionFuzzingTimedelta, gcWindow, 0)
+func (mt mappingTest) New(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	delegate, err := memdb.NewMemdbDatastore(watchBufferLength, revisionQuantization, gcWindow, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,44 @@
+---
+schema: >-
+  definition test/user {}
+
+  definition test/resource {
+    relation viewer: test/user
+    relation writer: test/user
+
+    permission both = viewer + writer
+    permission another_both = viewer + writer
+
+    permission view = viewer
+    permission another_view = viewer
+
+    permission one = view
+    permission two = one
+
+    permission emptyone = nil
+    permission emptytwo = nil
+
+    permission viewandempty = view + nil
+  }
+relationships: |
+  test/resource:first#viewer@test/user:tom
+  test/resource:first#writer@test/user:jill
+assertions:
+  assertTrue:
+    - "test/resource:first#view@test/user:tom"
+    - "test/resource:first#viewandempty@test/user:tom"
+    - "test/resource:first#both@test/user:tom"
+    - "test/resource:first#one@test/user:tom"
+    - "test/resource:first#two@test/user:tom"
+    - "test/resource:first#another_view@test/user:tom"
+    - "test/resource:first#another_both@test/user:tom"
+    - "test/resource:first#view@test/resource:first#view"
+    - "test/resource:first#another_view@test/resource:first#another_view"
+    - "test/resource:first#one@test/resource:first#one"
+    - "test/resource:first#two@test/resource:first#two"
+    - "test/resource:first#viewandempty@test/resource:first#view"
+  assertFalse:
+    - "test/resource:first#emptyone@test/user:tom"
+    - "test/resource:first#emptytwo@test/user:tom"
+    - "test/resource:first#view@test/resource:first#another_view"
+    - "test/resource:first#another_view@test/resource:first#view"

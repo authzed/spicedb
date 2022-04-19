@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -42,7 +43,7 @@ var testCacheConfig = &ristretto.Config{
 	BufferItems: 64,      // number of keys per Get buffer.
 }
 
-func TestSimple(t *testing.T) {
+func TestSimpleCheck(t *testing.T) {
 	type expected struct {
 		relation string
 		isMember bool
@@ -305,7 +306,7 @@ func newLocalDispatcher(require *require.Assertions) (context.Context, dispatch.
 
 	dispatch := NewLocalOnlyDispatcher(nsm)
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(nil, "")
+	cachingDispatcher, err := caching.NewCachingDispatcher(nil, nsm, "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(err)
 

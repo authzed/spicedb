@@ -131,9 +131,13 @@ message Relation {
     max_bytes : 64,
   } ];
   UsersetRewrite userset_rewrite = 2;
+
   TypeInformation type_information = 3;
   Metadata metadata = 4;
   SourcePosition source_position = 5;
+
+  string aliasing_relation = 6;
+  string canonical_cache_key = 7;
 }
 
 message TypeInformation {

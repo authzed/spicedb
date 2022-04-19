@@ -127,7 +127,12 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 			return nil, rewriteError(ctx, err)
 		}
 
-		if err := ts.Validate(ctx); err != nil {
+		vts, err := ts.Validate(ctx)
+		if err != nil {
+			return nil, rewriteError(ctx, err)
+		}
+
+		if err := namespace.AnnotateNamespace(vts); err != nil {
 			return nil, rewriteError(ctx, err)
 		}
 

@@ -18,6 +18,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -25,14 +26,27 @@ import (
 )
 
 const (
-	errRevision      = "unable to find revision: %w"
-	errCheckRevision = "unable to check revision: %w"
+	colID               = "id"
+	colTimestamp        = "timestamp"
+	colNamespace        = "namespace"
+	colConfig           = "serialized_config"
+	colCreatedTxn       = "created_transaction"
+	colDeletedTxn       = "deleted_transaction"
+	colObjectID         = "object_id"
+	colRelation         = "relation"
+	colUsersetNamespace = "userset_namespace"
+	colUsersetObjectID  = "userset_object_id"
+	colUsersetRelation  = "userset_relation"
 
-	liveDeletedTxnID = uint64(9223372036854775807)
-
-	errUnableToInstantiate = "unable to instantiate datastore: %w"
-
-	batchDeleteSize = 1000
+	errRevision             = "unable to find revision: %w"
+	errCheckRevision        = "unable to check revision: %w"
+	errUnableToInstantiate  = "unable to instantiate datastore: %w"
+	errUnableToQueryTuples  = "unable to query tuples: %w"
+	errUnableToWriteTuples  = "unable to write tuples: %w"
+	errUnableToDeleteTuples = "unable to delete tuples: %w"
+	liveDeletedTxnID        = uint64(9223372036854775807)
+	batchDeleteSize         = 1000
+	noLastInsertID          = 0
 )
 
 var (
@@ -54,23 +68,29 @@ type sqlFilter interface {
 	ToSql() (string, []interface{}, error)
 }
 
-func NewMysqlDatastore(url string, options ...Option) (*Datastore, error) {
+// NewMySQLDatastore creates a new mysql.Datastore value configured with the MySQL instance
+// specified in through the URI parameter. Supports customization via the various options available
+// in this package.
+//
+// URI: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
+// See https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
+func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
-	connector, err := mysql.MySQLDriver{}.OpenConnector(url)
+	connector, err := mysql.MySQLDriver{}.OpenConnector(uri)
 	if err != nil {
-		return nil, fmt.Errorf("NewMysqlDatastore: failed to create connector: %w", err)
+		return nil, fmt.Errorf("NewMySQLDatastore: failed to create connector: %w", err)
 	}
 	var db *sql.DB
 	if config.enablePrometheusStats {
 		connector, err = instrumentConnector(connector)
 		if err != nil {
-			return nil, fmt.Errorf("NewMysqlDatastore: unable to instrument connector: %w", err)
+			return nil, fmt.Errorf("NewMySQLDatastore: unable to instrument connector: %w", err)
 		}
+
 		db = sql.OpenDB(connector)
-		// Create a new collector, the name will be used as a label on the metrics
 		collector := sqlstats.NewStatsCollector("spicedb", db)
 		err := prometheus.Register(collector)
 		if err != nil {
@@ -79,17 +99,18 @@ func NewMysqlDatastore(url string, options ...Option) (*Datastore, error) {
 	} else {
 		db = sql.OpenDB(connector)
 	}
+
 	db.SetConnMaxLifetime(config.connMaxLifetime)
 	db.SetConnMaxIdleTime(config.connMaxIdleTime)
 	db.SetMaxOpenConns(config.maxOpenConns)
 	db.SetMaxIdleConns(config.maxOpenConns)
 
-	driver := migrations.NewMysqlDriverFromDB(db, config.tablePrefix)
+	driver := migrations.NewMySQLDriverFromDB(db, config.tablePrefix)
 	queryBuilder := NewQueryBuilder(driver)
 
 	createTxn, _, err := sb.Insert(driver.RelationTupleTransaction()).Values().ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("NewMysqlDatastore: %w", err)
+		return nil, fmt.Errorf("NewMySQLDatastore: %w", err)
 	}
 
 	// used for seeding the initial relation_tuple_transaction. using INSERT IGNORE on a known
@@ -98,14 +119,14 @@ func NewMysqlDatastore(url string, options ...Option) (*Datastore, error) {
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         NewMySQLExecutor(db),
+		Executor:         newMySQLExecutor(db),
 		UsersetBatchSize: config.splitAtUsersetCount,
 	}
 
 	store := &Datastore{
 		db:                       db,
 		driver:                   driver,
-		url:                      url,
+		url:                      uri,
 		revisionFuzzingTimedelta: config.revisionFuzzingTimedelta,
 		gcWindowInverted:         -1 * config.gcWindow,
 		gcInterval:               config.gcInterval,
@@ -130,9 +151,25 @@ func NewMysqlDatastore(url string, options ...Option) (*Datastore, error) {
 	return store, nil
 }
 
-func NewMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
+func newMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
+	// This implementation does not create a transaction because it's redundant for single statements, and it avoids
+	// the network overhead and reduce contention on the connection pool. From MySQL docs:
+	//
+	// https://dev.mysql.com/doc/refman/5.7/en/commit.html
+	// "By default, MySQL runs with autocommit mode enabled. This means that, when not otherwise inside a transaction,
+	// each statement is atomic, as if it were surrounded by START TRANSACTION and COMMIT."
+	//
+	// https://dev.mysql.com/doc/refman/5.7/en/innodb-consistent-read.html
+	// "Consistent read is the default mode in which InnoDB processes SELECT statements in READ COMMITTED and
+	// REPEATABLE READ isolation levels. A consistent read does not set any locks on the tables it accesses,
+	// and therefore other sessions are free to modify those tables at the same time a consistent read
+	// is being performed on the table."
+	//
+	// Prepared statements are also not used given they perform poorly on environments where connections have
+	// short lifetime (e.g. to gracefully handle load-balancer connection drain)
 	return func(ctx context.Context, revision datastore.Revision, sqlQuery string, args []interface{}) ([]*core.RelationTuple, error) {
 		ctx = datastore.SeparateContextWithTracing(ctx)
+
 		span := trace.SpanFromContext(ctx)
 
 		rows, err := db.QueryContext(ctx, sqlQuery, args...)
@@ -176,9 +213,10 @@ func NewMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
 	}
 }
 
+// Datastore is a MySQL-based implementation of the datastore.Datastore interface
 type Datastore struct {
 	db            *sql.DB
-	driver        *migrations.MysqlDriver
+	driver        *migrations.MySQLDriver
 	querySplitter *common.TupleQuerySplitter
 	url           string
 
@@ -200,15 +238,17 @@ type Datastore struct {
 
 // Close closes the data store.
 func (mds *Datastore) Close() error {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	mds.cancelGc()
 	if mds.gcGroup != nil {
 		if err := mds.gcGroup.Wait(); err != nil {
-			log.Error().Err(err).Msg("error from running garbage collector on shutdown")
+			log.Error().Err(err).Msg("error waiting for garbage collector to shutdown")
 		}
 	}
 	return mds.db.Close()
 }
 
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) runGarbageCollector() error {
 	log.Info().Dur("interval", mds.gcInterval).Msg("garbage collection worker started for mysql driver")
 
@@ -227,6 +267,7 @@ func (mds *Datastore) runGarbageCollector() error {
 	}
 }
 
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) getNow(ctx context.Context) (time.Time, error) {
 	// Retrieve the `now` time from the database.
 	nowSQL, nowArgs, err := getNow.ToSql()
@@ -240,13 +281,16 @@ func (mds *Datastore) getNow(ctx context.Context) (time.Time, error) {
 		return time.Now(), err
 	}
 
-	// RelationTupleTransaction is not timezone aware
-	// Explicitly use UTC before using as a query arg
+	// Just for convenience while debugging - MySQL and the driver do properly handle timezones
 	now = now.UTC()
 
 	return now, nil
 }
 
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+// - this implementation does not have metrics yet
+// - an additional useful logging message is added
+// - context is removed from logger because zerolog expects logger in the context
 func (mds *Datastore) collectGarbage() error {
 	ctx, cancel := context.WithTimeout(context.Background(), mds.gcMaxOperationTime)
 	defer cancel()
@@ -274,6 +318,8 @@ func (mds *Datastore) collectGarbage() error {
 	return err
 }
 
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+// - main difference is how the PSQL driver handles null values
 func (mds *Datastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
 	// Find the highest transaction ID before the GC window.
 	query, args, err := mds.GetRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
@@ -300,6 +346,8 @@ func (mds *Datastore) collectGarbageBefore(ctx context.Context, before time.Time
 	return mds.collectGarbageForTransaction(ctx, highest)
 }
 
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+// - implementation misses metrics
 func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	relCount, err := mds.batchDelete(ctx, mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: highest})
@@ -308,6 +356,7 @@ func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest 
 	}
 
 	log.Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
+
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
 	// itself to ensure there is always at least one transaction present.
 	transactionCount, err := mds.batchDelete(ctx, mds.driver.RelationTupleTransaction(), sq.Lt{colID: highest})
@@ -319,6 +368,9 @@ func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest 
 	return relCount, transactionCount, nil
 }
 
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+// - query was reworked to make it compatible with Vitess
+// - API differences with PSQL driver
 func (mds *Datastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
 	query, args, err := sb.Delete(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
 	if err != nil {
@@ -345,31 +397,14 @@ func (mds *Datastore) batchDelete(ctx context.Context, tableName string, filter 
 	return deletedCount, nil
 }
 
-func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
-	ctx, span := tracer.Start(ctx, "createNewTransaction")
-	defer span.End()
-
-	createQuery := mds.createTxn
-	if err != nil {
-		return 0, fmt.Errorf("createNewTransaction: %w", err)
-	}
-
-	result, err := tx.ExecContext(ctx, createQuery)
-	if err != nil {
-		return 0, fmt.Errorf("createNewTransaction: %w", err)
-	}
-
-	lastInsertID, err := result.LastInsertId()
-	if err != nil {
-		return 0, fmt.Errorf("createNewTransaction: failed to get last inserted id: %w", err)
-	}
-
-	return uint64(lastInsertID), nil
-}
-
 // IsReady returns whether the datastore is ready to accept data. Datastores that require
 // database schema creation will return false until the migrations have been run to create
 // the necessary tables.
+//
+// fundamentally different from PSQL implementation:
+// - checking if the current migration version is compatible is implemented with IsHeadCompatible
+// - Database seeding is handled here, so that we can decouple schema migration from data migration
+//   and support skeema-based migrations.
 func (mds *Datastore) IsReady(ctx context.Context) (bool, error) {
 	if err := mds.db.PingContext(ctx); err != nil {
 		return false, err
@@ -388,64 +423,76 @@ func (mds *Datastore) IsReady(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	// seed base transaction if not present
-	txRevision, err := mds.HeadRevision(ctx)
+	err = mds.seedBaseTransaction(ctx)
 	if err != nil {
 		return false, err
-	}
-	if txRevision == datastore.NoRevision {
-		baseRevision, err := mds.seedBaseTransaction(ctx)
-		if err != nil {
-			return false, err
-		}
-		if baseRevision != datastore.NoRevision {
-			// no txRevision here indicates that the base transaction was already seeded when this write
-			// was committed.  only log for the process which actually seeds the transaction.
-			log.Info().Uint64("txRevision", baseRevision.BigInt().Uint64()).Msg("seeded base datastore txRevision")
-		}
 	}
 	return true, nil
 }
 
-// seedBaseTransaction initializes the first transaction revision.
-func (mds *Datastore) seedBaseTransaction(ctx context.Context) (datastore.Revision, error) {
+// seedBaseTransaction initializes the first transaction revision if necessary.
+func (mds *Datastore) seedBaseTransaction(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "seedBaseTransaction")
 	defer span.End()
 
+	// check if already seeded
+	headRevision, err := mds.HeadRevision(ctx)
+	if err != nil {
+		return err
+	}
+	if headRevision != datastore.NoRevision {
+		return nil
+	}
 	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
-		return datastore.NoRevision, err
+		return err
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
 	// idempotent INSERT IGNORE transaction id=1. safe to be execute concurrently.
 	result, err := tx.ExecContext(ctx, mds.createBaseTxn)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf("seedBaseTransaction: %w", err)
+		return fmt.Errorf("seedBaseTransaction: %w", err)
 	}
 
 	lastInsertID, err := result.LastInsertId()
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf("seedBaseTransaction: failed to get last inserted id: %w", err)
+		return fmt.Errorf("seedBaseTransaction: failed to get last inserted id: %w", err)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return datastore.NoRevision, err
+		return err
 	}
 
-	if lastInsertID == 0 {
-		// If there was no error and `lastInsertID` is 0, the insert was ignored.  This indicates the transaction
-		// was already seeded by another processes (race condition).
+	if lastInsertID != noLastInsertID {
+		// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
+		// was already seeded by another processes (i.e. race condition).
+		log.Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore headRevision")
+	}
+
+	return nil
+}
+
+func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	// implementation deviates slightly from PSQL implementation in order to support
+	// database seeding in runtime, instead of through migrate command
+	ctx, span := tracer.Start(ctx, "HeadRevision")
+	defer span.End()
+
+	revision, err := mds.loadRevision(ctx)
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+	if revision == 0 {
 		return datastore.NoRevision, nil
 	}
 
-	return revisionFromTransaction(uint64(lastInsertID)), nil
+	return revisionFromTransaction(revision), nil
 }
 
-// OptimizedRevision gets a revision that will likely already be replicated
-// and will likely be shared amongst many queries.
 func (mds *Datastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()
 
@@ -470,26 +517,8 @@ func (mds *Datastore) OptimizedRevision(ctx context.Context) (datastore.Revision
 	return revisionFromTransaction(uint64(rand.Intn(int(upper-lower))) + lower), nil
 }
 
-// HeadRevision gets a revision that is guaranteed to be at least as fresh as
-// right now.
-func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "HeadRevision")
-	defer span.End()
-
-	revision, err := mds.loadRevision(ctx)
-	if err != nil {
-		return datastore.NoRevision, err
-	}
-	if revision == 0 {
-		return datastore.NoRevision, nil
-	}
-
-	return revisionFromTransaction(revision), nil
-}
-
-// CheckRevision checks the specified revision to make sure it's valid and
-// hasn't been garbage collected.
 func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
 
@@ -537,6 +566,8 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revi
 }
 
 func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	// slightly changed to support no revisions at all, needed for runtime seeding of first transaction
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
@@ -561,6 +592,8 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 	return uint64(revision.Int64), nil
 }
 
+// different from PSQL's implementation - it avoids one extra query.
+// this could be potentially applied to the PSQL implementation as well
 func (mds *Datastore) computeRevisionRange(ctx context.Context, windowInverted time.Duration) (uint64, uint64, error) {
 	ctx, span := tracer.Start(ctx, "computeRevisionRange")
 	defer span.End()
@@ -587,4 +620,45 @@ func (mds *Datastore) computeRevisionRange(ctx context.Context, windowInverted t
 	}
 
 	return uint64(lower.Int64), uint64(upper.Int64), nil
+}
+
+func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
+	ctx, span := tracer.Start(ctx, "createNewTransaction")
+	defer span.End()
+
+	createQuery := mds.createTxn
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: %w", err)
+	}
+
+	result, err := tx.ExecContext(ctx, createQuery)
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: %w", err)
+	}
+
+	lastInsertID, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: failed to get last inserted id: %w", err)
+	}
+
+	return uint64(lastInsertID), nil
+}
+
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func revisionFromTransaction(txID uint64) datastore.Revision {
+	return decimal.NewFromInt(int64(txID))
+}
+
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func transactionFromRevision(revision datastore.Revision) uint64 {
+	return uint64(revision.IntPart())
+}
+
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {
+	return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+		Where(sq.Or{
+			sq.Eq{colDeletedTxn: liveDeletedTxnID},
+			sq.Gt{colDeletedTxn: revision},
+		})
 }

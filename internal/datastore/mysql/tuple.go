@@ -16,10 +16,72 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func (mds *Datastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
+	query := mds.QueryTupleExistsQuery.Where(sq.Eq{colNamespace: filter.ResourceType})
+
+	if filter.OptionalResourceId != "" {
+		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+	}
+	if filter.OptionalRelation != "" {
+		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+	}
+
+	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
+		if subjectFilter.OptionalSubjectId != "" {
+			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+		}
+		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
+			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+		}
+	}
+
+	return query
+}
+
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func (mds *Datastore) checkPreconditions(ctx context.Context, tx *sql.Tx, preconditions []*v1.Precondition) error {
+	ctx, span := tracer.Start(ctx, "checkPreconditions")
+	defer span.End()
+
+	for _, precond := range preconditions {
+		switch precond.Operation {
+		case v1.Precondition_OPERATION_MUST_NOT_MATCH, v1.Precondition_OPERATION_MUST_MATCH:
+			query, args, err := mds.selectQueryForFilter(precond.Filter).Limit(1).ToSql()
+			if err != nil {
+				return err
+			}
+
+			foundID := -1
+			if err := tx.QueryRowContext(ctx, query, args...).Scan(&foundID); err != nil {
+				switch {
+				case errors.Is(err, sql.ErrNoRows) && precond.Operation == v1.Precondition_OPERATION_MUST_MATCH:
+					return datastore.NewPreconditionFailedErr(precond)
+				case errors.Is(err, sql.ErrNoRows) && precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH:
+					continue
+				default:
+					return err
+				}
+			}
+
+			if precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH {
+				return datastore.NewPreconditionFailedErr(precond)
+			}
+		default:
+			return fmt.Errorf("unspecified precondition operation")
+		}
+	}
+
+	return nil
+}
+
 // WriteTuples takes a list of existing tuples that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified
 // namespace.
 func (mds *Datastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	// there are some fundamental changes introduced to prevent a deadlock in MySQL
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
 
@@ -49,7 +111,7 @@ func (mds *Datastore) WriteTuples(ctx context.Context, preconditions []*v1.Preco
 	for _, mut := range mutations {
 		rel := mut.Relationship
 
-		// Implementation for TOUCH deviates slightly from PostgreSQL datastore to prevent a deadlock in MySQL
+		// Implementation for TOUCH deviates from PostgreSQL datastore to prevent a deadlock in MySQL
 		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
 			clauses = append(clauses, exactRelationshipClause(rel))
 		}
@@ -125,67 +187,20 @@ func (mds *Datastore) WriteTuples(ctx context.Context, preconditions []*v1.Preco
 	return revisionFromTransaction(newTxnID), nil
 }
 
-// NOTE(chriskirkland): ErrNoRows needs to be configured/dependency injected per sql-driver type
-func (mds *Datastore) checkPreconditions(ctx context.Context, tx *sql.Tx, preconditions []*v1.Precondition) error {
-	ctx, span := tracer.Start(ctx, "checkPreconditions")
-	defer span.End()
-
-	for _, precond := range preconditions {
-		switch precond.Operation {
-		case v1.Precondition_OPERATION_MUST_NOT_MATCH, v1.Precondition_OPERATION_MUST_MATCH:
-			query, args, err := mds.selectQueryForFilter(precond.Filter).Limit(1).ToSql()
-			if err != nil {
-				return err
-			}
-
-			foundID := -1
-			if err := tx.QueryRowContext(ctx, query, args...).Scan(&foundID); err != nil {
-				switch {
-				case errors.Is(err, sql.ErrNoRows) && precond.Operation == v1.Precondition_OPERATION_MUST_MATCH:
-					return datastore.NewPreconditionFailedErr(precond)
-				case errors.Is(err, sql.ErrNoRows) && precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH:
-					continue
-				default:
-					return err
-				}
-			}
-
-			if precond.Operation == v1.Precondition_OPERATION_MUST_NOT_MATCH {
-				return datastore.NewPreconditionFailedErr(precond)
-			}
-		default:
-			return fmt.Errorf("unspecified precondition operation")
-		}
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func exactRelationshipClause(r *v1.Relationship) sq.Eq {
+	return sq.Eq{
+		colNamespace:        r.Resource.ObjectType,
+		colObjectID:         r.Resource.ObjectId,
+		colRelation:         r.Relation,
+		colUsersetNamespace: r.Subject.Object.ObjectType,
+		colUsersetObjectID:  r.Subject.Object.ObjectId,
+		colUsersetRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
 	}
-
-	return nil
-}
-
-// NOTE(chriskirkland): this is all generic other than the squirrel templating for `queryTupleExists`
-func (mds *Datastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
-	query := mds.QueryTupleExistsQuery.Where(sq.Eq{colNamespace: filter.ResourceType})
-
-	if filter.OptionalResourceId != "" {
-		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
-	}
-	if filter.OptionalRelation != "" {
-		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
-	}
-
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
-		if subjectFilter.OptionalSubjectId != "" {
-			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
-		}
-		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
-		}
-	}
-
-	return query
 }
 
 func (mds *Datastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 

@@ -12,6 +12,7 @@ const migrationNamePattern = `^[_a-zA-Z]*$`
 var (
 	migrationNameRe = regexp.MustCompile(migrationNamePattern)
 
+	// Manager is the singleton migration manager instance for MySQL
 	Manager = migrate.NewManager()
 )
 

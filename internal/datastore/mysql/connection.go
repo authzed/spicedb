@@ -11,13 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// instrumentedConnector wraps the default MySQL driver connector
-// to get metrics and tracing out of the process of creating a new connection
-type instrumentedConnector struct {
-	conn driver.Connector
-	drv  driver.Driver
-}
-
 var (
 	connectHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "spicedb",
@@ -31,8 +24,15 @@ var (
 		Subsystem: "datastore",
 		Name:      "mysql_connect_count_total",
 		Help:      "number of mysql connections opened.",
-	}, []string{"error"})
+	}, []string{"success"})
 )
+
+// instrumentedConnector wraps the default MySQL driver connector
+// to get metrics and tracing when creating a new connection
+type instrumentedConnector struct {
+	conn driver.Connector
+	drv  driver.Driver
+}
 
 func (d *instrumentedConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	ctx, span := tracer.Start(ctx, "openMySQLConnection")
@@ -42,13 +42,15 @@ func (d *instrumentedConnector) Connect(ctx context.Context) (driver.Conn, error
 	defer func() {
 		connectHistogram.Observe(time.Since(startTime).Seconds())
 	}()
+
 	conn, err := d.conn.Connect(ctx)
-	connectCount.WithLabelValues(strconv.FormatBool(err != nil)).Inc()
+	connectCount.WithLabelValues(strconv.FormatBool(err == nil)).Inc()
 	if err != nil {
 		span.RecordError(err)
 		log.Ctx(ctx).Error().Err(err).Msg("failed to open mysql connection")
 		return nil, fmt.Errorf("failed to open connection to mysql: %w", err)
 	}
+
 	return conn, nil
 }
 
@@ -61,13 +63,14 @@ func instrumentConnector(c driver.Connector) (driver.Connector, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to register metric: %w", err)
 	}
+
 	err = prometheus.Register(connectCount)
 	if err != nil {
 		return nil, fmt.Errorf("unable to register metric: %w", err)
 	}
-	connector := &instrumentedConnector{
+
+	return &instrumentedConnector{
 		conn: c,
 		drv:  c.Driver(),
-	}
-	return connector, nil
+	}, nil
 }
