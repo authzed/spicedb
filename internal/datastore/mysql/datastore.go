@@ -47,6 +47,7 @@ const (
 	liveDeletedTxnID        = uint64(9223372036854775807)
 	batchDeleteSize         = 1000
 	noLastInsertID          = 0
+	seedingTimeout          = 10 * time.Second
 )
 
 var (
@@ -138,6 +139,13 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 		createBaseTxn:            createBaseTxn,
 		QueryBuilder:             queryBuilder,
 		querySplitter:            &querySplitter,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), seedingTimeout)
+	defer cancel()
+	err = store.seedDatabase(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Start a goroutine for garbage collection.
@@ -423,24 +431,39 @@ func (mds *Datastore) IsReady(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	err = mds.seedBaseTransaction(ctx)
+	isSeeded, err := mds.isSeeded(ctx)
 	if err != nil {
 		return false, err
 	}
+	if !isSeeded {
+		return false, nil
+	}
+
 	return true, nil
 }
 
-// seedBaseTransaction initializes the first transaction revision if necessary.
-func (mds *Datastore) seedBaseTransaction(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "seedBaseTransaction")
+// isSeeded determines if the backing database has been seeded
+func (mds *Datastore) isSeeded(ctx context.Context) (bool, error) {
+	headRevision, err := mds.HeadRevision(ctx)
+	if err != nil {
+		return false, err
+	}
+	if headRevision != datastore.NoRevision {
+		return true, nil
+	}
+	return false, nil
+}
+
+// seedDatabase initializes the first transaction revision if necessary.
+func (mds *Datastore) seedDatabase(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "seedDatabase")
 	defer span.End()
 
-	// check if already seeded
-	headRevision, err := mds.HeadRevision(ctx)
+	isSeeded, err := mds.isSeeded(ctx)
 	if err != nil {
 		return err
 	}
-	if headRevision != datastore.NoRevision {
+	if isSeeded {
 		return nil
 	}
 	tx, err := mds.db.BeginTx(ctx, nil)
@@ -449,15 +472,15 @@ func (mds *Datastore) seedBaseTransaction(ctx context.Context) error {
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
-	// idempotent INSERT IGNORE transaction id=1. safe to be execute concurrently.
+	// idempotent INSERT IGNORE transaction id=1. safe to be executed concurrently.
 	result, err := tx.ExecContext(ctx, mds.createBaseTxn)
 	if err != nil {
-		return fmt.Errorf("seedBaseTransaction: %w", err)
+		return fmt.Errorf("seedDatabase: %w", err)
 	}
 
 	lastInsertID, err := result.LastInsertId()
 	if err != nil {
-		return fmt.Errorf("seedBaseTransaction: failed to get last inserted id: %w", err)
+		return fmt.Errorf("seedDatabase: failed to get last inserted id: %w", err)
 	}
 
 	err = tx.Commit()

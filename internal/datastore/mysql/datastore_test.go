@@ -1,9 +1,12 @@
+//go:build ci
+// +build ci
+
 package mysql
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -49,22 +52,46 @@ func (dst *datastoreTester) createDatastore(revisionFuzzingTimedelta, gcWindow t
 	return ds, nil
 }
 
-func createDatastoreWithDefaults(t *testing.T) datastore.Datastore {
-	b := testdatastore.NewMySQLBuilder(t)
-	dst := datastoreTester{b: b, t: t}
-	store, err := dst.createDatastore(0*time.Millisecond, 1*time.Millisecond, 0)
-	require.NoError(t, err, "failed to create datastore")
-	return store
-}
-
 func failOnError(t *testing.T, f func() error) {
 	require.NoError(t, f())
+}
+
+var defaultOptions = []Option{
+	RevisionFuzzingTimedelta(0 * time.Millisecond),
+	GCWindow(1 * time.Millisecond),
+	GCInterval(0 * time.Second),
+}
+
+type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
+
+func createDatastoreTest(b testdatastore.TestDatastoreBuilder, tf datastoreTestFunc, options ...Option) func(*testing.T) {
+	return func(t *testing.T) {
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := NewMySQLDatastore(uri, options...)
+			require.NoError(t, err)
+			return ds
+		})
+		defer failOnError(t, ds.Close)
+
+		tf(t, ds)
+	}
 }
 
 func TestMySQLDatastore(t *testing.T) {
 	b := testdatastore.NewMySQLBuilder(t)
 	dst := datastoreTester{b: b, t: t}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
+
+	t.Run("DatabaseSeeding", createDatastoreTest(b, DatabaseSeedingTest))
+	t.Run("PrometheusCollector", createDatastoreTest(
+		b,
+		PrometheusCollectorTest,
+		EnablePrometheusStats(),
+	))
+	t.Run("GarbageCollection", createDatastoreTest(b, GarbageCollectionTest, defaultOptions...))
+	t.Run("GarbageCollectionByTime", createDatastoreTest(b, GarbageCollectionByTimeTest, defaultOptions...))
+	t.Run("ChunkedGarbageCollection", createDatastoreTest(b, ChunkedGarbageCollectionTest, defaultOptions...))
+	t.Run("TransactionTimestamps", createDatastoreTest(b, TransactionTimestampsTest, defaultOptions...))
 }
 
 func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
@@ -73,77 +100,22 @@ func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 }
 
-func TestIsReady(t *testing.T) {
+func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-	ds := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: true}).
-		NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewMySQLDatastore(uri)
-			req.NoError(err)
-			return ds
-		})
-	defer failOnError(t, ds.Close)
 
-	// ensure no revision is seeded by default
+	// ensure datastore is seeded right after initialization
 	ctx := context.Background()
-	revision, err := ds.HeadRevision(ctx)
-	req.Equal(datastore.NoRevision, revision)
+	isSeeded, err := ds.(*Datastore).isSeeded(ctx)
 	req.NoError(err)
+	req.True(isSeeded, "expected datastore to be seeded after initialization")
 
 	ready, err := ds.IsReady(ctx)
 	req.NoError(err)
 	req.True(ready)
-
-	// verify IsReady seeds the revision is if not present
-	revision, err = ds.HeadRevision(ctx)
-	req.NoError(err)
-	req.Equal(revisionFromTransaction(1), revision)
 }
 
-func TestIsReadyRace(t *testing.T) {
+func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-	ds := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: true}).
-		NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewMySQLDatastore(uri)
-			req.NoError(err)
-			return ds
-		})
-	defer failOnError(t, ds.Close)
-
-	ctx := context.Background()
-	revision, err := ds.HeadRevision(ctx)
-	req.Equal(datastore.NoRevision, revision)
-	req.NoError(err)
-
-	var wg sync.WaitGroup
-
-	concurrency := 5
-	for gn := 1; gn <= concurrency; gn++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-
-			ready, err := ds.IsReady(ctx)
-			req.NoError(err, "goroutine %d", i)
-			req.True(ready, "goroutine %d", i)
-		}(gn)
-	}
-	wg.Wait()
-
-	// verify IsReady seeds the revision is if not present
-	revision, err = ds.HeadRevision(ctx)
-	req.NoError(err)
-	req.Equal(revisionFromTransaction(1), revision)
-}
-
-func TestPrometheusCollector(t *testing.T) {
-	req := require.New(t)
-	ds := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: true}).
-		NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewMySQLDatastore(uri, EnablePrometheusStats())
-			req.NoError(err)
-			return ds
-		})
-	defer failOnError(t, ds.Close)
 
 	// cause some use of the SQL connection pool to generate metrics
 	_, err := ds.IsReady(context.Background())
@@ -164,10 +136,8 @@ func TestPrometheusCollector(t *testing.T) {
 	req.True(connectorStatsFound, "mysql datastore connector did not issue prometheus metrics")
 }
 
-func TestGarbageCollection(t *testing.T) {
+func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-	ds := createDatastoreWithDefaults(t)
-	defer failOnError(t, ds.Close)
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -327,10 +297,8 @@ func TestGarbageCollection(t *testing.T) {
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
 }
 
-func TestGarbageCollectionByTime(t *testing.T) {
+func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-	ds := createDatastoreWithDefaults(t)
-	defer failOnError(t, ds.Close)
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -417,10 +385,8 @@ func TestGarbageCollectionByTime(t *testing.T) {
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
 }
 
-func TestChunkedGarbageCollection(t *testing.T) {
+func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-	ds := createDatastoreWithDefaults(t)
-	defer failOnError(t, ds.Close)
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -530,10 +496,8 @@ func TestChunkedGarbageCollection(t *testing.T) {
 // From https://dev.mysql.com/doc/refman/8.0/en/datetime.html
 // By default, the current time zone for each connection is the server's time.
 // The time zone can be set on a per-connection basis.
-func TestTransactionTimestamps(t *testing.T) {
+func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-	ds := createDatastoreWithDefaults(t)
-	defer failOnError(t, ds.Close)
 
 	// Setting db default time zone to before UTC
 	ctx := context.Background()
@@ -573,12 +537,9 @@ func TestTransactionTimestamps(t *testing.T) {
 
 func TestMySQLMigrations(t *testing.T) {
 	req := require.New(t)
-	ds := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: false}).NewDatastore(t, func(engine, uri string) datastore.Datastore {
-		ds, err := NewMySQLDatastore(uri)
-		req.NoError(err)
-		return ds
-	})
-	migrationDriver := ds.(*Datastore).driver
+
+	db := datastoreDB(t, false)
+	migrationDriver := migrations.NewMySQLDriverFromDB(db, "")
 
 	version, err := migrationDriver.Version()
 	req.NoError(err)
@@ -597,14 +558,10 @@ func TestMySQLMigrations(t *testing.T) {
 
 func TestMySQLMigrationsWithPrefix(t *testing.T) {
 	req := require.New(t)
+
 	prefix := "spicedb_"
-	ds := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: false, Prefix: prefix}).
-		NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewMySQLDatastore(uri, TablePrefix(prefix))
-			req.NoError(err)
-			return ds
-		})
-	migrationDriver := ds.(*Datastore).driver
+	db := datastoreDB(t, false)
+	migrationDriver := migrations.NewMySQLDriverFromDB(db, prefix)
 
 	version, err := migrationDriver.Version()
 	req.NoError(err)
@@ -620,7 +577,6 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 	req.NoError(err)
 	req.Equal(headVersion, version)
 
-	db := ds.(*Datastore).db
 	rows, err := db.Query("SHOW TABLES;")
 	req.NoError(err)
 
@@ -630,4 +586,16 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 		req.Contains(tbl, prefix)
 	}
 	req.NoError(rows.Err())
+}
+
+func datastoreDB(t *testing.T, migrate bool) *sql.DB {
+	var databaseUri string
+	testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: migrate}).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		databaseUri = uri
+		return nil
+	})
+
+	db, err := sql.Open("mysql", databaseUri)
+	require.NoError(t, err)
+	return db
 }
