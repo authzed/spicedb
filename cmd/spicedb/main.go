@@ -23,9 +23,7 @@ const (
 	backendsPerKey            = 1
 )
 
-var (
-	parsingError = errors.New("parsing error")
-)
+var errParsing = errors.New("parsing error")
 
 func main() {
 	// Set up a seed for randomness
@@ -46,7 +44,7 @@ func main() {
 	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		cmd.Println(err)
 		cmd.Println(cmd.UsageString())
-		return parsingError
+		return errParsing
 	})
 	cmd.RegisterRootFlags(rootCmd)
 
@@ -79,7 +77,7 @@ func main() {
 	cmd.RegisterTestingFlags(testingCmd, &testServerConfig)
 	rootCmd.AddCommand(testingCmd)
 	if err := rootCmd.Execute(); err != nil {
-		if !errors.Is(err, parsingError) {
+		if !errors.Is(err, errParsing) {
 			log.Err(err).Msg("terminated with errors")
 		}
 		os.Exit(1)
