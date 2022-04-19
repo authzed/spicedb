@@ -8,7 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
-	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
 )
@@ -20,6 +20,8 @@ const (
 // Watch notifies the caller about all changes to tuples.
 //
 // All events following afterRevision will be sent to the caller.
+//
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errs := make(chan error, 1)
@@ -71,6 +73,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevision datastore.Revisio
 	return updates, errs
 }
 
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
@@ -110,11 +113,11 @@ func (mds *Datastore) loadChanges(
 	stagedChanges := common.NewChanges()
 
 	for rows.Next() {
-		userset := &corev1.ObjectAndRelation{}
-		tpl := &corev1.RelationTuple{
-			ObjectAndRelation: &corev1.ObjectAndRelation{},
-			User: &corev1.User{
-				UserOneof: &corev1.User_Userset{
+		userset := &core.ObjectAndRelation{}
+		tpl := &core.RelationTuple{
+			ObjectAndRelation: &core.ObjectAndRelation{},
+			User: &core.User{
+				UserOneof: &core.User_Userset{
 					Userset: userset,
 				},
 			},
@@ -137,11 +140,11 @@ func (mds *Datastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			stagedChanges.AddChange(ctx, revisionFromTransaction(createdTxn), tpl, corev1.RelationTupleUpdate_TOUCH)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(createdTxn), tpl, core.RelationTupleUpdate_TOUCH)
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			stagedChanges.AddChange(ctx, revisionFromTransaction(deletedTxn), tpl, corev1.RelationTupleUpdate_DELETE)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(deletedTxn), tpl, core.RelationTupleUpdate_DELETE)
 		}
 	}
 	if err = rows.Err(); err != nil {

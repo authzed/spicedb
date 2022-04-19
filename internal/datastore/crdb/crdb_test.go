@@ -18,12 +18,12 @@ import (
 
 func TestCRDBDatastore(t *testing.T) {
 	b := testdatastore.NewCRDBBuilder(t)
-	test.All(t, test.DatastoreTesterFunc(func(revisionFuzzingTimedelta, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
 				uri,
 				GCWindow(gcWindow),
-				RevisionQuantization(revisionFuzzingTimedelta),
+				RevisionQuantization(revisionQuantization),
 				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
 			)

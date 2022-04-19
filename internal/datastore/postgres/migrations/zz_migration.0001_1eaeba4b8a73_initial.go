@@ -29,7 +29,7 @@ const createRelationTuple = `CREATE TABLE relation_tuple (
     CONSTRAINT uq_relation_tuple_living UNIQUE (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation, deleted_transaction)
 );`
 
-const insertFirstTransaction = "INSERT INTO relation_tuple_transaction DEFAULT VALUES;"
+const insertFirstTransaction = "INSERT INTO relation_tuple_transaction (timestamp) VALUES (to_timestamp(0));"
 
 const createAlembicVersion = `CREATE TABLE alembic_version (
 	version_num VARCHAR NOT NULL

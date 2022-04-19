@@ -17,13 +17,20 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	errUnableToWriteConfig    = "unable to write namespace config: %w"
+	errUnableToReadConfig     = "unable to read namespace config: %w"
+	errUnableToDeleteConfig   = "unable to delete namespace config: %w"
+	errUnableToListNamespaces = "unable to list namespaces: %w"
+)
+
 func (mds *Datastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
 }
 
-// WriteNamespace takes a proto namespace definition and persists it,
-// returning the version of the namespace that was created.
 func (mds *Datastore) WriteNamespace(ctx context.Context, newNamespace *core.NamespaceDefinition) (datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "WriteNamespace")
@@ -33,13 +40,13 @@ func (mds *Datastore) WriteNamespace(ctx context.Context, newNamespace *core.Nam
 
 	serialized, err := proto.Marshal(newNamespace)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf("WriteNamespace: failed to serialize config: %w", err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	span.AddEvent("Serialized namespace config")
 
 	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf("WriteNamespace: unable to write config: %w", err)
+		return datastore.NoRevision, fmt.Errorf(errUnableToWriteConfig, err)
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 	span.AddEvent("begin DB transaction")
@@ -83,9 +90,8 @@ func (mds *Datastore) WriteNamespace(ctx context.Context, newNamespace *core.Nam
 	return revisionFromTransaction(newTxnID), nil
 }
 
-// ReadNamespace reads a namespace definition and version and returns it, and the revision at
-// which it was created or last written, if found.
-func (mds *Datastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (mds *Datastore) ReadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
@@ -97,7 +103,7 @@ func (mds *Datastore) ReadNamespace(ctx context.Context, nsName string, revision
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
-	loaded, version, err := loadNamespace(ctx, nsName, tx, FilterToLivingObjects(mds.ReadNamespaceQuery, revision))
+	loaded, version, err := loadNamespace(ctx, nsName, tx, filterToLivingObjects(mds.ReadNamespaceQuery, revision))
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
@@ -108,8 +114,8 @@ func (mds *Datastore) ReadNamespace(ctx context.Context, nsName string, revision
 	}
 }
 
-// DeleteNamespace deletes a namespace and any associated tuples.
 func (mds *Datastore) DeleteNamespace(ctx context.Context, nsName string) (datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
@@ -172,52 +178,8 @@ func (mds *Datastore) DeleteNamespace(ctx context.Context, nsName string) (datas
 	return revisionFromTransaction(newTxnID), nil
 }
 
-// ListNamespaces lists all namespaces defined.
-func (mds *Datastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
-	tx, err := mds.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer migrations.LogOnError(ctx, tx.Rollback)
-
-	query, args, err := FilterToLivingObjects(mds.ReadNamespaceQuery, revision).ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	var nsDefs []*core.NamespaceDefinition
-
-	rows, err := tx.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer migrations.LogOnError(ctx, rows.Close)
-
-	for rows.Next() {
-		var config []byte
-		var version datastore.Revision
-		if err := rows.Scan(&config, &version); err != nil {
-			return nil, fmt.Errorf(errUnableToListNamespaces, err)
-		}
-
-		var loaded core.NamespaceDefinition
-		if err := proto.Unmarshal(config, &loaded); err != nil {
-			return nil, fmt.Errorf(errUnableToReadConfig, err)
-		}
-
-		nsDefs = append(nsDefs, &loaded)
-	}
-
-	if rows.Err() != nil {
-		return nil, rows.Err()
-	}
-
-	return nsDefs, nil
-}
-
 func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery sq.SelectBuilder) (*core.NamespaceDefinition, datastore.Revision, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "loadNamespace")
@@ -247,7 +209,28 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 	return loaded, version, nil
 }
 
+func (mds *Datastore) ListNamespaces(ctx context.Context, revision datastore.Revision) ([]*core.NamespaceDefinition, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
+	tx, err := mds.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer migrations.LogOnError(ctx, tx.Rollback)
+
+	query := filterToLivingObjects(mds.ReadNamespaceQuery, revision)
+
+	nsDefs, err := loadAllNamespaces(ctx, mds.db, query)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	return nsDefs, err
+}
+
 func loadAllNamespaces(ctx context.Context, db *sql.DB, queryBuilder sq.SelectBuilder) ([]*core.NamespaceDefinition, error) {
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return nil, err

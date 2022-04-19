@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	errUnableToInstantiate       = "unable to instantiate MysqlDriver: %w"
+	errUnableToInstantiate       = "unable to instantiate MySQLDriver: %w"
 	mysqlMissingTableErrorNumber = 1146
 
 	migrationVersionColumnPrefix = "_meta_version_"
@@ -21,22 +21,17 @@ const (
 
 var sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 
-type MysqlDriver struct {
+// MySQLDriver is an implementation of migrate.Driver for MySQL
+type MySQLDriver struct {
 	db *sql.DB
 	*tables
 }
 
-// https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
+// NewMySQLDriverFromDSN creates a new migration driver with a connection pool to the database DSN specified.
+//
 // URI: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
-
-/* scheme: The transport protocol to use. Use mysqlx for X Protocol connections and mysql for classic
-   MySQL protocol connections. If no protocol is specified, the server attempts to guess the protocol.
-   Connectors that support DNS SRV can use the mysqlx+srv scheme (see Connections Using DNS SRV Records). */
-// schema: The default database for the connection. If no database is specified, the connection has no default database.
-
-// NewMysqlDriverFromDSN creates a new migration driver with a connection pool to the database DSN specified.
-func NewMysqlDriverFromDSN(url string, tablePrefix string) (*MysqlDriver, error) {
-	// TODO: we're currently using a DSN here, not a URI
+// See https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
+func NewMySQLDriverFromDSN(url string, tablePrefix string) (*MySQLDriver, error) {
 	dbConfig, err := sqlDriver.ParseDSN(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -50,16 +45,17 @@ func NewMysqlDriverFromDSN(url string, tablePrefix string) (*MysqlDriver, error)
 	if err != nil {
 		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
 	}
-	return NewMysqlDriverFromDB(db, tablePrefix), nil
+	return NewMySQLDriverFromDB(db, tablePrefix), nil
 }
 
-// NewMysqlDriverFromDB creates a new migration driver with a connection pool specified upfront.
-func NewMysqlDriverFromDB(db *sql.DB, tablePrefix string) *MysqlDriver {
-	return &MysqlDriver{db, newTables(tablePrefix)}
+// NewMySQLDriverFromDB creates a new migration driver with a connection pool specified upfront.
+func NewMySQLDriverFromDB(db *sql.DB, tablePrefix string) *MySQLDriver {
+	return &MySQLDriver{db, newTables(tablePrefix)}
 }
 
+// revisionToColumnName generates the column name that will denote a given migration revision
 func revisionToColumnName(revision string) string {
-	return migrationVersionColumnPrefix + revision
+	return fmt.Sprintf("%s%s", migrationVersionColumnPrefix, revision)
 }
 
 func columnNameToRevision(columnName string) (string, bool) {
@@ -71,7 +67,7 @@ func columnNameToRevision(columnName string) (string, bool) {
 
 // Version returns the version of the schema to which the connected database
 // has been migrated.
-func (driver *MysqlDriver) Version() (string, error) {
+func (driver *MySQLDriver) Version() (string, error) {
 	query, args, err := sb.Select("*").From(driver.migrationVersion()).ToSql()
 	if err != nil {
 		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
@@ -104,7 +100,7 @@ func (driver *MysqlDriver) Version() (string, error) {
 
 // WriteVersion overwrites the _meta_version_ column name which encodes the version
 // of the database schema.
-func (driver *MysqlDriver) WriteVersion(version, replaced string) error {
+func (driver *MySQLDriver) WriteVersion(version, replaced string) error {
 	stmt := fmt.Sprintf("ALTER TABLE %s CHANGE %s %s VARCHAR(255) NOT NULL",
 		driver.migrationVersion(),
 		revisionToColumnName(replaced),
@@ -117,7 +113,7 @@ func (driver *MysqlDriver) WriteVersion(version, replaced string) error {
 	return nil
 }
 
-func (driver *MysqlDriver) Close() error {
+func (driver *MySQLDriver) Close() error {
 	return driver.db.Close()
 }
 

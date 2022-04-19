@@ -256,6 +256,9 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx, query sq.SelectBuilder) (
 
 		nsDefs = append(nsDefs, &loaded)
 	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
 
 	return nsDefs, nil
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/membership"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -85,7 +86,7 @@ func TestConsistency(t *testing.T) {
 								_, ts, err := ns.ReadNamespaceAndTypes(dsCtx, nsDef.Name, revision)
 								lrequire.NoError(err)
 
-								err = ts.Validate(dsCtx)
+								_, err = ts.Validate(dsCtx)
 								lrequire.NoError(err)
 							}
 
@@ -98,7 +99,7 @@ func TestConsistency(t *testing.T) {
 							// Run the consistency tests for each service.
 							dispatcher := graph.NewLocalOnlyDispatcher(ns)
 							if dispatcherKind == "caching" {
-								cachingDispatcher, err := caching.NewCachingDispatcher(nil, "")
+								cachingDispatcher, err := caching.NewCachingDispatcher(nil, ns, "", &keys.CanonicalKeyHandler{})
 								lrequire.NoError(err)
 
 								localDispatcher := graph.NewDispatcher(cachingDispatcher, ns)

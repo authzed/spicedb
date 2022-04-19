@@ -5,20 +5,18 @@ go 1.16
 require (
 	cloud.google.com/go/spanner v1.30.1
 	github.com/Masterminds/squirrel v1.5.2
-	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/authzed/authzed-go v0.5.1-0.20220303182356-243e79ca06fa
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/aws/aws-sdk-go v1.43.31
 	github.com/benbjohnson/clock v1.3.0
-	github.com/cenkalti/backoff/v4 v4.1.2
+	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/cespare/xxhash v1.1.0
 	github.com/cncf/udpa/go v0.0.0-20220112060539-c52dc94e7fbe // indirect
 	github.com/cncf/xds/go v0.0.0-20220330162227-eded343319d0 // indirect
-	github.com/containerd/continuity v0.2.2 // indirect
+	github.com/dalzilio/rudd v1.1.0
 	github.com/dave/jennifer v1.5.0 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/dlmiddlecote/sqlstats v1.0.2
-	github.com/docker/cli v20.10.14+incompatible // indirect
 	github.com/docker/docker v20.10.14+incompatible // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ecordell/optgen v0.0.6
@@ -27,7 +25,7 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
 	github.com/go-co-op/gocron v1.13.0
-	github.com/go-sql-driver/mysql v1.5.0
+	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.7
@@ -51,8 +49,7 @@ require (
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/ngrok/sqlmw v0.0.0-20211220175533-9d16fdc47b31
-	github.com/opencontainers/runc v1.1.1 // indirect
-	github.com/ory/dockertest/v3 v3.8.1
+	github.com/ory/dockertest/v3 v3.8.2-0.20220414165644-e38b9742dc7d
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.33.0
@@ -74,11 +71,11 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.31.0
 	go.opentelemetry.io/otel v1.6.3
 	go.opentelemetry.io/otel/trace v1.6.3
+	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29 // indirect
 	golang.org/x/net v0.0.0-20220401154927-543a649e0bdd // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220330033206-e17cdc41300f // indirect
 	golang.org/x/tools v0.1.10
 	google.golang.org/api v0.74.0
 	google.golang.org/genproto v0.0.0-20220401170504-314d38edb7de
@@ -93,4 +90,5 @@ require (
 // TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged
 replace github.com/dgraph-io/ristretto => github.com/josephschorr/ristretto v0.1.1-0.20211227180020-ae4c2c35d79d
 
+// TODO(cjs) waiting for new cobrautil release and it being used in upstream spicedb
 replace github.com/jzelinskie/cobrautil => github.com/jzelinskie/cobrautil v0.0.11-0.20220415151552-ec5ba7d00338

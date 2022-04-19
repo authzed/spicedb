@@ -5,242 +5,126 @@ package mysql
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"log"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/ory/dockertest/v3"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/secrets"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
 	chunkRelationshipCount = 2000
-	mysqlPort              = 3306
-	testDBPrefix           = "spicedb_test"
-	creds                  = "root:secret"
 )
 
-var containerPort string
-
-type sqlTest struct {
-	tablePrefix string
+type datastoreTester struct {
+	b      testdatastore.TestDatastoreBuilder
+	t      *testing.T
+	prefix string
 }
 
-func newTester() *sqlTest {
-	return &sqlTest{}
-}
-
-func newPrefixTester(tablePrefix string) *sqlTest {
-	return &sqlTest{tablePrefix: tablePrefix}
-}
-
-func (st *sqlTest) New(revisionFuzzingTimedelta, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
-	connectStr := setupDatabase()
-
-	migrateDatabaseWithPrefix(connectStr, st.tablePrefix)
-
-	ds, err := NewMysqlDatastore(connectStr,
-		RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
-		GCWindow(gcWindow),
-		GCInterval(0*time.Second), // Disable auto GC
-		TablePrefix(st.tablePrefix),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// seed the base datastore revision
-	if _, err := ds.IsReady(context.Background()); err != nil {
-		return nil, err
-	}
+func (dst *datastoreTester) createDatastore(revisionFuzzingTimedelta, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+	ds := dst.b.NewDatastore(dst.t, func(engine, uri string) datastore.Datastore {
+		ds, err := NewMySQLDatastore(uri,
+			RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+			GCWindow(gcWindow),
+			GCInterval(0*time.Second),
+			TablePrefix(dst.prefix),
+		)
+		require.NoError(dst.t, err)
+		return ds
+	})
+	_, err := ds.IsReady(context.Background())
+	require.NoError(dst.t, err)
 	return ds, nil
 }
 
-func createMigrationDriver(connectStr string) (*migrations.MysqlDriver, error) {
-	return createMigrationDriverWithPrefix(connectStr, "")
-}
-
-func createMigrationDriverWithPrefix(connectStr string, prefix string) (*migrations.MysqlDriver, error) {
-	migrationDriver, err := migrations.NewMysqlDriverFromDSN(connectStr, prefix)
-	if err != nil {
-		return nil, fmt.Errorf("unable to initialize migration engine: %w", err)
-	}
-
-	return migrationDriver, nil
-}
-
-func setupDatabase() string {
-	var db *sql.DB
-	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql", creds, containerPort)
-	db, err := sql.Open("mysql", connectStr)
-	if err != nil {
-		log.Fatalf("couldn't open DB: %s", err)
-	}
-	defer func() {
-		err := db.Close() // we do not want this connection to stay open
-		if err != nil {
-			log.Fatalf("failed to close db: %s", err)
-		}
-	}()
-
-	uniquePortion, err := secrets.TokenHex(4)
-	if err != nil {
-		log.Fatalf("Could not generate unique portion of db name: %s", err)
-	}
-	dbName := testDBPrefix + uniquePortion
-
-	tx, err := db.Begin()
-	_, err = tx.Exec(fmt.Sprintf("CREATE DATABASE %s;", dbName))
-	if err != nil {
-		log.Fatalf("failed to create database: %s: %s", dbName, err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		log.Fatalf("failed to commit: %s", err)
-	}
-
-	return fmt.Sprintf("%s@(localhost:%s)/%s?parseTime=true", creds, containerPort, dbName)
-}
-
-func migrateDatabase(connectStr string) {
-	migrateDatabaseWithPrefix(connectStr, "")
-}
-
-func migrateDatabaseWithPrefix(connectStr, tablePrefix string) {
-	migrationDriver, err := createMigrationDriverWithPrefix(connectStr, tablePrefix)
-	if err != nil {
-		log.Fatalf("failed to create prefixed migration driver: %s", err)
-	}
-
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
-	if err != nil {
-		log.Fatalf("failed to run migration: %s", err)
-	}
-}
-
-func FailOnError(t *testing.T, f func() error) {
+func failOnError(t *testing.T, f func() error) {
 	require.NoError(t, f())
 }
 
-func TestMysqlDatastore(t *testing.T) {
-	tester := newTester()
-	test.All(t, tester)
+var defaultOptions = []Option{
+	RevisionFuzzingTimedelta(0 * time.Millisecond),
+	GCWindow(1 * time.Millisecond),
+	GCInterval(0 * time.Second),
 }
 
-func TestMysqlDatastoreWithTablePrefix(t *testing.T) {
-	tester := newPrefixTester("spicedb_")
-	test.All(t, tester)
-}
+type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
-func TestMySQLMigrations(t *testing.T) {
-	req := require.New(t)
+func createDatastoreTest(b testdatastore.TestDatastoreBuilder, tf datastoreTestFunc, options ...Option) func(*testing.T) {
+	return func(t *testing.T) {
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := NewMySQLDatastore(uri, options...)
+			require.NoError(t, err)
+			return ds
+		})
+		defer failOnError(t, ds.Close)
 
-	connectStr := setupDatabase()
-	migrationDriver, err := createMigrationDriver(connectStr)
-	req.NoError(err)
-
-	version, err := migrationDriver.Version()
-	req.NoError(err)
-	req.Equal("", version)
-
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
-	req.NoError(err)
-
-	version, err = migrationDriver.Version()
-	req.NoError(err)
-
-	headVersion, err := migrations.Manager.HeadRevision()
-	req.NoError(err)
-	req.Equal(headVersion, version)
-}
-
-func TestMySQLMigrationsWithPrefix(t *testing.T) {
-	req := require.New(t)
-
-	connectStr := setupDatabase()
-
-	migrationDriver, err := createMigrationDriverWithPrefix(connectStr, "spicedb_")
-	req.NoError(err)
-
-	version, err := migrationDriver.Version()
-	req.NoError(err)
-	req.Equal("", version)
-
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
-	req.NoError(err)
-
-	version, err = migrationDriver.Version()
-	req.NoError(err)
-
-	headVersion, err := migrations.Manager.HeadRevision()
-	req.NoError(err)
-	req.Equal(headVersion, version)
-
-	db, err := sql.Open("mysql", connectStr)
-	rows, err := db.Query("SHOW TABLES;")
-
-	for rows.Next() {
-		var tbl string
-		req.NoError(rows.Scan(&tbl))
-		req.Contains(tbl, "spicedb_")
+		tf(t, ds)
 	}
-	req.NoError(rows.Err())
 }
 
-func TestIsReady(t *testing.T) {
+func TestMySQLDatastore(t *testing.T) {
+	b := testdatastore.NewMySQLBuilder(t)
+	dst := datastoreTester{b: b, t: t}
+	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
+
+	t.Run("IsReady", createDatastoreTest(b, IsReadyTest))
+	t.Run("IsReadyRace", createDatastoreTest(b, IsReadyRaceTest))
+	t.Run("PrometheusCollector", createDatastoreTest(
+		b,
+		PrometheusCollectorTest,
+		EnablePrometheusStats(),
+	))
+	t.Run("GarbageCollection", createDatastoreTest(b, GarbageCollectionTest, defaultOptions...))
+	t.Run("GarbageCollectionByTime", createDatastoreTest(b, GarbageCollectionByTimeTest, defaultOptions...))
+	t.Run("ChunkedGarbageCollection", createDatastoreTest(b, ChunkedGarbageCollectionTest, defaultOptions...))
+	t.Run("TransactionTimestamps", createDatastoreTest(b, TransactionTimestampsTest, defaultOptions...))
+}
+
+func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
+	b := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: true, Prefix: "spicedb_"})
+	dst := datastoreTester{b: b, t: t, prefix: "spicedb_"}
+	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
+}
+
+func IsReadyTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-
-	connectStr := setupDatabase()
-	store, err := NewMysqlDatastore(connectStr)
-	req.NoError(err)
-
-	migrateDatabase(connectStr)
 
 	// ensure no revision is seeded by default
 	ctx := context.Background()
-	revision, err := store.HeadRevision(ctx)
+	revision, err := ds.HeadRevision(ctx)
 	req.Equal(datastore.NoRevision, revision)
 	req.NoError(err)
 
-	ready, err := store.IsReady(ctx)
+	ready, err := ds.IsReady(ctx)
 	req.NoError(err)
 	req.True(ready)
 
 	// verify IsReady seeds the revision is if not present
-	revision, err = store.HeadRevision(ctx)
+	revision, err = ds.HeadRevision(ctx)
 	req.NoError(err)
 	req.Equal(revisionFromTransaction(1), revision)
 }
 
-func TestIsReadyRace(t *testing.T) {
+func IsReadyRaceTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
-	connectStr := setupDatabase()
-	store, err := NewMysqlDatastore(connectStr)
-	req.NoError(err)
-
-	migrateDatabase(connectStr)
-
 	ctx := context.Background()
-	revision, err := store.HeadRevision(ctx)
+	revision, err := ds.HeadRevision(ctx)
 	req.Equal(datastore.NoRevision, revision)
 	req.NoError(err)
 
@@ -252,7 +136,7 @@ func TestIsReadyRace(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 
-			ready, err := store.IsReady(ctx)
+			ready, err := ds.IsReady(ctx)
 			req.NoError(err, "goroutine %d", i)
 			req.True(ready, "goroutine %d", i)
 		}(gn)
@@ -260,28 +144,26 @@ func TestIsReadyRace(t *testing.T) {
 	wg.Wait()
 
 	// verify IsReady seeds the revision is if not present
-	revision, err = store.HeadRevision(ctx)
+	revision, err = ds.HeadRevision(ctx)
 	req.NoError(err)
 	req.Equal(revisionFromTransaction(1), revision)
 }
 
-func TestPrometheusCollector(t *testing.T) {
+func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
-	connectStr := setupDatabase()
-	store, err := NewMysqlDatastore(connectStr, EnablePrometheusStats())
-	req.NoError(err)
-	_, err = store.IsReady(context.Background())
+	// cause some use of the SQL connection pool to generate metrics
+	_, err := ds.IsReady(context.Background())
 	req.NoError(err)
 
 	metrics, err := prometheus.DefaultGatherer.Gather()
 	req.NoError(err, metrics)
 	var collectorStatsFound, connectorStatsFound bool
 	for _, metric := range metrics {
-		if "go_sql_stats_connections_open" == metric.GetName() {
+		if metric.GetName() == "go_sql_stats_connections_open" {
 			collectorStatsFound = true
 		}
-		if "spicedb_datastore_mysql_connect_count_total" == metric.GetName() {
+		if metric.GetName() == "spicedb_datastore_mysql_connect_count_total" {
 			connectorStatsFound = true
 		}
 	}
@@ -289,14 +171,8 @@ func TestPrometheusCollector(t *testing.T) {
 	req.True(connectorStatsFound, "mysql datastore connector did not issue prometheus metrics")
 }
 
-func TestGarbageCollection(t *testing.T) {
+func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-
-	tester := newTester()
-
-	ds, err := tester.New(0, time.Millisecond*1, 1)
-	req.NoError(err)
-	defer FailOnError(t, ds.Close)
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -456,14 +332,8 @@ func TestGarbageCollection(t *testing.T) {
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
 }
 
-func TestGarbageCollectionByTime(t *testing.T) {
+func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-
-	tester := newTester()
-
-	ds, err := tester.New(0, time.Millisecond*1, 1)
-	req.NoError(err)
-	defer FailOnError(t, ds.Close)
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -550,14 +420,8 @@ func TestGarbageCollectionByTime(t *testing.T) {
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
 }
 
-func TestChunkedGarbageCollection(t *testing.T) {
+func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-
-	tester := newTester()
-
-	ds, err := tester.New(0, time.Millisecond*1, 1)
-	req.NoError(err)
-	defer FailOnError(t, ds.Close)
 
 	ctx := context.Background()
 	ok, err := ds.IsReady(ctx)
@@ -595,7 +459,7 @@ func TestChunkedGarbageCollection(t *testing.T) {
 	}
 
 	// Write a large number of relationships.
-	var updates []*v1.RelationshipUpdate
+	updates := make([]*v1.RelationshipUpdate, 0, len(tuples))
 	for _, tpl := range tuples {
 		relationship := tuple.ToRelationship(tpl)
 		updates = append(updates, &v1.RelationshipUpdate{
@@ -630,7 +494,7 @@ func TestChunkedGarbageCollection(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Delete all the relationships.
-	var deletes []*v1.RelationshipUpdate
+	deletes := make([]*v1.RelationshipUpdate, 0, len(tuples))
 	for _, tpl := range tuples {
 		relationship := tuple.ToRelationship(tpl)
 		deletes = append(deletes, &v1.RelationshipUpdate{
@@ -667,18 +531,13 @@ func TestChunkedGarbageCollection(t *testing.T) {
 // From https://dev.mysql.com/doc/refman/8.0/en/datetime.html
 // By default, the current time zone for each connection is the server's time.
 // The time zone can be set on a per-connection basis.
-func TestTransactionTimestamps(t *testing.T) {
+func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
-	connectStr := setupDatabase()
-	migrateDatabase(connectStr)
 
 	// Setting db default time zone to before UTC
 	ctx := context.Background()
-	db, err := sql.Open("mysql", connectStr)
-	_, err = db.ExecContext(ctx, "SET GLOBAL time_zone = 'America/New_York';")
-	req.NoError(err)
-
-	ds, err := NewMysqlDatastore(connectStr)
+	db := ds.(*Datastore).db
+	_, err := db.ExecContext(ctx, "SET GLOBAL time_zone = 'America/New_York';")
 	req.NoError(err)
 
 	ok, err := ds.IsReady(ctx)
@@ -686,17 +545,19 @@ func TestTransactionTimestamps(t *testing.T) {
 	req.True(ok)
 
 	// Get timestamp in UTC as reference
-	startTimeUTC, err := ds.getNow(ctx)
+	startTimeUTC, err := ds.(*Datastore).getNow(ctx)
 	req.NoError(err)
 
 	// Transaction timestamp should not be stored in system time zone
 	tx, err := db.BeginTx(ctx, nil)
-	txId, err := ds.createNewTransaction(ctx, tx)
+	req.NoError(err)
+	txID, err := ds.(*Datastore).createNewTransaction(ctx, tx)
+	req.NoError(err)
 	err = tx.Commit()
 	req.NoError(err)
 
 	var ts time.Time
-	query, args, err := sb.Select(colTimestamp).From(ds.driver.RelationTupleTransaction()).Where(sq.Eq{colID: txId}).ToSql()
+	query, args, err := sb.Select(colTimestamp).From(ds.(*Datastore).driver.RelationTupleTransaction()).Where(sq.Eq{colID: txID}).ToSql()
 	req.NoError(err)
 	err = db.QueryRowContext(ctx, query, args...).Scan(&ts)
 	req.NoError(err)
@@ -706,74 +567,66 @@ func TestTransactionTimestamps(t *testing.T) {
 
 	revision, err := ds.OptimizedRevision(ctx)
 	req.NoError(err)
-	req.Equal(revisionFromTransaction(txId), revision)
+	req.Equal(revisionFromTransaction(txID), revision)
 }
 
-func TestMain(m *testing.M) {
-	mysqlContainerRunOpts := &dockertest.RunOptions{
-		Repository: "mysql",
-		Tag:        "5",
-		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
-		// increase max connections (default 151) to accommodate tests using the same docker container
-		Cmd: []string{"--max-connections=500"},
-	}
-
-	pool, err := dockertest.NewPool("")
-	if err != nil {
-		fmt.Printf("could not connect to docker: %s\n", err)
-		os.Exit(1)
-	}
-
-	// only bring up the container once
-	containerResource, err := pool.RunWithOptions(mysqlContainerRunOpts)
-	if err != nil {
-		fmt.Printf("could not start resource: %s\n", err)
-		os.Exit(1)
-	}
-
-	containerCleanup := func() {
-		// When you're done, kill and remove the container
-		if err := pool.Purge(containerResource); err != nil {
-			fmt.Printf("could not purge resource: %s\n", err)
-			os.Exit(1)
-		}
-	}
-
-	containerPort = containerResource.GetPort(fmt.Sprintf("%d/tcp", mysqlPort))
-	connectStr := fmt.Sprintf("%s@(localhost:%s)/mysql?parseTime=true", creds, containerPort)
-
-	db, err := sql.Open("mysql", connectStr)
-	if err != nil {
-		fmt.Printf("failed to open db: %s\n", err)
-		containerCleanup()
-		os.Exit(1)
-	}
-
-	defer func() {
-		err := db.Close() // we do not want this connection to stay open
-		if err != nil {
-			fmt.Printf("failed to close db: %s\n", err)
-			containerCleanup()
-			os.Exit(1)
-		}
-	}()
-
-	err = pool.Retry(func() error {
-		var err error
-		err = db.Ping()
-		if err != nil {
-			return fmt.Errorf("couldn't validate docker/mysql readiness: %w", err)
-		}
-		return nil
+func TestMySQLMigrations(t *testing.T) {
+	req := require.New(t)
+	ds := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: false}).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := NewMySQLDatastore(uri)
+		req.NoError(err)
+		return ds
 	})
+	migrationDriver := ds.(*Datastore).driver
 
-	if err != nil {
-		fmt.Printf("mysql database error: %s\n", err)
-		containerCleanup()
-		os.Exit(1)
+	version, err := migrationDriver.Version()
+	req.NoError(err)
+	req.Equal("", version)
+
+	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	req.NoError(err)
+
+	version, err = migrationDriver.Version()
+	req.NoError(err)
+
+	headVersion, err := migrations.Manager.HeadRevision()
+	req.NoError(err)
+	req.Equal(headVersion, version)
+}
+
+func TestMySQLMigrationsWithPrefix(t *testing.T) {
+	req := require.New(t)
+	prefix := "spicedb_"
+	ds := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: false, Prefix: prefix}).
+		NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := NewMySQLDatastore(uri, TablePrefix(prefix))
+			req.NoError(err)
+			return ds
+		})
+	migrationDriver := ds.(*Datastore).driver
+
+	version, err := migrationDriver.Version()
+	req.NoError(err)
+	req.Equal("", version)
+
+	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	req.NoError(err)
+
+	version, err = migrationDriver.Version()
+	req.NoError(err)
+
+	headVersion, err := migrations.Manager.HeadRevision()
+	req.NoError(err)
+	req.Equal(headVersion, version)
+
+	db := ds.(*Datastore).db
+	rows, err := db.Query("SHOW TABLES;")
+	req.NoError(err)
+
+	for rows.Next() {
+		var tbl string
+		req.NoError(rows.Scan(&tbl))
+		req.Contains(tbl, prefix)
 	}
-
-	exitStatus := m.Run()
-	containerCleanup()
-	os.Exit(exitStatus)
+	req.NoError(rows.Err())
 }

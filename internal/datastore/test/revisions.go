@@ -14,11 +14,11 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// RevisionFuzzingTest tests whether or not the requirements for revisions hold
+// RevisionQuantizationTest tests whether or not the requirements for revisions hold
 // for a particular datastore.
-func RevisionFuzzingTest(t *testing.T, tester DatastoreTester) {
+func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 	testCases := []struct {
-		fuzzingRange             time.Duration
+		quantizationRange        time.Duration
 		expectFindLowerRevisions bool
 	}{
 		{0 * time.Second, false},
@@ -26,10 +26,10 @@ func RevisionFuzzingTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("fuzzing%s", tc.fuzzingRange), func(t *testing.T) {
+		t.Run(fmt.Sprintf("quantization%s", tc.quantizationRange), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(tc.fuzzingRange, veryLargeGCWindow, 1)
+			ds, err := tester.New(tc.quantizationRange, veryLargeGCWindow, 1)
 			require.NoError(err)
 
 			ctx := context.Background()
@@ -55,20 +55,8 @@ func RevisionFuzzingTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 			require.True(nowRevision.GreaterThan(datastore.NoRevision))
 
-			foundLowerRevision := false
-			for start := time.Now(); time.Since(start) < 20*time.Millisecond; {
-				testRevision, err := ds.OptimizedRevision(ctx)
-				require.NoError(err)
-				if testRevision.LessThan(nowRevision) {
-					foundLowerRevision = true
-					break
-				}
-			}
-
-			require.Equal(tc.expectFindLowerRevisions, foundLowerRevision)
-
-			// Let the fuzzing window expire
-			time.Sleep(tc.fuzzingRange)
+			// Let the quantization window expire
+			time.Sleep(tc.quantizationRange)
 
 			// Now we should ONLY get revisions later than the now revision
 			for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
