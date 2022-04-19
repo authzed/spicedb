@@ -255,7 +255,7 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.EnablePrometheusStats(),
 	}
-	return mysql.NewMysqlDatastore(opts.URI, mysqlOpts...)
+	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
 }
 
 func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
