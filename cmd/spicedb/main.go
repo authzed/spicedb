@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/rs/zerolog/log"
 	"github.com/sercand/kuberesolver/v3"
 	"github.com/spf13/cobra"
