@@ -1,11 +1,15 @@
 package main
 
 import (
+	"errors"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/cespare/xxhash"
+	"github.com/rs/zerolog/log"
 	"github.com/sercand/kuberesolver/v3"
+	"github.com/spf13/cobra"
 	"google.golang.org/grpc/balancer"
 
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
@@ -17,6 +21,10 @@ import (
 const (
 	hashringReplicationFactor = 20
 	backendsPerKey            = 1
+)
+
+var (
+	parsingError = errors.New("parsing error")
 )
 
 func main() {
@@ -35,6 +43,11 @@ func main() {
 
 	// Create a root command
 	rootCmd := cmd.NewRootCommand("spicedb")
+	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		cmd.Println(err)
+		cmd.Println(cmd.UsageString())
+		return parsingError
+	})
 	cmd.RegisterRootFlags(rootCmd)
 
 	// Add a version command
@@ -65,6 +78,10 @@ func main() {
 	testingCmd := cmd.NewTestingCommand(rootCmd.Use, &testServerConfig)
 	cmd.RegisterTestingFlags(testingCmd, &testServerConfig)
 	rootCmd.AddCommand(testingCmd)
-
-	_ = rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		if !errors.Is(err, parsingError) {
+			log.Err(err).Msg("terminated with errors")
+		}
+		os.Exit(1)
+	}
 }
