@@ -14,9 +14,18 @@ const (
 	informationSchemaTableRowsColumn = "table_rows"
 	informationSchemaTablesTable     = "INFORMATION_SCHEMA.TABLES"
 	informationSchemaTableNameColumn = "table_name"
+
+	analyzeTableQuery = "ANALYZE TABLE %s"
 )
 
 func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	if mds.analyzeBeforeStats {
+		_, err := mds.db.ExecContext(ctx, fmt.Sprintf(analyzeTableQuery, mds.driver.RelationTuple()))
+		if err != nil {
+			return datastore.Stats{}, fmt.Errorf("unable to run ANALYZE TABLE: %w", err)
+		}
+	}
+
 	query, args, err := sb.
 		Select(informationSchemaTableRowsColumn).
 		From(informationSchemaTablesTable).
