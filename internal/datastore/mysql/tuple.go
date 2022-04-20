@@ -37,6 +37,8 @@ func (mds *Datastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.Sel
 		}
 	}
 
+	query = query.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+
 	return query
 }
 
