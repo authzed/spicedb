@@ -85,8 +85,15 @@ func WithGRPCAuthFunc(gRPCAuthFunc auth.AuthFunc) ConfigOption {
 	}
 }
 
-// WithPresharedKey returns an option that can set PresharedKey on a Config
+// WithPresharedKey returns an option that can append PresharedKeys to Config.PresharedKey
 func WithPresharedKey(presharedKey string) ConfigOption {
+	return func(c *Config) {
+		c.PresharedKey = append(c.PresharedKey, presharedKey)
+	}
+}
+
+// SetPresharedKey returns an option that can set PresharedKey on a Config
+func SetPresharedKey(presharedKey []string) ConfigOption {
 	return func(c *Config) {
 		c.PresharedKey = presharedKey
 	}
