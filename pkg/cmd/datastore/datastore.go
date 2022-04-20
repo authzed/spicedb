@@ -207,7 +207,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 	pgOpts := []postgres.Option{
 		postgres.GCWindow(opts.GCWindow),
-		postgres.RevisionFuzzingTimedelta(opts.RevisionQuantization),
+		postgres.RevisionQuantization(opts.RevisionQuantization),
 		postgres.ConnMaxIdleTime(opts.MaxIdleTime),
 		postgres.ConnMaxLifetime(opts.MaxLifetime),
 		postgres.MaxOpenConns(opts.MaxOpenConns),
