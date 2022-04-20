@@ -394,6 +394,65 @@ func WritePreconditionsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 }
 
+// WritePreconditionsAliveTest tests whether or not the requirements for checking
+// preconditions via WriteTuples hold for a particular datastore.
+func WritePreconditionsAliveTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+	defer ds.Close()
+
+	setupDatastore(ds, require)
+
+	first := makeTestTuple("first", "owner")
+	second := makeTestTuple("second", "owner")
+
+	ctx := context.Background()
+
+	// Ensure the write operation fails without the precondition.
+	_, err = ds.WriteTuples(
+		ctx,
+		[]*v1.Precondition{{
+			Operation: v1.Precondition_OPERATION_MUST_MATCH,
+			Filter:    tuple.MustToFilter(first),
+		}},
+		[]*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+			Relationship: tuple.MustToRelationship(second),
+		}},
+	)
+	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
+
+	// Add the first relationship.
+	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+		Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+		Relationship: tuple.MustToRelationship(first),
+	}})
+	require.NoError(err)
+
+	// And delete it immediately.
+	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+		Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
+		Relationship: tuple.MustToRelationship(first),
+	}})
+	require.NoError(err)
+
+	// Ensure the operation still fails.
+	_, err = ds.WriteTuples(
+		ctx,
+		[]*v1.Precondition{{
+			Operation: v1.Precondition_OPERATION_MUST_MATCH,
+			Filter:    tuple.MustToFilter(first),
+		}},
+		[]*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+			Relationship: tuple.MustToRelationship(second),
+		}},
+	)
+	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
+}
+
 // DeletePreconditionsTest tests whether or not the requirements for checking
 // preconditions via DeleteRelationships hold for a particular datastore.
 func DeletePreconditionsTest(t *testing.T, tester DatastoreTester) {

@@ -37,6 +37,7 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 	t.Run("TestWritePreconditions", func(t *testing.T) { WritePreconditionsTest(t, tester) })
+	t.Run("TestWritePreconditionsAlive", func(t *testing.T) { WritePreconditionsAliveTest(t, tester) })
 	t.Run("TestDeletePreconditions", func(t *testing.T) { DeletePreconditionsTest(t, tester) })
 	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })
 	t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })

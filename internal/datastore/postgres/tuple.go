@@ -56,6 +56,8 @@ func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
 		}
 	}
 
+	query = query.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+
 	return query
 }
 
