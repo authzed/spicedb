@@ -31,7 +31,7 @@ func (vd validatingDatastore) IsReady(ctx context.Context) (bool, error) {
 	return vd.delegate.IsReady(ctx)
 }
 
-func (vd validatingDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (vd validatingDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, filter *v1.RelationshipFilter) (datastore.Revision, error) {
 	for _, precondition := range preconditions {
 		err := precondition.Validate()
 		if err != nil {
@@ -43,10 +43,10 @@ func (vd validatingDatastore) DeleteRelationships(ctx context.Context, precondit
 		return datastore.NoRevision, err
 	}
 
-	return vd.delegate.DeleteRelationships(ctx, preconditions, filter)
+	return vd.delegate.DeleteRelationships(ctx, preconditions, preconditionRevision, filter)
 }
 
-func (vd validatingDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+func (vd validatingDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	for _, precondition := range preconditions {
 		err := precondition.Validate()
 		if err != nil {
@@ -66,7 +66,7 @@ func (vd validatingDatastore) WriteTuples(ctx context.Context, preconditions []*
 		}
 	}
 
-	return vd.delegate.WriteTuples(ctx, preconditions, mutations)
+	return vd.delegate.WriteTuples(ctx, preconditions, preconditionRevision, mutations)
 }
 
 func (vd validatingDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {

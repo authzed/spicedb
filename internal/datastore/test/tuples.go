@@ -63,6 +63,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				writtenAt, err := ds.WriteTuples(
 					ctx,
 					nil,
+					lastRevision,
 					[]*v1.RelationshipUpdate{{
 						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 						Relationship: tuple.MustToRelationship(newTuple),
@@ -80,6 +81,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			_, err = ds.WriteTuples(
 				ctx,
 				nil,
+				lastRevision,
 				[]*v1.RelationshipUpdate{{
 					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 					Relationship: tuple.MustToRelationship(testTuples[0]),
@@ -294,6 +296,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			deletedAt, err := ds.WriteTuples(
 				ctx,
 				nil,
+				lastRevision,
 				[]*v1.RelationshipUpdate{{
 					Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 					Relationship: tuple.MustToRelationship(testTuples[0]),
@@ -305,6 +308,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			_, err = ds.WriteTuples(
 				ctx,
 				nil,
+				lastRevision,
 				[]*v1.RelationshipUpdate{{
 					Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 					Relationship: tuple.MustToRelationship(testTuples[0]),
@@ -327,6 +331,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			returnedAt, err := ds.WriteTuples(
 				ctx,
 				nil,
+				lastRevision,
 				[]*v1.RelationshipUpdate{{
 					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 					Relationship: tuple.MustToRelationship(testTuples[0]),
@@ -336,7 +341,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire.TupleExists(ctx, testTuples[0], returnedAt)
 
 			// Delete with DeleteRelationship
-			deletedAt, err = ds.DeleteRelationships(ctx, nil, &v1.RelationshipFilter{
+			deletedAt, err = ds.DeleteRelationships(ctx, nil, lastRevision, &v1.RelationshipFilter{
 				ResourceType: testResourceNamespace,
 			})
 			require.NoError(err)
@@ -354,19 +359,20 @@ func WritePreconditionsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	defer ds.Close()
 
-	setupDatastore(ds, require)
+	revision := setupDatastore(ds, require)
 
 	first := makeTestTuple("first", "owner")
 	second := makeTestTuple("second", "owner")
 
 	ctx := context.Background()
 
-	_, err = ds.WriteTuples(
+	firstWrite, err := ds.WriteTuples(
 		ctx,
 		[]*v1.Precondition{{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
 			Filter:    tuple.MustToFilter(first),
 		}},
+		revision,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 			Relationship: tuple.MustToRelationship(second),
@@ -374,7 +380,7 @@ func WritePreconditionsTest(t *testing.T, tester DatastoreTester) {
 	)
 	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
 
-	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+	secondWrite, err := ds.WriteTuples(ctx, nil, firstWrite, []*v1.RelationshipUpdate{{
 		Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 		Relationship: tuple.MustToRelationship(first),
 	}})
@@ -386,6 +392,7 @@ func WritePreconditionsTest(t *testing.T, tester DatastoreTester) {
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
 			Filter:    tuple.MustToFilter(first),
 		}},
+		secondWrite,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 			Relationship: tuple.MustToRelationship(second),
@@ -403,7 +410,7 @@ func WritePreconditionsAliveTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	defer ds.Close()
 
-	setupDatastore(ds, require)
+	revision := setupDatastore(ds, require)
 
 	first := makeTestTuple("first", "owner")
 	second := makeTestTuple("second", "owner")
@@ -411,12 +418,13 @@ func WritePreconditionsAliveTest(t *testing.T, tester DatastoreTester) {
 	ctx := context.Background()
 
 	// Ensure the write operation fails without the precondition.
-	_, err = ds.WriteTuples(
+	firstWrite, err := ds.WriteTuples(
 		ctx,
 		[]*v1.Precondition{{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
 			Filter:    tuple.MustToFilter(first),
 		}},
+		revision,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 			Relationship: tuple.MustToRelationship(second),
@@ -425,14 +433,14 @@ func WritePreconditionsAliveTest(t *testing.T, tester DatastoreTester) {
 	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
 
 	// Add the first relationship.
-	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+	secondWrite, err := ds.WriteTuples(ctx, nil, firstWrite, []*v1.RelationshipUpdate{{
 		Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 		Relationship: tuple.MustToRelationship(first),
 	}})
 	require.NoError(err)
 
 	// And delete it immediately.
-	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+	thirdWrite, err := ds.WriteTuples(ctx, nil, secondWrite, []*v1.RelationshipUpdate{{
 		Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 		Relationship: tuple.MustToRelationship(first),
 	}})
@@ -445,6 +453,7 @@ func WritePreconditionsAliveTest(t *testing.T, tester DatastoreTester) {
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
 			Filter:    tuple.MustToFilter(first),
 		}},
+		thirdWrite,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 			Relationship: tuple.MustToRelationship(second),
@@ -462,7 +471,7 @@ func DeletePreconditionsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	defer ds.Close()
 
-	setupDatastore(ds, require)
+	revision := setupDatastore(ds, require)
 
 	relTpl := makeTestTuple("first", "owner")
 	filter := &v1.RelationshipFilter{
@@ -478,14 +487,15 @@ func DeletePreconditionsTest(t *testing.T, tester DatastoreTester) {
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
 			Filter:    tuple.MustToFilter(relTpl),
 		}},
+		revision,
 		filter,
 	)
 	require.True(errors.As(err, &datastore.ErrPreconditionFailed{}))
 
-	_, err = ds.DeleteRelationships(ctx, nil, filter)
+	_, err = ds.DeleteRelationships(ctx, nil, revision, filter)
 	require.NoError(err)
 
-	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+	newRev, err := ds.WriteTuples(ctx, nil, revision, []*v1.RelationshipUpdate{{
 		Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 		Relationship: tuple.MustToRelationship(relTpl),
 	}})
@@ -497,6 +507,7 @@ func DeletePreconditionsTest(t *testing.T, tester DatastoreTester) {
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
 			Filter:    tuple.MustToFilter(relTpl),
 		}},
+		newRev,
 		filter,
 	)
 	require.NoError(err)
@@ -580,7 +591,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 			defer ds.Close()
 
-			setupDatastore(ds, require)
+			revision := setupDatastore(ds, require)
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
@@ -589,11 +600,11 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
 					Relationship: tuple.MustToRelationship(tpl),
 				}
-				_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{update})
+				revision, err = ds.WriteTuples(ctx, nil, revision, []*v1.RelationshipUpdate{update})
 				require.NoError(err)
 			}
 
-			deletedAt, err := ds.DeleteRelationships(ctx, nil, tt.filter)
+			deletedAt, err := ds.DeleteRelationships(ctx, nil, revision, tt.filter)
 			require.NoError(err)
 
 			for _, tpl := range tt.expectedExistingTuples {
@@ -619,7 +630,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		require.NoError(err)
 		defer ds.Close()
 
-		setupDatastore(ds, require)
+		revision := setupDatastore(ds, require)
 
 		ctx := context.Background()
 
@@ -633,6 +644,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		firstWrite, err := ds.WriteTuples(
 			ctx,
 			nil,
+			revision,
 			[]*v1.RelationshipUpdate{{
 				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 				Relationship: tuple.MustToRelationship(newTuple),
@@ -651,6 +663,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		nextWrite, err := ds.WriteTuples(
 			ctx,
 			nil,
+			firstWrite,
 			[]*v1.RelationshipUpdate{{
 				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
 				Relationship: tuple.MustToRelationship(newTuple),
@@ -708,7 +721,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 					testTuples = append(testTuples, newTuple)
 					usersets = append(usersets, newTuple.User.GetUserset())
 
-					writtenAt, err := ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+					writtenAt, err := ds.WriteTuples(ctx, nil, lastRevision, []*v1.RelationshipUpdate{{
 						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 						Relationship: tuple.MustToRelationship(newTuple),
 					}})

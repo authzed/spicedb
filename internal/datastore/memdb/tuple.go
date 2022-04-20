@@ -18,7 +18,7 @@ const (
 	errUnableToQueryTuples  = "unable to query tuples: %w"
 )
 
-func (mds *memdbDatastore) checkPrecondition(txn *memdb.Txn, preconditions []*v1.Precondition) error {
+func (mds *memdbDatastore) checkPrecondition(txn *memdb.Txn, preconditions []*v1.Precondition, preconditionRevision datastore.Revision) error {
 	for _, precond := range preconditions {
 		switch precond.Operation {
 		case v1.Precondition_OPERATION_MUST_NOT_MATCH, v1.Precondition_OPERATION_MUST_MATCH:
@@ -27,7 +27,7 @@ func (mds *memdbDatastore) checkPrecondition(txn *memdb.Txn, preconditions []*v1
 				return err
 			}
 
-			filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(precond.Filter))
+			filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(precond.Filter, &preconditionRevision))
 
 			exists := filteredIter.Next() != nil
 			if (precond.Operation == v1.Precondition_OPERATION_MUST_MATCH && !exists) ||
@@ -42,7 +42,7 @@ func (mds *memdbDatastore) checkPrecondition(txn *memdb.Txn, preconditions []*v1
 	return nil
 }
 
-func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	mds.RLock()
 	db := mds.db
 	mds.RUnlock()
@@ -53,7 +53,7 @@ func (mds *memdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	txn := db.Txn(true)
 	defer txn.Abort()
 
-	if err := mds.checkPrecondition(txn, preconditions); err != nil {
+	if err := mds.checkPrecondition(txn, preconditions, preconditionRevision); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
@@ -121,7 +121,7 @@ func (mds *memdbDatastore) write(ctx context.Context, txn *memdb.Txn, mutations 
 	return newTxnID, nil
 }
 
-func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, filter *v1.RelationshipFilter) (datastore.Revision, error) {
 	mds.RLock()
 	db := mds.db
 	mds.RUnlock()
@@ -132,7 +132,7 @@ func (mds *memdbDatastore) DeleteRelationships(ctx context.Context, precondition
 	txn := db.Txn(true)
 	defer txn.Abort()
 
-	if err := mds.checkPrecondition(txn, preconditions); err != nil {
+	if err := mds.checkPrecondition(txn, preconditions, preconditionRevision); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToDeleteTuples, err)
 	}
 
@@ -152,7 +152,7 @@ func (mds *memdbDatastore) delete(ctx context.Context, txn *memdb.Txn, filter *v
 	if err != nil {
 		return 0, err
 	}
-	filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(filter))
+	filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(filter, nil))
 
 	// Collect the tuples into a slice of mutations for the changelog
 	var mutations []*v1.RelationshipUpdate
@@ -171,12 +171,19 @@ func (mds *memdbDatastore) delete(ctx context.Context, txn *memdb.Txn, filter *v
 	return newTxnID, nil
 }
 
-func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{}) bool {
+func relationshipFilterFilterFunc(filter *v1.RelationshipFilter, revision *datastore.Revision) func(interface{}) bool {
+	isDeadFilter := func(tpl interface{}) bool {
+		return false
+	}
+	if revision != nil {
+		isDeadFilter = filterToLiveObjects(*revision)
+	}
+
 	return func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*relationship)
 
 		// If it's already dead, filter it.
-		if tuple.deletedTxn != deletedTransactionID {
+		if isDeadFilter(tupleRaw) {
 			return true
 		}
 

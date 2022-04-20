@@ -51,7 +51,7 @@ func (mp mappingProxy) IsReady(ctx context.Context) (bool, error) {
 	return mp.delegate.IsReady(ctx)
 }
 
-func (mp mappingProxy) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+func (mp mappingProxy) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	translatedPreconditions := make([]*v1.Precondition, 0, len(preconditions))
 	for _, pc := range preconditions {
 		translatedPC, err := translatePrecondition(pc, mp.mapper.Encode)
@@ -73,10 +73,10 @@ func (mp mappingProxy) WriteTuples(ctx context.Context, preconditions []*v1.Prec
 		})
 	}
 
-	return mp.delegate.WriteTuples(ctx, translatedPreconditions, translatedMutations)
+	return mp.delegate.WriteTuples(ctx, translatedPreconditions, preconditionRevision, translatedMutations)
 }
 
-func (mp mappingProxy) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (mp mappingProxy) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, filter *v1.RelationshipFilter) (datastore.Revision, error) {
 	translatedPreconditions := make([]*v1.Precondition, 0, len(preconditions))
 	for _, pc := range preconditions {
 		translatedPC, err := translatePrecondition(pc, mp.mapper.Encode)
@@ -91,7 +91,7 @@ func (mp mappingProxy) DeleteRelationships(ctx context.Context, preconditions []
 		return datastore.NoRevision, fmt.Errorf(errTranslation, err)
 	}
 
-	return mp.delegate.DeleteRelationships(ctx, translatedPreconditions, translatedFilter)
+	return mp.delegate.DeleteRelationships(ctx, translatedPreconditions, preconditionRevision, translatedFilter)
 }
 
 func (mp mappingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {

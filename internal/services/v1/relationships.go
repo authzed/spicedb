@@ -251,7 +251,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
 	})
 
-	revision, err := ds.WriteTuples(ctx, req.OptionalPreconditions, req.Updates)
+	revision, err := ds.WriteTuples(ctx, req.OptionalPreconditions, readRevision, req.Updates)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -274,7 +274,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
 	})
 
-	revision, err := ds.DeleteRelationships(ctx, req.OptionalPreconditions, req.RelationshipFilter)
+	revision, err := ds.DeleteRelationships(ctx, req.OptionalPreconditions, readRevision, req.RelationshipFilter)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}

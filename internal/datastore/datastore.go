@@ -30,11 +30,11 @@ type Datastore interface {
 	// WriteTuples takes a list of existing tuples that must exist, and a list of
 	// tuple mutations and applies it to the datastore for the specified
 	// namespace.
-	WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (Revision, error)
+	WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision Revision, mutations []*v1.RelationshipUpdate) (Revision, error)
 
 	// DeleteRelationships deletes all Relationships that match the provided
 	// filter if all preconditions are met.
-	DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (Revision, error)
+	DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision Revision, filter *v1.RelationshipFilter) (Revision, error)
 
 	// OptimizedRevision gets a revision that will likely already be replicated
 	// and will likely be shared amongst many queries.

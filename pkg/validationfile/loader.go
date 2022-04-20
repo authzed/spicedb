@@ -137,7 +137,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 			})
 		}
 
-		wrevision, terr := ds.WriteTuples(context.Background(), nil, updates)
+		wrevision, terr := ds.WriteTuples(context.Background(), nil, revision, updates)
 		if terr != nil {
 			return nil, decimal.Zero, fmt.Errorf("error when loading validation tuples from file %s: %w", filePath, terr)
 		}

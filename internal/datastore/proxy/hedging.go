@@ -234,12 +234,12 @@ func (hp hedgingProxy) IsReady(ctx context.Context) (bool, error) {
 	return hp.delegate.IsReady(ctx)
 }
 
-func (hp hedgingProxy) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
-	return hp.delegate.DeleteRelationships(ctx, preconditions, filter)
+func (hp hedgingProxy) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+	return hp.delegate.DeleteRelationships(ctx, preconditions, preconditionRevision, filter)
 }
 
-func (hp hedgingProxy) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, updates []*v1.RelationshipUpdate) (datastore.Revision, error) {
-	return hp.delegate.WriteTuples(ctx, preconditions, updates)
+func (hp hedgingProxy) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, updates []*v1.RelationshipUpdate) (datastore.Revision, error) {
+	return hp.delegate.WriteTuples(ctx, preconditions, preconditionRevision, updates)
 }
 
 func (hp hedgingProxy) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {

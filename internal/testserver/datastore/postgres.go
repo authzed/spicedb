@@ -73,6 +73,7 @@ func (b *postgresDSBuilder) NewDatastore(t testing.TB, initFunc InitFunc) datast
 	migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(connectStr)
 	require.NoError(t, err)
 	require.NoError(t, pgmigrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun))
+	defer migrationDriver.Close()
 
 	return initFunc("postgres", connectStr)
 }

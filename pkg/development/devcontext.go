@@ -183,7 +183,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 		})
 	}
 
-	revision, err := ds.WriteTuples(ctx, nil, updates)
+	revision, err := ds.WriteTuples(ctx, nil, datastore.NoRevision, updates)
 	return revision, devErrors, err
 }
 

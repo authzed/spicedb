@@ -36,7 +36,7 @@ var (
 	queryTupleExists = psql.Select(colID).From(tableTuple)
 )
 
-func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
+func selectQueryForFilter(filter *v1.RelationshipFilter, revision datastore.Revision) sq.SelectBuilder {
 	query := queryTupleExists.Where(sq.Eq{colNamespace: filter.ResourceType})
 
 	if filter.OptionalResourceId != "" {
@@ -56,19 +56,17 @@ func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
 		}
 	}
 
-	query = query.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
-
-	return query
+	return filterToLivingObjects(query, revision)
 }
 
-func (pgd *pgDatastore) checkPreconditions(ctx context.Context, tx pgx.Tx, preconditions []*v1.Precondition) error {
+func (pgd *pgDatastore) checkPreconditions(ctx context.Context, tx pgx.Tx, preconditions []*v1.Precondition, preconditionRevision datastore.Revision) error {
 	ctx, span := tracer.Start(ctx, "checkPreconditions")
 	defer span.End()
 
 	for _, precond := range preconditions {
 		switch precond.Operation {
 		case v1.Precondition_OPERATION_MUST_NOT_MATCH, v1.Precondition_OPERATION_MUST_MATCH:
-			sql, args, err := selectQueryForFilter(precond.Filter).Limit(1).ToSql()
+			sql, args, err := selectQueryForFilter(precond.Filter, preconditionRevision).Limit(1).ToSql()
 			if err != nil {
 				return err
 			}
@@ -96,7 +94,7 @@ func (pgd *pgDatastore) checkPreconditions(ctx context.Context, tx pgx.Tx, preco
 	return nil
 }
 
-func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
 
@@ -106,7 +104,7 @@ func (pgd *pgDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Pre
 	}
 	defer tx.Rollback(ctx)
 
-	if err := pgd.checkPreconditions(ctx, tx, preconditions); err != nil {
+	if err := pgd.checkPreconditions(ctx, tx, preconditions, preconditionRevision); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
@@ -178,7 +176,7 @@ func exactRelationshipClause(r *v1.Relationship) sq.Eq {
 	}
 }
 
-func (pgd *pgDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (pgd *pgDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, filter *v1.RelationshipFilter) (datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 
@@ -188,7 +186,7 @@ func (pgd *pgDatastore) DeleteRelationships(ctx context.Context, preconditions [
 	}
 	defer tx.Rollback(ctx)
 
-	if err := pgd.checkPreconditions(ctx, tx, preconditions); err != nil {
+	if err := pgd.checkPreconditions(ctx, tx, preconditions, preconditionRevision); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 

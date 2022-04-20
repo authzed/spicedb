@@ -43,7 +43,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			// Create some revisions
 			tpl := makeTestTuple("first", "owner")
 			for i := 0; i < 10; i++ {
-				_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+				_, err = ds.WriteTuples(ctx, nil, postSetupRevision, []*v1.RelationshipUpdate{{
 					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
 					Relationship: tuple.MustToRelationship(tpl),
 				}})

@@ -16,12 +16,12 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 )
 
-func (sd spannerDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+func (sd spannerDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "WriteTuples")
 	defer span.End()
 
 	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
-		if err := checkPreconditions(ctx, rwt, preconditions); err != nil {
+		if err := checkPreconditions(ctx, rwt, preconditions, preconditionRevision); err != nil {
 			return err
 		}
 
@@ -69,11 +69,11 @@ func (sd spannerDatastore) WriteTuples(ctx context.Context, preconditions []*v1.
 	return revisionFromTimestamp(ts), nil
 }
 
-func (sd spannerDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (sd spannerDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, filter *v1.RelationshipFilter) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "DeleteRelationships")
 	defer span.End()
 	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
-		if err := checkPreconditions(ctx, rwt, preconditions); err != nil {
+		if err := checkPreconditions(ctx, rwt, preconditions, preconditionRevision); err != nil {
 			return err
 		}
 
@@ -182,7 +182,7 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 	return nil
 }
 
-func checkPreconditions(ctx context.Context, rwt *spanner.ReadWriteTransaction, preconditions []*v1.Precondition) error {
+func checkPreconditions(ctx context.Context, rwt *spanner.ReadWriteTransaction, preconditions []*v1.Precondition, preconditionRevision datastore.Revision) error {
 	for _, precond := range preconditions {
 		f := precond.Filter
 

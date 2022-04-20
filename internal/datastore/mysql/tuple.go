@@ -17,7 +17,7 @@ import (
 )
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func (mds *Datastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
+func (mds *Datastore) selectQueryForFilter(filter *v1.RelationshipFilter, revision datastore.Revision) sq.SelectBuilder {
 	query := mds.QueryTupleExistsQuery.Where(sq.Eq{colNamespace: filter.ResourceType})
 
 	if filter.OptionalResourceId != "" {
@@ -37,20 +37,18 @@ func (mds *Datastore) selectQueryForFilter(filter *v1.RelationshipFilter) sq.Sel
 		}
 	}
 
-	query = query.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
-
-	return query
+	return filterToLivingObjects(query, revision)
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func (mds *Datastore) checkPreconditions(ctx context.Context, tx *sql.Tx, preconditions []*v1.Precondition) error {
+func (mds *Datastore) checkPreconditions(ctx context.Context, tx *sql.Tx, preconditions []*v1.Precondition, preconditionRevision datastore.Revision) error {
 	ctx, span := tracer.Start(ctx, "checkPreconditions")
 	defer span.End()
 
 	for _, precond := range preconditions {
 		switch precond.Operation {
 		case v1.Precondition_OPERATION_MUST_NOT_MATCH, v1.Precondition_OPERATION_MUST_MATCH:
-			query, args, err := mds.selectQueryForFilter(precond.Filter).Limit(1).ToSql()
+			query, args, err := mds.selectQueryForFilter(precond.Filter, preconditionRevision).Limit(1).ToSql()
 			if err != nil {
 				return err
 			}
@@ -81,7 +79,7 @@ func (mds *Datastore) checkPreconditions(ctx context.Context, tx *sql.Tx, precon
 // WriteTuples takes a list of existing tuples that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified
 // namespace.
-func (mds *Datastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+func (mds *Datastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// there are some fundamental changes introduced to prevent a deadlock in MySQL
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
@@ -93,7 +91,7 @@ func (mds *Datastore) WriteTuples(ctx context.Context, preconditions []*v1.Preco
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
-	if err := mds.checkPreconditions(ctx, tx, preconditions); err != nil {
+	if err := mds.checkPreconditions(ctx, tx, preconditions, preconditionRevision); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 
@@ -201,7 +199,7 @@ func exactRelationshipClause(r *v1.Relationship) sq.Eq {
 	}
 }
 
-func (mds *Datastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (mds *Datastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, filter *v1.RelationshipFilter) (datastore.Revision, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
@@ -212,7 +210,7 @@ func (mds *Datastore) DeleteRelationships(ctx context.Context, preconditions []*
 	}
 	defer migrations.LogOnError(ctx, tx.Rollback)
 
-	if err := mds.checkPreconditions(ctx, tx, preconditions); err != nil {
+	if err := mds.checkPreconditions(ctx, tx, preconditions, preconditionRevision); err != nil {
 		return datastore.NoRevision, fmt.Errorf(errUnableToWriteTuples, err)
 	}
 

@@ -59,6 +59,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			var testUpdates [][]*v1.RelationshipUpdate
 			var bulkDeletes []*v1.RelationshipUpdate
+			lastRevision := lowestRevision
 			for i := 0; i < tc.numTuples; i++ {
 				newRelationship := makeTestRelationship(fmt.Sprintf("relation%d", i), "test_user")
 				newUpdate := &v1.RelationshipUpdate{
@@ -67,7 +68,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				}
 				batch := []*v1.RelationshipUpdate{newUpdate}
 				testUpdates = append(testUpdates, batch)
-				_, err := ds.WriteTuples(ctx, nil, batch)
+				lastRevision, err = ds.WriteTuples(ctx, nil, lastRevision, batch)
 				require.NoError(err)
 
 				if i != 0 {
@@ -87,19 +88,19 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				Relationship: makeTestRelationship("another_relation", "somestuff"),
 			}
 			batch := []*v1.RelationshipUpdate{updateUpdate, createUpdate}
-			_, err = ds.WriteTuples(ctx, nil, batch)
+			_, err = ds.WriteTuples(ctx, nil, lastRevision, batch)
 			require.NoError(err)
 
 			deleteUpdate := &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 				Relationship: makeTestRelationship("relation0", "test_user"),
 			}
-			_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{deleteUpdate})
+			lastRevision, err = ds.WriteTuples(ctx, nil, lastRevision, []*v1.RelationshipUpdate{deleteUpdate})
 			require.NoError(err)
 
 			testUpdates = append(testUpdates, batch, []*v1.RelationshipUpdate{deleteUpdate})
 
-			_, err = ds.DeleteRelationships(ctx, nil, &v1.RelationshipFilter{
+			_, err = ds.DeleteRelationships(ctx, nil, lastRevision, &v1.RelationshipFilter{
 				ResourceType:     testResourceNamespace,
 				OptionalRelation: testReaderRelation,
 				OptionalSubjectFilter: &v1.SubjectFilter{
@@ -192,7 +193,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, startWatchRevision)
 	require.Zero(len(errchan))
 
-	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+	_, err = ds.WriteTuples(ctx, nil, startWatchRevision, []*v1.RelationshipUpdate{{
 		Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 		Relationship: makeTestRelationship("test", "test"),
 	}})

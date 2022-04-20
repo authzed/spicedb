@@ -30,7 +30,7 @@ func TestRWOperationErrors(t *testing.T) {
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
-	rev, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
+	rev, err = ds.WriteTuples(ctx, nil, rev, []*v1.RelationshipUpdate{{
 		Operation: v1.RelationshipUpdate_OPERATION_CREATE,
 		Relationship: &v1.Relationship{
 			Resource: &v1.ObjectReference{
@@ -190,11 +190,11 @@ type delegateMock struct {
 	mock.Mock
 }
 
-func (dm *delegateMock) WriteTuples(ctx context.Context, _ []*v1.Precondition, _ []*v1.RelationshipUpdate) (datastore.Revision, error) {
+func (dm *delegateMock) WriteTuples(ctx context.Context, _ []*v1.Precondition, _ datastore.Revision, _ []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	panic("shouldn't ever call write method on delegate")
 }
 
-func (dm *delegateMock) DeleteRelationships(ctx context.Context, _ []*v1.Precondition, _ *v1.RelationshipFilter) (datastore.Revision, error) {
+func (dm *delegateMock) DeleteRelationships(ctx context.Context, _ []*v1.Precondition, _ datastore.Revision, _ *v1.RelationshipFilter) (datastore.Revision, error) {
 	panic("shouldn't ever call delete relationships method on delegate")
 }
 

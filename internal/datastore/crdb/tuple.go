@@ -80,10 +80,12 @@ func selectQueryForFilter(filter *v1.RelationshipFilter) sq.SelectBuilder {
 	return query
 }
 
-func (cds *crdbDatastore) checkPreconditions(ctx context.Context, tx pgx.Tx, keySet keySet, preconditions []*v1.Precondition) error {
+func (cds *crdbDatastore) checkPreconditions(ctx context.Context, tx pgx.Tx, keySet keySet, preconditions []*v1.Precondition, preconditionRevision datastore.Revision) error {
 	ctx, span := tracer.Start(ctx, "checkPreconditions")
 	defer span.End()
 
+	// NOTE: Since this is executed under the same transaction as the writes, we cannot use a transaction
+	// on the precondition revision. Instead, we always use the latest state of the DB.
 	for _, precond := range preconditions {
 		cds.AddOverlapKey(keySet, precond.Filter.ResourceType)
 		if subjectFilter := precond.Filter.OptionalSubjectFilter; subjectFilter != nil {
@@ -119,14 +121,14 @@ func (cds *crdbDatastore) checkPreconditions(ctx context.Context, tx pgx.Tx, key
 	return nil
 }
 
-func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
+func (cds *crdbDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
 	var nowRevision datastore.Revision
 
 	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		keySet := newKeySet()
-		if err := cds.checkPreconditions(ctx, tx, keySet, preconditions); err != nil {
+		if err := cds.checkPreconditions(ctx, tx, keySet, preconditions, preconditionRevision); err != nil {
 			return err
 		}
 		bulkWrite := queryWriteTuple
@@ -232,14 +234,14 @@ func exactRelationshipClause(r *v1.Relationship) sq.Eq {
 	}
 }
 
-func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+func (cds *crdbDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, filter *v1.RelationshipFilter) (datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 	var nowRevision datastore.Revision
 
 	if err := cds.execute(ctx, cds.conn, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		keySet := newKeySet()
-		if err := cds.checkPreconditions(ctx, tx, keySet, preconditions); err != nil {
+		if err := cds.checkPreconditions(ctx, tx, keySet, preconditions, preconditionRevision); err != nil {
 			return err
 		}
 

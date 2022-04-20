@@ -156,7 +156,7 @@ func TestMaxDepth(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
 	require.NoError(err)
 
-	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ds, dsRevision := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
 	mutations := []*v1_api.RelationshipUpdate{{
 		Operation: v1_api.RelationshipUpdate_OPERATION_CREATE,
@@ -179,7 +179,7 @@ func TestMaxDepth(t *testing.T) {
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	revision, err := ds.WriteTuples(ctx, nil, mutations)
+	revision, err := ds.WriteTuples(ctx, nil, dsRevision, mutations)
 	require.NoError(err)
 	require.True(revision.GreaterThan(decimal.Zero))
 

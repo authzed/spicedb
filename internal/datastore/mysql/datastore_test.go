@@ -164,7 +164,6 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Write a relationship.
-
 	tpl := &corev1.RelationTuple{
 		ObjectAndRelation: &corev1.ObjectAndRelation{
 			Namespace: "resource",
@@ -182,6 +181,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	relWrittenAt, err := ds.WriteTuples(
 		ctx,
 		nil,
+		writtenAt,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 			Relationship: relationship,
@@ -209,6 +209,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	relOverwrittenAt, err := ds.WriteTuples(
 		ctx,
 		nil,
+		datastore.NoRevision,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
 			Relationship: relationship,
@@ -235,6 +236,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	relDeletedAt, err := ds.WriteTuples(
 		ctx,
 		nil,
+		datastore.NoRevision,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 			Relationship: relationship,
@@ -261,6 +263,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	_, err = ds.WriteTuples(
 		ctx,
 		nil,
+		datastore.NoRevision,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
 			Relationship: relationship,
@@ -268,9 +271,10 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	)
 	req.NoError(err)
 
-	_, err = ds.WriteTuples(
+	lastWrittenAt, err := ds.WriteTuples(
 		ctx,
 		nil,
+		datastore.NoRevision,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
 			Relationship: relationship,
@@ -281,6 +285,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	relLastWriteAt, err := ds.WriteTuples(
 		ctx,
 		nil,
+		lastWrittenAt,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
 			Relationship: relationship,
@@ -314,7 +319,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	))
 	req.NoError(err)
 
-	_, err = ds.WriteNamespace(ctx, namespace.Namespace("user"))
+	writtenAt, err := ds.WriteNamespace(ctx, namespace.Namespace("user"))
 	req.NoError(err)
 
 	mds := ds.(*Datastore)
@@ -340,6 +345,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	relLastWriteAt, err := ds.WriteTuples(
 		ctx,
 		nil,
+		writtenAt,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 			Relationship: relationship,
@@ -367,6 +373,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	relDeletedAt, err := ds.WriteTuples(
 		ctx,
 		nil,
+		relLastWriteAt,
 		[]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 			Relationship: relationship,
@@ -438,6 +445,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	writtenAt, err := ds.WriteTuples(
 		ctx,
 		nil,
+		datastore.NoRevision,
 		updates,
 	)
 	req.NoError(err)
@@ -473,6 +481,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	deletedAt, err := ds.WriteTuples(
 		ctx,
 		nil,
+		datastore.NoRevision,
 		deletes,
 	)
 	req.NoError(err)

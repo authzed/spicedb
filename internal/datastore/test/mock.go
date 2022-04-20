@@ -32,13 +32,13 @@ func (md *MockedDatastore) IsReady(ctx context.Context) (bool, error) {
 	return args.Bool(0), args.Error(1)
 }
 
-func (md *MockedDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (datastore.Revision, error) {
-	args := md.Called(ctx, preconditions, filter)
+func (md *MockedDatastore) DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, filter *v1.RelationshipFilter) (datastore.Revision, error) {
+	args := md.Called(ctx, preconditions, preconditionRevision, filter)
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (md *MockedDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, updates []*v1.RelationshipUpdate) (datastore.Revision, error) {
-	args := md.Called(ctx, preconditions, updates)
+func (md *MockedDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, preconditionRevision datastore.Revision, updates []*v1.RelationshipUpdate) (datastore.Revision, error) {
+	args := md.Called(ctx, preconditions, preconditionRevision, updates)
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 

@@ -99,7 +99,7 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 	})
 
 	ds := datastoremw.MustFromContext(ctx)
-	revision, err := ds.WriteTuples(ctx, preconditions, mutations)
+	revision, err := ds.WriteTuples(ctx, preconditions, atRevision, mutations)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
