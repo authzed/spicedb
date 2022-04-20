@@ -138,6 +138,7 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 		createBaseTxn:            createBaseTxn,
 		QueryBuilder:             queryBuilder,
 		querySplitter:            &querySplitter,
+		analyzeBeforeStats:       config.analyzeBeforeStats,
 	}
 
 	// Start a goroutine for garbage collection.
@@ -215,10 +216,11 @@ func newMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
 
 // Datastore is a MySQL-based implementation of the datastore.Datastore interface
 type Datastore struct {
-	db            *sql.DB
-	driver        *migrations.MySQLDriver
-	querySplitter *common.TupleQuerySplitter
-	url           string
+	db                 *sql.DB
+	driver             *migrations.MySQLDriver
+	querySplitter      *common.TupleQuerySplitter
+	url                string
+	analyzeBeforeStats bool
 
 	revisionFuzzingTimedelta time.Duration
 	gcWindowInverted         time.Duration

@@ -43,6 +43,7 @@ func (dst *datastoreTester) createDatastore(revisionFuzzingTimedelta, gcWindow t
 			GCWindow(gcWindow),
 			GCInterval(0*time.Second),
 			TablePrefix(dst.prefix),
+			DebugAnalyzeBeforeStatistics(),
 		)
 		require.NoError(dst.t, err)
 		return ds
@@ -60,6 +61,7 @@ var defaultOptions = []Option{
 	RevisionFuzzingTimedelta(0 * time.Millisecond),
 	GCWindow(1 * time.Millisecond),
 	GCInterval(0 * time.Second),
+	DebugAnalyzeBeforeStatistics(),
 }
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
