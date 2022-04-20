@@ -9,7 +9,7 @@ import (
 // QueryBuilder captures all parameterizable queries used
 // by the MySQL datastore implementation
 type QueryBuilder struct {
-	GetRevision      sq.SelectBuilder
+	GetLastRevision  sq.SelectBuilder
 	GetRevisionRange sq.SelectBuilder
 
 	WriteNamespaceQuery        sq.InsertBuilder
@@ -31,7 +31,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder := QueryBuilder{}
 
 	// transaction builders
-	builder.GetRevision = getRevision(driver.RelationTupleTransaction())
+	builder.GetLastRevision = getLastRevision(driver.RelationTupleTransaction())
 	builder.GetRevisionRange = getRevisionRange(driver.RelationTupleTransaction())
 
 	// namespace builders
@@ -51,7 +51,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	return &builder
 }
 
-func getRevision(tableTransaction string) sq.SelectBuilder {
+func getLastRevision(tableTransaction string) sq.SelectBuilder {
 	return sb.Select("MAX(id)").From(tableTransaction).Limit(1)
 }
 
