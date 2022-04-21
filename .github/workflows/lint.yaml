@@ -18,6 +18,9 @@ jobs:
           go-version: "^1.17"
       - uses: "authzed/actions/gofumpt@main"
       - uses: "authzed/actions/go-mod-tidy@main"
+      - uses: "authzed/actions/go-mod-tidy@main"
+        with:
+          working_directory: "e2e"
       - uses: "authzed/actions/go-generate@main"
       - uses: "authzed/actions/golangci-lint@main"
 

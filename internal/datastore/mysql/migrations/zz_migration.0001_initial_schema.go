@@ -8,7 +8,7 @@ func createMigrationVersion(driver *MySQLDriver) string {
 	// -- https://github.com/github/gh-ost/blob/master/doc/shared-key.md
 	return fmt.Sprintf(`CREATE TABLE %s (
 		id int(11) NOT NULL PRIMARY KEY,
-		_meta_version_ VARCHAR(255) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8;`,
+		_meta_version_ VARCHAR(255) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 		driver.migrationVersion(),
 	)
 }
@@ -21,7 +21,7 @@ func createNamespaceConfig(driver *MySQLDriver) string {
 		created_transaction BIGINT NOT NULL,
 		deleted_transaction BIGINT NOT NULL DEFAULT '9223372036854775807',
 		CONSTRAINT pk_namespace_config PRIMARY KEY (namespace, created_transaction),
-		CONSTRAINT uq_namespace_living UNIQUE (namespace, deleted_transaction)) ENGINE=InnoDB DEFAULT CHARSET=utf8;`,
+		CONSTRAINT uq_namespace_living UNIQUE (namespace, deleted_transaction)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 		driver.Namespace(),
 	)
 }
@@ -44,7 +44,7 @@ func createRelationTuple(driver *MySQLDriver) string {
 		CONSTRAINT uq_relation_tuple_living UNIQUE (namespace, object_id, relation, userset_namespace, userset_object_id, userset_relation, deleted_transaction),
         INDEX ix_relation_tuple_by_subject (userset_object_id, userset_namespace, userset_relation, namespace, relation),
         INDEX ix_relation_tuple_by_subject_relation (userset_namespace, userset_relation, namespace, relation),
-        INDEX ix_relation_tuple_by_deleted_transaction (deleted_transaction)) ENGINE=InnoDB DEFAULT CHARSET=utf8;`,
+        INDEX ix_relation_tuple_by_deleted_transaction (deleted_transaction)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 		driver.RelationTuple(),
 	)
 }
@@ -54,7 +54,7 @@ func createRelationTupleTransaction(driver *MySQLDriver) string {
 		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 		timestamp DATETIME(6) DEFAULT NOW(6) NOT NULL,
 		PRIMARY KEY (id),
-        INDEX ix_relation_tuple_transaction_by_timestamp (timestamp)) ENGINE=InnoDB DEFAULT CHARSET=utf8;`,
+        INDEX ix_relation_tuple_transaction_by_timestamp (timestamp)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 		driver.RelationTupleTransaction(),
 	)
 }

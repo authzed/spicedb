@@ -19,7 +19,7 @@ func TestRESTGateway(t *testing.T) {
 	tester, err := newTester(t,
 		&dockertest.RunOptions{
 			Repository:   "authzed/spicedb",
-			Tag:          "latest",
+			Tag:          "ci",
 			Cmd:          []string{"serve", "--log-level", "debug", "--grpc-preshared-key", "somerandomkeyhere", "--http-enabled"},
 			ExposedPorts: []string{"50051/tcp", "8443/tcp"},
 		},
@@ -43,7 +43,7 @@ func TestRESTGateway(t *testing.T) {
 	body, err = ioutil.ReadAll(resp.Body)
 	require.NoError(err)
 
-	require.Equal(500, resp.StatusCode)
+	require.Equal(401, resp.StatusCode)
 	require.Contains(string(body), "Unauthenticated")
 
 	// Attempt to read schema with an invalid Auth header.
@@ -56,7 +56,7 @@ func TestRESTGateway(t *testing.T) {
 	body, err = ioutil.ReadAll(resp.Body)
 	require.NoError(err)
 
-	require.Equal(500, resp.StatusCode)
+	require.Equal(403, resp.StatusCode)
 	require.Contains(string(body), "invalid preshared key: invalid token")
 
 	// Read with the correct token.

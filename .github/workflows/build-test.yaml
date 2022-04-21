@@ -5,7 +5,7 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - "main"
     paths:
-      - ".github/workflows/build.yaml"
+      - ".github/workflows/build-test.yaml"
       - "buf.gen.yaml"
       - "buf.work.yaml"
       - "Dockerfile"
@@ -20,7 +20,7 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - "*"
     paths:
-      - ".github/workflows/build.yaml"
+      - ".github/workflows/build-test.yaml"
       - "buf.gen.yaml"
       - "buf.work.yaml"
       - "Dockerfile"
@@ -51,8 +51,14 @@ jobs:
         with:
           go-version: "^1.17"
       - uses: "authzed/actions/docker-build@main"
+        with:
+          push: false
+          tags: "authzed/spicedb:ci"
+          buildx: false
+          qemu: false
       - uses: "authzed/actions/go-test@main"
         with:
+          working_directory: "cmd/spicedb"
           tags: "docker"
 
   unit:
