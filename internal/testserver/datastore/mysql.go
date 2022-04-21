@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
@@ -14,50 +15,52 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-var mysqlContainerRunOpts = &dockertest.RunOptions{
-	Repository: "mysql",
-	Tag:        "5",
-	Platform:   "linux/amd64", // required because the mysql:5 image does not have arm support
-	Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
-	// increase max connections (default 151) to accommodate tests using the same docker container
-	Cmd: []string{"--max-connections=500"},
-}
-
 const (
 	mysqlPort    = 3306
 	defaultCreds = "root:secret"
 	testDBPrefix = "spicedb_test_"
 )
 
-type mysqlBuilder struct {
-	db      *sql.DB
-	creds   string
-	port    string
-	options MySQLBuilderOptions
+type mysqlTester struct {
+	db       *sql.DB
+	hostname string
+	creds    string
+	port     string
+	options  MySQLTesterOptions
 }
 
-// MySQLBuilderOptions allows tweaking the behaviour of the builder for the MySQL datastore
-type MySQLBuilderOptions struct {
-	Prefix  string
-	Migrate bool
+// MySQLTesterOptions allows tweaking the behaviour of the builder for the MySQL datastore
+type MySQLTesterOptions struct {
+	Prefix                 string
+	MigrateForNewDatastore bool
 }
 
-// NewMySQLBuilder returns a TestDatastoreBuilder for the mysql driver
-// backed by a MySQL instance with default options - no prefix is added, and datastore migration is run.
-func NewMySQLBuilder(t testing.TB) TestDatastoreBuilder {
-	return NewMySQLBuilderWithOptions(t, MySQLBuilderOptions{Prefix: "", Migrate: true})
+// RunMySQLForTesting returns a RunningEngineForTest for the mysql driver
+// backed by a MySQL instance with RunningEngineForTest options - no prefix is added, and datastore migration is run.
+func RunMySQLForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForTest {
+	return RunMySQLForTestingWithOptions(t, MySQLTesterOptions{Prefix: "", MigrateForNewDatastore: true}, bridgeNetworkName)
 }
 
-// NewMySQLBuilderWithOptions returns a TestDatastoreBuilder for the mysql driver
+// RunMySQLForTestingWithOptions returns a RunningEngineForTest for the mysql driver
 // backed by a MySQL instance, while allowing options to be forwarded
-func NewMySQLBuilderWithOptions(t testing.TB, options MySQLBuilderOptions) TestDatastoreBuilder {
+func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bridgeNetworkName string) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	resource, err := pool.RunWithOptions(mysqlContainerRunOpts)
+	name := fmt.Sprintf("mysql-%s", uuid.New().String())
+	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Name:       name,
+		Repository: "mysql",
+		Tag:        "5",
+		Platform:   "linux/amd64", // required because the mysql:5 image does not have arm support
+		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
+		// increase max connections (default 151) to accommodate tests using the same docker container
+		Cmd:       []string{"--max-connections=500"},
+		NetworkID: bridgeNetworkName,
+	})
 	require.NoError(t, err)
 
-	builder := &mysqlBuilder{
+	builder := &mysqlTester{
 		creds:   defaultCreds,
 		options: options,
 	}
@@ -65,8 +68,15 @@ func NewMySQLBuilderWithOptions(t testing.TB, options MySQLBuilderOptions) TestD
 		require.NoError(t, pool.Purge(resource))
 	})
 
-	builder.port = resource.GetPort(fmt.Sprintf("%d/tcp", mysqlPort))
-	dsn := fmt.Sprintf("%s@(localhost:%s)/mysql?parseTime=true", builder.creds, builder.port)
+	port := resource.GetPort(fmt.Sprintf("%d/tcp", mysqlPort))
+	if bridgeNetworkName != "" {
+		builder.hostname = name
+		builder.port = fmt.Sprintf("%d", mysqlPort)
+	} else {
+		builder.port = port
+	}
+
+	dsn := fmt.Sprintf("%s@(localhost:%s)/mysql?parseTime=true", builder.creds, port)
 	require.NoError(t, pool.Retry(func() error {
 		var err error
 		builder.db, err = sql.Open("mysql", dsn)
@@ -83,7 +93,7 @@ func NewMySQLBuilderWithOptions(t testing.TB, options MySQLBuilderOptions) TestD
 	return builder
 }
 
-func (mb *mysqlBuilder) setupDatabase(t testing.TB) string {
+func (mb *mysqlTester) NewDatabase(t testing.TB) string {
 	uniquePortion, err := secrets.TokenHex(4)
 	require.NoError(t, err, "Could not generate unique portion of db name: %s", err)
 	dbName := testDBPrefix + uniquePortion
@@ -93,10 +103,10 @@ func (mb *mysqlBuilder) setupDatabase(t testing.TB) string {
 	require.NoError(t, err, "failed to create database %s: %s", dbName, err)
 	err = tx.Commit()
 	require.NoError(t, err, "failed to commit: %s", err)
-	return dbName
+	return fmt.Sprintf("%s@(%s:%s)/%s?parseTime=true", mb.creds, mb.hostname, mb.port, dbName)
 }
 
-func (mb *mysqlBuilder) runMigrate(t testing.TB, dsn string) {
+func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) {
 	driver, err := migrations.NewMySQLDriverFromDSN(dsn, mb.options.Prefix)
 	require.NoError(t, err, "failed to create migration driver: %s", err)
 	err = migrations.Manager.Run(driver, migrate.Head, migrate.LiveRun)
@@ -105,10 +115,9 @@ func (mb *mysqlBuilder) runMigrate(t testing.TB, dsn string) {
 	require.NoError(t, err, "failed to run migration: %s", err)
 }
 
-func (mb *mysqlBuilder) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
-	dbName := mb.setupDatabase(t)
-	dsn := fmt.Sprintf("%s@(localhost:%s)/%s?parseTime=true", mb.creds, mb.port, dbName)
-	if mb.options.Migrate {
+func (mb *mysqlTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
+	dsn := mb.NewDatabase((t))
+	if mb.options.MigrateForNewDatastore {
 		mb.runMigrate(t, dsn)
 	}
 	return initFunc("mysql", dsn)

@@ -9,6 +9,7 @@ import (
 
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
 	instances "cloud.google.com/go/spanner/admin/instance/apiv1"
+	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 	adminpb "google.golang.org/genproto/googleapis/spanner/admin/database/v1"
@@ -20,19 +21,23 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-var spannerContainer = &dockertest.RunOptions{
-	Repository: "gcr.io/cloud-spanner-emulator/emulator",
-	Tag:        "latest",
+type spannerTest struct {
+	hostname string
 }
 
-type spannerDSBuilder struct{}
-
-// NewSpannerBuilder returns a TestDatastoreBuilder for spanner
-func NewSpannerBuilder(t testing.TB) TestDatastoreBuilder {
+// RunSpannerForTesting returns a RunningEngineForTest for spanner
+func RunSpannerForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	resource, err := pool.RunWithOptions(spannerContainer)
+	name := fmt.Sprintf("postgres-%s", uuid.New().String())
+	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Name:         name,
+		Repository:   "gcr.io/cloud-spanner-emulator/emulator",
+		Tag:          "latest",
+		ExposedPorts: []string{"9010/tcp"},
+		NetworkID:    bridgeNetworkName,
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -64,10 +69,19 @@ func NewSpannerBuilder(t testing.TB) TestDatastoreBuilder {
 		return err
 	}))
 
-	return &spannerDSBuilder{}
+	builder := &spannerTest{}
+	if bridgeNetworkName != "" {
+		builder.hostname = name
+	}
+
+	return builder
 }
 
-func (b *spannerDSBuilder) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
+func (b *spannerTest) ExternalEnvVars() []string {
+	return []string{fmt.Sprintf("SPANNER_EMULATOR_HOST=%s:9010", b.hostname)}
+}
+
+func (b *spannerTest) NewDatabase(t testing.TB) string {
 	t.Logf("using spanner emulator, host: %s", os.Getenv("SPANNER_EMULATOR_HOST"))
 
 	uniquePortion, err := secrets.TokenHex(4)
@@ -109,12 +123,17 @@ func (b *spannerDSBuilder) NewDatastore(t testing.TB, initFunc InitFunc) datasto
 
 	db, err := op.Wait(ctx)
 	require.NoError(t, err)
+	return db.Name
+}
 
-	migrationDriver, err := migrations.NewSpannerDriver(db.Name, "")
+func (b *spannerTest) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
+	db := b.NewDatabase(t)
+
+	migrationDriver, err := migrations.NewSpannerDriver(db, "")
 	require.NoError(t, err)
 
 	err = migrations.SpannerMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
 	require.NoError(t, err)
 
-	return initFunc("spanner", db.Name)
+	return initFunc("spanner", db)
 }

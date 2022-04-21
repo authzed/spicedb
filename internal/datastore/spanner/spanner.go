@@ -3,6 +3,7 @@ package spanner
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -58,6 +59,7 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 
 	config.gcInterval = common.WithJitter(0.2, config.gcInterval)
 	log.Info().Float64("factor", 0.2).Msg("gc configured with jitter")
+	log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("spanner emulator")
 
 	client, err := spanner.NewClient(context.Background(), database, option.WithCredentialsFile(config.credentialsFilePath))
 	if err != nil {

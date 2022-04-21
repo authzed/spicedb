@@ -34,7 +34,7 @@ func TestBurst(t *testing.T) {
 		if stringz.SliceContains(blacklist, engine) {
 			continue
 		}
-		b := testdatastore.NewTestDatastoreBuilder(t, engine)
+		b := testdatastore.RunDatastoreEngine(t, engine)
 		t.Run(engine, func(t *testing.T) {
 			ds := b.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 				dsconfig.WithWatchBufferLength(0),
