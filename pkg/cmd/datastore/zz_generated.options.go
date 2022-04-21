@@ -41,6 +41,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
+		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
 	}
@@ -226,6 +227,13 @@ func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
 	return func(c *Config) {
 		c.SpannerCredentialsFile = spannerCredentialsFile
+	}
+}
+
+// WithTablePrefix returns an option that can set TablePrefix on a Config
+func WithTablePrefix(tablePrefix string) ConfigOption {
+	return func(c *Config) {
+		c.TablePrefix = tablePrefix
 	}
 }
 
