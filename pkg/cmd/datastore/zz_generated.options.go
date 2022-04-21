@@ -41,9 +41,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
+		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
-		to.TablePrefix = c.TablePrefix
 	}
 }
 
@@ -230,6 +230,13 @@ func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
 	}
 }
 
+// WithTablePrefix returns an option that can set TablePrefix on a Config
+func WithTablePrefix(tablePrefix string) ConfigOption {
+	return func(c *Config) {
+		c.TablePrefix = tablePrefix
+	}
+}
+
 // WithWatchBufferLength returns an option that can set WatchBufferLength on a Config
 func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 	return func(c *Config) {
@@ -241,12 +248,5 @@ func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 func WithEnableDatastoreMetrics(enableDatastoreMetrics bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableDatastoreMetrics = enableDatastoreMetrics
-	}
-}
-
-// WithTablePrefix returns an option that can set TablePrefix on a Config
-func WithTablePrefix(tablePrefix string) ConfigOption {
-	return func(c *Config) {
-		c.TablePrefix = tablePrefix
 	}
 }

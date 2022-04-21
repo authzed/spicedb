@@ -30,6 +30,7 @@ type mysqlOptions struct {
 	connMaxIdleTime          time.Duration
 	connMaxLifetime          time.Duration
 	splitAtUsersetCount      int
+	analyzeBeforeStats       bool
 }
 
 // Option provides the facility to configure how clients within the
@@ -140,5 +141,16 @@ func ConnMaxLifetime(lifetime time.Duration) Option {
 func MaxOpenConns(conns int) Option {
 	return func(po *mysqlOptions) {
 		po.maxOpenConns = conns
+	}
+}
+
+// DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
+// run Analyze Table on the relationships table before returning statistics.
+// This should only be used for debug and testing.
+//
+// Disabled by default.
+func DebugAnalyzeBeforeStatistics() Option {
+	return func(po *mysqlOptions) {
+		po.analyzeBeforeStats = true
 	}
 }
