@@ -2,41 +2,45 @@
 
 [![Container Image](https://img.shields.io/github/v/release/authzed/spicedb?color=%232496ED&label=container&logo=docker "Container Image")](https://hub.docker.com/r/authzed/spicedb/tags)
 [![Docs](https://img.shields.io/badge/docs-authzed.com-%234B4B6C "Authzed Documentation")](https://docs.authzed.com)
-[![GoDoc](https://godoc.org/github.com/authzed/spicedb?status.svg "Go documentation")](https://godoc.org/github.com/authzed/spicedb)
 [![Build Status](https://github.com/authzed/spicedb/workflows/Build%20&%20Test/badge.svg "GitHub Actions")](https://github.com/authzed/spicedb/actions)
 [![Discord Server](https://img.shields.io/discord/844600078504951838?color=7289da&logo=discord "Discord Server")](https://discord.gg/jTysUaxXzM)
 [![Twitter](https://img.shields.io/twitter/follow/authzed?color=%23179CF0&logo=twitter&style=flat-square "@authzed on Twitter")](https://twitter.com/authzed)
 
-SpiceDB is a [Zanzibar]-inspired open source database system for managing security-critical application permissions.
+SpiceDB is an open source database system for managing security-critical application permissions inspired by Google's [Zanzibar] paper.
 
 Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
 Features that distinguish SpiceDB from other systems include:
 
 - Expressive [gRPC] and [HTTP] APIs for checking permissions, listing access, and powering devtools
-- An architecture faithful to [Google's Zanzibar paper], including resistance to the [New Enemy Problem]
-- An intuitive and expressive [schema language] complete with a [playground] dev environment
-- A powerful graph engine that supports distributed, parallel evaluation
-- Pluggable storage that supports [in-memory], [PostgreSQL], [CockroachDB] and [Cloud Spanner] (beta)
-- Deep observability with [Prometheus metrics], structured logging, and [distributed tracing]
+- A distributed, parallel graph-engine faithful to the architecture described in the [Google's Zanzibar paper]
+- A flexible consistency model configurable on a per-request basis that includes resistance to the [New Enemy Problem]
+- An expressive [schema language] with tools for [rapid prototyping], [integration testing], and [validating designs] in CI/CD pipelines
+- Pluggable storage system that supports [in-memory], [PostgreSQL], [CockroachDB], and [Cloud Spanner] (beta)
+- Deep observability with [Prometheus metrics], structured logging, and [OpenTelemetry tracing]
 
-See [CONTRIBUTING.md] for instructions on how to contribute and perform common tasks like building the project and running tests.
+Have questions? Join our [Discord].
+
+Looking to contribute? See [CONTRIBUTING.md].
 
 [client library]: https://docs.authzed.com/reference/api#client-libraries
-[gRPC]: https://buf.build/authzed/api
+[gRPC]: https://buf.build/authzed/api/docs/main:authzed.api.v1
 [Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
-[HTTP]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/authzed/authzed-go/main/proto/apidocs.swagger.json
+[HTTP]: https://app.swaggerhub.com/apis-docs/authzed/authzed/1.0
 [Google's Zanzibar paper]: https://authzed.com/blog/what-is-zanzibar/
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
 [schema language]: https://docs.authzed.com/guides/schema
-[playground]: https://play.authzed.com
+[rapid prototyping]: https://play.authzed.com
+[integration testing]: https://github.com/authzed/action-spicedb
+[validating designs]: https://github.com/authzed/action-spicedb-validate
 [in-memory]: https://github.com/hashicorp/go-memdb
 [PostgreSQL]: https://www.postgresql.org
 [CockroachDB]: https://github.com/cockroachdb/cockroach
 [Cloud Spanner]: https://cloud.google.com/spanner
 [Prometheus metrics]: https://prometheus.io
-[distributed tracing]: https://opentelemetry.io
-[CONTRIBUTING.md]: CONTRIBUTING.md
+[OpenTelemetry tracing]: https://opentelemetry.io
+[Discord]: https://authzed.com/discord
+[CONTRIBUTING.md]: https://github.com/authzed/spicedb/blob/main/CONTRIBUTING.md
 
 ## Why SpiceDB?
 
@@ -68,56 +72,13 @@ This has strategy has become an industry best-practice and is being used to grea
 
 ### Installing SpiceDB
 
-SpiceDB is currently packaged by [Homebrew] for both macOS and Linux.
-Individual releases and other formats are also available on the [releases page].
+- Install SpiceDB with [homebrew] on macOS and Linux
+- Run a SpiceDB container using a container engine such as [docker]
+- Deploy a single-node example [Kubernetes deployment]
 
-[Homebrew]: https://brew.sh
-[releases page]: https://github.com/authzed/spicedb/releases
-
-```sh
-brew install authzed/tap/spicedb
-```
-
-SpiceDB is also available as a container image:
-
-```sh
-docker run -p 50051:50051 -p 8080:8080 authzed/spicedb:latest serve --grpc-preshared-key 'somerandomkeyhere'
-```
-
-For production usage, we **highly** recommend using a tag that corresponds to the [latest release], rather than `latest`.
-
-[latest release]: https://github.com/authzed/spicedb/releases
-
-### Running SpiceDB locally
-
-```sh
-spicedb serve --grpc-preshared-key "somerandomkeyhere"
-```
-
-Visit [http://localhost:8080](http://localhost:8080) to see next steps, including loading the schema
-
-### Running SpiceDB for testing
-
-```sh
-spicedb serve-testing
-```
-
-This command runs SpiceDB such that each [Bearer Token] provided by the client is allocated its own isolated, ephemeral datastore.
-By using unique tokens in each of your application's integration tests, they can be executed in parallel safely against a single instance of SpiceDB.
-
-A [SpiceDB GitHub action] is also available to run SpiceDB as part of your integration test workflows.
-
-[Bearer Token]: https://docs.authzed.com/reference/api#authentication
-[SpiceDB GitHub action]: https://github.com/authzed/action-spicedb
-
-### Configuring SpiceDB
-
-In addition to CLI flags, SpiceDB also supports configuration via environment variables.
-You can replace any command's argument with an environment variable by converting dashes into underscores and prefixing with `SPICEDB_` (e.g. `--log-level` becomes `SPICEDB_LOG_LEVEL`).
-
-```sh
-SPICEDB_GRPC_PRESHARED_KEY=somerandomkeyhere spicedb serve
-```
+[homebrew]: https://docs.authzed.com/spicedb/installing#brew
+[docker]: https://docs.authzed.com/spicedb/installing#docker
+[Kubernetes deployment]: https://github.com/authzed/spicedb/blob/main/k8s/example.yaml
 
 ### Developing your own schema
 
@@ -140,7 +101,3 @@ SPICEDB_GRPC_PRESHARED_KEY=somerandomkeyhere spicedb serve
 [Protecting Your First App]: https://docs.authzed.com/guides/first-app
 [Buf Registry]: https://buf.build/authzed/api/docs
 [Install zed]: https://github.com/authzed/zed
-
-## Have questions?
-
-Engage with the community and Authzed team in the [SpiceDB Discord](https://authzed.com/discord)
