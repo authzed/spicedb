@@ -82,6 +82,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
+		manager = mysqlmigrations.Manager
 	} else {
 		return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 	}
