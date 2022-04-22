@@ -48,9 +48,6 @@ linters:
     - "whitespace"
 issues:
   exclude-rules:
-    - path: "internal/namespace"
-      linters:
-        - "revive"
     - path: "pkg/namespace"
       linters:
         - "revive"

@@ -36,7 +36,7 @@ type Manager interface {
 	CheckNamespaceAndRelation(ctx context.Context, namespace, relation string, allowEllipsis bool, revision decimal.Decimal) error
 
 	// ReadNamespaceAndTypes reads a namespace definition, version, and type system and returns it if found.
-	ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, *NamespaceTypeSystem, error)
+	ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, *TypeSystem, error)
 
 	// Close closes the namespace manager, disposing of any resources.
 	//

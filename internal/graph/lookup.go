@@ -272,7 +272,7 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req ValidatedLoo
 	return returnResult(lookupResult(req, limitedSlice(objSet.AsSlice(), req.Limit), responseMetadata))
 }
 
-func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLookupRequest, typeSystem *namespace.NamespaceTypeSystem) ReduceableLookupFunc {
+func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLookupRequest, typeSystem *namespace.TypeSystem) ReduceableLookupFunc {
 	requests := []ReduceableLookupFunc{}
 
 	// Ensure type informatione exists on the relation.
@@ -473,7 +473,7 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 	}
 }
 
-func (cl *ConcurrentLookup) processRewrite(ctx context.Context, req ValidatedLookupRequest, nsdef *core.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, usr *core.UsersetRewrite) ReduceableLookupFunc {
+func (cl *ConcurrentLookup) processRewrite(ctx context.Context, req ValidatedLookupRequest, nsdef *core.NamespaceDefinition, typeSystem *namespace.TypeSystem, usr *core.UsersetRewrite) ReduceableLookupFunc {
 	switch rw := usr.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
 		return cl.processSetOperation(ctx, req, nsdef, typeSystem, rw.Union, lookupAny)
@@ -486,7 +486,7 @@ func (cl *ConcurrentLookup) processRewrite(ctx context.Context, req ValidatedLoo
 	}
 }
 
-func (cl *ConcurrentLookup) processSetOperation(ctx context.Context, req ValidatedLookupRequest, nsdef *core.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, so *core.SetOperation, reducer LookupReducer) ReduceableLookupFunc {
+func (cl *ConcurrentLookup) processSetOperation(ctx context.Context, req ValidatedLookupRequest, nsdef *core.NamespaceDefinition, typeSystem *namespace.TypeSystem, so *core.SetOperation, reducer LookupReducer) ReduceableLookupFunc {
 	var requests []ReduceableLookupFunc
 
 	for _, childOneof := range so.Child {
@@ -529,7 +529,7 @@ func findRelation(nsdef *core.NamespaceDefinition, relationName string) (*core.R
 	return nil, false
 }
 
-func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req ValidatedLookupRequest, nsdef *core.NamespaceDefinition, typeSystem *namespace.NamespaceTypeSystem, ttu *core.TupleToUserset) ReduceableLookupFunc {
+func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req ValidatedLookupRequest, nsdef *core.NamespaceDefinition, typeSystem *namespace.TypeSystem, ttu *core.TupleToUserset) ReduceableLookupFunc {
 	// Ensure that we don't process TTUs recursively, as that can cause an infinite loop.
 	nr := &core.RelationReference{
 		Namespace: req.ObjectRelation.Namespace,
