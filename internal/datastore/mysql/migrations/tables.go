@@ -29,14 +29,17 @@ func (tn *tables) migrationVersion() string {
 	return tn.tableMigrationVersion
 }
 
+// RelationTupleTransaction returns the prefixed transaction table name.
 func (tn *tables) RelationTupleTransaction() string {
 	return tn.tableTransaction
 }
 
+// RelationTuple returns the prefixed relationship tuple table name.
 func (tn *tables) RelationTuple() string {
 	return tn.tableTuple
 }
 
+// Namespace returns the prefixed namespace table name.
 func (tn *tables) Namespace() string {
 	return tn.tableNamespace
 }

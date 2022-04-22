@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/mysql"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/spanner"
@@ -25,6 +26,7 @@ const (
 	PostgresEngine  = "postgres"
 	CockroachEngine = "cockroachdb"
 	SpannerEngine   = "spanner"
+	MySQLEngine     = "mysql"
 )
 
 var BuilderForEngine = map[string]engineBuilderFunc{
@@ -32,6 +34,7 @@ var BuilderForEngine = map[string]engineBuilderFunc{
 	PostgresEngine:  newPostgresDatastore,
 	MemoryEngine:    newMemoryDatstore,
 	SpannerEngine:   newSpannerDatastore,
+	MySQLEngine:     newMySQLDatastore,
 }
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
@@ -73,6 +76,9 @@ type Config struct {
 	// Spanner
 	SpannerCredentialsFile string
 
+	// MySQL
+	TablePrefix string
+
 	// Internal
 	WatchBufferLength      uint16
 	EnableDatastoreMetrics bool
@@ -105,6 +111,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
+	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-mysql-table-prefix", "", "prefix to add to the name of all SpiceDB database tables")
 }
 
 func DefaultDatastoreConfig() *Config {
@@ -234,6 +241,21 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
 	)
+}
+
+func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
+	mysqlOpts := []mysql.Option{
+		mysql.GCInterval(opts.GCInterval),
+		mysql.GCWindow(opts.GCWindow),
+		mysql.GCInterval(opts.GCInterval),
+		mysql.ConnMaxIdleTime(opts.MaxIdleTime),
+		mysql.ConnMaxLifetime(opts.MaxLifetime),
+		mysql.MaxOpenConns(opts.MaxOpenConns),
+		mysql.RevisionFuzzingTimedelta(opts.RevisionQuantization),
+		mysql.TablePrefix(opts.TablePrefix),
+		mysql.EnablePrometheusStats(),
+	}
+	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
 }
 
 func newMemoryDatstore(opts Config) (datastore.Datastore, error) {

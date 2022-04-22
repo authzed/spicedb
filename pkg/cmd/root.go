@@ -14,9 +14,11 @@ func RegisterRootFlags(cmd *cobra.Command) {
 
 func NewRootCommand(programName string) *cobra.Command {
 	return &cobra.Command{
-		Use:     programName,
-		Short:   "A modern permissions database",
-		Long:    "A database that stores, computes, and validates application permissions",
-		Example: server.ServeExample(programName),
+		Use:           programName,
+		Short:         "A modern permissions database",
+		Long:          "A database that stores, computes, and validates application permissions",
+		Example:       server.ServeExample(programName),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 }
