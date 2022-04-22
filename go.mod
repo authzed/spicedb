@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb
 
-go 1.17
+go 1.18
 
 require (
 	cloud.google.com/go/spanner v1.30.1
