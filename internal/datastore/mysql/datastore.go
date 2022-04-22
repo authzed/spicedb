@@ -26,6 +26,8 @@ import (
 )
 
 const (
+	Engine = "mysql"
+
 	colID               = "id"
 	colTimestamp        = "timestamp"
 	colNamespace        = "namespace"
@@ -64,6 +66,10 @@ var (
 
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 )
+
+func init() {
+	datastore.Engines = append(datastore.Engines, Engine)
+}
 
 type sqlFilter interface {
 	ToSql() (string, []interface{}, error)

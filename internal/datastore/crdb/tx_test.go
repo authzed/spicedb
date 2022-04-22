@@ -113,7 +113,7 @@ func TestTxReset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds := testdatastore.NewCRDBBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds := testdatastore.RunCRDBForTesting(t, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := NewCRDBDatastore(
 					uri,
 					GCWindow(24*time.Hour),

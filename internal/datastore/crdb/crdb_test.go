@@ -17,7 +17,7 @@ import (
 )
 
 func TestCRDBDatastore(t *testing.T) {
-	b := testdatastore.NewCRDBBuilder(t)
+	b := testdatastore.RunCRDBForTesting(t, "")
 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
@@ -47,7 +47,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
 			require := require.New(t)
 
-			ds := testdatastore.NewCRDBBuilder(t).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds := testdatastore.RunCRDBForTesting(t, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := NewCRDBDatastore(
 					uri,
 					GCWindow(gcWindow),

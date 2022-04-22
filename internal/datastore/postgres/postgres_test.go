@@ -25,7 +25,7 @@ import (
 )
 
 func TestPostgresDatastore(t *testing.T) {
-	b := testdatastore.NewPostgresBuilder(t)
+	b := testdatastore.RunPostgresForTesting(t, "")
 
 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -99,7 +99,7 @@ func TestPostgresDatastore(t *testing.T) {
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
-func createDatastoreTest(b testdatastore.TestDatastoreBuilder, tf datastoreTestFunc, options ...Option) func(*testing.T) {
+func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewPostgresDatastore(uri, options...)
@@ -510,7 +510,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 }
 
-func QuantizedRevisionTest(t *testing.T, b testdatastore.TestDatastoreBuilder) {
+func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	testCases := []struct {
 		testName         string
 		quantization     time.Duration
@@ -615,7 +615,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.TestDatastoreBuilder) {
 func BenchmarkPostgresQuery(b *testing.B) {
 	req := require.New(b)
 
-	ds := testdatastore.NewPostgresBuilder(b).NewDatastore(b, func(engine, uri string) datastore.Datastore {
+	ds := testdatastore.RunPostgresForTesting(b, "").NewDatastore(b, func(engine, uri string) datastore.Datastore {
 		ds, err := NewPostgresDatastore(uri,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
