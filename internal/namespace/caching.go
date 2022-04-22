@@ -64,7 +64,7 @@ func NewNonCachingNamespaceManager() Manager {
 	return &cachingManager{c: noCache{}}
 }
 
-func (nsc *cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, *NamespaceTypeSystem, error) {
+func (nsc *cachingManager) ReadNamespaceAndTypes(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, *TypeSystem, error) {
 	nsDef, err := nsc.ReadNamespace(ctx, nsName, revision)
 	if err != nil {
 		return nsDef, nil, err

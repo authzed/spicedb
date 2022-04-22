@@ -114,7 +114,7 @@ func TestGenerator(t *testing.T) {
 
 		{
 			"full example",
-			namespace.NamespaceWithComment("foos/document", `/**
+			namespace.WithComment("foos/document", `/**
 * Some comment goes here
 */`,
 				namespace.Relation("owner", nil,
