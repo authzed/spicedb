@@ -48,9 +48,6 @@ linters:
     - "whitespace"
 issues:
   exclude-rules:
-    - path: "pkg/namespace"
-      linters:
-        - "revive"
     - text: "tx.Rollback()"
       linters:
         - "errcheck"

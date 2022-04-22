@@ -14,8 +14,8 @@ func Namespace(name string, relations ...*core.Relation) *core.NamespaceDefiniti
 	}
 }
 
-// NamespaceWithComment creates a namespace definition with one or more defined relations.
-func NamespaceWithComment(name string, comment string, relations ...*core.Relation) *core.NamespaceDefinition {
+// WithComment creates a namespace definition with one or more defined relations.
+func WithComment(name string, comment string, relations ...*core.Relation) *core.NamespaceDefinition {
 	nd := Namespace(name, relations...)
 	nd.Metadata, _ = AddComment(nd.Metadata, comment)
 	return nd
