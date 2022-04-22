@@ -604,8 +604,10 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			)
 
 			var revision uint64
-			err = tx.QueryRow(ctx, queryRevision).Scan(&revision)
+			var validFor time.Duration
+			err = tx.QueryRow(ctx, queryRevision).Scan(&revision, &validFor)
 			require.NoError(err)
+			require.Greater(validFor, time.Duration(0))
 
 			require.Equal(tc.expectedRevision, revision)
 		})
