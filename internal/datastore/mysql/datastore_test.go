@@ -5,8 +5,8 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -84,8 +84,7 @@ func TestMySQLDatastore(t *testing.T) {
 	dst := datastoreTester{b: b, t: t}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 
-	t.Run("IsReady", createDatastoreTest(b, IsReadyTest))
-	t.Run("IsReadyRace", createDatastoreTest(b, IsReadyRaceTest))
+	t.Run("DatabaseSeeding", createDatastoreTest(b, DatabaseSeedingTest))
 	t.Run("PrometheusCollector", createDatastoreTest(
 		b,
 		PrometheusCollectorTest,
@@ -103,52 +102,18 @@ func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 }
 
-func IsReadyTest(t *testing.T, ds datastore.Datastore) {
+func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
-	// ensure no revision is seeded by default
+	// ensure datastore is seeded right after initialization
 	ctx := context.Background()
-	revision, err := ds.HeadRevision(ctx)
-	req.Equal(datastore.NoRevision, revision)
+	isSeeded, err := ds.(*Datastore).isSeeded(ctx)
 	req.NoError(err)
+	req.True(isSeeded, "expected datastore to be seeded after initialization")
 
 	ready, err := ds.IsReady(ctx)
 	req.NoError(err)
 	req.True(ready)
-
-	// verify IsReady seeds the revision is if not present
-	revision, err = ds.HeadRevision(ctx)
-	req.NoError(err)
-	req.Equal(revisionFromTransaction(1), revision)
-}
-
-func IsReadyRaceTest(t *testing.T, ds datastore.Datastore) {
-	req := require.New(t)
-
-	ctx := context.Background()
-	revision, err := ds.HeadRevision(ctx)
-	req.Equal(datastore.NoRevision, revision)
-	req.NoError(err)
-
-	var wg sync.WaitGroup
-
-	concurrency := 5
-	for gn := 1; gn <= concurrency; gn++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-
-			ready, err := ds.IsReady(ctx)
-			req.NoError(err, "goroutine %d", i)
-			req.True(ready, "goroutine %d", i)
-		}(gn)
-	}
-	wg.Wait()
-
-	// verify IsReady seeds the revision is if not present
-	revision, err = ds.HeadRevision(ctx)
-	req.NoError(err)
-	req.Equal(revisionFromTransaction(1), revision)
 }
 
 func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
@@ -574,12 +539,9 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 
 func TestMySQLMigrations(t *testing.T) {
 	req := require.New(t)
-	ds := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: false}).NewDatastore(t, func(engine, uri string) datastore.Datastore {
-		ds, err := NewMySQLDatastore(uri)
-		req.NoError(err)
-		return ds
-	})
-	migrationDriver := ds.(*Datastore).driver
+
+	db := datastoreDB(t, false)
+	migrationDriver := migrations.NewMySQLDriverFromDB(db, "")
 
 	version, err := migrationDriver.Version()
 	req.NoError(err)
@@ -598,14 +560,10 @@ func TestMySQLMigrations(t *testing.T) {
 
 func TestMySQLMigrationsWithPrefix(t *testing.T) {
 	req := require.New(t)
+
 	prefix := "spicedb_"
-	ds := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: false, Prefix: prefix}).
-		NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewMySQLDatastore(uri, TablePrefix(prefix))
-			req.NoError(err)
-			return ds
-		})
-	migrationDriver := ds.(*Datastore).driver
+	db := datastoreDB(t, false)
+	migrationDriver := migrations.NewMySQLDriverFromDB(db, prefix)
 
 	version, err := migrationDriver.Version()
 	req.NoError(err)
@@ -621,7 +579,6 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 	req.NoError(err)
 	req.Equal(headVersion, version)
 
-	db := ds.(*Datastore).db
 	rows, err := db.Query("SHOW TABLES;")
 	req.NoError(err)
 
@@ -631,4 +588,16 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 		req.Contains(tbl, prefix)
 	}
 	req.NoError(rows.Err())
+}
+
+func datastoreDB(t *testing.T, migrate bool) *sql.DB {
+	var databaseUri string
+	testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: migrate}).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		databaseUri = uri
+		return nil
+	})
+
+	db, err := sql.Open("mysql", databaseUri)
+	require.NoError(t, err)
+	return db
 }
