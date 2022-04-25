@@ -199,7 +199,7 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 
 	requestKey, err := cd.keyHandler.ComputeCheckKey(ctx, req, cd.nsm)
 	if err != nil {
-		return nil, err
+		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{}}, err
 	}
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
