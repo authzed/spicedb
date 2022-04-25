@@ -16,6 +16,7 @@ const (
 	defaultConnMaxLifetime                   = 30 * time.Minute
 	defaultWatchBufferLength                 = 128
 	defaultUsersetBatchSize                  = 1024
+	defaultEnablePrometheusStats             = false
 )
 
 type mysqlOptions struct {
@@ -47,7 +48,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		connMaxIdleTime:       defaultConnMaxIdleTime,
 		connMaxLifetime:       defaultConnMaxLifetime,
 		splitAtUsersetCount:   defaultUsersetBatchSize,
-		enablePrometheusStats: false,
+		enablePrometheusStats: defaultEnablePrometheusStats,
 	}
 
 	for _, option := range options {

@@ -27,6 +27,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MinOpenConns = c.MinOpenConns
 		to.SplitQueryCount = c.SplitQueryCount
 		to.ReadOnly = c.ReadOnly
+		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
 		to.BootstrapFiles = c.BootstrapFiles
 		to.BootstrapOverwrite = c.BootstrapOverwrite
 		to.RequestHedgingEnabled = c.RequestHedgingEnabled
@@ -43,7 +44,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
-		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
 	}
 }
 
@@ -122,6 +122,13 @@ func WithSplitQueryCount(splitQueryCount uint16) ConfigOption {
 func WithReadOnly(readOnly bool) ConfigOption {
 	return func(c *Config) {
 		c.ReadOnly = readOnly
+	}
+}
+
+// WithEnableDatastoreMetrics returns an option that can set EnableDatastoreMetrics on a Config
+func WithEnableDatastoreMetrics(enableDatastoreMetrics bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableDatastoreMetrics = enableDatastoreMetrics
 	}
 }
 
@@ -241,12 +248,5 @@ func WithTablePrefix(tablePrefix string) ConfigOption {
 func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 	return func(c *Config) {
 		c.WatchBufferLength = watchBufferLength
-	}
-}
-
-// WithEnableDatastoreMetrics returns an option that can set EnableDatastoreMetrics on a Config
-func WithEnableDatastoreMetrics(enableDatastoreMetrics bool) ConfigOption {
-	return func(c *Config) {
-		c.EnableDatastoreMetrics = enableDatastoreMetrics
 	}
 }

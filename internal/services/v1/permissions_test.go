@@ -231,6 +231,13 @@ func TestCheckPermissions(t *testing.T) {
 			v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED,
 			codes.InvalidArgument,
 		},
+		{
+			obj("document", "something"),
+			"unknown",
+			sub("user", "foo", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED,
+			codes.FailedPrecondition,
+		},
 	}
 
 	for _, delta := range testTimedeltas {
