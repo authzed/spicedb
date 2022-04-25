@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	errFuzzingTooLarge = "revision fuzzing timedelta (%s) must be less than GC window (%s)"
+	errQuantizationTooLarge = "revision quantization interval (%s) must be less than GC window (%s)"
 
 	defaultGarbageCollectionWindow           = 24 * time.Hour
 	defaultGarbageCollectionInterval         = time.Minute * 3
@@ -16,21 +16,24 @@ const (
 	defaultConnMaxLifetime                   = 30 * time.Minute
 	defaultWatchBufferLength                 = 128
 	defaultUsersetBatchSize                  = 1024
+	defaultQuantization                      = 5 * time.Second
+	defaultMaxRevisionStalenessPercent       = 0.1
 )
 
 type mysqlOptions struct {
-	revisionFuzzingTimedelta time.Duration
-	gcWindow                 time.Duration
-	gcInterval               time.Duration
-	gcMaxOperationTime       time.Duration
-	watchBufferLength        uint16
-	tablePrefix              string
-	enablePrometheusStats    bool
-	maxOpenConns             int
-	connMaxIdleTime          time.Duration
-	connMaxLifetime          time.Duration
-	splitAtUsersetCount      int
-	analyzeBeforeStats       bool
+	revisionQuantization        time.Duration
+	gcWindow                    time.Duration
+	gcInterval                  time.Duration
+	gcMaxOperationTime          time.Duration
+	maxRevisionStalenessPercent float64
+	watchBufferLength           uint16
+	tablePrefix                 string
+	enablePrometheusStats       bool
+	maxOpenConns                int
+	connMaxIdleTime             time.Duration
+	connMaxLifetime             time.Duration
+	splitAtUsersetCount         int
+	analyzeBeforeStats          bool
 }
 
 // Option provides the facility to configure how clients within the
@@ -39,14 +42,16 @@ type Option func(*mysqlOptions)
 
 func generateConfig(options []Option) (mysqlOptions, error) {
 	computed := mysqlOptions{
-		gcWindow:            defaultGarbageCollectionWindow,
-		gcInterval:          defaultGarbageCollectionInterval,
-		gcMaxOperationTime:  defaultGarbageCollectionMaxOperationTime,
-		watchBufferLength:   defaultWatchBufferLength,
-		maxOpenConns:        defaultMaxOpenConns,
-		connMaxIdleTime:     defaultConnMaxIdleTime,
-		connMaxLifetime:     defaultConnMaxLifetime,
-		splitAtUsersetCount: defaultUsersetBatchSize,
+		gcWindow:                    defaultGarbageCollectionWindow,
+		gcInterval:                  defaultGarbageCollectionInterval,
+		gcMaxOperationTime:          defaultGarbageCollectionMaxOperationTime,
+		watchBufferLength:           defaultWatchBufferLength,
+		maxOpenConns:                defaultMaxOpenConns,
+		connMaxIdleTime:             defaultConnMaxIdleTime,
+		connMaxLifetime:             defaultConnMaxLifetime,
+		splitAtUsersetCount:         defaultUsersetBatchSize,
+		revisionQuantization:        defaultQuantization,
+		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 	}
 
 	for _, option := range options {
@@ -54,10 +59,10 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 	}
 
 	// Run any checks on the config that need to be done
-	if computed.revisionFuzzingTimedelta >= computed.gcWindow {
+	if computed.revisionQuantization >= computed.gcWindow {
 		return computed, fmt.Errorf(
-			errFuzzingTooLarge,
-			computed.revisionFuzzingTimedelta,
+			errQuantizationTooLarge,
+			computed.revisionQuantization,
 			computed.gcWindow,
 		)
 	}
@@ -65,13 +70,34 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 	return computed, nil
 }
 
-// RevisionFuzzingTimedelta is the time bucket size to which advertised
+// WatchBufferLength is the number of entries that can be stored in the watch
+// buffer while awaiting read by the client.
+//
+// This value defaults to 128.
+func WatchBufferLength(watchBufferLength uint16) Option {
+	return func(mo *mysqlOptions) {
+		mo.watchBufferLength = watchBufferLength
+	}
+}
+
+// RevisionQuantization is the time bucket size to which advertised
 // revisions will be rounded.
 //
 // This value defaults to 5 seconds.
-func RevisionFuzzingTimedelta(delta time.Duration) Option {
+func RevisionQuantization(quantization time.Duration) Option {
 	return func(mo *mysqlOptions) {
-		mo.revisionFuzzingTimedelta = delta
+		mo.revisionQuantization = quantization
+	}
+}
+
+// MaxRevisionStalenessPercent is the amount of time, expressed as a percentage of
+// the revision quantization window, that a previously computed rounded revision
+// can still be advertised after the next rounded revision would otherwise be ready.
+//
+// This value defaults to 0.1 (10%).
+func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
+	return func(mo *mysqlOptions) {
+		mo.maxRevisionStalenessPercent = stalenessPercent
 	}
 }
 

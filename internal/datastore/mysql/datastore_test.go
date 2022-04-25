@@ -36,10 +36,10 @@ type datastoreTester struct {
 	prefix string
 }
 
-func (dst *datastoreTester) createDatastore(revisionFuzzingTimedelta, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+func (dst *datastoreTester) createDatastore(revisionQuantization, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 	ds := dst.b.NewDatastore(dst.t, func(engine, uri string) datastore.Datastore {
 		ds, err := NewMySQLDatastore(uri,
-			RevisionFuzzingTimedelta(revisionFuzzingTimedelta),
+			RevisionQuantization(revisionQuantization),
 			GCWindow(gcWindow),
 			GCInterval(0*time.Second),
 			TablePrefix(dst.prefix),
@@ -58,7 +58,7 @@ func failOnError(t *testing.T, f func() error) {
 }
 
 var defaultOptions = []Option{
-	RevisionFuzzingTimedelta(0 * time.Millisecond),
+	RevisionQuantization(0 * time.Millisecond),
 	GCWindow(1 * time.Millisecond),
 	GCInterval(0 * time.Second),
 	DebugAnalyzeBeforeStatistics(),
@@ -94,6 +94,9 @@ func TestMySQLDatastore(t *testing.T) {
 	t.Run("GarbageCollectionByTime", createDatastoreTest(b, GarbageCollectionByTimeTest, defaultOptions...))
 	t.Run("ChunkedGarbageCollection", createDatastoreTest(b, ChunkedGarbageCollectionTest, defaultOptions...))
 	t.Run("TransactionTimestamps", createDatastoreTest(b, TransactionTimestampsTest, defaultOptions...))
+	t.Run("QuantizedRevisions", func(t *testing.T) {
+		QuantizedRevisionTest(t, b)
+	})
 }
 
 func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
@@ -493,6 +496,102 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Equal(int64(chunkRelationshipCount), relsDeleted)
 	req.Equal(int64(1), transactionsDeleted)
 	req.NoError(err)
+}
+
+func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	testCases := []struct {
+		testName         string
+		quantization     time.Duration
+		relativeTimes    []time.Duration
+		expectedRevision uint64
+	}{
+		{
+			"DefaultRevision",
+			1 * time.Second,
+			[]time.Duration{},
+			1,
+		},
+		{
+			"OnlyPastRevisions",
+			1 * time.Second,
+			[]time.Duration{-2 * time.Second},
+			2,
+		},
+		{
+			"OnlyFutureRevisions",
+			1 * time.Second,
+			[]time.Duration{2 * time.Second},
+			2,
+		},
+		{
+			"QuantizedLower",
+			1 * time.Second,
+			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
+			3,
+		},
+		{
+			"QuantizationDisabled",
+			1 * time.Nanosecond,
+			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
+			4,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			require := require.New(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 900*time.Second)
+			defer cancel()
+
+			ds := testdatastore.RunMySQLForTesting(t, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {
+				ds, err := NewMySQLDatastore(
+					uri,
+					RevisionQuantization(5*time.Second),
+					GCWindow(24*time.Hour),
+					WatchBufferLength(1),
+				)
+				require.NoError(err)
+				return ds
+			})
+			mds := ds.(*Datastore)
+
+			dbNow, err := mds.getNow(ctx)
+			require.NoError(err)
+
+			tx, err := mds.db.BeginTx(ctx, nil)
+			require.NoError(err)
+
+			if len(tc.relativeTimes) > 0 {
+				bulkWrite := sb.Insert(mds.driver.RelationTupleTransaction()).Columns(colTimestamp)
+
+				for _, offset := range tc.relativeTimes {
+					bulkWrite = bulkWrite.Values(dbNow.Add(offset))
+				}
+
+				sql, args, err := bulkWrite.ToSql()
+				require.NoError(err)
+
+				_, err = tx.ExecContext(ctx, sql, args...)
+				require.NoError(err)
+			}
+
+			queryRevision := fmt.Sprintf(
+				querySelectRevision,
+				colID,
+				mds.driver.RelationTupleTransaction(),
+				colTimestamp,
+				tc.quantization.Nanoseconds(),
+			)
+
+			var revision uint64
+			var validFor time.Duration
+			err = tx.QueryRowContext(ctx, queryRevision).Scan(&revision, &validFor)
+			require.NoError(err)
+			require.Greater(validFor, time.Duration(0))
+			require.LessOrEqual(validFor, tc.quantization.Nanoseconds())
+			require.Equal(tc.expectedRevision, revision)
+		})
+	}
 }
 
 // From https://dev.mysql.com/doc/refman/8.0/en/datetime.html
