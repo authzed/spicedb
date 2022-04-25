@@ -13,10 +13,10 @@ Developers create a schema that models their permissions requirements and use a 
 Features that distinguish SpiceDB from other systems include:
 
 - Expressive [gRPC] and [HTTP] APIs for checking permissions, listing access, and powering devtools
-- A distributed, parallel graph-engine faithful to the architecture described in the [Google's Zanzibar paper]
-- A flexible consistency model configurable on a per-request basis that includes resistance to the [New Enemy Problem]
+- A distributed, parallel graph-engine faithful to the architecture described in [Google's Zanzibar paper]
+- A flexible consistency model configurable [per-request] that includes resistance to the [New Enemy Problem]
 - An expressive [schema language] with tools for [rapid prototyping], [integration testing], and [validating designs] in CI/CD pipelines
-- Pluggable storage system that supports [in-memory], [PostgreSQL], [CockroachDB], and [Cloud Spanner] (beta)
+- Pluggable storage system supporting [memdb], [MySQL], [PostgreSQL], [CockroachDB], and [Cloud Spanner]
 - Deep observability with [Prometheus metrics], structured logging, and [OpenTelemetry tracing]
 
 Have questions? Join our [Discord].
@@ -28,12 +28,14 @@ Looking to contribute? See [CONTRIBUTING.md].
 [Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [HTTP]: https://app.swaggerhub.com/apis-docs/authzed/authzed/1.0
 [Google's Zanzibar paper]: https://authzed.com/blog/what-is-zanzibar/
+[per-request]: https://docs.authzed.com/reference/api-consistency
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
 [schema language]: https://docs.authzed.com/guides/schema
 [rapid prototyping]: https://play.authzed.com
 [integration testing]: https://github.com/authzed/action-spicedb
 [validating designs]: https://github.com/authzed/action-spicedb-validate
-[in-memory]: https://github.com/hashicorp/go-memdb
+[memdb]: https://github.com/hashicorp/go-memdb
+[MySQL]: https://www.mysql.com
 [PostgreSQL]: https://www.postgresql.org
 [CockroachDB]: https://github.com/cockroachdb/cockroach
 [Cloud Spanner]: https://cloud.google.com/spanner
