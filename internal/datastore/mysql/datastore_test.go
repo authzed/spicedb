@@ -31,7 +31,7 @@ const (
 )
 
 type datastoreTester struct {
-	b      testdatastore.TestDatastoreBuilder
+	b      testdatastore.RunningEngineForTest
 	t      *testing.T
 	prefix string
 }
@@ -66,7 +66,7 @@ var defaultOptions = []Option{
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
-func createDatastoreTest(b testdatastore.TestDatastoreBuilder, tf datastoreTestFunc, options ...Option) func(*testing.T) {
+func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewMySQLDatastore(uri, options...)
@@ -80,7 +80,7 @@ func createDatastoreTest(b testdatastore.TestDatastoreBuilder, tf datastoreTestF
 }
 
 func TestMySQLDatastore(t *testing.T) {
-	b := testdatastore.NewMySQLBuilder(t)
+	b := testdatastore.RunMySQLForTesting(t, "")
 	dst := datastoreTester{b: b, t: t}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 
@@ -97,7 +97,7 @@ func TestMySQLDatastore(t *testing.T) {
 }
 
 func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
-	b := testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: true, Prefix: "spicedb_"})
+	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, Prefix: "spicedb_"}, "")
 	dst := datastoreTester{b: b, t: t, prefix: "spicedb_"}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 }
@@ -592,7 +592,7 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 
 func datastoreDB(t *testing.T, migrate bool) *sql.DB {
 	var databaseUri string
-	testdatastore.NewMySQLBuilderWithOptions(t, testdatastore.MySQLBuilderOptions{Migrate: migrate}).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+	testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: migrate}, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		databaseUri = uri
 		return nil
 	})

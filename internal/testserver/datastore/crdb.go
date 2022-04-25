@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
@@ -15,35 +16,45 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-type crdbDSBuilder struct {
-	conn  *pgx.Conn
-	creds string
-	port  string
+type crdbTester struct {
+	conn     *pgx.Conn
+	hostname string
+	creds    string
+	port     string
 }
 
-var crdbContainer = &dockertest.RunOptions{
-	Repository: "cockroachdb/cockroach",
-	Tag:        "v21.1.3",
-	Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
-}
-
-// NewCRDBBuilder returns a TestDatastoreBuilder for CRDB
-func NewCRDBBuilder(t testing.TB) TestDatastoreBuilder {
+// RunCRDBForTesting returns a RunningEngineForTest for CRDB
+func RunCRDBForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	resource, err := pool.RunWithOptions(crdbContainer)
+	name := fmt.Sprintf("crds-%s", uuid.New().String())
+	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Name:       name,
+		Repository: "cockroachdb/cockroach",
+		Tag:        "v21.1.3",
+		Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
+		NetworkID:  bridgeNetworkName,
+	})
 	require.NoError(t, err)
 
-	builder := &crdbDSBuilder{
-		creds: "root:fake",
+	builder := &crdbTester{
+		hostname: "localhost",
+		creds:    "root:fake",
 	}
 	t.Cleanup(func() {
 		require.NoError(t, pool.Purge(resource))
 	})
 
-	builder.port = resource.GetPort(fmt.Sprintf("%d/tcp", 26257))
-	uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, builder.port)
+	port := resource.GetPort(fmt.Sprintf("%d/tcp", 26257))
+	if bridgeNetworkName != "" {
+		builder.hostname = name
+		builder.port = "26257"
+	} else {
+		builder.port = port
+	}
+
+	uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, port)
 	require.NoError(t, pool.Retry(func() error {
 		var err error
 		builder.conn, err = pgx.Connect(context.Background(), uri)
@@ -56,21 +67,28 @@ func NewCRDBBuilder(t testing.TB) TestDatastoreBuilder {
 	return builder
 }
 
-func (b *crdbDSBuilder) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
+func (r *crdbTester) NewDatabase(t testing.TB) string {
 	uniquePortion, err := secrets.TokenHex(4)
 	require.NoError(t, err)
 
 	newDBName := "db" + uniquePortion
 
-	_, err = b.conn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
+	_, err = r.conn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
 	require.NoError(t, err)
 
 	connectStr := fmt.Sprintf(
-		"postgres://%s@localhost:%s/%s?sslmode=disable",
-		b.creds,
-		b.port,
+		"postgres://%s@%s:%s/%s?sslmode=disable",
+		r.creds,
+		r.hostname,
+		r.port,
 		newDBName,
 	)
+	return connectStr
+}
+
+func (r *crdbTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
+	connectStr := r.NewDatabase(t)
+
 	migrationDriver, err := crdbmigrations.NewCRDBDriver(connectStr)
 	require.NoError(t, err)
 	require.NoError(t, crdbmigrations.CRDBMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun))

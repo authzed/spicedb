@@ -488,10 +488,10 @@ func TestCompile(t *testing.T) {
 			}`,
 			"",
 			[]*core.NamespaceDefinition{
-				namespace.NamespaceWithComment("sometenant/user", `/**
+				namespace.WithComment("sometenant/user", `/**
 * user is a user
 */`),
-				namespace.NamespaceWithComment("sometenant/single", `/**
+				namespace.WithComment("sometenant/single", `/**
 * single is a thing
 */`,
 					namespace.RelationWithComment("first", `/**

@@ -54,7 +54,7 @@ type LookupNamespace func(ctx context.Context, name string) (*core.NamespaceDefi
 
 // BuildNamespaceTypeSystemWithFallback constructs a type system view of a namespace definition, with automatic lookup
 // via the additional defs first, and then the namespace manager as a fallback.
-func BuildNamespaceTypeSystemWithFallback(nsDef *core.NamespaceDefinition, manager Manager, additionalDefs []*core.NamespaceDefinition, revision decimal.Decimal) (*NamespaceTypeSystem, error) {
+func BuildNamespaceTypeSystemWithFallback(nsDef *core.NamespaceDefinition, manager Manager, additionalDefs []*core.NamespaceDefinition, revision decimal.Decimal) (*TypeSystem, error) {
 	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, namespaceName string) (*core.NamespaceDefinition, error) {
 		// NOTE: Order is important here: We always check the new definitions before the existing
 		// ones.
@@ -74,7 +74,7 @@ func BuildNamespaceTypeSystemWithFallback(nsDef *core.NamespaceDefinition, manag
 
 // BuildNamespaceTypeSystemForManager constructs a type system view of a namespace definition, with automatic lookup
 // via the namespace manager.
-func BuildNamespaceTypeSystemForManager(nsDef *core.NamespaceDefinition, manager Manager, revision decimal.Decimal) (*NamespaceTypeSystem, error) {
+func BuildNamespaceTypeSystemForManager(nsDef *core.NamespaceDefinition, manager Manager, revision decimal.Decimal) (*TypeSystem, error) {
 	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*core.NamespaceDefinition, error) {
 		nsDef, err := manager.ReadNamespace(ctx, nsName, revision)
 		return nsDef, err
@@ -83,7 +83,7 @@ func BuildNamespaceTypeSystemForManager(nsDef *core.NamespaceDefinition, manager
 
 // BuildNamespaceTypeSystemForDefs constructs a type system view of a namespace definition, with lookup in the
 // list of definitions given.
-func BuildNamespaceTypeSystemForDefs(nsDef *core.NamespaceDefinition, allDefs []*core.NamespaceDefinition) (*NamespaceTypeSystem, error) {
+func BuildNamespaceTypeSystemForDefs(nsDef *core.NamespaceDefinition, allDefs []*core.NamespaceDefinition) (*TypeSystem, error) {
 	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*core.NamespaceDefinition, error) {
 		for _, def := range allDefs {
 			if def.Name == nsName {
@@ -115,7 +115,7 @@ func newErrorWithSource(withSource nspkg.WithSourcePosition, sourceCodeString st
 }
 
 // BuildNamespaceTypeSystem constructs a type system view of a namespace definition.
-func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace LookupNamespace) (*NamespaceTypeSystem, error) {
+func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace LookupNamespace) (*TypeSystem, error) {
 	relationMap := map[string]*core.Relation{}
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
@@ -126,7 +126,7 @@ func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace L
 		relationMap[relation.Name] = relation
 	}
 
-	return &NamespaceTypeSystem{
+	return &TypeSystem{
 		lookupNamespace:    lookupNamespace,
 		nsDef:              nsDef,
 		relationMap:        relationMap,
@@ -134,8 +134,8 @@ func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace L
 	}, nil
 }
 
-// NamespaceTypeSystem represents typing information found in a namespace.
-type NamespaceTypeSystem struct {
+// TypeSystem represents typing information found in a namespace.
+type TypeSystem struct {
 	lookupNamespace    LookupNamespace
 	nsDef              *core.NamespaceDefinition
 	relationMap        map[string]*core.Relation
@@ -144,20 +144,20 @@ type NamespaceTypeSystem struct {
 
 // HasTypeInformation returns true if the relation with the given name exists and has type
 // information defined.
-func (nts *NamespaceTypeSystem) HasTypeInformation(relationName string) bool {
+func (nts *TypeSystem) HasTypeInformation(relationName string) bool {
 	rel, ok := nts.relationMap[relationName]
 	return ok && rel.GetTypeInformation() != nil
 }
 
 // HasRelation returns true if the namespace has the given relation defined.
-func (nts *NamespaceTypeSystem) HasRelation(relationName string) bool {
+func (nts *TypeSystem) HasRelation(relationName string) bool {
 	_, ok := nts.relationMap[relationName]
 	return ok
 }
 
 // IsPermission returns true if the namespace has the given relation defined and it is
 // a permission.
-func (nts *NamespaceTypeSystem) IsPermission(relationName string) bool {
+func (nts *TypeSystem) IsPermission(relationName string) bool {
 	found, ok := nts.relationMap[relationName]
 	if !ok {
 		return false
@@ -167,7 +167,7 @@ func (nts *NamespaceTypeSystem) IsPermission(relationName string) bool {
 }
 
 // IsAllowedPublicNamespace returns whether the target namespace is defined as public on the source relation.
-func (nts *NamespaceTypeSystem) IsAllowedPublicNamespace(sourceRelationName string, targetNamespaceName string) (AllowedPublicSubject, error) {
+func (nts *TypeSystem) IsAllowedPublicNamespace(sourceRelationName string, targetNamespaceName string) (AllowedPublicSubject, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
 		return UnknownIfPublicAllowed, fmt.Errorf("unknown relation/permission `%s` under permissions system `%s`", sourceRelationName, nts.nsDef.Name)
@@ -190,7 +190,7 @@ func (nts *NamespaceTypeSystem) IsAllowedPublicNamespace(sourceRelationName stri
 
 // IsAllowedDirectRelation returns whether the subject relation is allowed to appear on the right
 // hand side of a tuple placed in the source relation with the given name.
-func (nts *NamespaceTypeSystem) IsAllowedDirectRelation(sourceRelationName string, targetNamespaceName string, targetRelationName string) (AllowedDirectRelation, error) {
+func (nts *TypeSystem) IsAllowedDirectRelation(sourceRelationName string, targetNamespaceName string, targetRelationName string) (AllowedDirectRelation, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
 		return UnknownIfRelationAllowed, fmt.Errorf("unknown relation/permission `%s` under permissions system `%s`", sourceRelationName, nts.nsDef.Name)
@@ -213,7 +213,7 @@ func (nts *NamespaceTypeSystem) IsAllowedDirectRelation(sourceRelationName strin
 
 // AllowedDirectRelationsAndWildcards returns the allowed subject relations for a source relation. Note that this function will return
 // wildcards.
-func (nts *NamespaceTypeSystem) AllowedDirectRelationsAndWildcards(sourceRelationName string) ([]*core.AllowedRelation, error) {
+func (nts *TypeSystem) AllowedDirectRelationsAndWildcards(sourceRelationName string) ([]*core.AllowedRelation, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
 		return []*core.AllowedRelation{}, fmt.Errorf("unknown relation/permission `%s` under permissions system `%s`", sourceRelationName, nts.nsDef.Name)
@@ -229,7 +229,7 @@ func (nts *NamespaceTypeSystem) AllowedDirectRelationsAndWildcards(sourceRelatio
 
 // AllowedSubjectRelations returns the allowed subject relations for a source relation. Note that this function will *not*
 // return wildcards.
-func (nts *NamespaceTypeSystem) AllowedSubjectRelations(sourceRelationName string) ([]*core.RelationReference, error) {
+func (nts *TypeSystem) AllowedSubjectRelations(sourceRelationName string) ([]*core.RelationReference, error) {
 	allowedDirect, err := nts.AllowedDirectRelationsAndWildcards(sourceRelationName)
 	if err != nil {
 		return []*core.RelationReference{}, err
@@ -264,11 +264,11 @@ type WildcardTypeReference struct {
 
 // ReferencesWildcardType returns true if the relation references a wildcard type, either directly or via
 // another relation.
-func (nts *NamespaceTypeSystem) ReferencesWildcardType(ctx context.Context, relationName string) (*WildcardTypeReference, error) {
+func (nts *TypeSystem) ReferencesWildcardType(ctx context.Context, relationName string) (*WildcardTypeReference, error) {
 	return nts.referencesWildcardType(ctx, relationName, map[string]bool{})
 }
 
-func (nts *NamespaceTypeSystem) referencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
+func (nts *TypeSystem) referencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
 	cached, isCached := nts.wildcardCheckCache[relationName]
 	if isCached {
 		return cached, nil
@@ -283,7 +283,7 @@ func (nts *NamespaceTypeSystem) referencesWildcardType(ctx context.Context, rela
 	return computed, nil
 }
 
-func (nts *NamespaceTypeSystem) computeReferencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
+func (nts *TypeSystem) computeReferencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
 	relString := fmt.Sprintf("%s#%s", nts.nsDef.Name, relationName)
 	if _, ok := encountered[relString]; ok {
 		return nil, nil
@@ -339,7 +339,7 @@ func (nts *NamespaceTypeSystem) computeReferencesWildcardType(ctx context.Contex
 }
 
 // Validate runs validation on the type system for the namespace to ensure it is consistent.
-func (nts *NamespaceTypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSystem, error) {
+func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSystem, error) {
 	for _, relation := range nts.relationMap {
 		// Validate the usersets's.
 		usersetRewrite := relation.GetUsersetRewrite()
@@ -450,7 +450,7 @@ func (nts *NamespaceTypeSystem) Validate(ctx context.Context) (*ValidatedNamespa
 	return &ValidatedNamespaceTypeSystem{nts}, nil
 }
 
-func (nts *NamespaceTypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName string) (*NamespaceTypeSystem, error) {
+func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName string) (*TypeSystem, error) {
 	if nts.nsDef.Name == namespaceName {
 		return nts, nil
 	}
@@ -465,5 +465,5 @@ func (nts *NamespaceTypeSystem) typeSystemForNamespace(ctx context.Context, name
 
 // ValidatedNamespaceTypeSystem is validated type system for a namespace.
 type ValidatedNamespaceTypeSystem struct {
-	*NamespaceTypeSystem
+	*TypeSystem
 }

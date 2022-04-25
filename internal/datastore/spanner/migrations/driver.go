@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"os"
 
 	"cloud.google.com/go/spanner"
 	admin "cloud.google.com/go/spanner/admin/database/apiv1"
@@ -28,6 +29,7 @@ type SpannerMigrationDriver struct {
 func NewSpannerDriver(database, credentialsFilePath string) (SpannerMigrationDriver, error) {
 	ctx := context.Background()
 
+	log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("spanner emulator")
 	log.Info().Str("credentials", credentialsFilePath).Str("db", database).Msg("connecting")
 	client, err := spanner.NewClient(ctx, database, option.WithCredentialsFile(credentialsFilePath))
 	if err != nil {

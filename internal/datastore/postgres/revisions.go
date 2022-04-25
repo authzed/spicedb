@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/shopspring/decimal"
@@ -18,12 +19,14 @@ const (
 	// querySelectRevision will round the database's timestamp down to the nearest
 	// quantization period, and then find the first transaction after that. If there
 	// are no transactions newer than the quantization period, it just picks the latest
-	// transaction.
+	// transaction. It will also return the amount of nanoseconds until the next
+	// optimized revision would be selected server-side, for use with caching.
 	querySelectRevision = `
 	SELECT COALESCE(
 		(SELECT MIN(%[1]s) FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 / %[4]d) * %[4]d / 1000000000)),
 		(SELECT MAX(%[1]s) FROM %[2]s)
-	);`
+	),
+	%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d;`
 
 	// queryValidTransaction will return a single row with two values, one boolean
 	// for whether the specified transaction ID is newer than the garbage collection
@@ -38,6 +41,18 @@ const (
 	`
 )
 
+func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
+	var revision uint64
+	var validForNanos time.Duration
+	if err := pgd.dbpool.QueryRow(
+		datastore.SeparateContextWithTracing(ctx), pgd.optimizedRevisionQuery,
+	).Scan(&revision, &validForNanos); err != nil {
+		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
+	}
+
+	return revisionFromTransaction(revision), validForNanos, nil
+}
+
 func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
@@ -45,20 +60,6 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 	revision, err := pgd.loadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
-	}
-
-	return revisionFromTransaction(revision), nil
-}
-
-func (pgd *pgDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "OptimizedRevision")
-	defer span.End()
-
-	var revision uint64
-	if err := pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), pgd.optimizedRevisionQuery,
-	).Scan(&revision); err != nil {
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
 	return revisionFromTransaction(revision), nil
