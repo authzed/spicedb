@@ -591,13 +591,13 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 }
 
 func datastoreDB(t *testing.T, migrate bool) *sql.DB {
-	var databaseUri string
+	var databaseURI string
 	testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: migrate}, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {
-		databaseUri = uri
+		databaseURI = uri
 		return nil
 	})
 
-	db, err := sql.Open("mysql", databaseUri)
+	db, err := sql.Open("mysql", databaseURI)
 	require.NoError(t, err)
 	return db
 }
