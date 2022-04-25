@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jzelinskie/stringz"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -49,6 +50,8 @@ var (
 	SubObjectIDKey = attribute.Key("authzed.com/spicedb/sql/subObjectId")
 
 	limitKey = attribute.Key("authzed.com/spicedb/sql/limit")
+
+	tracer = otel.Tracer("spicedb/internal/datastore/common")
 )
 
 // SchemaInformation holds the schema information from the SQL datastore implementation.

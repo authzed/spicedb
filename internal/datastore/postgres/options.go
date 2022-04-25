@@ -6,11 +6,12 @@ import (
 )
 
 type postgresOptions struct {
-	connMaxIdleTime   *time.Duration
-	connMaxLifetime   *time.Duration
-	healthCheckPeriod *time.Duration
-	maxOpenConns      *int
-	minOpenConns      *int
+	connMaxIdleTime             *time.Duration
+	connMaxLifetime             *time.Duration
+	healthCheckPeriod           *time.Duration
+	maxOpenConns                *int
+	minOpenConns                *int
+	maxRevisionStalenessPercent float64
 
 	watchBufferLength    uint16
 	revisionQuantization time.Duration
@@ -34,6 +35,7 @@ const (
 	defaultGarbageCollectionMaxOperationTime = time.Minute
 	defaultUsersetBatchSize                  = 1024
 	defaultQuantization                      = 5 * time.Second
+	defaultMaxRevisionStalenessPercent       = 0.1
 )
 
 // Option provides the facility to configure how clients within the
@@ -42,12 +44,13 @@ type Option func(*postgresOptions)
 
 func generateConfig(options []Option) (postgresOptions, error) {
 	computed := postgresOptions{
-		gcWindow:             defaultGarbageCollectionWindow,
-		gcInterval:           defaultGarbageCollectionInterval,
-		gcMaxOperationTime:   defaultGarbageCollectionMaxOperationTime,
-		watchBufferLength:    defaultWatchBufferLength,
-		splitAtUsersetCount:  defaultUsersetBatchSize,
-		revisionQuantization: defaultQuantization,
+		gcWindow:                    defaultGarbageCollectionWindow,
+		gcInterval:                  defaultGarbageCollectionInterval,
+		gcMaxOperationTime:          defaultGarbageCollectionMaxOperationTime,
+		watchBufferLength:           defaultWatchBufferLength,
+		splitAtUsersetCount:         defaultUsersetBatchSize,
+		revisionQuantization:        defaultQuantization,
+		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 	}
 
 	for _, option := range options {
@@ -141,6 +144,17 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 func RevisionQuantization(quantization time.Duration) Option {
 	return func(po *postgresOptions) {
 		po.revisionQuantization = quantization
+	}
+}
+
+// MaxRevisionStalenessPercent is the amount of time, expressed as a percentage of
+// the revision quantization window, that a previously computed rounded revision
+// can still be advertised after the next rounded revision would otherwise be ready.
+//
+// This value defaults to 0.1 (10%).
+func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
+	return func(po *postgresOptions) {
+		po.maxRevisionStalenessPercent = stalenessPercent
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 )
 
@@ -188,7 +189,13 @@ func NewPostgresDatastore(
 		config.gcWindow.Seconds(),
 	)
 
+	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
+		config.maxRevisionStalenessPercent) * time.Nanosecond
+
 	datastore := &pgDatastore{
+		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
+			maxRevisionStaleness,
+		),
 		dburl:                   url,
 		dbpool:                  dbpool,
 		watchBufferLength:       config.watchBufferLength,
@@ -203,6 +210,8 @@ func NewPostgresDatastore(
 		cancelGc:                cancelGc,
 	}
 
+	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
+
 	// Start a goroutine for garbage collection.
 	if datastore.gcInterval > 0*time.Minute {
 		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
@@ -215,6 +224,8 @@ func NewPostgresDatastore(
 }
 
 type pgDatastore struct {
+	*revisions.CachedOptimizedRevisions
+
 	dburl                   string
 	dbpool                  *pgxpool.Pool
 	watchBufferLength       uint16

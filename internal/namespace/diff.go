@@ -48,15 +48,15 @@ const (
 	RelationDirectWildcardTypeRemoved DeltaType = "relation-wildcard-type-removed"
 )
 
-// NamespaceDiff holds the diff between two namespaces.
-type NamespaceDiff struct {
+// Diff holds the diff between two namespaces.
+type Diff struct {
 	existing *core.NamespaceDefinition
 	updated  *core.NamespaceDefinition
 	deltas   []Delta
 }
 
 // Deltas returns the deltas between the two namespaces.
-func (nd NamespaceDiff) Deltas() []Delta {
+func (nd Diff) Deltas() []Delta {
 	return nd.deltas
 }
 
@@ -76,14 +76,14 @@ type Delta struct {
 
 // DiffNamespaces performs a diff between two namespace definitions. One or both of the definitions
 // can be `nil`, which will be treated as an add/remove as applicable.
-func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceDefinition) (*NamespaceDiff, error) {
+func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceDefinition) (*Diff, error) {
 	// Check for the namespaces themselves.
 	if existing == nil && updated == nil {
-		return &NamespaceDiff{existing, updated, []Delta{}}, nil
+		return &Diff{existing, updated, []Delta{}}, nil
 	}
 
 	if existing != nil && updated == nil {
-		return &NamespaceDiff{
+		return &Diff{
 			existing: existing,
 			updated:  updated,
 			deltas: []Delta{
@@ -95,7 +95,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 	}
 
 	if existing == nil && updated != nil {
-		return &NamespaceDiff{
+		return &Diff{
 			existing: existing,
 			updated:  updated,
 			deltas: []Delta{
@@ -253,7 +253,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		}
 	}
 
-	return &NamespaceDiff{
+	return &Diff{
 		existing: existing,
 		updated:  updated,
 		deltas:   deltas,

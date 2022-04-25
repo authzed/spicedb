@@ -26,6 +26,8 @@ import (
 )
 
 const (
+	Engine = "mysql"
+
 	colID               = "id"
 	colTimestamp        = "timestamp"
 	colNamespace        = "namespace"
@@ -64,6 +66,10 @@ var (
 
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
 )
+
+func init() {
+	datastore.Engines = append(datastore.Engines, Engine)
+}
 
 type sqlFilter interface {
 	ToSql() (string, []interface{}, error)
@@ -332,7 +338,7 @@ func (mds *Datastore) collectGarbage() error {
 // - main difference is how the PSQL driver handles null values
 func (mds *Datastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
 	// Find the highest transaction ID before the GC window.
-	query, args, err := mds.GetRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
+	query, args, err := mds.GetLastRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -565,7 +571,7 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revi
 	}
 
 	// There are no unexpired rows
-	query, args, err := mds.GetRevision.ToSql()
+	query, args, err := mds.GetLastRevision.ToSql()
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -596,7 +602,7 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
-	query, args, err := mds.GetRevision.ToSql()
+	query, args, err := mds.GetLastRevision.ToSql()
 	if err != nil {
 		return 0, fmt.Errorf(errRevision, err)
 	}

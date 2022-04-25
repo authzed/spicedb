@@ -3,6 +3,7 @@ package spanner
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 )
 
@@ -42,7 +44,7 @@ var (
 )
 
 type spannerDatastore struct {
-	*common.RemoteClockRevisions
+	*revisions.RemoteClockRevisions
 	client        *spanner.Client
 	querySplitter common.TupleQuerySplitter
 	config        spannerOptions
@@ -58,6 +60,7 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 
 	config.gcInterval = common.WithJitter(0.2, config.gcInterval)
 	log.Info().Float64("factor", 0.2).Msg("gc configured with jitter")
+	log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("spanner emulator")
 
 	client, err := spanner.NewClient(context.Background(), database, option.WithCredentialsFile(config.credentialsFilePath))
 	if err != nil {
@@ -73,11 +76,11 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
 	ds := spannerDatastore{
-		RemoteClockRevisions: common.NewRemoteClockRevisions(
-			config.revisionQuantization.Nanoseconds(),
-			config.gcWindow.Nanoseconds(),
-			config.followerReadDelay.Nanoseconds(),
+		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
+			config.gcWindow,
 			maxRevisionStaleness,
+			config.followerReadDelay,
+			config.revisionQuantization,
 		),
 		client:        client,
 		querySplitter: querySplitter,

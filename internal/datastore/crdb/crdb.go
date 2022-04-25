@@ -17,6 +17,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 )
 
@@ -135,11 +136,11 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	}
 
 	ds := &crdbDatastore{
-		common.NewRemoteClockRevisions(
-			config.revisionQuantization.Nanoseconds(),
-			gcWindowNanos,
-			config.followerReadDelay.Nanoseconds(),
+		revisions.NewRemoteClockRevisions(
+			config.gcWindow,
 			maxRevisionStaleness,
+			config.followerReadDelay,
+			config.revisionQuantization,
 		),
 		url,
 		conn,
@@ -155,7 +156,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 }
 
 type crdbDatastore struct {
-	*common.RemoteClockRevisions
+	*revisions.RemoteClockRevisions
 
 	dburl             string
 	conn              *pgxpool.Pool
