@@ -45,12 +45,13 @@ type Config struct {
 	RevisionQuantization time.Duration
 
 	// Options
-	MaxIdleTime     time.Duration
-	MaxLifetime     time.Duration
-	MaxOpenConns    int
-	MinOpenConns    int
-	SplitQueryCount uint16
-	ReadOnly        bool
+	MaxIdleTime            time.Duration
+	MaxLifetime            time.Duration
+	MaxOpenConns           int
+	MinOpenConns           int
+	SplitQueryCount        uint16
+	ReadOnly               bool
+	EnableDatastoreMetrics bool
 
 	// Bootstrap
 	BootstrapFiles     []string
@@ -80,8 +81,7 @@ type Config struct {
 	TablePrefix string
 
 	// Internal
-	WatchBufferLength      uint16
-	EnableDatastoreMetrics bool
+	WatchBufferLength uint16
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
@@ -104,6 +104,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().DurationVar(&opts.RequestHedgingInitialSlowValue, "datastore-request-hedging-initial-slow-value", 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
 	cmd.Flags().Uint64Var(&opts.RequestHedgingMaxRequests, "datastore-request-hedging-max-requests", 1_000_000, "maximum number of historical requests to consider")
 	cmd.Flags().Float64Var(&opts.RequestHedgingQuantile, "datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
+	cmd.Flags().BoolVar(&opts.EnableDatastoreMetrics, "datastore-prometheus-metrics", true, "set to false to disabled prometheus metrics from the datastore")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	cmd.Flags().DurationVar(&opts.FollowerReadDelay, "datastore-follower-read-delay-duration", 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
 	cmd.Flags().Uint16Var(&opts.SplitQueryCount, "datastore-query-userset-batch-size", 1024, "number of usersets after which a relationship query will be split into multiple queries")
@@ -116,19 +117,20 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 
 func DefaultDatastoreConfig() *Config {
 	return &Config{
-		GCWindow:             24 * time.Hour,
-		RevisionQuantization: 5 * time.Second,
-		MaxLifetime:          30 * time.Minute,
-		MaxIdleTime:          30 * time.Minute,
-		MaxOpenConns:         20,
-		MinOpenConns:         10,
-		SplitQueryCount:      1024,
-		MaxRetries:           50,
-		OverlapStrategy:      "prefix",
-		HealthCheckPeriod:    30 * time.Second,
-		GCInterval:           3 * time.Minute,
-		GCMaxOperationTime:   1 * time.Minute,
-		WatchBufferLength:    128,
+		GCWindow:               24 * time.Hour,
+		RevisionQuantization:   5 * time.Second,
+		MaxLifetime:            30 * time.Minute,
+		MaxIdleTime:            30 * time.Minute,
+		MaxOpenConns:           20,
+		MinOpenConns:           10,
+		SplitQueryCount:        1024,
+		MaxRetries:             50,
+		OverlapStrategy:        "prefix",
+		HealthCheckPeriod:      30 * time.Second,
+		GCInterval:             3 * time.Minute,
+		GCMaxOperationTime:     1 * time.Minute,
+		WatchBufferLength:      128,
+		EnableDatastoreMetrics: true,
 	}
 }
 
@@ -225,9 +227,7 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
 		postgres.EnableTracing(),
 		postgres.WatchBufferLength(opts.WatchBufferLength),
-	}
-	if opts.EnableDatastoreMetrics {
-		pgOpts = append(pgOpts, postgres.EnablePrometheusStats())
+		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 	}
 	return postgres.NewPostgresDatastore(opts.URI, pgOpts...)
 }
@@ -253,7 +253,7 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.MaxOpenConns(opts.MaxOpenConns),
 		mysql.RevisionFuzzingTimedelta(opts.RevisionQuantization),
 		mysql.TablePrefix(opts.TablePrefix),
-		mysql.EnablePrometheusStats(),
+		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 	}
 	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
 }

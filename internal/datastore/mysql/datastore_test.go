@@ -88,7 +88,7 @@ func TestMySQLDatastore(t *testing.T) {
 	t.Run("PrometheusCollector", createDatastoreTest(
 		b,
 		PrometheusCollectorTest,
-		EnablePrometheusStats(),
+		WithEnablePrometheusStats(true),
 	))
 	t.Run("GarbageCollection", createDatastoreTest(b, GarbageCollectionTest, defaultOptions...))
 	t.Run("GarbageCollectionByTime", createDatastoreTest(b, GarbageCollectionByTimeTest, defaultOptions...))

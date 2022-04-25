@@ -16,6 +16,7 @@ const (
 	defaultConnMaxLifetime                   = 30 * time.Minute
 	defaultWatchBufferLength                 = 128
 	defaultUsersetBatchSize                  = 1024
+	defaultEnablePrometheusStats             = false
 )
 
 type mysqlOptions struct {
@@ -39,14 +40,15 @@ type Option func(*mysqlOptions)
 
 func generateConfig(options []Option) (mysqlOptions, error) {
 	computed := mysqlOptions{
-		gcWindow:            defaultGarbageCollectionWindow,
-		gcInterval:          defaultGarbageCollectionInterval,
-		gcMaxOperationTime:  defaultGarbageCollectionMaxOperationTime,
-		watchBufferLength:   defaultWatchBufferLength,
-		maxOpenConns:        defaultMaxOpenConns,
-		connMaxIdleTime:     defaultConnMaxIdleTime,
-		connMaxLifetime:     defaultConnMaxLifetime,
-		splitAtUsersetCount: defaultUsersetBatchSize,
+		gcWindow:              defaultGarbageCollectionWindow,
+		gcInterval:            defaultGarbageCollectionInterval,
+		gcMaxOperationTime:    defaultGarbageCollectionMaxOperationTime,
+		watchBufferLength:     defaultWatchBufferLength,
+		maxOpenConns:          defaultMaxOpenConns,
+		connMaxIdleTime:       defaultConnMaxIdleTime,
+		connMaxLifetime:       defaultConnMaxLifetime,
+		splitAtUsersetCount:   defaultUsersetBatchSize,
+		enablePrometheusStats: defaultEnablePrometheusStats,
 	}
 
 	for _, option := range options {
@@ -103,12 +105,13 @@ func TablePrefix(prefix string) Option {
 	}
 }
 
-// EnablePrometheusStats enables Prometheus metrics provided by Go's database/sql package
+// WithEnablePrometheusStats marks whether Prometheus metrics provided by Go's database/sql package
+// are enabled.
 //
-// Prometheus metrics are enabled by default.
-func EnablePrometheusStats() Option {
+// Prometheus metrics are disabled by default.
+func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(mo *mysqlOptions) {
-		mo.enablePrometheusStats = true
+		mo.enablePrometheusStats = enablePrometheusStats
 	}
 }
 
