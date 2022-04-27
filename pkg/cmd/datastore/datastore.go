@@ -42,6 +42,7 @@ type Config struct {
 	Engine               string
 	URI                  string
 	GCWindow             time.Duration
+	LegacyFuzzing        time.Duration
 	RevisionQuantization time.Duration
 
 	// Options
@@ -96,7 +97,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().DurationVar(&opts.GCWindow, "datastore-gc-window", 24*time.Hour, "amount of time before revisions are garbage collected")
 	cmd.Flags().DurationVar(&opts.GCInterval, "datastore-gc-interval", 3*time.Minute, "amount of time between passes of garbage collection (postgres driver only)")
 	cmd.Flags().DurationVar(&opts.GCMaxOperationTime, "datastore-gc-max-operation-time", 1*time.Minute, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
-	cmd.Flags().DurationVar(&opts.RevisionQuantization, "datastore-revision-fuzzing-duration", 5*time.Second, "amount of time to advertize stale revisions")
+	cmd.Flags().DurationVar(&opts.RevisionQuantization, "datastore-revision-quantization-interval", 5*time.Second, "boundary interval to which to round the quantized revision")
 	cmd.Flags().BoolVar(&opts.ReadOnly, "datastore-readonly", false, "set the service to read-only mode")
 	cmd.Flags().StringSliceVar(&opts.BootstrapFiles, "datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
 	cmd.Flags().BoolVar(&opts.BootstrapOverwrite, "datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
@@ -113,6 +114,11 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
 	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-mysql-table-prefix", "", "prefix to add to the name of all SpiceDB database tables")
+
+	cmd.Flags().DurationVar(&opts.LegacyFuzzing, "datastore-revision-fuzzing-duration", -1, "amount of time to advertize stale revisions")
+	if err := cmd.Flags().MarkDeprecated("datastore-revision-fuzzing-duration", "please use datastore-revision-quantization-interval instead"); err != nil {
+		panic("failed to mark flag deprecated: " + err.Error())
+	}
 }
 
 func DefaultDatastoreConfig() *Config {
@@ -139,6 +145,11 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 	opts := DefaultDatastoreConfig()
 	for _, o := range options {
 		o(opts)
+	}
+
+	if opts.LegacyFuzzing >= 0 {
+		log.Warn().Stringer("period", opts.LegacyFuzzing).Msg("deprecated datastore-revision-fuzzing-duration flag specified")
+		opts.RevisionQuantization = opts.LegacyFuzzing
 	}
 
 	dsBuilder, ok := BuilderForEngine[opts.Engine]

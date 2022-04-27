@@ -20,6 +20,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.Engine = c.Engine
 		to.URI = c.URI
 		to.GCWindow = c.GCWindow
+		to.LegacyFuzzing = c.LegacyFuzzing
 		to.RevisionQuantization = c.RevisionQuantization
 		to.MaxIdleTime = c.MaxIdleTime
 		to.MaxLifetime = c.MaxLifetime
@@ -73,6 +74,13 @@ func WithURI(uRI string) ConfigOption {
 func WithGCWindow(gCWindow time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.GCWindow = gCWindow
+	}
+}
+
+// WithLegacyFuzzing returns an option that can set LegacyFuzzing on a Config
+func WithLegacyFuzzing(legacyFuzzing time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.LegacyFuzzing = legacyFuzzing
 	}
 }
 
