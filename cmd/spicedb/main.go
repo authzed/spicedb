@@ -53,6 +53,11 @@ func main() {
 	cmd.RegisterVersionFlags(versionCmd)
 	rootCmd.AddCommand(versionCmd)
 
+	// Add debug commands
+	debugCmd := cmd.NewDebugCommand(rootCmd.Use)
+	cmd.RegisterDebugFlags(debugCmd)
+	rootCmd.AddCommand(debugCmd)
+
 	// Add migration commands
 	migrateCmd := cmd.NewMigrateCommand(rootCmd.Use)
 	cmd.RegisterMigrateFlags(migrateCmd)
