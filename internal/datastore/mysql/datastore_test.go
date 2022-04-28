@@ -634,7 +634,7 @@ func TestMySQLMigrations(t *testing.T) {
 	req.NoError(err)
 	req.Equal("", version)
 
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.Manager.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
 	req.NoError(err)
 
 	version, err = migrationDriver.Version()
@@ -656,7 +656,7 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 	req.NoError(err)
 	req.Equal("", version)
 
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.Manager.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
 	req.NoError(err)
 
 	version, err = migrationDriver.Version()

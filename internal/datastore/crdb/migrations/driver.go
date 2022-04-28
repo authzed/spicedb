@@ -62,8 +62,8 @@ func (apd *CRDBDriver) Version() (string, error) {
 
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
-func (apd *CRDBDriver) WriteVersion(version, replaced string) error {
-	result, err := apd.db.Exec(context.Background(), queryWriteVersion, version, replaced)
+func (apd *CRDBDriver) WriteVersion(ctx context.Context, version, replaced string) error {
+	result, err := apd.db.Exec(ctx, queryWriteVersion, version, replaced)
 	if err != nil {
 		return fmt.Errorf("unable to update version row: %w", err)
 	}

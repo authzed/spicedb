@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,7 @@ func (*fakeDriver) Version() (string, error) {
 	return "", nil
 }
 
-func (*fakeDriver) WriteVersion(version, replaced string) error {
+func (*fakeDriver) WriteVersion(ctx context.Context, version, replaced string) error {
 	return nil
 }
 

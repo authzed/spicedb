@@ -100,13 +100,13 @@ func (driver *MySQLDriver) Version() (string, error) {
 
 // WriteVersion overwrites the _meta_version_ column name which encodes the version
 // of the database schema.
-func (driver *MySQLDriver) WriteVersion(version, replaced string) error {
+func (driver *MySQLDriver) WriteVersion(ctx context.Context, version, replaced string) error {
 	stmt := fmt.Sprintf("ALTER TABLE %s CHANGE %s %s VARCHAR(255) NOT NULL",
 		driver.migrationVersion(),
 		revisionToColumnName(replaced),
 		revisionToColumnName(version),
 	)
-	if _, err := driver.db.Exec(stmt); err != nil {
+	if _, err := driver.db.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("unable to version: %w", err)
 	}
 

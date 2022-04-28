@@ -55,9 +55,9 @@ func (apd *AlembicPostgresDriver) Version() (string, error) {
 
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
-func (apd *AlembicPostgresDriver) WriteVersion(version, replaced string) error {
+func (apd *AlembicPostgresDriver) WriteVersion(ctx context.Context, version, replaced string) error {
 	result, err := apd.db.Exec(
-		context.Background(),
+		ctx,
 		"UPDATE alembic_version SET version_num=$1 WHERE version_num=$2",
 		version,
 		replaced,

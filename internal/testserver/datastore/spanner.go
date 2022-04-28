@@ -132,7 +132,7 @@ func (b *spannerTest) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Da
 	migrationDriver, err := migrations.NewSpannerDriver(db, "", os.Getenv("SPANNER_EMULATOR_HOST"))
 	require.NoError(t, err)
 
-	err = migrations.SpannerMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.SpannerMigrations.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
 	require.NoError(t, err)
 
 	return initFunc("spanner", db)
