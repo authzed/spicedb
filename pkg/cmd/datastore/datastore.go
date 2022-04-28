@@ -254,6 +254,7 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.EnablePrometheusStats(),
+		mysql.WatchBufferLength(opts.WatchBufferLength),
 	}
 	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
 }
