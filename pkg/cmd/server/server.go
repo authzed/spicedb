@@ -289,15 +289,10 @@ func (c *Config) Complete() (RunnableServer, error) {
 		log.Warn().Err(err).Msg("unable to initialize telemetry collector")
 	}
 
-	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler(registry))
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
-	}
-
 	reporter := telemetry.DisabledReporter
 	if c.SilentlyDisableTelemetry {
 		reporter = telemetry.SilentlyDisabledReporter
-	} else if c.TelemetryEndpoint != "" {
+	} else if c.TelemetryEndpoint != "" && registry != nil {
 		var err error
 		reporter, err = telemetry.RemoteReporter(
 			registry, c.TelemetryEndpoint, c.TelemetryCAOverridePath, c.TelemetryInterval,
@@ -305,6 +300,11 @@ func (c *Config) Complete() (RunnableServer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to initialize metrics reporter: %w", err)
 		}
+	}
+
+	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler(registry))
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
 	}
 
 	return &completedServerConfig{
