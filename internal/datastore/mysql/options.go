@@ -29,7 +29,7 @@ type mysqlOptions struct {
 	maxOpenConns             int
 	connMaxIdleTime          time.Duration
 	connMaxLifetime          time.Duration
-	splitAtUsersetCount      int
+	splitAtUsersetCount      uint16
 	analyzeBeforeStats       bool
 }
 
@@ -94,6 +94,16 @@ func GCInterval(interval time.Duration) Option {
 	}
 }
 
+// GCMaxOperationTime is the maximum operation time of a garbage collection
+// pass before it times out.
+//
+// This value defaults to 1 minute.
+func GCMaxOperationTime(time time.Duration) Option {
+	return func(mo *mysqlOptions) {
+		mo.gcMaxOperationTime = time
+	}
+}
+
 // TablePrefix allows defining a MySQL table name prefix.
 //
 // No prefix is set by default
@@ -109,6 +119,16 @@ func TablePrefix(prefix string) Option {
 func EnablePrometheusStats() Option {
 	return func(mo *mysqlOptions) {
 		mo.enablePrometheusStats = true
+	}
+}
+
+// SplitAtUsersetCount is the batch size for which userset queries will be
+// split into smaller queries.
+//
+// This defaults to 1024.
+func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
+	return func(mo *mysqlOptions) {
+		mo.splitAtUsersetCount = splitAtUsersetCount
 	}
 }
 
@@ -144,13 +164,23 @@ func MaxOpenConns(conns int) Option {
 	}
 }
 
+// WatchBufferLength is the number of entries that can be stored in the watch
+// buffer while awaiting read by the client.
+//
+// This value defaults to 128.
+func WatchBufferLength(watchBufferLength uint16) Option {
+	return func(mo *mysqlOptions) {
+		mo.watchBufferLength = watchBufferLength
+	}
+}
+
 // DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
 // run Analyze Table on the relationships table before returning statistics.
 // This should only be used for debug and testing.
 //
 // Disabled by default.
 func DebugAnalyzeBeforeStatistics() Option {
-	return func(po *mysqlOptions) {
-		po.analyzeBeforeStats = true
+	return func(mo *mysqlOptions) {
+		mo.analyzeBeforeStats = true
 	}
 }

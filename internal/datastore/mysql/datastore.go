@@ -127,7 +127,7 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 	querySplitter := common.TupleQuerySplitter{
 		Executor:         newMySQLExecutor(db),
-		UsersetBatchSize: config.splitAtUsersetCount,
+		UsersetBatchSize: int(config.splitAtUsersetCount),
 	}
 
 	store := &Datastore{
