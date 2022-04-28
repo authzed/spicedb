@@ -17,25 +17,21 @@ import (
 // are no transactions newer than the quantization period, it just picks the latest
 // transaction. It will also return the amount of nanoseconds until the next
 // optimized revision would be selected server-side, for use with caching.
-const querySelectRevision = `
-SELECT
-  COALESCE((
-	 SELECT
-       MIN(%[1]s)
-	 FROM %[2]s
-	 WHERE
-       %[3]s >= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 / %[4]d) * %[4]d / 1000000000 )), (
-	 SELECT
-       MAX(%[1]s)
-	 FROM %[2]s)) as revision,
-     %[4]d - CAST(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 AS UNSIGNED INTEGER) %% %[4]d as validForNanos;`
+const querySelectRevision = `SELECT COALESCE((
+  SELECT MIN(%[1]s)
+  FROM   %[2]s
+  WHERE  %[3]s >= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 / %[4]d) * %[4]d / 1000000000)
+), (
+  SELECT MAX(%[1]s)
+  FROM   %[2]s
+)) as revision,
+%[4]d - CAST(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 AS UNSIGNED INTEGER) %% %[4]d as validForNanos;`
 
 // queryValidTransaction will return a single row with two values, one boolean
 // for whether the specified transaction ID is newer than the garbage collection
 // window, and one boolean for whether the transaction ID represents a transaction
 // that will occur in the future.
-const queryValidTransaction = `
-SELECT ? >= (
+const queryValidTransaction = `SELECT ? >= (
   SELECT MIN(%[1]s) FROM %[2]s WHERE %[3]s >= TIMESTAMPADD(SECOND, %.6[4]f, UTC_TIMESTAMP(6))
 ) as fresh, ? > (
   SELECT MAX(%[1]s) FROM %[2]s
