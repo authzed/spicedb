@@ -17,6 +17,11 @@ import (
 // are no transactions newer than the quantization period, it just picks the latest
 // transaction. It will also return the amount of nanoseconds until the next
 // optimized revision would be selected server-side, for use with caching.
+//
+//   %[1] Name of id column
+//   %[2] Relationship tuple transaction table
+//   %[3] Name of timestamp column
+//   %[4] Quantization period (in nanoseconds)
 const querySelectRevision = `SELECT COALESCE((
   SELECT MIN(%[1]s)
   FROM   %[2]s
@@ -31,10 +36,18 @@ const querySelectRevision = `SELECT COALESCE((
 // for whether the specified transaction ID is newer than the garbage collection
 // window, and one boolean for whether the transaction ID represents a transaction
 // that will occur in the future.
+//
+//   %[1] Name of id column
+//   %[2] Relationship tuple transaction table
+//   %[3] Name of timestamp column
+//   %[4] Inverse of GC window (in seconds)
 const queryValidTransaction = `SELECT ? >= (
-  SELECT MIN(%[1]s) FROM %[2]s WHERE %[3]s >= TIMESTAMPADD(SECOND, %.6[4]f, UTC_TIMESTAMP(6))
+  SELECT MIN(%[1]s)
+  FROM   %[2]s
+  WHERE  %[3]s >= TIMESTAMPADD(SECOND, %.6[4]f, UTC_TIMESTAMP(6))
 ) as fresh, ? > (
-  SELECT MAX(%[1]s) FROM %[2]s
+  SELECT MAX(%[1]s)
+  FROM   %[2]s
 ) as future;`
 
 func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
