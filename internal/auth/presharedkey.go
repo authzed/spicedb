@@ -9,8 +9,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const errInvalidPresharedKey = "invalid preshared key: %s"
-const errMissingPresharedKey = "missing preshared key"
+const (
+	errInvalidPresharedKey = "invalid preshared key: %s"
+	errMissingPresharedKey = "missing preshared key"
+)
 
 var errInvalidToken = "invalid token"
 
