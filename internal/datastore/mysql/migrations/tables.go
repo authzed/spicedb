@@ -7,6 +7,7 @@ const (
 	tableTransactionDefault = "relation_tuple_transaction"
 	tableTupleDefault       = "relation_tuple"
 	tableMigrationVersion   = "mysql_migration_version"
+	tableMetadataDefault    = "mysql_metadata"
 )
 
 type tables struct {
@@ -14,6 +15,7 @@ type tables struct {
 	tableTransaction      string
 	tableTuple            string
 	tableNamespace        string
+	tableMetadata         string
 }
 
 func newTables(prefix string) *tables {
@@ -22,6 +24,7 @@ func newTables(prefix string) *tables {
 		tableTransaction:      fmt.Sprintf("%s%s", prefix, tableTransactionDefault),
 		tableTuple:            fmt.Sprintf("%s%s", prefix, tableTupleDefault),
 		tableNamespace:        fmt.Sprintf("%s%s", prefix, tableNamespaceDefault),
+		tableMetadata:         fmt.Sprintf("%s%s", prefix, tableMetadataDefault),
 	}
 }
 
@@ -42,4 +45,8 @@ func (tn *tables) RelationTuple() string {
 // Namespace returns the prefixed namespace table name.
 func (tn *tables) Namespace() string {
 	return tn.tableNamespace
+}
+
+func (tn *tables) Metadata() string {
+	return tn.tableMetadata
 }

@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	gcWindow                = 1 * time.Hour
-	revisionFuzzingDuration = 10 * time.Millisecond
+	gcWindow             = 1 * time.Hour
+	revisionQuantization = 10 * time.Millisecond
 )
 
 // MiddlewareForTesting is used to create a unique datastore for each token. It is intended for use in the
@@ -47,7 +47,7 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 	}
 
 	log.Debug().Str("token", tokenStr).Msg("initializing new upstream for token")
-	ds, err := memdb.NewMemdbDatastore(0, revisionFuzzingDuration, gcWindow, 0)
+	ds, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init datastore: %w", err)
 	}

@@ -36,6 +36,7 @@ const (
 	defaultUsersetBatchSize                  = 1024
 	defaultQuantization                      = 5 * time.Second
 	defaultMaxRevisionStalenessPercent       = 0.1
+	defaultEnablePrometheusStats             = false
 )
 
 // Option provides the facility to configure how clients within the
@@ -51,6 +52,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		splitAtUsersetCount:         defaultUsersetBatchSize,
 		revisionQuantization:        defaultQuantization,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
+		enablePrometheusStats:       defaultEnablePrometheusStats,
 	}
 
 	for _, option := range options {
@@ -187,13 +189,13 @@ func GCMaxOperationTime(time time.Duration) Option {
 	}
 }
 
-// EnablePrometheusStats enables Prometheus metrics provided by the Postgres
-// clients being used by the datastore.
+// WithEnablePrometheusStats marks whether Prometheus metrics provided by the Postgres
+// clients being used by the datastore are enabled.
 //
-// Prometheus metrics are disable by default.
-func EnablePrometheusStats() Option {
+// Prometheus metrics are disabled by default.
+func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(po *postgresOptions) {
-		po.enablePrometheusStats = true
+		po.enablePrometheusStats = enablePrometheusStats
 	}
 }
 

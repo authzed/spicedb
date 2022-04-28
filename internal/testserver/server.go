@@ -20,13 +20,13 @@ import (
 )
 
 func NewTestServer(require *require.Assertions,
-	revisionFuzzingTimedelta time.Duration,
+	revisionQuantization time.Duration,
 	gcWindow time.Duration,
 	simulatedLatency time.Duration,
 	schemaPrefixRequired bool,
 	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
 ) (*grpc.ClientConn, func(), decimal.Decimal) {
-	emptyDS, err := memdb.NewMemdbDatastore(0, revisionFuzzingTimedelta, gcWindow, simulatedLatency)
+	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow, simulatedLatency)
 	require.NoError(err)
 	ds, revision := dsInitFunc(emptyDS, require)
 	ns, err := namespace.NewCachingNamespaceManager(nil)
