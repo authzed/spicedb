@@ -22,6 +22,7 @@ import (
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
+	"github.com/authzed/spicedb/internal/middleware/serverversion"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
@@ -73,7 +74,7 @@ func MetricsHandler(telemetryRegistry *prometheus.Registry) http.Handler {
 	return mux
 }
 
-func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, dispatcher dispatch.Dispatcher, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
@@ -85,6 +86,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, dispat
 			datastoremw.UnaryServerInterceptor(ds),
 			consistencymw.UnaryServerInterceptor(),
 			servicespecific.UnaryServerInterceptor,
+			serverversion.UnaryServerInterceptor(enableVersionResponse),
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
@@ -96,6 +98,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, dispat
 			datastoremw.StreamServerInterceptor(ds),
 			consistencymw.StreamServerInterceptor(),
 			servicespecific.StreamServerInterceptor,
+			serverversion.StreamServerInterceptor(enableVersionResponse),
 		}
 }
 
