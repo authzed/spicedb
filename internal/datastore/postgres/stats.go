@@ -62,14 +62,20 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 		return datastore.Stats{}, fmt.Errorf("unable to prepare row count sql: %w", err)
 	}
 
-	var relCount uint64
+	var relCount int64
 	if err := tx.QueryRow(ctx, rowCountSQL, rowCountArgs...).Scan(&relCount); err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to read relationship count: %w", err)
+	}
+
+	// Sometimes relCount can be negative on postgres, truncate to 0
+	var relCountUint uint64
+	if relCount > 0 {
+		relCountUint = uint64(relCount)
 	}
 
 	return datastore.Stats{
 		UniqueID:                   uniqueID,
 		ObjectTypeStatistics:       datastore.ComputeObjectTypeStats(nsDefs),
-		EstimatedRelationshipCount: relCount,
+		EstimatedRelationshipCount: relCountUint,
 	}, nil
 }
