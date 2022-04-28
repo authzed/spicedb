@@ -5,7 +5,7 @@ go 1.18
 require (
 	cloud.google.com/go/spanner v1.31.0
 	github.com/Masterminds/squirrel v1.5.2
-	github.com/authzed/authzed-go v0.5.1-0.20220303182356-243e79ca06fa
+	github.com/authzed/authzed-go v0.5.1-0.20220428172639-fe11c14e32af
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/aws/aws-sdk-go v1.44.7
 	github.com/benbjohnson/clock v1.3.0

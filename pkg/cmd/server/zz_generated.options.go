@@ -30,6 +30,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.GRPCAuthFunc = c.GRPCAuthFunc
 		to.PresharedKey = c.PresharedKey
 		to.ShutdownGracePeriod = c.ShutdownGracePeriod
+		to.DisableVersionResponse = c.DisableVersionResponse
 		to.HTTPGateway = c.HTTPGateway
 		to.HTTPGatewayUpstreamAddr = c.HTTPGatewayUpstreamAddr
 		to.HTTPGatewayUpstreamTLSCertPath = c.HTTPGatewayUpstreamTLSCertPath
@@ -103,6 +104,13 @@ func SetPresharedKey(presharedKey []string) ConfigOption {
 func WithShutdownGracePeriod(shutdownGracePeriod time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.ShutdownGracePeriod = shutdownGracePeriod
+	}
+}
+
+// WithDisableVersionResponse returns an option that can set DisableVersionResponse on a Config
+func WithDisableVersionResponse(disableVersionResponse bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableVersionResponse = disableVersionResponse
 	}
 }
 
