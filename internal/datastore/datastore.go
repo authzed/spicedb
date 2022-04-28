@@ -2,6 +2,9 @@ package datastore
 
 import (
 	"context"
+	"fmt"
+	"sort"
+	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
@@ -12,6 +15,23 @@ import (
 )
 
 var Engines = []string{}
+
+// SortedEngineIDs returns the full set of engine IDs, sorted.
+func SortedEngineIDs() []string {
+	engines := append([]string{}, Engines...)
+	sort.Strings(engines)
+	return engines
+}
+
+// EngineOptions returns the full set of engine IDs, sorted and quoted into a string.
+func EngineOptions() string {
+	ids := SortedEngineIDs()
+	quoted := make([]string, 0, len(ids))
+	for _, id := range ids {
+		quoted = append(quoted, fmt.Sprintf("%q", id))
+	}
+	return strings.Join(quoted, ", ")
+}
 
 // Ellipsis is a special relation that is assumed to be valid on the right
 // hand side of a tuple.
