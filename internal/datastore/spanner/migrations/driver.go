@@ -7,6 +7,7 @@ import (
 	"cloud.google.com/go/spanner"
 	admin "cloud.google.com/go/spanner/admin/database/apiv1"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 
@@ -16,6 +17,7 @@ import (
 const (
 	tableSchemaVersion = "schema_version"
 	colVersionNum      = "version_num"
+	emulatorSettingKey = "SPANNER_EMULATOR_HOST"
 )
 
 // SpannerMigrationDriver can migrate a Cloud Spanner instance
@@ -28,8 +30,11 @@ type SpannerMigrationDriver struct {
 // NewSpannerDriver returns a migration driver for the given Cloud Spanner instance
 func NewSpannerDriver(database, credentialsFilePath string) (SpannerMigrationDriver, error) {
 	ctx := context.Background()
-
-	log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("spanner emulator")
+	setting, found := detectEmulatorSetting()
+	if found {
+		os.Setenv(emulatorSettingKey, setting)
+	}
+	log.Info().Str("spanner-emulator-host", os.Getenv(emulatorSettingKey)).Msg("spanner emulator")
 	log.Info().Str("credentials", credentialsFilePath).Str("db", database).Msg("connecting")
 	client, err := spanner.NewClient(ctx, database, option.WithCredentialsFile(credentialsFilePath))
 	if err != nil {
@@ -84,3 +89,16 @@ func (smd SpannerMigrationDriver) Close() error {
 }
 
 var _ migrate.Driver = SpannerMigrationDriver{}
+
+func detectEmulatorSetting() (string, bool) {
+	err := viper.BindEnv(emulatorSettingKey)
+	if err != nil {
+		return "", false
+	}
+
+	val := viper.GetString(emulatorSettingKey)
+	if len(val) > 0 {
+		return val, true
+	}
+	return "", false
+}

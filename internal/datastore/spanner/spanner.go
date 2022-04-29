@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -56,6 +57,11 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	config, err := generateConfig(opts)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	setting, found := detectEmulatorSetting()
+	if found {
+		os.Setenv("SPANNER_EMULATOR_HOST", setting)
 	}
 
 	config.gcInterval = common.WithJitter(0.2, config.gcInterval)
@@ -135,4 +141,16 @@ func statementFromSQL(sql string, args []interface{}) spanner.Statement {
 		SQL:    sql,
 		Params: params,
 	}
+}
+
+func detectEmulatorSetting() (string, bool) {
+	for _, env := range os.Environ() {
+		varPair := strings.SplitN(env, "=", 2)
+		key := varPair[0]
+		value := varPair[1]
+		if strings.Contains(key, "SPANNER_EMULATOR_HOST") && len(value) > 0 {
+			return value, true
+		}
+	}
+	return "", false
 }
