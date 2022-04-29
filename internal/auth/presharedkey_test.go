@@ -12,36 +12,40 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-func TestMultiplePresharedKeys(t *testing.T) {
-	f := RequirePresharedKey([]string{"one", "two"})
-	_, err := f(contextWithBearerToken("one"))
-	require.NoError(t, err)
-	_, err = f(contextWithBearerToken("two"))
-	require.NoError(t, err)
+func TestPresharedKeys(t *testing.T) {
+	testcases := []struct {
+		name           string
+		presharedkeys  []string
+		withMetadata   bool
+		token          string
+		expectedStatus codes.Code
+	}{
+		{"valid request with the first key", []string{"one", "two"}, true, "one", codes.OK},
+		{"valid request with the second key", []string{"one", "two"}, true, "two", codes.OK},
+		{"denied due to unknown key", []string{"one", "two"}, true, "three", codes.PermissionDenied},
+		{"unauthenticated due to missing key", []string{"one", "two"}, true, "", codes.Unauthenticated},
+		{"unauthenticated due to missing metadata", []string{"one", "two"}, false, "", codes.Unauthenticated},
+	}
+
+	for _, testcase := range testcases {
+		t.Run(testcase.name, func(t *testing.T) {
+			f := RequirePresharedKey(testcase.presharedkeys)
+			ctx := context.Background()
+			if testcase.withMetadata {
+				ctx = withTokenMetadata(testcase.token)
+			}
+			_, err := f(ctx)
+			if testcase.expectedStatus != codes.OK {
+				require.Error(t, err)
+				grpcutil.RequireStatus(t, testcase.expectedStatus, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
-func TestWrongKey(t *testing.T) {
-	f := RequirePresharedKey([]string{"one", "two"})
-	_, err := f(contextWithBearerToken("three"))
-	require.Error(t, err)
-	grpcutil.RequireStatus(t, codes.PermissionDenied, err)
-}
-
-func TestMissingKey(t *testing.T) {
-	f := RequirePresharedKey([]string{"one", "two"})
-	_, err := f(contextWithBearerToken(""))
-	require.Error(t, err)
-	grpcutil.RequireStatus(t, codes.Unauthenticated, err)
-}
-
-func TestAuthorizationHeader(t *testing.T) {
-	f := RequirePresharedKey([]string{"one", "two"})
-	_, err := f(context.Background())
-	require.Error(t, err)
-	grpcutil.RequireStatus(t, codes.Unauthenticated, err)
-}
-
-func contextWithBearerToken(token string) context.Context {
+func withTokenMetadata(token string) context.Context {
 	md := metadata.Pairs("authorization", fmt.Sprintf("bearer %s", token))
 	return metautils.NiceMD(md).ToIncoming(context.Background())
 }
