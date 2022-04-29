@@ -7,12 +7,8 @@ FROM ghcr.io/github/gh-base-image/gh-builder-bionic:20220427-040142-g28876c1e8 a
 ENV CGO_ENABLED=0
 WORKDIR /go/src/app
 
-# Prepare dependencies
-COPY go.mod go.sum ./
-RUN go mod download
-
 COPY . .
-RUN go build ./cmd/spicedb/
+RUN go build -v ./cmd/spicedb/
 
 FROM ghcr.io/github/gh-base-image/gh-base-bionic:latest
 COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.6 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe
