@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/authzed/grpcutil"
@@ -17,13 +16,14 @@ func TestPresharedKeys(t *testing.T) {
 		name           string
 		presharedkeys  []string
 		withMetadata   bool
-		token          string
+		authzHeader    string
 		expectedStatus codes.Code
 	}{
-		{"valid request with the first key", []string{"one", "two"}, true, "one", codes.OK},
-		{"valid request with the second key", []string{"one", "two"}, true, "two", codes.OK},
-		{"denied due to unknown key", []string{"one", "two"}, true, "three", codes.PermissionDenied},
-		{"unauthenticated due to missing key", []string{"one", "two"}, true, "", codes.Unauthenticated},
+		{"valid request with the first key", []string{"one", "two"}, true, "bearer one", codes.OK},
+		{"valid request with the second key", []string{"one", "two"}, true, "bearer two", codes.OK},
+		{"denied due to unknown key", []string{"one", "two"}, true, "bearer three", codes.PermissionDenied},
+		{"unauthenticated due to missing key", []string{"one", "two"}, true, "bearer ", codes.Unauthenticated},
+		{"unauthenticated due to empty header", []string{"one", "two"}, true, "", codes.Unauthenticated},
 		{"unauthenticated due to missing metadata", []string{"one", "two"}, false, "", codes.Unauthenticated},
 	}
 
@@ -32,7 +32,7 @@ func TestPresharedKeys(t *testing.T) {
 			f := RequirePresharedKey(testcase.presharedkeys)
 			ctx := context.Background()
 			if testcase.withMetadata {
-				ctx = withTokenMetadata(testcase.token)
+				ctx = withTokenMetadata(testcase.authzHeader)
 			}
 			_, err := f(ctx)
 			if testcase.expectedStatus != codes.OK {
@@ -45,7 +45,7 @@ func TestPresharedKeys(t *testing.T) {
 	}
 }
 
-func withTokenMetadata(token string) context.Context {
-	md := metadata.Pairs("authorization", fmt.Sprintf("bearer %s", token))
+func withTokenMetadata(authzHeader string) context.Context {
+	md := metadata.Pairs("authorization", authzHeader)
 	return metautils.NiceMD(md).ToIncoming(context.Background())
 }
