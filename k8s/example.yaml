@@ -112,6 +112,8 @@ spec:
             #     secretKeyRef:
             #       name: "spicedb"
             #       key: "SPICEDB_DATASTORE_CONN_URI"
+            # - name: "SPICEDB_DISPATCH_CLUSTER_ENABLED"
+            #   value: "true"
             # - name: "SPICEDB_DISPATCH_UPSTREAM_ADDR"
             #   value: "kubernetes:///spicedb:dispatch"
             - name: "SPICEDB_LOG_LEVEL"
