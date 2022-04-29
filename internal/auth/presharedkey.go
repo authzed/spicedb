@@ -9,7 +9,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const errInvalidPresharedKey = "invalid preshared key: %s"
+const (
+	errInvalidPresharedKey = "invalid preshared key: %s"
+	errMissingPresharedKey = "missing preshared key"
+)
 
 var errInvalidToken = "invalid token"
 
@@ -33,7 +36,7 @@ func RequirePresharedKey(presharedKeys []string) grpcauth.AuthFunc {
 		}
 
 		if token == "" {
-			return nil, status.Errorf(codes.Unauthenticated, errInvalidPresharedKey, err.Error())
+			return nil, status.Errorf(codes.Unauthenticated, errMissingPresharedKey)
 		}
 
 		for _, presharedKey := range presharedKeys {
