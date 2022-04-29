@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/jzelinskie/cobrautil"
@@ -36,6 +37,10 @@ func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 	}
 
 	clusterID := dbStats.UniqueID
+	buildInfo, ok := debug.ReadBuildInfo()
+	if !ok {
+		panic("failed to read build info")
+	}
 
 	if err := registry.Register(&collector{
 		ds: ds,
@@ -46,9 +51,10 @@ func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 			prometheus.Labels{
 				"cluster_id": clusterID,
 				"node_id":    nodeID,
-				"version":    cobrautil.Version,
+				"version":    cobrautil.VersionWithFallbacks(buildInfo),
 				"os":         runtime.GOOS,
 				"arch":       runtime.GOARCH,
+				"go":         buildInfo.GoVersion,
 				"vcpu":       fmt.Sprintf("%d", runtime.NumCPU()),
 				"ds_engine":  datastoreEngine,
 			},

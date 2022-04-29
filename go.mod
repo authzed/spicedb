@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb
 
-go 1.17
+go 1.18
 
 require (
 	cloud.google.com/go/spanner v1.30.1
@@ -25,6 +25,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.7
+	github.com/google/go-github/v43 v43.0.0
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2 v2.0.0-rc.2.0.20210831071041-dd1540ef8252
@@ -39,7 +40,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20220314170512-33c13122505e
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
-	github.com/jzelinskie/cobrautil v0.0.11
+	github.com/jzelinskie/cobrautil v0.0.12
 	github.com/jzelinskie/stringz v0.0.1
 	github.com/lib/pq v1.10.4
 	github.com/ngrok/sqlmw v0.0.0-20211220175533-9d16fdc47b31
@@ -61,6 +62,7 @@ require (
 	go.opentelemetry.io/otel v1.6.3
 	go.opentelemetry.io/otel/trace v1.6.3
 	go.uber.org/goleak v1.1.12
+	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/tools v0.1.10
 	google.golang.org/api v0.74.0
@@ -98,6 +100,7 @@ require (
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/googleapis/gax-go/v2 v2.3.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
@@ -157,7 +160,6 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/net v0.0.0-20220418201149-a630d4f3e7a2 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
@@ -169,6 +171,3 @@ require (
 
 // TODO(jschorr): Remove once https://github.com/dgraph-io/ristretto/pull/286 is merged
 replace github.com/dgraph-io/ristretto => github.com/josephschorr/ristretto v0.1.1-0.20211227180020-ae4c2c35d79d
-
-// TODO(cjs) waiting for new cobrautil release and it being used in upstream spicedb
-replace github.com/jzelinskie/cobrautil => github.com/jzelinskie/cobrautil v0.0.11-0.20220418210929-33f763228c87

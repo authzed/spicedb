@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
+	"github.com/authzed/spicedb/pkg/releases"
 )
 
 var DisableTelemetryHandler *prometheus.Registry
@@ -52,6 +53,7 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 		cobrautil.SyncViperPreRunE(programName),
 		cobrautil.ZeroLogRunE("log", zerolog.InfoLevel),
 		cobrautil.OpenTelemetryRunE("otel", zerolog.InfoLevel),
+		releases.CheckAndLogRunE(),
 	)
 }
 
