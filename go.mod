@@ -67,7 +67,7 @@ require (
 	golang.org/x/tools v0.1.10
 	google.golang.org/api v0.74.0
 	google.golang.org/genproto v0.0.0-20220414192740-2d67ff6cf2b4
-	google.golang.org/grpc v1.45.0
+	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
@@ -92,7 +92,7 @@ require (
 	github.com/docker/docker v20.10.14+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/envoyproxy/go-control-plane v0.10.1 // indirect
+	github.com/envoyproxy/go-control-plane v0.10.2-0.20220325020618-49ff273808a1 // indirect
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
