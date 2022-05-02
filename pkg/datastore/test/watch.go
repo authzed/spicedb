@@ -9,12 +9,14 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/google/go-cmp/cmp"
 	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -67,7 +69,11 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				}
 				batch := []*v1.RelationshipUpdate{newUpdate}
 				testUpdates = append(testUpdates, batch)
-				_, err := ds.WriteTuples(ctx, nil, batch)
+				_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+					err := rwt.WriteRelationships(batch)
+					require.NoError(err)
+					return err
+				})
 				require.NoError(err)
 
 				if i != 0 {
@@ -87,25 +93,37 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				Relationship: makeTestRelationship("another_relation", "somestuff"),
 			}
 			batch := []*v1.RelationshipUpdate{updateUpdate, createUpdate}
-			_, err = ds.WriteTuples(ctx, nil, batch)
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				err := rwt.WriteRelationships(batch)
+				require.NoError(err)
+				return err
+			})
 			require.NoError(err)
 
 			deleteUpdate := &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 				Relationship: makeTestRelationship("relation0", "test_user"),
 			}
-			_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{deleteUpdate})
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				err := rwt.WriteRelationships([]*v1.RelationshipUpdate{deleteUpdate})
+				require.NoError(err)
+				return err
+			})
 			require.NoError(err)
 
 			testUpdates = append(testUpdates, batch, []*v1.RelationshipUpdate{deleteUpdate})
 
-			_, err = ds.DeleteRelationships(ctx, nil, &v1.RelationshipFilter{
-				ResourceType:     testResourceNamespace,
-				OptionalRelation: testReaderRelation,
-				OptionalSubjectFilter: &v1.SubjectFilter{
-					SubjectType:       testUserNamespace,
-					OptionalSubjectId: "test_user",
-				},
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				err := rwt.DeleteRelationships(&v1.RelationshipFilter{
+					ResourceType:     testResourceNamespace,
+					OptionalRelation: testReaderRelation,
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       testUserNamespace,
+						OptionalSubjectId: "test_user",
+					},
+				})
+				require.NoError(err)
+				return err
 			})
 			require.NoError(err)
 
@@ -192,10 +210,14 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, startWatchRevision)
 	require.Zero(len(errchan))
 
-	_, err = ds.WriteTuples(ctx, nil, []*v1.RelationshipUpdate{{
-		Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-		Relationship: makeTestRelationship("test", "test"),
-	}})
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteRelationships([]*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+			Relationship: makeTestRelationship("test", "test"),
+		}})
+		require.NoError(err)
+		return err
+	})
 	require.NoError(err)
 
 	cancel()
@@ -205,10 +227,12 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 		select {
 		case created, ok := <-changes:
 			if ok {
-				require.Equal(
+				foundDiff := cmp.Diff(
 					[]*core.RelationTupleUpdate{tuple.Touch(makeTestTuple("test", "test"))},
 					created.Changes,
+					protocmp.Transform(),
 				)
+				require.Empty(foundDiff)
 				require.True(created.Revision.GreaterThan(datastore.NoRevision))
 			} else {
 				errWait := time.NewTimer(100 * time.Millisecond)

@@ -11,7 +11,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -34,18 +34,23 @@ func (f DatastoreTesterFunc) New(revisionQuantization, gcWindow time.Duration, w
 
 // All runs all generic datastore tests on a DatastoreTester.
 func All(t *testing.T, tester DatastoreTester) {
-	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
-	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
-	t.Run("TestWritePreconditions", func(t *testing.T) { WritePreconditionsTest(t, tester) })
-	t.Run("TestDeletePreconditions", func(t *testing.T) { DeletePreconditionsTest(t, tester) })
-	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })
-	t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })
 	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })
 	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { EmptyNamespaceDeleteTest(t, tester) })
+	t.Run("TestNamespaceCacheKey", func(t *testing.T) { NamespaceCacheKeyTest(t, tester) })
+
+	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
+	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })
+	t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })
+	t.Run("TestUsersets", func(t *testing.T) { UsersetsTest(t, tester) })
+	t.Run("TestMultipleReadsInRWT", func(t *testing.T) { MultipleReadsInRWTTest(t, tester) })
+	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })
+
+	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
+
 	t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
 	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
-	t.Run("TestUsersets", func(t *testing.T) { UsersetsTest(t, tester) })
+
 	t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
 }
 
@@ -90,10 +95,9 @@ func makeTestRelationship(resourceID, userID string) *v1.Relationship {
 func setupDatastore(ds datastore.Datastore, require *require.Assertions) decimal.Decimal {
 	ctx := context.Background()
 
-	_, err := ds.WriteNamespace(ctx, testResourceNS)
-	require.NoError(err)
-
-	revision, err := ds.WriteNamespace(ctx, testUserNS)
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(testResourceNS, testUserNS)
+	})
 	require.NoError(err)
 
 	return revision
