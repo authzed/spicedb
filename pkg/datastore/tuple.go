@@ -8,19 +8,19 @@ import (
 
 var errClosedIterator = errors.New("unable to iterate: iterator closed")
 
-// NewSliceTupleIterator creates a datastore.TupleIterator instance from a materialized slice of tuples.
-func NewSliceTupleIterator(tuples []*core.RelationTuple) TupleIterator {
-	return &sliceTupleIterator{tuples: tuples}
+// NewSliceRelationshipIterator creates a datastore.TupleIterator instance from a materialized slice of tuples.
+func NewSliceRelationshipIterator(tuples []*core.RelationTuple) RelationshipIterator {
+	return &sliceRelationshipIterator{tuples: tuples}
 }
 
-type sliceTupleIterator struct {
+type sliceRelationshipIterator struct {
 	tuples []*core.RelationTuple
 	closed bool
 	err    error
 }
 
 // Next implements TupleIterator
-func (sti *sliceTupleIterator) Next() *core.RelationTuple {
+func (sti *sliceRelationshipIterator) Next() *core.RelationTuple {
 	if sti.closed {
 		sti.err = errClosedIterator
 		return nil
@@ -36,12 +36,12 @@ func (sti *sliceTupleIterator) Next() *core.RelationTuple {
 }
 
 // Err implements TupleIterator
-func (sti *sliceTupleIterator) Err() error {
+func (sti *sliceRelationshipIterator) Err() error {
 	return sti.err
 }
 
 // Close implements TupleIterator
-func (sti *sliceTupleIterator) Close() {
+func (sti *sliceRelationshipIterator) Close() {
 	if sti.closed {
 		panic("tuple iterator double closed")
 	}
@@ -52,8 +52,8 @@ func (sti *sliceTupleIterator) Close() {
 
 // BuildFinalizerFunction creates a function which can be used as a finalizer to make sure that
 // tuples are getting closed before they are garbage collected.
-func BuildFinalizerFunction() func(iter *sliceTupleIterator) {
-	return func(iter *sliceTupleIterator) {
+func BuildFinalizerFunction() func(iter *sliceRelationshipIterator) {
+	return func(iter *sliceRelationshipIterator) {
 		if !iter.closed {
 			panic("Tuple iterator garbage collected before Close() was called")
 		}

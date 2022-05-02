@@ -9,9 +9,8 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/internal/datastore/options"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var Engines = []string{}
@@ -43,18 +42,60 @@ type RevisionChanges struct {
 	Changes  []*core.RelationTupleUpdate
 }
 
+type Reader interface {
+	// QueryTuples reads relationships starting from the resource side.
+	QueryRelationships(
+		ctx context.Context,
+		filter *v1.RelationshipFilter,
+		options ...options.QueryOptionsOption,
+	) (RelationshipIterator, error)
+
+	// ReverseQueryRelationships reads relationships starting from the subject.
+	ReverseQueryRelationships(
+		ctx context.Context,
+		subjectFilter *v1.SubjectFilter,
+		options ...options.ReverseQueryOptionsOption,
+	) (RelationshipIterator, error)
+
+	// ReadNamespace reads a namespace definition and version and returns it, and the revision at
+	// which it was created or last written, if found.
+	ReadNamespace(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten Revision, err error)
+
+	// ListNamespaces lists all namespaces defined.
+	ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error)
+
+	// NamespaceCacheKey returns a string key for use in a NamespaceManager's cache
+	NamespaceCacheKey(namespaceName string) (string, error)
+}
+
+type ReadWriteTransaction interface {
+	Reader
+
+	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
+	WriteRelationships(mutations []*v1.RelationshipUpdate) error
+
+	// DeleteRelationships deletes all Relationships that match the provided filter.
+	DeleteRelationships(filter *v1.RelationshipFilter) error
+
+	// WriteNamespaces takes proto namespace definitions and persists them.
+	WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error
+
+	// DeleteNamespace deletes a namespace and any associated tuples.
+	DeleteNamespace(nsName string) error
+}
+
+// TxUserFunc is a type for the function that users supply when they invoke a read-write transaction.
+type TxUserFunc func(context.Context, ReadWriteTransaction) error
+
 // Datastore represents tuple access for a single namespace.
 type Datastore interface {
-	GraphDatastore
+	// SnapshotRead creates a read-only handle that reads the datastore at the specified revision.
+	// Any errors establishing the reader will be returned by subsequent calls.
+	SnapshotReader(Revision) Reader
 
-	// WriteTuples takes a list of existing tuples that must exist, and a list of
-	// tuple mutations and applies it to the datastore for the specified
-	// namespace.
-	WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (Revision, error)
-
-	// DeleteRelationships deletes all Relationships that match the provided
-	// filter if all preconditions are met.
-	DeleteRelationships(ctx context.Context, preconditions []*v1.Precondition, filter *v1.RelationshipFilter) (Revision, error)
+	// ReadWriteTx tarts a read/write transaction, which will be committed if no error is
+	// returned and rolled back if an error is returned.
+	ReadWriteTx(context.Context, TxUserFunc) (Revision, error)
 
 	// OptimizedRevision gets a revision that will likely already be replicated
 	// and will likely be shared amongst many queries.
@@ -64,32 +105,19 @@ type Datastore interface {
 	// right now.
 	HeadRevision(ctx context.Context) (Revision, error)
 
+	// CheckRevision checks the specified revision to make sure it's valid and
+	// hasn't been garbage collected.
+	CheckRevision(ctx context.Context, revision Revision) error
+
 	// Watch notifies the caller about all changes to tuples.
 	//
 	// All events following afterRevision will be sent to the caller.
 	Watch(ctx context.Context, afterRevision Revision) (<-chan *RevisionChanges, <-chan error)
 
-	// WriteNamespace takes a proto namespace definition and persists it,
-	// returning the version of the namespace that was created.
-	WriteNamespace(ctx context.Context, newConfig *core.NamespaceDefinition) (Revision, error)
-
-	// ReadNamespace reads a namespace definition and version and returns it, and the revision at
-	// which it was created or last written, if found.
-	ReadNamespace(ctx context.Context, nsName string, revision Revision) (ns *core.NamespaceDefinition, lastWritten Revision, err error)
-
-	// DeleteNamespace deletes a namespace and any associated tuples.
-	DeleteNamespace(ctx context.Context, nsName string) (Revision, error)
-
-	// ListNamespaces lists all namespaces defined.
-	ListNamespaces(ctx context.Context, revision Revision) ([]*core.NamespaceDefinition, error)
-
 	// IsReady returns whether the datastore is ready to accept data. Datastores that require
 	// database schema creation will return false until the migrations have been run to create
 	// the necessary tables.
 	IsReady(ctx context.Context) (bool, error)
-
-	// NamespaceCacheKey returns a string key for use in a NamespaceManager's cache
-	NamespaceCacheKey(namespaceName string, revision Revision) (string, error)
 
 	// Statistics returns relevant values about the data contained in this cluster.
 	Statistics(ctx context.Context) (Stats, error)
@@ -122,32 +150,8 @@ type Stats struct {
 	ObjectTypeStatistics []ObjectTypeStat
 }
 
-// GraphDatastore is a subset of the datastore interface that is passed to
-// graph resolvers.
-type GraphDatastore interface {
-	// QueryTuples reads relationships starting from the resource side.
-	QueryTuples(
-		ctx context.Context,
-		filter *v1.RelationshipFilter,
-		revision Revision,
-		options ...options.QueryOptionsOption,
-	) (TupleIterator, error)
-
-	// ReverseQueryRelationships reads relationships starting from the subject.
-	ReverseQueryTuples(
-		ctx context.Context,
-		subjectFilter *v1.SubjectFilter,
-		revision Revision,
-		options ...options.ReverseQueryOptionsOption,
-	) (TupleIterator, error)
-
-	// CheckRevision checks the specified revision to make sure it's valid and
-	// hasn't been garbage collected.
-	CheckRevision(ctx context.Context, revision Revision) error
-}
-
-// TupleIterator is an iterator over matched tuples.
-type TupleIterator interface {
+// RelationshipIterator is an iterator over matched tuples.
+type RelationshipIterator interface {
 	// Next returns the next tuple in the result set.
 	Next() *core.RelationTuple
 
