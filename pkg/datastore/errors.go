@@ -3,7 +3,6 @@ package datastore
 import (
 	"fmt"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog"
 )
 
@@ -21,17 +20,6 @@ func (enf ErrNamespaceNotFound) NotFoundNamespaceName() string {
 // MarshalZerologObject implements zerolog object marshalling.
 func (enf ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("error", enf.Error()).Str("namespace", enf.namespaceName)
-}
-
-// ErrPreconditionFailed occurs when the precondition to a write tuple call does not match.
-type ErrPreconditionFailed struct {
-	error
-	precondition *v1.Precondition
-}
-
-// MarshalZerologObject implements zerolog object marshalling.
-func (epf ErrPreconditionFailed) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("error", epf.Error()).Interface("precondition", epf.precondition)
 }
 
 // ErrWatchDisconnected occurs when a watch has fallen too far behind and was forcibly disconnected
@@ -96,16 +84,8 @@ func (eri ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
 // NewNamespaceNotFoundErr constructs a new namespace not found error.
 func NewNamespaceNotFoundErr(nsName string) error {
 	return ErrNamespaceNotFound{
-		error:         fmt.Errorf("namespace `%s` not found", nsName),
+		error:         fmt.Errorf("object definition `%s` not found", nsName),
 		namespaceName: nsName,
-	}
-}
-
-// NewPreconditionFailedErr constructs a new precondition failed error.
-func NewPreconditionFailedErr(precondition *v1.Precondition) error {
-	return ErrPreconditionFailed{
-		error:        fmt.Errorf("unable to satisfy write precondition `%s`", precondition),
-		precondition: precondition,
 	}
 }
 
