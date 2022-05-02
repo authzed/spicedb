@@ -16,7 +16,12 @@ import (
 // an independent test with CLI-like config where possible.
 func DatastoreConfigInitFunc(t testing.TB, options ...dsconfig.ConfigOption) testdatastore.InitFunc {
 	return func(engine, uri string) datastore.Datastore {
-		ds, err := dsconfig.NewDatastore(append(options, dsconfig.WithEngine(engine), dsconfig.WithURI(uri))...)
+		ds, err := dsconfig.NewDatastore(
+			append(options,
+				dsconfig.WithEngine(engine),
+				dsconfig.WithEnableDatastoreMetrics(false),
+				dsconfig.WithURI(uri),
+			)...)
 		require.NoError(t, err)
 		return ds
 	}

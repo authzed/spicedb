@@ -6,21 +6,22 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
-	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/dlmiddlecote/sqlstats"
 	"github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
+	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
@@ -491,10 +492,16 @@ func (mds *Datastore) isSeeded(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if headRevision != datastore.NoRevision {
-		return true, nil
+	if headRevision == datastore.NoRevision {
+		return false, nil
 	}
-	return false, nil
+
+	_, err = mds.getUniqueID(ctx)
+	if err != nil {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // seedDatabase initializes the first transaction revision if necessary.
@@ -526,15 +533,41 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 		return fmt.Errorf("seedDatabase: failed to get last inserted id: %w", err)
 	}
 
-	err = tx.Commit()
+	if lastInsertID != noLastInsertID {
+		// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
+		// was already seeded by another processes (i.e. race condition).
+		log.Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore headRevision")
+	}
+
+	uuidSQL, uuidArgs, err := sb.
+		Insert(mds.driver.Metadata()).
+		Options("IGNORE").
+		Columns(metadataIDColumn, metadataUniqueIDColumn).
+		Values(0, uuid.NewString()).
+		ToSql()
 	if err != nil {
-		return err
+		return fmt.Errorf("seedDatabase: failed to prepare SQL: %w", err)
+	}
+
+	insertUniqueResult, err := tx.ExecContext(ctx, uuidSQL, uuidArgs...)
+	if err != nil {
+		return fmt.Errorf("seedDatabase: failed to insert unique ID: %w", err)
+	}
+
+	lastInsertID, err = insertUniqueResult.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("seedDatabase: failed to get last inserted unique id: %w", err)
 	}
 
 	if lastInsertID != noLastInsertID {
 		// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
 		// was already seeded by another processes (i.e. race condition).
-		log.Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore headRevision")
+		log.Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore unique ID")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
 	}
 
 	return nil

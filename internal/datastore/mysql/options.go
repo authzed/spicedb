@@ -18,6 +18,7 @@ const (
 	defaultUsersetBatchSize                  = 1024
 	defaultQuantization                      = 5 * time.Second
 	defaultMaxRevisionStalenessPercent       = 0.1
+	defaultEnablePrometheusStats             = false
 )
 
 type mysqlOptions struct {
@@ -52,6 +53,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		splitAtUsersetCount:         defaultUsersetBatchSize,
 		revisionQuantization:        defaultQuantization,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
+		enablePrometheusStats:       defaultEnablePrometheusStats,
 	}
 
 	for _, option := range options {
@@ -129,12 +131,13 @@ func TablePrefix(prefix string) Option {
 	}
 }
 
-// EnablePrometheusStats enables Prometheus metrics provided by Go's database/sql package
+// WithEnablePrometheusStats marks whether Prometheus metrics provided by Go's database/sql package
+// are enabled.
 //
-// Prometheus metrics are enabled by default.
-func EnablePrometheusStats() Option {
+// Prometheus metrics are disabled by default.
+func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(mo *mysqlOptions) {
-		mo.enablePrometheusStats = true
+		mo.enablePrometheusStats = enablePrometheusStats
 	}
 }
 
