@@ -4,51 +4,43 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/go-memdb"
-
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-func (mds *memdbDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	head, err := mds.HeadRevision(ctx)
+func (mdb *memdbDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	head, err := mdb.HeadRevision(ctx)
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to compute head revision: %w", err)
 	}
 
-	count, err := mds.countRelationships(ctx, head)
+	count, err := mdb.countRelationships(ctx)
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to count relationships: %w", err)
 	}
 
-	objTypes, err := mds.ListNamespaces(ctx, head)
+	objTypes, err := mdb.SnapshotReader(head).ListNamespaces(ctx)
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to list object types: %w", err)
 	}
 
 	return datastore.Stats{
-		UniqueID:                   mds.uniqueID,
+		UniqueID:                   mdb.uniqueID,
 		EstimatedRelationshipCount: count,
 		ObjectTypeStatistics:       datastore.ComputeObjectTypeStats(objTypes),
 	}, nil
 }
 
-func (mds *memdbDatastore) countRelationships(ctx context.Context, revision datastore.Revision) (uint64, error) {
-	mds.RLock()
-	db := mds.db
-	mds.RUnlock()
-	if db == nil {
-		return 0, fmt.Errorf("memdb closed")
-	}
+func (mdb *memdbDatastore) countRelationships(ctx context.Context) (uint64, error) {
+	mdb.RLock()
+	defer mdb.RUnlock()
 
-	txn := db.Txn(false)
+	txn := mdb.db.Txn(false)
 	defer txn.Abort()
 
-	aliveAndDead, err := txn.LowerBound(tableRelationship, indexID)
+	it, err := txn.LowerBound(tableRelationship, indexID)
 	if err != nil {
 		return 0, err
 	}
-
-	it := memdb.NewFilterIterator(aliveAndDead, filterToLiveObjects(revision))
 
 	var count uint64
 	for row := it.Next(); row != nil; row = it.Next() {

@@ -2,114 +2,45 @@ package memdb
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-const (
-	errRevision      = "unable to find revision: %w"
-	errCheckRevision = "unable to check revision: %w"
-)
-
-func (mds *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	mds.RLock()
-	db := mds.db
-	mds.RUnlock()
-	if db == nil {
-		return datastore.NoRevision, fmt.Errorf("memdb closed")
-	}
-
-	// Compute the current revision
-	txn := db.Txn(false)
-	defer txn.Abort()
-
-	lastRaw, err := txn.Last(tableTransaction, indexID)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
-	}
-	if lastRaw != nil {
-		return revisionFromVersion(lastRaw.(*transaction).id), nil
-	}
-	return datastore.NoRevision, nil
+func revisionFromTimestamp(t time.Time) datastore.Revision {
+	return decimal.NewFromInt(t.UnixNano())
 }
 
-func (mds *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
-	mds.RLock()
-	db := mds.db
-	mds.RUnlock()
-	if db == nil {
-		return datastore.NoRevision, fmt.Errorf("memdb closed")
-	}
-
-	txn := db.Txn(false)
-	defer txn.Abort()
-
-	rounded := uint64(time.Now().Round(mds.revisionQuantization).UnixNano())
-
-	time.Sleep(mds.simulatedLatency)
-	iter, err := txn.LowerBound(tableTransaction, indexTimestamp, rounded)
+func (mdb *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+	head, err := mdb.HeadRevision(ctx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+		return datastore.NoRevision, err
 	}
 
-	selected := iter.Next()
-	if selected == nil {
-		return mds.HeadRevision(ctx)
-	}
-
-	return revisionFromVersion(selected.(*transaction).id), nil
+	return head.Sub(head.Mod(mdb.quantizationPeriod)), nil
 }
 
-func (mds *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	mds.RLock()
-	db := mds.db
-	mds.RUnlock()
-	if db == nil {
-		return fmt.Errorf("memdb closed")
-	}
+func (mdb *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	return revisionFromTimestamp(time.Now().UTC()), nil
+}
 
-	txn := db.Txn(false)
-	defer txn.Abort()
+func (mdb *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	return mdb.checkRevisionLocal(revision)
+}
 
-	// We need to know the highest possible revision
-	time.Sleep(mds.simulatedLatency)
-	lastRaw, err := txn.Last(tableTransaction, indexID)
-	if err != nil {
-		return fmt.Errorf(errCheckRevision, err)
-	}
-	if lastRaw == nil {
-		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
-	}
+func (mdb *memdbDatastore) checkRevisionLocal(revision datastore.Revision) error {
+	now := revisionFromTimestamp(time.Now().UTC())
 
-	highest := revisionFromVersion(lastRaw.(*transaction).id)
-
-	if revision.GreaterThan(highest) {
+	if revision.GreaterThan(now) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
 	}
 
-	lowerBound := uint64(time.Now().Add(mds.gcWindowInverted).UnixNano())
-	time.Sleep(mds.simulatedLatency)
-	iter, err := txn.LowerBound(tableTransaction, indexTimestamp, lowerBound)
-	if err != nil {
-		return fmt.Errorf(errCheckRevision, err)
-	}
-
-	firstValid := iter.Next()
-	if firstValid == nil && !revision.Equal(highest) {
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
-	}
-
-	if firstValid != nil && revision.LessThan(revisionFromVersion(firstValid.(*transaction).id)) {
+	oldest := now.Add(mdb.negativeGCWindow)
+	if revision.LessThan(oldest) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
 	return nil
-}
-
-func revisionFromVersion(version uint64) datastore.Revision {
-	return decimal.NewFromInt(int64(version))
 }

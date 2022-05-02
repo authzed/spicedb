@@ -7,29 +7,26 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const errWatchError = "watch error: %w"
 
-func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
+func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+	updates := make(chan *datastore.RevisionChanges, mdb.watchBufferLength)
 	errs := make(chan error, 1)
 
 	go func() {
 		defer close(updates)
 		defer close(errs)
 
-		currentTxn := uint64(afterRevision.IntPart())
+		currentTxn := afterRevision.IntPart()
 
 		for {
 			var stagedUpdates []*datastore.RevisionChanges
 			var watchChan <-chan struct{}
 			var err error
-			stagedUpdates, currentTxn, watchChan, err = mds.loadChanges(ctx, currentTxn)
+			stagedUpdates, currentTxn, watchChan, err = mdb.loadChanges(ctx, currentTxn)
 			if err != nil {
 				errs <- err
 				return
@@ -65,48 +62,30 @@ func (mds *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	return updates, errs
 }
 
-func (mds *memdbDatastore) loadChanges(ctx context.Context, currentTxn uint64) ([]*datastore.RevisionChanges, uint64, <-chan struct{}, error) {
-	mds.RLock()
-	db := mds.db
-	mds.RUnlock()
-	if db == nil {
-		return nil, 0, nil, fmt.Errorf("memdb closed")
-	}
-	loadNewTxn := db.Txn(false)
+func (mdb *memdbDatastore) loadChanges(ctx context.Context, currentTxn int64) ([]*datastore.RevisionChanges, int64, <-chan struct{}, error) {
+	mdb.RLock()
+	defer mdb.RUnlock()
+
+	loadNewTxn := mdb.db.Txn(false)
 	defer loadNewTxn.Abort()
 
-	it, err := loadNewTxn.LowerBound(tableTransaction, indexID, currentTxn+1)
+	it, err := loadNewTxn.LowerBound(tableChangelog, indexRevision, currentTxn+1)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf(errWatchError, err)
 	}
 
-	stagedChanges := make(common.Changes)
-	for newChangeRaw := it.Next(); newChangeRaw != nil; newChangeRaw = it.Next() {
-		currentTxn = newChangeRaw.(*transaction).id
-		txnRevision := revisionFromVersion(currentTxn)
-		createdIt, err := loadNewTxn.Get(tableRelationship, indexCreatedTxn, currentTxn)
-		if err != nil {
-			return nil, 0, nil, fmt.Errorf(errWatchError, err)
-		}
-		for rawCreated := createdIt.Next(); rawCreated != nil; rawCreated = createdIt.Next() {
-			created := rawCreated.(*relationship)
-			stagedChanges.AddChange(ctx, txnRevision, created.RelationTuple(), core.RelationTupleUpdate_TOUCH)
-		}
-
-		deletedIt, err := loadNewTxn.Get(tableRelationship, indexDeletedTxn, currentTxn)
-		if err != nil {
-			return nil, 0, nil, fmt.Errorf(errWatchError, err)
-		}
-		for rawDeleted := deletedIt.Next(); rawDeleted != nil; rawDeleted = deletedIt.Next() {
-			deleted := rawDeleted.(*relationship)
-			stagedChanges.AddChange(ctx, txnRevision, deleted.RelationTuple(), core.RelationTupleUpdate_DELETE)
-		}
+	var changes []*datastore.RevisionChanges
+	lastRevision := currentTxn
+	for changeRaw := it.Next(); changeRaw != nil; changeRaw = it.Next() {
+		change := changeRaw.(*changelog)
+		changes = append(changes, &change.changes)
+		lastRevision = change.revisionNanos
 	}
 
-	watchChan, _, err := loadNewTxn.LastWatch(tableTransaction, indexID)
+	watchChan, _, err := loadNewTxn.LastWatch(tableChangelog, indexRevision)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf(errWatchError, err)
 	}
 
-	return stagedChanges.AsRevisionChanges(), currentTxn, watchChan, nil
+	return changes, lastRevision, watchChan, nil
 }
