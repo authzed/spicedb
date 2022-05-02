@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -87,7 +89,14 @@ type Config struct {
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
 func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
-	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
+	engines := []string{}
+	for engine := range BuilderForEngine {
+		engines = append(engines, fmt.Sprintf("%q", engine))
+	}
+	sort.Strings(engines) // Sort for stability.
+	egineOpts := strings.Join(engines, ", ")
+
+	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, egineOpts))
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
 	cmd.Flags().IntVar(&opts.MinOpenConns, "datastore-conn-min-open", 10, "number of minimum concurrent connections open in a remote datastore's connection pool")
@@ -262,8 +271,9 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.ConnMaxIdleTime(opts.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.MaxLifetime),
 		mysql.MaxOpenConns(opts.MaxOpenConns),
-		mysql.RevisionFuzzingTimedelta(opts.RevisionQuantization),
+		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.TablePrefix(opts.TablePrefix),
+		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 	}
 	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
