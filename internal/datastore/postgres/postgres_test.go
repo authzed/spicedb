@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -574,6 +575,10 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			defer ds.Close()
 
 			tx, err := conn.Begin(ctx)
+			require.NoError(err)
+
+			// set a random time zone to ensure the queries are unaffect by tz
+			_, err = tx.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
 			require.NoError(err)
 
 			var dbNow time.Time
