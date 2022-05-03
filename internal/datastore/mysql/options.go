@@ -155,7 +155,7 @@ func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 // split into smaller queries.
 //
 // This defaults to 1024.
-func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
+func SplitAtUsersetCount(splitAtUsersetCount int) Option {
 	return func(mo *mysqlOptions) {
 		mo.splitAtUsersetCount = splitAtUsersetCount
 	}
@@ -190,16 +190,6 @@ func ConnMaxLifetime(lifetime time.Duration) Option {
 func MaxOpenConns(conns int) Option {
 	return func(po *mysqlOptions) {
 		po.maxOpenConns = conns
-	}
-}
-
-// WatchBufferLength is the number of entries that can be stored in the watch
-// buffer while awaiting read by the client.
-//
-// This value defaults to 128.
-func WatchBufferLength(watchBufferLength uint16) Option {
-	return func(mo *mysqlOptions) {
-		mo.watchBufferLength = watchBufferLength
 	}
 }
 
