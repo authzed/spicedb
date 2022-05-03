@@ -16,6 +16,7 @@ import (
 const (
 	tableSchemaVersion = "schema_version"
 	colVersionNum      = "version_num"
+	emulatorSettingKey = "SPANNER_EMULATOR_HOST"
 )
 
 // SpannerMigrationDriver can migrate a Cloud Spanner instance
@@ -26,10 +27,13 @@ type SpannerMigrationDriver struct {
 }
 
 // NewSpannerDriver returns a migration driver for the given Cloud Spanner instance
-func NewSpannerDriver(database, credentialsFilePath string) (SpannerMigrationDriver, error) {
+func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (SpannerMigrationDriver, error) {
 	ctx := context.Background()
 
-	log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("spanner emulator")
+	if len(emulatorHost) > 0 {
+		os.Setenv(emulatorSettingKey, emulatorHost)
+	}
+	log.Info().Str("spanner-emulator-host", os.Getenv(emulatorSettingKey)).Msg("spanner emulator")
 	log.Info().Str("credentials", credentialsFilePath).Str("db", database).Msg("connecting")
 	client, err := spanner.NewClient(ctx, database, option.WithCredentialsFile(credentialsFilePath))
 	if err != nil {

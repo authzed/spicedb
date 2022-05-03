@@ -58,6 +58,10 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
+	if len(config.emulatorHost) > 0 {
+		os.Setenv("SPANNER_EMULATOR_HOST", config.emulatorHost)
+	}
+
 	config.gcInterval = common.WithJitter(0.2, config.gcInterval)
 	log.Info().Float64("factor", 0.2).Msg("gc configured with jitter")
 	log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("spanner emulator")
@@ -104,7 +108,7 @@ func (sd spannerDatastore) IsReady(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
 
-	currentRevision, err := migrations.NewSpannerDriver(sd.client.DatabaseName(), sd.config.credentialsFilePath)
+	currentRevision, err := migrations.NewSpannerDriver(sd.client.DatabaseName(), sd.config.credentialsFilePath, sd.config.emulatorHost)
 	if err != nil {
 		return false, err
 	}

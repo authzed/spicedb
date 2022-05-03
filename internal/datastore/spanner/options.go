@@ -14,6 +14,7 @@ type spannerOptions struct {
 	gcInterval                  time.Duration
 	maxRetries                  int
 	credentialsFilePath         string
+	emulatorHost                string
 }
 
 const (
@@ -133,5 +134,13 @@ func MaxRetries(maxRetries int) Option {
 func CredentialsFile(path string) Option {
 	return func(so *spannerOptions) {
 		so.credentialsFilePath = path
+	}
+}
+
+// EmulatorHost is the URI of a Spanner emulator to connect to for
+// development and testing use
+func EmulatorHost(uri string) Option {
+	return func(so *spannerOptions) {
+		so.emulatorHost = uri
 	}
 }

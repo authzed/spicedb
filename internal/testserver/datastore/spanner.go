@@ -129,7 +129,7 @@ func (b *spannerTest) NewDatabase(t testing.TB) string {
 func (b *spannerTest) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	db := b.NewDatabase(t)
 
-	migrationDriver, err := migrations.NewSpannerDriver(db, "")
+	migrationDriver, err := migrations.NewSpannerDriver(db, "", os.Getenv("SPANNER_EMULATOR_HOST"))
 	require.NoError(t, err)
 
 	err = migrations.SpannerMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun)
