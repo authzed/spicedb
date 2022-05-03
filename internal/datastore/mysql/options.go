@@ -33,7 +33,7 @@ type mysqlOptions struct {
 	maxOpenConns                int
 	connMaxIdleTime             time.Duration
 	connMaxLifetime             time.Duration
-	splitAtUsersetCount         int
+	splitAtUsersetCount         uint16
 	analyzeBeforeStats          bool
 }
 
@@ -155,7 +155,7 @@ func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 // split into smaller queries.
 //
 // This defaults to 1024.
-func SplitAtUsersetCount(splitAtUsersetCount int) Option {
+func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
 	return func(mo *mysqlOptions) {
 		mo.splitAtUsersetCount = splitAtUsersetCount
 	}
