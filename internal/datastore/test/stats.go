@@ -24,4 +24,8 @@ func StatsTest(t *testing.T, tester DatastoreTester) {
 	require.Len(stats.UniqueID, 36, "unique ID must be a valid UUID")
 	require.Len(stats.ObjectTypeStatistics, 3, "must report object stats")
 	require.Greater(stats.EstimatedRelationshipCount, uint64(0), "must report some relationships")
+
+	newStats, err := ds.Statistics(ctx)
+	require.NoError(err)
+	require.Equal(newStats.UniqueID, stats.UniqueID, "unique ID must be stable")
 }

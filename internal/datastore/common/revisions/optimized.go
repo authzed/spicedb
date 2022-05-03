@@ -47,11 +47,13 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	lastRevision := cor.lastQuantizedRevision.get()
 	if localNow.Before(lastRevision.validThrough) {
 		log.Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("returning cached revision")
+		span.AddEvent("returning cached revision")
 		return lastRevision.revision, nil
 	}
 
 	lastQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (interface{}, error) {
 		log.Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("computing new revision")
+		span.AddEvent("computing new revision")
 
 		optimized, validFor, err := cor.optimizedFunc(ctx)
 		if err != nil {

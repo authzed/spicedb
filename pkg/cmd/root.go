@@ -5,11 +5,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/releases"
 )
 
 func RegisterRootFlags(cmd *cobra.Command) {
 	cobrautil.RegisterZeroLogFlags(cmd.PersistentFlags(), "log")
 	cobrautil.RegisterOpenTelemetryFlags(cmd.PersistentFlags(), "otel", cmd.Use)
+	releases.RegisterFlags(cmd.PersistentFlags())
 }
 
 func NewRootCommand(programName string) *cobra.Command {
