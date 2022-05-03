@@ -116,6 +116,13 @@ func resetExecution(ctx context.Context, conn conn, tx pgx.Tx, txOptions pgx.TxO
 }
 
 func resetable(ctx context.Context, err error) bool {
+	if err == nil {
+		return false
+	}
+	// detect when a cockroach node is taken out of service
+	if strings.Contains(err.Error(), "broken pipe") {
+		return true
+	}
 	sqlState := sqlErrorCode(ctx, err)
 	// Ambiguous result error includes connection closed errors
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
