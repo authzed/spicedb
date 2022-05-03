@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -59,9 +58,8 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	setting, found := detectEmulatorSetting()
-	if found {
-		os.Setenv("SPANNER_EMULATOR_HOST", setting)
+	if len(config.emulatorHost) > 0 {
+		os.Setenv("SPANNER_EMULATOR_HOST", config.emulatorHost)
 	}
 
 	config.gcInterval = common.WithJitter(0.2, config.gcInterval)
@@ -110,7 +108,7 @@ func (sd spannerDatastore) IsReady(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
 
-	currentRevision, err := migrations.NewSpannerDriver(sd.client.DatabaseName(), sd.config.credentialsFilePath)
+	currentRevision, err := migrations.NewSpannerDriver(sd.client.DatabaseName(), sd.config.credentialsFilePath, sd.config.emulatorHost)
 	if err != nil {
 		return false, err
 	}
@@ -141,16 +139,4 @@ func statementFromSQL(sql string, args []interface{}) spanner.Statement {
 		SQL:    sql,
 		Params: params,
 	}
-}
-
-func detectEmulatorSetting() (string, bool) {
-	for _, env := range os.Environ() {
-		varPair := strings.SplitN(env, "=", 2)
-		key := varPair[0]
-		value := varPair[1]
-		if strings.Contains(key, "SPANNER_EMULATOR_HOST") && len(value) > 0 {
-			return value, true
-		}
-	}
-	return "", false
 }
