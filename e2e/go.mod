@@ -5,14 +5,14 @@ go 1.18
 require (
 	github.com/authzed/authzed-go v0.5.1-0.20220303182356-243e79ca06fa
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
-	github.com/authzed/spicedb v1.5.0
-	github.com/brianvoe/gofakeit/v6 v6.15.0
+	github.com/authzed/spicedb v1.7.1
+	github.com/brianvoe/gofakeit/v6 v6.16.0
 	github.com/ecordell/optgen v0.0.6
-	github.com/jackc/pgtype v1.10.0
-	github.com/jackc/pgx/v4 v4.15.0
+	github.com/jackc/pgtype v1.11.0
+	github.com/jackc/pgx/v4 v4.16.0
 	github.com/stretchr/testify v1.7.1
 	golang.org/x/tools v0.1.10
-	google.golang.org/grpc v1.45.0
+	google.golang.org/grpc v1.46.0
 	mvdan.cc/gofumpt v0.3.1
 )
 
@@ -27,10 +27,10 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.10.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.11.0 // indirect
+	github.com/jackc/pgconn v1.12.0 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.2.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

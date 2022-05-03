@@ -1,5 +1,5 @@
 # vim: syntax=dockerfile
 FROM gcr.io/distroless/base
-COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.6 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe
+COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.11 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe
 COPY spicedb /usr/local/bin/spicedb
 ENTRYPOINT ["spicedb"]
