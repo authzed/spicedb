@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -173,12 +174,10 @@ func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (new
 	return uint64(lastInsertID), nil
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func revisionFromTransaction(txID uint64) datastore.Revision {
-	return decimal.NewFromInt(int64(txID))
+	return decimal.NewFromBigInt(new(big.Int).SetUint64(txID), 0)
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func transactionFromRevision(revision datastore.Revision) uint64 {
-	return uint64(revision.IntPart())
+	return revision.BigInt().Uint64()
 }
