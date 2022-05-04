@@ -186,10 +186,6 @@ func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
-func (cds *crdbDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
-	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
-}
-
 func (cds *crdbDatastore) Close() error {
 	cds.conn.Close()
 	return nil

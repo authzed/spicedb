@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var (
@@ -31,15 +32,11 @@ func TestSnapshotNamespaceCaching(t *testing.T) {
 	dsMock.On("SnapshotReader", one).Return(oneReader)
 	oneReader.On("ReadNamespace", nsA).Return(nil, old, nil).Once()
 	oneReader.On("ReadNamespace", nsB).Return(nil, zero, nil).Once()
-	oneReader.On("NamespaceCacheKey", nsA).Return("nsA@1", nil)
-	oneReader.On("NamespaceCacheKey", nsB).Return("nsB@1", nil)
 
 	twoReader := &proxy_test.MockReader{}
 	dsMock.On("SnapshotReader", two).Return(twoReader)
 	twoReader.On("ReadNamespace", nsA).Return(nil, zero, nil).Once()
 	twoReader.On("ReadNamespace", nsB).Return(nil, one, nil).Once()
-	twoReader.On("NamespaceCacheKey", nsA).Return("nsA@2", nil)
-	twoReader.On("NamespaceCacheKey", nsB).Return("nsB@2", nil)
 
 	require := require.New(t)
 	ctx := context.Background()
@@ -127,7 +124,6 @@ func TestSingleFlight(t *testing.T) {
 		WaitUntil(time.After(10*time.Millisecond)).
 		Return(nil, old, nil).
 		Once()
-	oneReader.On("NamespaceCacheKey", nsA).Return("nsA@1", nil)
 
 	require := require.New(t)
 	ctx := context.Background()

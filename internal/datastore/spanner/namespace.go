@@ -137,7 +137,3 @@ func readAllNamespaces(iter *spanner.RowIterator) ([]*core.NamespaceDefinition, 
 
 	return allNamespaces, nil
 }
-
-func (sd spannerDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
-	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
-}
