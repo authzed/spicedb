@@ -43,6 +43,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
+		to.SpannerEmulatorHost = c.SpannerEmulatorHost
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
 	}
@@ -242,6 +243,13 @@ func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
 	return func(c *Config) {
 		c.SpannerCredentialsFile = spannerCredentialsFile
+	}
+}
+
+// WithSpannerEmulatorHost returns an option that can set SpannerEmulatorHost on a Config
+func WithSpannerEmulatorHost(spannerEmulatorHost string) ConfigOption {
+	return func(c *Config) {
+		c.SpannerEmulatorHost = spannerEmulatorHost
 	}
 }
 

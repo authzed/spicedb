@@ -21,6 +21,7 @@ func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-engine", "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	cmd.Flags().String("datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().String("datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
+	cmd.Flags().String("datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().String("datastore-mysql-table-prefix", "", "prefix to add to the name of all mysql database tables")
 }
 
@@ -65,7 +66,11 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 
 		credFile := cobrautil.MustGetStringExpanded(cmd, "datastore-spanner-credentials")
 		var err error
-		migrationDriver, err = spannermigrations.NewSpannerDriver(dbURL, credFile)
+		emulatorHost, err := cmd.Flags().GetString("datastore-spanner-emulator-host")
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to get spanner emulator host")
+		}
+		migrationDriver, err = spannermigrations.NewSpannerDriver(dbURL, credFile, emulatorHost)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}

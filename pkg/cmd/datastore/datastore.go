@@ -77,6 +77,7 @@ type Config struct {
 
 	// Spanner
 	SpannerCredentialsFile string
+	SpannerEmulatorHost    string
 
 	// MySQL
 	TablePrefix string
@@ -113,6 +114,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
+	cmd.Flags().StringVar(&opts.SpannerEmulatorHost, "datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-mysql-table-prefix", "", "prefix to add to the name of all SpiceDB database tables")
 
 	cmd.Flags().DurationVar(&opts.LegacyFuzzing, "datastore-revision-fuzzing-duration", -1, "amount of time to advertize stale revisions")
@@ -251,6 +253,7 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.GCWindow(opts.GCWindow),
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
+		spanner.EmulatorHost(opts.SpannerEmulatorHost),
 	)
 }
 
