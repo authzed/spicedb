@@ -12,43 +12,49 @@ import (
 	"github.com/authzed/spicedb/internal/datastore"
 )
 
-// querySelectRevision will round the database's timestamp down to the nearest
-// quantization period, and then find the first transaction after that. If there
-// are no transactions newer than the quantization period, it just picks the latest
-// transaction. It will also return the amount of nanoseconds until the next
-// optimized revision would be selected server-side, for use with caching.
-//
-//   %[1] Name of id column
-//   %[2] Relationship tuple transaction table
-//   %[3] Name of timestamp column
-//   %[4] Quantization period (in nanoseconds)
-const querySelectRevision = `SELECT COALESCE((
-  SELECT MIN(%[1]s)
-  FROM   %[2]s
-  WHERE  %[3]s >= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 / %[4]d) * %[4]d / 1000000000)
-), (
-  SELECT MAX(%[1]s)
-  FROM   %[2]s
-)) as revision,
-%[4]d - CAST(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 AS UNSIGNED INTEGER) %% %[4]d as validForNanos;`
+const (
+	errRevision      = "unable to find revision: %w"
+	errCheckRevision = "unable to check revision: %w"
 
-// queryValidTransaction will return a single row with two values, one boolean
-// for whether the specified transaction ID is newer than the garbage collection
-// window, and one boolean for whether the transaction ID represents a transaction
-// that will occur in the future.
-//
-//   %[1] Name of id column
-//   %[2] Relationship tuple transaction table
-//   %[3] Name of timestamp column
-//   %[4] Inverse of GC window (in seconds)
-const queryValidTransaction = `SELECT ? >= (
-  SELECT MIN(%[1]s)
-  FROM   %[2]s
-  WHERE  %[3]s >= TIMESTAMPADD(SECOND, %.6[4]f, UTC_TIMESTAMP(6))
-) as fresh, ? > (
-  SELECT MAX(%[1]s)
-  FROM   %[2]s
-) as future;`
+	// querySelectRevision will round the database's timestamp down to the nearest
+	// quantization period, and then find the first transaction after that. If there
+	// are no transactions newer than the quantization period, it just picks the latest
+	// transaction. It will also return the amount of nanoseconds until the next
+	// optimized revision would be selected server-side, for use with caching.
+	//
+	//   %[1] Name of id column
+	//   %[2] Relationship tuple transaction table
+	//   %[3] Name of timestamp column
+	//   %[4] Quantization period (in nanoseconds)
+	querySelectRevision = `SELECT COALESCE((
+			SELECT MIN(%[1]s)
+			FROM   %[2]s
+			WHERE  %[3]s >= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 / %[4]d) * %[4]d / 1000000000)
+		), (
+			SELECT MAX(%[1]s)
+			FROM   %[2]s
+		)) as revision,
+		%[4]d - CAST(UNIX_TIMESTAMP(UTC_TIMESTAMP(6)) * 1000000000 AS UNSIGNED INTEGER) %% %[4]d as validForNanos;`
+
+	// queryValidTransaction will return a single row with two values, one boolean
+	// for whether the specified transaction ID is newer than the garbage collection
+	// window, and one boolean for whether the transaction ID represents a transaction
+	// that will occur in the future.
+	//
+	//   %[1] Name of id column
+	//   %[2] Relationship tuple transaction table
+	//   %[3] Name of timestamp column
+	//   %[4] Inverse of GC window (in seconds)
+	queryValidTransaction = `
+		SELECT ? >= (
+			SELECT MIN(%[1]s)
+			FROM   %[2]s
+			WHERE  %[3]s >= TIMESTAMPADD(SECOND, %.6[4]f, UTC_TIMESTAMP(6))
+		) as fresh, ? > (
+			SELECT MAX(%[1]s)
+			FROM   %[2]s
+		) as future;`
+)
 
 func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	var revision uint64

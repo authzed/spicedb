@@ -21,6 +21,11 @@ const (
 	// are no transactions newer than the quantization period, it just picks the latest
 	// transaction. It will also return the amount of nanoseconds until the next
 	// optimized revision would be selected server-side, for use with caching.
+	//
+	//   %[1] Name of id column
+	//   %[2] Relationship tuple transaction table
+	//   %[3] Name of timestamp column
+	//   %[4] Quantization period (in nanoseconds)
 	querySelectRevision = `
 	SELECT COALESCE(
 		(SELECT MIN(%[1]s) FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 / %[4]d) * %[4]d / 1000000000)),
@@ -32,13 +37,17 @@ const (
 	// for whether the specified transaction ID is newer than the garbage collection
 	// window, and one boolean for whether the transaction ID represents a transaction
 	// that will occur in the future.
+	//
+	//   %[1] Name of id column
+	//   %[2] Relationship tuple transaction table
+	//   %[3] Name of timestamp column
+	//   %[4] Inverse of GC window (in seconds)
 	queryValidTransaction = `
 	SELECT $1 >= (
 		SELECT MIN(%[1]s) FROM %[2]s WHERE %[3]s >= NOW() - INTERVAL '%[4]f seconds'
 	) as fresh, $1 > (
 		SELECT MAX(%[1]s) FROM %[2]s
-	) as future;
-	`
+	) as future;`
 )
 
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {

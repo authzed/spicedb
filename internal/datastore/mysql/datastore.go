@@ -39,8 +39,6 @@ const (
 	colUsersetObjectID  = "userset_object_id"
 	colUsersetRelation  = "userset_relation"
 
-	errRevision             = "unable to find revision: %w"
-	errCheckRevision        = "unable to check revision: %w"
 	errUnableToInstantiate  = "unable to instantiate datastore: %w"
 	errUnableToQueryTuples  = "unable to query tuples: %w"
 	errUnableToWriteTuples  = "unable to write tuples: %w"
