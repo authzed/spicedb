@@ -11,10 +11,10 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -47,7 +47,7 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 	}
 
 	log.Debug().Str("token", tokenStr).Msg("initializing new upstream for token")
-	ds, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow, 0)
+	ds, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init datastore: %w", err)
 	}

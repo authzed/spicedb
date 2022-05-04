@@ -4,13 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -219,21 +218,22 @@ func TestTypeSystem(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
-			nsm, err := NewCachingNamespaceManager(nil)
+			ctx := context.Background()
+
+			lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				for _, otherNS := range tc.otherNamespaces {
+					if err := rwt.WriteNamespaces(otherNS); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
 			require.NoError(err)
 
-			var lastRevision decimal.Decimal
-			for _, otherNS := range tc.otherNamespaces {
-				var err error
-				lastRevision, err = ds.WriteNamespace(ctx, otherNS)
-				require.NoError(err)
-			}
-
-			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
+			ts, err := BuildNamespaceTypeSystemForDatastore(tc.toCheck, ds.SnapshotReader(lastRevision))
 			require.NoError(err)
 
 			_, terr := ts.Validate(ctx)

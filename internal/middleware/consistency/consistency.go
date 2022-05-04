@@ -16,9 +16,9 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
@@ -288,9 +288,6 @@ func pickBestRevisionV0(ctx context.Context, requested *core.Zookie, ds datastor
 
 func rewriteDatastoreError(ctx context.Context, err error) error {
 	switch {
-	case errors.As(err, &datastore.ErrPreconditionFailed{}):
-		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
-
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
 		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 

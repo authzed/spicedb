@@ -15,8 +15,8 @@ import (
 	adminpb "google.golang.org/genproto/googleapis/spanner/admin/database/v1"
 	"google.golang.org/genproto/googleapis/spanner/admin/instance/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
 )

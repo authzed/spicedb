@@ -9,13 +9,13 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/mysql"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/spanner"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -171,7 +171,7 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 
-		nsDefs, err := ds.ListNamespaces(context.Background(), revision)
+		nsDefs, err := ds.SnapshotReader(revision).ListNamespaces(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
@@ -275,5 +275,5 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 
 func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
-	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow, 0)
+	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow)
 }

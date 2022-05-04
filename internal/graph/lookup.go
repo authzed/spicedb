@@ -24,16 +24,15 @@ import (
 const MaxConcurrentSlowLookupChecks = 10
 
 // NewConcurrentLookup creates and instance of ConcurrentLookup.
-func NewConcurrentLookup(d dispatch.Lookup, c dispatch.Check, nsm namespace.Manager) *ConcurrentLookup {
-	return &ConcurrentLookup{d: d, c: c, nsm: nsm}
+func NewConcurrentLookup(d dispatch.Lookup, c dispatch.Check) *ConcurrentLookup {
+	return &ConcurrentLookup{d: d, c: c}
 }
 
 // ConcurrentLookup exposes a method to perform Lookup requests, and delegates subproblems to the
 // provided dispatch.Lookup instance.
 type ConcurrentLookup struct {
-	d   dispatch.Lookup
-	c   dispatch.Check
-	nsm namespace.Manager
+	d dispatch.Lookup
+	c dispatch.Check
 }
 
 // ValidatedLookupRequest represents a request after it has been validated and parsed for internal
@@ -84,12 +83,12 @@ func (cl *ConcurrentLookup) LookupViaChecks(ctx context.Context, req ValidatedLo
 		return resp.Resp, resp.Err
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
-	it, err := ds.QueryTuples(ctx,
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+	it, err := ds.QueryRelationships(ctx,
 		&v1_proto.RelationshipFilter{
 			ResourceType: req.ObjectRelation.Namespace,
 		},
-		req.Revision)
+	)
 	if err != nil {
 		resp := lookupResultError(req, err, emptyMetadata)
 		return resp.Resp, resp.Err
@@ -196,7 +195,8 @@ func (cl *ConcurrentLookup) lookupInternal(ctx context.Context, req ValidatedLoo
 		objSet.Add(req.Subject)
 	}
 
-	nsdef, typeSystem, err := cl.nsm.ReadNamespaceAndTypes(ctx, req.ObjectRelation.Namespace, req.Revision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+	nsdef, typeSystem, err := namespace.ReadNamespaceAndTypes(ctx, req.ObjectRelation.Namespace, ds)
 	if err != nil {
 		return returnResult(lookupResultError(req, err, emptyMetadata))
 	}
@@ -290,15 +290,14 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 		return returnResult(lookupResultError(req, err, emptyMetadata))
 	}
 
-	ds := datastoremw.MustFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 
 	if isDirectAllowed == namespace.DirectRelationValid {
 		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
 			objects := tuple.NewONRSet()
-			it, err := ds.ReverseQueryTuples(
+			it, err := ds.ReverseQueryRelationships(
 				ctx,
 				tuple.UsersetToSubjectFilter(req.Subject),
-				req.Revision,
 				options.WithResRelation(&options.ResourceRelation{
 					Namespace: req.ObjectRelation.Namespace,
 					Relation:  req.ObjectRelation.Relation,
@@ -335,14 +334,13 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 	if isWildcardAllowed == namespace.PublicSubjectAllowed {
 		requests = append(requests, func(ctx context.Context, resultChan chan<- LookupResult) {
 			objects := tuple.NewONRSet()
-			it, err := ds.ReverseQueryTuples(
+			it, err := ds.ReverseQueryRelationships(
 				ctx,
 				tuple.UsersetToSubjectFilter(&core.ObjectAndRelation{
 					Namespace: req.Subject.Namespace,
 					ObjectId:  tuple.PublicWildcard,
 					Relation:  req.Subject.Relation,
 				}),
-				req.Revision,
 				options.WithResRelation(&options.ResourceRelation{
 					Namespace: req.ObjectRelation.Namespace,
 					Relation:  req.ObjectRelation.Relation,
@@ -435,13 +433,12 @@ func (cl *ConcurrentLookup) lookupDirect(ctx context.Context, req ValidatedLooku
 			objects := tuple.NewONRSet()
 			if len(result.Resp.ResolvedOnrs) > 0 {
 				limit := uint64(req.Limit)
-				it, err := ds.QueryTuples(
+				it, err := ds.QueryRelationships(
 					ctx,
 					&v1_proto.RelationshipFilter{
 						ResourceType:     req.ObjectRelation.Namespace,
 						OptionalRelation: req.ObjectRelation.Relation,
 					},
-					req.Revision,
 					options.SetUsersets(result.Resp.ResolvedOnrs),
 					options.WithLimit(&limit),
 				)
@@ -550,13 +547,15 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req Valid
 	requests := []ReduceableLookupFunc{}
 	namespaces := map[string]bool{}
 
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+
 	for _, directRelation := range tuplesetDirectRelations {
 		_, ok := namespaces[directRelation.Namespace]
 		if ok {
 			continue
 		}
 
-		_, directRelTypeSystem, err := cl.nsm.ReadNamespaceAndTypes(ctx, directRelation.Namespace, req.Revision)
+		_, directRelTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, directRelation.Namespace, ds)
 		if err != nil {
 			return returnResult(lookupResultError(req, err, emptyMetadata))
 		}
@@ -633,15 +632,14 @@ func (cl *ConcurrentLookup) processTupleToUserset(ctx context.Context, req Valid
 			// Perform the tupleset lookup.
 			objects := tuple.NewONRSet()
 			if len(usersets) > 0 {
-				ds := datastoremw.MustFromContext(ctx)
+				ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 				limit := uint64(req.Limit)
-				it, err := ds.QueryTuples(
+				it, err := ds.QueryRelationships(
 					ctx,
 					&v1_proto.RelationshipFilter{
 						ResourceType:     req.ObjectRelation.Namespace,
 						OptionalRelation: ttu.Tupleset.Relation,
 					},
-					req.Revision,
 					options.SetUsersets(usersets),
 					options.WithLimit(&limit),
 				)

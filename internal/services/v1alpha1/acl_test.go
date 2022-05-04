@@ -18,7 +18,7 @@ import (
 )
 
 func TestAttemptWriteRelationshipToPermission(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 	v0client := v0.NewACLServiceClient(conn)

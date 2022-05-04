@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 
 	"github.com/Masterminds/squirrel"
 )

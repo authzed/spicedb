@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/api/iterator"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func (sd spannerDatastore) WriteTuples(ctx context.Context, preconditions []*v1.Precondition, mutations []*v1.RelationshipUpdate) (datastore.Revision, error) {

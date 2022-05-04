@@ -12,9 +12,9 @@ import (
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/encoding/prototext"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -78,30 +78,34 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 		}
 
 		// Load the namespaces and type check.
-		nsm := namespace.NewNonCachingNamespaceManager()
-		for _, nsDef := range nsDefs {
-			ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsDef, nsm, nsDefs, revision)
-			if err != nil {
-				return nil, revision, err
-			}
+		var lnerr error
+		revision, lnerr = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			for _, nsDef := range nsDefs {
+				ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsDef, rwt, nsDefs)
+				if err != nil {
+					return err
+				}
 
-			ctx := dsctx.ContextWithDatastore(context.Background(), ds)
-			vts, terr := ts.Validate(ctx)
-			if terr != nil {
-				return nil, revision, terr
-			}
+				ctx := dsctx.ContextWithDatastore(context.Background(), ds)
+				vts, terr := ts.Validate(ctx)
+				if terr != nil {
+					return terr
+				}
 
-			aerr := namespace.AnnotateNamespace(vts)
-			if aerr != nil {
-				return nil, revision, aerr
-			}
+				aerr := namespace.AnnotateNamespace(vts)
+				if aerr != nil {
+					return aerr
+				}
 
-			log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
-			rev, lnerr := ds.WriteNamespace(context.Background(), nsDef)
-			if lnerr != nil {
-				return nil, revision, fmt.Errorf("error when loading namespace %s: %w", nsDef.Name, lnerr)
+				log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
+				if err := rwt.WriteNamespaces(nsDef); err != nil {
+					return fmt.Errorf("error when loading namespace %s: %w", nsDef.Name, err)
+				}
 			}
-			revision = rev
+			return nil
+		})
+		if lnerr != nil {
+			return nil, revision, lnerr
 		}
 
 		// Load the validation tuples/relationships.
@@ -137,7 +141,9 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 			})
 		}
 
-		wrevision, terr := ds.WriteTuples(context.Background(), nil, updates)
+		wrevision, terr := ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(updates)
+		})
 		if terr != nil {
 			return nil, decimal.Zero, fmt.Errorf("error when loading validation tuples from file %s: %w", filePath, terr)
 		}

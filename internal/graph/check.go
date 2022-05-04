@@ -19,15 +19,14 @@ import (
 )
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
-func NewConcurrentChecker(d dispatch.Check, nsm namespace.Manager) *ConcurrentChecker {
-	return &ConcurrentChecker{d: d, nsm: nsm}
+func NewConcurrentChecker(d dispatch.Check) *ConcurrentChecker {
+	return &ConcurrentChecker{d: d}
 }
 
 // ConcurrentChecker exposes a method to perform Check requests, and delegates subproblems to the
 // provided dispatch.Check instance.
 type ConcurrentChecker struct {
-	d   dispatch.Check
-	nsm namespace.Manager
+	d dispatch.Check
 }
 
 func onrEqual(lhs, rhs *core.ObjectAndRelation) bool {
@@ -82,14 +81,14 @@ func onrEqualOrWildcard(tpl, target *core.ObjectAndRelation) bool {
 func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("direct", req).Send()
-		ds := datastoremw.MustFromContext(ctx)
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 
 		// TODO(jschorr): Use type information to further optimize this query.
-		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   req.ObjectAndRelation.Relation,
-		}, req.Revision)
+		})
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return
@@ -191,7 +190,8 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	err := cc.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, req.Revision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+	err := namespace.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, ds)
 	if err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
 			return notMember()
@@ -213,12 +213,12 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req ValidatedCheckRequest, ttu *core.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
-		ds := datastoremw.MustFromContext(ctx)
-		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   ttu.Tupleset.Relation,
-		}, req.Revision)
+		})
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return

@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 )
 
@@ -138,7 +138,7 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 				return
 			}
 
-			nsDefs, err := ds.ListNamespaces(r.Context(), headRevision)
+			nsDefs, err := ds.SnapshotReader(headRevision).ListNamespaces(r.Context())
 			if err != nil {
 				log.Ctx(r.Context()).Error().AnErr("datastoreError", err).Msg("Got error when trying to load namespaces")
 				fmt.Fprintf(w, "Internal Error")

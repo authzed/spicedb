@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/test"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/test"
 )
 
 func TestSpannerDatastore(t *testing.T) {

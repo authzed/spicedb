@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	yamlv2 "gopkg.in/yaml.v2"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
@@ -31,6 +30,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
@@ -38,7 +38,7 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-var testTimedeltas = []time.Duration{0, 1 * time.Second}
+var testTimedeltas = []time.Duration{1 * time.Second}
 
 func TestConsistency(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
@@ -64,10 +64,10 @@ func TestConsistency(t *testing.T) {
 				t.Run(path.Base(filePath), func(t *testing.T) {
 					for _, dispatcherKind := range []string{"local", "caching"} {
 						t.Run(dispatcherKind, func(t *testing.T) {
-							t.Parallel()
+							// t.Parallel()
 							lrequire := require.New(t)
 
-							ds, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC, 0)
+							ds, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC)
 							require.NoError(t, err)
 
 							fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
@@ -75,15 +75,16 @@ func TestConsistency(t *testing.T) {
 							conn, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
 							t.Cleanup(cleanup)
 
-							ns, err := namespace.NewCachingNamespaceManager(nil)
-							lrequire.NoError(err)
-
 							dsCtx := datastoremw.ContextWithHandle(context.Background())
 							lrequire.NoError(datastoremw.SetInContext(dsCtx, ds))
 
 							// Validate the type system for each namespace.
 							for _, nsDef := range fullyResolved.NamespaceDefinitions {
-								_, ts, err := ns.ReadNamespaceAndTypes(dsCtx, nsDef.Name, revision)
+								_, ts, err := namespace.ReadNamespaceAndTypes(
+									dsCtx,
+									nsDef.Name,
+									ds.SnapshotReader(revision),
+								)
 								lrequire.NoError(err)
 
 								_, err = ts.Validate(dsCtx)
@@ -97,12 +98,12 @@ func TestConsistency(t *testing.T) {
 							}
 
 							// Run the consistency tests for each service.
-							dispatcher := graph.NewLocalOnlyDispatcher(ns)
+							dispatcher := graph.NewLocalOnlyDispatcher()
 							if dispatcherKind == "caching" {
-								cachingDispatcher, err := caching.NewCachingDispatcher(nil, ns, "", &keys.CanonicalKeyHandler{})
+								cachingDispatcher, err := caching.NewCachingDispatcher(nil, "", &keys.CanonicalKeyHandler{})
 								lrequire.NoError(err)
 
-								localDispatcher := graph.NewDispatcher(cachingDispatcher, ns)
+								localDispatcher := graph.NewDispatcher(cachingDispatcher)
 								defer localDispatcher.Close()
 								cachingDispatcher.SetDelegate(localDispatcher)
 								dispatcher = cachingDispatcher

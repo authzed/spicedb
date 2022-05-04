@@ -15,12 +15,11 @@ import (
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/resolver"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
-	"github.com/authzed/spicedb/internal/namespace"
 	hashbalancer "github.com/authzed/spicedb/pkg/balancer"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
@@ -155,10 +154,7 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore) ([
 	cancelFuncs := make([]func(), 0, size)
 
 	for i := uint(0); i < size; i++ {
-		nsm, err := namespace.NewCachingNamespaceManager(nil)
-		require.NoError(t, err)
-
-		dispatcher, err := combineddispatch.NewDispatcher(nsm,
+		dispatcher, err := combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr("test://"+prefix),
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
 			combineddispatch.GrpcDialOpts(
@@ -183,7 +179,6 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore) ([
 		srv, err := server.NewConfigWithOptions(
 			server.WithDatastore(ds),
 			server.WithDispatcher(dispatcher),
-			server.WithNamespaceManager(nsm),
 			server.WithDispatchMaxDepth(50),
 			server.WithGRPCServer(util.GRPCServerConfig{
 				Network: util.BufferedNetwork,

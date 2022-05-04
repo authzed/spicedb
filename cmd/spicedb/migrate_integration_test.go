@@ -16,8 +16,8 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var toSkip = []string{"memory"}

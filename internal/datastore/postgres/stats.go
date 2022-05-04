@@ -6,7 +6,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const (
