@@ -143,13 +143,6 @@ func (vsr validatingSnapshotReader) ReverseQueryRelationships(ctx context.Contex
 	return vsr.delegate.ReverseQueryRelationships(ctx, subjectFilter, opts...)
 }
 
-func (vsr validatingSnapshotReader) NamespaceCacheKey(namespaceName string) (string, error) {
-	if namespaceName == "" {
-		return "", errors.New("NamespaceCacheKey called with empty namespace name")
-	}
-	return vsr.delegate.NamespaceCacheKey(namespaceName)
-}
-
 type validatingReadWriteTransaction struct {
 	validatingSnapshotReader
 	delegate datastore.ReadWriteTransaction

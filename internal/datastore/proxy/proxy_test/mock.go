@@ -132,11 +132,6 @@ func (dm *MockReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
 
-func (dm *MockReader) NamespaceCacheKey(namespaceName string) (string, error) {
-	args := dm.Called(namespaceName)
-	return args.String(0), args.Error(1)
-}
-
 type MockReadWriteTransaction struct {
 	mock.Mock
 }
@@ -198,11 +193,6 @@ func (dm *MockReadWriteTransaction) ReverseQueryRelationships(
 func (dm *MockReadWriteTransaction) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	args := dm.Called()
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
-}
-
-func (dm *MockReadWriteTransaction) NamespaceCacheKey(namespaceName string) (string, error) {
-	args := dm.Called(namespaceName)
-	return args.String(0), args.Error(1)
 }
 
 func (dm *MockReadWriteTransaction) WriteRelationships(mutations []*v1.RelationshipUpdate) error {

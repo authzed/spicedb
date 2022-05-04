@@ -37,7 +37,6 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })
 	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { EmptyNamespaceDeleteTest(t, tester) })
-	t.Run("TestNamespaceCacheKey", func(t *testing.T) { NamespaceCacheKeyTest(t, tester) })
 
 	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
 	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })

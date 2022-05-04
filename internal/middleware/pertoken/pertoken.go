@@ -12,7 +12,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	"github.com/authzed/spicedb/internal/datastore/proxy"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -57,8 +56,7 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 		return nil, fmt.Errorf("failed to load config files: %w", err)
 	}
 
-	prefixedDS := proxy.NewCacheKeyPrefixProxy(ds, "tokenStr")
-	m.datastoreByToken.Store(tokenStr, prefixedDS)
+	m.datastoreByToken.Store(tokenStr, ds)
 
 	return ds, nil
 }

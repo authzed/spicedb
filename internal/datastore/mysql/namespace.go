@@ -24,11 +24,6 @@ const (
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
 
-func (mds *Datastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
-}
-
 func (mds *Datastore) WriteNamespace(ctx context.Context, newNamespace *core.NamespaceDefinition) (datastore.Revision, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx = datastore.SeparateContextWithTracing(ctx)

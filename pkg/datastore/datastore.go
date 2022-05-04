@@ -63,9 +63,6 @@ type Reader interface {
 
 	// ListNamespaces lists all namespaces defined.
 	ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error)
-
-	// NamespaceCacheKey returns a string key for use in a NamespaceManager's cache
-	NamespaceCacheKey(namespaceName string) (string, error)
 }
 
 type ReadWriteTransaction interface {

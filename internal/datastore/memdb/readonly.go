@@ -224,18 +224,6 @@ func (r *memdbReader) lockOrPanic() {
 	}
 }
 
-func (rot *memdbReader) NamespaceCacheKey(namespaceName string) (string, error) {
-	if rot.initErr != nil {
-		return "", rot.initErr
-	}
-
-	if rot.revision.IsZero() {
-		return "", errors.New("unable to call namespace cache key without snapshot")
-	}
-
-	return fmt.Sprintf("%s@%s", namespaceName, rot.revision), nil
-}
-
 func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.ResultIterator, error) {
 	switch {
 	case filter.OptionalResourceId != "":

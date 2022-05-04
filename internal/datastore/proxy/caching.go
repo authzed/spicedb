@@ -77,14 +77,12 @@ func (r *nsCachingReader) ReadNamespace(
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
 	// Check the nsCache.
-	nsRevisionKey, err := r.NamespaceCacheKey(nsName)
-	if err != nil {
-		return nil, datastore.NoRevision, err
-	}
+	nsRevisionKey := fmt.Sprintf("%s@%s", nsName, r.rev)
 
 	loadedRaw, found := r.p.c.Get(nsRevisionKey)
 	if !found {
 		// We couldn't use the cached entry, load one
+		var err error
 		loadedRaw, err, _ = r.p.readNsGroup.Do(nsRevisionKey, func() (interface{}, error) {
 			loaded, updatedRev, err := r.Reader.ReadNamespace(ctx, nsName)
 			if err != nil && !errors.Is(err, &datastore.ErrNamespaceNotFound{}) {
