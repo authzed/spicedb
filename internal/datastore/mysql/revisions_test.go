@@ -5,9 +5,10 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/internal/datastore"
 )
 
 func Test_revisionFromTransaction(t *testing.T) {
@@ -30,8 +31,6 @@ func Test_revisionFromTransaction(t *testing.T) {
 }
 
 func Test_transactionFromRevision(t *testing.T) {
-	type args struct {
-	}
 	tests := []struct {
 		name     string
 		revision datastore.Revision
