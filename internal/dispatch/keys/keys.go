@@ -6,6 +6,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -13,13 +14,13 @@ import (
 // Handler is an interface defining how keys are computed for dispatching and caching.
 type Handler interface {
 	// ComputeCheckKey computes the key for a Check operation.
-	ComputeCheckKey(ctx context.Context, req *v1.DispatchCheckRequest, nsm namespace.Manager) (string, error)
+	ComputeCheckKey(ctx context.Context, req *v1.DispatchCheckRequest) (string, error)
 }
 
 // DirectKeyHandler is a key handler that uses the relation name itself as the key.
 type DirectKeyHandler struct{}
 
-func (d *DirectKeyHandler) ComputeCheckKey(ctx context.Context, req *v1.DispatchCheckRequest, nsm namespace.Manager) (string, error) {
+func (d *DirectKeyHandler) ComputeCheckKey(ctx context.Context, req *v1.DispatchCheckRequest) (string, error) {
 	return dispatch.CheckRequestToKey(req), nil
 }
 
@@ -27,11 +28,7 @@ func (d *DirectKeyHandler) ComputeCheckKey(ctx context.Context, req *v1.Dispatch
 // dispatching.
 type CanonicalKeyHandler struct{}
 
-func (c *CanonicalKeyHandler) ComputeCheckKey(ctx context.Context, req *v1.DispatchCheckRequest, nsm namespace.Manager) (string, error) {
-	if nsm == nil {
-		panic("Got nil namespace manager for CanonicalKeyHandler")
-	}
-
+func (c *CanonicalKeyHandler) ComputeCheckKey(ctx context.Context, req *v1.DispatchCheckRequest) (string, error) {
 	// NOTE: We do not use the canonicalized cache key when checking within the same namespace, as
 	// we may get different results if the subject being checked matches the resource exactly, e.g.
 	// a check for `somenamespace:someobject#somerel@somenamespace:someobject#somerel`.
@@ -42,7 +39,14 @@ func (c *CanonicalKeyHandler) ComputeCheckKey(ctx context.Context, req *v1.Dispa
 			return "", err
 		}
 
-		_, relation, err := nsm.ReadNamespaceAndRelation(ctx, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.Relation, revision)
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision)
+
+		_, relation, err := namespace.ReadNamespaceAndRelation(
+			ctx,
+			req.ObjectAndRelation.Namespace,
+			req.ObjectAndRelation.Relation,
+			ds,
+		)
 		if err != nil {
 			return "", err
 		}

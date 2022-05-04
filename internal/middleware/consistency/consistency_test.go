@@ -16,39 +16,41 @@ import (
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 	"github.com/authzed/spicedb/pkg/zookie"
 )
 
+var (
+	zero      = decimal.NewFromInt(0)
+	optimized = decimal.NewFromInt(100)
+	exact     = decimal.NewFromInt(123)
+	head      = decimal.NewFromInt(145)
+)
+
 func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-
-	databaseRev, err := ds.OptimizedRevision(context.Background())
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
-	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, ds)
+	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, ds)
 	require.NoError(err)
-	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
+	require.Equal(optimized.IntPart(), RevisionFromContext(updated).IntPart())
+	ds.AssertExpectations(t)
 }
 
 func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-
-	databaseRev, err := ds.OptimizedRevision(context.Background())
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
-	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
+	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_MinimizeLatency{
 				MinimizeLatency: true,
@@ -56,20 +58,18 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
+	require.Equal(optimized.IntPart(), RevisionFromContext(updated).IntPart())
+	ds.AssertExpectations(t)
 }
 
 func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-
-	databaseRev, err := ds.HeadRevision(context.Background())
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
+	ds.On("HeadRevision").Return(head, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
-	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
+	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_FullyConsistent{
 				FullyConsistent: true,
@@ -77,119 +77,108 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
+	require.Equal(head.IntPart(), RevisionFromContext(updated).IntPart())
+	ds.AssertExpectations(t)
 }
 
 func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-
-	databaseRev, err := ds.HeadRevision(context.Background())
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
-	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
+	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(decimal.Zero),
+				AtLeastAsFresh: zedtoken.NewFromRevision(exact),
 			},
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
+	require.Equal(exact.IntPart(), RevisionFromContext(updated).IntPart())
+	ds.AssertExpectations(t)
 }
 
 func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-
-	databaseRev, err := ds.HeadRevision(context.Background())
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
+	ds.On("CheckRevision", exact).Return(nil).Times(1)
 
 	updated := ContextWithHandle(context.Background())
-	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
+	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.NewFromRevision(databaseRev),
+				AtExactSnapshot: zedtoken.NewFromRevision(exact),
 			},
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
+	require.Equal(exact.IntPart(), RevisionFromContext(updated).IntPart())
+	ds.AssertExpectations(t)
 }
 
 func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
+	ds.On("CheckRevision", zero).Return(errors.New("bad revision")).Times(1)
 
 	updated := ContextWithHandle(context.Background())
-	err = AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
+	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.NewFromRevision(decimal.Zero),
+				AtExactSnapshot: zedtoken.NewFromRevision(zero),
 			},
 		},
 	}, ds)
 	require.Error(err)
+	ds.AssertExpectations(t)
 }
 
 func TestAddRevisionToContextV0AtRevision(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-
-	databaseRev, err := ds.HeadRevision(context.Background())
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
 
 	updated := ContextWithHandle(context.Background())
 
-	err = AddRevisionToContext(updated, &v0.ReadRequest{AtRevision: core.ToV0Zookie(zookie.NewFromRevision(databaseRev))}, ds)
+	err := AddRevisionToContext(updated, &v0.ReadRequest{AtRevision: core.ToV0Zookie(zookie.NewFromRevision(head))}, ds)
 	require.NoError(err)
-	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
+	require.Equal(head.IntPart(), RevisionFromContext(updated).IntPart())
+	ds.AssertExpectations(t)
 }
 
 func TestAddRevisionToContextV0NoAtRevision(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-
-	databaseRev, err := ds.HeadRevision(context.Background())
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
+	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
-	err = AddRevisionToContext(updated, &v0.ReadRequest{}, ds)
+	err := AddRevisionToContext(updated, &v0.ReadRequest{}, ds)
 	require.NoError(err)
-	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
+	require.Equal(optimized.IntPart(), RevisionFromContext(updated).IntPart())
+	ds.AssertExpectations(t)
 }
 
 func TestAddRevisionToContextAPIAlwaysFullyConsistent(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-
-	databaseRev, err := ds.HeadRevision(context.Background())
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
+	ds.On("HeadRevision").Return(head, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
-	err = AddRevisionToContext(updated, &v1.WriteSchemaRequest{}, ds)
+	err := AddRevisionToContext(updated, &v1.WriteSchemaRequest{}, ds)
 	require.NoError(err)
-	require.Equal(databaseRev.BigInt(), RevisionFromContext(updated).BigInt())
+	require.Equal(head.IntPart(), RevisionFromContext(updated).IntPart())
+	ds.AssertExpectations(t)
 }
 
 func TestConsistencyTestSuite(t *testing.T) {
-	require := require.New(t)
-
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
+	ds := &proxy_test.MockDatastore{}
+	ds.On("HeadRevision").Return(head, nil)
 
 	s := &ConsistencyTestSuite{
 		InterceptorTestSuite: &grpc_testing.InterceptorTestSuite{
@@ -206,6 +195,7 @@ func TestConsistencyTestSuite(t *testing.T) {
 		},
 	}
 	suite.Run(t, s)
+	ds.AssertExpectations(t)
 }
 
 var goodPing = &pb_testproto.PingRequest{Value: "something"}

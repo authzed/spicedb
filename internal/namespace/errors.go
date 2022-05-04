@@ -8,29 +8,6 @@ import (
 	"github.com/authzed/spicedb/internal/sharederrors"
 )
 
-// ErrNamespaceNotFound occurs when a namespace was not found.
-type ErrNamespaceNotFound struct {
-	error
-	namespaceName string
-}
-
-// NotFoundNamespaceName returns the name of the namespace that was not found.
-func (enf ErrNamespaceNotFound) NotFoundNamespaceName() string {
-	return enf.namespaceName
-}
-
-func (enf ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("error", enf.Error()).Str("namespace", enf.namespaceName)
-}
-
-// NewNamespaceNotFoundErr constructs a new namespace not found error.
-func NewNamespaceNotFoundErr(nsName string) error {
-	return ErrNamespaceNotFound{
-		error:         fmt.Errorf("object definition `%s` not found", nsName),
-		namespaceName: nsName,
-	}
-}
-
 // ErrRelationNotFound occurs when a relation was not found under a namespace.
 type ErrRelationNotFound struct {
 	error
@@ -61,7 +38,4 @@ func NewRelationNotFoundErr(nsName string, relationName string) error {
 	}
 }
 
-var (
-	_ sharederrors.UnknownNamespaceError = ErrNamespaceNotFound{}
-	_ sharederrors.UnknownRelationError  = ErrRelationNotFound{}
-)
+var _ sharederrors.UnknownRelationError = ErrRelationNotFound{}

@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
@@ -28,6 +27,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -38,7 +38,6 @@ type aclServer struct {
 	v0.UnimplementedACLServiceServer
 	shared.WithUnaryServiceSpecificInterceptor
 
-	nsm          namespace.Manager
 	dispatch     dispatch.Dispatcher
 	defaultDepth uint32
 }
@@ -51,7 +50,7 @@ const (
 var errInvalidZookie = errors.New("invalid revision requested")
 
 // NewACLServer creates an instance of the ACL server.
-func NewACLServer(nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
+func NewACLServer(dispatch dispatch.Dispatcher, defaultDepth uint32) v0.ACLServiceServer {
 	middleware := []grpc.UnaryServerInterceptor{
 		usagemetrics.UnaryServerInterceptor(),
 		handwrittenvalidation.UnaryServerInterceptor,
@@ -60,7 +59,6 @@ func NewACLServer(nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDe
 	middleware = append(middleware, grpcutil.DefaultUnaryMiddleware...)
 
 	s := &aclServer{
-		nsm:          nsm,
 		dispatch:     dispatch,
 		defaultDepth: defaultDepth,
 		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
@@ -71,15 +69,6 @@ func NewACLServer(nsm namespace.Manager, dispatch dispatch.Dispatcher, defaultDe
 }
 
 func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.WriteResponse, error) {
-	atRevision, _ := consistency.MustRevisionFromContext(ctx)
-
-	for _, mutation := range req.Updates {
-		err := validateTupleWrite(ctx, mutation.Tuple, as.nsm, atRevision)
-		if err != nil {
-			return nil, rewriteACLError(ctx, err)
-		}
-	}
-
 	preconditions := make([]*v1.Precondition, 0, len(req.WriteConditions))
 	for _, cond := range req.WriteConditions {
 		preconditions = append(preconditions, &v1.Precondition{
@@ -93,16 +82,29 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 		mutations = append(mutations, tuple.UpdateToRelationshipUpdate(core.ToCoreRelationTupleUpdate(mut)))
 	}
 
+	ds := datastoremw.MustFromContext(ctx)
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		for _, mutation := range req.Updates {
+			err := validateTupleWrite(ctx, mutation.Tuple, rwt)
+			if err != nil {
+				return err
+			}
+		}
+		err := shared.CheckPreconditions(ctx, rwt, preconditions)
+		if err != nil {
+			return err
+		}
+
+		return rwt.WriteRelationships(mutations)
+	})
+	if err != nil {
+		return nil, rewriteACLError(ctx, err)
+	}
+
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
 		// One request per precondition, and one request for the actual writing of tuples.
 		DispatchCount: uint32(len(preconditions)) + 1,
 	})
-
-	ds := datastoremw.MustFromContext(ctx)
-	revision, err := ds.WriteTuples(ctx, preconditions, mutations)
-	if err != nil {
-		return nil, rewriteACLError(ctx, err)
-	}
 
 	return &v0.WriteResponse{
 		Revision: core.ToV0Zookie(zookie.NewFromRevision(revision)),
@@ -112,6 +114,7 @@ func (as *aclServer) Write(ctx context.Context, req *v0.WriteRequest) (*v0.Write
 func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadResponse, error) {
 	atRevision, _ := consistency.MustRevisionFromContext(ctx)
 	ds := datastoremw.MustFromContext(ctx)
+	reader := ds.SnapshotReader(atRevision)
 
 	errG, groupCtx := errgroup.WithContext(ctx)
 	for _, tuplesetFilter := range req.Tuplesets {
@@ -134,12 +137,12 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 							"relation filter specified but not relation provided.",
 						)
 					}
-					if err := as.nsm.CheckNamespaceAndRelation(
+					if err := namespace.CheckNamespaceAndRelation(
 						groupCtx,
 						tuplesetFilter.Namespace,
 						tuplesetFilter.Relation,
 						false, // Disallow ellipsis
-						atRevision,
+						reader,
 					); err != nil {
 						return err
 					}
@@ -161,12 +164,12 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 			}
 
 			if !checkedRelation {
-				if err := as.nsm.CheckNamespaceAndRelation(
+				if err := namespace.CheckNamespaceAndRelation(
 					groupCtx,
 					tuplesetFilter.Namespace,
 					datastore.Ellipsis,
 					true, // Allow ellipsis
-					atRevision,
+					reader,
 				); err != nil {
 					return err
 				}
@@ -204,7 +207,7 @@ func (as *aclServer) Read(ctx context.Context, req *v0.ReadRequest) (*v0.ReadRes
 				}
 			}
 
-			tupleIterator, err := ds.QueryTuples(queryCtx, queryFilter, atRevision)
+			tupleIterator, err := reader.QueryRelationships(queryCtx, queryFilter)
 			if err != nil {
 				return err
 			}
@@ -258,24 +261,26 @@ func (as *aclServer) commonCheck(
 	start *core.ObjectAndRelation,
 	goal *core.ObjectAndRelation,
 ) (*v0.CheckResponse, error) {
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
 	errG.Go(func() error {
-		return as.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			start.Namespace,
 			start.Relation,
 			false,
-			atRevision,
+			ds,
 		)
 	})
 	errG.Go(func() error {
-		return as.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			goal.Namespace,
 			goal.Relation,
 			true,
-			atRevision,
+			ds,
 		)
 	})
 	if err := errG.Wait(); err != nil {
@@ -315,8 +320,9 @@ func (as *aclServer) commonCheck(
 
 func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.ExpandResponse, error) {
 	atRevision, _ := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	err := as.nsm.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false, atRevision)
+	err := namespace.CheckNamespaceAndRelation(ctx, req.Userset.Namespace, req.Userset.Relation, false, ds)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -342,13 +348,14 @@ func (as *aclServer) Expand(ctx context.Context, req *v0.ExpandRequest) (*v0.Exp
 
 func (as *aclServer) Lookup(ctx context.Context, req *v0.LookupRequest) (*v0.LookupResponse, error) {
 	atRevision, _ := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	err := as.nsm.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true, atRevision)
+	err := namespace.CheckNamespaceAndRelation(ctx, req.User.Namespace, req.User.Relation, true, ds)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
 
-	err = as.nsm.CheckNamespaceAndRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, false, atRevision)
+	err = namespace.CheckNamespaceAndRelation(ctx, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, false, ds)
 	if err != nil {
 		return nil, rewriteACLError(ctx, err)
 	}
@@ -406,7 +413,7 @@ func rewriteACLError(ctx context.Context, err error) error {
 		fallthrough
 	case errors.As(err, &relNotFoundError):
 		fallthrough
-	case errors.As(err, &datastore.ErrPreconditionFailed{}):
+	case errors.As(err, &shared.ErrPreconditionFailed{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &graph.ErrRequestCanceled{}):
@@ -433,7 +440,7 @@ func rewriteACLError(ctx context.Context, err error) error {
 			return status.Errorf(codes.InvalidArgument, "%s", err)
 		}
 
-		log.Ctx(ctx).Err(err)
+		log.Ctx(ctx).Err(err).Msg("received unexpected error")
 		return err
 	}
 }

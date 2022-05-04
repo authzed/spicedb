@@ -11,8 +11,8 @@ import (
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const (

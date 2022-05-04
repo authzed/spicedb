@@ -12,15 +12,16 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	maingraph "github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/commonerrors"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -38,36 +39,26 @@ type DeveloperErrors struct {
 
 // DevContext holds the various helper types for running the developer calls.
 type DevContext struct {
-	Ctx              context.Context
-	Datastore        datastore.Datastore
-	Revision         decimal.Decimal
-	Namespaces       []*v0.NamespaceDefinition
-	Dispatcher       dispatch.Dispatcher
-	NamespaceManager namespace.Manager
+	Ctx        context.Context
+	Datastore  datastore.Datastore
+	Revision   decimal.Decimal
+	Namespaces []*v0.NamespaceDefinition
+	Dispatcher dispatch.Dispatcher
 }
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
 // the datastore as needed.
 func NewDevContext(ctx context.Context, developerRequestContext *v0.RequestContext) (*DevContext, *DeveloperErrors, error) {
-	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, 0*time.Second, 0*time.Second)
+	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, memdb.DisableGC)
 	if err != nil {
 		return nil, nil, err
 	}
 	ctx = datastoremw.ContextWithDatastore(ctx, ds)
 
-	// Instantiate the namespace manager with *no caching*.
-	nsm := namespace.NewNonCachingNamespaceManager()
-
-	dctx, devErrs, nerr := newDevContextWithDatastore(ctx, developerRequestContext, ds, nsm)
+	dctx, devErrs, nerr := newDevContextWithDatastore(ctx, developerRequestContext, ds)
 	if nerr != nil || devErrs != nil {
-		// If any form of error occurred, immediately close the namespace manager
-		// and datastore.
-		derr := nsm.Close()
-		if err != nil {
-			return nil, nil, derr
-		}
-
-		derr = ds.Close()
+		// If any form of error occurred, immediately close the datastore
+		derr := ds.Close()
 		if err != nil {
 			return nil, nil, derr
 		}
@@ -78,7 +69,7 @@ func NewDevContext(ctx context.Context, developerRequestContext *v0.RequestConte
 	return dctx, nil, nil
 }
 
-func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0.RequestContext, ds datastore.Datastore, nsm namespace.Manager) (*DevContext, *DeveloperErrors, error) {
+func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0.RequestContext, ds datastore.Datastore) (*DevContext, *DeveloperErrors, error) {
 	// Compile the schema and load its namespaces into the datastore.
 	namespaces, devError, err := CompileSchema(developerRequestContext.Schema)
 	if err != nil {
@@ -89,23 +80,29 @@ func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0
 		return nil, &DeveloperErrors{InputErrors: []*v0.DeveloperError{devError}}, nil
 	}
 
-	var currentRevision decimal.Decimal
 	var inputErrors []*v0.DeveloperError
-	inputErrors, currentRevision, err = loadNamespaces(ctx, core.ToV0NamespaceDefinitions(namespaces), nsm, ds)
-	if err != nil || len(inputErrors) > 0 {
-		return nil, &DeveloperErrors{InputErrors: inputErrors}, err
-	}
-
-	// TODO(jschorr): Remove once LegacyNsConfigs is no longer supported in playground.
-	if len(developerRequestContext.LegacyNsConfigs) > 0 {
-		inputErrors, currentRevision, err = loadNamespaces(ctx, developerRequestContext.LegacyNsConfigs, nsm, ds)
+	currentRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		inputErrors, err = loadNamespaces(ctx, core.ToV0NamespaceDefinitions(namespaces), rwt)
 		if err != nil || len(inputErrors) > 0 {
-			return nil, &DeveloperErrors{InputErrors: inputErrors}, err
+			return err
 		}
-	}
 
-	// Load the test relationships into the datastore.
-	revision, inputErrors, err := loadTuples(ctx, developerRequestContext.Relationships, nsm, ds, currentRevision)
+		// TODO(jschorr): Remove once LegacyNsConfigs is no longer supported in playground.
+		if len(developerRequestContext.LegacyNsConfigs) > 0 {
+			inputErrors, err = loadNamespaces(ctx, developerRequestContext.LegacyNsConfigs, rwt)
+			if err != nil || len(inputErrors) > 0 {
+				return err
+			}
+		}
+
+		// Load the test relationships into the datastore.
+		inputErrors, err = loadTuples(ctx, developerRequestContext.Relationships, rwt)
+		if err != nil || len(inputErrors) > 0 {
+			return err
+		}
+
+		return nil
+	})
 	if err != nil || len(inputErrors) > 0 {
 		return nil, &DeveloperErrors{InputErrors: inputErrors}, err
 	}
@@ -119,12 +116,11 @@ func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0
 	}
 
 	return &DevContext{
-		Ctx:              ctx,
-		Datastore:        ds,
-		Namespaces:       core.ToV0NamespaceDefinitions(namespaces),
-		Revision:         revision,
-		Dispatcher:       graph.NewLocalOnlyDispatcher(nsm),
-		NamespaceManager: nsm,
+		Ctx:        ctx,
+		Datastore:  ds,
+		Namespaces: core.ToV0NamespaceDefinitions(namespaces),
+		Revision:   currentRevision,
+		Dispatcher: graph.NewLocalOnlyDispatcher(),
 	}, nil, nil
 }
 
@@ -140,18 +136,13 @@ func (dc *DevContext) Dispose() {
 	if dc.Datastore == nil {
 		return
 	}
-	err := dc.NamespaceManager.Close()
-	if err != nil {
-		log.Ctx(dc.Ctx).Err(err).Msg("error when disposing of namespace manager in devcontext")
-	}
 
-	err = dc.Datastore.Close()
-	if err != nil {
+	if err := dc.Datastore.Close(); err != nil {
 		log.Ctx(dc.Ctx).Err(err).Msg("error when disposing of datastore in devcontext")
 	}
 }
 
-func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.Manager, ds datastore.Datastore, revision decimal.Decimal) (decimal.Decimal, []*v0.DeveloperError, error) {
+func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, rwt datastore.ReadWriteTransaction) ([]*v0.DeveloperError, error) {
 	devErrors := make([]*v0.DeveloperError, 0, len(tuples))
 	updates := make([]*v1.RelationshipUpdate, 0, len(tuples))
 	for _, tpl := range tuples {
@@ -166,7 +157,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 			continue
 		}
 
-		err := validateTupleWrite(ctx, tpl, nsm, revision)
+		err := validateTupleWrite(ctx, tpl, rwt)
 		if err != nil {
 			devErr, wireErr := distinguishGraphError(ctx, err, v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(core.ToCoreRelationTuple(tpl)))
 			if devErr != nil {
@@ -174,7 +165,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 				continue
 			}
 
-			return decimal.NewFromInt(0), devErrors, wireErr
+			return devErrors, wireErr
 		}
 
 		updates = append(updates, &v1.RelationshipUpdate{
@@ -183,18 +174,17 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, nsm namespace.M
 		})
 	}
 
-	revision, err := ds.WriteTuples(ctx, nil, updates)
-	return revision, devErrors, err
+	err := rwt.WriteRelationships(updates)
+
+	return devErrors, err
 }
 
 func loadNamespaces(
 	ctx context.Context,
 	namespaces []*v0.NamespaceDefinition,
-	nsm namespace.Manager,
-	ds datastore.Datastore,
-) ([]*v0.DeveloperError, decimal.Decimal, error) {
+	rwt datastore.ReadWriteTransaction,
+) ([]*v0.DeveloperError, error) {
 	errors := make([]*v0.DeveloperError, 0, len(namespaces))
-	var lastRevision decimal.Decimal
 	for _, nsDef := range namespaces {
 		coreNsDef := core.ToCoreNamespaceDefinition(nsDef)
 		coreNamespaces := core.ToCoreNamespaceDefinitions(namespaces)
@@ -224,10 +214,8 @@ func loadNamespaces(
 
 		_, tverr := ts.Validate(ctx)
 		if tverr == nil {
-			var err error
-			lastRevision, err = ds.WriteNamespace(ctx, coreNsDef)
-			if err != nil {
-				return errors, lastRevision, err
+			if err := rwt.WriteNamespaces(coreNsDef); err != nil {
+				return errors, err
 			}
 			continue
 		}
@@ -252,7 +240,7 @@ func loadNamespaces(
 		}
 	}
 
-	return errors, lastRevision, nil
+	return errors, nil
 }
 
 // DistinguishGraphError turns an error from a dispatch call into either a user-facing
@@ -322,7 +310,7 @@ func rewriteACLError(ctx context.Context, err error) error {
 		fallthrough
 	case errors.As(err, &relNotFoundError):
 		fallthrough
-	case errors.As(err, &datastore.ErrPreconditionFailed{}):
+	case errors.As(err, &shared.ErrPreconditionFailed{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &maingraph.ErrRequestCanceled{}):

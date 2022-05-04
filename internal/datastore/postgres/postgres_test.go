@@ -17,10 +17,10 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/test"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )

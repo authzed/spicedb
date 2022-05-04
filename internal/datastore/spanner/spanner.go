@@ -12,10 +12,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"google.golang.org/api/option"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func init() {

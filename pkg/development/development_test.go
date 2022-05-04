@@ -38,6 +38,6 @@ definition document {
 	}
 
 	adErrs, err := RunAllAssertions(devCtx, assertions)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, adErrs)
 }

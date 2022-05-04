@@ -13,7 +13,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
-	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -27,7 +26,6 @@ const (
 type Dispatcher struct {
 	d          dispatch.Dispatcher
 	c          *ristretto.Cache
-	nsm        namespace.Manager
 	keyHandler keys.Handler
 
 	checkTotalCounter      prometheus.Counter
@@ -58,7 +56,6 @@ var (
 // and caches the responses when possible and desirable.
 func NewCachingDispatcher(
 	cacheConfig *ristretto.Config,
-	nsm namespace.Manager,
 	prometheusSubsystem string,
 	keyHandler keys.Handler,
 ) (*Dispatcher, error) {
@@ -174,7 +171,6 @@ func NewCachingDispatcher(
 
 	return &Dispatcher{
 		d:                      fakeDelegate{},
-		nsm:                    nsm,
 		c:                      cache,
 		keyHandler:             keyHandler,
 		checkTotalCounter:      checkTotalCounter,
@@ -197,7 +193,7 @@ func (cd *Dispatcher) SetDelegate(delegate dispatch.Dispatcher) {
 func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
 
-	requestKey, err := cd.keyHandler.ComputeCheckKey(ctx, req, cd.nsm)
+	requestKey, err := cd.keyHandler.ComputeCheckKey(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{}}, err
 	}

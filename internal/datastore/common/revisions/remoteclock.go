@@ -7,7 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 // RemoteNowFunction queries the datastore to get a current revision.

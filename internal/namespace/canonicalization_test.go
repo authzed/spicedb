@@ -11,7 +11,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -382,15 +381,13 @@ func TestCanonicalization(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
-			nsm, err := NewCachingNamespaceManager(nil)
-			require.NoError(err)
+			ctx := context.Background()
 
 			var lastRevision decimal.Decimal
-			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
+			ts, err := BuildNamespaceTypeSystemForDatastore(tc.toCheck, ds.SnapshotReader(lastRevision))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)
@@ -508,12 +505,10 @@ func TestCanonicalizationComparison(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
-			nsm, err := NewCachingNamespaceManager(nil)
-			require.NoError(err)
+			ctx := context.Background()
 
 			empty := ""
 			schemaText := fmt.Sprintf(comparisonSchemaTemplate, tc.first, tc.second)
@@ -523,7 +518,7 @@ func TestCanonicalizationComparison(t *testing.T) {
 			require.NoError(err)
 
 			var lastRevision decimal.Decimal
-			ts, err := BuildNamespaceTypeSystemForManager(defs[0], nsm, lastRevision)
+			ts, err := BuildNamespaceTypeSystemForDatastore(defs[0], ds.SnapshotReader(lastRevision))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)

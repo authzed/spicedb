@@ -9,12 +9,9 @@ import (
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
-	"github.com/shopspring/decimal"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -24,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -31,12 +29,11 @@ import (
 )
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
-func NewPermissionsServer(nsm namespace.Manager,
+func NewPermissionsServer(
 	dispatch dispatch.Dispatcher,
 	defaultDepth uint32,
 ) v1.PermissionsServiceServer {
 	return &permissionServer{
-		nsm:          nsm,
 		dispatch:     dispatch,
 		defaultDepth: defaultDepth,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
@@ -58,19 +55,18 @@ type permissionServer struct {
 	v1.UnimplementedPermissionsServiceServer
 	shared.WithServiceSpecificInterceptors
 
-	nsm          namespace.Manager
 	dispatch     dispatch.Dispatcher
 	defaultDepth uint32
 }
 
-func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string, revision decimal.Decimal) error {
+func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string, ds datastore.Reader) error {
 	relationToTest := stringz.DefaultEmpty(optionalRelation, datastore.Ellipsis)
 	allowEllipsis := optionalRelation == ""
-	return ps.nsm.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, revision)
+	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, ds)
 }
 
-func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter, revision decimal.Decimal) error {
-	if err := ps.checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, revision); err != nil {
+func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter, ds datastore.Reader) error {
+	if err := ps.checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, ds); err != nil {
 		return err
 	}
 
@@ -79,7 +75,7 @@ func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v
 		if subjectFilter.OptionalRelation != nil {
 			subjectRelation = subjectFilter.OptionalRelation.Relation
 		}
-		if err := ps.checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, revision); err != nil {
+		if err := ps.checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, ds); err != nil {
 			return err
 		}
 	}
@@ -89,10 +85,10 @@ func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
 	ctx := resp.Context()
-	ds := datastoremw.MustFromContext(ctx)
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, atRevision); err != nil {
+	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, ds); err != nil {
 		return rewritePermissionsError(ctx, err)
 	}
 
@@ -100,7 +96,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		DispatchCount: 1,
 	})
 
-	tupleIterator, err := ds.QueryTuples(ctx, req.RelationshipFilter, atRevision)
+	tupleIterator, err := ds.QueryRelationships(ctx, req.RelationshipFilter)
 	if err != nil {
 		return rewritePermissionsError(ctx, err)
 	}
@@ -143,53 +139,48 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 }
 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
-	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 	ds := datastoremw.MustFromContext(ctx)
 
-	errG, groupCtx := errgroup.WithContext(ctx)
-	for _, precond := range req.OptionalPreconditions {
-		// Make a local copy of the loop var to prevent it from changing inside of the closure.
-		precond := precond
-		errG.Go(func() error {
-			return ps.checkFilterNamespaces(groupCtx, precond.Filter, readRevision)
-		})
-	}
-
-	for _, update := range req.Updates {
-		// Make a local copy of the loop var to prevent it from changing inside of the closure.
-		update := update
-		errG.Go(func() error {
-			err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId)
-			if err != nil {
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		for _, precond := range req.OptionalPreconditions {
+			if err := ps.checkFilterNamespaces(ctx, precond.Filter, rwt); err != nil {
+				return err
+			}
+		}
+		for _, update := range req.Updates {
+			if err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId); err != nil {
 				return err
 			}
 
-			err = tuple.ValidateSubjectID(update.Relationship.Subject.Object.ObjectId)
-			if err != nil {
+			if err := tuple.ValidateSubjectID(update.Relationship.Subject.Object.ObjectId); err != nil {
 				return err
 			}
 
-			if err := ps.nsm.CheckNamespaceAndRelation(
-				groupCtx,
+			if err := namespace.CheckNamespaceAndRelation(
+				ctx,
 				update.Relationship.Resource.ObjectType,
 				update.Relationship.Relation,
 				false,
-				readRevision,
+				rwt,
 			); err != nil {
 				return err
 			}
 
-			if err := ps.nsm.CheckNamespaceAndRelation(
-				groupCtx,
+			if err := namespace.CheckNamespaceAndRelation(
+				ctx,
 				update.Relationship.Subject.Object.ObjectType,
 				stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
 				true,
-				readRevision,
+				rwt,
 			); err != nil {
 				return err
 			}
 
-			_, ts, err := ps.nsm.ReadNamespaceAndTypes(groupCtx, update.Relationship.Resource.ObjectType, readRevision)
+			_, ts, err := namespace.ReadNamespaceAndTypes(
+				ctx,
+				update.Relationship.Resource.ObjectType,
+				rwt,
+			)
 			if err != nil {
 				return err
 			}
@@ -237,21 +228,19 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 					)
 				}
 			}
+		}
 
-			return nil
+		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+			// One request per precondition and one request for the actual writes.
+			DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
 		})
-	}
 
-	if err := errG.Wait(); err != nil {
-		return nil, rewritePermissionsError(ctx, err)
-	}
+		if err := shared.CheckPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
+			return err
+		}
 
-	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		// One request per precondition and one request for the actual writes.
-		DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
+		return rwt.WriteRelationships(req.Updates)
 	})
-
-	revision, err := ds.WriteTuples(ctx, req.OptionalPreconditions, req.Updates)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -262,19 +251,24 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 }
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
-	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 	ds := datastoremw.MustFromContext(ctx)
 
-	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, readRevision); err != nil {
-		return nil, rewritePermissionsError(ctx, err)
-	}
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, rwt); err != nil {
+			return err
+		}
 
-	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		// One request per precondition and one request for the actual delete.
-		DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
+		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+			// One request per precondition and one request for the actual delete.
+			DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
+		})
+
+		if err := shared.CheckPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
+			return err
+		}
+
+		return rwt.DeleteRelationships(req.RelationshipFilter)
 	})
-
-	revision, err := ds.DeleteRelationships(ctx, req.OptionalPreconditions, req.RelationshipFilter)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -293,7 +287,7 @@ func rewritePermissionsError(ctx context.Context, err error) error {
 		fallthrough
 	case errors.As(err, &relNotFoundError):
 		fallthrough
-	case errors.As(err, &datastore.ErrPreconditionFailed{}):
+	case errors.As(err, &shared.ErrPreconditionFailed{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &graph.ErrInvalidArgument{}):
@@ -316,7 +310,7 @@ func rewritePermissionsError(ctx context.Context, err error) error {
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 
 	default:
-		log.Ctx(ctx).Err(err)
+		log.Ctx(ctx).Err(err).Msg("received unexpected error")
 		return err
 	}
 }

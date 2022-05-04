@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var queryRelationshipEstimate = fmt.Sprintf("SELECT SUM(%s) FROM %s", colCount, tableCounters)

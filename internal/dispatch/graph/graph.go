@@ -13,10 +13,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
-	"github.com/authzed/spicedb/internal/namespace"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 	graphwalk "github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -33,42 +33,37 @@ var slowLookupCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 }, []string{"prefix"})
 
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
-func NewLocalOnlyDispatcher(
-	nsm namespace.Manager,
-) dispatch.Dispatcher {
-	d := &localDispatcher{nsm: nsm}
+func NewLocalOnlyDispatcher() dispatch.Dispatcher {
+	d := &localDispatcher{}
 
-	d.checker = graph.NewConcurrentChecker(d, nsm)
-	d.expander = graph.NewConcurrentExpander(d, nsm)
-	d.lookupHandler = graph.NewConcurrentLookup(d, d, nsm)
+	d.checker = graph.NewConcurrentChecker(d)
+	d.expander = graph.NewConcurrentExpander(d)
+	d.lookupHandler = graph.NewConcurrentLookup(d, d)
 
 	return d
 }
 
 // NewDispatcher creates a dispatcher that consults with the graph and redispatches subproblems to
 // the provided redispatcher.
-func NewDispatcher(
-	redispatcher dispatch.Dispatcher,
-	nsm namespace.Manager,
-) dispatch.Dispatcher {
-	checker := graph.NewConcurrentChecker(redispatcher, nsm)
-	expander := graph.NewConcurrentExpander(redispatcher, nsm)
-	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, nsm)
+func NewDispatcher(redispatcher dispatch.Dispatcher) dispatch.Dispatcher {
+	checker := graph.NewConcurrentChecker(redispatcher)
+	expander := graph.NewConcurrentExpander(redispatcher)
+	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher)
 
-	return &localDispatcher{checker, expander, lookupHandler, nsm}
+	return &localDispatcher{checker, expander, lookupHandler}
 }
 
 type localDispatcher struct {
 	checker       *graph.ConcurrentChecker
 	expander      *graph.ConcurrentExpander
 	lookupHandler *graph.ConcurrentLookup
-
-	nsm namespace.Manager
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, error) {
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision)
+
 	// Load namespace and relation from the datastore
-	ns, err := ld.nsm.ReadNamespace(ctx, nsName, revision)
+	ns, _, err := ds.ReadNamespace(ctx, nsName)
 	if err != nil {
 		return nil, rewriteError(err)
 	}

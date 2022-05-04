@@ -253,7 +253,7 @@ func TestCheckPermissions(t *testing.T) {
 					tc.subject.OptionalRelation,
 				), func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
@@ -414,7 +414,7 @@ func TestLookupResources(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(func() {
 						goleak.VerifyNone(t, goleak.IgnoreCurrent())
@@ -485,7 +485,7 @@ func TestExpand(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s:%s#%s", tc.startObjectType, tc.startObjectID, tc.startPermission), func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 

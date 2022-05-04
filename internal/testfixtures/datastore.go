@@ -8,8 +8,8 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )

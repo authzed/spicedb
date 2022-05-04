@@ -10,7 +10,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -195,17 +194,14 @@ func TestAliasing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-			require.NoError(err)
-
-			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
-			nsm, err := NewCachingNamespaceManager(nil)
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			var lastRevision decimal.Decimal
-			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
+			ts, err := BuildNamespaceTypeSystemForDatastore(tc.toCheck, ds.SnapshotReader(lastRevision))
 			require.NoError(err)
 
+			ctx := context.Background()
 			vts, terr := ts.Validate(ctx)
 			require.NoError(terr)
 

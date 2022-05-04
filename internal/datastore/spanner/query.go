@@ -6,9 +6,9 @@ import (
 	"cloud.google.com/go/spanner"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 

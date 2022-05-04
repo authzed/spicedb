@@ -17,8 +17,8 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const (
@@ -168,7 +168,7 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 	query SchemaQueryFilterer,
 	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
-) (datastore.TupleIterator, error) {
+) (datastore.RelationshipIterator, error) {
 	ctx, span := tracer.Start(ctx, "SplitAndExecuteQuery")
 	defer span.End()
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
@@ -207,7 +207,7 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 		remainingUsersets = remainingUsersets[upperBound:]
 	}
 
-	iter := datastore.NewSliceTupleIterator(tuples)
+	iter := datastore.NewSliceRelationshipIterator(tuples)
 	runtime.SetFinalizer(iter, datastore.BuildFinalizerFunction())
 	return iter, nil
 }

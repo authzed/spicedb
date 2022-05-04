@@ -19,12 +19,11 @@ import (
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch"
 	clusterdispatch "github.com/authzed/spicedb/internal/dispatch/cluster"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/gateway"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
@@ -32,6 +31,7 @@ import (
 	"github.com/authzed/spicedb/pkg/balancer"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
@@ -55,7 +55,6 @@ type Config struct {
 	Datastore       datastore.Datastore
 
 	// Namespace cache
-	NamespaceManager     namespace.Manager
 	NamespaceCacheConfig CacheConfig
 
 	// Schema options
@@ -127,17 +126,14 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 	}
 
-	nsm := c.NamespaceManager
-	if nsm == nil {
-		nscc, err := c.NamespaceCacheConfig.Complete()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create namespace manager: %w", err)
-		}
+	nscc, err := c.NamespaceCacheConfig.Complete()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
+	}
 
-		nsm, err = namespace.NewCachingNamespaceManager(nscc)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create namespace manager: %w", err)
-		}
+	ds, err = proxy.NewCachingDatastoreProxy(ds, nscc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create namespace caching datastore proxy: %w", err)
 	}
 
 	enableGRPCHistogram()
@@ -155,7 +151,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 			dispatchPresharedKey = c.PresharedKey[0]
 		}
 
-		dispatcher, err = combineddispatch.NewDispatcher(nsm,
+		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
@@ -189,7 +185,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		var err error
 		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
 			dispatcher,
-			nsm,
 			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
 			clusterdispatch.CacheConfig(cdcc),
 		)
@@ -227,7 +222,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
 				server,
-				nsm,
 				dispatcher,
 				c.DispatchMaxDepth,
 				prefixRequiredOption,

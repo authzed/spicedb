@@ -11,9 +11,8 @@ import (
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
-	"github.com/authzed/spicedb/internal/datastore"
 )
 
 const (

@@ -16,7 +16,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -162,15 +161,12 @@ func TestSimpleLookup(t *testing.T) {
 func TestMaxDepthLookup(t *testing.T) {
 	require := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	nsm, err := namespace.NewCachingNamespaceManager(testCacheConfig)
-	require.NoError(err)
-
-	dispatch := NewLocalOnlyDispatcher(nsm)
+	dispatch := NewLocalOnlyDispatcher()
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 

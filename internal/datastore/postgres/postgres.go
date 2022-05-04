@@ -18,10 +18,10 @@ import (
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func init() {

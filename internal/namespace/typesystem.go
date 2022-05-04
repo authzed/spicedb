@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/shopspring/decimal"
-
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/commonerrors"
@@ -54,7 +53,7 @@ type LookupNamespace func(ctx context.Context, name string) (*core.NamespaceDefi
 
 // BuildNamespaceTypeSystemWithFallback constructs a type system view of a namespace definition, with automatic lookup
 // via the additional defs first, and then the namespace manager as a fallback.
-func BuildNamespaceTypeSystemWithFallback(nsDef *core.NamespaceDefinition, manager Manager, additionalDefs []*core.NamespaceDefinition, revision decimal.Decimal) (*TypeSystem, error) {
+func BuildNamespaceTypeSystemWithFallback(nsDef *core.NamespaceDefinition, ds datastore.Reader, additionalDefs []*core.NamespaceDefinition) (*TypeSystem, error) {
 	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, namespaceName string) (*core.NamespaceDefinition, error) {
 		// NOTE: Order is important here: We always check the new definitions before the existing
 		// ones.
@@ -67,16 +66,16 @@ func BuildNamespaceTypeSystemWithFallback(nsDef *core.NamespaceDefinition, manag
 		}
 
 		// Otherwise, check already defined namespaces.
-		otherNamespaceDef, err := manager.ReadNamespace(ctx, namespaceName, revision)
+		otherNamespaceDef, _, err := ds.ReadNamespace(ctx, namespaceName)
 		return otherNamespaceDef, err
 	})
 }
 
-// BuildNamespaceTypeSystemForManager constructs a type system view of a namespace definition, with automatic lookup
-// via the namespace manager.
-func BuildNamespaceTypeSystemForManager(nsDef *core.NamespaceDefinition, manager Manager, revision decimal.Decimal) (*TypeSystem, error) {
+// BuildNamespaceTypeSystemForDatastore constructs a type system view of a namespace definition, with automatic lookup
+// via the datastore reader.
+func BuildNamespaceTypeSystemForDatastore(nsDef *core.NamespaceDefinition, ds datastore.Reader) (*TypeSystem, error) {
 	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*core.NamespaceDefinition, error) {
-		nsDef, err := manager.ReadNamespace(ctx, nsName, revision)
+		nsDef, _, err := ds.ReadNamespace(ctx, nsName)
 		return nsDef, err
 	})
 }

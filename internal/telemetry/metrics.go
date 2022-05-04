@@ -14,8 +14,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 // RegisterTelemetryCollector registers a collector for the various pieces of

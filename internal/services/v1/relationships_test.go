@@ -201,7 +201,7 @@ func TestReadRelationships(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
@@ -254,7 +254,7 @@ func TestReadRelationships(t *testing.T) {
 func TestWriteRelationships(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
@@ -460,7 +460,7 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
-					conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
 					t.Cleanup(cleanup)
 
@@ -781,7 +781,7 @@ func TestDeleteRelationships(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(fmt.Sprintf("fuzz%d/%s", delta/time.Millisecond, tc.name), func(t *testing.T) {
 				require := require.New(t)
-				conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+				conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 				client := v1.NewPermissionsServiceClient(conn)
 				t.Cleanup(cleanup)
 
