@@ -540,10 +540,10 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			require := require.New(t)
-			ctx, cancel := context.WithTimeout(context.Background(), 900*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			ds := testdatastore.RunMySQLForTesting(t, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := NewMySQLDatastore(
 					uri,
 					RevisionQuantization(5*time.Second),
