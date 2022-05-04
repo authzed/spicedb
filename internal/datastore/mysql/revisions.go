@@ -117,7 +117,7 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 		return 0, fmt.Errorf(errRevision, err)
 	}
 
-	var revision sql.NullInt64
+	var revision *uint64
 	err = mds.db.QueryRowContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -125,12 +125,12 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 		}
 		return 0, fmt.Errorf(errRevision, err)
 	}
-	if !revision.Valid {
-		// there are no rows in the relation tuple transaction table
+
+	if revision == nil {
 		return 0, nil
 	}
 
-	return uint64(revision.Int64), nil
+	return *revision, nil
 }
 
 func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint64) (bool, bool, error) {
