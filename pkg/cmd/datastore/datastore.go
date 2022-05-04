@@ -265,8 +265,9 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.ConnMaxIdleTime(opts.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.MaxLifetime),
 		mysql.MaxOpenConns(opts.MaxOpenConns),
-		mysql.RevisionFuzzingTimedelta(opts.RevisionQuantization),
+		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.TablePrefix(opts.TablePrefix),
+		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 	}
 	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
