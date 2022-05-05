@@ -37,10 +37,11 @@ import (
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
 	// API config
-	GRPCServer          util.GRPCServerConfig
-	GRPCAuthFunc        grpc_auth.AuthFunc
-	PresharedKey        []string
-	ShutdownGracePeriod time.Duration
+	GRPCServer             util.GRPCServerConfig
+	GRPCAuthFunc           grpc_auth.AuthFunc
+	PresharedKey           []string
+	ShutdownGracePeriod    time.Duration
+	DisableVersionResponse bool
 
 	// GRPC Gateway config
 	HTTPGateway                    util.HTTPServerConfig
@@ -219,8 +220,9 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	if len(c.UnaryMiddleware) == 0 && len(c.StreamingMiddleware) == 0 {
-		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, dispatcher, ds)
+		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
 	}
+
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
