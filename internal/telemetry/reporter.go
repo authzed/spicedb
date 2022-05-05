@@ -194,7 +194,7 @@ func RemoteReporter(
 						Stringer("next", nextPush).
 						Msg("failed to push telemetry metric")
 				} else {
-					log.Info().
+					log.Debug().
 						Str("endpoint", endpoint).
 						Stringer("next", nextPush).
 						Msg("reported telemetry")
