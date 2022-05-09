@@ -219,7 +219,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.MinOpenConns(opts.MinOpenConns),
 		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
-		crdb.MaxRetries(opts.MaxRetries),
+		crdb.MaxRetries(uint8(opts.MaxRetries)),
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),

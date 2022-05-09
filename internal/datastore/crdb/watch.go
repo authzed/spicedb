@@ -28,7 +28,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 		pendingChanges := make(map[string]*datastore.RevisionChanges)
 
-		changes, err := cds.conn.Query(ctx, interpolated)
+		changes, err := cds.pool.Query(ctx, interpolated)
 		if err != nil {
 			if errors.Is(ctx.Err(), context.Canceled) {
 				errs <- datastore.NewWatchCanceledErr()

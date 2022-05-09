@@ -9,12 +9,12 @@ func newKeySet() keySet {
 }
 
 type overlapKeyer interface {
-	AddKey(keySet keySet, namespace string)
+	addKey(keySet keySet, namespace string)
 }
 
 type keySetAddFunc func(keySet keySet, namespace string)
 
-func (f keySetAddFunc) AddKey(keySet keySet, namespace string) {
+func (f keySetAddFunc) addKey(keySet keySet, namespace string) {
 	f(keySet, namespace)
 }
 
