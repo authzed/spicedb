@@ -3,13 +3,15 @@ package postgres
 import (
 	"context"
 	dbsql "database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
@@ -56,6 +58,9 @@ const (
 	tracingDriverName = "postgres-tracing"
 
 	batchDeleteSize = 1000
+
+	pgSerializationFailure      = "40001"
+	pgUniqueConstraintViolation = "23505"
 )
 
 var (
@@ -164,11 +169,6 @@ func NewPostgresDatastore(
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
-	querySplitter := common.TupleQuerySplitter{
-		Executor:         common.NewPGXExecutor(dbpool, nil),
-		UsersetBatchSize: int(config.splitAtUsersetCount),
-	}
-
 	quantizationPeriodNanos := config.revisionQuantization.Nanoseconds()
 	if quantizationPeriodNanos < 1 {
 		quantizationPeriodNanos = 1
@@ -205,9 +205,11 @@ func NewPostgresDatastore(
 		gcInterval:              config.gcInterval,
 		gcMaxOperationTime:      config.gcMaxOperationTime,
 		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
-		querySplitter:           querySplitter,
+		usersetBatchSize:        config.splitAtUsersetCount,
 		gcCtx:                   gcCtx,
 		cancelGc:                cancelGc,
+		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.Serializable, AccessMode: pgx.ReadOnly},
+		maxRetries:              config.maxRetries,
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
@@ -234,12 +236,93 @@ type pgDatastore struct {
 	gcWindowInverted        time.Duration
 	gcInterval              time.Duration
 	gcMaxOperationTime      time.Duration
-	querySplitter           common.TupleQuerySplitter
+	usersetBatchSize        uint16
 	analyzeBeforeStatistics bool
+	readTxOptions           pgx.TxOptions
+	maxRetries              uint8
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
+}
+
+func (pgd *pgDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+	createTxFunc := func(ctx context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
+		tx, err := pgd.dbpool.BeginTx(ctx, pgd.readTxOptions)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		cleanup := func(ctx context.Context) {
+			if err := tx.Rollback(ctx); err != nil {
+				log.Ctx(ctx).Err(err).Msg("error running transaction cleanup function")
+			}
+		}
+
+		return tx, cleanup, nil
+	}
+
+	querySplitter := common.TupleQuerySplitter{
+		Executor:         common.NewPGXExecutor(createTxFunc),
+		UsersetBatchSize: pgd.usersetBatchSize,
+	}
+
+	return &pgReader{
+		createTxFunc,
+		querySplitter,
+		buildLivingObjectFilterForRevision(rev),
+	}
+}
+
+func noCleanup(context.Context) {}
+
+// ReadWriteTx tarts a read/write transaction, which will be committed if no error is
+// returned and rolled back if an error is returned.
+func (pgd *pgDatastore) ReadWriteTx(
+	ctx context.Context,
+	fn datastore.TxUserFunc,
+) (datastore.Revision, error) {
+	var err error
+	for i := uint8(0); i <= pgd.maxRetries; i++ {
+		var newTxnID uint64
+		err = pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
+			var err error
+			newTxnID, err = createNewTransaction(ctx, tx)
+			if err != nil {
+				return err
+			}
+
+			longLivedTx := func(context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
+				return tx, noCleanup, nil
+			}
+
+			querySplitter := common.TupleQuerySplitter{
+				Executor:         common.NewPGXExecutor(longLivedTx),
+				UsersetBatchSize: pgd.usersetBatchSize,
+			}
+
+			rwt := &pgReadWriteTXN{
+				&pgReader{
+					longLivedTx,
+					querySplitter,
+					currentlyLivingObjects,
+				},
+				ctx,
+				tx,
+				newTxnID,
+			}
+
+			return fn(ctx, rwt)
+		})
+		if err != nil {
+			if errorRetryable(err) {
+				continue
+			}
+			return datastore.NoRevision, err
+		}
+		return revisionFromTransaction(newTxnID), nil
+	}
+	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
 }
 
 func (pgd *pgDatastore) Close() error {
@@ -254,24 +337,17 @@ func (pgd *pgDatastore) Close() error {
 	return nil
 }
 
-func (pgd *pgDatastore) runGarbageCollector() error {
-	log.Info().Dur("interval", pgd.gcInterval).Msg("garbage collection worker started for postgres driver")
-
-	for {
-		select {
-		case <-pgd.gcCtx.Done():
-			log.Info().Msg("shutting down garbage collection worker for postgres driver")
-			return pgd.gcCtx.Err()
-
-		case <-time.After(pgd.gcInterval):
-			err := pgd.collectGarbage()
-			if err != nil {
-				log.Warn().Err(err).Msg("error when attempting to perform garbage collection")
-			} else {
-				log.Debug().Msg("garbage collection completed for postgres")
-			}
-		}
+func errorRetryable(err error) bool {
+	var pgerr *pgconn.PgError
+	if !errors.As(err, &pgerr) {
+		log.Debug().Err(err).Msg("couldn't determine a sqlstate error code")
+		return false
 	}
+
+	// We need to check unique constraint here because some versions of postgres have an error where
+	// unique constraint violations are raised instead of serialization errors.
+	// (e.g. https://www.postgresql.org/message-id/flat/CAGPCyEZG76zjv7S31v_xPeLNRuzj-m%3DY2GOY7PEzu7vhB%3DyQog%40mail.gmail.com)
+	return pgerr.SQLState() == pgSerializationFailure || pgerr.SQLState() == pgUniqueConstraintViolation
 }
 
 func (pgd *pgDatastore) getNow(ctx context.Context) (time.Time, error) {
@@ -294,118 +370,6 @@ func (pgd *pgDatastore) getNow(ctx context.Context) (time.Time, error) {
 	return now, nil
 }
 
-func (pgd *pgDatastore) collectGarbage() error {
-	startTime := time.Now()
-	defer func() {
-		gcDurationHistogram.Observe(time.Since(startTime).Seconds())
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), pgd.gcMaxOperationTime)
-	defer cancel()
-
-	// Ensure the database is ready.
-	ready, err := pgd.IsReady(ctx)
-	if err != nil {
-		return err
-	}
-
-	if !ready {
-		log.Ctx(ctx).Warn().Msg("cannot perform postgres garbage collection: postgres driver is not yet ready")
-		return nil
-	}
-
-	now, err := pgd.getNow(ctx)
-	if err != nil {
-		return err
-	}
-
-	before := now.Add(pgd.gcWindowInverted)
-	log.Ctx(ctx).Debug().Time("before", before).Msg("running postgres garbage collection")
-	_, _, err = pgd.collectGarbageBefore(ctx, before)
-	return err
-}
-
-func (pgd *pgDatastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
-	// Find the highest transaction ID before the GC window.
-	sql, args, err := getRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
-	if err != nil {
-		return 0, 0, err
-	}
-
-	value := pgtype.Int8{}
-	err = pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
-	).Scan(&value)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if value.Status != pgtype.Present {
-		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
-		return 0, 0, nil
-	}
-
-	var highest uint64
-	err = value.AssignTo(&highest)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Msg("retrieved transaction ID for GC")
-
-	return pgd.collectGarbageForTransaction(ctx, highest)
-}
-
-func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
-	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	relCount, err := pgd.batchDelete(ctx, tableTuple, sq.LtOrEq{colDeletedTxn: highest})
-	if err != nil {
-		return 0, 0, err
-	}
-
-	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
-	gcRelationshipsClearedGauge.Set(float64(relCount))
-
-	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
-	// itself to ensure there is always at least one transaction present.
-	transactionCount, err := pgd.batchDelete(ctx, tableTransaction, sq.Lt{colID: highest})
-	if err != nil {
-		return relCount, 0, err
-	}
-
-	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("transactionsDeleted", transactionCount).Msg("deleted stale transactions")
-	gcTransactionsClearedGauge.Set(float64(transactionCount))
-	return relCount, transactionCount, nil
-}
-
-func (pgd *pgDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
-	sql, args, err := psql.Select("id").From(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
-	if err != nil {
-		return -1, err
-	}
-
-	query := fmt.Sprintf(`WITH rows AS (%s)
-		  DELETE FROM %s
-		  WHERE id IN (SELECT id FROM rows);
-	`, sql, tableName)
-
-	var deletedCount int64
-	for {
-		cr, err := pgd.dbpool.Exec(ctx, query, args...)
-		if err != nil {
-			return deletedCount, err
-		}
-
-		rowsDeleted := cr.RowsAffected()
-		deletedCount += rowsDeleted
-		if rowsDeleted < batchDeleteSize {
-			break
-		}
-	}
-
-	return deletedCount, nil
-}
-
 func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
 	if err != nil {
@@ -426,10 +390,18 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
-func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {
-	return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
-		Where(sq.Or{
-			sq.Eq{colDeletedTxn: liveDeletedTxnID},
-			sq.Gt{colDeletedTxn: revision},
-		})
+func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
+	return func(original sq.SelectBuilder) sq.SelectBuilder {
+		return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+			Where(sq.Or{
+				sq.Eq{colDeletedTxn: liveDeletedTxnID},
+				sq.Gt{colDeletedTxn: revision},
+			})
+	}
 }
+
+func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
+	return original.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+}
+
+var _ datastore.Datastore = &pgDatastore{}

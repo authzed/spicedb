@@ -121,14 +121,13 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(ok)
 
-	// Write basic namespaces.
-	_, err = ds.WriteNamespace(ctx, namespace.Namespace(
-		"resource",
-		namespace.Relation("reader", nil),
-	))
-	require.NoError(err)
-
-	writtenAt, err := ds.WriteNamespace(ctx, namespace.Namespace("user"))
+	writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		// Write basic namespaces.
+		return rwt.WriteNamespaces(namespace.Namespace(
+			"resource",
+			namespace.Relation("reader", nil),
+		), namespace.Namespace("user"))
+	})
 	require.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed.
@@ -153,14 +152,12 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	}
 	relationship := tuple.ToRelationship(tpl)
 
-	relWrittenAt, err := ds.WriteTuples(
-		ctx,
-		nil,
-		[]*v1.RelationshipUpdate{{
+	relWrittenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 			Relationship: relationship,
-		}},
-	)
+		}})
+	})
 	require.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
@@ -180,14 +177,12 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.TupleExists(ctx, tpl, relWrittenAt)
 
 	// Overwrite the relationship.
-	relOverwrittenAt, err := ds.WriteTuples(
-		ctx,
-		nil,
-		[]*v1.RelationshipUpdate{{
+	relOverwrittenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
 			Relationship: relationship,
-		}},
-	)
+		}})
+	})
 	require.NoError(err)
 
 	// Run GC at the transaction and ensure the (older copy of the) relationship is removed, as well as 1 transaction (the write).
@@ -206,14 +201,12 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.TupleExists(ctx, tpl, relOverwrittenAt)
 
 	// Delete the relationship.
-	relDeletedAt, err := ds.WriteTuples(
-		ctx,
-		nil,
-		[]*v1.RelationshipUpdate{{
+	relDeletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 			Relationship: relationship,
-		}},
-	)
+		}})
+	})
 	require.NoError(err)
 
 	// Ensure the relationship is gone.
@@ -232,35 +225,17 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Write a the relationship a few times.
-	_, err = ds.WriteTuples(
-		ctx,
-		nil,
-		[]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}},
-	)
-	require.NoError(err)
-
-	_, err = ds.WriteTuples(
-		ctx,
-		nil,
-		[]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}},
-	)
-	require.NoError(err)
-
-	relLastWriteAt, err := ds.WriteTuples(
-		ctx,
-		nil,
-		[]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}},
-	)
-	require.NoError(err)
+	var relLastWriteAt datastore.Revision
+	for i := 0; i < 3; i++ {
+		var err error
+		relLastWriteAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
+				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+				Relationship: relationship,
+			}})
+		})
+		require.NoError(err)
+	}
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
 	// as well as the 2 older write transactions and the older delete transaction.
@@ -322,13 +297,12 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.True(ok)
 
 	// Write basic namespaces.
-	_, err = ds.WriteNamespace(ctx, namespace.Namespace(
-		"resource",
-		namespace.Relation("reader", nil),
-	))
-	require.NoError(err)
-
-	_, err = ds.WriteNamespace(ctx, namespace.Namespace("user"))
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(namespace.Namespace(
+			"resource",
+			namespace.Relation("reader", nil),
+		), namespace.Namespace("user"))
+	})
 	require.NoError(err)
 
 	pds := ds.(*pgDatastore)
@@ -351,14 +325,12 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	}
 	relationship := tuple.ToRelationship(tpl)
 
-	relLastWriteAt, err := ds.WriteTuples(
-		ctx,
-		nil,
-		[]*v1.RelationshipUpdate{{
+	relLastWriteAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
 			Relationship: relationship,
-		}},
-	)
+		}})
+	})
 	require.NoError(err)
 
 	// Run GC and ensure only transactions were removed.
@@ -378,14 +350,12 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Delete the relationship.
-	relDeletedAt, err := ds.WriteTuples(
-		ctx,
-		nil,
-		[]*v1.RelationshipUpdate{{
+	relDeletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
 			Relationship: relationship,
-		}},
-	)
+		}})
+	})
 	require.NoError(err)
 
 	// Run GC and ensure the relationship is removed.
@@ -412,13 +382,12 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.True(ok)
 
 	// Write basic namespaces.
-	_, err = ds.WriteNamespace(ctx, namespace.Namespace(
-		"resource",
-		namespace.Relation("reader", nil),
-	))
-	require.NoError(err)
-
-	_, err = ds.WriteNamespace(ctx, namespace.Namespace("user"))
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(namespace.Namespace(
+			"resource",
+			namespace.Relation("reader", nil),
+		), namespace.Namespace("user"))
+	})
 	require.NoError(err)
 
 	pds := ds.(*pgDatastore)
@@ -451,11 +420,9 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 		})
 	}
 
-	writtenAt, err := ds.WriteTuples(
-		ctx,
-		nil,
-		updates,
-	)
+	writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(updates)
+	})
 	require.NoError(err)
 
 	// Ensure the relationships were written.
@@ -486,11 +453,9 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 		})
 	}
 
-	deletedAt, err := ds.WriteTuples(
-		ctx,
-		nil,
-		deletes,
-	)
+	deletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(deletes)
+	})
 	require.NoError(err)
 
 	// Ensure the relationships were deleted.
@@ -632,15 +597,15 @@ func BenchmarkPostgresQuery(b *testing.B) {
 		return ds
 	})
 	defer ds.Close()
-	_, revision := testfixtures.StandardDatastoreWithData(ds, req)
+	ds, revision := testfixtures.StandardDatastoreWithData(ds, req)
 
 	b.Run("benchmark checks", func(b *testing.B) {
 		require := require.New(b)
 
 		for i := 0; i < b.N; i++ {
-			iter, err := ds.QueryTuples(context.Background(), &v1.RelationshipFilter{
+			iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), &v1.RelationshipFilter{
 				ResourceType: testfixtures.DocumentNS.Name,
-			}, revision)
+			})
 			require.NoError(err)
 
 			defer iter.Close()

@@ -1,10 +1,12 @@
 package migrations
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v4"
 	"github.com/lib/pq"
 )
 
@@ -17,7 +19,7 @@ const postgresMissingTableErrorCode = "42P01"
 //
 // It is compatible with the popular Python library, Alembic
 type AlembicPostgresDriver struct {
-	db *sqlx.DB
+	db *pgx.Conn
 }
 
 // NewAlembicPostgresDriver creates a new driver with active connections to the database specified.
@@ -27,7 +29,7 @@ func NewAlembicPostgresDriver(url string) (*AlembicPostgresDriver, error) {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	db, err := sqlx.Connect("postgres", connectStr)
+	db, err := pgx.Connect(context.Background(), connectStr)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -40,9 +42,9 @@ func NewAlembicPostgresDriver(url string) (*AlembicPostgresDriver, error) {
 func (apd *AlembicPostgresDriver) Version() (string, error) {
 	var loaded string
 
-	if err := apd.db.QueryRowx("SELECT version_num from alembic_version").Scan(&loaded); err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == postgresMissingTableErrorCode {
+	if err := apd.db.QueryRow(context.Background(), "SELECT version_num from alembic_version").Scan(&loaded); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == postgresMissingTableErrorCode {
 			return "", nil
 		}
 		return "", fmt.Errorf("unable to load alembic revision: %w", err)
@@ -54,16 +56,17 @@ func (apd *AlembicPostgresDriver) Version() (string, error) {
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
 func (apd *AlembicPostgresDriver) WriteVersion(version, replaced string) error {
-	result, err := apd.db.Exec("UPDATE alembic_version SET version_num=$1 WHERE version_num=$2", version, replaced)
+	result, err := apd.db.Exec(
+		context.Background(),
+		"UPDATE alembic_version SET version_num=$1 WHERE version_num=$2",
+		version,
+		replaced,
+	)
 	if err != nil {
 		return fmt.Errorf("unable to update version row: %w", err)
 	}
 
-	updatedCount, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("unable to compute number of rows affected: %w", err)
-	}
-
+	updatedCount := result.RowsAffected()
 	if updatedCount != 1 {
 		return fmt.Errorf("writing version update affected %d rows, should be 1", updatedCount)
 	}
@@ -73,5 +76,5 @@ func (apd *AlembicPostgresDriver) WriteVersion(version, replaced string) error {
 
 // Dispose disposes the driver.
 func (apd *AlembicPostgresDriver) Close() error {
-	return apd.db.Close()
+	return apd.db.Close(context.Background())
 }

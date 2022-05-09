@@ -19,6 +19,7 @@ type postgresOptions struct {
 	gcInterval           time.Duration
 	gcMaxOperationTime   time.Duration
 	splitAtUsersetCount  uint16
+	maxRetries           uint8
 
 	enablePrometheusStats   bool
 	analyzeBeforeStatistics bool
@@ -37,6 +38,7 @@ const (
 	defaultQuantization                      = 5 * time.Second
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
+	defaultMaxRetries                        = 10
 )
 
 // Option provides the facility to configure how clients within the
@@ -53,6 +55,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		revisionQuantization:        defaultQuantization,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
+		maxRetries:                  defaultMaxRetries,
 	}
 
 	for _, option := range options {
@@ -186,6 +189,15 @@ func GCInterval(interval time.Duration) Option {
 func GCMaxOperationTime(time time.Duration) Option {
 	return func(po *postgresOptions) {
 		po.gcMaxOperationTime = time
+	}
+}
+
+// MaxRetries is the maximum number of times a retriable transaction will be
+// client-side retried.
+// Default: 10
+func MaxRetries(maxRetries uint8) Option {
+	return func(po *postgresOptions) {
+		po.maxRetries = maxRetries
 	}
 }
 

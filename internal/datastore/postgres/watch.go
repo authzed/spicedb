@@ -113,6 +113,7 @@ func (pgd *pgDatastore) loadChanges(
 		}
 		return
 	}
+	defer rows.Close()
 
 	stagedChanges := common.NewChanges()
 

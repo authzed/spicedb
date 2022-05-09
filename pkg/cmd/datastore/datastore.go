@@ -241,6 +241,7 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.EnableTracing(),
 		postgres.WatchBufferLength(opts.WatchBufferLength),
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		postgres.MaxRetries(uint8(opts.MaxRetries)),
 	}
 	return postgres.NewPostgresDatastore(opts.URI, pgOpts...)
 }
