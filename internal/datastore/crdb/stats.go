@@ -9,6 +9,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
@@ -33,30 +34,31 @@ var (
 func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
-	tx, err := cds.conn.Begin(ctx)
-	if err != nil {
-		return datastore.Stats{}, fmt.Errorf("unable to establish transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
 	sql, args, err := queryReadUniqueID.ToSql()
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to prepare unique ID sql: %w", err)
 	}
 
 	var uniqueID string
-	if err := tx.QueryRow(ctx, sql, args...).Scan(&uniqueID); err != nil {
-		return datastore.Stats{}, fmt.Errorf("unable to query unique ID: %w", err)
-	}
-
+	var nsDefs []*corev1.NamespaceDefinition
 	var relCount uint64
-	if err := tx.QueryRow(ctx, queryRelationshipEstimate).Scan(&relCount); err != nil {
-		return datastore.Stats{}, fmt.Errorf("unable to read relationship count: %w", err)
-	}
+	if err := cds.pool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, sql, args...).Scan(&uniqueID); err != nil {
+			return fmt.Errorf("unable to query unique ID: %w", err)
+		}
 
-	nsDefs, err := loadAllNamespaces(ctx, tx)
-	if err != nil {
-		return datastore.Stats{}, fmt.Errorf("unable to read namespaces: %w", err)
+		if err := tx.QueryRow(ctx, queryRelationshipEstimate).Scan(&relCount); err != nil {
+			return fmt.Errorf("unable to read relationship count: %w", err)
+		}
+
+		nsDefs, err = loadAllNamespaces(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("unable to read namespaces: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return datastore.Stats{}, err
 	}
 
 	return datastore.Stats{
@@ -66,21 +68,21 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 	}, nil
 }
 
-func updateCounter(ctx context.Context, tx pgx.Tx, change int64) (decimal.Decimal, error) {
+func updateCounter(ctx context.Context, tx pgx.Tx, change int64) (datastore.Revision, error) {
 	counterID := make([]byte, 2)
 	_, err := rand.Read(counterID)
 	if err != nil {
-		return decimal.Zero, fmt.Errorf("unable to select random counter: %w", err)
+		return datastore.NoRevision, fmt.Errorf("unable to select random counter: %w", err)
 	}
 
 	sql, args, err := upsertCounterQuery.Values(counterID, change).ToSql()
 	if err != nil {
-		return decimal.Zero, fmt.Errorf("unable to prepare upsert counter sql: %w", err)
+		return datastore.NoRevision, fmt.Errorf("unable to prepare upsert counter sql: %w", err)
 	}
 
 	var timestamp decimal.Decimal
 	if err := tx.QueryRow(ctx, sql, args...).Scan(&timestamp); err != nil {
-		return decimal.Zero, fmt.Errorf("unable to executed upsert counter query: %w", err)
+		return datastore.NoRevision, fmt.Errorf("unable to executed upsert counter query: %w", err)
 	}
 
 	return timestamp, nil

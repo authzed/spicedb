@@ -35,7 +35,7 @@ func TestCRDBDatastore(t *testing.T) {
 	}))
 }
 
-func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
+func CRDBDatastoreWithFollowerReadsTest(t *testing.T, ds datastore.Datastore) {
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 
@@ -67,6 +67,8 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 			// Revisions should be at least the follower read delay amount in the past
 			for start := time.Now(); time.Since(start) < 50*time.Millisecond; {
 				testRevision, err := ds.OptimizedRevision(ctx)
+				require.NoError(err)
+
 				nowRevision, err := ds.HeadRevision(ctx)
 				require.NoError(err)
 
