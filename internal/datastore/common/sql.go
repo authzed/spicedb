@@ -9,7 +9,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -158,7 +157,7 @@ func (sqf SchemaQueryFilterer) limit(limit uint64) SchemaQueryFilterer {
 // TupleQuerySplitter is a tuple query runner shared by SQL implementations of the datastore.
 type TupleQuerySplitter struct {
 	Executor         ExecuteQueryFunc
-	UsersetBatchSize int
+	UsersetBatchSize uint16
 }
 
 // SplitAndExecuteQuery is used to split up the usersets in a very large query and execute
@@ -166,7 +165,6 @@ type TupleQuerySplitter struct {
 func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 	ctx context.Context,
 	query SchemaQueryFilterer,
-	revision datastore.Revision,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
 	ctx, span := tracer.Start(ctx, "SplitAndExecuteQuery")
@@ -181,7 +179,7 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 
 	remainingUsersets := queryOpts.Usersets
 	for remaining := 1; remaining > 0; remaining = len(remainingUsersets) {
-		upperBound := len(remainingUsersets)
+		upperBound := uint16(len(remainingUsersets))
 		if upperBound > tqs.UsersetBatchSize {
 			upperBound = tqs.UsersetBatchSize
 		}
@@ -194,7 +192,7 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 			return nil, err
 		}
 
-		queryTuples, err := tqs.Executor(ctx, revision, sql, args)
+		queryTuples, err := tqs.Executor(ctx, sql, args)
 		if err != nil {
 			return nil, err
 		}
@@ -213,34 +211,29 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 }
 
 // ExecuteQueryFunc is a function that can be used to execute a single rendered SQL query.
-type ExecuteQueryFunc func(ctx context.Context, revision datastore.Revision, sql string, args []interface{}) ([]*core.RelationTuple, error)
+type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error)
 
-// TransactionPreparer is a function provided by the datastore to prepare the transaction before
-// the tuple query is run.
-type TransactionPreparer func(ctx context.Context, tx pgx.Tx, revision datastore.Revision) error
+// TxCleanupFunc is a function that should be executed when the caller of
+// TransactionFactory is done with the transaction.
+type TxCleanupFunc func(context.Context)
 
-func NewPGXExecutor(conn *pgxpool.Pool, prepTxn TransactionPreparer) ExecuteQueryFunc {
-	return func(ctx context.Context, revision datastore.Revision, sql string, args []interface{}) ([]*core.RelationTuple, error) {
+// TxFactory returns a transaction, cleanup function, and any errors that may have
+// occurred when building the transaction.
+type TxFactory func(context.Context) (pgx.Tx, TxCleanupFunc, error)
+
+func NewPGXExecutor(txSource TxFactory) ExecuteQueryFunc {
+	return func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error) {
 		ctx = datastore.SeparateContextWithTracing(ctx)
 
 		span := trace.SpanFromContext(ctx)
 
-		tx, err := conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+		tx, txCleanup, err := txSource(ctx)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
-		defer tx.Rollback(ctx)
+		defer txCleanup(ctx)
 
 		span.AddEvent("DB transaction established")
-
-		if prepTxn != nil {
-			err = prepTxn(ctx, tx, revision)
-			if err != nil {
-				return nil, fmt.Errorf(errUnableToQueryTuples, err)
-			}
-
-			span.AddEvent("Transaction prepared")
-		}
 
 		rows, err := tx.Query(ctx, sql, args...)
 		if err != nil {
