@@ -64,6 +64,28 @@ var (
 	getNow = sb.Select("UTC_TIMESTAMP(6)")
 
 	sb = sq.StatementBuilder.PlaceholderFormat(sq.Question)
+
+	gcDurationHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "mysql_gc_duration",
+		Help:      "mysql garbage collection duration distribution in seconds.",
+		Buckets:   []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
+	})
+
+	gcRelationshipsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "mysql_relationships_cleared",
+		Help:      "number of relationships cleared by mysql garbage collection.",
+	})
+
+	gcTransactionsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "mysql_transactions_cleared",
+		Help:      "number of transactions cleared by mysql garbage collection.",
+	})
 )
 
 func init() {
@@ -99,6 +121,18 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 		db = sql.OpenDB(connector)
 		collector := sqlstats.NewStatsCollector("spicedb", db)
 		err := prometheus.Register(collector)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		err = prometheus.Register(gcDurationHistogram)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		err = prometheus.Register(gcRelationshipsClearedGauge)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		err = prometheus.Register(gcTransactionsClearedGauge)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
@@ -340,10 +374,14 @@ func (mds *Datastore) getNow(ctx context.Context) (time.Time, error) {
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-// - this implementation does not have metrics yet
 // - an additional useful logging message is added
 // - context is removed from logger because zerolog expects logger in the context
 func (mds *Datastore) collectGarbage() error {
+	startTime := time.Now()
+	defer func() {
+		gcDurationHistogram.Observe(time.Since(startTime).Seconds())
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), mds.gcMaxOperationTime)
 	defer cancel()
 
@@ -399,7 +437,6 @@ func (mds *Datastore) collectGarbageBefore(ctx context.Context, before time.Time
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-// - implementation misses metrics
 func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	relCount, err := mds.batchDelete(ctx, mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: highest})
@@ -408,6 +445,7 @@ func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest 
 	}
 
 	log.Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
+	gcRelationshipsClearedGauge.Set(float64(relCount))
 
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
 	// itself to ensure there is always at least one transaction present.
@@ -417,6 +455,7 @@ func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest 
 	}
 
 	log.Trace().Uint64("highestTransactionId", highest).Int64("transactionsDeleted", transactionCount).Msg("deleted stale transactions")
+	gcTransactionsClearedGauge.Set(float64(transactionCount))
 	return relCount, transactionCount, nil
 }
 
