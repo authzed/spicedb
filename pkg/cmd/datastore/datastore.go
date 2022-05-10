@@ -110,7 +110,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	cmd.Flags().DurationVar(&opts.FollowerReadDelay, "datastore-follower-read-delay-duration", 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
 	cmd.Flags().Uint16Var(&opts.SplitQueryCount, "datastore-query-userset-batch-size", 1024, "number of usersets after which a relationship query will be split into multiple queries")
-	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 50, "number of times a retriable transaction should be retried (cockroach driver only)")
+	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 10, "number of times a retriable transaction should be retried")
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
