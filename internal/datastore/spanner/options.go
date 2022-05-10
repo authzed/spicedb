@@ -12,7 +12,6 @@ type spannerOptions struct {
 	maxRevisionStalenessPercent float64
 	gcWindow                    time.Duration
 	gcInterval                  time.Duration
-	maxRetries                  int
 	credentialsFilePath         string
 	emulatorHost                string
 }
@@ -26,8 +25,6 @@ const (
 	defaultWatchBufferLength           = 128
 	defaultGCWindow                    = 60 * time.Minute
 	defaultGCInterval                  = 3 * time.Minute
-
-	defaultMaxRetries = 50
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -42,7 +39,6 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
-		maxRetries:                  defaultMaxRetries,
 	}
 
 	for _, option := range options {
@@ -117,15 +113,6 @@ func GCWindow(window time.Duration) Option {
 func GCInterval(interval time.Duration) Option {
 	return func(so *spannerOptions) {
 		so.gcInterval = interval
-	}
-}
-
-// MaxRetries is the maximum number of times a retriable transaction will be
-// client-side retried.
-// Default: 50
-func MaxRetries(maxRetries int) Option {
-	return func(so *spannerOptions) {
-		so.maxRetries = maxRetries
 	}
 }
 

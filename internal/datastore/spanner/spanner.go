@@ -29,8 +29,8 @@ const (
 
 	errRevision = "unable to load revision: %w"
 
-	errUnableToWriteTuples  = "unable to write tuples: %w"
-	errUnableToDeleteTuples = "unable to delete tuples: %w"
+	errUnableToWriteRelationships  = "unable to write relationships: %w"
+	errUnableToDeleteRelationships = "unable to delete relationships: %w"
 
 	errUnableToWriteConfig    = "unable to write namespace config: %w"
 	errUnableToReadConfig     = "unable to read namespace config: %w"
@@ -45,10 +45,9 @@ var (
 
 type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
-	client        *spanner.Client
-	querySplitter common.TupleQuerySplitter
-	config        spannerOptions
-	stopGC        context.CancelFunc
+	client *spanner.Client
+	config spannerOptions
+	stopGC context.CancelFunc
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
@@ -71,11 +70,6 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	querySplitter := common.TupleQuerySplitter{
-		Executor:         queryExecutor(client),
-		UsersetBatchSize: 100,
-	}
-
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
@@ -86,9 +80,8 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
-		client:        client,
-		querySplitter: querySplitter,
-		config:        config,
+		client: client,
+		config: config,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
 
@@ -100,6 +93,41 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	ds.stopGC = cancel
 
 	return ds, nil
+}
+
+func (sd spannerDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+	txSource := func() readTX {
+		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(revision)))
+	}
+	querySplitter := common.TupleQuerySplitter{
+		Executor:         queryExecutor(txSource),
+		UsersetBatchSize: 100,
+	}
+
+	return spannerReader{querySplitter, txSource}
+}
+
+func (sd spannerDatastore) ReadWriteTx(
+	ctx context.Context,
+	fn datastore.TxUserFunc,
+) (datastore.Revision, error) {
+	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
+		txSource := func() readTX {
+			return spannerRWT
+		}
+
+		querySplitter := common.TupleQuerySplitter{
+			Executor:         queryExecutor(txSource),
+			UsersetBatchSize: 100,
+		}
+		rwt := spannerReadWriteTXN{spannerReader{querySplitter, txSource}, ctx, spannerRWT}
+		return fn(ctx, rwt)
+	})
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+
+	return revisionFromTimestamp(ts), nil
 }
 
 func (sd spannerDatastore) IsReady(ctx context.Context) (bool, error) {
