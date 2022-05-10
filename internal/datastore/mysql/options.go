@@ -19,6 +19,7 @@ const (
 	defaultQuantization                      = 5 * time.Second
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
+	defaultMaxRetries                        = 8
 )
 
 type mysqlOptions struct {
@@ -33,8 +34,9 @@ type mysqlOptions struct {
 	maxOpenConns                int
 	connMaxIdleTime             time.Duration
 	connMaxLifetime             time.Duration
-	splitAtUsersetCount         int
+	splitAtUsersetCount         uint16
 	analyzeBeforeStats          bool
+	maxRetries                  uint8
 }
 
 // Option provides the facility to configure how clients within the
@@ -54,6 +56,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		revisionQuantization:        defaultQuantization,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
+		maxRetries:                  defaultMaxRetries,
 	}
 
 	for _, option := range options {
@@ -119,6 +122,15 @@ func GCWindow(window time.Duration) Option {
 func GCInterval(interval time.Duration) Option {
 	return func(mo *mysqlOptions) {
 		mo.gcInterval = interval
+	}
+}
+
+// MaxRetries is the maximum number of times a retriable transaction will be
+// client-side retried.
+// Default: 10
+func MaxRetries(maxRetries uint8) Option {
+	return func(mo *mysqlOptions) {
+		mo.maxRetries = maxRetries
 	}
 }
 

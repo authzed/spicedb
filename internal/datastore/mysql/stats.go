@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
 
 	"github.com/Masterminds/squirrel"
@@ -49,7 +50,13 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 
 	nsQuery := mds.ReadNamespaceQuery.Where(squirrel.Eq{colDeletedTxn: liveDeletedTxnID})
 
-	nsDefs, err := loadAllNamespaces(ctx, mds.db, nsQuery)
+	tx, err := mds.db.BeginTx(ctx, nil)
+	if err != nil {
+		return datastore.Stats{}, err
+	}
+	defer migrations.LogOnError(ctx, tx.Rollback)
+
+	nsDefs, err := loadAllNamespaces(ctx, tx, nsQuery)
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to load namespaces: %w", err)
 	}
