@@ -73,19 +73,19 @@ var (
 		Buckets:   []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
 	})
 
-	gcRelationshipsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	gcRelationshipsClearedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "mysql_relationships_cleared",
 		Help:      "number of relationships cleared by mysql garbage collection.",
-	})
+	}, []string{"error"})
 
-	gcTransactionsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	gcTransactionsClearedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "mysql_transactions_cleared",
 		Help:      "number of transactions cleared by mysql garbage collection.",
-	})
+	}, []string{"error"})
 )
 
 func init() {
@@ -440,22 +440,24 @@ func (mds *Datastore) collectGarbageBefore(ctx context.Context, before time.Time
 func (mds *Datastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	relCount, err := mds.batchDelete(ctx, mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: highest})
+
+	gcRelationshipsClearedGauge.With(prometheus.Labels{"error": err.Error()}).Set(float64(relCount))
 	if err != nil {
 		return 0, 0, err
 	}
 
 	log.Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
-	gcRelationshipsClearedGauge.Set(float64(relCount))
 
 	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
 	// itself to ensure there is always at least one transaction present.
 	transactionCount, err := mds.batchDelete(ctx, mds.driver.RelationTupleTransaction(), sq.Lt{colID: highest})
+
+	gcTransactionsClearedGauge.With(prometheus.Labels{"error": err.Error()}).Set(float64(transactionCount))
 	if err != nil {
 		return relCount, 0, err
 	}
 
 	log.Trace().Uint64("highestTransactionId", highest).Int64("transactionsDeleted", transactionCount).Msg("deleted stale transactions")
-	gcTransactionsClearedGauge.Set(float64(transactionCount))
 	return relCount, transactionCount, nil
 }
 
