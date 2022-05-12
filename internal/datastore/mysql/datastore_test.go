@@ -36,13 +36,14 @@ type datastoreTester struct {
 	prefix string
 }
 
-func (dst *datastoreTester) createDatastore(revisionQuantization, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+func (dst *datastoreTester) createDatastore(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 	ds := dst.b.NewDatastore(dst.t, func(engine, uri string) datastore.Datastore {
 		ds, err := NewMySQLDatastore(uri,
 			RevisionQuantization(revisionQuantization),
 			GCWindow(gcWindow),
 			GCInterval(0*time.Second),
 			TablePrefix(dst.prefix),
+			WatchBufferLength(watchBufferLength),
 			DebugAnalyzeBeforeStatistics(),
 		)
 		require.NoError(dst.t, err)
