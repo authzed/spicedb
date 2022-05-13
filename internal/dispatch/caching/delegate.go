@@ -11,6 +11,10 @@ const errMessage = "fake delegate should never be called, call SetDelegate on th
 
 type fakeDelegate struct{}
 
+func (fd fakeDelegate) Ready() bool {
+	panic(errMessage)
+}
+
 func (fd fakeDelegate) Close() error {
 	panic(errMessage)
 }
