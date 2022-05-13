@@ -289,7 +289,7 @@ func pickBestRevisionV0(ctx context.Context, requested *core.Zookie, ds datastor
 func rewriteDatastoreError(ctx context.Context, err error) error {
 	switch {
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
-		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
+		return status.Errorf(codes.OutOfRange, "invalid revision: %s", err)
 
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return serviceerrors.ErrServiceReadOnly

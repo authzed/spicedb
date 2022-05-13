@@ -76,11 +76,14 @@ func (r *nsCachingReader) ReadNamespace(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
+	log.Ctx(ctx).Info().Str("ns", nsName).Msg("read cached ReadNamespace")
+
 	// Check the nsCache.
 	nsRevisionKey := fmt.Sprintf("%s@%s", nsName, r.rev)
 
 	loadedRaw, found := r.p.c.Get(nsRevisionKey)
 	if !found {
+		log.Ctx(ctx).Info().Str("ns", nsName).Msg("read no cached namespace found, loading from database")
 		// We couldn't use the cached entry, load one
 		var err error
 		loadedRaw, err, _ = r.p.readNsGroup.Do(nsRevisionKey, func() (interface{}, error) {
@@ -105,6 +108,7 @@ func (r *nsCachingReader) ReadNamespace(
 			return nil, datastore.NoRevision, err
 		}
 	}
+	log.Ctx(ctx).Info().Str("ns", nsName).Msg("cached namespace found")
 
 	loaded := loadedRaw.(*cacheEntry)
 
@@ -121,10 +125,12 @@ func (rwt *nsCachingRWT) ReadNamespace(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
+	log.Ctx(ctx).Info().Str("ns", nsName).Msg("rwt cached ReadNamespace")
 	rwt.Lock()
 	entry, ok := rwt.namespaceCache[nsName]
 	rwt.Unlock()
 	if !ok {
+		log.Ctx(ctx).Info().Str("ns", nsName).Msg("rwt no cached namespace found, loading from database")
 		loaded, updatedRev, err := rwt.ReadWriteTransaction.ReadNamespace(ctx, nsName)
 		if err != nil && !errors.Is(err, &datastore.ErrNamespaceNotFound{}) {
 			// Propagate this error to the caller
@@ -136,6 +142,8 @@ func (rwt *nsCachingRWT) ReadNamespace(
 		rwt.namespaceCache[nsName] = entry
 		rwt.Unlock()
 	}
+
+	log.Ctx(ctx).Info().Str("ns", nsName).Msg("rwt cached namespace found")
 
 	return entry.def, entry.updated, entry.notFound
 }

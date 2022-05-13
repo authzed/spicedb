@@ -8,67 +8,67 @@ on:  # yamllint disable-line rule:truthy
   pull_request:
     branches: ["*"]
 jobs:
-  unit-analyzers:
-    name: "Unit Test Analyzers"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
-        with:
-          go-version: "~1.18"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          working_directory: "tools/analyzers"
-
-  go-lint:
-    name: "Lint Go"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
-        with:
-          go-version: "~1.18"
-      - uses: "authzed/actions/gofumpt@main"
-      - uses: "authzed/actions/go-mod-tidy@main"
-      - uses: "authzed/actions/go-mod-tidy@main"
-        with:
-          working_directory: "e2e"
-      - uses: "authzed/actions/go-mod-tidy@main"
-        with:
-          working_directory: "tools/analyzers"
-      - uses: "authzed/actions/go-generate@main"
-      - uses: "authzed/actions/golangci-lint@main"
-      - uses: "authzed/actions/go-build@main"
-        with:
-          working_directory: "tools/analyzers"
-      - name: "Run custom analyzers"
-        run: "./tools/analyzers/analyzers -skip-pkg \"github.com/authzed/spicedb/pkg/proto/dispatch/v1\" -disallowed-nil-return-type-paths \"*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse\" ./..."
-
-  extra-lint:
-    name: "Lint YAML & Markdown"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/yaml-lint@main"
-      - uses: "instrumenta/kubeval-action@5915e4adba5adccac07cb156b82e54c3fed74921"
-        with:
-          files: "k8s"
-      - uses: "authzed/actions/markdown-lint@main"
-      - uses: "ludeeus/action-shellcheck@1.1.0"
-        with:
-          scandir: "./hack"
-
-  codeql:
-    name: "Analyze with CodeQL"
-    runs-on: "ubuntu-latest"
-    permissions:
-      actions: "read"
-      contents: "read"
-      security-events: "write"
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ["go"]
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/codeql@main"
+#  unit-analyzers:
+#    name: "Unit Test Analyzers"
+#    runs-on: "ubuntu-latest"
+#    steps:
+#      - uses: "actions/checkout@v3"
+#      - uses: "actions/setup-go@v3"
+#        with:
+#          go-version: "~1.18"
+#      - uses: "authzed/actions/go-test@main"
+#        with:
+#          working_directory: "tools/analyzers"
+#
+#  go-lint:
+#    name: "Lint Go"
+#    runs-on: "ubuntu-latest"
+#    steps:
+#      - uses: "actions/checkout@v3"
+#      - uses: "actions/setup-go@v3"
+#        with:
+#          go-version: "~1.18"
+#      - uses: "authzed/actions/gofumpt@main"
+#      - uses: "authzed/actions/go-mod-tidy@main"
+#      - uses: "authzed/actions/go-mod-tidy@main"
+#        with:
+#          working_directory: "e2e"
+#      - uses: "authzed/actions/go-mod-tidy@main"
+#        with:
+#          working_directory: "tools/analyzers"
+#      - uses: "authzed/actions/go-generate@main"
+#      - uses: "authzed/actions/golangci-lint@main"
+#      - uses: "authzed/actions/go-build@main"
+#        with:
+#          working_directory: "tools/analyzers"
+#      - name: "Run custom analyzers"
+#        run: "./tools/analyzers/analyzers -skip-pkg \"github.com/authzed/spicedb/pkg/proto/dispatch/v1\" -disallowed-nil-return-type-paths \"*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse\" ./..."
+#
+#  extra-lint:
+#    name: "Lint YAML & Markdown"
+#    runs-on: "ubuntu-latest"
+#    steps:
+#      - uses: "actions/checkout@v3"
+#      - uses: "authzed/actions/yaml-lint@main"
+#      - uses: "instrumenta/kubeval-action@5915e4adba5adccac07cb156b82e54c3fed74921"
+#        with:
+#          files: "k8s"
+#      - uses: "authzed/actions/markdown-lint@main"
+#      - uses: "ludeeus/action-shellcheck@1.1.0"
+#        with:
+#          scandir: "./hack"
+#
+#  codeql:
+#    name: "Analyze with CodeQL"
+#    runs-on: "ubuntu-latest"
+#    permissions:
+#      actions: "read"
+#      contents: "read"
+#      security-events: "write"
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        language: ["go"]
+#    steps:
+#      - uses: "actions/checkout@v3"
+#      - uses: "authzed/actions/codeql@main"

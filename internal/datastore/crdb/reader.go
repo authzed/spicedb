@@ -9,6 +9,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -56,6 +57,8 @@ func (cr *crdbReader) ReadNamespace(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
+	log.Ctx(ctx).Info().Str("ns", nsName).Msg("loading from database")
+
 	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	var config *core.NamespaceDefinition

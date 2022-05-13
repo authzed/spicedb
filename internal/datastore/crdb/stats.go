@@ -6,6 +6,7 @@ import (
 	"math/rand"
 
 	"github.com/jackc/pgx/v4"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -79,6 +80,10 @@ func updateCounter(ctx context.Context, tx pgx.Tx, change int64) (datastore.Revi
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("unable to prepare upsert counter sql: %w", err)
 	}
+
+	log.Ctx(ctx).Info().
+		Str("counterID", fmt.Sprintf("%x%x", counterID[0], counterID[1])).
+		Str("sql", sql).Msg("update stats")
 
 	var timestamp decimal.Decimal
 	if err := tx.QueryRow(ctx, sql, args...).Scan(&timestamp); err != nil {

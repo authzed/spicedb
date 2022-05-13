@@ -60,6 +60,7 @@ type localDispatcher struct {
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, error) {
+	log.Ctx(ctx).Info().Msg("localdispatcher loadNamespace")
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision)
 
 	// Load namespace and relation from the datastore
@@ -110,6 +111,9 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		attribute.Stringer("subject", stringableOnr{req.Subject}),
 	))
 	defer span.End()
+
+	log.Ctx(ctx).Info().Stringer("start", stringableOnr{req.ObjectAndRelation}).
+		Stringer("subject", stringableOnr{req.Subject}).Msg("dispatch check")
 
 	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {

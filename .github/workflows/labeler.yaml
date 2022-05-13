@@ -3,10 +3,10 @@ name: "Pull Request Labeler"
 on:  # yamllint disable-line rule:truthy
   - "pull_request_target"
 jobs:
-  triage:
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/labeler@v3"
-        with:
-          repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          sync-labels: true
+#  triage:
+#    runs-on: "ubuntu-latest"
+#    steps:
+#      - uses: "actions/labeler@v3"
+#        with:
+#          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+#          sync-labels: true

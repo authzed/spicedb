@@ -237,6 +237,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 			}
 
 			var err error
+			// commitTimestamp, err = readCRDBNow(ctx, tx)
 			commitTimestamp, err = updateCounter(ctx, tx, rwt.relCountChange)
 			if err != nil {
 				return fmt.Errorf("error updating relationship counter: %w", err)

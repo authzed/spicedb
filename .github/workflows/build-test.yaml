@@ -32,46 +32,46 @@ on:  # yamllint disable-line rule:truthy
       - "internal/**"
       - "proto/**"
 jobs:
-  build:
-    name: "Build Binary"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
-        with:
-          go-version: "~1.18"
-      - uses: "authzed/actions/go-build@main"
-
-  image-build:
-    name: "Build Container Image"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
-        with:
-          go-version: "~1.18"
-      - uses: "authzed/actions/docker-build@main"
-        with:
-          push: false
-          tags: "authzed/spicedb:ci"
-          buildx: false
-          qemu: false
-      - uses: "authzed/actions/go-test@main"
-        with:
-          working_directory: "cmd/spicedb"
-          tags: "docker"
-
-  unit:
-    name: "Unit"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
-        with:
-          go-version: "~1.18"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          tags: "ci"
+#  build:
+#    name: "Build Binary"
+#    runs-on: "ubuntu-latest"
+#    steps:
+#      - uses: "actions/checkout@v3"
+#      - uses: "actions/setup-go@v3"
+#        with:
+#          go-version: "~1.18"
+#      - uses: "authzed/actions/go-build@main"
+#
+#  image-build:
+#    name: "Build Container Image"
+#    runs-on: "ubuntu-latest"
+#    steps:
+#      - uses: "actions/checkout@v3"
+#      - uses: "actions/setup-go@v3"
+#        with:
+#          go-version: "~1.18"
+#      - uses: "authzed/actions/docker-build@main"
+#        with:
+#          push: false
+#          tags: "authzed/spicedb:ci"
+#          buildx: false
+#          qemu: false
+#      - uses: "authzed/actions/go-test@main"
+#        with:
+#          working_directory: "cmd/spicedb"
+#          tags: "docker"
+#
+#  unit:
+#    name: "Unit"
+#    runs-on: "ubuntu-latest"
+#    steps:
+#      - uses: "actions/checkout@v3"
+#      - uses: "actions/setup-go@v3"
+#        with:
+#          go-version: "~1.18"
+#      - uses: "authzed/actions/go-test@main"
+#        with:
+#          tags: "ci"
 
   e2e:
     name: "E2E"
@@ -121,26 +121,26 @@ jobs:
           name: "node-logs"
           path: "e2e/newenemy/*.log"
 
-  protobuf:
-    name: "Generate Protobufs"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
-        with:
-          go-version: "~1.18"
-      - name: "Install Go Protobuf plugins"
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
-          go install github.com/envoyproxy/protoc-gen-validate@v0.6.7
-      - uses: "authzed/actions/buf-generate@main"
-      - uses: "bufbuild/buf-breaking-action@v0.4.0"
-        if: "github.event_name == 'pull_request'"
-        env:
-          BUF_INPUT_HTTPS_USERNAME: "${{ github.actor }}"
-          BUF_INPUT_HTTPS_PASSWORD: "${{ github.token }}"
-        with:
-          input: "proto/internal"
-          against: "https://github.com/authzed/spicedb.git#branch=main,subdir=proto/internal"
-          buf_token: "${{ secrets.BUF_REGISTRY_TOKEN }}"
+#  protobuf:
+#    name: "Generate Protobufs"
+#    runs-on: "ubuntu-latest"
+#    steps:
+#      - uses: "actions/checkout@v3"
+#      - uses: "actions/setup-go@v3"
+#        with:
+#          go-version: "~1.18"
+#      - name: "Install Go Protobuf plugins"
+#        run: |
+#          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
+#          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
+#          go install github.com/envoyproxy/protoc-gen-validate@v0.6.7
+#      - uses: "authzed/actions/buf-generate@main"
+#      - uses: "bufbuild/buf-breaking-action@v0.4.0"
+#        if: "github.event_name == 'pull_request'"
+#        env:
+#          BUF_INPUT_HTTPS_USERNAME: "${{ github.actor }}"
+#          BUF_INPUT_HTTPS_PASSWORD: "${{ github.token }}"
+#        with:
+#          input: "proto/internal"
+#          against: "https://github.com/authzed/spicedb.git#branch=main,subdir=proto/internal"
+#          buf_token: "${{ secrets.BUF_REGISTRY_TOKEN }}"
