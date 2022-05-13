@@ -9,7 +9,7 @@ import (
 
 type fakeDriver struct{}
 
-func (*fakeDriver) Version() (string, error) {
+func (*fakeDriver) Version(ctx context.Context) (string, error) {
 	return "", nil
 }
 

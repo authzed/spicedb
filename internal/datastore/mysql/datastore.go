@@ -571,7 +571,7 @@ func (mds *Datastore) IsReady(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	currentMigrationRevision, err := mds.driver.Version()
+	currentMigrationRevision, err := mds.driver.Version(ctx)
 	if err != nil {
 		return false, err
 	}

@@ -48,9 +48,9 @@ func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (Spann
 	return SpannerMigrationDriver{client, adminClient}, nil
 }
 
-func (smd SpannerMigrationDriver) Version() (string, error) {
+func (smd SpannerMigrationDriver) Version(ctx context.Context) (string, error) {
 	rows := smd.client.Single().Read(
-		context.Background(),
+		ctx,
 		tableSchemaVersion,
 		spanner.AllKeys(),
 		[]string{colVersionNum},

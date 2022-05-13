@@ -67,13 +67,13 @@ func columnNameToRevision(columnName string) (string, bool) {
 
 // Version returns the version of the schema to which the connected database
 // has been migrated.
-func (driver *MySQLDriver) Version() (string, error) {
+func (driver *MySQLDriver) Version(ctx context.Context) (string, error) {
 	query, args, err := sb.Select("*").From(driver.migrationVersion()).ToSql()
 	if err != nil {
 		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}
 
-	rows, err := driver.db.Query(query, args...)
+	rows, err := driver.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		var mysqlError *sqlDriver.MySQLError
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
@@ -81,7 +81,7 @@ func (driver *MySQLDriver) Version() (string, error) {
 		}
 		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}
-	defer LogOnError(context.Background(), rows.Close)
+	defer LogOnError(ctx, rows.Close)
 	if rows.Err() != nil {
 		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}

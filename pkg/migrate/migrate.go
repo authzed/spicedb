@@ -28,7 +28,7 @@ type Driver interface {
 	// Version returns the current version of the schema in the backing datastore.
 	// If the datastore is brand new, version should return the empty string without
 	// an error.
-	Version() (string, error)
+	Version(ctx context.Context) (string, error)
 
 	// WriteVersion records the newly migrated version to the backing datastore.
 	WriteVersion(ctx context.Context, version, replaced string) error
@@ -83,7 +83,7 @@ func (m *Manager) Register(version, replaces string, up interface{}) error {
 // Run will actually perform the necessary migrations to bring the backing datastore
 // from its current revision to the specified revision.
 func (m *Manager) Run(ctx context.Context, driver Driver, throughRevision string, dryRun RunType) error {
-	starting, err := driver.Version()
+	starting, err := driver.Version(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to compute target revision: %w", err)
 	}
@@ -113,7 +113,7 @@ func (m *Manager) Run(ctx context.Context, driver Driver, throughRevision string
 	if !dryRun {
 		for _, migrationToRun := range toRun {
 			// Double check that the current version reported is the one we expect
-			currentVersion, err := driver.Version()
+			currentVersion, err := driver.Version(ctx)
 			if err != nil {
 				return fmt.Errorf("unable to load version from driver: %w", err)
 			}
