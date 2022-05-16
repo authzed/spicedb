@@ -54,6 +54,14 @@ var (
 	lookupResultEntryEmptyCost = int64(unsafe.Sizeof(lookupResultEntry{}))
 )
 
+func checkResultCost(item checkResultEntry) int64 {
+	return int64(Sizeof(item))
+}
+
+func lookupResultCost(_ lookupResultEntry) int64 {
+	return lookupResultEntryEmptyCost
+}
+
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
 // and caches the responses when possible and desirable.
 func NewCachingDispatcher(
@@ -219,6 +227,10 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 		adjustedComputed.Metadata.DispatchCount = 0
 
 		toCache := checkResultEntry{adjustedComputed}
+		// we are caching setResultEntry which have a single pointer field.
+		// Is the checkResultEntryCost based on the size of the stored structs,
+		// or on the size of all the memory referenced by those structs? That answer could
+		// have huge impacts for total memory used by cached results
 		cd.c.Set(requestKey, toCache, checkResultEntryCost)
 	}
 
