@@ -32,6 +32,7 @@ import (
 	"github.com/authzed/spicedb/pkg/balancer"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/gergof/grpc-ecs-zk-service-discovery"
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
@@ -93,6 +94,11 @@ type Config struct {
 	TelemetryCAOverridePath  string
 	TelemetryEndpoint        string
 	TelemetryInterval        time.Duration
+
+	// Resolver options
+	ZooKeeperResolverServers []string
+	ZooKeeperResolverPath    string
+	ZooKeeperResolverTimeout int
 }
 
 // Complete validates the config and fills out defaults.
@@ -124,6 +130,30 @@ func (c *Config) Complete() (RunnableServer, error) {
 		ds, err = datastorecfg.NewDatastore(c.DatastoreConfig.ToOption())
 		if err != nil {
 			return nil, fmt.Errorf("failed to create datastore: %w", err)
+		}
+	}
+
+	var zkSd *ZookeeperServiceDiscovery.EcsZkDiscovery
+	if len(c.ZooKeeperResolverServers) != 0 {
+		zkSd, err := ZookeeperServiceDiscovery.NewEcsZkServiceDiscovery(c.ZooKeeperResolverServers, c.ZooKeeperResolverTimeout, c.ZooKeeperResolverPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize ZooKeeper service discovery: %w", err)
+		}
+
+		zkSd.RegisterResolver()
+
+		if c.DispatchServer.Enabled {
+			// Register dispatch service
+			host, port, _ := net.SplitHostPort(c.DispatchServer.Address)
+			if host != "" {
+				err = zkSd.RegisterService(port, host)
+			} else {
+				err = zkSd.RegisterService(port)
+			}
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to register dispatch service: %w", err)
+			}
 		}
 	}
 
@@ -331,6 +361,9 @@ func (c *Config) Complete() (RunnableServer, error) {
 			}
 			if err := cachingClusterDispatch.Close(); err != nil {
 				log.Warn().Err(err).Msg("couldn't close cluster dispatcher")
+			}
+			if zkSd != nil {
+				zkSd.Unregister()
 			}
 		},
 	}, nil

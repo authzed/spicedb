@@ -61,6 +61,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
 		to.TelemetryInterval = c.TelemetryInterval
+		to.ZooKeeperResolverServers = c.ZooKeeperResolverServers
+		to.ZooKeeperResolverPath = c.ZooKeeperResolverPath
+		to.ZooKeeperResolverTimeout = c.ZooKeeperResolverTimeout
 	}
 }
 
@@ -356,5 +359,33 @@ func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
 func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.TelemetryInterval = telemetryInterval
+	}
+}
+
+// WithZooKeeperResolverServers returns an option that can append ZooKeeperResolverServerss to Config.ZooKeeperResolverServers
+func WithZooKeeperResolverServers(zooKeeperResolverServers string) ConfigOption {
+	return func(c *Config) {
+		c.ZooKeeperResolverServers = append(c.ZooKeeperResolverServers, zooKeeperResolverServers)
+	}
+}
+
+// SetZooKeeperResolverServers returns an option that can set ZooKeeperResolverServers on a Config
+func SetZooKeeperResolverServers(zooKeeperResolverServers []string) ConfigOption {
+	return func(c *Config) {
+		c.ZooKeeperResolverServers = zooKeeperResolverServers
+	}
+}
+
+// WithZooKeeperResolverPath returns an option that can set ZooKeeperResolverPath on a Config
+func WithZooKeeperResolverPath(zooKeeperResolverPath string) ConfigOption {
+	return func(c *Config) {
+		c.ZooKeeperResolverPath = zooKeeperResolverPath
+	}
+}
+
+// WithZooKeeperResolverTimeout returns an option that can set ZooKeeperResolverTimeout on a Config
+func WithZooKeeperResolverTimeout(zooKeeperResolverTimeout int) ConfigOption {
+	return func(c *Config) {
+		c.ZooKeeperResolverTimeout = zooKeeperResolverTimeout
 	}
 }

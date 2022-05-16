@@ -77,6 +77,11 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	cmd.Flags().StringVar(&config.TelemetryEndpoint, "telemetry-endpoint", telemetry.DefaultEndpoint, "endpoint to which telemetry is reported, empty string to disable")
 	cmd.Flags().StringVar(&config.TelemetryCAOverridePath, "telemetry-ca-override-path", "", "TODO")
 	cmd.Flags().DurationVar(&config.TelemetryInterval, "telemetry-interval", telemetry.DefaultInterval, "approximate period between telemetry reports, minimum 1 minute")
+
+	// Flags for Resolvers
+	cmd.Flags().StringSliceVar(&config.ZooKeeperResolverServers, "zookeeper-resolver-servers", []string{}, "zookeeper servers to use for ZK service discovery")
+	cmd.Flags().StringVar(&config.ZooKeeperResolverPath, "zookeeper-resolver-path", "/com.authzed.spicedb/service-discovery", "zookeeper path to register services to")
+	cmd.Flags().IntVar(&config.ZooKeeperResolverTimeout, "zookeeper-resolver-timeout", 5, "seconds to use for zookeeper session timeout")
 }
 
 func NewServeCommand(programName string, config *server.Config) *cobra.Command {
