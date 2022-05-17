@@ -8,7 +8,8 @@ import (
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-func generateCheckResultEntry(directLen int, ttuLen int, strLen int) checkResultEntry {
+func generateCheckResultEntry(directLen int, ttuLen int) checkResultEntry {
+	strLen := 23
 	entry := checkResultEntry{
 		response: &dispatchv1.DispatchCheckResponse{
 			Metadata: &dispatchv1.ResponseMeta{
@@ -40,11 +41,11 @@ func benchmarkCheckResultCost(b *testing.B, costCalc func(checkResultEntry) int6
 		name  string
 		entry checkResultEntry
 	}{
-		{"    0", generateCheckResultEntry(0, 0, 0)},
-		{"   10", generateCheckResultEntry(10, 10, 32)},
-		{"  100", generateCheckResultEntry(100, 100, 64)},
-		{" 1000", generateCheckResultEntry(1000, 1000, 128)},
-		{"10000", generateCheckResultEntry(10000, 10000, 128)},
+		{"    0", generateCheckResultEntry(0, 0)},
+		{"   10", generateCheckResultEntry(10, 10)},
+		{"  100", generateCheckResultEntry(100, 100)},
+		{" 1000", generateCheckResultEntry(1000, 1000)},
+		{"10000", generateCheckResultEntry(10000, 10000)},
 	}
 
 	for _, c := range cases {
@@ -83,7 +84,7 @@ func BenchmarkAllocCost(b *testing.B) {
 	for _, c := range cases {
 		b.Run(c.name, func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				generateCheckResultEntry(c.scale, c.scale, 64)
+				generateCheckResultEntry(c.scale, c.scale)
 			}
 		})
 	}
@@ -102,7 +103,7 @@ func logCheckResultAccuracy(t *testing.T, costCalc func(checkResultEntry) int64)
 	}
 
 	for _, c := range cases {
-		item := generateCheckResultEntry(c.scale, c.scale, 64)
+		item := generateCheckResultEntry(c.scale, c.scale)
 		cost := costCalc(item)
 		t.Logf("Cost of '%v': '%v'", c.scale, cost)
 	}
