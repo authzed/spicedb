@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/namespace"
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -52,10 +53,43 @@ type lookupResultEntry struct {
 var (
 	checkResultEntryCost       = int64(unsafe.Sizeof(checkResultEntry{}))
 	lookupResultEntryEmptyCost = int64(unsafe.Sizeof(lookupResultEntry{}))
+
+	membershipCost = int64(unsafe.Sizeof(v1.DispatchCheckResponse_Membership(0)))
+	metaCost       = int64(unsafe.Sizeof(v1.ResponseMeta{}))
+	relationCost   = int64(unsafe.Sizeof(corev1.RelationReference{}))
+	checkRespCost  = int64(unsafe.Sizeof(v1.DispatchCheckResponse{}))
 )
 
-func checkResultCost(item checkResultEntry) int64 {
+func checkResultCostSizeOf(item checkResultEntry) int64 {
 	return int64(Sizeof(item))
+}
+
+func checkResultCostEstimateV1(item checkResultEntry) int64 {
+	return int64(10 + len(item.response.Metadata.LookupExcludedDirect)*20 + len(item.response.Metadata.LookupExcludedTtu)*20)
+}
+
+func checkResultCostEstimateV2(item checkResultEntry) int64 {
+	// todo: think through this a bit more carefully
+	// just wanted to see how close a naive impl would get, and how it would perform
+	res := item.response
+	var cost int64 = 0
+	cost += checkRespCost
+	cost += metaCost
+
+	led := res.Metadata.LookupExcludedDirect
+	for i := 0; i < len(led); i++ {
+		cost += relationCost
+		cost += int64(len(led[i].Namespace))
+		cost += int64(len(led[i].Relation))
+	}
+
+	let := res.Metadata.LookupExcludedTtu
+	for i := 0; i < len(let); i++ {
+		cost += relationCost
+		cost += int64(len(let[i].Namespace))
+		cost += int64(len(let[i].Relation))
+	}
+	return cost
 }
 
 func lookupResultCost(_ lookupResultEntry) int64 {
