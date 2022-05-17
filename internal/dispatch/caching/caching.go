@@ -14,7 +14,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/namespace"
-	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -53,47 +52,52 @@ type lookupResultEntry struct {
 var (
 	checkResultEntryCost       = int64(unsafe.Sizeof(checkResultEntry{}))
 	lookupResultEntryEmptyCost = int64(unsafe.Sizeof(lookupResultEntry{}))
-
-	membershipCost = int64(unsafe.Sizeof(v1.DispatchCheckResponse_Membership(0)))
-	metaCost       = int64(unsafe.Sizeof(v1.ResponseMeta{}))
-	relationCost   = int64(unsafe.Sizeof(corev1.RelationReference{}))
-	checkRespCost  = int64(unsafe.Sizeof(v1.DispatchCheckResponse{}))
 )
 
-func checkResultCostSizeOf(item checkResultEntry) int64 {
-	return int64(Sizeof(item))
-}
+const (
+	baseCheckEntryCost = unsafe.Sizeof(checkResultEntry{}) +
+		unsafe.Sizeof(v1.DispatchCheckResponse{}) +
+		unsafe.Sizeof(v1.ResponseMeta{})
 
-func checkResultCostEstimateV1(item checkResultEntry) int64 {
-	return int64(10 + len(item.response.Metadata.LookupExcludedDirect)*20 + len(item.response.Metadata.LookupExcludedTtu)*20)
-}
+	baseLookupEntryCost = unsafe.Sizeof(lookupResultEntry{}) +
+		unsafe.Sizeof(v1.DispatchLookupResponse{}) +
+		unsafe.Sizeof(v1.ResponseMeta{})
+)
 
-func checkResultCostEstimateV2(item checkResultEntry) int64 {
-	// todo: think through this a bit more carefully
-	// just wanted to see how close a naive impl would get, and how it would perform
-	res := item.response
-	var cost int64 = 0
-	cost += checkRespCost
-	cost += metaCost
+func checkResultCost(entry checkResultEntry) int64 {
+	cost := int64(baseCheckEntryCost)
 
-	led := res.Metadata.LookupExcludedDirect
-	for i := 0; i < len(led); i++ {
-		cost += relationCost
-		cost += int64(len(led[i].Namespace))
-		cost += int64(len(led[i].Relation))
+	for _, elem := range entry.response.Metadata.LookupExcludedDirect {
+		cost += int64(unsafe.Sizeof(elem)) + int64(len(elem.Namespace)) + int64(len(elem.Relation))
 	}
 
-	let := res.Metadata.LookupExcludedTtu
-	for i := 0; i < len(let); i++ {
-		cost += relationCost
-		cost += int64(len(let[i].Namespace))
-		cost += int64(len(let[i].Relation))
+	for _, elem := range entry.response.Metadata.LookupExcludedTtu {
+		cost += int64(unsafe.Sizeof(elem)) + int64(len(elem.Namespace)) + int64(len(elem.Relation))
 	}
+
 	return cost
 }
 
-func lookupResultCost(_ lookupResultEntry) int64 {
-	return lookupResultEntryEmptyCost
+func lookupResultCost(entry lookupResultEntry) int64 {
+	cost := int64(baseLookupEntryCost)
+
+	cost += int64(unsafe.Sizeof(entry.response.NextPageReference)) + int64(len(entry.response.NextPageReference))
+	for _, elem := range entry.response.ResolvedOnrs {
+		cost += int64(unsafe.Sizeof(elem)) +
+			int64(unsafe.Sizeof(elem.Namespace)) + int64(len(elem.Namespace)) +
+			int64(unsafe.Sizeof(elem.ObjectId)) + int64(len(elem.ObjectId)) +
+			int64(unsafe.Sizeof(elem.Relation)) + int64(len(elem.Relation))
+	}
+
+	for _, elem := range entry.response.Metadata.LookupExcludedDirect {
+		cost += int64(unsafe.Sizeof(elem)) + int64(len(elem.Namespace)) + int64(len(elem.Relation))
+	}
+
+	for _, elem := range entry.response.Metadata.LookupExcludedTtu {
+		cost += int64(unsafe.Sizeof(elem)) + int64(len(elem.Namespace)) + int64(len(elem.Relation))
+	}
+
+	return cost
 }
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
@@ -265,7 +269,7 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 		// Is the checkResultEntryCost based on the size of the stored structs,
 		// or on the size of all the memory referenced by those structs? That answer could
 		// have huge impacts for total memory used by cached results
-		cd.c.Set(requestKey, toCache, checkResultEntryCost)
+		cd.c.Set(requestKey, toCache, checkResultCost(toCache))
 	}
 
 	// Return both the computed and err in ALL cases: computed contains resolved metadata even
@@ -308,12 +312,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 		requestKey := dispatch.LookupRequestToKey(req)
 		toCache := lookupResultEntry{adjustedComputed}
 
-		estimatedSize := lookupResultEntryEmptyCost
-		for _, onr := range toCache.response.ResolvedOnrs {
-			estimatedSize += int64(len(onr.Namespace) + len(onr.ObjectId) + len(onr.Relation))
-		}
-
-		cd.c.Set(requestKey, toCache, estimatedSize)
+		cd.c.Set(requestKey, toCache, lookupResultCost(toCache))
 	}
 
 	// Return both the computed and err in ALL cases: computed contains resolved metadata even
