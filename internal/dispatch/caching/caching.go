@@ -49,10 +49,51 @@ type lookupResultEntry struct {
 	response *v1.DispatchLookupResponse
 }
 
-var (
-	checkResultEntryCost       = int64(unsafe.Sizeof(checkResultEntry{}))
-	lookupResultEntryEmptyCost = int64(unsafe.Sizeof(lookupResultEntry{}))
+const (
+	baseCheckEntryCost = unsafe.Sizeof(checkResultEntry{}) +
+		unsafe.Sizeof(v1.DispatchCheckResponse{}) +
+		unsafe.Sizeof(v1.ResponseMeta{})
+
+	baseLookupEntryCost = unsafe.Sizeof(lookupResultEntry{}) +
+		unsafe.Sizeof(v1.DispatchLookupResponse{}) +
+		unsafe.Sizeof(v1.ResponseMeta{})
 )
+
+func checkResultCost(entry checkResultEntry) int64 {
+	cost := int64(baseCheckEntryCost)
+
+	for _, elem := range entry.response.Metadata.LookupExcludedDirect {
+		cost += int64(unsafe.Sizeof(elem)) + int64(len(elem.Namespace)) + int64(len(elem.Relation))
+	}
+
+	for _, elem := range entry.response.Metadata.LookupExcludedTtu {
+		cost += int64(unsafe.Sizeof(elem)) + int64(len(elem.Namespace)) + int64(len(elem.Relation))
+	}
+
+	return cost
+}
+
+func lookupResultCost(entry lookupResultEntry) int64 {
+	cost := int64(baseLookupEntryCost)
+
+	cost += int64(unsafe.Sizeof(entry.response.NextPageReference)) + int64(len(entry.response.NextPageReference))
+	for _, elem := range entry.response.ResolvedOnrs {
+		cost += int64(unsafe.Sizeof(elem)) +
+			int64(unsafe.Sizeof(elem.Namespace)) + int64(len(elem.Namespace)) +
+			int64(unsafe.Sizeof(elem.ObjectId)) + int64(len(elem.ObjectId)) +
+			int64(unsafe.Sizeof(elem.Relation)) + int64(len(elem.Relation))
+	}
+
+	for _, elem := range entry.response.Metadata.LookupExcludedDirect {
+		cost += int64(unsafe.Sizeof(elem)) + int64(len(elem.Namespace)) + int64(len(elem.Relation))
+	}
+
+	for _, elem := range entry.response.Metadata.LookupExcludedTtu {
+		cost += int64(unsafe.Sizeof(elem)) + int64(len(elem.Namespace)) + int64(len(elem.Relation))
+	}
+
+	return cost
+}
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
 // and caches the responses when possible and desirable.
@@ -219,7 +260,7 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 		adjustedComputed.Metadata.DispatchCount = 0
 
 		toCache := checkResultEntry{adjustedComputed}
-		cd.c.Set(requestKey, toCache, checkResultEntryCost)
+		cd.c.Set(requestKey, toCache, checkResultCost(toCache))
 	}
 
 	// Return both the computed and err in ALL cases: computed contains resolved metadata even
@@ -261,13 +302,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 
 		requestKey := dispatch.LookupRequestToKey(req)
 		toCache := lookupResultEntry{adjustedComputed}
-
-		estimatedSize := lookupResultEntryEmptyCost
-		for _, onr := range toCache.response.ResolvedOnrs {
-			estimatedSize += int64(len(onr.Namespace) + len(onr.ObjectId) + len(onr.Relation))
-		}
-
-		cd.c.Set(requestKey, toCache, estimatedSize)
+		cd.c.Set(requestKey, toCache, lookupResultCost(toCache))
 	}
 
 	// Return both the computed and err in ALL cases: computed contains resolved metadata even
