@@ -49,11 +49,6 @@ type lookupResultEntry struct {
 	response *v1.DispatchLookupResponse
 }
 
-var (
-	checkResultEntryCost       = int64(unsafe.Sizeof(checkResultEntry{}))
-	lookupResultEntryEmptyCost = int64(unsafe.Sizeof(lookupResultEntry{}))
-)
-
 const (
 	baseCheckEntryCost = unsafe.Sizeof(checkResultEntry{}) +
 		unsafe.Sizeof(v1.DispatchCheckResponse{}) +
