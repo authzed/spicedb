@@ -35,22 +35,24 @@ func generateCheckResultEntry(directLen int, ttuLen int, strLen int) checkResult
 	return entry
 }
 
-var (
-	emptyEntry    = generateCheckResultEntry(0, 0, 0)
-	smallEntry    = generateCheckResultEntry(10, 10, 32)
-	mediumEntry   = generateCheckResultEntry(100, 100, 64)
-	largeEntry    = generateCheckResultEntry(1000, 1000, 128)
-	behemothEntry = generateCheckResultEntry(10000, 10000, 128)
-)
-
-func benchmarkCheckResultCost(entry checkResultEntry, b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		checkResultCost(entry)
+func BenchmarkCheckResultCost(b *testing.B) {
+	cases := []struct {
+		name  string
+		entry checkResultEntry
+	}{
+		{"0", generateCheckResultEntry(0, 0, 0)},
+		{"10", generateCheckResultEntry(10, 10, 32)},
+		{"100", generateCheckResultEntry(100, 100, 64)},
+		{"1000", generateCheckResultEntry(1000, 1000, 128)},
+		{"10000", generateCheckResultEntry(10000, 10000, 128)},
 	}
-}
 
-func BenchmarkEmptyCheckResultEntry(b *testing.B)    { benchmarkCheckResultCost(emptyEntry, b) }
-func BenchmarkSmallCheckResultEntry(b *testing.B)    { benchmarkCheckResultCost(smallEntry, b) }
-func BenchmarkMediumCheckResultEntry(b *testing.B)   { benchmarkCheckResultCost(smallEntry, b) }
-func BenchmarkLargeCheckResultEntry(b *testing.B)    { benchmarkCheckResultCost(smallEntry, b) }
-func BenchmarkBehemothCheckResultEntry(b *testing.B) { benchmarkCheckResultCost(smallEntry, b) }
+	for _, c := range cases {
+		b.Run(c.name, func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				checkResultCost(c.entry)
+			}
+		})
+	}
+
+}
