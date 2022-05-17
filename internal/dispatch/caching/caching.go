@@ -260,10 +260,6 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 		adjustedComputed.Metadata.DispatchCount = 0
 
 		toCache := checkResultEntry{adjustedComputed}
-		// we are caching setResultEntry which have a single pointer field.
-		// Is the checkResultEntryCost based on the size of the stored structs,
-		// or on the size of all the memory referenced by those structs? That answer could
-		// have huge impacts for total memory used by cached results
 		cd.c.Set(requestKey, toCache, checkResultCost(toCache))
 	}
 
@@ -306,7 +302,6 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 
 		requestKey := dispatch.LookupRequestToKey(req)
 		toCache := lookupResultEntry{adjustedComputed}
-
 		cd.c.Set(requestKey, toCache, lookupResultCost(toCache))
 	}
 
