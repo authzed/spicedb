@@ -80,7 +80,10 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 		case *core.SetOperation_Child_XThis:
 			// TODO(jschorr): Remove once v0 namespace support is completed removed.
 			// A _this{} indicates subject links directly to the operation.
-			return addSubjectLinks(graph, childOneof.OperationPath, operationResultState, targetRelation, ts)
+			err := addSubjectLinks(graph, childOneof.OperationPath, operationResultState, targetRelation, ts)
+			if err != nil {
+				return err
+			}
 
 		case *core.SetOperation_Child_ComputedUserset:
 			// A computed userset adds an entrypoint indicating that the relation is rewritten.

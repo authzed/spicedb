@@ -39,6 +39,7 @@ func NewLocalOnlyDispatcher() dispatch.Dispatcher {
 	d.checker = graph.NewConcurrentChecker(d)
 	d.expander = graph.NewConcurrentExpander(d)
 	d.lookupHandler = graph.NewConcurrentLookup(d, d)
+	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, d)
 
 	return d
 }
@@ -49,14 +50,21 @@ func NewDispatcher(redispatcher dispatch.Dispatcher) dispatch.Dispatcher {
 	checker := graph.NewConcurrentChecker(redispatcher)
 	expander := graph.NewConcurrentExpander(redispatcher)
 	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher)
+	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher)
 
-	return &localDispatcher{checker, expander, lookupHandler}
+	return &localDispatcher{
+		checker:                   checker,
+		expander:                  expander,
+		lookupHandler:             lookupHandler,
+		reachableResourcesHandler: reachableResourcesHandler,
+	}
 }
 
 type localDispatcher struct {
-	checker       *graph.ConcurrentChecker
-	expander      *graph.ConcurrentExpander
-	lookupHandler *graph.ConcurrentLookup
+	checker                   *graph.ConcurrentChecker
+	expander                  *graph.ConcurrentExpander
+	lookupHandler             *graph.ConcurrentLookup
+	reachableResourcesHandler *graph.ConcurrentReachableResources
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, error) {
@@ -282,6 +290,36 @@ func (ld *localDispatcher) requiresLookupViaChecks(relation *core.Relation) bool
 		return nil
 	})
 	return childIntersectionExclusion != nil
+}
+
+// DispatchReachableResources implements dispatch.ReachableResources interface
+func (ld *localDispatcher) DispatchReachableResources(
+	req *v1.DispatchReachableResourcesRequest,
+	stream v1.DispatchService_DispatchReachableResourcesServer,
+) error {
+	ctx, span := tracer.Start(stream.Context(), "DispatchReachableResources", trace.WithAttributes(
+		attribute.Stringer("start", stringableRelRef{req.ObjectRelation}),
+		attribute.Stringer("subject", stringableOnr{req.Subject}),
+	))
+	defer span.End()
+
+	err := dispatch.CheckDepth(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+	if err != nil {
+		return err
+	}
+
+	validatedReq := graph.ValidatedReachableResourcesRequest{
+		DispatchReachableResourcesRequest: req,
+		Revision:                          revision,
+	}
+
+	wrappedStream := dispatch.DispatchStreamWithContext[*v1.DispatchReachableResourcesResponse](stream, ctx)
+	return ld.reachableResourcesHandler.ReachableResources(validatedReq, wrappedStream)
 }
 
 func (ld *localDispatcher) Close() error {

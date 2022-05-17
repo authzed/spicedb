@@ -27,4 +27,9 @@ func (fd fakeDelegate) DispatchLookup(ctx context.Context, req *v1.DispatchLooku
 	panic(errMessage)
 }
 
+func (fd fakeDelegate) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream v1.DispatchService_DispatchReachableResourcesServer,
+) error {
+	panic(errMessage)
+}
+
 var _ dispatch.Dispatcher = fakeDelegate{}

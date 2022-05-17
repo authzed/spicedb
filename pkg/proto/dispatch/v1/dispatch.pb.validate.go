@@ -1193,6 +1193,509 @@ var _ interface {
 	ErrorName() string
 } = DispatchLookupResponseValidationError{}
 
+// Validate checks the field values on DispatchReachableResourcesRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *DispatchReachableResourcesRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DispatchReachableResourcesRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// DispatchReachableResourcesRequestMultiError, or nil if none found.
+func (m *DispatchReachableResourcesRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DispatchReachableResourcesRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if m.GetMetadata() == nil {
+		err := DispatchReachableResourcesRequestValidationError{
+			field:  "Metadata",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetMetadata()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchReachableResourcesRequestValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchReachableResourcesRequestValidationError{
+					field:  "Metadata",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMetadata()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DispatchReachableResourcesRequestValidationError{
+				field:  "Metadata",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if m.GetObjectRelation() == nil {
+		err := DispatchReachableResourcesRequestValidationError{
+			field:  "ObjectRelation",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetObjectRelation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchReachableResourcesRequestValidationError{
+					field:  "ObjectRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchReachableResourcesRequestValidationError{
+					field:  "ObjectRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetObjectRelation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DispatchReachableResourcesRequestValidationError{
+				field:  "ObjectRelation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if m.GetSubject() == nil {
+		err := DispatchReachableResourcesRequestValidationError{
+			field:  "Subject",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetSubject()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchReachableResourcesRequestValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchReachableResourcesRequestValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSubject()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DispatchReachableResourcesRequestValidationError{
+				field:  "Subject",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return DispatchReachableResourcesRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// DispatchReachableResourcesRequestMultiError is an error wrapping multiple
+// validation errors returned by
+// DispatchReachableResourcesRequest.ValidateAll() if the designated
+// constraints aren't met.
+type DispatchReachableResourcesRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DispatchReachableResourcesRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DispatchReachableResourcesRequestMultiError) AllErrors() []error { return m }
+
+// DispatchReachableResourcesRequestValidationError is the validation error
+// returned by DispatchReachableResourcesRequest.Validate if the designated
+// constraints aren't met.
+type DispatchReachableResourcesRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DispatchReachableResourcesRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DispatchReachableResourcesRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DispatchReachableResourcesRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DispatchReachableResourcesRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DispatchReachableResourcesRequestValidationError) ErrorName() string {
+	return "DispatchReachableResourcesRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DispatchReachableResourcesRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDispatchReachableResourcesRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DispatchReachableResourcesRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DispatchReachableResourcesRequestValidationError{}
+
+// Validate checks the field values on ReachableResource with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *ReachableResource) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ReachableResource with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ReachableResourceMultiError, or nil if none found.
+func (m *ReachableResource) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ReachableResource) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if m.GetResource() == nil {
+		err := ReachableResourceValidationError{
+			field:  "Resource",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetResource()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ReachableResourceValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ReachableResourceValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetResource()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ReachableResourceValidationError{
+				field:  "Resource",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for ResultStatus
+
+	if len(errors) > 0 {
+		return ReachableResourceMultiError(errors)
+	}
+
+	return nil
+}
+
+// ReachableResourceMultiError is an error wrapping multiple validation errors
+// returned by ReachableResource.ValidateAll() if the designated constraints
+// aren't met.
+type ReachableResourceMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ReachableResourceMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ReachableResourceMultiError) AllErrors() []error { return m }
+
+// ReachableResourceValidationError is the validation error returned by
+// ReachableResource.Validate if the designated constraints aren't met.
+type ReachableResourceValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ReachableResourceValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ReachableResourceValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ReachableResourceValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ReachableResourceValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ReachableResourceValidationError) ErrorName() string {
+	return "ReachableResourceValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ReachableResourceValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sReachableResource.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ReachableResourceValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ReachableResourceValidationError{}
+
+// Validate checks the field values on DispatchReachableResourcesResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *DispatchReachableResourcesResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DispatchReachableResourcesResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// DispatchReachableResourcesResponseMultiError, or nil if none found.
+func (m *DispatchReachableResourcesResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DispatchReachableResourcesResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetResource()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchReachableResourcesResponseValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchReachableResourcesResponseValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetResource()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DispatchReachableResourcesResponseValidationError{
+				field:  "Resource",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return DispatchReachableResourcesResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// DispatchReachableResourcesResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// DispatchReachableResourcesResponse.ValidateAll() if the designated
+// constraints aren't met.
+type DispatchReachableResourcesResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DispatchReachableResourcesResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DispatchReachableResourcesResponseMultiError) AllErrors() []error { return m }
+
+// DispatchReachableResourcesResponseValidationError is the validation error
+// returned by DispatchReachableResourcesResponse.Validate if the designated
+// constraints aren't met.
+type DispatchReachableResourcesResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DispatchReachableResourcesResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DispatchReachableResourcesResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DispatchReachableResourcesResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DispatchReachableResourcesResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DispatchReachableResourcesResponseValidationError) ErrorName() string {
+	return "DispatchReachableResourcesResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e DispatchReachableResourcesResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDispatchReachableResourcesResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DispatchReachableResourcesResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DispatchReachableResourcesResponseValidationError{}
+
 // Validate checks the field values on ResolverMeta with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

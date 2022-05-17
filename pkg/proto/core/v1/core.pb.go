@@ -1080,7 +1080,7 @@ func (x *Relation) GetCanonicalCacheKey() string {
 // The reachability graph for `viewer` and the other relations will have entrypoints for each
 // subject type found for those relations.
 //
-// The reachability graph for the `view` relation will have three entrypoints, representing:
+// The full reachability graph for the `view` relation will have three entrypoints, representing:
 //   1) resource#viewer (computed_userset)
 //   2) resource#owner  (computed_userset)
 //   3) organization#admin (tupleset_to_userset)
@@ -1843,7 +1843,7 @@ type SetOperation_Child struct {
 	// operation_path (if specified) is the *unique* ID for the set operation in the permission
 	// definition. It is a heirarchy representing the position of the operation under its parent
 	// operation. For example, the operation path of an operation which is the third child of the
-	// fourth top-level operation, will be `3,1`.
+	// fourth top-level operation, will be `3,2`.
 	OperationPath []uint32 `protobuf:"varint,7,rep,packed,name=operation_path,json=operationPath,proto3" json:"operation_path,omitempty"`
 }
 

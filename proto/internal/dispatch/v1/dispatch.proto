@@ -8,10 +8,9 @@ import "core/v1/core.proto";
 
 service DispatchService {
   rpc DispatchCheck(DispatchCheckRequest) returns (DispatchCheckResponse) {}
-
   rpc DispatchExpand(DispatchExpandRequest) returns (DispatchExpandResponse) {}
-
   rpc DispatchLookup(DispatchLookupRequest) returns (DispatchLookupResponse) {}
+  rpc DispatchReachableResources(DispatchReachableResourcesRequest) returns (stream DispatchReachableResourcesResponse) {}
 }
 
 message DispatchCheckRequest {
@@ -69,6 +68,40 @@ message DispatchLookupResponse {
 
   repeated core.v1.ObjectAndRelation resolved_onrs = 2;
   string next_page_reference = 3;
+}
+
+message DispatchReachableResourcesRequest {
+  ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
+
+  core.v1.RelationReference object_relation = 2
+      [ (validate.rules).message.required = true ];
+  core.v1.ObjectAndRelation subject = 3
+      [ (validate.rules).message.required = true ];
+}
+
+message ReachableResource {
+  enum ResultStatus {
+    /**
+     * REQUIRES_CHECK indicates that the resource is reachable but a Check is required to
+     * determine if the resource is actually found for the user.
+     */
+    REQUIRES_CHECK = 0;
+
+    /**
+     * HAS_PERMISSION indicates that the resource is both reachable and found for the permission
+     * for the subject.
+     */
+    HAS_PERMISSION = 1;
+  }
+
+  core.v1.ObjectAndRelation resource = 1
+      [ (validate.rules).message.required = true ];
+
+  ResultStatus result_status = 2;
+}
+
+message DispatchReachableResourcesResponse {
+  ReachableResource resource = 1;
 }
 
 message ResolverMeta {

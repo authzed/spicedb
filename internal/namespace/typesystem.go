@@ -337,6 +337,13 @@ func (nts *TypeSystem) computeReferencesWildcardType(ctx context.Context, relati
 	return nil, nil
 }
 
+// AsValidated returns the current type system marked as validated. This method should *only* be
+// called for type systems read from storage.
+// TODO(jschorr): Maybe have the namespaces loaded from datastore do this automatically?
+func (nts *TypeSystem) AsValidated() *ValidatedNamespaceTypeSystem {
+	return &ValidatedNamespaceTypeSystem{nts}
+}
+
 // Validate runs validation on the type system for the namespace to ensure it is consistent.
 func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSystem, error) {
 	for _, relation := range nts.relationMap {

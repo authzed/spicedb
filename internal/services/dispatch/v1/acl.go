@@ -48,6 +48,17 @@ func (ds *dispatchServer) DispatchLookup(ctx context.Context, req *dispatchv1.Di
 	return resp, rewriteGraphError(ctx, err)
 }
 
+func (ds *dispatchServer) DispatchReachableResources(
+	req *dispatchv1.DispatchReachableResourcesRequest,
+	stream dispatchv1.DispatchService_DispatchReachableResourcesServer,
+) error {
+	return ds.localDispatch.DispatchReachableResources(req, stream)
+}
+
+func (ds *dispatchServer) Close() error {
+	return nil
+}
+
 func rewriteGraphError(ctx context.Context, err error) error {
 	switch {
 	case errors.As(err, &graph.ErrRequestCanceled{}):

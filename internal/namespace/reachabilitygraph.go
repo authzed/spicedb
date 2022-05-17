@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -20,6 +21,39 @@ type ReachabilityGraph struct {
 type ReachabilityEntrypoint struct {
 	re             *core.ReachabilityEntrypoint
 	parentRelation *core.RelationReference
+}
+
+// EntrypointKind is the kind of the entrypoint.
+func (re ReachabilityEntrypoint) EntrypointKind() core.ReachabilityEntrypoint_ReachabilityEntrypointKind {
+	return re.re.Kind
+}
+
+// TupleToUserset returns the TTU associated with this entrypoint, if a TUPLESET_TO_USERSET_ENTRYPOINT.
+func (re ReachabilityEntrypoint) TupleToUserset(nsDef *core.NamespaceDefinition) *core.TupleToUserset {
+	if re.EntrypointKind() != core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT {
+		panic(fmt.Sprintf("cannot call TupleToUserset for kind %v", re.EntrypointKind()))
+	}
+
+	if nsDef.Name != re.parentRelation.Namespace {
+		panic("invalid namespace definition given to TupleToUserset")
+	}
+
+	for _, relation := range nsDef.Relation {
+		if relation.Name == re.parentRelation.Relation {
+			return graph.FindOperation[core.TupleToUserset](relation.GetUsersetRewrite(), re.re.OperationPath)
+		}
+	}
+
+	return nil
+}
+
+// DirectRelation is the relation that this entrypoint represents, if a RELATION_ENTRYPOINT.
+func (re ReachabilityEntrypoint) DirectRelation() *core.RelationReference {
+	if re.EntrypointKind() != core.ReachabilityEntrypoint_RELATION_ENTRYPOINT {
+		panic(fmt.Sprintf("cannot call DirectRelation for kind %v", re.EntrypointKind()))
+	}
+
+	return re.re.TargetRelation
 }
 
 // ContainingRelationOrPermission is the relation or permission containing this entrypoint.

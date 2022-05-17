@@ -24,6 +24,8 @@ const (
 
 // Dispatcher is a dispatcher with built-in caching.
 type Dispatcher struct {
+	v1.UnimplementedDispatchServiceServer
+
 	d          dispatch.Dispatcher
 	c          *ristretto.Cache
 	keyHandler keys.Handler
@@ -271,6 +273,11 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 	return computed, err
 }
 
+// DispatchReachableResources implements dispatch.ReachableResources interface and does not do any caching yet.
+func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream v1.DispatchService_DispatchReachableResourcesServer) error {
+	return cd.d.DispatchReachableResources(req, stream)
+}
+
 func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.checkTotalCounter)
 	prometheus.Unregister(cd.lookupTotalCounter)
@@ -286,3 +293,7 @@ func (cd *Dispatcher) Close() error {
 
 	return nil
 }
+
+// Always verify that we implement the interfaces
+var _ dispatch.Dispatcher = &Dispatcher{}
+var _ v1.DispatchServiceServer = &Dispatcher{}

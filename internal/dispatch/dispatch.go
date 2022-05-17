@@ -20,6 +20,7 @@ type Dispatcher interface {
 	Check
 	Expand
 	Lookup
+	ReachableResources
 
 	// Close closes the dispatcher.
 	Close() error
@@ -41,6 +42,15 @@ type Expand interface {
 type Lookup interface {
 	// DispatchLookup submits a single lookup request and returns its result.
 	DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error)
+}
+
+// ReachableResources interface describes just the methods required to dispatch reachable resources requests.
+type ReachableResources interface {
+	// DispatchReachableResources submits a single reachable resources request, writing its results to the specified stream.
+	DispatchReachableResources(
+		req *v1.DispatchReachableResourcesRequest,
+		stream v1.DispatchService_DispatchReachableResourcesServer,
+	) error
 }
 
 // HasMetadata is an interface for requests containing resolver metadata.
@@ -89,4 +99,9 @@ func LookupRequestToKey(req *v1.DispatchLookupRequest) string {
 // ExpandRequestToKey converts an expand request into a cache key
 func ExpandRequestToKey(req *v1.DispatchExpandRequest) string {
 	return fmt.Sprintf("expand//%s@%s", tuple.StringONR(req.ObjectAndRelation), req.Metadata.AtRevision)
+}
+
+// ReachableResourcesRequestToKey converts a reachable resources request into a cache key
+func ReachableResourcesRequestToKey(req *v1.DispatchReachableResourcesRequest) string {
+	return fmt.Sprintf("reachableresources//%s#%s@%s@%s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }

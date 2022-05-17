@@ -145,6 +145,10 @@ func (ddm delegateDispatchMock) DispatchLookup(ctx context.Context, req *v1.Disp
 	return &v1.DispatchLookupResponse{}, nil
 }
 
+func (ddm delegateDispatchMock) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream v1.DispatchService_DispatchReachableResourcesServer) error {
+	return nil
+}
+
 func (ddm delegateDispatchMock) Close() error {
 	return nil
 }

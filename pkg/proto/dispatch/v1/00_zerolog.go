@@ -51,6 +51,13 @@ func (lr *DispatchLookupRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Uint32("limit", lr.Limit)
 }
 
+// MarshalZerologObject implements zerolog object marshalling.
+func (lr *DispatchReachableResourcesRequest) MarshalZerologObject(e *zerolog.Event) {
+	e.Object("metadata", lr.Metadata)
+	e.Str("object", fmt.Sprintf("%s#%s", lr.ObjectRelation.Namespace, lr.ObjectRelation.Relation))
+	e.Str("subject", tuple.StringONR(lr.Subject))
+}
+
 type onArray []*core.RelationReference
 
 type zerologON core.RelationReference
