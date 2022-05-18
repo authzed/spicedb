@@ -845,8 +845,9 @@ func TestLookupMissingTypeInformation(t *testing.T) {
 		Limit:          100,
 		AtRevision:     core.ToV0Zookie(zookie.NewFromRevision(revision)),
 	})
-	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
-	require.Equal("rpc error: code = FailedPrecondition desc = failed precondition: relation/permission `viewer` under definition `typelessdoc` is missing type information", err.Error())
+
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.Equal("rpc error: code = InvalidArgument desc = error in reachablility: relation `viewer` missing type information when computing reachability for namespace `typelessdoc`", err.Error())
 }
 
 func verifyTuples(expected []string, found []*v0.RelationTuple, require *require.Assertions) {

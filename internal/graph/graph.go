@@ -55,12 +55,6 @@ type ExpandReducer func(
 	requests []ReduceableExpandFunc,
 ) ExpandResult
 
-// ReduceableLookupFunc is a function that can be bound to a execution context.
-type ReduceableLookupFunc func(ctx context.Context, resultChan chan<- LookupResult)
-
-// LookupReducer is a type for the functions which combine lookup results.
-type LookupReducer func(ctx context.Context, parentReq ValidatedLookupRequest, limit uint32, requests []ReduceableLookupFunc) LookupResult
-
 func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 	return &v1.ResolverMeta{
 		AtRevision:     md.AtRevision,

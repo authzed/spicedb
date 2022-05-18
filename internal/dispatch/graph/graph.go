@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -16,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	graphwalk "github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -26,11 +24,6 @@ import (
 const errDispatch = "error dispatching request: %w"
 
 var tracer = otel.Tracer("spicedb/internal/dispatch/local")
-
-var slowLookupCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Name: "spicedb_dispatch_slow_lookup_total",
-	Help: "count of how many times the slow lookup path is taken",
-}, []string{"prefix"})
 
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
 func NewLocalOnlyDispatcher() dispatch.Dispatcher {
@@ -237,59 +230,7 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 		Revision:              revision,
 	}
 
-	ns, err := ld.loadNamespace(ctx, req.ObjectRelation.Namespace, revision)
-	if err != nil {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
-	}
-
-	relation, err := ld.lookupRelation(ctx, ns, req.ObjectRelation.Relation, revision)
-	if err != nil {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
-	}
-
-	if ld.requiresLookupViaChecks(relation) {
-		log.Warn().Msg("slow path dispatch lookup")
-		slowLookupCounter.WithLabelValues(prefix(validatedReq.Subject.Namespace)).Inc()
-		return ld.lookupHandler.LookupViaChecks(ctx, validatedReq)
-	}
-
-	return ld.lookupHandler.Lookup(ctx, validatedReq)
-}
-
-func prefix(namespace string) (prefix string) {
-	parts := strings.SplitN(namespace, "/", 2)
-	if len(parts) > 1 {
-		prefix = parts[0]
-	}
-	return prefix
-}
-
-func (ld *localDispatcher) requiresLookupViaChecks(relation *core.Relation) bool {
-	// TODO: refactor walker so that we don't have to make two separate checks
-	// check top-level rewrite
-	if rw := relation.GetUsersetRewrite(); rw != nil {
-		switch rw.RewriteOperation.(type) {
-		case *core.UsersetRewrite_Intersection:
-			return true
-		case *core.UsersetRewrite_Exclusion:
-			return true
-		}
-	}
-
-	// check child rewrites
-	childIntersectionExclusion := graphwalk.WalkRewrite(relation.GetUsersetRewrite(), func(childOneof *core.SetOperation_Child) interface{} {
-		switch child := childOneof.ChildType.(type) {
-		case *core.SetOperation_Child_UsersetRewrite:
-			switch child.UsersetRewrite.RewriteOperation.(type) {
-			case *core.UsersetRewrite_Intersection:
-				return true
-			case *core.UsersetRewrite_Exclusion:
-				return true
-			}
-		}
-		return nil
-	})
-	return childIntersectionExclusion != nil
+	return ld.lookupHandler.LookupViaReachability(ctx, validatedReq)
 }
 
 // DispatchReachableResources implements dispatch.ReachableResources interface
