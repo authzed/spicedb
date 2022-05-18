@@ -37,7 +37,7 @@ func GoRun(ctx context.Context, out, errOut io.Writer, args ...string) (int, err
 }
 
 func start(ctx context.Context, out, errOut io.Writer, args ...string) (*exec.Cmd, error) {
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...) // #nosec G204
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Stdout = out
 	cmd.Stderr = errOut

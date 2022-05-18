@@ -25,7 +25,7 @@ type Node struct {
 	DbName         string
 	URI            string
 	GrpcPort       int
-	HttpPort       int
+	HTTPPort       int
 	DispatchPort   int
 	MetricsPort    int
 	DashboardPort  int
@@ -47,8 +47,8 @@ func WithTestDefaults(opts ...NodeOption) NodeOption {
 		if s.DispatchPort == 0 {
 			s.DispatchPort = 50052
 		}
-		if s.HttpPort == 0 {
-			s.HttpPort = 8443
+		if s.HTTPPort == 0 {
+			s.HTTPPort = 8443
 		}
 		if s.MetricsPort == 0 {
 			s.MetricsPort = 9090
@@ -81,7 +81,7 @@ func (s *Node) Start(ctx context.Context, logprefix string, args ...string) erro
 		"--datastore-engine=" + s.Datastore,
 		"--datastore-conn-uri=" + s.URI,
 		fmt.Sprintf("--grpc-addr=:%d", s.GrpcPort),
-		fmt.Sprintf("--http-addr=:%d", s.HttpPort),
+		fmt.Sprintf("--http-addr=:%d", s.HTTPPort),
 		fmt.Sprintf("--dispatch-cluster-addr=:%d", s.DispatchPort),
 		fmt.Sprintf("--metrics-addr=:%d", s.MetricsPort),
 		fmt.Sprintf("--dashboard-addr=:%d", s.DashboardPort),
@@ -147,7 +147,7 @@ func NewClusterFromCockroachCluster(c cockroach.Cluster, opts ...NodeOption) Clu
 			URI:           c[i].ConnectionString(proto.DbName),
 			GrpcPort:      proto.GrpcPort + 2*i,
 			DispatchPort:  proto.DispatchPort + 2*i,
-			HttpPort:      proto.HttpPort + 2*i,
+			HTTPPort:      proto.HTTPPort + 2*i,
 			MetricsPort:   proto.MetricsPort + i,
 			DashboardPort: proto.DashboardPort + i,
 		})

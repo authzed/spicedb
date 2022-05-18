@@ -292,7 +292,7 @@ func rewriteDatastoreError(ctx context.Context, err error) error {
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
-		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
+		return status.Errorf(codes.OutOfRange, "invalid revision: %s", err)
 
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return serviceerrors.ErrServiceReadOnly

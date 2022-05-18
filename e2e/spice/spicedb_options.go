@@ -64,10 +64,10 @@ func WithGrpcPort(grpcPort int) NodeOption {
 	}
 }
 
-// WithHttpPort returns an option that can set HttpPort on a Node
+// WithHttpPort returns an option that can set HTTPPort on a Node
 func WithHttpPort(httpPort int) NodeOption {
 	return func(n *Node) {
-		n.HttpPort = httpPort
+		n.HTTPPort = httpPort
 	}
 }
 
