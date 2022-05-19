@@ -194,6 +194,10 @@ func RemoteReporter(
 						Stringer("next", nextPush).
 						Msg("failed to push telemetry metric")
 				} else {
+					log.Debug().
+						Str("endpoint", endpoint).
+						Stringer("next", nextPush).
+						Msg("reported telemetry")
 					backoffInterval.Reset()
 				}
 				if nextPush == backoff.Stop {
