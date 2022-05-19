@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/shopspring/decimal"
-	"google.golang.org/grpc/metadata"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
@@ -44,16 +44,27 @@ type collectingStream struct {
 	dispatchCount       uint32
 	cachedDispatchCount uint32
 	depthRequired       uint32
+
+	mu sync.Mutex
 }
 
-func (ls *collectingStream) Send(result *v1.DispatchReachableResourcesResponse) error {
+func (ls *collectingStream) Context() context.Context {
+	return ls.context
+}
+
+func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesResponse) error {
 	if result == nil {
 		panic("Got nil result")
 	}
 
-	ls.dispatchCount += result.Metadata.DispatchCount
-	ls.cachedDispatchCount += result.Metadata.CachedDispatchCount
-	ls.depthRequired = max(result.Metadata.DepthRequired, ls.depthRequired)
+	(func() {
+		ls.mu.Lock()
+		defer ls.mu.Unlock()
+
+		ls.dispatchCount += result.Metadata.DispatchCount
+		ls.cachedDispatchCount += result.Metadata.CachedDispatchCount
+		ls.depthRequired = max(result.Metadata.DepthRequired, ls.depthRequired)
+	})()
 
 	if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
 		ls.checker.AddResult(result.Resource.Resource)
@@ -67,29 +78,6 @@ func (ls *collectingStream) Send(result *v1.DispatchReachableResourcesResponse) 
 	return nil
 }
 
-func (ls *collectingStream) SetHeader(metadata.MD) error {
-	return nil
-}
-
-func (ls *collectingStream) SendHeader(metadata.MD) error {
-	return nil
-}
-
-func (ls *collectingStream) SetTrailer(metadata.MD) {
-}
-
-func (ls *collectingStream) Context() context.Context {
-	return ls.context
-}
-
-func (ls *collectingStream) SendMsg(m interface{}) error {
-	return fmt.Errorf("not implemented")
-}
-
-func (ls *collectingStream) RecvMsg(m interface{}) error {
-	return fmt.Errorf("not implemented")
-}
-
 func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req ValidatedLookupRequest) (*v1.DispatchLookupResponse, error) {
 	if req.Subject.ObjectId == tuple.PublicWildcard {
 		resp := lookupResultError(req, NewErrInvalidArgument(errors.New("cannot perform lookup on wildcard")), emptyMetadata)
@@ -100,7 +88,7 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	defer checkCancel()
 
 	checker := NewParallelChecker(cancelCtx, cl.c, req.Subject, 10)
-	stream := &collectingStream{checker, req, cancelCtx, 0, 0, 0}
+	stream := &collectingStream{checker, req, cancelCtx, 0, 0, 0, sync.Mutex{}}
 
 	// Start the checker.
 	checker.Start()

@@ -2,6 +2,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"google.golang.org/grpc"
@@ -30,8 +31,6 @@ func NewClusterDispatcher(client clusterClient, keyHandler keys.Handler) dispatc
 }
 
 type clusterDispatcher struct {
-	v1.UnimplementedDispatchServiceServer
-
 	clusterClient clusterClient
 	keyHandler    keys.Handler
 }
@@ -86,10 +85,11 @@ func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 
 func (cr *clusterDispatcher) DispatchReachableResources(
 	req *v1.DispatchReachableResourcesRequest,
-	stream v1.DispatchService_DispatchReachableResourcesServer,
+	stream dispatch.ReachableResourcesStream,
 ) error {
-	ctx := stream.Context()
-	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.ReachableResourcesRequestToKey(req)))
+	ctx := context.WithValue(stream.Context(), balancer.CtxKey, []byte(dispatch.ReachableResourcesRequestToKey(req)))
+	stream = dispatch.StreamWithContext(ctx, stream)
+
 	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 
 	for {
 		result, err := client.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 
@@ -110,7 +110,7 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 			return err
 		}
 
-		serr := stream.Send(result)
+		serr := stream.Publish(result)
 		if serr != nil {
 			return serr
 		}
@@ -123,7 +123,6 @@ func (cr *clusterDispatcher) Close() error {
 
 // Always verify that we implement the interfaces
 var _ dispatch.Dispatcher = &clusterDispatcher{}
-var _ v1.DispatchServiceServer = &clusterDispatcher{}
 
 var emptyMetadata *v1.ResponseMeta = &v1.ResponseMeta{
 	DispatchCount: 0,

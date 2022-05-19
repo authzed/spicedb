@@ -44,12 +44,15 @@ type Lookup interface {
 	DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error)
 }
 
+// ReachableResourcesStream is an alias for the stream to which reachable resources will be written.
+type ReachableResourcesStream = Stream[*v1.DispatchReachableResourcesResponse]
+
 // ReachableResources interface describes just the methods required to dispatch reachable resources requests.
 type ReachableResources interface {
 	// DispatchReachableResources submits a single reachable resources request, writing its results to the specified stream.
 	DispatchReachableResources(
 		req *v1.DispatchReachableResourcesRequest,
-		stream v1.DispatchService_DispatchReachableResourcesServer,
+		stream ReachableResourcesStream,
 	) error
 }
 

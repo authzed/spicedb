@@ -20,7 +20,7 @@ type reachableResource struct {
 	hasPermission bool
 }
 
-func Reachable(onr *core.ObjectAndRelation, hasPermission bool) reachableResource {
+func reachable(onr *core.ObjectAndRelation, hasPermission bool) reachableResource {
 	return reachableResource{
 		tuple.StringONR(onr), hasPermission,
 	}
@@ -41,43 +41,43 @@ func TestSimpleReachableResources(t *testing.T) {
 			RR("document", "viewer"),
 			ONR("user", "eng_lead", "..."),
 			[]reachableResource{
-				Reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "masterplan", "viewer"), true),
 			},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "multiroleguy", "..."),
 			[]reachableResource{
-				Reachable(ONR("document", "specialplan", "viewer"), true),
+				reachable(ONR("document", "specialplan", "viewer"), true),
 			},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "legal", "..."),
 			[]reachableResource{
-				Reachable(ONR("document", "companyplan", "viewer"), true),
-				Reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "companyplan", "viewer"), true),
+				reachable(ONR("document", "masterplan", "viewer"), true),
 			},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "multiroleguy", "..."),
 			[]reachableResource{
-				Reachable(ONR("document", "specialplan", "viewer"), true),
+				reachable(ONR("document", "specialplan", "viewer"), true),
 			},
 		},
 		{
 			RR("document", "viewer_and_editor"),
 			ONR("user", "multiroleguy", "..."),
 			[]reachableResource{
-				Reachable(ONR("document", "specialplan", "viewer_and_editor"), false),
+				reachable(ONR("document", "specialplan", "viewer_and_editor"), false),
 			},
 		},
 		{
 			RR("document", "viewer_and_editor"),
 			ONR("user", "missingrolegal", "..."),
 			[]reachableResource{
-				Reachable(ONR("document", "specialplan", "viewer_and_editor"), false),
+				reachable(ONR("document", "specialplan", "viewer_and_editor"), false),
 			},
 		},
 		{
@@ -89,39 +89,39 @@ func TestSimpleReachableResources(t *testing.T) {
 			RR("document", "viewer"),
 			ONR("user", "owner", "..."),
 			[]reachableResource{
-				Reachable(ONR("document", "companyplan", "viewer"), true),
-				Reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "companyplan", "viewer"), true),
+				reachable(ONR("document", "masterplan", "viewer"), true),
 			},
 		},
 		{
 			RR("folder", "viewer"),
 			ONR("folder", "company", "viewer"),
 			[]reachableResource{
-				Reachable(ONR("folder", "strategy", "viewer"), true),
-				Reachable(ONR("folder", "company", "viewer"), true),
+				reachable(ONR("folder", "strategy", "viewer"), true),
+				reachable(ONR("folder", "company", "viewer"), true),
 			},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("user", "chief_financial_officer", "..."),
 			[]reachableResource{
-				Reachable(ONR("document", "healthplan", "viewer"), true),
-				Reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "healthplan", "viewer"), true),
+				reachable(ONR("document", "masterplan", "viewer"), true),
 			},
 		},
 		{
 			RR("folder", "viewer"),
 			ONR("user", "owner", "..."),
 			[]reachableResource{
-				Reachable(ONR("folder", "company", "viewer"), true),
-				Reachable(ONR("folder", "strategy", "viewer"), true),
+				reachable(ONR("folder", "company", "viewer"), true),
+				reachable(ONR("folder", "strategy", "viewer"), true),
 			},
 		},
 		{
 			RR("document", "viewer"),
 			ONR("document", "masterplan", "viewer"),
 			[]reachableResource{
-				Reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "masterplan", "viewer"), true),
 			},
 		},
 	}
@@ -139,7 +139,7 @@ func TestSimpleReachableResources(t *testing.T) {
 
 			ctx, dispatcher, revision := newLocalDispatcher(require)
 
-			stream := &dispatch.CollectingDispatchStream[*v1.DispatchReachableResourcesResponse]{Ctx: ctx}
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 				ObjectRelation: tc.start,
 				Subject:        tc.target,
@@ -165,12 +165,12 @@ func TestSimpleReachableResources(t *testing.T) {
 	}
 }
 
-func TestMaxDepthReachableResources(t *testing.T) {
+func TestMaxDepthreachableResources(t *testing.T) {
 	require := require.New(t)
 
 	ctx, dispatcher, revision := newLocalDispatcher(require)
 
-	stream := &dispatch.CollectingDispatchStream[*v1.DispatchReachableResourcesResponse]{Ctx: ctx}
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 	err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 		ObjectRelation: RR("document", "viewer"),
 		Subject:        ONR("user", "legal", "..."),

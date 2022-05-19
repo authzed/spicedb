@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/scylladb/go-set/strset"
 	"github.com/shopspring/decimal"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -13,8 +15,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/scylladb/go-set/strset"
-	"golang.org/x/sync/errgroup"
 )
 
 // NewConcurrentReachableResources creates an instance of ConcurrentReachableResources.
@@ -38,20 +38,23 @@ type ValidatedReachableResourcesRequest struct {
 
 func (crr *ConcurrentReachableResources) ReachableResources(
 	req ValidatedReachableResourcesRequest,
-	stream v1.DispatchService_DispatchReachableResourcesServer,
+	stream dispatch.ReachableResourcesStream,
 ) error {
 	ctx := stream.Context()
 
 	// If the resource type matches the subject type, yield directly.
 	if req.Subject.Namespace == req.ObjectRelation.Namespace &&
 		req.Subject.Relation == req.ObjectRelation.Relation {
-		stream.Send(&v1.DispatchReachableResourcesResponse{
+		err := stream.Publish(&v1.DispatchReachableResourcesResponse{
 			Resource: &v1.ReachableResource{
 				Resource:     req.Subject,
 				ResultStatus: v1.ReachableResource_HAS_PERMISSION,
 			},
 			Metadata: emptyMetadata,
 		})
+		if err != nil {
+			return err
+		}
 	}
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
@@ -77,9 +80,8 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	// For each entrypoint, load the necessary data and re-dispatch if a subproblem was found.
 	for _, entrypoint := range entrypoints {
 		switch entrypoint.EntrypointKind() {
-
 		case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-			err := crr.lookupRelationEntrypoint(ctx, entrypoint, g, subCtx, req, stream)
+			err := crr.lookupRelationEntrypoint(subCtx, entrypoint, g, req, stream)
 			if err != nil {
 				return err
 			}
@@ -194,9 +196,8 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Context,
 	entrypoint namespace.ReachabilityEntrypoint,
 	g *errgroup.Group,
-	subCtx context.Context,
 	req ValidatedReachableResourcesRequest,
-	stream v1.DispatchService_DispatchReachableResourcesServer,
+	stream dispatch.ReachableResourcesStream,
 ) error {
 	relationReference := entrypoint.DirectRelation()
 	_, relTypeSystem, err := crr.nsm.ReadNamespaceAndTypes(ctx, relationReference.Namespace, req.Revision)
@@ -220,7 +221,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 
 	collectResults := func(objectId string) error {
 		it, err := ds.ReverseQueryTuples(
-			subCtx,
+			ctx,
 			tuple.UsersetToSubjectFilter(&core.ObjectAndRelation{
 				Namespace: req.Subject.Namespace,
 				ObjectId:  objectId,
@@ -244,7 +245,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 
 			// Redispatch to continue looking for results.
 			g.Go(crr.redispatch(
-				subCtx,
+				ctx,
 				entrypoint,
 				stream,
 				&v1.DispatchReachableResourcesRequest{
@@ -278,24 +279,28 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 func (crr *ConcurrentReachableResources) redispatch(
 	ctx context.Context,
 	entrypoint namespace.ReachabilityEntrypoint,
-	parentStream v1.DispatchService_DispatchReachableResourcesServer,
+	parentStream dispatch.ReachableResourcesStream,
 	req *v1.DispatchReachableResourcesRequest,
 ) func() error {
 	return func() error {
 		stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
-			DispatchStream: parentStream,
-			Ctx:            ctx,
+			Stream: parentStream,
+			Ctx:    ctx,
 			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, error) {
-				// Update the dispatch count and depth required.
-				result.Metadata = addCallToResponseMetadata(result.Metadata)
-
 				// If the entrypoint is not a direct result, then a check is required to determine
 				// whether the resource actually has permission.
+				status := result.Resource.ResultStatus
 				if !entrypoint.IsDirectResult() {
-					result.Resource.ResultStatus = v1.ReachableResource_REQUIRES_CHECK
+					status = v1.ReachableResource_REQUIRES_CHECK
 				}
 
-				return result, nil
+				return &v1.DispatchReachableResourcesResponse{
+					Resource: &v1.ReachableResource{
+						Resource:     result.Resource.Resource,
+						ResultStatus: status,
+					},
+					Metadata: addCallToResponseMetadata(result.Metadata),
+				}, nil
 			},
 		}
 

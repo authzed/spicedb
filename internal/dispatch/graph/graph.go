@@ -236,7 +236,7 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 // DispatchReachableResources implements dispatch.ReachableResources interface
 func (ld *localDispatcher) DispatchReachableResources(
 	req *v1.DispatchReachableResourcesRequest,
-	stream v1.DispatchService_DispatchReachableResourcesServer,
+	stream dispatch.ReachableResourcesStream,
 ) error {
 	ctx, span := tracer.Start(stream.Context(), "DispatchReachableResources", trace.WithAttributes(
 		attribute.Stringer("start", stringableRelRef{req.ObjectRelation}),
@@ -259,7 +259,7 @@ func (ld *localDispatcher) DispatchReachableResources(
 		Revision:                          revision,
 	}
 
-	wrappedStream := dispatch.DispatchStreamWithContext[*v1.DispatchReachableResourcesResponse](stream, ctx)
+	wrappedStream := dispatch.StreamWithContext[*v1.DispatchReachableResourcesResponse](ctx, stream)
 	return ld.reachableResourcesHandler.ReachableResources(validatedReq, wrappedStream)
 }
 

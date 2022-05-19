@@ -3,6 +3,7 @@ package caching
 import (
 	"context"
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/dgraph-io/ristretto"
@@ -24,8 +25,6 @@ const (
 
 // Dispatcher is a dispatcher with built-in caching.
 type Dispatcher struct {
-	v1.UnimplementedDispatchServiceServer
-
 	d          dispatch.Dispatcher
 	c          *ristretto.Cache
 	keyHandler keys.Handler
@@ -302,7 +301,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 }
 
 // DispatchReachableResources implements dispatch.ReachableResources interface and does not do any caching yet.
-func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream v1.DispatchService_DispatchReachableResourcesServer) error {
+func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
 	cd.reachableResourcesTotalCounter.Inc()
 
 	requestKey := dispatch.ReachableResourcesRequestToKey(req)
@@ -310,13 +309,7 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 		cachedResult := cachedResultRaw.(reachableResourcesResultEntry)
 		cd.reachableResourcesFromCacheCounter.Inc()
 		for _, result := range cachedResult.responses {
-			// Adjust the metadata to show the cached counts.
-			if result.Metadata.CachedDispatchCount == 0 {
-				result.Metadata.CachedDispatchCount = result.Metadata.DispatchCount
-				result.Metadata.DispatchCount = 0
-			}
-
-			err := stream.Send(result)
+			err := stream.Publish(result)
 			if err != nil {
 				return err
 			}
@@ -325,13 +318,21 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 		return nil
 	}
 
+	var mu sync.Mutex
 	estimatedSize := reachbleResourcesEntryEmptyCost
 	toCacheResults := []*v1.DispatchReachableResourcesResponse{}
 	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
-		DispatchStream: stream,
-		Ctx:            stream.Context(),
+		Stream: stream,
+		Ctx:    stream.Context(),
 		Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, error) {
-			toCacheResults = append(toCacheResults, result)
+			mu.Lock()
+			defer mu.Unlock()
+
+			adjustedResult := proto.Clone(result).(*v1.DispatchReachableResourcesResponse)
+			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
+			adjustedResult.Metadata.DispatchCount = 0
+
+			toCacheResults = append(toCacheResults, adjustedResult)
 			estimatedSize += int64(len(result.Resource.Resource.Namespace) + len(result.Resource.Resource.ObjectId) + len(result.Resource.Resource.Relation))
 			return result, nil
 		},
@@ -366,4 +367,3 @@ func (cd *Dispatcher) Close() error {
 
 // Always verify that we implement the interfaces
 var _ dispatch.Dispatcher = &Dispatcher{}
-var _ v1.DispatchServiceServer = &Dispatcher{}

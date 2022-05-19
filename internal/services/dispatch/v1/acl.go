@@ -50,9 +50,10 @@ func (ds *dispatchServer) DispatchLookup(ctx context.Context, req *dispatchv1.Di
 
 func (ds *dispatchServer) DispatchReachableResources(
 	req *dispatchv1.DispatchReachableResourcesRequest,
-	stream dispatchv1.DispatchService_DispatchReachableResourcesServer,
+	resp dispatchv1.DispatchService_DispatchReachableResourcesServer,
 ) error {
-	return ds.localDispatch.DispatchReachableResources(req, stream)
+	return ds.localDispatch.DispatchReachableResources(req,
+		dispatch.WrapGRPCStream[*dispatchv1.DispatchReachableResourcesResponse](resp))
 }
 
 func (ds *dispatchServer) Close() error {
