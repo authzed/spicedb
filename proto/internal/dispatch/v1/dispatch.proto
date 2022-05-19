@@ -102,6 +102,7 @@ message ReachableResource {
 
 message DispatchReachableResourcesResponse {
   ReachableResource resource = 1;
+  ResponseMeta metadata = 2;
 }
 
 message ResolverMeta {
@@ -116,6 +117,7 @@ message ResponseMeta {
   uint32 depth_required = 2;
   uint32 cached_dispatch_count = 3;
 
+  // LEGACY: To be removed
   repeated core.v1.RelationReference lookup_excluded_direct = 4;
   repeated core.v1.RelationReference lookup_excluded_ttu = 5;
 }

@@ -22,19 +22,46 @@ type ParallelChecker struct {
 	subject       *core.ObjectAndRelation
 	maxConcurrent uint8
 	results       *tuple.ONRSet
-	mu            sync.Mutex
+
+	dispatchCount       uint32
+	cachedDispatchCount uint32
+	depthRequired       uint32
+
+	mu sync.Mutex
 }
 
 func NewParallelChecker(ctx context.Context, c dispatch.Check, subject *core.ObjectAndRelation, maxConcurrent uint8) *ParallelChecker {
 	g, checkCtx := errgroup.WithContext(ctx)
 	toCheck := make(chan *v1.DispatchCheckRequest)
-	return &ParallelChecker{toCheck, c, g, checkCtx, subject, maxConcurrent, tuple.NewONRSet(), sync.Mutex{}}
+	return &ParallelChecker{toCheck, c, g, checkCtx, subject, maxConcurrent, tuple.NewONRSet(), 0, 0, 0, sync.Mutex{}}
 }
 
 func (pc *ParallelChecker) AddResult(resource *core.ObjectAndRelation) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
+	pc.addResultUnderLock(resource)
+}
+
+func (pc *ParallelChecker) DispatchCount() uint32 {
+	return pc.dispatchCount
+}
+
+func (pc *ParallelChecker) CachedDispatchCount() uint32 {
+	return pc.cachedDispatchCount
+}
+
+func (pc *ParallelChecker) DepthRequired() uint32 {
+	return pc.depthRequired
+}
+
+func (pc *ParallelChecker) addResultUnderLock(resource *core.ObjectAndRelation) {
 	pc.results.Add(resource)
+}
+
+func (pc *ParallelChecker) updateStatsUnderLock(metadata *v1.ResponseMeta) {
+	pc.dispatchCount += metadata.DispatchCount
+	pc.cachedDispatchCount += metadata.CachedDispatchCount
+	pc.depthRequired = max(pc.depthRequired, metadata.DepthRequired)
 }
 
 func (pc *ParallelChecker) QueueCheck(resource *core.ObjectAndRelation, meta *v1.ResolverMeta) {
@@ -64,9 +91,15 @@ func (pc *ParallelChecker) Start() {
 				if err != nil {
 					return err
 				}
-				if res.Membership == v1.DispatchCheckResponse_MEMBER {
-					pc.AddResult(req.ObjectAndRelation)
-				}
+
+				(func() {
+					pc.mu.Lock()
+					defer pc.mu.Unlock()
+					if res.Membership == v1.DispatchCheckResponse_MEMBER {
+						pc.addResultUnderLock(req.ObjectAndRelation)
+					}
+					pc.updateStatsUnderLock(res.Metadata)
+				})()
 				return nil
 			})
 		}

@@ -50,6 +50,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 				Resource:     req.Subject,
 				ResultStatus: v1.ReachableResource_HAS_PERMISSION,
 			},
+			Metadata: emptyMetadata,
 		})
 	}
 
@@ -285,12 +286,15 @@ func (crr *ConcurrentReachableResources) redispatch(
 			DispatchStream: parentStream,
 			Ctx:            ctx,
 			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, error) {
-				if entrypoint.IsDirectResult() {
-					return result, nil
+				// Update the dispatch count and depth required.
+				result.Metadata = addCallToResponseMetadata(result.Metadata)
+
+				// If the entrypoint is not a direct result, then a check is required to determine
+				// whether the resource actually has permission.
+				if !entrypoint.IsDirectResult() {
+					result.Resource.ResultStatus = v1.ReachableResource_REQUIRES_CHECK
 				}
 
-				// Otherwise, mark all streamed items as requiring checks.
-				result.Resource.ResultStatus = v1.ReachableResource_REQUIRES_CHECK
 				return result, nil
 			},
 		}

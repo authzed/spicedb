@@ -40,12 +40,20 @@ type collectingStream struct {
 	checker *ParallelChecker
 	req     ValidatedLookupRequest
 	context context.Context
+
+	dispatchCount       uint32
+	cachedDispatchCount uint32
+	depthRequired       uint32
 }
 
 func (ls *collectingStream) Send(result *v1.DispatchReachableResourcesResponse) error {
 	if result == nil {
 		panic("Got nil result")
 	}
+
+	ls.dispatchCount += result.Metadata.DispatchCount
+	ls.cachedDispatchCount += result.Metadata.CachedDispatchCount
+	ls.depthRequired = max(result.Metadata.DepthRequired, ls.depthRequired)
 
 	if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
 		ls.checker.AddResult(result.Resource.Resource)
@@ -92,7 +100,7 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	defer checkCancel()
 
 	checker := NewParallelChecker(cancelCtx, cl.c, req.Subject, 10)
-	stream := &collectingStream{checker, req, cancelCtx}
+	stream := &collectingStream{checker, req, cancelCtx, 0, 0, 0}
 
 	// Start the checker.
 	checker.Start()
@@ -117,9 +125,9 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	}
 
 	res := lookupResult(req, limitedSlice(allowed.AsSlice(), req.Limit), &v1.ResponseMeta{
-		DispatchCount:       0,
-		CachedDispatchCount: 0,
-		DepthRequired:       0,
+		DispatchCount:       stream.dispatchCount + checker.DispatchCount() + 1, // +1 for the lookup
+		CachedDispatchCount: stream.cachedDispatchCount + checker.CachedDispatchCount(),
+		DepthRequired:       max(stream.depthRequired, checker.DepthRequired()) + 1, // +1 for the lookup
 	})
 	return res.Resp, res.Err
 }

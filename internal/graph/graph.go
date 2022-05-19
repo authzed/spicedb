@@ -72,22 +72,10 @@ func max(x, y uint32) uint32 {
 var emptyMetadata = &v1.ResponseMeta{}
 
 func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.ResponseMeta) *v1.ResponseMeta {
-	lookupExcludedDirect := existing.LookupExcludedDirect
-	if responseMetadata.LookupExcludedDirect != nil {
-		lookupExcludedDirect = append(lookupExcludedDirect, responseMetadata.LookupExcludedDirect...)
-	}
-
-	lookupExcludedTtu := existing.LookupExcludedTtu
-	if responseMetadata.LookupExcludedTtu != nil {
-		lookupExcludedTtu = append(lookupExcludedTtu, responseMetadata.LookupExcludedTtu...)
-	}
-
 	return &v1.ResponseMeta{
-		DispatchCount:        existing.DispatchCount + responseMetadata.DispatchCount,
-		DepthRequired:        max(existing.DepthRequired, responseMetadata.DepthRequired),
-		CachedDispatchCount:  existing.CachedDispatchCount + responseMetadata.CachedDispatchCount,
-		LookupExcludedDirect: lookupExcludedDirect,
-		LookupExcludedTtu:    lookupExcludedTtu,
+		DispatchCount:       existing.DispatchCount + responseMetadata.DispatchCount,
+		DepthRequired:       max(existing.DepthRequired, responseMetadata.DepthRequired),
+		CachedDispatchCount: existing.CachedDispatchCount + responseMetadata.CachedDispatchCount,
 	}
 }
 
@@ -97,21 +85,17 @@ func ensureMetadata(subProblemMetadata *v1.ResponseMeta) *v1.ResponseMeta {
 	}
 
 	return &v1.ResponseMeta{
-		DispatchCount:        subProblemMetadata.DispatchCount,
-		DepthRequired:        subProblemMetadata.DepthRequired,
-		CachedDispatchCount:  subProblemMetadata.CachedDispatchCount,
-		LookupExcludedDirect: subProblemMetadata.LookupExcludedDirect,
-		LookupExcludedTtu:    subProblemMetadata.LookupExcludedTtu,
+		DispatchCount:       subProblemMetadata.DispatchCount,
+		DepthRequired:       subProblemMetadata.DepthRequired,
+		CachedDispatchCount: subProblemMetadata.CachedDispatchCount,
 	}
 }
 
 func addCallToResponseMetadata(metadata *v1.ResponseMeta) *v1.ResponseMeta {
 	// + 1 for the current call.
 	return &v1.ResponseMeta{
-		DispatchCount:        metadata.DispatchCount + 1,
-		DepthRequired:        metadata.DepthRequired + 1,
-		CachedDispatchCount:  metadata.CachedDispatchCount,
-		LookupExcludedDirect: metadata.LookupExcludedDirect,
-		LookupExcludedTtu:    metadata.LookupExcludedTtu,
+		DispatchCount:       metadata.DispatchCount + 1,
+		DepthRequired:       metadata.DepthRequired + 1,
+		CachedDispatchCount: metadata.CachedDispatchCount,
 	}
 }
