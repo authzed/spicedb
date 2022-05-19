@@ -29,6 +29,9 @@ jobs:
         with:
           go-version: "~1.18"
       - uses: "authzed/actions/gofumpt@main"
+      - uses: "authzed/actions/gofumpt@main"
+        with:
+          working_directory: "e2e"
       - uses: "authzed/actions/go-mod-tidy@main"
       - uses: "authzed/actions/go-mod-tidy@main"
         with:
@@ -38,6 +41,9 @@ jobs:
           working_directory: "tools/analyzers"
       - uses: "authzed/actions/go-generate@main"
       - uses: "authzed/actions/golangci-lint@main"
+      - uses: "authzed/actions/golangci-lint@main"
+        with:
+          working_directory: "e2e"
       - uses: "authzed/actions/go-build@main"
         with:
           working_directory: "tools/analyzers"
