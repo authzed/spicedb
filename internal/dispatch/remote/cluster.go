@@ -7,7 +7,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/balancer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -20,18 +19,17 @@ type clusterClient interface {
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
-func NewClusterDispatcher(client clusterClient, keyHandler keys.Handler, nsm namespace.Manager) dispatch.Dispatcher {
+func NewClusterDispatcher(client clusterClient, keyHandler keys.Handler) dispatch.Dispatcher {
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
 	}
 
-	return &clusterDispatcher{client, keyHandler, nsm}
+	return &clusterDispatcher{client, keyHandler}
 }
 
 type clusterDispatcher struct {
 	clusterClient clusterClient
 	keyHandler    keys.Handler
-	nsm           namespace.Manager
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -40,7 +38,7 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	requestKey, err := cr.keyHandler.ComputeCheckKey(ctx, req, cr.nsm)
+	requestKey, err := cr.keyHandler.ComputeCheckKey(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}

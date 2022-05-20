@@ -10,7 +10,6 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/dgraph-io/ristretto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
@@ -22,8 +21,8 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datastore"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -36,12 +35,6 @@ func init() {
 }
 
 var ONR = tuple.ObjectAndRelation
-
-var testCacheConfig = &ristretto.Config{
-	NumCounters: 1e2,     // number of keys to track frequency of (10k).
-	MaxCost:     1 << 20, // maximum cost of cache (1MB).
-	BufferItems: 64,      // number of keys per Get buffer.
-}
 
 func TestSimpleCheck(t *testing.T) {
 	type expected struct {
@@ -153,7 +146,7 @@ func TestSimpleCheck(t *testing.T) {
 func TestMaxDepth(t *testing.T) {
 	require := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
@@ -179,14 +172,13 @@ func TestMaxDepth(t *testing.T) {
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	revision, err := ds.WriteTuples(ctx, nil, mutations)
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(mutations)
+	})
 	require.NoError(err)
 	require.True(revision.GreaterThan(decimal.Zero))
 
-	nsm, err := namespace.NewCachingNamespaceManager(testCacheConfig)
-	require.NoError(err)
-
-	dispatch := NewLocalOnlyDispatcher(nsm)
+	dispatch := NewLocalOnlyDispatcher()
 
 	checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ObjectAndRelation: ONR("folder", "oops", "owner"),
@@ -296,17 +288,14 @@ func TestCheckMetadata(t *testing.T) {
 }
 
 func newLocalDispatcher(require *require.Assertions) (context.Context, dispatch.Dispatcher, decimal.Decimal) {
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	nsm, err := namespace.NewCachingNamespaceManager(testCacheConfig)
-	require.NoError(err)
+	dispatch := NewLocalOnlyDispatcher()
 
-	dispatch := NewLocalOnlyDispatcher(nsm)
-
-	cachingDispatcher, err := caching.NewCachingDispatcher(nil, nsm, "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(nil, "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(err)
 

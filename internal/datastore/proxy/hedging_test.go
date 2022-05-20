@@ -14,10 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
-	"github.com/authzed/spicedb/internal/datastore"
-	"github.com/authzed/spicedb/internal/datastore/test"
 )
 
 var (
@@ -31,7 +30,7 @@ var (
 	revisionKnown        = decimal.NewFromInt(1)
 	anotherRevisionKnown = decimal.NewFromInt(2)
 
-	emptyIterator = datastore.NewSliceTupleIterator(nil)
+	emptyIterator = datastore.NewSliceRelationshipIterator(nil)
 )
 
 type testFunc func(t *testing.T, proxy datastore.Datastore, expectFirst bool)
@@ -39,6 +38,7 @@ type testFunc func(t *testing.T, proxy datastore.Datastore, expectFirst bool)
 func TestDatastoreRequestHedging(t *testing.T) {
 	testCases := []struct {
 		methodName        string
+		useSnapshotReader bool
 		arguments         []interface{}
 		firstCallResults  []interface{}
 		secondCallResults []interface{}
@@ -46,12 +46,13 @@ func TestDatastoreRequestHedging(t *testing.T) {
 	}{
 		{
 			"ReadNamespace",
-			[]interface{}{mock.Anything, nsKnown, datastore.NoRevision},
+			true,
+			[]interface{}{nsKnown},
 			[]interface{}{&core.NamespaceDefinition{}, revisionKnown, errKnown},
 			[]interface{}{&core.NamespaceDefinition{}, anotherRevisionKnown, errKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
-				_, rev, err := proxy.ReadNamespace(context.Background(), nsKnown, datastore.NoRevision)
+				_, rev, err := proxy.SnapshotReader(datastore.NoRevision).ReadNamespace(context.Background(), nsKnown)
 				require.ErrorIs(errKnown, err)
 				if expectFirst {
 					require.Equal(revisionKnown, rev)
@@ -62,6 +63,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		},
 		{
 			"OptimizedRevision",
+			false,
 			[]interface{}{mock.Anything, mock.Anything},
 			[]interface{}{revisionKnown, errKnown},
 			[]interface{}{anotherRevisionKnown, errKnown},
@@ -78,6 +80,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		},
 		{
 			"HeadRevision",
+			false,
 			[]interface{}{mock.Anything},
 			[]interface{}{revisionKnown, errKnown},
 			[]interface{}{anotherRevisionKnown, errKnown},
@@ -93,13 +96,16 @@ func TestDatastoreRequestHedging(t *testing.T) {
 			},
 		},
 		{
-			"QueryTuples",
+			"QueryRelationships",
+			true,
 			[]interface{}{mock.Anything, mock.Anything},
 			[]interface{}{emptyIterator, errKnown},
 			[]interface{}{emptyIterator, errAnotherKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
-				_, err := proxy.QueryTuples(context.Background(), &v1.RelationshipFilter{}, datastore.NoRevision)
+				_, err := proxy.
+					SnapshotReader(datastore.NoRevision).
+					QueryRelationships(context.Background(), &v1.RelationshipFilter{})
 				if expectFirst {
 					require.ErrorIs(errKnown, err)
 				} else {
@@ -108,13 +114,16 @@ func TestDatastoreRequestHedging(t *testing.T) {
 			},
 		},
 		{
-			"ReverseQueryTuples",
+			"ReverseQueryRelationships",
+			true,
 			[]interface{}{mock.Anything, mock.Anything},
 			[]interface{}{emptyIterator, errKnown},
 			[]interface{}{emptyIterator, errAnotherKnown},
 			func(t *testing.T, proxy datastore.Datastore, expectFirst bool) {
 				require := require.New(t)
-				_, err := proxy.ReverseQueryTuples(context.Background(), &v1.SubjectFilter{}, datastore.NoRevision)
+				_, err := proxy.
+					SnapshotReader(datastore.NoRevision).
+					ReverseQueryRelationships(context.Background(), &v1.SubjectFilter{})
 				if expectFirst {
 					require.ErrorIs(errKnown, err)
 				} else {
@@ -128,10 +137,18 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		t.Run(tc.methodName, func(t *testing.T) {
 			defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/authzed/spicedb/internal/datastore/proxy.autoAdvance.func1"), goleak.IgnoreCurrent())
 			mockTime := clock.NewMock()
-			delegate := &test.MockedDatastore{}
+			delegateDS := &proxy_test.MockDatastore{}
 			proxy := newHedgingProxyWithTimeSource(
-				delegate, slowQueryTime, maxSampleCount, quantile, mockTime,
+				delegateDS, slowQueryTime, maxSampleCount, quantile, mockTime,
 			)
+
+			delegate := &delegateDS.Mock
+
+			if tc.useSnapshotReader {
+				readerMock := &proxy_test.MockReader{}
+				delegate.On("SnapshotReader", mock.Anything).Return(readerMock)
+				delegate = &readerMock.Mock
+			}
 
 			delegate.
 				On(tc.methodName, tc.arguments...).
@@ -180,10 +197,10 @@ func TestDatastoreRequestHedging(t *testing.T) {
 func TestDigestRollover(t *testing.T) {
 	require := require.New(t)
 
-	delegate := &test.MockedDatastore{}
+	delegate := &proxy_test.MockDatastore{}
 	mockTime := clock.NewMock()
 	proxy := &hedgingProxy{
-		delegate:           delegate,
+		Datastore:          delegate,
 		headRevisionHedger: newHedger(mockTime, slowQueryTime, 100, 0.9999999999),
 	}
 
@@ -242,7 +259,7 @@ func TestDigestRollover(t *testing.T) {
 
 func TestBadArgs(t *testing.T) {
 	require := require.New(t)
-	delegate := &test.MockedDatastore{}
+	delegate := &proxy_test.MockDatastore{}
 
 	badInitialThreshold := func() {
 		NewHedgingProxy(delegate, -1*time.Millisecond, maxSampleCount, quantile)
@@ -268,7 +285,8 @@ func TestBadArgs(t *testing.T) {
 func TestDatastoreE2E(t *testing.T) {
 	require := require.New(t)
 
-	delegateDatastore := &test.MockedDatastore{}
+	delegateDatastore := &proxy_test.MockDatastore{}
+	delegateReader := &proxy_test.MockReader{}
 	mockTime := clock.NewMock()
 
 	proxy := newHedgingProxyWithTimeSource(
@@ -294,21 +312,25 @@ func TestDatastoreE2E(t *testing.T) {
 		},
 	}
 
-	delegateDatastore.
-		On("QueryTuples", mock.Anything, mock.Anything, mock.Anything).
-		Return(datastore.NewSliceTupleIterator(expectedTuples), nil).
+	delegateDatastore.On("SnapshotReader", mock.Anything).Return(delegateReader)
+
+	delegateReader.
+		On("QueryRelationships", mock.Anything, mock.Anything).
+		Return(datastore.NewSliceRelationshipIterator(expectedTuples), nil).
 		WaitUntil(mockTime.After(2 * slowQueryTime)).
 		Once()
-	delegateDatastore.
-		On("QueryTuples", mock.Anything, mock.Anything, mock.Anything).
-		Return(datastore.NewSliceTupleIterator(expectedTuples), nil).
+	delegateReader.
+		On("QueryRelationships", mock.Anything, mock.Anything).
+		Return(datastore.NewSliceRelationshipIterator(expectedTuples), nil).
 		Once()
 
 	autoAdvance(mockTime, slowQueryTime/2, 2*slowQueryTime)
 
-	it, err := proxy.QueryTuples(context.Background(), &v1.RelationshipFilter{
-		ResourceType: "test",
-	}, revisionKnown)
+	it, err := proxy.SnapshotReader(revisionKnown).QueryRelationships(
+		context.Background(), &v1.RelationshipFilter{
+			ResourceType: "test",
+		},
+	)
 	require.NoError(err)
 
 	only := it.Next()
@@ -318,12 +340,13 @@ func TestDatastoreE2E(t *testing.T) {
 	require.NoError(it.Err())
 
 	delegateDatastore.AssertExpectations(t)
+	delegateReader.AssertExpectations(t)
 }
 
 func TestContextCancellation(t *testing.T) {
 	require := require.New(t)
 
-	delegate := &test.MockedDatastore{}
+	delegate := &proxy_test.MockDatastore{}
 	mockTime := clock.NewMock()
 	proxy := newHedgingProxyWithTimeSource(
 		delegate, slowQueryTime, maxSampleCount, quantile, mockTime,

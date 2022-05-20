@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var tracer = otel.Tracer("spicedb/internal/datastore/common/revisions")

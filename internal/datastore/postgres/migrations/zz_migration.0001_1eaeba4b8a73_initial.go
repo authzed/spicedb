@@ -1,5 +1,11 @@
 package migrations
 
+import (
+	"context"
+
+	"github.com/jackc/pgx/v4"
+)
+
 const createRelationTupleTransaction = `CREATE TABLE relation_tuple_transaction (
     id BIGSERIAL NOT NULL,
     timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
@@ -39,11 +45,7 @@ const insertEmptyVersion = `INSERT INTO alembic_version (version_num) VALUES (''
 
 func init() {
 	if err := DatabaseMigrations.Register("1eaeba4b8a73", "", func(apd *AlembicPostgresDriver) error {
-		tx, err := apd.db.Beginx()
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
+		ctx := context.Background()
 
 		statements := []string{
 			createRelationTupleTransaction,
@@ -53,14 +55,15 @@ func init() {
 			createAlembicVersion,
 			insertEmptyVersion,
 		}
-		for _, stmt := range statements {
-			_, err := tx.Exec(stmt)
-			if err != nil {
-				return err
+		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
+			for _, stmt := range statements {
+				_, err := tx.Exec(ctx, stmt)
+				if err != nil {
+					return err
+				}
 			}
-		}
-
-		return tx.Commit()
+			return nil
+		})
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

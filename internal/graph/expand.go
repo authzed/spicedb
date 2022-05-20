@@ -25,15 +25,14 @@ const (
 )
 
 // NewConcurrentExpander creates an instance of ConcurrentExpander
-func NewConcurrentExpander(d dispatch.Expand, nsm namespace.Manager) *ConcurrentExpander {
-	return &ConcurrentExpander{d: d, nsm: nsm}
+func NewConcurrentExpander(d dispatch.Expand) *ConcurrentExpander {
+	return &ConcurrentExpander{d: d}
 }
 
 // ConcurrentExpander exposes a method to perform Expand requests, and delegates subproblems to the
 // provided dispatch.Expand instance.
 type ConcurrentExpander struct {
-	d   dispatch.Expand
-	nsm namespace.Manager
+	d dispatch.Expand
 }
 
 // ValidatedExpandRequest represents a request after it has been validated and parsed for internal
@@ -66,12 +65,12 @@ func (ce *ConcurrentExpander) expandDirect(
 ) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		ds := datastoremw.MustFromContext(ctx)
-		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   req.ObjectAndRelation.Relation,
-		}, req.Revision)
+		})
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return
@@ -216,7 +215,8 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	err := ce.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, req.Revision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+	err := namespace.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, ds)
 	if err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
 			return emptyExpansion(req.ObjectAndRelation)
@@ -241,12 +241,12 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 
 func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req ValidatedExpandRequest, ttu *core.TupleToUserset) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		ds := datastoremw.MustFromContext(ctx)
-		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   ttu.Tupleset.Relation,
-		}, req.Revision)
+		})
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
 			return

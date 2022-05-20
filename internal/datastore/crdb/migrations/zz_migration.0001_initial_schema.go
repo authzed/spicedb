@@ -1,6 +1,10 @@
 package migrations
 
-import "context"
+import (
+	"context"
+
+	"github.com/jackc/pgx/v4"
+)
 
 const (
 	createNamespaceConfig = `CREATE TABLE namespace_config (
@@ -41,28 +45,23 @@ func init() {
 			return err
 		}
 
-		tx, err := apd.db.Begin(ctx)
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback(ctx)
-
-		statements := []string{
-			createNamespaceConfig,
-			createRelationTuple,
-			createSchemaVersion,
-			insertEmptyVersion,
-			createReverseQueryIndex,
-			createReverseCheckIndex,
-		}
-		for _, stmt := range statements {
-			_, err := tx.Exec(ctx, stmt)
-			if err != nil {
-				return err
+		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
+			statements := []string{
+				createNamespaceConfig,
+				createRelationTuple,
+				createSchemaVersion,
+				insertEmptyVersion,
+				createReverseQueryIndex,
+				createReverseCheckIndex,
 			}
-		}
-
-		return tx.Commit(ctx)
+			for _, stmt := range statements {
+				_, err := tx.Exec(ctx, stmt)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

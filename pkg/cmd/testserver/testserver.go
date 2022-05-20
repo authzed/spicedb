@@ -2,7 +2,6 @@ package testserver
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -15,7 +14,6 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
 	"github.com/authzed/spicedb/internal/middleware/readonly"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/cmd/util"
@@ -37,18 +35,13 @@ type RunnableTestServer interface {
 }
 
 func (c *Config) Complete() (RunnableTestServer, error) {
-	nsm, err := namespace.NewCachingNamespaceManager(nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize namespace manager: %w", err)
-	}
-	dispatcher := graph.NewLocalOnlyDispatcher(nsm)
+	dispatcher := graph.NewLocalOnlyDispatcher()
 
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs)
 
 	registerServices := func(srv *grpc.Server) {
 		services.RegisterGrpcServices(
 			srv,
-			nsm,
 			dispatcher,
 			maxDepth,
 			v1alpha1svc.PrefixNotRequired,

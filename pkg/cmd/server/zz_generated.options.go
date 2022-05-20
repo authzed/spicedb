@@ -2,11 +2,10 @@
 package server
 
 import (
-	datastore1 "github.com/authzed/spicedb/internal/datastore"
 	dispatch "github.com/authzed/spicedb/internal/dispatch"
-	namespace "github.com/authzed/spicedb/internal/namespace"
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
+	datastore1 "github.com/authzed/spicedb/pkg/datastore"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc "google.golang.org/grpc"
 	"time"
@@ -38,7 +37,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.HTTPGatewayCorsAllowedOrigins = c.HTTPGatewayCorsAllowedOrigins
 		to.DatastoreConfig = c.DatastoreConfig
 		to.Datastore = c.Datastore
-		to.NamespaceManager = c.NamespaceManager
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
@@ -167,13 +165,6 @@ func WithDatastoreConfig(datastoreConfig datastore.Config) ConfigOption {
 func WithDatastore(datastore datastore1.Datastore) ConfigOption {
 	return func(c *Config) {
 		c.Datastore = datastore
-	}
-}
-
-// WithNamespaceManager returns an option that can set NamespaceManager on a Config
-func WithNamespaceManager(namespaceManager namespace.Manager) ConfigOption {
-	return func(c *Config) {
-		c.NamespaceManager = namespaceManager
 	}
 }
 

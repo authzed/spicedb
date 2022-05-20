@@ -9,7 +9,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/graph"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -17,25 +19,26 @@ import (
 
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	atRevision, checkedAt := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
 	errG.Go(func() error {
-		return ps.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			req.Resource.ObjectType,
 			req.Permission,
 			false,
-			atRevision,
+			ds,
 		)
 	})
 	errG.Go(func() error {
-		return ps.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			req.Subject.Object.ObjectType,
 			normalizeSubjectRelation(req.Subject),
 			true,
-			atRevision,
+			ds,
 		)
 	})
 	if err := errG.Wait(); err != nil {
@@ -81,8 +84,9 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
 	atRevision, expandedAt := consistency.MustRevisionFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	err := ps.nsm.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, atRevision)
+	err := namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, ds)
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
@@ -263,19 +267,27 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	ctx := resp.Context()
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
 
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
 	errG.Go(func() error {
-		return ps.nsm.CheckNamespaceAndRelation(
+		return namespace.CheckNamespaceAndRelation(
 			checksCtx,
 			req.Subject.Object.ObjectType,
 			normalizeSubjectRelation(req.Subject),
 			true,
-			atRevision,
+			ds,
 		)
 	})
 	errG.Go(func() error {
-		return ps.nsm.CheckNamespaceAndRelation(ctx, req.ResourceObjectType, req.Permission, false, atRevision)
+		return namespace.CheckNamespaceAndRelation(
+			ctx,
+			req.ResourceObjectType,
+			req.Permission,
+			false,
+			ds,
+		)
 	})
 	if err := errG.Wait(); err != nil {
 		return rewritePermissionsError(ctx, err)

@@ -19,6 +19,7 @@ const (
 	defaultQuantization                      = 5 * time.Second
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
+	defaultMaxRetries                        = 8
 )
 
 type mysqlOptions struct {
@@ -33,8 +34,10 @@ type mysqlOptions struct {
 	maxOpenConns                int
 	connMaxIdleTime             time.Duration
 	connMaxLifetime             time.Duration
-	splitAtUsersetCount         int
+	splitAtUsersetCount         uint16
 	analyzeBeforeStats          bool
+	maxRetries                  uint8
+	lockWaitTimeoutSeconds      *uint8
 }
 
 // Option provides the facility to configure how clients within the
@@ -54,6 +57,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		revisionQuantization:        defaultQuantization,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
+		maxRetries:                  defaultMaxRetries,
 	}
 
 	for _, option := range options {
@@ -122,6 +126,15 @@ func GCInterval(interval time.Duration) Option {
 	}
 }
 
+// MaxRetries is the maximum number of times a retriable transaction will be
+// client-side retried.
+// Default: 10
+func MaxRetries(maxRetries uint8) Option {
+	return func(mo *mysqlOptions) {
+		mo.maxRetries = maxRetries
+	}
+}
+
 // TablePrefix allows defining a MySQL table name prefix.
 //
 // No prefix is set by default
@@ -181,5 +194,16 @@ func MaxOpenConns(conns int) Option {
 func DebugAnalyzeBeforeStatistics() Option {
 	return func(po *mysqlOptions) {
 		po.analyzeBeforeStats = true
+	}
+}
+
+// OverrideLockWaitTimeout sets the lock wait timeout on each new connection established
+// with the databases. As an OLTP service, the default of 50s is unbearably long to block
+// a write for our service, so we suggest setting this value to the minimum of 1 second.
+//
+// Uses server default by default.
+func OverrideLockWaitTimeout(seconds uint8) Option {
+	return func(po *mysqlOptions) {
+		po.lockWaitTimeoutSeconds = &seconds
 	}
 }

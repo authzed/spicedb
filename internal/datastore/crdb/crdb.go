@@ -15,10 +15,10 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func init() {
@@ -53,8 +53,8 @@ const (
 	errRevision            = "unable to find revision: %w"
 
 	querySelectNow          = "SELECT cluster_logical_timestamp()"
-	queryReturningTimestamp = "RETURNING cluster_logical_timestamp()"
 	queryShowZoneConfig     = "SHOW ZONE CONFIGURATION FOR RANGE default;"
+	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
 )
 
 // NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB
@@ -88,12 +88,12 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 
 	poolConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
 
-	conn, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
+	pool, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	clusterTTLNanos, err := readClusterTTLNanos(conn)
+	clusterTTLNanos, err := readClusterTTLNanos(pool)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -130,11 +130,6 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
-	querySplitter := common.TupleQuerySplitter{
-		Executor:         common.NewPGXExecutor(conn, prepareTransaction),
-		UsersetBatchSize: int(config.splitAtUsersetCount),
-	}
-
 	ds := &crdbDatastore{
 		revisions.NewRemoteClockRevisions(
 			config.gcWindow,
@@ -143,11 +138,11 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 			config.revisionQuantization,
 		),
 		url,
-		conn,
+		pool,
 		config.watchBufferLength,
-		querySplitter,
-		executeWithMaxRetries(config.maxRetries),
 		keyer,
+		config.splitAtUsersetCount,
+		executeWithMaxRetries(config.maxRetries),
 	}
 
 	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
@@ -159,11 +154,103 @@ type crdbDatastore struct {
 	*revisions.RemoteClockRevisions
 
 	dburl             string
-	conn              *pgxpool.Pool
+	pool              *pgxpool.Pool
 	watchBufferLength uint16
-	querySplitter     common.TupleQuerySplitter
+	writeOverlapKeyer overlapKeyer
+	usersetBatchSize  uint16
 	execute           executeTxRetryFunc
-	overlapKeyer      overlapKeyer
+}
+
+func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+	createTxFunc := func(ctx context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
+		tx, err := cds.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		cleanup := func(ctx context.Context) {
+			if err := tx.Rollback(ctx); err != nil {
+				log.Ctx(ctx).Err(err).Msg("error rolling back transaction")
+			}
+		}
+
+		setTxTime := fmt.Sprintf(querySetTransactionTime, rev)
+		if _, err := tx.Exec(ctx, setTxTime); err != nil {
+			if err := tx.Rollback(ctx); err != nil {
+				log.Warn().Err(err).Msg(
+					"error rolling back transaction after failing to set transaction time",
+				)
+			}
+			return nil, nil, err
+		}
+
+		return tx, cleanup, nil
+	}
+
+	querySplitter := common.TupleQuerySplitter{
+		Executor:         common.NewPGXExecutor(createTxFunc),
+		UsersetBatchSize: cds.usersetBatchSize,
+	}
+
+	return &crdbReader{createTxFunc, querySplitter, noOverlapKeyer, nil, cds.execute}
+}
+
+func noCleanup(context.Context) {}
+
+func (cds *crdbDatastore) ReadWriteTx(
+	ctx context.Context,
+	f datastore.TxUserFunc,
+) (datastore.Revision, error) {
+	var commitTimestamp datastore.Revision
+	if err := cds.execute(ctx, func(ctx context.Context) error {
+		return cds.pool.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			longLivedTx := func(context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
+				return tx, noCleanup, nil
+			}
+
+			querySplitter := common.TupleQuerySplitter{
+				Executor:         common.NewPGXExecutor(longLivedTx),
+				UsersetBatchSize: cds.usersetBatchSize,
+			}
+
+			rwt := &crdbReadWriteTXN{
+				&crdbReader{
+					longLivedTx,
+					querySplitter,
+					cds.writeOverlapKeyer,
+					make(keySet),
+					executeOnce,
+				},
+				ctx,
+				tx,
+				0,
+			}
+
+			if err := f(ctx, rwt); err != nil {
+				return err
+			}
+
+			// Touching the transaction key happens last so that the "write intent" for
+			// the transaction as a whole lands in a range for the affected tuples.
+			for k := range rwt.overlapKeySet {
+				if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
+					return fmt.Errorf("error writing overlapping keys: %w", err)
+				}
+			}
+
+			var err error
+			commitTimestamp, err = updateCounter(ctx, tx, rwt.relCountChange)
+			if err != nil {
+				return fmt.Errorf("error updating relationship counter: %w", err)
+			}
+
+			return nil
+		})
+	}); err != nil {
+		return datastore.NoRevision, err
+	}
+
+	return commitTimestamp, nil
 }
 
 func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
@@ -186,12 +273,8 @@ func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
-func (cds *crdbDatastore) NamespaceCacheKey(namespaceName string, revision datastore.Revision) (string, error) {
-	return fmt.Sprintf("%s@%s", namespaceName, revision), nil
-}
-
 func (cds *crdbDatastore) Close() error {
-	cds.conn.Close()
+	cds.pool.Close()
 	return nil
 }
 
@@ -200,7 +283,7 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 	defer span.End()
 
 	var hlcNow datastore.Revision
-	err := cds.execute(ctx, cds.conn, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+	err := cds.pool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		var fnErr error
 		hlcNow, fnErr = readCRDBNow(ctx, tx)
 		if fnErr != nil {
@@ -211,10 +294,6 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 	})
 
 	return hlcNow, err
-}
-
-func (cds *crdbDatastore) AddOverlapKey(keySet map[string]struct{}, namespace string) {
-	cds.overlapKeyer.AddKey(keySet, namespace)
 }
 
 func readCRDBNow(ctx context.Context, tx pgx.Tx) (decimal.Decimal, error) {

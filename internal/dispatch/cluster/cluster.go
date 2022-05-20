@@ -7,7 +7,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
-	"github.com/authzed/spicedb/internal/namespace"
 )
 
 // Option is a function-style option for configuring a combined Dispatcher.
@@ -35,8 +34,8 @@ func CacheConfig(config *ristretto.Config) Option {
 // NewClusterDispatcher takes a dispatcher (such as one created by
 // combined.NewDispatcher) and returns a cluster dispatcher suitable for use as
 // the dispatcher for the dispatch grpc server.
-func NewClusterDispatcher(dispatch dispatch.Dispatcher, nsm namespace.Manager, options ...Option) (dispatch.Dispatcher, error) {
-	clusterDispatch := graph.NewDispatcher(dispatch, nsm)
+func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (dispatch.Dispatcher, error) {
+	clusterDispatch := graph.NewDispatcher(dispatch)
 	var opts optionState
 	for _, fn := range options {
 		fn(&opts)
@@ -46,7 +45,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, nsm namespace.Manager, o
 		opts.prometheusSubsystem = "dispatch"
 	}
 
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, nsm, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}

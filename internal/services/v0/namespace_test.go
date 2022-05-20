@@ -23,7 +23,7 @@ import (
 func TestNamespace(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	nsClient := v0.NewNamespaceServiceClient(conn)
 
@@ -178,7 +178,7 @@ func TestNamespaceChanged(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, testfixtures.EmptyDatastore)
 			t.Cleanup(cleanup)
 			nsClient := v0.NewNamespaceServiceClient(conn)
 
@@ -280,7 +280,7 @@ func TestDeleteNamespace(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.EmptyDatastore)
+			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, testfixtures.EmptyDatastore)
 			t.Cleanup(cleanup)
 			nsClient := v0.NewNamespaceServiceClient(conn)
 

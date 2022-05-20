@@ -8,32 +8,28 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func NewTestServer(require *require.Assertions,
 	revisionQuantization time.Duration,
 	gcWindow time.Duration,
-	simulatedLatency time.Duration,
 	schemaPrefixRequired bool,
 	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
 ) (*grpc.ClientConn, func(), decimal.Decimal) {
-	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow, simulatedLatency)
+	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(err)
 	ds, revision := dsInitFunc(emptyDS, require)
-	ns, err := namespace.NewCachingNamespaceManager(nil)
-	require.NoError(err)
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(ns)),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher()),
 		server.WithDispatchMaxDepth(50),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,

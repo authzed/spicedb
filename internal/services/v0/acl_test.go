@@ -224,7 +224,7 @@ func TestRead(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
 
-					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					t.Cleanup(cleanup)
 					client := v0.NewACLServiceClient(conn)
 
@@ -252,7 +252,7 @@ func TestReadBadZookie(t *testing.T) {
 	require := require.New(t)
 
 	gcWindow := 100 * time.Millisecond
-	conn, cleanup, revision := testserver.NewTestServer(require, 0, gcWindow, 0, true, tf.StandardDatastoreWithData)
+	conn, cleanup, revision := testserver.NewTestServer(require, 0, gcWindow, true, tf.StandardDatastoreWithData)
 	t.Cleanup(cleanup)
 	client := v0.NewACLServiceClient(conn)
 
@@ -264,14 +264,6 @@ func TestReadBadZookie(t *testing.T) {
 	})
 	require.NoError(err)
 
-	_, err = client.Read(context.Background(), &v0.ReadRequest{
-		Tuplesets: []*v0.RelationTupleFilter{
-			{Namespace: tf.DocumentNS.Name},
-		},
-		AtRevision: core.ToV0Zookie(zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1)))),
-	})
-	require.NoError(err)
-
 	// Wait until the gc window expires
 	time.Sleep(2 * gcWindow)
 
@@ -280,14 +272,6 @@ func TestReadBadZookie(t *testing.T) {
 			{Namespace: tf.DocumentNS.Name},
 		},
 		AtRevision: core.ToV0Zookie(zookie.NewFromRevision(revision)),
-	})
-	require.NoError(err)
-
-	_, err = client.Read(context.Background(), &v0.ReadRequest{
-		Tuplesets: []*v0.RelationTupleFilter{
-			{Namespace: tf.DocumentNS.Name},
-		},
-		AtRevision: core.ToV0Zookie(zookie.NewFromRevision(revision.Sub(decimal.NewFromInt(1)))),
 	})
 	grpcutil.RequireStatus(t, codes.OutOfRange, err)
 
@@ -303,7 +287,7 @@ func TestReadBadZookie(t *testing.T) {
 func TestWrite(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, false, tf.StandardDatastoreWithData)
 	t.Cleanup(cleanup)
 	client := v0.NewACLServiceClient(conn)
 
@@ -439,7 +423,7 @@ func TestInvalidWriteArguments(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+			conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 			t.Cleanup(cleanup)
 			client := v0.NewACLServiceClient(conn)
 
@@ -549,7 +533,7 @@ func TestCheck(t *testing.T) {
 						)
 						t.Run(name, func(t *testing.T) {
 							require := require.New(t)
-							conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+							conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 							t.Cleanup(cleanup)
 							client := v0.NewACLServiceClient(conn)
 							resp, err := client.Check(context.Background(), &v0.CheckRequest{
@@ -604,30 +588,6 @@ func TestCheck(t *testing.T) {
 	}
 }
 
-func BenchmarkACL(b *testing.B) {
-	require := require.New(b)
-
-	conn, cleanup, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, 3*time.Millisecond, true, tf.StandardDatastoreWithData)
-	b.Cleanup(cleanup)
-	client := v0.NewACLServiceClient(conn)
-
-	b.Run("check", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			resp, err := client.Check(context.Background(), &v0.CheckRequest{
-				TestUserset: ONR("document", "masterplan", "viewer"),
-				User: &v0.User{
-					UserOneof: &v0.User_Userset{
-						Userset: ONR("user", "villain", "..."),
-					},
-				},
-				AtRevision: core.ToV0Zookie(zookie.NewFromRevision(revision)),
-			})
-			require.NoError(err)
-			require.Equal(v0.CheckResponse_NOT_MEMBER, resp.Membership)
-		}
-	})
-}
-
 func TestExpand(t *testing.T) {
 	testCases := []struct {
 		start              *v0.ObjectAndRelation
@@ -647,7 +607,7 @@ func TestExpand(t *testing.T) {
 				t.Run(tuple.StringONR(core.ToCoreObjectAndRelation(tc.start)), func(t *testing.T) {
 					require := require.New(t)
 
-					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					t.Cleanup(cleanup)
 					client := v0.NewACLServiceClient(conn)
 
@@ -807,7 +767,7 @@ func TestLookup(t *testing.T) {
 				t.Run(fmt.Sprintf("%s::%s from %s", tc.relation.Namespace, tc.relation.Relation, tuple.StringONR(core.ToCoreObjectAndRelation(tc.user))), func(t *testing.T) {
 					require := require.New(t)
 
-					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+					conn, cleanup, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					t.Cleanup(cleanup)
 					client := v0.NewACLServiceClient(conn)
 
@@ -862,7 +822,7 @@ func TestLookup(t *testing.T) {
 func TestLookupMissingTypeInformation(t *testing.T) {
 	require := require.New(t)
 
-	conn, cleanup, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, tf.StandardDatastoreWithData)
+	conn, cleanup, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	t.Cleanup(cleanup)
 	client := v0.NewACLServiceClient(conn)
 	nsClient := v0.NewNamespaceServiceClient(conn)

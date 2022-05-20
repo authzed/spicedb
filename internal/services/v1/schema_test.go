@@ -18,7 +18,7 @@ import (
 )
 
 func TestSchemaWriteNoPrefix(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, tf.EmptyDatastore)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
@@ -28,7 +28,7 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidSchema(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, tf.EmptyDatastore)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -42,7 +42,7 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 }
 
 func TestSchemaWriteAndReadBack(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, tf.EmptyDatastore)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -62,7 +62,7 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, tf.EmptyDatastore)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v0client := v0.NewACLServiceClient(conn)
@@ -124,7 +124,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 }
 
 func TestSchemaDeleteDefinition(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, tf.EmptyDatastore)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v0client := v0.NewACLServiceClient(conn)
@@ -175,7 +175,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 }
 
 func TestSchemaRemoveWildcard(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, tf.EmptyDatastore)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v0client := v0.NewACLServiceClient(conn)
@@ -236,7 +236,7 @@ definition example/user {}`
 }
 
 func TestSchemaEmpty(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, true, tf.EmptyDatastore)
+	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v0client := v0.NewACLServiceClient(conn)

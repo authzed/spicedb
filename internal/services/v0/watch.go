@@ -9,11 +9,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/zookie"
@@ -22,17 +22,14 @@ import (
 type watchServer struct {
 	v0.UnimplementedWatchServiceServer
 	shared.WithStreamServiceSpecificInterceptor
-
-	nsm namespace.Manager
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer(nsm namespace.Manager) v0.WatchServiceServer {
+func NewWatchServer() v0.WatchServiceServer {
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
 			Stream: grpcvalidate.StreamServerInterceptor(),
 		},
-		nsm: nsm,
 	}
 	return s
 }
@@ -59,7 +56,13 @@ func (ws *watchServer) Watch(req *v0.WatchRequest, stream v0.WatchService_WatchS
 
 	namespaceMap := make(map[string]struct{})
 	for _, ns := range req.Namespaces {
-		err := ws.nsm.CheckNamespaceAndRelation(ctx, ns, datastore.Ellipsis, true, afterRevision)
+		err := namespace.CheckNamespaceAndRelation(
+			ctx,
+			ns,
+			datastore.Ellipsis,
+			true,
+			ds.SnapshotReader(afterRevision),
+		)
 		if err != nil {
 			return status.Errorf(codes.FailedPrecondition, "invalid namespace: %s", err)
 		}

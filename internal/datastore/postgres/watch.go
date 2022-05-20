@@ -9,8 +9,8 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const (
@@ -113,6 +113,7 @@ func (pgd *pgDatastore) loadChanges(
 		}
 		return
 	}
+	defer rows.Close()
 
 	stagedChanges := common.NewChanges()
 

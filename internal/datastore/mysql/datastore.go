@@ -3,7 +3,9 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -17,10 +19,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -39,14 +41,17 @@ const (
 	colUsersetObjectID  = "userset_object_id"
 	colUsersetRelation  = "userset_relation"
 
-	errUnableToInstantiate  = "unable to instantiate datastore: %w"
-	errUnableToQueryTuples  = "unable to query tuples: %w"
-	errUnableToWriteTuples  = "unable to write tuples: %w"
-	errUnableToDeleteTuples = "unable to delete tuples: %w"
-	liveDeletedTxnID        = uint64(9223372036854775807)
-	batchDeleteSize         = 1000
-	noLastInsertID          = 0
-	seedingTimeout          = 10 * time.Second
+	errUnableToInstantiate = "unable to instantiate datastore: %w"
+	liveDeletedTxnID       = uint64(math.MaxInt64)
+	batchDeleteSize        = 1000
+	noLastInsertID         = 0
+	seedingTimeout         = 10 * time.Second
+
+	// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_lock_wait_timeout
+	errMysqlLockWaitTimeout = 1205
+
+	// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_lock_deadlock
+	errMysqlDeadlock = 1213
 )
 
 var (
@@ -87,6 +92,17 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("NewMySQLDatastore: failed to create connector: %w", err)
 	}
+
+	if config.lockWaitTimeoutSeconds != nil {
+		log.Info().Uint8("timeout", *config.lockWaitTimeoutSeconds).Msg("overriding innodb_lock_wait_timeout")
+		connector, err = addSessionVariables(connector, map[string]string{
+			"innodb_lock_wait_timeout": fmt.Sprintf("%d", *config.lockWaitTimeoutSeconds),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("NewMySQLDatastore: failed to add session variables to connector: %w", err)
+		}
+	}
+
 	var db *sql.DB
 	if config.enablePrometheusStats {
 		connector, err = instrumentConnector(connector)
@@ -122,10 +138,6 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	createBaseTxn := fmt.Sprintf("INSERT IGNORE INTO %s (id, timestamp) VALUES (1, FROM_UNIXTIME(1))", driver.RelationTupleTransaction())
 
 	gcCtx, cancelGc := context.WithCancel(context.Background())
-	querySplitter := common.TupleQuerySplitter{
-		Executor:         newMySQLExecutor(db),
-		UsersetBatchSize: config.splitAtUsersetCount,
-	}
 
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
@@ -164,12 +176,14 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 		gcCtx:                  gcCtx,
 		cancelGc:               cancelGc,
 		watchBufferLength:      config.watchBufferLength,
+		usersetBatchSize:       config.splitAtUsersetCount,
 		optimizedRevisionQuery: revisionQuery,
 		validTransactionQuery:  validTransactionQuery,
 		createTxn:              createTxn,
 		createBaseTxn:          createBaseTxn,
 		QueryBuilder:           queryBuilder,
-		querySplitter:          &querySplitter,
+		readTxOptions:          &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
+		maxRetries:             config.maxRetries,
 		analyzeBeforeStats:     config.analyzeBeforeStats,
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
@@ -196,7 +210,102 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	return store, nil
 }
 
-func newMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
+		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return tx, tx.Rollback, nil
+	}
+
+	querySplitter := common.TupleQuerySplitter{
+		Executor:         newMySQLExecutor(mds.db),
+		UsersetBatchSize: mds.usersetBatchSize,
+	}
+
+	return &mysqlReader{
+		mds.QueryBuilder,
+		createTxFunc,
+		querySplitter,
+		buildLivingObjectFilterForRevision(rev),
+	}
+}
+
+func noCleanup() error { return nil }
+
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+// ReadWriteTx starts a read/write transaction, which will be committed if no error is
+// returned and rolled back if an error is returned.
+func (mds *Datastore) ReadWriteTx(
+	ctx context.Context,
+	fn datastore.TxUserFunc,
+) (datastore.Revision, error) {
+	var err error
+	for i := uint8(0); i <= mds.maxRetries; i++ {
+		var newTxnID uint64
+		if err = BeginTxFunc(ctx, mds.db, &sql.TxOptions{Isolation: sql.LevelSerializable}, func(tx *sql.Tx) error {
+			newTxnID, err = mds.createNewTransaction(ctx, tx)
+			if err != nil {
+				return fmt.Errorf("unable to create new txn ID: %w", err)
+			}
+
+			longLivedTx := func(context.Context) (*sql.Tx, txCleanupFunc, error) {
+				return tx, noCleanup, nil
+			}
+
+			querySplitter := common.TupleQuerySplitter{
+				Executor:         newMySQLExecutor(tx),
+				UsersetBatchSize: mds.usersetBatchSize,
+			}
+
+			rwt := &mysqlReadWriteTXN{
+				&mysqlReader{
+					mds.QueryBuilder,
+					longLivedTx,
+					querySplitter,
+					currentlyLivingObjects,
+				},
+				ctx,
+				tx,
+				newTxnID,
+			}
+
+			if err := fn(ctx, rwt); err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
+			if isErrorRetryable(err) {
+				continue
+			}
+
+			return datastore.NoRevision, err
+		}
+
+		return revisionFromTransaction(newTxnID), nil
+	}
+	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
+}
+
+func isErrorRetryable(err error) bool {
+	var mysqlerr *mysql.MySQLError
+	if !errors.As(err, &mysqlerr) {
+		log.Debug().Err(err).Msg("couldn't determine a sqlstate error code")
+		return false
+	}
+
+	return mysqlerr.Number == errMysqlDeadlock || mysqlerr.Number == errMysqlLockWaitTimeout
+}
+
+type querier interface {
+	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+}
+
+func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 	// This implementation does not create a transaction because it's redundant for single statements, and it avoids
 	// the network overhead and reduce contention on the connection pool. From MySQL docs:
 	//
@@ -212,12 +321,12 @@ func newMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
 	//
 	// Prepared statements are also not used given they perform poorly on environments where connections have
 	// short lifetime (e.g. to gracefully handle load-balancer connection drain)
-	return func(ctx context.Context, revision datastore.Revision, sqlQuery string, args []interface{}) ([]*core.RelationTuple, error) {
+	return func(ctx context.Context, sqlQuery string, args []interface{}) ([]*core.RelationTuple, error) {
 		ctx = datastore.SeparateContextWithTracing(ctx)
 
 		span := trace.SpanFromContext(ctx)
 
-		rows, err := db.QueryContext(ctx, sqlQuery, args...)
+		rows, err := tx.QueryContext(ctx, sqlQuery, args...)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
@@ -262,7 +371,7 @@ func newMySQLExecutor(db *sql.DB) common.ExecuteQueryFunc {
 type Datastore struct {
 	db                 *sql.DB
 	driver             *migrations.MySQLDriver
-	querySplitter      *common.TupleQuerySplitter
+	readTxOptions      *sql.TxOptions
 	url                string
 	analyzeBeforeStats bool
 
@@ -271,6 +380,8 @@ type Datastore struct {
 	gcInterval           time.Duration
 	gcMaxOperationTime   time.Duration
 	watchBufferLength    uint16
+	usersetBatchSize     uint16
+	maxRetries           uint8
 
 	optimizedRevisionQuery string
 	validTransactionQuery  string
@@ -572,10 +683,17 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func filterToLivingObjects(original sq.SelectBuilder, revision datastore.Revision) sq.SelectBuilder {
-	return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
-		Where(sq.Or{
-			sq.Eq{colDeletedTxn: liveDeletedTxnID},
-			sq.Gt{colDeletedTxn: revision},
-		})
+func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
+	return func(original sq.SelectBuilder) sq.SelectBuilder {
+		return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+			Where(sq.Or{
+				sq.Eq{colDeletedTxn: liveDeletedTxnID},
+				sq.Gt{colDeletedTxn: revision},
+			})
+	}
+}
+
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
+	return original.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 }

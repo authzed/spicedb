@@ -16,7 +16,7 @@ type crdbOptions struct {
 	followerReadDelay           time.Duration
 	maxRevisionStalenessPercent float64
 	gcWindow                    time.Duration
-	maxRetries                  int
+	maxRetries                  uint8
 	splitAtUsersetCount         uint16
 	overlapStrategy             string
 	overlapKey                  string
@@ -35,7 +35,7 @@ const (
 	defaultWatchBufferLength           = 128
 	defaultSplitSize                   = 1024
 
-	defaultMaxRetries      = 50
+	defaultMaxRetries      = 5
 	defaultOverlapKey      = "defaultsynckey"
 	defaultOverlapStrategy = overlapStrategyStatic
 )
@@ -175,8 +175,8 @@ func GCWindow(window time.Duration) Option {
 
 // MaxRetries is the maximum number of times a retriable transaction will be
 // client-side retried.
-// Default: 50
-func MaxRetries(maxRetries int) Option {
+// Default: 5
+func MaxRetries(maxRetries uint8) Option {
 	return func(po *crdbOptions) {
 		po.maxRetries = maxRetries
 	}

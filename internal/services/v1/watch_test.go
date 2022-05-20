@@ -102,7 +102,7 @@ func TestWatch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			conn, cleanup, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, 0, true, testfixtures.StandardDatastoreWithData)
+			conn, cleanup, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, testfixtures.StandardDatastoreWithData)
 			t.Cleanup(cleanup)
 			client := v1.NewWatchServiceClient(conn)
 

@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
@@ -16,11 +15,7 @@ import (
 func TestAnnotateNamespace(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
-	require.NoError(err)
-
-	ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
-	nsm, err := NewCachingNamespaceManager(nil)
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	empty := ""
@@ -38,9 +33,10 @@ func TestAnnotateNamespace(t *testing.T) {
 	require.NoError(err)
 
 	var lastRevision decimal.Decimal
-	ts, err := BuildNamespaceTypeSystemForManager(defs[0], nsm, lastRevision)
+	ts, err := BuildNamespaceTypeSystemForDatastore(defs[0], ds.SnapshotReader(lastRevision))
 	require.NoError(err)
 
+	ctx := context.Background()
 	vts, terr := ts.Validate(ctx)
 	require.NoError(terr)
 
