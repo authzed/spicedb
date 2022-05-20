@@ -23,6 +23,7 @@ type Node struct {
 	Httpaddr  string
 	ID        string
 	MaxOffset time.Duration
+	Cancel    context.CancelFunc
 	// only available after Start()
 	pid  int
 	conn *pgx.Conn
@@ -37,7 +38,7 @@ func (c *Node) Start(ctx context.Context) error {
 	cmd := []string{
 		"./cockroach",
 		"start",
-		"--store=node" + c.ID,
+		"--store=type=mem,size=640MiB",
 		"--logtostderr",
 		"--insecure",
 		"--listen-addr=" + c.Addr,
@@ -46,8 +47,18 @@ func (c *Node) Start(ctx context.Context) error {
 		"--max-offset=" + c.MaxOffset.String(),
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	c.Cancel = cancel
 	c.pid, err = e2e.GoRun(ctx, logfile, logfile, cmd...)
 	return err
+}
+
+func (c *Node) Stop() error {
+	if c.pid < 1 {
+		return fmt.Errorf("can't stop an unstarted crdb")
+	}
+	c.Cancel()
+	return nil
 }
 
 // ConnectionString returns the postgres db URI for this cluster
@@ -134,6 +145,17 @@ func (cs Cluster) Started() bool {
 		}
 	}
 	return true
+}
+
+// Stop stops the entire cluster of spicedb instances
+func (cs Cluster) Stop(out io.Writer) error {
+	for i, c := range cs {
+		fmt.Fprintln(out, "stopping crdb node", i)
+		if err := c.Stop(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Init runs the cockroach init command against the cluster
