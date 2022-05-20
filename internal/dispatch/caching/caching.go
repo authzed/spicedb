@@ -39,6 +39,8 @@ type Dispatcher struct {
 	cacheMisses      prometheus.CounterFunc
 	costAddedBytes   prometheus.CounterFunc
 	costEvictedBytes prometheus.CounterFunc
+	keysAdded        prometheus.CounterFunc
+	keysEvicted      prometheus.CounterFunc
 }
 
 type checkResultEntry struct {
@@ -172,6 +174,22 @@ func NewCachingDispatcher(
 		return float64(cache.Metrics.CostEvicted())
 	})
 
+	keysAdded := prometheus.NewCounterFunc(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "keys_added",
+	}, func() float64 {
+		return float64(cache.Metrics.KeysAdded())
+	})
+
+	keysEvicted := prometheus.NewCounterFunc(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "keys_evicted",
+	}, func() float64 {
+		return float64(cache.Metrics.KeysEvicted())
+	})
+
 	if prometheusSubsystem != "" {
 		err = prometheus.Register(checkTotalCounter)
 		if err != nil {
@@ -207,6 +225,14 @@ func NewCachingDispatcher(
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
+		err = prometheus.Register(keysAdded)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
+		err = prometheus.Register(keysEvicted)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
 	}
 
 	if keyHandler == nil {
@@ -226,6 +252,8 @@ func NewCachingDispatcher(
 		cacheMisses:            cacheMissesTotal,
 		costAddedBytes:         costAddedBytes,
 		costEvictedBytes:       costEvictedBytes,
+		keysAdded:              keysAdded,
+		keysEvicted:            keysEvicted,
 	}, nil
 }
 
@@ -319,6 +347,8 @@ func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.cacheMisses)
 	prometheus.Unregister(cd.costAddedBytes)
 	prometheus.Unregister(cd.costEvictedBytes)
+	prometheus.Unregister(cd.keysAdded)
+	prometheus.Unregister(cd.keysEvicted)
 	if cache := cd.c; cache != nil {
 		cache.Close()
 	}
