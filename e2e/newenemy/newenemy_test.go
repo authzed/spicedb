@@ -3,6 +3,7 @@ package newenemy
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -88,15 +89,19 @@ const (
 
 func initializeTestCRDBCluster(ctx context.Context, t testing.TB) cockroach.Cluster {
 	require := require.New(t)
+	tlog := e2e.NewTLog(t)
 
 	t.Log("starting cockroach...")
 	crdbCluster := cockroach.NewCluster(3)
 	for _, c := range crdbCluster {
 		require.NoError(c.Start(ctx))
 	}
+	t.Cleanup(func() {
+		require.NoError(crdbCluster.Stop(tlog))
+	})
 
 	t.Log("initializing crdb...")
-	tlog := e2e.NewTLog(t)
+
 	crdbCluster.Init(ctx, tlog, tlog)
 	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
 		"SET CLUSTER SETTING kv.range.backpressure_range_size_multiplier=0;",
@@ -119,7 +124,20 @@ func initializeTestCRDBCluster(ctx context.Context, t testing.TB) cockroach.Clus
 func TestNoNewEnemy(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(testCtx)
-	defer cancel()
+	t.Cleanup(cancel)
+
+	// stop execution before the deadline (if one is set) to let cleanup run
+	deadline, ok := t.Deadline()
+	if ok {
+		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-1*time.Minute))
+		t.Cleanup(cancel)
+		defer func() {
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				t.FailNow()
+			}
+		}()
+	}
+
 	crdb := initializeTestCRDBCluster(ctx, t)
 
 	tlog := e2e.NewTLog(t)
@@ -159,6 +177,9 @@ func TestNoNewEnemy(t *testing.T) {
 	fillSchema(t, schemaTpl, schemaData, vulnerableSpiceDb[1].Client().V1Alpha1().Schema())
 	slowNodeID, err := crdb[1].NodeID(ctx)
 	require.NoError(t, err)
+	prefix := namespacesForNode(ctx, t, crdb[1].Conn(), vulnerableSpiceDb[0].Client().V1Alpha1().Schema(), slowNodeID)
+	t.Log("fill with relationships to span multiple ranges")
+	fill(ctx, t, vulnerableSpiceDb[0].Client().V1().Permissions(), prefix, generator.NewUniqueGenerator(objIDRegex), 500, 500)
 
 	t.Log("modifying time")
 	require.NoError(t, crdb.TimeDelay(ctx, e2e.MustFile(ctx, t, "timeattack-1.log"), 1, -200*time.Millisecond))
@@ -276,11 +297,19 @@ func iterationsForHighConfidence(samples []int) (iterations int) {
 	return
 }
 
+var goodNs *NamespaceNames
+
 func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb cockroach.Cluster, spicedb spice.Cluster, maxAttempts int, exitEarly bool) (bool, int) {
-	prefix := namespacesForNode(ctx, t, crdb[1].Conn(), spicedb[0].Client().V1Alpha1().Schema(), slowNodeID)
-	t.Log("filling with data to span multiple ranges for prefix", prefix)
 	objIDGenerator := generator.NewUniqueGenerator(objIDRegex)
-	fill(ctx, t, spicedb[0].Client().V1().Permissions(), prefix, objIDGenerator, 100, 100)
+	var prefix NamespaceNames
+	if goodNs == nil {
+		prefix = namespacesForNode(ctx, t, crdb[1].Conn(), spicedb[0].Client().V1Alpha1().Schema(), slowNodeID)
+		t.Log("filling with data to span multiple ranges for prefix", prefix)
+		fill(ctx, t, spicedb[0].Client().V1().Permissions(), prefix, objIDGenerator, 100, 100)
+	} else {
+		// attempt to keep finding reversed timestamps in a namespace we've already seen them in
+		prefix = *goodNs
+	}
 	allowlists, blocklists, allowusers, blockusers := generateTuples(prefix, maxAttempts, objIDGenerator)
 
 	// write prereqs
@@ -345,21 +374,25 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 
 		if canHas.Permissionship == v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION {
 			t.Log("service is subject to the new enemy problem")
+			goodNs = &prefix
 			return false, i + 1
 		}
 
 		if ns2ResourceLeader != slowNodeID || ns2AllowlistLeader != slowNodeID {
 			t.Log("namespace leader changed, pick new namespaces and fill")
+			goodNs = nil
 			// returning true will re-run with a new prefix
 			return true, i + 1
 		}
 
 		if r2leader == ns1UserLeader && i%5 == 4 && exitEarly {
 			t.Log("second write to fast node, pick new namespaces")
+			goodNs = nil
 			return true, i + 1
 		}
 
 		if r1leader == ns2ResourceLeader && i%5 == 4 && exitEarly {
+			goodNs = nil
 			t.Log("first write to slow node, pick new namespaces")
 			return true, i + 1
 		}
