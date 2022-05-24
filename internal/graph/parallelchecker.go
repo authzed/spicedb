@@ -17,7 +17,9 @@ import (
 // ParallelChecker is a helper for initiating checks over a large set of resources
 // for a specific subject, and putting the results concurrently into a set.
 type ParallelChecker struct {
-	toCheck       chan *v1.DispatchCheckRequest
+	toCheck         chan *v1.DispatchCheckRequest
+	enqueuedToCheck *tuple.ONRSet
+
 	c             dispatch.Check
 	g             *errgroup.Group
 	checkCtx      context.Context
@@ -36,7 +38,7 @@ type ParallelChecker struct {
 func NewParallelChecker(ctx context.Context, c dispatch.Check, subject *core.ObjectAndRelation, maxConcurrent uint8) *ParallelChecker {
 	g, checkCtx := errgroup.WithContext(ctx)
 	toCheck := make(chan *v1.DispatchCheckRequest)
-	return &ParallelChecker{toCheck, c, g, checkCtx, subject, maxConcurrent, tuple.NewONRSet(), 0, 0, 0, sync.Mutex{}}
+	return &ParallelChecker{toCheck, tuple.NewONRSet(), c, g, checkCtx, subject, maxConcurrent, tuple.NewONRSet(), 0, 0, 0, sync.Mutex{}}
 }
 
 // AddResult adds a result that has been already checked to the set.
@@ -73,6 +75,15 @@ func (pc *ParallelChecker) updateStatsUnsafe(metadata *v1.ResponseMeta) {
 
 // QueueCheck queues a resource to be checked.
 func (pc *ParallelChecker) QueueCheck(resource *core.ObjectAndRelation, meta *v1.ResolverMeta) {
+	queue := func() bool {
+		pc.mu.Lock()
+		defer pc.mu.Unlock()
+		return pc.enqueuedToCheck.Add(resource)
+	}()
+	if !queue {
+		return
+	}
+
 	pc.toCheck <- &v1.DispatchCheckRequest{
 		Metadata:          meta,
 		ObjectAndRelation: resource,
