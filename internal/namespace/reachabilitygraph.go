@@ -153,25 +153,25 @@ func (rg *ReachabilityGraph) collectEntrypoints(
 		return derr
 	}
 
-	graph, err := computeReachability(ctx, rrg.ts, resourceType.Relation, reachabilityOption)
+	g, err := computeReachability(ctx, rrg.ts, resourceType.Relation, reachabilityOption)
 	if err != nil {
 		return err
 	}
 
 	// Add subject type entrypoints.
-	subjectTypeEntrypoints, ok := graph.EntrypointsBySubjectType[subjectType.Namespace]
+	subjectTypeEntrypoints, ok := g.EntrypointsBySubjectType[subjectType.Namespace]
 	if ok {
 		addEntrypoints(subjectTypeEntrypoints, resourceType, collected)
 	}
 
 	// Add subject relation entrypoints.
-	subjectRelationEntrypoints, ok := graph.EntrypointsBySubjectRelation[relationKey(subjectType.Namespace, subjectType.Relation)]
+	subjectRelationEntrypoints, ok := g.EntrypointsBySubjectRelation[relationKey(subjectType.Namespace, subjectType.Relation)]
 	if ok {
 		addEntrypoints(subjectRelationEntrypoints, resourceType, collected)
 	}
 
 	// Recursively collect over any reachability graphs for subjects with non-ellipsis relations.
-	for _, entrypointSet := range graph.EntrypointsBySubjectRelation {
+	for _, entrypointSet := range g.EntrypointsBySubjectRelation {
 		if entrypointSet.SubjectRelation != nil && entrypointSet.SubjectRelation.Relation != tuple.Ellipsis {
 			err := rrg.collectEntrypoints(ctx, subjectType, entrypointSet.SubjectRelation, collected, encounteredRelations, reachabilityOption)
 			if err != nil {

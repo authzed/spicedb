@@ -57,14 +57,14 @@ func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesRespons
 		panic("Got nil result")
 	}
 
-	(func() {
+	func() {
 		ls.mu.Lock()
 		defer ls.mu.Unlock()
 
 		ls.dispatchCount += result.Metadata.DispatchCount
 		ls.cachedDispatchCount += result.Metadata.CachedDispatchCount
 		ls.depthRequired = max(result.Metadata.DepthRequired, ls.depthRequired)
-	})()
+	}()
 
 	if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
 		ls.checker.AddResult(result.Resource.Resource)
@@ -80,7 +80,7 @@ func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesRespons
 
 func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req ValidatedLookupRequest) (*v1.DispatchLookupResponse, error) {
 	if req.Subject.ObjectId == tuple.PublicWildcard {
-		resp := lookupResultError(req, NewErrInvalidArgument(errors.New("cannot perform lookup on wildcard")), emptyMetadata)
+		resp := lookupResultError(NewErrInvalidArgument(errors.New("cannot perform lookup on wildcard")), emptyMetadata)
 		return resp.Resp, resp.Err
 	}
 
@@ -93,26 +93,26 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	// Start the checker.
 	checker.Start()
 
-	// TODO(jschorr): Collect dispatch count and depth required.
-	// Dispatch to the reachability API to find all reachable objects.
+	// Dispatch to the reachability API to find all reachable objects and queue them
+	// either for checks, or directly as results.
 	err := cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 		ObjectRelation: req.ObjectRelation,
 		Subject:        req.Subject,
 		Metadata:       req.Metadata,
 	}, stream)
 	if err != nil {
-		resp := lookupResultError(req, NewErrInvalidArgument(fmt.Errorf("error in reachablility: %w", err)), emptyMetadata)
+		resp := lookupResultError(NewErrInvalidArgument(fmt.Errorf("error in reachablility: %w", err)), emptyMetadata)
 		return resp.Resp, resp.Err
 	}
 
 	// Wait for the checker to finish.
-	allowed, err := checker.Finish()
+	allowed, err := checker.Wait()
 	if err != nil {
-		resp := lookupResultError(req, err, emptyMetadata)
+		resp := lookupResultError(err, emptyMetadata)
 		return resp.Resp, resp.Err
 	}
 
-	res := lookupResult(req, limitedSlice(allowed.AsSlice(), req.Limit), &v1.ResponseMeta{
+	res := lookupResult(limitedSlice(allowed.AsSlice(), req.Limit), &v1.ResponseMeta{
 		DispatchCount:       stream.dispatchCount + checker.DispatchCount() + 1, // +1 for the lookup
 		CachedDispatchCount: stream.cachedDispatchCount + checker.CachedDispatchCount(),
 		DepthRequired:       max(stream.depthRequired, checker.DepthRequired()) + 1, // +1 for the lookup
@@ -120,7 +120,7 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	return res.Resp, res.Err
 }
 
-func lookupResult(req ValidatedLookupRequest, resolvedONRs []*core.ObjectAndRelation, subProblemMetadata *v1.ResponseMeta) LookupResult {
+func lookupResult(resolvedONRs []*core.ObjectAndRelation, subProblemMetadata *v1.ResponseMeta) LookupResult {
 	return LookupResult{
 		&v1.DispatchLookupResponse{
 			Metadata:     ensureMetadata(subProblemMetadata),
@@ -138,7 +138,7 @@ func limitedSlice(slice []*core.ObjectAndRelation, limit uint32) []*core.ObjectA
 	return slice
 }
 
-func lookupResultError(req ValidatedLookupRequest, err error, subProblemMetadata *v1.ResponseMeta) LookupResult {
+func lookupResultError(err error, subProblemMetadata *v1.ResponseMeta) LookupResult {
 	return LookupResult{
 		&v1.DispatchLookupResponse{
 			Metadata: ensureMetadata(subProblemMetadata),
