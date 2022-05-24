@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/authzed/grpcutil"
-	"github.com/dgraph-io/ristretto"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
+	"github.com/authzed/spicedb/pkg/cache"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -28,7 +28,7 @@ type optionState struct {
 	upstreamCAPath      string
 	grpcPresharedKey    string
 	grpcDialOpts        []grpc.DialOption
-	cacheConfig         *ristretto.Config
+	cacheConfig         *cache.Config
 }
 
 // PrometheusSubsystem sets the subsystem name for the prometheus metrics
@@ -70,7 +70,7 @@ func GrpcDialOpts(opts ...grpc.DialOption) Option {
 }
 
 // CacheConfig sets the configuration for the local dispatcher's cache.
-func CacheConfig(config *ristretto.Config) Option {
+func CacheConfig(config *cache.Config) Option {
 	return func(state *optionState) {
 		state.cacheConfig = config
 	}

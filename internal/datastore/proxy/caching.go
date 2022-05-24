@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/dgraph-io/ristretto"
 	"github.com/dustin/go-humanize"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -21,10 +21,10 @@ import (
 // are loaded at specific datastore revisions.
 func NewCachingDatastoreProxy(
 	delegate datastore.Datastore,
-	cacheConfig *ristretto.Config,
+	cacheConfig *cache.Config,
 ) (datastore.Datastore, error) {
 	if cacheConfig == nil {
-		cacheConfig = &ristretto.Config{
+		cacheConfig = &cache.Config{
 			NumCounters: 1e4,     // number of keys to track frequency of (10k).
 			MaxCost:     1 << 24, // maximum cost of cache (16MB).
 			BufferItems: 64,      // number of keys per Get buffer.
@@ -33,7 +33,7 @@ func NewCachingDatastoreProxy(
 		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching namespace manager")
 	}
 
-	cache, err := ristretto.NewCache(cacheConfig)
+	cache, err := cache.NewCache(cacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create cache: %w", err)
 	}
@@ -46,7 +46,7 @@ func NewCachingDatastoreProxy(
 
 type nsCachingProxy struct {
 	datastore.Datastore
-	c           *ristretto.Cache
+	c           cache.Cache
 	readNsGroup singleflight.Group
 }
 
