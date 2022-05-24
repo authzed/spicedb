@@ -1,0 +1,46 @@
+---
+version: "3"
+
+services:
+  spicedb:
+    image: "authzed/spicedb"
+    command: "serve"
+    restart: "always"
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+      - "50051:50051"
+    environment:
+      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
+      - "SPICEDB_DATASTORE_CONN_URI=postgresql://root:secret@database:26257/spicedb?sslmode=disable"
+    depends_on:
+      - "migrate"
+
+  migrate:
+    image: "authzed/spicedb"
+    command: "migrate head"
+    restart: "on-failure"
+    environment:
+      - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
+      - "SPICEDB_DATASTORE_CONN_URI=postgresql://root:secret@database:26257/spicedb?sslmode=disable"
+    depends_on:
+      - "init_database"
+
+  init_database:
+    image: "cockroachdb/cockroach"
+    restart: "on-failure"
+    command: "sql --insecure -e 'CREATE DATABASE IF NOT EXISTS spicedb;'"
+    environment:
+      - "COCKROACH_HOST=database:26257"
+    depends_on:
+      - "database"
+
+  database:
+    image: "cockroachdb/cockroach"
+    command: "start-single-node --insecure"
+    ports:
+      - "26257:26257"
+      - "8081:8080" # Using 8081 because 8080 is used by SpiceDB
+    environment:
+      - "POSTGRES_PASSWORD=secret"

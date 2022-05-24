@@ -1,0 +1,48 @@
+---
+version: "3"
+
+services:
+  spicedb:
+    image: "authzed/spicedb"
+    command: "serve"
+    restart: "always"
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+      - "50051:50051"
+    environment:
+      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_DATASTORE_ENGINE=spanner"
+      - "SPICEDB_DATASTORE_CONN_URI=projects/project-spicedb/instances/instance-spicedb/databases/spicedb"
+      - "SPANNER_EMULATOR_HOST=database:9010"
+    depends_on:
+      - "migrate"
+
+  migrate:
+    image: "authzed/spicedb"
+    command: "migrate head"
+    restart: "on-failure"
+    environment:
+      - "SPICEDB_DATASTORE_ENGINE=spanner"
+      - "SPICEDB_DATASTORE_CONN_URI=projects/project-spicedb/instances/instance-spicedb/databases/spicedb"
+      - "SPANNER_EMULATOR_HOST=database:9010"
+    depends_on:
+      - "database_init"
+
+  database_init:
+    build:
+      context: "./spanner"
+      dockerfile: "Dockerfile.spanner"
+    restart: "on-failure"
+    environment:
+      - "EMULATOR_HOST=http://database:9020/"
+      - "INSTANCE_NAME=instance-spicedb"
+      - "PROJECT_ID=project-spicedb"
+    depends_on:
+      - "database"
+
+  database:
+    image: "gcr.io/cloud-spanner-emulator/emulator"
+    ports:
+      - "9010:9010"
+      - "9020:9020"
