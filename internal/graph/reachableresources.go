@@ -12,21 +12,21 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewConcurrentReachableResources creates an instance of ConcurrentReachableResources.
-func NewConcurrentReachableResources(d dispatch.ReachableResources, nsm namespace.Manager) *ConcurrentReachableResources {
-	return &ConcurrentReachableResources{d: d, nsm: nsm}
+func NewConcurrentReachableResources(d dispatch.ReachableResources) *ConcurrentReachableResources {
+	return &ConcurrentReachableResources{d: d}
 }
 
 // ConcurrentReachableResources exposes a method to perform ReachableResources requests, and
 // delegates subproblems to the provided dispatch.ReachableResources instance.
 type ConcurrentReachableResources struct {
-	d   dispatch.ReachableResources
-	nsm namespace.Manager
+	d dispatch.ReachableResources
 }
 
 // ValidatedReachableResourcesRequest represents a request after it has been validated and parsed for internal
@@ -58,7 +58,9 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	}
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
-	_, typeSystem, err := crr.nsm.ReadNamespaceAndTypes(ctx, req.ObjectRelation.Namespace, req.Revision)
+	ds := datastoremw.MustFromContext(ctx)
+	reader := ds.SnapshotReader(req.Revision)
+	_, typeSystem, err := namespace.ReadNamespaceAndTypes(ctx, req.ObjectRelation.Namespace, reader)
 	if err != nil {
 		return err
 	}
@@ -81,7 +83,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	for _, entrypoint := range entrypoints {
 		switch entrypoint.EntrypointKind() {
 		case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-			err := crr.lookupRelationEntrypoint(subCtx, entrypoint, g, req, stream)
+			err := crr.lookupRelationEntrypoint(subCtx, entrypoint, g, reader, req, stream)
 			if err != nil {
 				return err
 			}
@@ -114,7 +116,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 
 			// TODO(jschorr): Should we put this information into the entrypoint itself, to avoid
 			// a lookup of the namespace?
-			nsDef, ttuTypeSystem, err := crr.nsm.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, req.Revision)
+			nsDef, ttuTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
 			if err != nil {
 				return err
 			}
@@ -139,15 +141,13 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 					continue
 				}
 
-				ds := datastoremw.MustFromContext(ctx)
-				it, err := ds.ReverseQueryTuples(
+				it, err := reader.ReverseQueryRelationships(
 					ctx,
 					tuple.UsersetToSubjectFilter(&core.ObjectAndRelation{
 						Namespace: req.Subject.Namespace,
 						ObjectId:  req.Subject.ObjectId,
 						Relation:  subjectRelation,
 					}),
-					req.Revision,
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: containingRelation.Namespace,
 						Relation:  ttu.Tupleset.Relation,
@@ -196,11 +196,12 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Context,
 	entrypoint namespace.ReachabilityEntrypoint,
 	g *errgroup.Group,
+	reader datastore.Reader,
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
 	relationReference := entrypoint.DirectRelation()
-	_, relTypeSystem, err := crr.nsm.ReadNamespaceAndTypes(ctx, relationReference.Namespace, req.Revision)
+	_, relTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, relationReference.Namespace, reader)
 	if err != nil {
 		return err
 	}
@@ -217,17 +218,14 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 
 	// TODO(jschorr): Combine these into a single query once the datastore supports a direct or wildcard
 	// query option (which should also be used for check).
-	ds := datastoremw.MustFromContext(ctx)
-
 	collectResults := func(objectId string) error {
-		it, err := ds.ReverseQueryTuples(
+		it, err := reader.ReverseQueryRelationships(
 			ctx,
 			tuple.UsersetToSubjectFilter(&core.ObjectAndRelation{
 				Namespace: req.Subject.Namespace,
 				ObjectId:  objectId,
 				Relation:  req.Subject.Relation,
 			}),
-			req.Revision,
 			options.WithResRelation(&options.ResourceRelation{
 				Namespace: relationReference.Namespace,
 				Relation:  relationReference.Relation,

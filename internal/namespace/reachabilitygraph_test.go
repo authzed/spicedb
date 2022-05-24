@@ -480,12 +480,10 @@ func TestReachabilityGraph(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
-			nsm, err := NewCachingNamespaceManager(nil)
-			require.NoError(err)
 
 			empty := ""
 			defs, err := compiler.Compile([]compiler.InputSchema{
@@ -496,7 +494,8 @@ func TestReachabilityGraph(t *testing.T) {
 			var lastRevision decimal.Decimal
 			var rts *ValidatedNamespaceTypeSystem
 			for _, nsDef := range defs {
-				ts, err := BuildNamespaceTypeSystemWithFallback(nsDef, nsm, defs, lastRevision)
+				reader := ds.SnapshotReader(lastRevision)
+				ts, err := BuildNamespaceTypeSystemWithFallback(nsDef, reader, defs)
 				require.NoError(err)
 
 				vts, terr := ts.Validate(ctx)

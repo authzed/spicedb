@@ -13,9 +13,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
-	graphwalk "github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -32,7 +30,7 @@ func NewLocalOnlyDispatcher() dispatch.Dispatcher {
 	d.checker = graph.NewConcurrentChecker(d)
 	d.expander = graph.NewConcurrentExpander(d)
 	d.lookupHandler = graph.NewConcurrentLookup(d, d)
-	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, d)
+	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d)
 
 	return d
 }
