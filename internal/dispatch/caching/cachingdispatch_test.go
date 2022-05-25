@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -145,6 +146,12 @@ func (ddm delegateDispatchMock) DispatchLookup(ctx context.Context, req *v1.Disp
 	return &v1.DispatchLookupResponse{}, nil
 }
 
+func (ddm delegateDispatchMock) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
+	return nil
+}
+
 func (ddm delegateDispatchMock) Close() error {
 	return nil
 }
+
+var _ dispatch.Dispatcher = &delegateDispatchMock{}

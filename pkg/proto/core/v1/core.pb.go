@@ -126,6 +126,117 @@ func (SetOperationUserset_Operation) EnumDescriptor() ([]byte, []int) {
 	return file_core_v1_core_proto_rawDescGZIP(), []int{7, 0}
 }
 
+type ReachabilityEntrypoint_ReachabilityEntrypointKind int32
+
+const (
+	//
+	// RELATION_ENTRYPOINT indicates an entrypoint where the subject object can be directly
+	// found for a relationship.
+	ReachabilityEntrypoint_RELATION_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 0
+	//
+	// COMPUTED_USERSET_ENTRYPOINT indicates an entrypoint where the subject's relation is
+	// "rewritten" via a `computed_userset` to the target permission's operation node.
+	ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 1
+	//
+	// TUPLESET_TO_USERSET_ENTRYPOINT indicates an entrypoint where the subject's relation is
+	// walked via a `tupleset_to_userset` in the target permission's operation node.
+	ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 2
+)
+
+// Enum value maps for ReachabilityEntrypoint_ReachabilityEntrypointKind.
+var (
+	ReachabilityEntrypoint_ReachabilityEntrypointKind_name = map[int32]string{
+		0: "RELATION_ENTRYPOINT",
+		1: "COMPUTED_USERSET_ENTRYPOINT",
+		2: "TUPLESET_TO_USERSET_ENTRYPOINT",
+	}
+	ReachabilityEntrypoint_ReachabilityEntrypointKind_value = map[string]int32{
+		"RELATION_ENTRYPOINT":            0,
+		"COMPUTED_USERSET_ENTRYPOINT":    1,
+		"TUPLESET_TO_USERSET_ENTRYPOINT": 2,
+	}
+)
+
+func (x ReachabilityEntrypoint_ReachabilityEntrypointKind) Enum() *ReachabilityEntrypoint_ReachabilityEntrypointKind {
+	p := new(ReachabilityEntrypoint_ReachabilityEntrypointKind)
+	*p = x
+	return p
+}
+
+func (x ReachabilityEntrypoint_ReachabilityEntrypointKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ReachabilityEntrypoint_ReachabilityEntrypointKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_core_v1_core_proto_enumTypes[2].Descriptor()
+}
+
+func (ReachabilityEntrypoint_ReachabilityEntrypointKind) Type() protoreflect.EnumType {
+	return &file_core_v1_core_proto_enumTypes[2]
+}
+
+func (x ReachabilityEntrypoint_ReachabilityEntrypointKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ReachabilityEntrypoint_ReachabilityEntrypointKind.Descriptor instead.
+func (ReachabilityEntrypoint_ReachabilityEntrypointKind) EnumDescriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{14, 0}
+}
+
+type ReachabilityEntrypoint_EntrypointResultStatus int32
+
+const (
+	//
+	// REACHABLE_CONDITIONAL_RESULT indicates that the entrypoint is under one or more intersections
+	// or exclusion operations, indicating that any reachable object *may* be a result, conditional
+	// on the parent non-union operation(s).
+	ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT ReachabilityEntrypoint_EntrypointResultStatus = 0
+	//
+	// DIRECT_OPERATION_RESULT indicates that the entrypoint exists solely under zero or more
+	// union operations, making any reachable object also a *result* of the relation or permission.
+	ReachabilityEntrypoint_DIRECT_OPERATION_RESULT ReachabilityEntrypoint_EntrypointResultStatus = 1
+)
+
+// Enum value maps for ReachabilityEntrypoint_EntrypointResultStatus.
+var (
+	ReachabilityEntrypoint_EntrypointResultStatus_name = map[int32]string{
+		0: "REACHABLE_CONDITIONAL_RESULT",
+		1: "DIRECT_OPERATION_RESULT",
+	}
+	ReachabilityEntrypoint_EntrypointResultStatus_value = map[string]int32{
+		"REACHABLE_CONDITIONAL_RESULT": 0,
+		"DIRECT_OPERATION_RESULT":      1,
+	}
+)
+
+func (x ReachabilityEntrypoint_EntrypointResultStatus) Enum() *ReachabilityEntrypoint_EntrypointResultStatus {
+	p := new(ReachabilityEntrypoint_EntrypointResultStatus)
+	*p = x
+	return p
+}
+
+func (x ReachabilityEntrypoint_EntrypointResultStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ReachabilityEntrypoint_EntrypointResultStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_core_v1_core_proto_enumTypes[3].Descriptor()
+}
+
+func (ReachabilityEntrypoint_EntrypointResultStatus) Type() protoreflect.EnumType {
+	return &file_core_v1_core_proto_enumTypes[3]
+}
+
+func (x ReachabilityEntrypoint_EntrypointResultStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ReachabilityEntrypoint_EntrypointResultStatus.Descriptor instead.
+func (ReachabilityEntrypoint_EntrypointResultStatus) EnumDescriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{14, 1}
+}
+
 type ComputedUserset_Object int32
 
 const (
@@ -156,11 +267,11 @@ func (x ComputedUserset_Object) String() string {
 }
 
 func (ComputedUserset_Object) Descriptor() protoreflect.EnumDescriptor {
-	return file_core_v1_core_proto_enumTypes[2].Descriptor()
+	return file_core_v1_core_proto_enumTypes[4].Descriptor()
 }
 
 func (ComputedUserset_Object) Type() protoreflect.EnumType {
-	return &file_core_v1_core_proto_enumTypes[2]
+	return &file_core_v1_core_proto_enumTypes[4]
 }
 
 func (x ComputedUserset_Object) Number() protoreflect.EnumNumber {
@@ -169,7 +280,7 @@ func (x ComputedUserset_Object) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ComputedUserset_Object.Descriptor instead.
 func (ComputedUserset_Object) EnumDescriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{17, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{20, 0}
 }
 
 type RelationTuple struct {
@@ -177,19 +288,10 @@ type RelationTuple struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Each tupleset specifies keys of a set of relation tuples. The set can
-	// include a single tuple key, or all tuples with a given object ID or
-	// userset in a namespace, optionally constrained by a relation name.
-	//
-	// examples:
-	// doc:readme#viewer@group:eng#member (fully specified)
-	// doc:*#*#group:eng#member (all tuples that this userset relates to)
-	// doc:12345#*#* (all tuples with a direct relationship to a document)
-	// doc:12345#writer#* (all tuples with direct write relationship with the
-	// document) doc:#writer#group:eng#member (all tuples that eng group has write
-	// relationship)
+	// object_and_relation is the resource for the tuple
 	ObjectAndRelation *ObjectAndRelation `protobuf:"bytes,1,opt,name=object_and_relation,json=objectAndRelation,proto3" json:"object_and_relation,omitempty"`
-	User              *User              `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	// user is the subject for the tuple
+	User *User `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
 }
 
 func (x *RelationTuple) Reset() {
@@ -243,9 +345,12 @@ type ObjectAndRelation struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// namespace is the full namespace path for the referenced object
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	ObjectId  string `protobuf:"bytes,2,opt,name=object_id,json=objectId,proto3" json:"object_id,omitempty"`
-	Relation  string `protobuf:"bytes,3,opt,name=relation,proto3" json:"relation,omitempty"`
+	// object_id is the unique ID for the object within the namespace
+	ObjectId string `protobuf:"bytes,2,opt,name=object_id,json=objectId,proto3" json:"object_id,omitempty"`
+	// relation is the name of the referenced relation or permission under the namespace
+	Relation string `protobuf:"bytes,3,opt,name=relation,proto3" json:"relation,omitempty"`
 }
 
 func (x *ObjectAndRelation) Reset() {
@@ -306,8 +411,10 @@ type RelationReference struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// namespace is the full namespace path
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	Relation  string `protobuf:"bytes,3,opt,name=relation,proto3" json:"relation,omitempty"`
+	// relation is the name of the referenced relation or permission under the namespace
+	Relation string `protobuf:"bytes,3,opt,name=relation,proto3" json:"relation,omitempty"`
 }
 
 func (x *RelationReference) Reset() {
@@ -361,6 +468,8 @@ type User struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// NOTE: deprecated, as only usersets are supported now.
+	//
 	// Types that are assignable to UserOneof:
 	//	*User_Userset
 	UserOneof isUser_UserOneof `protobuf_oneof:"user_oneof"`
@@ -714,6 +823,9 @@ func (x *DirectUserset) GetUsers() []*User {
 	return nil
 }
 
+//
+// Metadata is compiler metadata added to namespace definitions, such as doc comments and
+// relation kinds.
 type Metadata struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -761,14 +873,20 @@ func (x *Metadata) GetMetadataMessage() []*anypb.Any {
 	return nil
 }
 
+//
+// NamespaceDefinition represents a single definition of an object type
 type NamespaceDefinition struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name           string          `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Relation       []*Relation     `protobuf:"bytes,2,rep,name=relation,proto3" json:"relation,omitempty"`
-	Metadata       *Metadata       `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// name is the unique for the namespace, including prefixes (which are optional)
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// relation contains the relations and permissions defined in the namespace
+	Relation []*Relation `protobuf:"bytes,2,rep,name=relation,proto3" json:"relation,omitempty"`
+	// metadata contains compiler metadata from schemas compiled into namespaces
+	Metadata *Metadata `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// source_position contains the position of the namespace in the source schema, if any
 	SourcePosition *SourcePosition `protobuf:"bytes,4,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
 }
 
@@ -832,18 +950,27 @@ func (x *NamespaceDefinition) GetSourcePosition() *SourcePosition {
 	return nil
 }
 
+//
+// Relation represents the definition of a relation or permission under a namespace.
 type Relation struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name              string           `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	UsersetRewrite    *UsersetRewrite  `protobuf:"bytes,2,opt,name=userset_rewrite,json=usersetRewrite,proto3" json:"userset_rewrite,omitempty"`
-	TypeInformation   *TypeInformation `protobuf:"bytes,3,opt,name=type_information,json=typeInformation,proto3" json:"type_information,omitempty"`
-	Metadata          *Metadata        `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	SourcePosition    *SourcePosition  `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
-	AliasingRelation  string           `protobuf:"bytes,6,opt,name=aliasing_relation,json=aliasingRelation,proto3" json:"aliasing_relation,omitempty"`
-	CanonicalCacheKey string           `protobuf:"bytes,7,opt,name=canonical_cache_key,json=canonicalCacheKey,proto3" json:"canonical_cache_key,omitempty"`
+	// name is the full name for the relation or permission
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// userset_rewrite, if specified, is the rewrite for computing the value of the permission.
+	UsersetRewrite *UsersetRewrite `protobuf:"bytes,2,opt,name=userset_rewrite,json=usersetRewrite,proto3" json:"userset_rewrite,omitempty"`
+	//
+	// type_information, if specified, is the list of allowed object types that can appear in this
+	// relation
+	TypeInformation *TypeInformation `protobuf:"bytes,3,opt,name=type_information,json=typeInformation,proto3" json:"type_information,omitempty"`
+	// metadata contains compiler metadata from schemas compiled into namespaces
+	Metadata *Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// source_position contains the position of the relation in the source schema, if any
+	SourcePosition    *SourcePosition `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
+	AliasingRelation  string          `protobuf:"bytes,6,opt,name=aliasing_relation,json=aliasingRelation,proto3" json:"aliasing_relation,omitempty"`
+	CanonicalCacheKey string          `protobuf:"bytes,7,opt,name=canonical_cache_key,json=canonicalCacheKey,proto3" json:"canonical_cache_key,omitempty"`
 }
 
 func (x *Relation) Reset() {
@@ -927,18 +1054,272 @@ func (x *Relation) GetCanonicalCacheKey() string {
 	return ""
 }
 
+//
+// ReachabilityGraph is a serialized form of a reachability graph, representing how a relation can
+// be reached from one or more subject types.
+//
+// It defines a "reverse" data flow graph, starting at a subject type, and providing all the
+// entrypoints where that subject type can be found leading to the decorated relation.
+//
+// For example, given the schema:
+// ```
+//   definition user {}
+//
+//   definition organization {
+//     relation admin: user
+//   }
+//
+//   definition resource {
+//     relation org: organization
+//     relation viewer: user
+//     relation owner: user
+//     permission view = viewer + owner + org->admin
+//   }
+// ```
+//
+// The reachability graph for `viewer` and the other relations will have entrypoints for each
+// subject type found for those relations.
+//
+// The full reachability graph for the `view` relation will have three entrypoints, representing:
+//   1) resource#viewer (computed_userset)
+//   2) resource#owner  (computed_userset)
+//   3) organization#admin (tupleset_to_userset)
+type ReachabilityGraph struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	//
+	// entrypoints_by_subject_type provides all entrypoints by subject *type*, representing wildcards.
+	// The keys of the map are the full path(s) for the namespace(s) referenced by reachable wildcards
+	EntrypointsBySubjectType map[string]*ReachabilityEntrypoints `protobuf:"bytes,1,rep,name=entrypoints_by_subject_type,json=entrypointsBySubjectType,proto3" json:"entrypoints_by_subject_type,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	//
+	// entrypoints_by_subject_relation provides all entrypoints by subject type+relation.
+	// The keys of the map are of the form `namespace_path#relation_name`
+	EntrypointsBySubjectRelation map[string]*ReachabilityEntrypoints `protobuf:"bytes,2,rep,name=entrypoints_by_subject_relation,json=entrypointsBySubjectRelation,proto3" json:"entrypoints_by_subject_relation,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *ReachabilityGraph) Reset() {
+	*x = ReachabilityGraph{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_core_v1_core_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReachabilityGraph) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReachabilityGraph) ProtoMessage() {}
+
+func (x *ReachabilityGraph) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReachabilityGraph.ProtoReflect.Descriptor instead.
+func (*ReachabilityGraph) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ReachabilityGraph) GetEntrypointsBySubjectType() map[string]*ReachabilityEntrypoints {
+	if x != nil {
+		return x.EntrypointsBySubjectType
+	}
+	return nil
+}
+
+func (x *ReachabilityGraph) GetEntrypointsBySubjectRelation() map[string]*ReachabilityEntrypoints {
+	if x != nil {
+		return x.EntrypointsBySubjectRelation
+	}
+	return nil
+}
+
+//
+// ReachabilityEntrypoints represents all the entrypoints for a specific subject type or subject
+// relation into the reachability graph for a particular target relation.
+type ReachabilityEntrypoints struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	//
+	// entrypoints are the entrypoints found.
+	Entrypoints []*ReachabilityEntrypoint `protobuf:"bytes,1,rep,name=entrypoints,proto3" json:"entrypoints,omitempty"`
+	//
+	// subject_type, if specified, is the type of subjects to which the entrypoint(s) apply. A
+	// subject type is only set for wildcards.
+	SubjectType string `protobuf:"bytes,2,opt,name=subject_type,json=subjectType,proto3" json:"subject_type,omitempty"`
+	//
+	// subject_relation, if specified, is the type and relation of subjects to which the
+	// entrypoint(s) apply.
+	SubjectRelation *RelationReference `protobuf:"bytes,3,opt,name=subject_relation,json=subjectRelation,proto3" json:"subject_relation,omitempty"`
+}
+
+func (x *ReachabilityEntrypoints) Reset() {
+	*x = ReachabilityEntrypoints{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_core_v1_core_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReachabilityEntrypoints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReachabilityEntrypoints) ProtoMessage() {}
+
+func (x *ReachabilityEntrypoints) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReachabilityEntrypoints.ProtoReflect.Descriptor instead.
+func (*ReachabilityEntrypoints) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ReachabilityEntrypoints) GetEntrypoints() []*ReachabilityEntrypoint {
+	if x != nil {
+		return x.Entrypoints
+	}
+	return nil
+}
+
+func (x *ReachabilityEntrypoints) GetSubjectType() string {
+	if x != nil {
+		return x.SubjectType
+	}
+	return ""
+}
+
+func (x *ReachabilityEntrypoints) GetSubjectRelation() *RelationReference {
+	if x != nil {
+		return x.SubjectRelation
+	}
+	return nil
+}
+
+//
+// ReachabilityEntrypoint represents a single entrypoint for a specific subject type or subject
+// relation into the reachability graph for a particular target relation.
+type ReachabilityEntrypoint struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	//
+	// kind is the kind of the entrypoint.
+	Kind ReachabilityEntrypoint_ReachabilityEntrypointKind `protobuf:"varint,1,opt,name=kind,proto3,enum=core.v1.ReachabilityEntrypoint_ReachabilityEntrypointKind" json:"kind,omitempty"`
+	//
+	// target_relation is the relation on which the entrypoint exists.
+	TargetRelation *RelationReference `protobuf:"bytes,2,opt,name=target_relation,json=targetRelation,proto3" json:"target_relation,omitempty"`
+	//
+	// operation_path is the path to the _this operation, if applicable. Will be empty for direct
+	// relation entrypoints without userset writes.
+	OperationPath []uint32 `protobuf:"varint,3,rep,packed,name=operation_path,json=operationPath,proto3" json:"operation_path,omitempty"`
+	//
+	// result_status contains the status of objects found for this entrypoint as direct results for
+	// the parent relation/permission.
+	ResultStatus ReachabilityEntrypoint_EntrypointResultStatus `protobuf:"varint,4,opt,name=result_status,json=resultStatus,proto3,enum=core.v1.ReachabilityEntrypoint_EntrypointResultStatus" json:"result_status,omitempty"`
+}
+
+func (x *ReachabilityEntrypoint) Reset() {
+	*x = ReachabilityEntrypoint{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_core_v1_core_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReachabilityEntrypoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReachabilityEntrypoint) ProtoMessage() {}
+
+func (x *ReachabilityEntrypoint) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReachabilityEntrypoint.ProtoReflect.Descriptor instead.
+func (*ReachabilityEntrypoint) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ReachabilityEntrypoint) GetKind() ReachabilityEntrypoint_ReachabilityEntrypointKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ReachabilityEntrypoint_RELATION_ENTRYPOINT
+}
+
+func (x *ReachabilityEntrypoint) GetTargetRelation() *RelationReference {
+	if x != nil {
+		return x.TargetRelation
+	}
+	return nil
+}
+
+func (x *ReachabilityEntrypoint) GetOperationPath() []uint32 {
+	if x != nil {
+		return x.OperationPath
+	}
+	return nil
+}
+
+func (x *ReachabilityEntrypoint) GetResultStatus() ReachabilityEntrypoint_EntrypointResultStatus {
+	if x != nil {
+		return x.ResultStatus
+	}
+	return ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT
+}
+
+//
+// TypeInformation defines the allowed types for a relation.
 type TypeInformation struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	//
+	// allowed_direct_relations are those relation types allowed to be placed into a relation,
+	// e.g. the types of subjects allowed when a relationship is written to the relation
 	AllowedDirectRelations []*AllowedRelation `protobuf:"bytes,1,rep,name=allowed_direct_relations,json=allowedDirectRelations,proto3" json:"allowed_direct_relations,omitempty"`
 }
 
 func (x *TypeInformation) Reset() {
 	*x = TypeInformation{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[12]
+		mi := &file_core_v1_core_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -951,7 +1332,7 @@ func (x *TypeInformation) String() string {
 func (*TypeInformation) ProtoMessage() {}
 
 func (x *TypeInformation) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[12]
+	mi := &file_core_v1_core_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -964,7 +1345,7 @@ func (x *TypeInformation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeInformation.ProtoReflect.Descriptor instead.
 func (*TypeInformation) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{12}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TypeInformation) GetAllowedDirectRelations() []*AllowedRelation {
@@ -974,23 +1355,30 @@ func (x *TypeInformation) GetAllowedDirectRelations() []*AllowedRelation {
 	return nil
 }
 
+//
+// AllowedRelation is an allowed type of a relation when used as a subject.
 type AllowedRelation struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// namespace is the full namespace path of the allowed object type
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	//
+	// relation_or_wildcard indicates the relation for the objects, or a wildcard.
+	//
 	// Types that are assignable to RelationOrWildcard:
 	//	*AllowedRelation_Relation
 	//	*AllowedRelation_PublicWildcard_
 	RelationOrWildcard isAllowedRelation_RelationOrWildcard `protobuf_oneof:"relation_or_wildcard"`
-	SourcePosition     *SourcePosition                      `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
+	// source_position contains the position of the type in the source schema, if any
+	SourcePosition *SourcePosition `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
 }
 
 func (x *AllowedRelation) Reset() {
 	*x = AllowedRelation{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[13]
+		mi := &file_core_v1_core_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1003,7 +1391,7 @@ func (x *AllowedRelation) String() string {
 func (*AllowedRelation) ProtoMessage() {}
 
 func (x *AllowedRelation) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[13]
+	mi := &file_core_v1_core_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1016,7 +1404,7 @@ func (x *AllowedRelation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllowedRelation.ProtoReflect.Descriptor instead.
 func (*AllowedRelation) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{13}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *AllowedRelation) GetNamespace() string {
@@ -1086,7 +1474,7 @@ type UsersetRewrite struct {
 func (x *UsersetRewrite) Reset() {
 	*x = UsersetRewrite{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[14]
+		mi := &file_core_v1_core_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1099,7 +1487,7 @@ func (x *UsersetRewrite) String() string {
 func (*UsersetRewrite) ProtoMessage() {}
 
 func (x *UsersetRewrite) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[14]
+	mi := &file_core_v1_core_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1112,7 +1500,7 @@ func (x *UsersetRewrite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsersetRewrite.ProtoReflect.Descriptor instead.
 func (*UsersetRewrite) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{14}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{17}
 }
 
 func (m *UsersetRewrite) GetRewriteOperation() isUsersetRewrite_RewriteOperation {
@@ -1183,7 +1571,7 @@ type SetOperation struct {
 func (x *SetOperation) Reset() {
 	*x = SetOperation{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[15]
+		mi := &file_core_v1_core_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1196,7 +1584,7 @@ func (x *SetOperation) String() string {
 func (*SetOperation) ProtoMessage() {}
 
 func (x *SetOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[15]
+	mi := &file_core_v1_core_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1209,7 +1597,7 @@ func (x *SetOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperation.ProtoReflect.Descriptor instead.
 func (*SetOperation) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{15}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SetOperation) GetChild() []*SetOperation_Child {
@@ -1232,7 +1620,7 @@ type TupleToUserset struct {
 func (x *TupleToUserset) Reset() {
 	*x = TupleToUserset{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[16]
+		mi := &file_core_v1_core_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1245,7 +1633,7 @@ func (x *TupleToUserset) String() string {
 func (*TupleToUserset) ProtoMessage() {}
 
 func (x *TupleToUserset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[16]
+	mi := &file_core_v1_core_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1258,7 +1646,7 @@ func (x *TupleToUserset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TupleToUserset.ProtoReflect.Descriptor instead.
 func (*TupleToUserset) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{16}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *TupleToUserset) GetTupleset() *TupleToUserset_Tupleset {
@@ -1295,7 +1683,7 @@ type ComputedUserset struct {
 func (x *ComputedUserset) Reset() {
 	*x = ComputedUserset{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[17]
+		mi := &file_core_v1_core_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1308,7 +1696,7 @@ func (x *ComputedUserset) String() string {
 func (*ComputedUserset) ProtoMessage() {}
 
 func (x *ComputedUserset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[17]
+	mi := &file_core_v1_core_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1321,7 +1709,7 @@ func (x *ComputedUserset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputedUserset.ProtoReflect.Descriptor instead.
 func (*ComputedUserset) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{17}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ComputedUserset) GetObject() ComputedUserset_Object {
@@ -1357,7 +1745,7 @@ type SourcePosition struct {
 func (x *SourcePosition) Reset() {
 	*x = SourcePosition{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[18]
+		mi := &file_core_v1_core_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1370,7 +1758,7 @@ func (x *SourcePosition) String() string {
 func (*SourcePosition) ProtoMessage() {}
 
 func (x *SourcePosition) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[18]
+	mi := &file_core_v1_core_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1383,7 +1771,7 @@ func (x *SourcePosition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SourcePosition.ProtoReflect.Descriptor instead.
 func (*SourcePosition) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{18}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *SourcePosition) GetZeroIndexedLineNumber() uint64 {
@@ -1409,7 +1797,7 @@ type AllowedRelation_PublicWildcard struct {
 func (x *AllowedRelation_PublicWildcard) Reset() {
 	*x = AllowedRelation_PublicWildcard{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[19]
+		mi := &file_core_v1_core_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1422,7 +1810,7 @@ func (x *AllowedRelation_PublicWildcard) String() string {
 func (*AllowedRelation_PublicWildcard) ProtoMessage() {}
 
 func (x *AllowedRelation_PublicWildcard) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[19]
+	mi := &file_core_v1_core_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1435,7 +1823,7 @@ func (x *AllowedRelation_PublicWildcard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllowedRelation_PublicWildcard.ProtoReflect.Descriptor instead.
 func (*AllowedRelation_PublicWildcard) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{13, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{16, 0}
 }
 
 type SetOperation_Child struct {
@@ -1451,12 +1839,18 @@ type SetOperation_Child struct {
 	//	*SetOperation_Child_XNil
 	ChildType      isSetOperation_Child_ChildType `protobuf_oneof:"child_type"`
 	SourcePosition *SourcePosition                `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
+	//
+	// operation_path (if specified) is the *unique* ID for the set operation in the permission
+	// definition. It is a heirarchy representing the position of the operation under its parent
+	// operation. For example, the operation path of an operation which is the third child of the
+	// fourth top-level operation, will be `3,2`.
+	OperationPath []uint32 `protobuf:"varint,7,rep,packed,name=operation_path,json=operationPath,proto3" json:"operation_path,omitempty"`
 }
 
 func (x *SetOperation_Child) Reset() {
 	*x = SetOperation_Child{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[20]
+		mi := &file_core_v1_core_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1469,7 +1863,7 @@ func (x *SetOperation_Child) String() string {
 func (*SetOperation_Child) ProtoMessage() {}
 
 func (x *SetOperation_Child) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[20]
+	mi := &file_core_v1_core_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1482,7 +1876,7 @@ func (x *SetOperation_Child) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperation_Child.ProtoReflect.Descriptor instead.
 func (*SetOperation_Child) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{15, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{18, 0}
 }
 
 func (m *SetOperation_Child) GetChildType() isSetOperation_Child_ChildType {
@@ -1534,6 +1928,13 @@ func (x *SetOperation_Child) GetSourcePosition() *SourcePosition {
 	return nil
 }
 
+func (x *SetOperation_Child) GetOperationPath() []uint32 {
+	if x != nil {
+		return x.OperationPath
+	}
+	return nil
+}
+
 type isSetOperation_Child_ChildType interface {
 	isSetOperation_Child_ChildType()
 }
@@ -1577,7 +1978,7 @@ type SetOperation_Child_This struct {
 func (x *SetOperation_Child_This) Reset() {
 	*x = SetOperation_Child_This{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[21]
+		mi := &file_core_v1_core_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1590,7 +1991,7 @@ func (x *SetOperation_Child_This) String() string {
 func (*SetOperation_Child_This) ProtoMessage() {}
 
 func (x *SetOperation_Child_This) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[21]
+	mi := &file_core_v1_core_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1603,7 +2004,7 @@ func (x *SetOperation_Child_This) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperation_Child_This.ProtoReflect.Descriptor instead.
 func (*SetOperation_Child_This) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{15, 0, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{18, 0, 0}
 }
 
 type SetOperation_Child_Nil struct {
@@ -1615,7 +2016,7 @@ type SetOperation_Child_Nil struct {
 func (x *SetOperation_Child_Nil) Reset() {
 	*x = SetOperation_Child_Nil{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[22]
+		mi := &file_core_v1_core_proto_msgTypes[27]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1628,7 +2029,7 @@ func (x *SetOperation_Child_Nil) String() string {
 func (*SetOperation_Child_Nil) ProtoMessage() {}
 
 func (x *SetOperation_Child_Nil) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[22]
+	mi := &file_core_v1_core_proto_msgTypes[27]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1641,7 +2042,7 @@ func (x *SetOperation_Child_Nil) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperation_Child_Nil.ProtoReflect.Descriptor instead.
 func (*SetOperation_Child_Nil) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{15, 0, 1}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{18, 0, 1}
 }
 
 type TupleToUserset_Tupleset struct {
@@ -1655,7 +2056,7 @@ type TupleToUserset_Tupleset struct {
 func (x *TupleToUserset_Tupleset) Reset() {
 	*x = TupleToUserset_Tupleset{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[23]
+		mi := &file_core_v1_core_proto_msgTypes[28]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1668,7 +2069,7 @@ func (x *TupleToUserset_Tupleset) String() string {
 func (*TupleToUserset_Tupleset) ProtoMessage() {}
 
 func (x *TupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[23]
+	mi := &file_core_v1_core_proto_msgTypes[28]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1681,7 +2082,7 @@ func (x *TupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TupleToUserset_Tupleset.ProtoReflect.Descriptor instead.
 func (*TupleToUserset_Tupleset) Descriptor() ([]byte, []int) {
-	return file_core_v1_core_proto_rawDescGZIP(), []int{16, 0}
+	return file_core_v1_core_proto_rawDescGZIP(), []int{19, 0}
 }
 
 func (x *TupleToUserset_Tupleset) GetRelation() string {
@@ -1848,89 +2249,168 @@ var file_core_v1_core_proto_rawDesc = []byte{
 	0x69, 0x6f, 0x6e, 0x12, 0x2e, 0x0a, 0x13, 0x63, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63, 0x61, 0x6c,
 	0x5f, 0x63, 0x61, 0x63, 0x68, 0x65, 0x5f, 0x6b, 0x65, 0x79, 0x18, 0x07, 0x20, 0x01, 0x28, 0x09,
 	0x52, 0x11, 0x63, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63, 0x61, 0x6c, 0x43, 0x61, 0x63, 0x68, 0x65,
-	0x4b, 0x65, 0x79, 0x22, 0x65, 0x0a, 0x0f, 0x54, 0x79, 0x70, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x72,
-	0x6d, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x52, 0x0a, 0x18, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x65,
-	0x64, 0x5f, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x5f, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e,
+	0x4b, 0x65, 0x79, 0x22, 0xf4, 0x03, 0x0a, 0x11, 0x52, 0x65, 0x61, 0x63, 0x68, 0x61, 0x62, 0x69,
+	0x6c, 0x69, 0x74, 0x79, 0x47, 0x72, 0x61, 0x70, 0x68, 0x12, 0x77, 0x0a, 0x1b, 0x65, 0x6e, 0x74,
+	0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x5f, 0x62, 0x79, 0x5f, 0x73, 0x75, 0x62, 0x6a,
+	0x65, 0x63, 0x74, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x38,
+	0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x61, 0x63, 0x68, 0x61, 0x62,
+	0x69, 0x6c, 0x69, 0x74, 0x79, 0x47, 0x72, 0x61, 0x70, 0x68, 0x2e, 0x45, 0x6e, 0x74, 0x72, 0x79,
+	0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x42, 0x79, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x54,
+	0x79, 0x70, 0x65, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x18, 0x65, 0x6e, 0x74, 0x72, 0x79, 0x70,
+	0x6f, 0x69, 0x6e, 0x74, 0x73, 0x42, 0x79, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x54, 0x79,
+	0x70, 0x65, 0x12, 0x83, 0x01, 0x0a, 0x1f, 0x65, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e,
+	0x74, 0x73, 0x5f, 0x62, 0x79, 0x5f, 0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x5f, 0x72, 0x65,
+	0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x3c, 0x2e, 0x63,
+	0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x61, 0x63, 0x68, 0x61, 0x62, 0x69, 0x6c,
+	0x69, 0x74, 0x79, 0x47, 0x72, 0x61, 0x70, 0x68, 0x2e, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f,
+	0x69, 0x6e, 0x74, 0x73, 0x42, 0x79, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x52, 0x65, 0x6c,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x1c, 0x65, 0x6e, 0x74, 0x72,
+	0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x42, 0x79, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74,
+	0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x6d, 0x0a, 0x1d, 0x45, 0x6e, 0x74, 0x72,
+	0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x42, 0x79, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74,
+	0x54, 0x79, 0x70, 0x65, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x36, 0x0a, 0x05, 0x76,
+	0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x63, 0x6f, 0x72,
+	0x65, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x61, 0x63, 0x68, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74,
+	0x79, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x52, 0x05, 0x76, 0x61,
+	0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0x71, 0x0a, 0x21, 0x45, 0x6e, 0x74, 0x72, 0x79,
+	0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x42, 0x79, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x52,
+	0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03,
+	0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x36,
+	0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x20, 0x2e,
+	0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x61, 0x63, 0x68, 0x61, 0x62, 0x69,
+	0x6c, 0x69, 0x74, 0x79, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x52,
+	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0xc6, 0x01, 0x0a, 0x17, 0x52,
+	0x65, 0x61, 0x63, 0x68, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x45, 0x6e, 0x74, 0x72, 0x79,
+	0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x12, 0x41, 0x0a, 0x0b, 0x65, 0x6e, 0x74, 0x72, 0x79, 0x70,
+	0x6f, 0x69, 0x6e, 0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x63, 0x6f,
+	0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x61, 0x63, 0x68, 0x61, 0x62, 0x69, 0x6c, 0x69,
+	0x74, 0x79, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x52, 0x0b, 0x65, 0x6e,
+	0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x73, 0x12, 0x21, 0x0a, 0x0c, 0x73, 0x75, 0x62,
+	0x6a, 0x65, 0x63, 0x74, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x0b, 0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x54, 0x79, 0x70, 0x65, 0x12, 0x45, 0x0a, 0x10,
+	0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x5f, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31,
+	0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x66, 0x65, 0x72, 0x65, 0x6e,
+	0x63, 0x65, 0x52, 0x0f, 0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x52, 0x65, 0x6c, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x22, 0x86, 0x04, 0x0a, 0x16, 0x52, 0x65, 0x61, 0x63, 0x68, 0x61, 0x62, 0x69,
+	0x6c, 0x69, 0x74, 0x79, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x12, 0x4e,
+	0x0a, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x3a, 0x2e, 0x63,
+	0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x61, 0x63, 0x68, 0x61, 0x62, 0x69, 0x6c,
+	0x69, 0x74, 0x79, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x2e, 0x52, 0x65,
+	0x61, 0x63, 0x68, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70,
+	0x6f, 0x69, 0x6e, 0x74, 0x4b, 0x69, 0x6e, 0x64, 0x52, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x12, 0x43,
+	0x0a, 0x0f, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f,
+	0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76,
+	0x31, 0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x66, 0x65, 0x72, 0x65,
+	0x6e, 0x63, 0x65, 0x52, 0x0e, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x52, 0x65, 0x6c, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x12, 0x25, 0x0a, 0x0e, 0x6f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0d, 0x52, 0x0d, 0x6f, 0x70, 0x65,
+	0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x61, 0x74, 0x68, 0x12, 0x5b, 0x0a, 0x0d, 0x72, 0x65,
+	0x73, 0x75, 0x6c, 0x74, 0x5f, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28,
+	0x0e, 0x32, 0x36, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x61, 0x63,
+	0x68, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69,
+	0x6e, 0x74, 0x2e, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e, 0x74, 0x52, 0x65, 0x73,
+	0x75, 0x6c, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x0c, 0x72, 0x65, 0x73, 0x75, 0x6c,
+	0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x7a, 0x0a, 0x1a, 0x52, 0x65, 0x61, 0x63, 0x68,
+	0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e,
+	0x74, 0x4b, 0x69, 0x6e, 0x64, 0x12, 0x17, 0x0a, 0x13, 0x52, 0x45, 0x4c, 0x41, 0x54, 0x49, 0x4f,
+	0x4e, 0x5f, 0x45, 0x4e, 0x54, 0x52, 0x59, 0x50, 0x4f, 0x49, 0x4e, 0x54, 0x10, 0x00, 0x12, 0x1f,
+	0x0a, 0x1b, 0x43, 0x4f, 0x4d, 0x50, 0x55, 0x54, 0x45, 0x44, 0x5f, 0x55, 0x53, 0x45, 0x52, 0x53,
+	0x45, 0x54, 0x5f, 0x45, 0x4e, 0x54, 0x52, 0x59, 0x50, 0x4f, 0x49, 0x4e, 0x54, 0x10, 0x01, 0x12,
+	0x22, 0x0a, 0x1e, 0x54, 0x55, 0x50, 0x4c, 0x45, 0x53, 0x45, 0x54, 0x5f, 0x54, 0x4f, 0x5f, 0x55,
+	0x53, 0x45, 0x52, 0x53, 0x45, 0x54, 0x5f, 0x45, 0x4e, 0x54, 0x52, 0x59, 0x50, 0x4f, 0x49, 0x4e,
+	0x54, 0x10, 0x02, 0x22, 0x57, 0x0a, 0x16, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x70, 0x6f, 0x69, 0x6e,
+	0x74, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x20, 0x0a,
+	0x1c, 0x52, 0x45, 0x41, 0x43, 0x48, 0x41, 0x42, 0x4c, 0x45, 0x5f, 0x43, 0x4f, 0x4e, 0x44, 0x49,
+	0x54, 0x49, 0x4f, 0x4e, 0x41, 0x4c, 0x5f, 0x52, 0x45, 0x53, 0x55, 0x4c, 0x54, 0x10, 0x00, 0x12,
+	0x1b, 0x0a, 0x17, 0x44, 0x49, 0x52, 0x45, 0x43, 0x54, 0x5f, 0x4f, 0x50, 0x45, 0x52, 0x41, 0x54,
+	0x49, 0x4f, 0x4e, 0x5f, 0x52, 0x45, 0x53, 0x55, 0x4c, 0x54, 0x10, 0x01, 0x22, 0x65, 0x0a, 0x0f,
+	0x54, 0x79, 0x70, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12,
+	0x52, 0x0a, 0x18, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x5f, 0x64, 0x69, 0x72, 0x65, 0x63,
+	0x74, 0x5f, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28,
+	0x0b, 0x32, 0x18, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x6c, 0x6c, 0x6f,
+	0x77, 0x65, 0x64, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x16, 0x61, 0x6c, 0x6c,
+	0x6f, 0x77, 0x65, 0x64, 0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69,
+	0x6f, 0x6e, 0x73, 0x22, 0x89, 0x03, 0x0a, 0x0f, 0x41, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x52,
+	0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x66, 0x0a, 0x09, 0x6e, 0x61, 0x6d, 0x65, 0x73,
+	0x70, 0x61, 0x63, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x48, 0xfa, 0x42, 0x45, 0x72,
+	0x43, 0x28, 0x80, 0x01, 0x32, 0x3e, 0x5e, 0x28, 0x5b, 0x61, 0x2d, 0x7a, 0x5d, 0x5b, 0x61, 0x2d,
+	0x7a, 0x30, 0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c, 0x36, 0x31, 0x7d, 0x5b, 0x61, 0x2d, 0x7a,
+	0x30, 0x2d, 0x39, 0x5d, 0x2f, 0x29, 0x3f, 0x5b, 0x61, 0x2d, 0x7a, 0x5d, 0x5b, 0x61, 0x2d, 0x7a,
+	0x30, 0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c, 0x36, 0x32, 0x7d, 0x5b, 0x61, 0x2d, 0x7a, 0x30,
+	0x2d, 0x39, 0x5d, 0x24, 0x52, 0x09, 0x6e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x12,
+	0x4e, 0x0a, 0x08, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x09, 0x42, 0x30, 0xfa, 0x42, 0x2d, 0x72, 0x2b, 0x28, 0x40, 0x32, 0x27, 0x5e, 0x28, 0x5c, 0x2e,
+	0x5c, 0x2e, 0x5c, 0x2e, 0x7c, 0x5b, 0x61, 0x2d, 0x7a, 0x5d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d,
+	0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c, 0x36, 0x32, 0x7d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39,
+	0x5d, 0x29, 0x24, 0x48, 0x00, 0x52, 0x08, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12,
+	0x52, 0x0a, 0x0f, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x5f, 0x77, 0x69, 0x6c, 0x64, 0x63, 0x61,
+	0x72, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x27, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e,
 	0x76, 0x31, 0x2e, 0x41, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69,
-	0x6f, 0x6e, 0x52, 0x16, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x44, 0x69, 0x72, 0x65, 0x63,
-	0x74, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x22, 0x89, 0x03, 0x0a, 0x0f, 0x41,
-	0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x66,
-	0x0a, 0x09, 0x6e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x09, 0x42, 0x48, 0xfa, 0x42, 0x45, 0x72, 0x43, 0x28, 0x80, 0x01, 0x32, 0x3e, 0x5e, 0x28, 0x5b,
-	0x61, 0x2d, 0x7a, 0x5d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c,
-	0x36, 0x31, 0x7d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5d, 0x2f, 0x29, 0x3f, 0x5b, 0x61,
-	0x2d, 0x7a, 0x5d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c, 0x36,
-	0x32, 0x7d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5d, 0x24, 0x52, 0x09, 0x6e, 0x61, 0x6d,
-	0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x12, 0x4e, 0x0a, 0x08, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69,
-	0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x42, 0x30, 0xfa, 0x42, 0x2d, 0x72, 0x2b, 0x28,
-	0x40, 0x32, 0x27, 0x5e, 0x28, 0x5c, 0x2e, 0x5c, 0x2e, 0x5c, 0x2e, 0x7c, 0x5b, 0x61, 0x2d, 0x7a,
-	0x5d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c, 0x36, 0x32, 0x7d,
-	0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5d, 0x29, 0x24, 0x48, 0x00, 0x52, 0x08, 0x72, 0x65,
-	0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x52, 0x0a, 0x0f, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63,
-	0x5f, 0x77, 0x69, 0x6c, 0x64, 0x63, 0x61, 0x72, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32,
-	0x27, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x6c, 0x6c, 0x6f, 0x77, 0x65,
-	0x64, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x50, 0x75, 0x62, 0x6c, 0x69, 0x63,
-	0x57, 0x69, 0x6c, 0x64, 0x63, 0x61, 0x72, 0x64, 0x48, 0x00, 0x52, 0x0e, 0x70, 0x75, 0x62, 0x6c,
-	0x69, 0x63, 0x57, 0x69, 0x6c, 0x64, 0x63, 0x61, 0x72, 0x64, 0x12, 0x40, 0x0a, 0x0f, 0x73, 0x6f,
-	0x75, 0x72, 0x63, 0x65, 0x5f, 0x70, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x05, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6f,
-	0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x0e, 0x73, 0x6f,
-	0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x10, 0x0a, 0x0e,
-	0x50, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x57, 0x69, 0x6c, 0x64, 0x63, 0x61, 0x72, 0x64, 0x42, 0x16,
-	0x0a, 0x14, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x6f, 0x72, 0x5f, 0x77, 0x69,
-	0x6c, 0x64, 0x63, 0x61, 0x72, 0x64, 0x22, 0xad, 0x02, 0x0a, 0x0e, 0x55, 0x73, 0x65, 0x72, 0x73,
-	0x65, 0x74, 0x52, 0x65, 0x77, 0x72, 0x69, 0x74, 0x65, 0x12, 0x37, 0x0a, 0x05, 0x75, 0x6e, 0x69,
-	0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e,
-	0x76, 0x31, 0x2e, 0x53, 0x65, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x42,
-	0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02, 0x10, 0x01, 0x48, 0x00, 0x52, 0x05, 0x75, 0x6e, 0x69,
-	0x6f, 0x6e, 0x12, 0x45, 0x0a, 0x0c, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x65, 0x63, 0x74, 0x69,
-	0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e,
-	0x76, 0x31, 0x2e, 0x53, 0x65, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x42,
-	0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02, 0x10, 0x01, 0x48, 0x00, 0x52, 0x0c, 0x69, 0x6e, 0x74,
-	0x65, 0x72, 0x73, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x3f, 0x0a, 0x09, 0x65, 0x78, 0x63,
-	0x6c, 0x75, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x63,
-	0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
-	0x69, 0x6f, 0x6e, 0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02, 0x10, 0x01, 0x48, 0x00, 0x52,
-	0x09, 0x65, 0x78, 0x63, 0x6c, 0x75, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x40, 0x0a, 0x0f, 0x73, 0x6f,
-	0x75, 0x72, 0x63, 0x65, 0x5f, 0x70, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x04, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6f,
-	0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x0e, 0x73, 0x6f,
-	0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x18, 0x0a, 0x11,
-	0x72, 0x65, 0x77, 0x72, 0x69, 0x74, 0x65, 0x5f, 0x6f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x12, 0x03, 0xf8, 0x42, 0x01, 0x22, 0x9d, 0x04, 0x0a, 0x0c, 0x53, 0x65, 0x74, 0x4f, 0x70,
-	0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x42, 0x0a, 0x05, 0x63, 0x68, 0x69, 0x6c, 0x64,
-	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31,
-	0x2e, 0x53, 0x65, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x43, 0x68,
-	0x69, 0x6c, 0x64, 0x42, 0x0f, 0xfa, 0x42, 0x0c, 0x92, 0x01, 0x09, 0x08, 0x01, 0x22, 0x05, 0x8a,
-	0x01, 0x02, 0x10, 0x01, 0x52, 0x05, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x1a, 0xc8, 0x03, 0x0a, 0x05,
-	0x43, 0x68, 0x69, 0x6c, 0x64, 0x12, 0x37, 0x0a, 0x05, 0x5f, 0x74, 0x68, 0x69, 0x73, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53,
-	0x65, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x43, 0x68, 0x69, 0x6c,
-	0x64, 0x2e, 0x54, 0x68, 0x69, 0x73, 0x48, 0x00, 0x52, 0x04, 0x54, 0x68, 0x69, 0x73, 0x12, 0x4f,
-	0x0a, 0x10, 0x63, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65, 0x64, 0x5f, 0x75, 0x73, 0x65, 0x72, 0x73,
-	0x65, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e,
-	0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65, 0x64, 0x55, 0x73, 0x65, 0x72, 0x73,
-	0x65, 0x74, 0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02, 0x10, 0x01, 0x48, 0x00, 0x52, 0x0f,
-	0x63, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65, 0x64, 0x55, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x12,
-	0x4d, 0x0a, 0x10, 0x74, 0x75, 0x70, 0x6c, 0x65, 0x5f, 0x74, 0x6f, 0x5f, 0x75, 0x73, 0x65, 0x72,
-	0x73, 0x65, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x63, 0x6f, 0x72, 0x65,
-	0x2e, 0x76, 0x31, 0x2e, 0x54, 0x75, 0x70, 0x6c, 0x65, 0x54, 0x6f, 0x55, 0x73, 0x65, 0x72, 0x73,
-	0x65, 0x74, 0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02, 0x10, 0x01, 0x48, 0x00, 0x52, 0x0e,
-	0x74, 0x75, 0x70, 0x6c, 0x65, 0x54, 0x6f, 0x55, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x12, 0x4c,
-	0x0a, 0x0f, 0x75, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x5f, 0x72, 0x65, 0x77, 0x72, 0x69, 0x74,
-	0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76,
-	0x31, 0x2e, 0x55, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x52, 0x65, 0x77, 0x72, 0x69, 0x74, 0x65,
-	0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02, 0x10, 0x01, 0x48, 0x00, 0x52, 0x0e, 0x75, 0x73,
-	0x65, 0x72, 0x73, 0x65, 0x74, 0x52, 0x65, 0x77, 0x72, 0x69, 0x74, 0x65, 0x12, 0x34, 0x0a, 0x04,
-	0x5f, 0x6e, 0x69, 0x6c, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x63, 0x6f, 0x72,
-	0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x2e, 0x43, 0x68, 0x69, 0x6c, 0x64, 0x2e, 0x4e, 0x69, 0x6c, 0x48, 0x00, 0x52, 0x03, 0x4e,
-	0x69, 0x6c, 0x12, 0x40, 0x0a, 0x0f, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x70, 0x6f, 0x73,
-	0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x63, 0x6f,
-	0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73, 0x69,
-	0x74, 0x69, 0x6f, 0x6e, 0x52, 0x0e, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73, 0x69,
-	0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x06, 0x0a, 0x04, 0x54, 0x68, 0x69, 0x73, 0x1a, 0x05, 0x0a, 0x03,
+	0x6f, 0x6e, 0x2e, 0x50, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x57, 0x69, 0x6c, 0x64, 0x63, 0x61, 0x72,
+	0x64, 0x48, 0x00, 0x52, 0x0e, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x57, 0x69, 0x6c, 0x64, 0x63,
+	0x61, 0x72, 0x64, 0x12, 0x40, 0x0a, 0x0f, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x70, 0x6f,
+	0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x63,
+	0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73,
+	0x69, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x0e, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73,
+	0x69, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x10, 0x0a, 0x0e, 0x50, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x57,
+	0x69, 0x6c, 0x64, 0x63, 0x61, 0x72, 0x64, 0x42, 0x16, 0x0a, 0x14, 0x72, 0x65, 0x6c, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x5f, 0x6f, 0x72, 0x5f, 0x77, 0x69, 0x6c, 0x64, 0x63, 0x61, 0x72, 0x64, 0x22,
+	0xad, 0x02, 0x0a, 0x0e, 0x55, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x52, 0x65, 0x77, 0x72, 0x69,
+	0x74, 0x65, 0x12, 0x37, 0x0a, 0x05, 0x75, 0x6e, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x15, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x74, 0x4f,
+	0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02,
+	0x10, 0x01, 0x48, 0x00, 0x52, 0x05, 0x75, 0x6e, 0x69, 0x6f, 0x6e, 0x12, 0x45, 0x0a, 0x0c, 0x69,
+	0x6e, 0x74, 0x65, 0x72, 0x73, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x15, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x74, 0x4f,
+	0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02,
+	0x10, 0x01, 0x48, 0x00, 0x52, 0x0c, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x73, 0x65, 0x63, 0x74, 0x69,
+	0x6f, 0x6e, 0x12, 0x3f, 0x0a, 0x09, 0x65, 0x78, 0x63, 0x6c, 0x75, 0x73, 0x69, 0x6f, 0x6e, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e,
+	0x53, 0x65, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x08, 0xfa, 0x42,
+	0x05, 0x8a, 0x01, 0x02, 0x10, 0x01, 0x48, 0x00, 0x52, 0x09, 0x65, 0x78, 0x63, 0x6c, 0x75, 0x73,
+	0x69, 0x6f, 0x6e, 0x12, 0x40, 0x0a, 0x0f, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x70, 0x6f,
+	0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x63,
+	0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73,
+	0x69, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x0e, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73,
+	0x69, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x18, 0x0a, 0x11, 0x72, 0x65, 0x77, 0x72, 0x69, 0x74, 0x65,
+	0x5f, 0x6f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x03, 0xf8, 0x42, 0x01, 0x22,
+	0xc4, 0x04, 0x0a, 0x0c, 0x53, 0x65, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x12, 0x42, 0x0a, 0x05, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x1b, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x74, 0x4f, 0x70, 0x65,
+	0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x43, 0x68, 0x69, 0x6c, 0x64, 0x42, 0x0f, 0xfa, 0x42,
+	0x0c, 0x92, 0x01, 0x09, 0x08, 0x01, 0x22, 0x05, 0x8a, 0x01, 0x02, 0x10, 0x01, 0x52, 0x05, 0x63,
+	0x68, 0x69, 0x6c, 0x64, 0x1a, 0xef, 0x03, 0x0a, 0x05, 0x43, 0x68, 0x69, 0x6c, 0x64, 0x12, 0x37,
+	0x0a, 0x05, 0x5f, 0x74, 0x68, 0x69, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x20, 0x2e,
+	0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x43, 0x68, 0x69, 0x6c, 0x64, 0x2e, 0x54, 0x68, 0x69, 0x73, 0x48,
+	0x00, 0x52, 0x04, 0x54, 0x68, 0x69, 0x73, 0x12, 0x4f, 0x0a, 0x10, 0x63, 0x6f, 0x6d, 0x70, 0x75,
+	0x74, 0x65, 0x64, 0x5f, 0x75, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x18, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6d, 0x70,
+	0x75, 0x74, 0x65, 0x64, 0x55, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x42, 0x08, 0xfa, 0x42, 0x05,
+	0x8a, 0x01, 0x02, 0x10, 0x01, 0x48, 0x00, 0x52, 0x0f, 0x63, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65,
+	0x64, 0x55, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x12, 0x4d, 0x0a, 0x10, 0x74, 0x75, 0x70, 0x6c,
+	0x65, 0x5f, 0x74, 0x6f, 0x5f, 0x75, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x17, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x54, 0x75, 0x70,
+	0x6c, 0x65, 0x54, 0x6f, 0x55, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x42, 0x08, 0xfa, 0x42, 0x05,
+	0x8a, 0x01, 0x02, 0x10, 0x01, 0x48, 0x00, 0x52, 0x0e, 0x74, 0x75, 0x70, 0x6c, 0x65, 0x54, 0x6f,
+	0x55, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x12, 0x4c, 0x0a, 0x0f, 0x75, 0x73, 0x65, 0x72, 0x73,
+	0x65, 0x74, 0x5f, 0x72, 0x65, 0x77, 0x72, 0x69, 0x74, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x17, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x73, 0x65, 0x72, 0x73,
+	0x65, 0x74, 0x52, 0x65, 0x77, 0x72, 0x69, 0x74, 0x65, 0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01,
+	0x02, 0x10, 0x01, 0x48, 0x00, 0x52, 0x0e, 0x75, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x52, 0x65,
+	0x77, 0x72, 0x69, 0x74, 0x65, 0x12, 0x34, 0x0a, 0x04, 0x5f, 0x6e, 0x69, 0x6c, 0x18, 0x06, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65,
+	0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x43, 0x68, 0x69, 0x6c, 0x64,
+	0x2e, 0x4e, 0x69, 0x6c, 0x48, 0x00, 0x52, 0x03, 0x4e, 0x69, 0x6c, 0x12, 0x40, 0x0a, 0x0f, 0x73,
+	0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x70, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x05,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53,
+	0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x0e, 0x73,
+	0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x25, 0x0a,
+	0x0e, 0x6f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x70, 0x61, 0x74, 0x68, 0x18,
+	0x07, 0x20, 0x03, 0x28, 0x0d, 0x52, 0x0d, 0x6f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x50, 0x61, 0x74, 0x68, 0x1a, 0x06, 0x0a, 0x04, 0x54, 0x68, 0x69, 0x73, 0x1a, 0x05, 0x0a, 0x03,
 	0x4e, 0x69, 0x6c, 0x42, 0x11, 0x0a, 0x0a, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x5f, 0x74, 0x79, 0x70,
 	0x65, 0x12, 0x03, 0xf8, 0x42, 0x01, 0x22, 0xba, 0x02, 0x0a, 0x0e, 0x54, 0x75, 0x70, 0x6c, 0x65,
 	0x54, 0x6f, 0x55, 0x73, 0x65, 0x72, 0x73, 0x65, 0x74, 0x12, 0x46, 0x0a, 0x08, 0x74, 0x75, 0x70,
@@ -2002,82 +2482,98 @@ func file_core_v1_core_proto_rawDescGZIP() []byte {
 	return file_core_v1_core_proto_rawDescData
 }
 
-var file_core_v1_core_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_core_v1_core_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_core_v1_core_proto_goTypes = []interface{}{
-	(RelationTupleUpdate_Operation)(0),     // 0: core.v1.RelationTupleUpdate.Operation
-	(SetOperationUserset_Operation)(0),     // 1: core.v1.SetOperationUserset.Operation
-	(ComputedUserset_Object)(0),            // 2: core.v1.ComputedUserset.Object
-	(*RelationTuple)(nil),                  // 3: core.v1.RelationTuple
-	(*ObjectAndRelation)(nil),              // 4: core.v1.ObjectAndRelation
-	(*RelationReference)(nil),              // 5: core.v1.RelationReference
-	(*User)(nil),                           // 6: core.v1.User
-	(*Zookie)(nil),                         // 7: core.v1.Zookie
-	(*RelationTupleUpdate)(nil),            // 8: core.v1.RelationTupleUpdate
-	(*RelationTupleTreeNode)(nil),          // 9: core.v1.RelationTupleTreeNode
-	(*SetOperationUserset)(nil),            // 10: core.v1.SetOperationUserset
-	(*DirectUserset)(nil),                  // 11: core.v1.DirectUserset
-	(*Metadata)(nil),                       // 12: core.v1.Metadata
-	(*NamespaceDefinition)(nil),            // 13: core.v1.NamespaceDefinition
-	(*Relation)(nil),                       // 14: core.v1.Relation
-	(*TypeInformation)(nil),                // 15: core.v1.TypeInformation
-	(*AllowedRelation)(nil),                // 16: core.v1.AllowedRelation
-	(*UsersetRewrite)(nil),                 // 17: core.v1.UsersetRewrite
-	(*SetOperation)(nil),                   // 18: core.v1.SetOperation
-	(*TupleToUserset)(nil),                 // 19: core.v1.TupleToUserset
-	(*ComputedUserset)(nil),                // 20: core.v1.ComputedUserset
-	(*SourcePosition)(nil),                 // 21: core.v1.SourcePosition
-	(*AllowedRelation_PublicWildcard)(nil), // 22: core.v1.AllowedRelation.PublicWildcard
-	(*SetOperation_Child)(nil),             // 23: core.v1.SetOperation.Child
-	(*SetOperation_Child_This)(nil),        // 24: core.v1.SetOperation.Child.This
-	(*SetOperation_Child_Nil)(nil),         // 25: core.v1.SetOperation.Child.Nil
-	(*TupleToUserset_Tupleset)(nil),        // 26: core.v1.TupleToUserset.Tupleset
-	(*anypb.Any)(nil),                      // 27: google.protobuf.Any
+	(RelationTupleUpdate_Operation)(0),                     // 0: core.v1.RelationTupleUpdate.Operation
+	(SetOperationUserset_Operation)(0),                     // 1: core.v1.SetOperationUserset.Operation
+	(ReachabilityEntrypoint_ReachabilityEntrypointKind)(0), // 2: core.v1.ReachabilityEntrypoint.ReachabilityEntrypointKind
+	(ReachabilityEntrypoint_EntrypointResultStatus)(0),     // 3: core.v1.ReachabilityEntrypoint.EntrypointResultStatus
+	(ComputedUserset_Object)(0),                            // 4: core.v1.ComputedUserset.Object
+	(*RelationTuple)(nil),                                  // 5: core.v1.RelationTuple
+	(*ObjectAndRelation)(nil),                              // 6: core.v1.ObjectAndRelation
+	(*RelationReference)(nil),                              // 7: core.v1.RelationReference
+	(*User)(nil),                                           // 8: core.v1.User
+	(*Zookie)(nil),                                         // 9: core.v1.Zookie
+	(*RelationTupleUpdate)(nil),                            // 10: core.v1.RelationTupleUpdate
+	(*RelationTupleTreeNode)(nil),                          // 11: core.v1.RelationTupleTreeNode
+	(*SetOperationUserset)(nil),                            // 12: core.v1.SetOperationUserset
+	(*DirectUserset)(nil),                                  // 13: core.v1.DirectUserset
+	(*Metadata)(nil),                                       // 14: core.v1.Metadata
+	(*NamespaceDefinition)(nil),                            // 15: core.v1.NamespaceDefinition
+	(*Relation)(nil),                                       // 16: core.v1.Relation
+	(*ReachabilityGraph)(nil),                              // 17: core.v1.ReachabilityGraph
+	(*ReachabilityEntrypoints)(nil),                        // 18: core.v1.ReachabilityEntrypoints
+	(*ReachabilityEntrypoint)(nil),                         // 19: core.v1.ReachabilityEntrypoint
+	(*TypeInformation)(nil),                                // 20: core.v1.TypeInformation
+	(*AllowedRelation)(nil),                                // 21: core.v1.AllowedRelation
+	(*UsersetRewrite)(nil),                                 // 22: core.v1.UsersetRewrite
+	(*SetOperation)(nil),                                   // 23: core.v1.SetOperation
+	(*TupleToUserset)(nil),                                 // 24: core.v1.TupleToUserset
+	(*ComputedUserset)(nil),                                // 25: core.v1.ComputedUserset
+	(*SourcePosition)(nil),                                 // 26: core.v1.SourcePosition
+	nil,                                                    // 27: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
+	nil,                                                    // 28: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
+	(*AllowedRelation_PublicWildcard)(nil),                 // 29: core.v1.AllowedRelation.PublicWildcard
+	(*SetOperation_Child)(nil),                             // 30: core.v1.SetOperation.Child
+	(*SetOperation_Child_This)(nil),                        // 31: core.v1.SetOperation.Child.This
+	(*SetOperation_Child_Nil)(nil),                         // 32: core.v1.SetOperation.Child.Nil
+	(*TupleToUserset_Tupleset)(nil),                        // 33: core.v1.TupleToUserset.Tupleset
+	(*anypb.Any)(nil),                                      // 34: google.protobuf.Any
 }
 var file_core_v1_core_proto_depIdxs = []int32{
-	4,  // 0: core.v1.RelationTuple.object_and_relation:type_name -> core.v1.ObjectAndRelation
-	6,  // 1: core.v1.RelationTuple.user:type_name -> core.v1.User
-	4,  // 2: core.v1.User.userset:type_name -> core.v1.ObjectAndRelation
+	6,  // 0: core.v1.RelationTuple.object_and_relation:type_name -> core.v1.ObjectAndRelation
+	8,  // 1: core.v1.RelationTuple.user:type_name -> core.v1.User
+	6,  // 2: core.v1.User.userset:type_name -> core.v1.ObjectAndRelation
 	0,  // 3: core.v1.RelationTupleUpdate.operation:type_name -> core.v1.RelationTupleUpdate.Operation
-	3,  // 4: core.v1.RelationTupleUpdate.tuple:type_name -> core.v1.RelationTuple
-	10, // 5: core.v1.RelationTupleTreeNode.intermediate_node:type_name -> core.v1.SetOperationUserset
-	11, // 6: core.v1.RelationTupleTreeNode.leaf_node:type_name -> core.v1.DirectUserset
-	4,  // 7: core.v1.RelationTupleTreeNode.expanded:type_name -> core.v1.ObjectAndRelation
+	5,  // 4: core.v1.RelationTupleUpdate.tuple:type_name -> core.v1.RelationTuple
+	12, // 5: core.v1.RelationTupleTreeNode.intermediate_node:type_name -> core.v1.SetOperationUserset
+	13, // 6: core.v1.RelationTupleTreeNode.leaf_node:type_name -> core.v1.DirectUserset
+	6,  // 7: core.v1.RelationTupleTreeNode.expanded:type_name -> core.v1.ObjectAndRelation
 	1,  // 8: core.v1.SetOperationUserset.operation:type_name -> core.v1.SetOperationUserset.Operation
-	9,  // 9: core.v1.SetOperationUserset.child_nodes:type_name -> core.v1.RelationTupleTreeNode
-	6,  // 10: core.v1.DirectUserset.users:type_name -> core.v1.User
-	27, // 11: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
-	14, // 12: core.v1.NamespaceDefinition.relation:type_name -> core.v1.Relation
-	12, // 13: core.v1.NamespaceDefinition.metadata:type_name -> core.v1.Metadata
-	21, // 14: core.v1.NamespaceDefinition.source_position:type_name -> core.v1.SourcePosition
-	17, // 15: core.v1.Relation.userset_rewrite:type_name -> core.v1.UsersetRewrite
-	15, // 16: core.v1.Relation.type_information:type_name -> core.v1.TypeInformation
-	12, // 17: core.v1.Relation.metadata:type_name -> core.v1.Metadata
-	21, // 18: core.v1.Relation.source_position:type_name -> core.v1.SourcePosition
-	16, // 19: core.v1.TypeInformation.allowed_direct_relations:type_name -> core.v1.AllowedRelation
-	22, // 20: core.v1.AllowedRelation.public_wildcard:type_name -> core.v1.AllowedRelation.PublicWildcard
-	21, // 21: core.v1.AllowedRelation.source_position:type_name -> core.v1.SourcePosition
-	18, // 22: core.v1.UsersetRewrite.union:type_name -> core.v1.SetOperation
-	18, // 23: core.v1.UsersetRewrite.intersection:type_name -> core.v1.SetOperation
-	18, // 24: core.v1.UsersetRewrite.exclusion:type_name -> core.v1.SetOperation
-	21, // 25: core.v1.UsersetRewrite.source_position:type_name -> core.v1.SourcePosition
-	23, // 26: core.v1.SetOperation.child:type_name -> core.v1.SetOperation.Child
-	26, // 27: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
-	20, // 28: core.v1.TupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
-	21, // 29: core.v1.TupleToUserset.source_position:type_name -> core.v1.SourcePosition
-	2,  // 30: core.v1.ComputedUserset.object:type_name -> core.v1.ComputedUserset.Object
-	21, // 31: core.v1.ComputedUserset.source_position:type_name -> core.v1.SourcePosition
-	24, // 32: core.v1.SetOperation.Child._this:type_name -> core.v1.SetOperation.Child.This
-	20, // 33: core.v1.SetOperation.Child.computed_userset:type_name -> core.v1.ComputedUserset
-	19, // 34: core.v1.SetOperation.Child.tuple_to_userset:type_name -> core.v1.TupleToUserset
-	17, // 35: core.v1.SetOperation.Child.userset_rewrite:type_name -> core.v1.UsersetRewrite
-	25, // 36: core.v1.SetOperation.Child._nil:type_name -> core.v1.SetOperation.Child.Nil
-	21, // 37: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
-	38, // [38:38] is the sub-list for method output_type
-	38, // [38:38] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	11, // 9: core.v1.SetOperationUserset.child_nodes:type_name -> core.v1.RelationTupleTreeNode
+	8,  // 10: core.v1.DirectUserset.users:type_name -> core.v1.User
+	34, // 11: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
+	16, // 12: core.v1.NamespaceDefinition.relation:type_name -> core.v1.Relation
+	14, // 13: core.v1.NamespaceDefinition.metadata:type_name -> core.v1.Metadata
+	26, // 14: core.v1.NamespaceDefinition.source_position:type_name -> core.v1.SourcePosition
+	22, // 15: core.v1.Relation.userset_rewrite:type_name -> core.v1.UsersetRewrite
+	20, // 16: core.v1.Relation.type_information:type_name -> core.v1.TypeInformation
+	14, // 17: core.v1.Relation.metadata:type_name -> core.v1.Metadata
+	26, // 18: core.v1.Relation.source_position:type_name -> core.v1.SourcePosition
+	27, // 19: core.v1.ReachabilityGraph.entrypoints_by_subject_type:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
+	28, // 20: core.v1.ReachabilityGraph.entrypoints_by_subject_relation:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
+	19, // 21: core.v1.ReachabilityEntrypoints.entrypoints:type_name -> core.v1.ReachabilityEntrypoint
+	7,  // 22: core.v1.ReachabilityEntrypoints.subject_relation:type_name -> core.v1.RelationReference
+	2,  // 23: core.v1.ReachabilityEntrypoint.kind:type_name -> core.v1.ReachabilityEntrypoint.ReachabilityEntrypointKind
+	7,  // 24: core.v1.ReachabilityEntrypoint.target_relation:type_name -> core.v1.RelationReference
+	3,  // 25: core.v1.ReachabilityEntrypoint.result_status:type_name -> core.v1.ReachabilityEntrypoint.EntrypointResultStatus
+	21, // 26: core.v1.TypeInformation.allowed_direct_relations:type_name -> core.v1.AllowedRelation
+	29, // 27: core.v1.AllowedRelation.public_wildcard:type_name -> core.v1.AllowedRelation.PublicWildcard
+	26, // 28: core.v1.AllowedRelation.source_position:type_name -> core.v1.SourcePosition
+	23, // 29: core.v1.UsersetRewrite.union:type_name -> core.v1.SetOperation
+	23, // 30: core.v1.UsersetRewrite.intersection:type_name -> core.v1.SetOperation
+	23, // 31: core.v1.UsersetRewrite.exclusion:type_name -> core.v1.SetOperation
+	26, // 32: core.v1.UsersetRewrite.source_position:type_name -> core.v1.SourcePosition
+	30, // 33: core.v1.SetOperation.child:type_name -> core.v1.SetOperation.Child
+	33, // 34: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
+	25, // 35: core.v1.TupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
+	26, // 36: core.v1.TupleToUserset.source_position:type_name -> core.v1.SourcePosition
+	4,  // 37: core.v1.ComputedUserset.object:type_name -> core.v1.ComputedUserset.Object
+	26, // 38: core.v1.ComputedUserset.source_position:type_name -> core.v1.SourcePosition
+	18, // 39: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry.value:type_name -> core.v1.ReachabilityEntrypoints
+	18, // 40: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry.value:type_name -> core.v1.ReachabilityEntrypoints
+	31, // 41: core.v1.SetOperation.Child._this:type_name -> core.v1.SetOperation.Child.This
+	25, // 42: core.v1.SetOperation.Child.computed_userset:type_name -> core.v1.ComputedUserset
+	24, // 43: core.v1.SetOperation.Child.tuple_to_userset:type_name -> core.v1.TupleToUserset
+	22, // 44: core.v1.SetOperation.Child.userset_rewrite:type_name -> core.v1.UsersetRewrite
+	32, // 45: core.v1.SetOperation.Child._nil:type_name -> core.v1.SetOperation.Child.Nil
+	26, // 46: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
+	47, // [47:47] is the sub-list for method output_type
+	47, // [47:47] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	47, // [47:47] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_core_v1_core_proto_init() }
@@ -2231,7 +2727,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TypeInformation); i {
+			switch v := v.(*ReachabilityGraph); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2243,7 +2739,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AllowedRelation); i {
+			switch v := v.(*ReachabilityEntrypoints); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2255,7 +2751,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UsersetRewrite); i {
+			switch v := v.(*ReachabilityEntrypoint); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2267,7 +2763,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SetOperation); i {
+			switch v := v.(*TypeInformation); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2279,7 +2775,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TupleToUserset); i {
+			switch v := v.(*AllowedRelation); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2291,7 +2787,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ComputedUserset); i {
+			switch v := v.(*UsersetRewrite); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2303,7 +2799,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SourcePosition); i {
+			switch v := v.(*SetOperation); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2315,7 +2811,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AllowedRelation_PublicWildcard); i {
+			switch v := v.(*TupleToUserset); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2327,7 +2823,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SetOperation_Child); i {
+			switch v := v.(*ComputedUserset); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2339,6 +2835,42 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SourcePosition); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_core_v1_core_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*AllowedRelation_PublicWildcard); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_core_v1_core_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SetOperation_Child); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_core_v1_core_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SetOperation_Child_This); i {
 			case 0:
 				return &v.state
@@ -2350,7 +2882,7 @@ func file_core_v1_core_proto_init() {
 				return nil
 			}
 		}
-		file_core_v1_core_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
+		file_core_v1_core_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SetOperation_Child_Nil); i {
 			case 0:
 				return &v.state
@@ -2362,7 +2894,7 @@ func file_core_v1_core_proto_init() {
 				return nil
 			}
 		}
-		file_core_v1_core_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
+		file_core_v1_core_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TupleToUserset_Tupleset); i {
 			case 0:
 				return &v.state
@@ -2382,16 +2914,16 @@ func file_core_v1_core_proto_init() {
 		(*RelationTupleTreeNode_IntermediateNode)(nil),
 		(*RelationTupleTreeNode_LeafNode)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[13].OneofWrappers = []interface{}{
+	file_core_v1_core_proto_msgTypes[16].OneofWrappers = []interface{}{
 		(*AllowedRelation_Relation)(nil),
 		(*AllowedRelation_PublicWildcard_)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[14].OneofWrappers = []interface{}{
+	file_core_v1_core_proto_msgTypes[17].OneofWrappers = []interface{}{
 		(*UsersetRewrite_Union)(nil),
 		(*UsersetRewrite_Intersection)(nil),
 		(*UsersetRewrite_Exclusion)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[20].OneofWrappers = []interface{}{
+	file_core_v1_core_proto_msgTypes[25].OneofWrappers = []interface{}{
 		(*SetOperation_Child_XThis)(nil),
 		(*SetOperation_Child_ComputedUserset)(nil),
 		(*SetOperation_Child_TupleToUserset)(nil),
@@ -2403,8 +2935,8 @@ func file_core_v1_core_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_core_v1_core_proto_rawDesc,
-			NumEnums:      3,
-			NumMessages:   24,
+			NumEnums:      5,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

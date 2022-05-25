@@ -2026,6 +2026,502 @@ var _ interface {
 
 var _Relation_Name_Pattern = regexp.MustCompile("^[a-z][a-z0-9_]{1,62}[a-z0-9]$")
 
+// Validate checks the field values on ReachabilityGraph with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *ReachabilityGraph) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ReachabilityGraph with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ReachabilityGraphMultiError, or nil if none found.
+func (m *ReachabilityGraph) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ReachabilityGraph) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	{
+		sorted_keys := make([]string, len(m.GetEntrypointsBySubjectType()))
+		i := 0
+		for key := range m.GetEntrypointsBySubjectType() {
+			sorted_keys[i] = key
+			i++
+		}
+		sort.Slice(sorted_keys, func(i, j int) bool { return sorted_keys[i] < sorted_keys[j] })
+		for _, key := range sorted_keys {
+			val := m.GetEntrypointsBySubjectType()[key]
+			_ = val
+
+			// no validation rules for EntrypointsBySubjectType[key]
+
+			if all {
+				switch v := interface{}(val).(type) {
+				case interface{ ValidateAll() error }:
+					if err := v.ValidateAll(); err != nil {
+						errors = append(errors, ReachabilityGraphValidationError{
+							field:  fmt.Sprintf("EntrypointsBySubjectType[%v]", key),
+							reason: "embedded message failed validation",
+							cause:  err,
+						})
+					}
+				case interface{ Validate() error }:
+					if err := v.Validate(); err != nil {
+						errors = append(errors, ReachabilityGraphValidationError{
+							field:  fmt.Sprintf("EntrypointsBySubjectType[%v]", key),
+							reason: "embedded message failed validation",
+							cause:  err,
+						})
+					}
+				}
+			} else if v, ok := interface{}(val).(interface{ Validate() error }); ok {
+				if err := v.Validate(); err != nil {
+					return ReachabilityGraphValidationError{
+						field:  fmt.Sprintf("EntrypointsBySubjectType[%v]", key),
+						reason: "embedded message failed validation",
+						cause:  err,
+					}
+				}
+			}
+
+		}
+	}
+
+	{
+		sorted_keys := make([]string, len(m.GetEntrypointsBySubjectRelation()))
+		i := 0
+		for key := range m.GetEntrypointsBySubjectRelation() {
+			sorted_keys[i] = key
+			i++
+		}
+		sort.Slice(sorted_keys, func(i, j int) bool { return sorted_keys[i] < sorted_keys[j] })
+		for _, key := range sorted_keys {
+			val := m.GetEntrypointsBySubjectRelation()[key]
+			_ = val
+
+			// no validation rules for EntrypointsBySubjectRelation[key]
+
+			if all {
+				switch v := interface{}(val).(type) {
+				case interface{ ValidateAll() error }:
+					if err := v.ValidateAll(); err != nil {
+						errors = append(errors, ReachabilityGraphValidationError{
+							field:  fmt.Sprintf("EntrypointsBySubjectRelation[%v]", key),
+							reason: "embedded message failed validation",
+							cause:  err,
+						})
+					}
+				case interface{ Validate() error }:
+					if err := v.Validate(); err != nil {
+						errors = append(errors, ReachabilityGraphValidationError{
+							field:  fmt.Sprintf("EntrypointsBySubjectRelation[%v]", key),
+							reason: "embedded message failed validation",
+							cause:  err,
+						})
+					}
+				}
+			} else if v, ok := interface{}(val).(interface{ Validate() error }); ok {
+				if err := v.Validate(); err != nil {
+					return ReachabilityGraphValidationError{
+						field:  fmt.Sprintf("EntrypointsBySubjectRelation[%v]", key),
+						reason: "embedded message failed validation",
+						cause:  err,
+					}
+				}
+			}
+
+		}
+	}
+
+	if len(errors) > 0 {
+		return ReachabilityGraphMultiError(errors)
+	}
+
+	return nil
+}
+
+// ReachabilityGraphMultiError is an error wrapping multiple validation errors
+// returned by ReachabilityGraph.ValidateAll() if the designated constraints
+// aren't met.
+type ReachabilityGraphMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ReachabilityGraphMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ReachabilityGraphMultiError) AllErrors() []error { return m }
+
+// ReachabilityGraphValidationError is the validation error returned by
+// ReachabilityGraph.Validate if the designated constraints aren't met.
+type ReachabilityGraphValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ReachabilityGraphValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ReachabilityGraphValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ReachabilityGraphValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ReachabilityGraphValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ReachabilityGraphValidationError) ErrorName() string {
+	return "ReachabilityGraphValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ReachabilityGraphValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sReachabilityGraph.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ReachabilityGraphValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ReachabilityGraphValidationError{}
+
+// Validate checks the field values on ReachabilityEntrypoints with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ReachabilityEntrypoints) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ReachabilityEntrypoints with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ReachabilityEntrypointsMultiError, or nil if none found.
+func (m *ReachabilityEntrypoints) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ReachabilityEntrypoints) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetEntrypoints() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ReachabilityEntrypointsValidationError{
+						field:  fmt.Sprintf("Entrypoints[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ReachabilityEntrypointsValidationError{
+						field:  fmt.Sprintf("Entrypoints[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ReachabilityEntrypointsValidationError{
+					field:  fmt.Sprintf("Entrypoints[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for SubjectType
+
+	if all {
+		switch v := interface{}(m.GetSubjectRelation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ReachabilityEntrypointsValidationError{
+					field:  "SubjectRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ReachabilityEntrypointsValidationError{
+					field:  "SubjectRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSubjectRelation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ReachabilityEntrypointsValidationError{
+				field:  "SubjectRelation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return ReachabilityEntrypointsMultiError(errors)
+	}
+
+	return nil
+}
+
+// ReachabilityEntrypointsMultiError is an error wrapping multiple validation
+// errors returned by ReachabilityEntrypoints.ValidateAll() if the designated
+// constraints aren't met.
+type ReachabilityEntrypointsMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ReachabilityEntrypointsMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ReachabilityEntrypointsMultiError) AllErrors() []error { return m }
+
+// ReachabilityEntrypointsValidationError is the validation error returned by
+// ReachabilityEntrypoints.Validate if the designated constraints aren't met.
+type ReachabilityEntrypointsValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ReachabilityEntrypointsValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ReachabilityEntrypointsValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ReachabilityEntrypointsValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ReachabilityEntrypointsValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ReachabilityEntrypointsValidationError) ErrorName() string {
+	return "ReachabilityEntrypointsValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ReachabilityEntrypointsValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sReachabilityEntrypoints.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ReachabilityEntrypointsValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ReachabilityEntrypointsValidationError{}
+
+// Validate checks the field values on ReachabilityEntrypoint with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ReachabilityEntrypoint) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ReachabilityEntrypoint with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ReachabilityEntrypointMultiError, or nil if none found.
+func (m *ReachabilityEntrypoint) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ReachabilityEntrypoint) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Kind
+
+	if all {
+		switch v := interface{}(m.GetTargetRelation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ReachabilityEntrypointValidationError{
+					field:  "TargetRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ReachabilityEntrypointValidationError{
+					field:  "TargetRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTargetRelation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ReachabilityEntrypointValidationError{
+				field:  "TargetRelation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for ResultStatus
+
+	if len(errors) > 0 {
+		return ReachabilityEntrypointMultiError(errors)
+	}
+
+	return nil
+}
+
+// ReachabilityEntrypointMultiError is an error wrapping multiple validation
+// errors returned by ReachabilityEntrypoint.ValidateAll() if the designated
+// constraints aren't met.
+type ReachabilityEntrypointMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ReachabilityEntrypointMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ReachabilityEntrypointMultiError) AllErrors() []error { return m }
+
+// ReachabilityEntrypointValidationError is the validation error returned by
+// ReachabilityEntrypoint.Validate if the designated constraints aren't met.
+type ReachabilityEntrypointValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ReachabilityEntrypointValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ReachabilityEntrypointValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ReachabilityEntrypointValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ReachabilityEntrypointValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ReachabilityEntrypointValidationError) ErrorName() string {
+	return "ReachabilityEntrypointValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ReachabilityEntrypointValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sReachabilityEntrypoint.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ReachabilityEntrypointValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ReachabilityEntrypointValidationError{}
+
 // Validate checks the field values on TypeInformation with the rules defined
 // in the proto definition for this message. If any rules are violated, the
 // first error encountered is returned, or nil if there are no violations.

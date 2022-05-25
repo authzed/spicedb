@@ -3,6 +3,7 @@ package caching
 import (
 	"context"
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/dgraph-io/ristretto"
@@ -28,10 +29,12 @@ type Dispatcher struct {
 	c          *ristretto.Cache
 	keyHandler keys.Handler
 
-	checkTotalCounter      prometheus.Counter
-	checkFromCacheCounter  prometheus.Counter
-	lookupTotalCounter     prometheus.Counter
-	lookupFromCacheCounter prometheus.Counter
+	checkTotalCounter                  prometheus.Counter
+	checkFromCacheCounter              prometheus.Counter
+	lookupTotalCounter                 prometheus.Counter
+	lookupFromCacheCounter             prometheus.Counter
+	reachableResourcesTotalCounter     prometheus.Counter
+	reachableResourcesFromCacheCounter prometheus.Counter
 
 	cacheHits        prometheus.CounterFunc
 	cacheMisses      prometheus.CounterFunc
@@ -47,9 +50,14 @@ type lookupResultEntry struct {
 	response *v1.DispatchLookupResponse
 }
 
+type reachableResourcesResultEntry struct {
+	responses []*v1.DispatchReachableResourcesResponse
+}
+
 var (
-	checkResultEntryCost       = int64(unsafe.Sizeof(checkResultEntry{}))
-	lookupResultEntryEmptyCost = int64(unsafe.Sizeof(lookupResultEntry{}))
+	checkResultEntryCost            = int64(unsafe.Sizeof(checkResultEntry{}))
+	lookupResultEntryEmptyCost      = int64(unsafe.Sizeof(lookupResultEntry{}))
+	reachbleResourcesEntryEmptyCost = int64(unsafe.Sizeof(reachableResourcesResultEntry{}))
 )
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
@@ -95,6 +103,17 @@ func NewCachingDispatcher(
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "lookup_from_cache_total",
+	})
+
+	reachableResourcesTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "reachable_resources_total",
+	})
+	reachableResourcesFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "reachable_resources_from_cache_total",
 	})
 
 	cacheHitsTotal := prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -145,6 +164,14 @@ func NewCachingDispatcher(
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
+		err = prometheus.Register(reachableResourcesTotalCounter)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
+		err = prometheus.Register(reachableResourcesFromCacheCounter)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
 
 		// Export some ristretto metrics
 		err = prometheus.Register(cacheHitsTotal)
@@ -170,17 +197,19 @@ func NewCachingDispatcher(
 	}
 
 	return &Dispatcher{
-		d:                      fakeDelegate{},
-		c:                      cache,
-		keyHandler:             keyHandler,
-		checkTotalCounter:      checkTotalCounter,
-		checkFromCacheCounter:  checkFromCacheCounter,
-		lookupTotalCounter:     lookupTotalCounter,
-		lookupFromCacheCounter: lookupFromCacheCounter,
-		cacheHits:              cacheHitsTotal,
-		cacheMisses:            cacheMissesTotal,
-		costAddedBytes:         costAddedBytes,
-		costEvictedBytes:       costEvictedBytes,
+		d:                                  fakeDelegate{},
+		c:                                  cache,
+		keyHandler:                         keyHandler,
+		checkTotalCounter:                  checkTotalCounter,
+		checkFromCacheCounter:              checkFromCacheCounter,
+		lookupTotalCounter:                 lookupTotalCounter,
+		lookupFromCacheCounter:             lookupFromCacheCounter,
+		reachableResourcesTotalCounter:     reachableResourcesTotalCounter,
+		reachableResourcesFromCacheCounter: reachableResourcesFromCacheCounter,
+		cacheHits:                          cacheHitsTotal,
+		cacheMisses:                        cacheMissesTotal,
+		costAddedBytes:                     costAddedBytes,
+		costEvictedBytes:                   costEvictedBytes,
 	}, nil
 }
 
@@ -271,6 +300,55 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 	return computed, err
 }
 
+// DispatchReachableResources implements dispatch.ReachableResources interface and does not do any caching yet.
+func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
+	cd.reachableResourcesTotalCounter.Inc()
+
+	requestKey := dispatch.ReachableResourcesRequestToKey(req)
+	if cachedResultRaw, found := cd.c.Get(requestKey); found {
+		cachedResult := cachedResultRaw.(reachableResourcesResultEntry)
+		cd.reachableResourcesFromCacheCounter.Inc()
+		for _, result := range cachedResult.responses {
+			err := stream.Publish(result)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	var mu sync.Mutex
+	estimatedSize := reachbleResourcesEntryEmptyCost
+	toCacheResults := []*v1.DispatchReachableResourcesResponse{}
+	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
+		Stream: stream,
+		Ctx:    stream.Context(),
+		Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, error) {
+			mu.Lock()
+			defer mu.Unlock()
+
+			adjustedResult := proto.Clone(result).(*v1.DispatchReachableResourcesResponse)
+			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
+			adjustedResult.Metadata.DispatchCount = 0
+
+			toCacheResults = append(toCacheResults, adjustedResult)
+			estimatedSize += int64(len(result.Resource.Resource.Namespace) + len(result.Resource.Resource.ObjectId) + len(result.Resource.Resource.Relation))
+			return result, nil
+		},
+	}
+
+	err := cd.d.DispatchReachableResources(req, wrapped)
+
+	// We only want to cache the result if there was no error
+	if err == nil {
+		toCache := reachableResourcesResultEntry{toCacheResults}
+		cd.c.Set(requestKey, toCache, estimatedSize)
+	}
+
+	return err
+}
+
 func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.checkTotalCounter)
 	prometheus.Unregister(cd.lookupTotalCounter)
@@ -286,3 +364,6 @@ func (cd *Dispatcher) Close() error {
 
 	return nil
 }
+
+// Always verify that we implement the interfaces
+var _ dispatch.Dispatcher = &Dispatcher{}

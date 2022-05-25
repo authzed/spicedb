@@ -55,12 +55,6 @@ type ExpandReducer func(
 	requests []ReduceableExpandFunc,
 ) ExpandResult
 
-// ReduceableLookupFunc is a function that can be bound to a execution context.
-type ReduceableLookupFunc func(ctx context.Context, resultChan chan<- LookupResult)
-
-// LookupReducer is a type for the functions which combine lookup results.
-type LookupReducer func(ctx context.Context, parentReq ValidatedLookupRequest, limit uint32, requests []ReduceableLookupFunc) LookupResult
-
 func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 	return &v1.ResolverMeta{
 		AtRevision:     md.AtRevision,
@@ -78,22 +72,10 @@ func max(x, y uint32) uint32 {
 var emptyMetadata = &v1.ResponseMeta{}
 
 func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.ResponseMeta) *v1.ResponseMeta {
-	lookupExcludedDirect := existing.LookupExcludedDirect
-	if responseMetadata.LookupExcludedDirect != nil {
-		lookupExcludedDirect = append(lookupExcludedDirect, responseMetadata.LookupExcludedDirect...)
-	}
-
-	lookupExcludedTtu := existing.LookupExcludedTtu
-	if responseMetadata.LookupExcludedTtu != nil {
-		lookupExcludedTtu = append(lookupExcludedTtu, responseMetadata.LookupExcludedTtu...)
-	}
-
 	return &v1.ResponseMeta{
-		DispatchCount:        existing.DispatchCount + responseMetadata.DispatchCount,
-		DepthRequired:        max(existing.DepthRequired, responseMetadata.DepthRequired),
-		CachedDispatchCount:  existing.CachedDispatchCount + responseMetadata.CachedDispatchCount,
-		LookupExcludedDirect: lookupExcludedDirect,
-		LookupExcludedTtu:    lookupExcludedTtu,
+		DispatchCount:       existing.DispatchCount + responseMetadata.DispatchCount,
+		DepthRequired:       max(existing.DepthRequired, responseMetadata.DepthRequired),
+		CachedDispatchCount: existing.CachedDispatchCount + responseMetadata.CachedDispatchCount,
 	}
 }
 
@@ -103,21 +85,17 @@ func ensureMetadata(subProblemMetadata *v1.ResponseMeta) *v1.ResponseMeta {
 	}
 
 	return &v1.ResponseMeta{
-		DispatchCount:        subProblemMetadata.DispatchCount,
-		DepthRequired:        subProblemMetadata.DepthRequired,
-		CachedDispatchCount:  subProblemMetadata.CachedDispatchCount,
-		LookupExcludedDirect: subProblemMetadata.LookupExcludedDirect,
-		LookupExcludedTtu:    subProblemMetadata.LookupExcludedTtu,
+		DispatchCount:       subProblemMetadata.DispatchCount,
+		DepthRequired:       subProblemMetadata.DepthRequired,
+		CachedDispatchCount: subProblemMetadata.CachedDispatchCount,
 	}
 }
 
 func addCallToResponseMetadata(metadata *v1.ResponseMeta) *v1.ResponseMeta {
 	// + 1 for the current call.
 	return &v1.ResponseMeta{
-		DispatchCount:        metadata.DispatchCount + 1,
-		DepthRequired:        metadata.DepthRequired + 1,
-		CachedDispatchCount:  metadata.CachedDispatchCount,
-		LookupExcludedDirect: metadata.LookupExcludedDirect,
-		LookupExcludedTtu:    metadata.LookupExcludedTtu,
+		DispatchCount:       metadata.DispatchCount + 1,
+		DepthRequired:       metadata.DepthRequired + 1,
+		CachedDispatchCount: metadata.CachedDispatchCount,
 	}
 }
