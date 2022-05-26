@@ -17,13 +17,6 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-type startInclusion int
-
-const (
-	includeStart startInclusion = iota
-	excludeStart
-)
-
 // NewConcurrentExpander creates an instance of ConcurrentExpander
 func NewConcurrentExpander(d dispatch.Expand) *ConcurrentExpander {
 	return &ConcurrentExpander{d: d}
@@ -48,7 +41,7 @@ func (ce *ConcurrentExpander) Expand(ctx context.Context, req ValidatedExpandReq
 
 	var directFunc ReduceableExpandFunc
 	if relation.UsersetRewrite == nil {
-		directFunc = ce.expandDirect(ctx, req, includeStart)
+		directFunc = ce.expandDirect(ctx, req)
 	} else {
 		directFunc = ce.expandUsersetRewrite(ctx, req, relation.UsersetRewrite)
 	}
@@ -61,7 +54,6 @@ func (ce *ConcurrentExpander) Expand(ctx context.Context, req ValidatedExpandReq
 func (ce *ConcurrentExpander) expandDirect(
 	ctx context.Context,
 	req ValidatedExpandRequest,
-	startBehavior startInclusion,
 ) ReduceableExpandFunc {
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
@@ -91,12 +83,6 @@ func (ce *ConcurrentExpander) expandDirect(
 			return
 		}
 
-		// In some cases (such as _this{} expansion) including the start point is misleading.
-		var start *core.ObjectAndRelation
-		if startBehavior == includeStart {
-			start = req.ObjectAndRelation
-		}
-
 		// If only shallow expansion was required, or there are no non-terminal subjects found,
 		// nothing more to do.
 		if req.ExpansionMode == v1.DispatchExpandRequest_SHALLOW || len(foundNonTerminalUsersets) == 0 {
@@ -107,7 +93,7 @@ func (ce *ConcurrentExpander) expandDirect(
 							Users: append(foundTerminalUsersets, foundNonTerminalUsersets...),
 						},
 					},
-					Expanded: start,
+					Expanded: req.ObjectAndRelation,
 				},
 				emptyMetadata,
 			)
@@ -141,7 +127,7 @@ func (ce *ConcurrentExpander) expandDirect(
 					Users: append(foundTerminalUsersets, foundNonTerminalUsersets...),
 				},
 			},
-			Expanded: start,
+			Expanded: req.ObjectAndRelation,
 		})
 		resultChan <- result
 	}

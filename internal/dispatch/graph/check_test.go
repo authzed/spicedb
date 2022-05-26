@@ -53,56 +53,56 @@ func TestSimpleCheck(t *testing.T) {
 		usersets  []userset
 	}{
 		{"document", "masterplan", []userset{
-			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
-			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", true}, {"edit", true}, {"view", true}}},
+			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
 		}},
 		{"document", "healthplan", []userset{
-			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
 		}},
 		{"folder", "company", []userset{
-			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
-			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("folder", "auditors", "viewer"), []expected{{"viewer", true}}},
+			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", true}, {"edit", true}, {"view", true}}},
+			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("folder", "auditors", "viewer"), []expected{{"view", true}}},
 		}},
 		{"folder", "strategy", []userset{
-			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", true}, {"editor", true}, {"viewer", true}}},
-			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
-			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
+			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", true}, {"edit", true}, {"view", true}}},
+			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
+			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
 			{ONR("folder", "company", graph.Ellipsis), []expected{{"parent", true}}},
 		}},
 		{"folder", "isolated", []userset{
-			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", false}}},
-			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"editor", false}, {"viewer", true}}},
+			{ONR("user", "product_manager", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "chief_financial_officer", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "owner", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "legal", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "vp_product", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "eng_lead", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "auditor", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", false}}},
+			{ONR("user", "villain", graph.Ellipsis), []expected{{"owner", false}, {"edit", false}, {"view", true}}},
 		}},
 	}
 
@@ -164,7 +164,7 @@ func TestMaxDepth(t *testing.T) {
 					ObjectType: "folder",
 					ObjectId:   "oops",
 				},
-				OptionalRelation: "editor",
+				OptionalRelation: "owner",
 			},
 		},
 	}}
@@ -216,16 +216,16 @@ func TestCheckMetadata(t *testing.T) {
 				ONR("user", "product_manager", graph.Ellipsis),
 				[]expected{
 					{"owner", true, 1, 1},
-					{"editor", true, 2, 2},
-					{"viewer", true, 3, 3},
+					{"edit", true, 2, 2},
+					{"view", true, 3, 3},
 				},
 			},
 			{
 				ONR("user", "owner", graph.Ellipsis),
 				[]expected{
 					{"owner", false, 1, 1},
-					{"editor", false, 2, 2},
-					{"viewer", true, 5, 5},
+					{"edit", false, 3, 2},
+					{"view", true, 5, 5},
 				},
 			},
 		}},
@@ -234,8 +234,8 @@ func TestCheckMetadata(t *testing.T) {
 				ONR("user", "vp_product", graph.Ellipsis),
 				[]expected{
 					{"owner", true, 1, 1},
-					{"editor", true, 2, 2},
-					{"viewer", true, 3, 3},
+					{"edit", true, 2, 2},
+					{"view", true, 3, 3},
 				},
 			},
 		}},
@@ -243,7 +243,7 @@ func TestCheckMetadata(t *testing.T) {
 			{
 				ONR("user", "unknown", graph.Ellipsis),
 				[]expected{
-					{"viewer", false, 6, 4},
+					{"view", false, 6, 3},
 				},
 			},
 		}},
@@ -279,8 +279,8 @@ func TestCheckMetadata(t *testing.T) {
 
 					require.NoError(err)
 					require.Equal(expected.isMember, checkResult.Membership == v1.DispatchCheckResponse_MEMBER)
-					require.Equal(expected.expectedDispatchCount, int(checkResult.Metadata.DispatchCount))
-					require.Equal(expected.expectedDepthRequired, int(checkResult.Metadata.DepthRequired))
+					require.Equal(expected.expectedDispatchCount, int(checkResult.Metadata.DispatchCount), "dispatch count mismatch")
+					require.Equal(expected.expectedDepthRequired, int(checkResult.Metadata.DepthRequired), "depth required mismatch")
 				})
 			}
 		}

@@ -26,13 +26,11 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("owner", nil),
 				ns.Relation("editor", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 				ns.Relation("parent", nil),
 				ns.Relation("lock", nil),
 				ns.Relation("viewer", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("editors"),
 					ns.TupleToUserset("parent", "viewer"),
 				)),
@@ -46,13 +44,11 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("owner", nil),
 				ns.Relation("editor", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 				ns.Relation("parent", nil),
 				ns.Relation("lock", nil),
 				ns.Relation("viewer", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("editor"),
 					ns.TupleToUserset("parents", "viewer"),
 				)),
@@ -95,13 +91,11 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("owner", nil, ns.AllowedRelation("someinvalidns", "...")),
 				ns.Relation("editor", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 				ns.Relation("parent", nil),
 				ns.Relation("lock", nil),
 				ns.Relation("viewer", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("editor"),
 					ns.TupleToUserset("parent", "viewer"),
 				)),
@@ -115,13 +109,11 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("owner", nil, ns.AllowedRelation("anotherns", "foobar")),
 				ns.Relation("editor", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 				ns.Relation("parent", nil),
 				ns.Relation("lock", nil),
 				ns.Relation("viewer", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("editor"),
 					ns.TupleToUserset("parent", "viewer"),
 				)),
@@ -146,16 +138,15 @@ func TestTypeSystem(t *testing.T) {
 				ns.Relation("editor",
 					ns.Union(
 						ns.ComputedUserset("owner"),
-						ns.This(),
 					),
-					ns.AllowedRelation("user", "..."),
 				),
 				ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
-				ns.Relation("viewer", ns.Union(
-					ns.This(),
+				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
+				ns.Relation("view", ns.Union(
+					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("editor"),
-					ns.TupleToUserset("parent", "viewer"),
-				), ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
+					ns.TupleToUserset("parent", "view"),
+				)),
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),

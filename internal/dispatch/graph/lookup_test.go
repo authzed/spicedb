@@ -44,20 +44,20 @@ func TestSimpleLookup(t *testing.T) {
 		expectedDepthRequired int
 	}{
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "unknown", "..."),
 			[]*core.ObjectAndRelation{},
 			1,
 			1,
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "eng_lead", "..."),
 			[]*core.ObjectAndRelation{
-				ONR("document", "masterplan", "viewer"),
+				ONR("document", "masterplan", "view"),
 			},
 			2,
-			1,
+			2,
 		},
 		{
 			RR("document", "owner"),
@@ -69,30 +69,30 @@ func TestSimpleLookup(t *testing.T) {
 			1,
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "legal", "..."),
 			[]*core.ObjectAndRelation{
-				ONR("document", "companyplan", "viewer"),
-				ONR("document", "masterplan", "viewer"),
+				ONR("document", "companyplan", "view"),
+				ONR("document", "masterplan", "view"),
 			},
 			6,
-			3,
+			4,
 		},
 		{
-			RR("document", "viewer_and_editor"),
+			RR("document", "view_and_edit"),
 			ONR("user", "multiroleguy", "..."),
 			[]*core.ObjectAndRelation{
-				ONR("document", "specialplan", "viewer_and_editor"),
+				ONR("document", "specialplan", "view_and_edit"),
 			},
+			7,
 			4,
-			3,
 		},
 		{
-			RR("folder", "viewer"),
+			RR("folder", "view"),
 			ONR("user", "owner", "..."),
 			[]*core.ObjectAndRelation{
-				ONR("folder", "strategy", "viewer"),
-				ONR("folder", "company", "viewer"),
+				ONR("folder", "strategy", "view"),
+				ONR("folder", "company", "view"),
 			},
 			8,
 			5,
@@ -171,7 +171,7 @@ func TestMaxDepthLookup(t *testing.T) {
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	_, err = dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
-		ObjectRelation: RR("document", "viewer"),
+		ObjectRelation: RR("document", "view"),
 		Subject:        ONR("user", "legal", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
