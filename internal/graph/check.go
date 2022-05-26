@@ -45,20 +45,19 @@ type ValidatedCheckRequest struct {
 func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) (*v1.DispatchCheckResponse, error) {
 	var directFunc ReduceableCheckFunc
 
-	// TODO(jschorr): Turn into an error once v0 API has been removed.
 	if relation.GetTypeInformation() == nil && relation.GetUsersetRewrite() == nil {
-		log.Ctx(ctx).Warn().Str("relation", relation.Name).Msg("Found relation without type information. Please switch to using schema. This will be an error in the future!")
-	}
-
-	if req.Subject.ObjectId == tuple.PublicWildcard {
-		directFunc = checkError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")))
-	} else if onrEqual(req.Subject, req.ObjectAndRelation) {
-		// If we have found the goal's ONR, then we know that the ONR is a member.
-		directFunc = alwaysMember()
-	} else if relation.UsersetRewrite == nil {
-		directFunc = cc.checkDirect(ctx, req)
+		directFunc = checkError(fmt.Errorf("found relation `%s` without type information; to fix, please re-write your schema", relation.Name))
 	} else {
-		directFunc = cc.checkUsersetRewrite(ctx, req, relation.UsersetRewrite)
+		if req.Subject.ObjectId == tuple.PublicWildcard {
+			directFunc = checkError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")))
+		} else if onrEqual(req.Subject, req.ObjectAndRelation) {
+			// If we have found the goal's ONR, then we know that the ONR is a member.
+			directFunc = alwaysMember()
+		} else if relation.UsersetRewrite == nil {
+			directFunc = cc.checkDirect(ctx, req)
+		} else {
+			directFunc = cc.checkUsersetRewrite(ctx, req, relation.UsersetRewrite)
+		}
 	}
 
 	resolved := union(ctx, []ReduceableCheckFunc{directFunc})
@@ -141,9 +140,7 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req Validate
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *core.SetOperation_Child_XThis:
-			// TODO(jschorr): Turn into an error once v0 API has been removed.
-			log.Ctx(ctx).Warn().Stringer("operation", so).Msg("Use of _this is deprecated and will soon be an error! Please switch to using schema!")
-			requests = append(requests, cc.checkDirect(ctx, req))
+			return checkError(errors.New("use of _this is unsupported; please rewrite your schema"))
 		case *core.SetOperation_Child_ComputedUserset:
 			requests = append(requests, cc.checkComputedUserset(ctx, req, child.ComputedUserset, nil))
 		case *core.SetOperation_Child_UsersetRewrite:

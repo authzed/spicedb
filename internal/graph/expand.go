@@ -154,9 +154,7 @@ func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req Valida
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *core.SetOperation_Child_XThis:
-			// TODO(jschorr): Turn into an error once v0 API has been removed.
-			log.Ctx(ctx).Warn().Stringer("operation", so).Msg("Use of _this is deprecated and will soon be an error! Please switch to using schema!")
-			requests = append(requests, ce.expandDirect(ctx, req, excludeStart))
+			return expandError(errors.New("use of _this is unsupported; please rewrite your schema"))
 		case *core.SetOperation_Child_ComputedUserset:
 			requests = append(requests, ce.expandComputedUserset(ctx, req, child.ComputedUserset, nil))
 		case *core.SetOperation_Child_UsersetRewrite:
