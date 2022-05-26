@@ -1,84 +1,30 @@
 ---
-namespace_configs:
-  - |
-    name: "irtt/user"
+schema: |+
+    definition irtt/user {}
 
-  - |
-    name: "irtt/namespace"
-
-    relation {
-      name: "parent"
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "irtt/namespace"
-          relation: "..."
-        }
-      }
+    definition irtt/namespace {
+    	relation parent: irtt/namespace
+    	relation direct_owner: irtt/user
+        permission owner = direct_owner + parent->owner
     }
 
-    relation {
-      name: "owner"
-
-      userset_rewrite {
-        intersection {
-          child { _this {} }
-          child {
-            tuple_to_userset {
-              tupleset { relation: "parent" }
-              computed_userset {
-                object: TUPLE_USERSET_OBJECT
-                relation: "owner"
-              }
-            }
-          }
-        }
-      }
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "irtt/user"
-          relation: "..."
-        }
-      }
+    definition irtt/resource {
+    	relation parent_namespace: irtt/namespace
+    	permission owner = parent_namespace->owner
     }
 
-  - |
-    name: "irtt/resource"
+relationships: >-
+    irtt/namespace:rootns#direct_owner@irtt/user:someguy#...
 
-    relation {
-      name: "parent_namespace"
+    irtt/namespace:childns1#parent@irtt/namespace:rootns#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "irtt/namespace"
-          relation: "..."
-        }
-      }
-    }
+    irtt/namespace:childns2#parent@irtt/namespace:rootns#...
 
-    relation {
-      name: "owner"
+    irtt/namespace:childns1#direct_owner@irtt/user:someguy#...
 
-      userset_rewrite {
-        union {
-          child {
-            tuple_to_userset {
-              tupleset { relation: "parent_namespace" }
-              computed_userset {
-                object: TUPLE_USERSET_OBJECT
-                relation: "owner"
-              }
-            }
-          }
-        }
-      }
-    }
+    irtt/resource:resource1#parent_namespace@irtt/namespace:childns1#...
 
-validation_tuples:
-  - "irtt/namespace:rootns#owner@irtt/user:someguy#..."
-  - "irtt/namespace:childns1#parent@irtt/namespace:rootns#..."
-  - "irtt/namespace:childns2#parent@irtt/namespace:rootns#..."
-  - "irtt/namespace:childns1#owner@irtt/user:someguy#..."
-  - "irtt/resource:resource1#parent_namespace@irtt/namespace:childns1#..."
-  - "irtt/resource:resource2#parent_namespace@irtt/namespace:childns2#..."
+    irtt/resource:resource2#parent_namespace@irtt/namespace:childns2#...
+assertions:
+    assertTrue: []
+    assertFalse: []
