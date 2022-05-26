@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
@@ -21,6 +20,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
+
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestTestServer(t *testing.T) {
@@ -54,43 +55,23 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 
-	v0client := v0.NewACLServiceClient(conn)
-	rov0client := v0.NewACLServiceClient(roConn)
-
 	v1client := v1.NewPermissionsServiceClient(conn)
 	rov1client := v1.NewPermissionsServiceClient(roConn)
 
-	tpl := &v0.RelationTuple{
-		ObjectAndRelation: &v0.ObjectAndRelation{
-			Namespace: "resource",
-			ObjectId:  "someresource",
-			Relation:  "reader",
-		},
-		User: &v0.User{UserOneof: &v0.User_Userset{Userset: &v0.ObjectAndRelation{
-			Namespace: "user",
-			ObjectId:  "somegal",
-			Relation:  "...",
-		}}},
-	}
+	relationship := tuple.MustParse("resource:someresource#reader@user:somegal")
 
 	// Try writing a simple relationship against readonly and ensure it fails.
-	_, err = rov0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{
-			{
-				Operation: v0.RelationTupleUpdate_CREATE,
-				Tuple:     tpl,
-			},
+	_, err = rov1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{
+			tuple.UpdateToRelationshipUpdate(tuple.Create(relationship)),
 		},
 	})
 	require.Equal("rpc error: code = Unavailable desc = service read-only", err.Error())
 
 	// Write a simple relationship.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{
-			{
-				Operation: v0.RelationTupleUpdate_CREATE,
-				Tuple:     tpl,
-			},
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{
+			tuple.UpdateToRelationshipUpdate(tuple.Create(relationship)),
 		},
 	})
 	require.NoError(err)
