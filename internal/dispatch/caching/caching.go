@@ -352,8 +352,10 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.checkTotalCounter)
 	prometheus.Unregister(cd.lookupTotalCounter)
+	prometheus.Unregister(cd.reachableResourcesTotalCounter)
 	prometheus.Unregister(cd.lookupFromCacheCounter)
 	prometheus.Unregister(cd.checkFromCacheCounter)
+	prometheus.Unregister(cd.reachableResourcesFromCacheCounter)
 	prometheus.Unregister(cd.cacheHits)
 	prometheus.Unregister(cd.cacheMisses)
 	prometheus.Unregister(cd.costAddedBytes)
