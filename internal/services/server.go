@@ -1,7 +1,6 @@
 package services
 
 import (
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
@@ -10,7 +9,6 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 )
@@ -35,15 +33,6 @@ func RegisterGrpcServices(
 	schemaServiceOption SchemaServiceOption,
 ) {
 	healthSrv := grpcutil.NewAuthlessHealthServer()
-
-	v0.RegisterACLServiceServer(srv, v0svc.NewACLServer(dispatch, maxDepth))
-	healthSrv.SetServicesHealthy(&v0.ACLService_ServiceDesc)
-
-	v0.RegisterNamespaceServiceServer(srv, v0svc.NewNamespaceServer())
-	healthSrv.SetServicesHealthy(&v0.NamespaceService_ServiceDesc)
-
-	v0.RegisterWatchServiceServer(srv, v0svc.NewWatchServer())
-	healthSrv.SetServicesHealthy(&v0.WatchService_ServiceDesc)
 
 	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(prefixRequired))
 	healthSrv.SetServicesHealthy(&v1alpha1.SchemaService_ServiceDesc)
