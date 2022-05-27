@@ -259,7 +259,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 	parentRequest ValidatedReachableResourcesRequest,
 ) error {
 	// Check for entrypoints for the new found resource type.
-	foundResourceEntrypoints, err := rg.OptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
+	hasResourceEntrypoints, err := rg.HasOptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: foundResource.Namespace,
 		Relation:  foundResource.Relation,
 	}, parentRequest.ObjectRelation)
@@ -268,7 +268,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 	}
 
 	// If there are no entrypoints, then no further dispatch is necessary.
-	if len(foundResourceEntrypoints) == 0 {
+	if !hasResourceEntrypoints {
 		// If the found resource matches the target resource type and relation, yield the resource.
 		if foundResource.Namespace == parentRequest.ObjectRelation.Namespace &&
 			foundResource.Relation == parentRequest.ObjectRelation.Relation {
