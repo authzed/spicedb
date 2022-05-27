@@ -177,7 +177,7 @@ func NewCachingDispatcher(
 	keysAdded := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
-		Name:      "keys_added",
+		Name:      "keys_added_total",
 	}, func() float64 {
 		return float64(cache.Metrics.KeysAdded())
 	})
@@ -185,7 +185,7 @@ func NewCachingDispatcher(
 	keysEvicted := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
-		Name:      "keys_evicted",
+		Name:      "keys_evicted_total",
 	}, func() float64 {
 		return float64(cache.Metrics.KeysEvicted())
 	})
