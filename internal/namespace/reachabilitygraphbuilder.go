@@ -71,9 +71,9 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 		Relation:  targetRelation.Name,
 	}
 
-	for _, childOneof := range children {
+	for index, childOneof := range children {
 		if len(childOneof.OperationPath) == 0 {
-			return fmt.Errorf("missing operation path on child")
+			return fmt.Errorf("missing operation path on child #%d under relation `%s#%s`", index, ts.nsDef.Name, targetRelation.Name)
 		}
 
 		switch child := childOneof.ChildType.(type) {
