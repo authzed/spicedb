@@ -46,10 +46,10 @@ func NewCRDBDriver(url string) (*CRDBDriver, error) {
 
 // Version returns the version of the schema to which the connected database
 // has been migrated.
-func (apd *CRDBDriver) Version() (string, error) {
+func (apd *CRDBDriver) Version(ctx context.Context) (string, error) {
 	var loaded string
 
-	if err := apd.db.QueryRow(context.Background(), queryLoadVersion).Scan(&loaded); err != nil {
+	if err := apd.db.QueryRow(ctx, queryLoadVersion).Scan(&loaded); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == postgresMissingTableErrorCode {
 			return "", nil
@@ -62,8 +62,8 @@ func (apd *CRDBDriver) Version() (string, error) {
 
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
-func (apd *CRDBDriver) WriteVersion(version, replaced string) error {
-	result, err := apd.db.Exec(context.Background(), queryWriteVersion, version, replaced)
+func (apd *CRDBDriver) WriteVersion(ctx context.Context, version, replaced string) error {
+	result, err := apd.db.Exec(ctx, queryWriteVersion, version, replaced)
 	if err != nil {
 		return fmt.Errorf("unable to update version row: %w", err)
 	}

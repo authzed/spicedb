@@ -630,14 +630,14 @@ func TestMySQLMigrations(t *testing.T) {
 	db := datastoreDB(t, false)
 	migrationDriver := migrations.NewMySQLDriverFromDB(db, "")
 
-	version, err := migrationDriver.Version()
+	version, err := migrationDriver.Version(context.Background())
 	req.NoError(err)
 	req.Equal("", version)
 
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.Manager.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
 	req.NoError(err)
 
-	version, err = migrationDriver.Version()
+	version, err = migrationDriver.Version(context.Background())
 	req.NoError(err)
 
 	headVersion, err := migrations.Manager.HeadRevision()
@@ -652,14 +652,14 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 	db := datastoreDB(t, false)
 	migrationDriver := migrations.NewMySQLDriverFromDB(db, prefix)
 
-	version, err := migrationDriver.Version()
+	version, err := migrationDriver.Version(context.Background())
 	req.NoError(err)
 	req.Equal("", version)
 
-	err = migrations.Manager.Run(migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.Manager.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
 	req.NoError(err)
 
-	version, err = migrationDriver.Version()
+	version, err = migrationDriver.Version(context.Background())
 	req.NoError(err)
 
 	headVersion, err := migrations.Manager.HeadRevision()

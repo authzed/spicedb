@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -27,10 +28,10 @@ type Driver interface {
 	// Version returns the current version of the schema in the backing datastore.
 	// If the datastore is brand new, version should return the empty string without
 	// an error.
-	Version() (string, error)
+	Version(ctx context.Context) (string, error)
 
 	// WriteVersion records the newly migrated version to the backing datastore.
-	WriteVersion(version, replaced string) error
+	WriteVersion(ctx context.Context, version, replaced string) error
 
 	// Close frees up any resources in use by the driver.
 	Close() error
@@ -81,8 +82,8 @@ func (m *Manager) Register(version, replaces string, up interface{}) error {
 
 // Run will actually perform the necessary migrations to bring the backing datastore
 // from its current revision to the specified revision.
-func (m *Manager) Run(driver Driver, throughRevision string, dryRun RunType) error {
-	starting, err := driver.Version()
+func (m *Manager) Run(ctx context.Context, driver Driver, throughRevision string, dryRun RunType) error {
+	starting, err := driver.Version(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to compute target revision: %w", err)
 	}
@@ -112,7 +113,7 @@ func (m *Manager) Run(driver Driver, throughRevision string, dryRun RunType) err
 	if !dryRun {
 		for _, migrationToRun := range toRun {
 			// Double check that the current version reported is the one we expect
-			currentVersion, err := driver.Version()
+			currentVersion, err := driver.Version(ctx)
 			if err != nil {
 				return fmt.Errorf("unable to load version from driver: %w", err)
 			}
@@ -131,7 +132,7 @@ func (m *Manager) Run(driver Driver, throughRevision string, dryRun RunType) err
 				return fmt.Errorf("error running migration up function: %v", errArg)
 			}
 
-			if err := driver.WriteVersion(migrationToRun.version, migrationToRun.replaces); err != nil {
+			if err := driver.WriteVersion(ctx, migrationToRun.version, migrationToRun.replaces); err != nil {
 				return fmt.Errorf("error writing migration version to driver: %w", err)
 			}
 		}

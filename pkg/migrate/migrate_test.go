@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -8,11 +9,11 @@ import (
 
 type fakeDriver struct{}
 
-func (*fakeDriver) Version() (string, error) {
+func (*fakeDriver) Version(ctx context.Context) (string, error) {
 	return "", nil
 }
 
-func (*fakeDriver) WriteVersion(version, replaced string) error {
+func (*fakeDriver) WriteVersion(ctx context.Context, version, replaced string) error {
 	return nil
 }
 

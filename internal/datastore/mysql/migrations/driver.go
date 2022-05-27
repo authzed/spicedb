@@ -67,13 +67,13 @@ func columnNameToRevision(columnName string) (string, bool) {
 
 // Version returns the version of the schema to which the connected database
 // has been migrated.
-func (driver *MySQLDriver) Version() (string, error) {
+func (driver *MySQLDriver) Version(ctx context.Context) (string, error) {
 	query, args, err := sb.Select("*").From(driver.migrationVersion()).ToSql()
 	if err != nil {
 		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}
 
-	rows, err := driver.db.Query(query, args...)
+	rows, err := driver.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		var mysqlError *sqlDriver.MySQLError
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
@@ -81,7 +81,7 @@ func (driver *MySQLDriver) Version() (string, error) {
 		}
 		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}
-	defer LogOnError(context.Background(), rows.Close)
+	defer LogOnError(ctx, rows.Close)
 	if rows.Err() != nil {
 		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}
@@ -100,13 +100,13 @@ func (driver *MySQLDriver) Version() (string, error) {
 
 // WriteVersion overwrites the _meta_version_ column name which encodes the version
 // of the database schema.
-func (driver *MySQLDriver) WriteVersion(version, replaced string) error {
+func (driver *MySQLDriver) WriteVersion(ctx context.Context, version, replaced string) error {
 	stmt := fmt.Sprintf("ALTER TABLE %s CHANGE %s %s VARCHAR(255) NOT NULL",
 		driver.migrationVersion(),
 		revisionToColumnName(replaced),
 		revisionToColumnName(version),
 	)
-	if _, err := driver.db.Exec(stmt); err != nil {
+	if _, err := driver.db.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("unable to version: %w", err)
 	}
 

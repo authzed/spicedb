@@ -48,9 +48,9 @@ func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (Spann
 	return SpannerMigrationDriver{client, adminClient}, nil
 }
 
-func (smd SpannerMigrationDriver) Version() (string, error) {
+func (smd SpannerMigrationDriver) Version(ctx context.Context) (string, error) {
 	rows := smd.client.Single().Read(
-		context.Background(),
+		ctx,
 		tableSchemaVersion,
 		spanner.AllKeys(),
 		[]string{colVersionNum},
@@ -72,8 +72,8 @@ func (smd SpannerMigrationDriver) Version() (string, error) {
 	return schemaRevision, nil
 }
 
-func (smd SpannerMigrationDriver) WriteVersion(version, replaced string) error {
-	_, err := smd.client.ReadWriteTransaction(context.Background(), func(c context.Context, rwt *spanner.ReadWriteTransaction) error {
+func (smd SpannerMigrationDriver) WriteVersion(ctx context.Context, version, replaced string) error {
+	_, err := smd.client.ReadWriteTransaction(ctx, func(c context.Context, rwt *spanner.ReadWriteTransaction) error {
 		return rwt.BufferWrite([]*spanner.Mutation{
 			spanner.Delete(tableSchemaVersion, spanner.KeySetFromKeys(spanner.Key{replaced})),
 			spanner.Insert(tableSchemaVersion, []string{colVersionNum}, []interface{}{version}),

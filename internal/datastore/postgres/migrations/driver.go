@@ -39,10 +39,10 @@ func NewAlembicPostgresDriver(url string) (*AlembicPostgresDriver, error) {
 
 // Version returns the version of the schema to which the connected database
 // has been migrated.
-func (apd *AlembicPostgresDriver) Version() (string, error) {
+func (apd *AlembicPostgresDriver) Version(ctx context.Context) (string, error) {
 	var loaded string
 
-	if err := apd.db.QueryRow(context.Background(), "SELECT version_num from alembic_version").Scan(&loaded); err != nil {
+	if err := apd.db.QueryRow(ctx, "SELECT version_num from alembic_version").Scan(&loaded); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == postgresMissingTableErrorCode {
 			return "", nil
@@ -55,9 +55,9 @@ func (apd *AlembicPostgresDriver) Version() (string, error) {
 
 // WriteVersion overwrites the value stored to track the version of the
 // database schema.
-func (apd *AlembicPostgresDriver) WriteVersion(version, replaced string) error {
+func (apd *AlembicPostgresDriver) WriteVersion(ctx context.Context, version, replaced string) error {
 	result, err := apd.db.Exec(
-		context.Background(),
+		ctx,
 		"UPDATE alembic_version SET version_num=$1 WHERE version_num=$2",
 		version,
 		replaced,

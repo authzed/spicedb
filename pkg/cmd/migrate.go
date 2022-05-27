@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/fatih/color"
@@ -96,7 +97,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	targetRevision := args[0]
 
 	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
-	if err := manager.Run(migrationDriver, targetRevision, migrate.LiveRun); err != nil {
+	if err := manager.Run(context.Background(), migrationDriver, targetRevision, migrate.LiveRun); err != nil {
 		log.Fatal().Err(err).Msg("unable to complete requested migrations")
 	}
 

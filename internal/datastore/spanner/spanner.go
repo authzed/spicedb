@@ -148,7 +148,7 @@ func (sd spannerDatastore) IsReady(ctx context.Context) (bool, error) {
 	}
 	defer currentRevision.Close()
 
-	version, err := currentRevision.Version()
+	version, err := currentRevision.Version(ctx)
 	if err != nil {
 		return false, err
 	}
