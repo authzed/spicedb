@@ -83,7 +83,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	for _, entrypoint := range entrypoints {
 		switch entrypoint.EntrypointKind() {
 		case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-			err := crr.lookupRelationEntrypoint(subCtx, entrypoint, g, reader, req, stream)
+			err := crr.lookupRelationEntrypoint(subCtx, entrypoint, rg, g, reader, req, stream)
 			if err != nil {
 				return err
 			}
@@ -96,20 +96,10 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 				Relation:  containingRelation.Relation,
 			}
 
-			// Otherwise, redispatch.
-			g.Go(crr.redispatch(
-				subCtx,
-				entrypoint,
-				stream,
-				&v1.DispatchReachableResourcesRequest{
-					ObjectRelation: req.ObjectRelation,
-					Subject:        rewrittenSubjectTpl,
-					Metadata: &v1.ResolverMeta{
-						AtRevision:     req.Revision.String(),
-						DepthRemaining: req.Metadata.DepthRemaining - 1,
-					},
-				},
-			))
+			err := crr.redispatchOrReport(subCtx, rewrittenSubjectTpl, rg, g, entrypoint, stream, req)
+			if err != nil {
+				return err
+			}
 
 		case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
 			containingRelation := entrypoint.ContainingRelationOrPermission()
@@ -169,19 +159,10 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 						Relation:  containingRelation.Relation,
 					}
 
-					g.Go(crr.redispatch(
-						subCtx,
-						entrypoint,
-						stream,
-						&v1.DispatchReachableResourcesRequest{
-							ObjectRelation: req.ObjectRelation,
-							Subject:        rewrittenObjectTpl,
-							Metadata: &v1.ResolverMeta{
-								AtRevision:     req.Revision.String(),
-								DepthRemaining: req.Metadata.DepthRemaining - 1,
-							},
-						},
-					))
+					err := crr.redispatchOrReport(subCtx, rewrittenObjectTpl, rg, g, entrypoint, stream, req)
+					if err != nil {
+						return err
+					}
 				}
 			}
 
@@ -195,6 +176,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 
 func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Context,
 	entrypoint namespace.ReachabilityEntrypoint,
+	rg *namespace.ReachabilityGraph,
 	g *errgroup.Group,
 	reader datastore.Reader,
 	req ValidatedReachableResourcesRequest,
@@ -241,20 +223,10 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 				return it.Err()
 			}
 
-			// Redispatch to continue looking for results.
-			g.Go(crr.redispatch(
-				ctx,
-				entrypoint,
-				stream,
-				&v1.DispatchReachableResourcesRequest{
-					ObjectRelation: req.ObjectRelation,
-					Subject:        tpl.ObjectAndRelation,
-					Metadata: &v1.ResolverMeta{
-						AtRevision:     req.Revision.String(),
-						DepthRemaining: req.Metadata.DepthRemaining - 1,
-					},
-				},
-			))
+			err := crr.redispatchOrReport(ctx, tpl.ObjectAndRelation, rg, g, entrypoint, stream, req)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -274,13 +246,52 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 	return nil
 }
 
-func (crr *ConcurrentReachableResources) redispatch(
+// redispatchOrReport checks if further redispatching is necessary for the found resource
+// type. If not, and the found resource type+relation matches the target resource type+relation,
+// the resource is reported to the parent stream.
+func (crr *ConcurrentReachableResources) redispatchOrReport(
 	ctx context.Context,
+	foundResource *core.ObjectAndRelation,
+	rg *namespace.ReachabilityGraph,
+	g *errgroup.Group,
 	entrypoint namespace.ReachabilityEntrypoint,
 	parentStream dispatch.ReachableResourcesStream,
-	req *v1.DispatchReachableResourcesRequest,
-) func() error {
-	return func() error {
+	parentRequest ValidatedReachableResourcesRequest,
+) error {
+	// Check for entrypoints for the new found resource type.
+	foundResourceEntrypoints, err := rg.OptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
+		Namespace: foundResource.Namespace,
+		Relation:  foundResource.Relation,
+	}, parentRequest.ObjectRelation)
+	if err != nil {
+		return err
+	}
+
+	// If there are no entrypoints, then no further dispatch is necessary.
+	if len(foundResourceEntrypoints) == 0 {
+		// If the found resource matches the target resource type and relation, yield the resource.
+		if foundResource.Namespace == parentRequest.ObjectRelation.Namespace &&
+			foundResource.Relation == parentRequest.ObjectRelation.Relation {
+			status := v1.ReachableResource_REQUIRES_CHECK
+			if entrypoint.IsDirectResult() {
+				status = v1.ReachableResource_HAS_PERMISSION
+			}
+
+			return parentStream.Publish(&v1.DispatchReachableResourcesResponse{
+				Resource: &v1.ReachableResource{
+					Resource:     foundResource,
+					ResultStatus: status,
+				},
+				Metadata: emptyMetadata,
+			})
+		}
+
+		// Otherwise, we're done.
+		return nil
+	}
+
+	// Otherwise, redispatch.
+	g.Go(func() error {
 		stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
 			Stream: parentStream,
 			Ctx:    ctx,
@@ -302,6 +313,14 @@ func (crr *ConcurrentReachableResources) redispatch(
 			},
 		}
 
-		return crr.d.DispatchReachableResources(req, stream)
-	}
+		return crr.d.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+			ObjectRelation: parentRequest.ObjectRelation,
+			Subject:        foundResource,
+			Metadata: &v1.ResolverMeta{
+				AtRevision:     parentRequest.Revision.String(),
+				DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+			},
+		}, stream)
+	})
+	return nil
 }
