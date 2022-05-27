@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -31,23 +30,13 @@ func (re ReachabilityEntrypoint) EntrypointKind() core.ReachabilityEntrypoint_Re
 	return re.re.Kind
 }
 
-// TupleToUserset returns the TTU associated with this entrypoint, if a TUPLESET_TO_USERSET_ENTRYPOINT.
-func (re ReachabilityEntrypoint) TupleToUserset(nsDef *core.NamespaceDefinition) *core.TupleToUserset {
+// TuplesetRelation returns the tupleset relation of the TTU, if a TUPLESET_TO_USERSET_ENTRYPOINT.
+func (re ReachabilityEntrypoint) TuplesetRelation() string {
 	if re.EntrypointKind() != core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT {
 		panic(fmt.Sprintf("cannot call TupleToUserset for kind %v", re.EntrypointKind()))
 	}
 
-	if nsDef.Name != re.parentRelation.Namespace {
-		panic("invalid namespace definition given to TupleToUserset")
-	}
-
-	for _, relation := range nsDef.Relation {
-		if relation.Name == re.parentRelation.Relation {
-			return graph.FindOperation[core.TupleToUserset](relation.GetUsersetRewrite(), re.re.OperationPath)
-		}
-	}
-
-	return nil
+	return re.re.TuplesetRelation
 }
 
 // DirectRelation is the relation that this entrypoint represents, if a RELATION_ENTRYPOINT.
@@ -166,17 +155,6 @@ func (rg *ReachabilityGraph) getOrBuildGraph(ctx context.Context, resourceType *
 	rts, err := BuildNamespaceTypeSystem(namespace, rg.ts.lookupNamespace)
 	if err != nil {
 		return nil, err
-	}
-
-	relation, ok := rts.relationMap[resourceType.Relation]
-	if !ok {
-		return nil, fmt.Errorf("unknown relation `%s` under namespace `%s` for reachability", resourceType.Relation, resourceType.Namespace)
-	}
-
-	// Decorate with operation paths, if necessary.
-	derr := decorateRelationOpPaths(relation)
-	if derr != nil {
-		return nil, derr
 	}
 
 	rrg, err := computeReachability(ctx, rts, resourceType.Relation, reachabilityOption)

@@ -104,17 +104,12 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 		case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
 			containingRelation := entrypoint.ContainingRelationOrPermission()
 
-			// TODO(jschorr): Should we put this information into the entrypoint itself, to avoid
-			// a lookup of the namespace?
-			nsDef, ttuTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
+			_, ttuTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
 			if err != nil {
 				return err
 			}
 
-			ttu := entrypoint.TupleToUserset(nsDef)
-			if ttu == nil {
-				return fmt.Errorf("found nil ttu for TTU entrypoint")
-			}
+			tuplesetRelation := entrypoint.TuplesetRelation()
 
 			// Search for the resolved subject in the tupleset of the TTU. Note that we need to do so
 			// for both `...` as well as the subject's defined relation, as either is applicable in
@@ -122,7 +117,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 			relations := strset.New(tuple.Ellipsis, req.Subject.Relation)
 
 			for _, subjectRelation := range relations.List() {
-				isAllowed, err := ttuTypeSystem.IsAllowedDirectRelation(ttu.Tupleset.Relation, req.Subject.Namespace, subjectRelation)
+				isAllowed, err := ttuTypeSystem.IsAllowedDirectRelation(tuplesetRelation, req.Subject.Namespace, subjectRelation)
 				if err != nil {
 					return err
 				}
@@ -140,7 +135,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 					}),
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: containingRelation.Namespace,
-						Relation:  ttu.Tupleset.Relation,
+						Relation:  tuplesetRelation,
 					}),
 				)
 				if err != nil {
