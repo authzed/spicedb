@@ -57,7 +57,7 @@ func TestSimpleLookup(t *testing.T) {
 				ONR("document", "masterplan", "viewer"),
 			},
 			2,
-			2,
+			1,
 		},
 		{
 			RR("document", "owner"),
@@ -66,7 +66,7 @@ func TestSimpleLookup(t *testing.T) {
 				ONR("document", "masterplan", "owner"),
 			},
 			2,
-			2,
+			1,
 		},
 		{
 			RR("document", "viewer"),
@@ -76,7 +76,7 @@ func TestSimpleLookup(t *testing.T) {
 				ONR("document", "masterplan", "viewer"),
 			},
 			6,
-			4,
+			3,
 		},
 		{
 			RR("document", "viewer_and_editor"),

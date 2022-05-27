@@ -141,6 +141,11 @@ type TypeSystem struct {
 	wildcardCheckCache map[string]*WildcardTypeReference
 }
 
+// Namespace is the namespace for which the type system was constructed.
+func (nts *TypeSystem) Namespace() *core.NamespaceDefinition {
+	return nts.nsDef
+}
+
 // HasTypeInformation returns true if the relation with the given name exists and has type
 // information defined.
 func (nts *TypeSystem) HasTypeInformation(relationName string) bool {

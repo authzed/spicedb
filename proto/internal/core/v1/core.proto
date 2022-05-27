@@ -297,17 +297,19 @@ message ReachabilityEntrypoint {
    */
   RelationReference target_relation = 2;
 
-  /** 
-    * operation_path is the path to the _this operation, if applicable. Will be empty for direct
-    * relation entrypoints without userset writes.
-    */
-  repeated uint32 operation_path = 3;
-
   /**
    * result_status contains the status of objects found for this entrypoint as direct results for
    * the parent relation/permission.
    */
-   EntrypointResultStatus result_status = 4;
+  EntrypointResultStatus result_status = 4;
+
+  reserved 3;
+
+   /**
+    * tupleset_relation is the name of the tupleset relation on the TupleToUserset this entrypoint
+    * represents, if applicable.
+    */
+   string tupleset_relation = 5;
 }
 
 /**

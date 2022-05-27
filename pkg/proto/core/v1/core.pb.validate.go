@@ -2442,6 +2442,8 @@ func (m *ReachabilityEntrypoint) validate(all bool) error {
 
 	// no validation rules for ResultStatus
 
+	// no validation rules for TuplesetRelation
+
 	if len(errors) > 0 {
 		return ReachabilityEntrypointMultiError(errors)
 	}

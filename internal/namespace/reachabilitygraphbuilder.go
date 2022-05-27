@@ -36,7 +36,7 @@ func computeReachability(ctx context.Context, ts *TypeSystem, relationName strin
 
 	// If there is no userRewrite, then we have a relation and its entrypoints will all be
 	// relation entrypoints.
-	return graph, addSubjectLinks(graph, []uint32{}, core.ReachabilityEntrypoint_DIRECT_OPERATION_RESULT, targetRelation, ts)
+	return graph, addSubjectLinks(graph, core.ReachabilityEntrypoint_DIRECT_OPERATION_RESULT, targetRelation, ts)
 }
 
 func computeRewriteReachability(ctx context.Context, graph *core.ReachabilityGraph, rewrite *core.UsersetRewrite, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, targetRelation *core.Relation, ts *TypeSystem, option reachabilityOption) error {
@@ -72,15 +72,11 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 	}
 
 	for _, childOneof := range children {
-		if len(childOneof.OperationPath) == 0 {
-			return fmt.Errorf("missing operation path on child")
-		}
-
 		switch child := childOneof.ChildType.(type) {
 		case *core.SetOperation_Child_XThis:
 			// TODO(jschorr): Remove once v0 namespace support is completed removed.
 			// A _this{} indicates subject links directly to the operation.
-			err := addSubjectLinks(graph, childOneof.OperationPath, operationResultState, targetRelation, ts)
+			err := addSubjectLinks(graph, operationResultState, targetRelation, ts)
 			if err != nil {
 				return err
 			}
@@ -90,7 +86,6 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 			addSubjectEntrypoint(graph, ts.nsDef.Name, child.ComputedUserset.Relation, &core.ReachabilityEntrypoint{
 				Kind:           core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT,
 				TargetRelation: rr,
-				OperationPath:  childOneof.OperationPath,
 				ResultStatus:   operationResultState,
 			})
 
@@ -146,10 +141,10 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 
 				if relTypeSystem.HasRelation(computedUsersetRelation) {
 					addSubjectEntrypoint(graph, allowedRelationType.Namespace, computedUsersetRelation, &core.ReachabilityEntrypoint{
-						Kind:           core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT,
-						TargetRelation: rr,
-						OperationPath:  childOneof.OperationPath,
-						ResultStatus:   operationResultState,
+						Kind:             core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT,
+						TargetRelation:   rr,
+						ResultStatus:     operationResultState,
+						TuplesetRelation: tuplesetRelation,
 					})
 				}
 			}
@@ -188,7 +183,7 @@ func addSubjectEntrypoint(graph *core.ReachabilityGraph, namespaceName string, r
 	)
 }
 
-func addSubjectLinks(graph *core.ReachabilityGraph, operationPath []uint32, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, relation *core.Relation, ts *TypeSystem) error {
+func addSubjectLinks(graph *core.ReachabilityGraph, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, relation *core.Relation, ts *TypeSystem) error {
 	typeInfo := relation.GetTypeInformation()
 	if typeInfo == nil {
 		return fmt.Errorf("missing type information for relation %s#%s", ts.nsDef.Name, relation.Name)
@@ -216,7 +211,6 @@ func addSubjectLinks(graph *core.ReachabilityGraph, operationPath []uint32, oper
 				&core.ReachabilityEntrypoint{
 					Kind:           core.ReachabilityEntrypoint_RELATION_ENTRYPOINT,
 					TargetRelation: rr,
-					OperationPath:  operationPath,
 					ResultStatus:   operationResultState,
 				},
 			)
@@ -226,7 +220,6 @@ func addSubjectLinks(graph *core.ReachabilityGraph, operationPath []uint32, oper
 		addSubjectEntrypoint(graph, directRelation.Namespace, directRelation.GetRelation(), &core.ReachabilityEntrypoint{
 			Kind:           core.ReachabilityEntrypoint_RELATION_ENTRYPOINT,
 			TargetRelation: rr,
-			OperationPath:  operationPath,
 			ResultStatus:   operationResultState,
 		})
 	}
