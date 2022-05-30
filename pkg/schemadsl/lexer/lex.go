@@ -85,18 +85,17 @@ type stateFn func(*Lexer) stateFn
 // Lexer holds the state of the scanner.
 type Lexer struct {
 	sync.RWMutex
-	source                 input.Source       // the name of the input; used only for error reports
-	input                  string             // the string being scanned
-	state                  stateFn            // the next lexing function to enter
-	pos                    input.BytePosition // current position in the input
-	start                  input.BytePosition // start position of this token
-	width                  input.BytePosition // width of last rune read from input
-	lastPos                input.BytePosition // position of most recent token returned by nextToken
-	tokens                 chan Lexeme        // channel of scanned lexemes
-	currentToken           Lexeme             // The current token if any
-	lastNonWhitespaceToken Lexeme             // The last token returned that is non-whitespace
-	lastNonIgnoredToken    Lexeme             // The last token returned that is non-whitespace and non-comment
-	closed                 chan struct{}      // Holds the closed channel
+	source              input.Source       // the name of the input; used only for error reports
+	input               string             // the string being scanned
+	state               stateFn            // the next lexing function to enter
+	pos                 input.BytePosition // current position in the input
+	start               input.BytePosition // start position of this token
+	width               input.BytePosition // width of last rune read from input
+	lastPos             input.BytePosition // position of most recent token returned by nextToken
+	tokens              chan Lexeme        // channel of scanned lexemes
+	currentToken        Lexeme             // The current token if any
+	lastNonIgnoredToken Lexeme             // The last token returned that is non-whitespace and non-comment
+	closed              chan struct{}      // Holds the closed channel
 }
 
 // nextToken returns the next token from the input.
@@ -138,10 +137,6 @@ func (l *Lexer) value() string {
 // emit passes an token back to the client.
 func (l *Lexer) emit(t TokenType) {
 	currentToken := Lexeme{t, l.start, l.value(), ""}
-
-	if t == TokenTypeWhitespace {
-		l.lastNonWhitespaceToken = currentToken
-	}
 
 	if t != TokenTypeWhitespace && t != TokenTypeMultilineComment && t != TokenTypeSinglelineComment {
 		l.lastNonIgnoredToken = currentToken
