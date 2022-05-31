@@ -4,24 +4,23 @@ This directory contains a variety of quickstart examples to start SpiceDB with v
 
 :warning: These examples are **not** production-ready and are provided purely for local testing only :warning:
 
-
 ## Usage
 
 To use a quickstart, run:
 
-```
+```shell
 docker compose -f <file> up
 ```
 
 For example, running the Postgres quickstart:
 
-```
+```shell
 docker compose -f postgres.yml up
 ```
 
 Use `Ctrl+C` to stop the quickstart and use
 
-```
+```shell
 docker compose -f postgres.yml down
 ```
 
