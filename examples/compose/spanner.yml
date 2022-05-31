@@ -1,4 +1,31 @@
 ---
+# This runs SpiceDB, using Spanner as the storage engine.
+#
+# In order to run Spanner locally, a Spanner emulator must be spun up. This is
+# done by the database service. Once that is complete, the emulator must be
+# initialized with a project, instance, and database. This is accomplished by
+# the init_database service, which executes the init script found at
+# spanner/spanner-init. This script configures the Spanner emulator with the a
+# project, instance, and database. Finally, the migrate service executes,
+# running "spicedb migrate head" to migrate Spanner to the most current
+# revision. After Spanner is initialized and migrated, the init_database and
+# migrate services will stop.
+#
+# Note: Spanner is run using a single node configuration.
+#
+# SpiceDB settings:
+#   pre-shared key: foobar
+#   dashboard address: http://localhost:8080
+#   metrics address: http://localhost:9090
+#   grpc address: http://localhost:50051
+#
+# Spanner settings:
+#   project id: project-spicedb
+#   instance name: instance-spicedb
+#   database name: spicedb
+#   grpc port: 9010
+#   http port: 9020
+
 version: "3"
 
 services:

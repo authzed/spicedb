@@ -1,4 +1,21 @@
 ---
+# This runs SpiceDB, using Postgres as the storage engine.
+#
+# Once the database service is running, the migrate service executes, running
+# "spicedb migrate head" to migrate Postgres to the most current revision. After
+# Postgres is migrated, the migrate service will stop.
+#
+# SpiceDB settings:
+#   pre-shared key: foobar
+#   dashboard address: http://localhost:8080
+#   metrics address: http://localhost:9090
+#   grpc address: http://localhost:50051
+#
+# Postgres settings:
+#   user: postgres
+#   password: secret
+#   port: 5432
+
 version: "3"
 
 services:

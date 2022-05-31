@@ -1,4 +1,12 @@
 ---
+# This runs SpiceDB, using an in-memory datastore as a the storage engine.
+#
+# SpiceDB settings:
+#   pre-shared key: foobar
+#   dashboard address: http://localhost:8080
+#   metrics address: http://localhost:9090
+#   grpc address: http://localhost:50051
+
 version: "3"
 
 services:

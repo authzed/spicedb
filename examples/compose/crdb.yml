@@ -1,4 +1,26 @@
 ---
+# This runs SpiceDB, using CockroachDB as the storage engine.
+#
+# Once the database service is running, the init_database service will
+# initialize CockroachDB for SpiceDB by creating the "spicedb" database. Next,
+# the migrate service executes, running "spicedb migrate head" to migrate
+# CockroachDB to the most current revision. After CockroachDB is intialized and
+# migrated, the init_database and migrate services will stop.
+#
+# Note: CockroachDB is run using a single node configuration.
+#
+# SpiceDB settings:
+#   pre-shared key: foobar
+#   dashboard address: http://localhost:8080
+#   metrics address: http://localhost:9090
+#   grpc address: http://localhost:50051
+#
+# CockroachDB settings:
+#   user: root
+#   password: secret
+#   port: 26257
+#   dashboard address: http://localhost:8081
+
 version: "3"
 
 services:
