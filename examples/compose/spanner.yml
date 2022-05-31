@@ -1,5 +1,6 @@
 ---
-# This runs SpiceDB, using Spanner as the storage engine.
+# This runs SpiceDB, using Spanner as the storage engine. SpiceDB will not have
+# any schema written to it.
 #
 # In order to run Spanner locally, a Spanner emulator must be spun up. This is
 # done by the database service. Once that is complete, the emulator must be

@@ -1,5 +1,6 @@
 ---
-# This runs SpiceDB, using Postgres as the storage engine.
+# This runs SpiceDB, using Postgres as the storage engine. SpiceDB will not have
+# any schema written to it.
 #
 # Once the database service is running, the migrate service executes, running
 # "spicedb migrate head" to migrate Postgres to the most current revision. After

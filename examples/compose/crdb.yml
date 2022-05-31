@@ -1,5 +1,6 @@
 ---
-# This runs SpiceDB, using CockroachDB as the storage engine.
+# This runs SpiceDB, using CockroachDB as the storage engine. SpiceDB will not
+# have any schema written to it.
 #
 # Once the database service is running, the init_database service will
 # initialize CockroachDB for SpiceDB by creating the "spicedb" database. Next,
