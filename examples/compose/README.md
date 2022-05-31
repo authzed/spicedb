@@ -27,3 +27,11 @@ docker compose -f postgres.yml down
 to shut down the containers.
 
 > Note: Most quickstarts have configuration services in them to properly set up the storage engine. This means it may take a minute or so before the quickstart is ready to use.
+
+## Available quickstarts
+
+- [CockroachDB](crdb.yml)
+- [Memory](memory.yml)
+- [MySQL](mysql.yml)
+- [Postgres](postgres.yml)
+- [Spanner](spanner.yml)
