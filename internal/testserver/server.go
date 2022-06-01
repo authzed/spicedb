@@ -23,7 +23,7 @@ func NewTestServer(require *require.Assertions,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
 	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
-) (*grpc.ClientConn, func(), decimal.Decimal) {
+) (*grpc.ClientConn, func(), datastore.Datastore, decimal.Decimal) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(err)
 	ds, revision := dsInitFunc(emptyDS, require)
@@ -68,5 +68,5 @@ func NewTestServer(require *require.Assertions,
 			require.NoError(conn.Close())
 		}
 		cancel()
-	}, revision
+	}, ds, revision
 }

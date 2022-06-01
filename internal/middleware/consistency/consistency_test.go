@@ -176,7 +176,7 @@ func TestAddRevisionToContextAPIAlwaysFullyConsistent(t *testing.T) {
 	ds.AssertExpectations(t)
 }
 
-func TestConsistencyTestSuite(t *testing.T) {
+func TestMiddlewareConsistencyTestSuite(t *testing.T) {
 	ds := &proxy_test.MockDatastore{}
 	ds.On("HeadRevision").Return(head, nil)
 

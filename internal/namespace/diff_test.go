@@ -87,7 +87,24 @@ func TestNamespaceDiff(t *testing.T) {
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
+					ns.ComputedUserset("owner"),
+				)),
+			),
+			[]Delta{
+				{Type: ChangedRelationImpl, RelationName: "somerel"},
+			},
+		},
+		{
+			"changed relation impl 2",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", ns.Union(
+					ns.ComputedUserset("editor"),
+				)),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
 			),
@@ -100,14 +117,12 @@ func TestNamespaceDiff(t *testing.T) {
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 			),
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 			),
@@ -118,14 +133,12 @@ func TestNamespaceDiff(t *testing.T) {
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 			),
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "bar")),
 			),
@@ -141,14 +154,12 @@ func TestNamespaceDiff(t *testing.T) {
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 			),
@@ -164,14 +175,12 @@ func TestNamespaceDiff(t *testing.T) {
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "bar")),
 			),
@@ -182,14 +191,12 @@ func TestNamespaceDiff(t *testing.T) {
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo2", "bar")),
 			),
@@ -209,14 +216,12 @@ func TestNamespaceDiff(t *testing.T) {
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedPublicNamespace("foo")),
 			),
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedPublicNamespace("foo2")),
 			),
@@ -230,14 +235,12 @@ func TestNamespaceDiff(t *testing.T) {
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedPublicNamespace("foo")),
 			),
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "something")),
 			),

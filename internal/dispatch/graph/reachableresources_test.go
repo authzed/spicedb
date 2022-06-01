@@ -33,95 +33,95 @@ func TestSimpleReachableResources(t *testing.T) {
 		reachable []reachableResource
 	}{
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "unknown", "..."),
 			[]reachableResource{},
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "eng_lead", "..."),
 			[]reachableResource{
-				reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "masterplan", "view"), true),
 			},
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "multiroleguy", "..."),
 			[]reachableResource{
-				reachable(ONR("document", "specialplan", "viewer"), true),
+				reachable(ONR("document", "specialplan", "view"), true),
 			},
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "legal", "..."),
 			[]reachableResource{
-				reachable(ONR("document", "companyplan", "viewer"), true),
-				reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "companyplan", "view"), true),
+				reachable(ONR("document", "masterplan", "view"), true),
 			},
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "multiroleguy", "..."),
 			[]reachableResource{
-				reachable(ONR("document", "specialplan", "viewer"), true),
+				reachable(ONR("document", "specialplan", "view"), true),
 			},
 		},
 		{
-			RR("document", "viewer_and_editor"),
+			RR("document", "view_and_edit"),
 			ONR("user", "multiroleguy", "..."),
 			[]reachableResource{
-				reachable(ONR("document", "specialplan", "viewer_and_editor"), false),
+				reachable(ONR("document", "specialplan", "view_and_edit"), false),
 			},
 		},
 		{
-			RR("document", "viewer_and_editor"),
+			RR("document", "view_and_edit"),
 			ONR("user", "missingrolegal", "..."),
 			[]reachableResource{
-				reachable(ONR("document", "specialplan", "viewer_and_editor"), false),
+				reachable(ONR("document", "specialplan", "view_and_edit"), false),
 			},
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "villan", "..."),
 			[]reachableResource{},
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "owner", "..."),
 			[]reachableResource{
-				reachable(ONR("document", "companyplan", "viewer"), true),
-				reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "companyplan", "view"), true),
+				reachable(ONR("document", "masterplan", "view"), true),
 			},
 		},
 		{
-			RR("folder", "viewer"),
-			ONR("folder", "company", "viewer"),
+			RR("folder", "view"),
+			ONR("folder", "company", "view"),
 			[]reachableResource{
-				reachable(ONR("folder", "strategy", "viewer"), true),
-				reachable(ONR("folder", "company", "viewer"), true),
+				reachable(ONR("folder", "strategy", "view"), true),
+				reachable(ONR("folder", "company", "view"), true),
 			},
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "chief_financial_officer", "..."),
 			[]reachableResource{
-				reachable(ONR("document", "healthplan", "viewer"), true),
-				reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "healthplan", "view"), true),
+				reachable(ONR("document", "masterplan", "view"), true),
 			},
 		},
 		{
-			RR("folder", "viewer"),
+			RR("folder", "view"),
 			ONR("user", "owner", "..."),
 			[]reachableResource{
-				reachable(ONR("folder", "company", "viewer"), true),
-				reachable(ONR("folder", "strategy", "viewer"), true),
+				reachable(ONR("folder", "company", "view"), true),
+				reachable(ONR("folder", "strategy", "view"), true),
 			},
 		},
 		{
-			RR("document", "viewer"),
-			ONR("document", "masterplan", "viewer"),
+			RR("document", "view"),
+			ONR("document", "masterplan", "view"),
 			[]reachableResource{
-				reachable(ONR("document", "masterplan", "viewer"), true),
+				reachable(ONR("document", "masterplan", "view"), true),
 			},
 		},
 	}
@@ -172,7 +172,7 @@ func TestMaxDepthreachableResources(t *testing.T) {
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 	err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ObjectRelation: RR("document", "viewer"),
+		ObjectRelation: RR("document", "view"),
 		Subject:        ONR("user", "legal", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),

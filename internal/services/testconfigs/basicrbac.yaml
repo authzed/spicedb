@@ -1,41 +1,26 @@
 ---
-namespace_configs:
-  - |
-    name: "example/user"
+schema: |+
+    definition example/user {}
 
-  - |
-    name: "example/document"
-
-    relation {
-      name: "writer"
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "example/user"
-          relation: "..."
-        }
-      }
+    definition example/document {
+    	relation writer: example/user
+    	relation reader: example/user
+        permission write = writer
+        permission view = reader + write
     }
 
-    relation {
-      name: "reader"
+relationships: >-
+    example/document:firstdoc#writer@example/user:tom#...
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "writer" } }
-        }
-      }
+    example/document:firstdoc#reader@example/user:fred#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "example/user"
-          relation: "..."
-        }
-      }
-    }
-
-validation_tuples:
-  - "example/document:firstdoc#writer@example/user:tom#..."
-  - "example/document:firstdoc#reader@example/user:fred#..."
-  - "example/document:seconddoc#reader@example/user:tom#..."
+    example/document:seconddoc#reader@example/user:tom#...
+assertions:
+    assertTrue:
+        - "example/document:firstdoc#write@example/user:tom#..."
+        - "example/document:firstdoc#view@example/user:tom#..."
+        - "example/document:firstdoc#view@example/user:fred#..."
+        - "example/document:seconddoc#view@example/user:tom#..."
+    assertFalse:
+        - "example/document:firstdoc#write@example/user:fred#..."
+        - "example/document:seconddoc#write@example/user:tom#..."

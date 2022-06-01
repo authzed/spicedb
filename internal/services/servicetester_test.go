@@ -6,7 +6,6 @@ import (
 	"io"
 	"sort"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 
@@ -15,7 +14,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
-	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type serviceTester interface {
@@ -25,83 +23,6 @@ type serviceTester interface {
 	Write(ctx context.Context, relationship *core.RelationTuple) error
 	Read(ctx context.Context, namespaceName string, atRevision decimal.Decimal) ([]*core.RelationTuple, error)
 	Lookup(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision decimal.Decimal) ([]string, error)
-}
-
-// v0ServiceTester tests the V0 API.
-type v0ServiceTester struct {
-	aclClient v0.ACLServiceClient
-}
-
-func (v0st v0ServiceTester) Name() string {
-	return "v0"
-}
-
-func (v0st v0ServiceTester) Check(ctx context.Context, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, atRevision decimal.Decimal) (bool, error) {
-	checkResp, err := v0st.aclClient.Check(ctx, &v0.CheckRequest{
-		TestUserset: core.ToV0ObjectAndRelation(resource),
-		User: &v0.User{
-			UserOneof: &v0.User_Userset{
-				Userset: core.ToV0ObjectAndRelation(subject),
-			},
-		},
-		AtRevision: core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
-	})
-	if err != nil {
-		return false, err
-	}
-	return checkResp.IsMember, nil
-}
-
-func (v0st v0ServiceTester) Expand(ctx context.Context, resource *core.ObjectAndRelation, atRevision decimal.Decimal) (*core.RelationTupleTreeNode, error) {
-	expandResp, err := v0st.aclClient.Expand(ctx, &v0.ExpandRequest{
-		Userset:    core.ToV0ObjectAndRelation(resource),
-		AtRevision: core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
-	})
-	if err != nil {
-		return nil, err
-	}
-	return core.ToCoreRelationTupleTreeNode(expandResp.TreeNode), nil
-}
-
-func (v0st v0ServiceTester) Write(ctx context.Context, tpl *core.RelationTuple) error {
-	_, err := v0st.aclClient.Write(ctx, &v0.WriteRequest{
-		WriteConditions: []*v0.RelationTuple{core.ToV0RelationTuple(tpl)},
-		Updates:         []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Touch(tpl))},
-	})
-	return err
-}
-
-func (v0st v0ServiceTester) Read(ctx context.Context, namespaceName string, atRevision decimal.Decimal) ([]*core.RelationTuple, error) {
-	result, err := v0st.aclClient.Read(context.Background(), &v0.ReadRequest{
-		Tuplesets: []*v0.RelationTupleFilter{
-			{Namespace: namespaceName},
-		},
-		AtRevision: core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var tuples []*v0.RelationTuple
-	for _, tplSet := range result.Tuplesets {
-		tuples = append(tuples, tplSet.Tuples...)
-	}
-	return core.ToCoreRelationTuples(tuples), nil
-}
-
-func (v0st v0ServiceTester) Lookup(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision decimal.Decimal) ([]string, error) {
-	result, err := v0st.aclClient.Lookup(context.Background(), &v0.LookupRequest{
-		User:           core.ToV0ObjectAndRelation(subject),
-		ObjectRelation: core.ToV0RelationReference(resourceRelation),
-		Limit:          ^uint32(0),
-		AtRevision:     core.ToV0Zookie(zookie.NewFromRevision(atRevision)),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	sort.Strings(result.ResolvedObjectIds)
-	return result.ResolvedObjectIds, nil
 }
 
 func optionalizeRelation(relation string) string {

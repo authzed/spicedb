@@ -1,72 +1,25 @@
 ---
-namespace_configs:
-  - |
-    name: "srrr/user"
+schema: |+
+    definition srrr/user {}
 
-  - |
-    name: "srrr/resource"
-
-    relation {
-      name: "viewer"
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "srrr/group"
-          relation: "member"
-        }
-      }
+    definition srrr/resource {
+    	relation viewer: srrr/group#member
     }
 
-  - |
-    name: "srrr/group"
-
-    relation {
-      name: "member"
-
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "manager" } }
-        }
-      }
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "srrr/user"
-          relation: "..."
-        }
-        allowed_direct_relations {
-          namespace: "srrr/group"
-          relation: "member"
-        }
-        allowed_direct_relations {
-          namespace: "srrr/group"
-          relation: "manager"
-        }
-      }
+    definition srrr/group {
+    	relation direct_member: srrr/user | srrr/group#member | srrr/group#manager
+    	relation manager: srrr/user | srrr/group#member | srrr/group#manager
+        permission member = direct_member + manager
     }
 
-    relation {
-      name: "manager"
+relationships: >-
+    srrr/group:megagroup#manager@srrr/user:someguy#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "srrr/user"
-          relation: "..."
-        }
-        allowed_direct_relations {
-          namespace: "srrr/group"
-          relation: "member"
-        }
-        allowed_direct_relations {
-          namespace: "srrr/group"
-          relation: "manager"
-        }
-      }
-    }
+    srrr/group:supergroup#manager@srrr/group:megagroup#member
 
-validation_tuples:
-  - "srrr/group:megagroup#manager@srrr/user:someguy#..."
-  - "srrr/group:supergroup#manager@srrr/group:megagroup#member"
-  - "srrr/group:subgroup#member@srrr/group:supergroup#member"
-  - "srrr/resource:someresource#viewer@srrr/group:subgroup#member"
+    srrr/group:subgroup#direct_member@srrr/group:supergroup#member
+
+    srrr/resource:someresource#viewer@srrr/group:subgroup#member
+assertions:
+    assertTrue: []
+    assertFalse: []

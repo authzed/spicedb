@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
@@ -13,12 +12,11 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestSchemaWriteNoPrefix(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
@@ -28,7 +26,7 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidSchema(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -42,7 +40,7 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 }
 
 func TestSchemaWriteAndReadBack(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 
@@ -62,10 +60,10 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
-	v0client := v0.NewACLServiceClient(conn)
+	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
 	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
@@ -79,8 +77,8 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a relationship for one of the relations.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -107,8 +105,8 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.Nil(t, err)
 
 	// Delete the relationship.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -124,10 +122,10 @@ func TestSchemaDeleteRelation(t *testing.T) {
 }
 
 func TestSchemaDeleteDefinition(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
-	v0client := v0.NewACLServiceClient(conn)
+	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
 	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
@@ -141,8 +139,8 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a relationship for one of the relations.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -155,8 +153,8 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
 	// Delete the relationship.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -175,10 +173,10 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 }
 
 func TestSchemaRemoveWildcard(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
-	v0client := v0.NewACLServiceClient(conn)
+	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
 	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
@@ -191,8 +189,8 @@ func TestSchemaRemoveWildcard(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write the wildcard relationship.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
 	})
@@ -216,8 +214,8 @@ definition example/user {}`
 	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed wildcard type `example/user:*` from Relation `somerelation` in Object Definition `example/document`, as a Relationship exists with it", err.Error())
 
 	// Delete the relationship.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
 	})
@@ -236,10 +234,10 @@ definition example/user {}`
 }
 
 func TestSchemaEmpty(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
-	v0client := v0.NewACLServiceClient(conn)
+	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
 	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
@@ -253,8 +251,8 @@ func TestSchemaEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a relationship for one of the relations.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -267,8 +265,8 @@ func TestSchemaEmpty(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
 	// Delete the relationship.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})

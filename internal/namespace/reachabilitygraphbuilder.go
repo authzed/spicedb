@@ -74,12 +74,7 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 	for _, childOneof := range children {
 		switch child := childOneof.ChildType.(type) {
 		case *core.SetOperation_Child_XThis:
-			// TODO(jschorr): Remove once v0 namespace support is completed removed.
-			// A _this{} indicates subject links directly to the operation.
-			err := addSubjectLinks(graph, operationResultState, targetRelation, ts)
-			if err != nil {
-				return err
-			}
+			return fmt.Errorf("use of _this is unsupported; please rewrite your schema")
 
 		case *core.SetOperation_Child_ComputedUserset:
 			// A computed userset adds an entrypoint indicating that the relation is rewritten.

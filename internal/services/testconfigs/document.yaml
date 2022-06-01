@@ -1,203 +1,57 @@
 ---
-namespace_configs:
-  - |
-    name: "user"
+schema: |+
+    definition user {}
 
-  - |
-    name: "document"
+    definition document {
+    	relation owner: user
+    	relation editor: user
+    	relation parent: folder
+    	relation viewer: user
 
-    relation {
-      name: "owner"
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "user"
-          relation: "..."
-        }
-      }
+        permission edit = editor + owner
+        permission view = viewer + edit + parent->view
+        permission view_and_edit = view & edit
     }
 
-    relation {
-      name: "editor"
+    definition folder {
+    	relation parent: folder
+    	relation owner: user
+    	relation editor: user
+    	relation viewer: user | folder#view
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "owner" } }
-        }
-      }
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "user"
-          relation: "..."
-        }
-      }
+        permission view = viewer + editor + owner + parent->view
     }
 
-    relation {
-      name: "parent"
+relationships: >-
+    document:companyplan#parent@folder:company#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "folder"
-          relation: "..."
-        }
-      }
-    }
+    document:masterplan#parent@folder:strategy#...
 
-    relation {
-      name: "viewer"
+    folder:strategy#parent@folder:company#...
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "editor" } }
-          child {
-            tuple_to_userset {
-              tupleset { relation: "parent" }
-              computed_userset {
-                object: TUPLE_USERSET_OBJECT
-                relation: "viewer"
-              }
-            }
-          }
-        }
-      }
+    folder:company#owner@user:owner#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "user"
-          relation: "..."
-        }
-      }
-    }
+    folder:company#viewer@user:legal#...
 
-    relation {
-      name: "viewer_and_editor"
+    folder:strategy#owner@user:vp_product#...
 
-      userset_rewrite {
-        intersection {
-          child { _this {} }
-          child { computed_userset { relation: "editor" } }
-        }
-      }
+    document:masterplan#owner@user:product_manager#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "user"
-          relation: "..."
-        }
-      }
-    }
+    document:masterplan#viewer@user:eng_lead#...
 
-    relation {
-      name: "viewer_and_editor_derived"
+    document:masterplan#parent@folder:plans#...
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "viewer_and_editor" } }
-        }
-      }
+    folder:plans#viewer@user:chief_financial_officer#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "user"
-          relation: "..."
-        }
-      }
-    }
+    folder:auditors#viewer@user:auditor#...
 
-  - |
-    name: "folder"
+    folder:company#viewer@folder:auditors#view
 
-    relation {
-      name: "owner"
+    document:healthplan#parent@folder:plans#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "user"
-          relation: "..."
-        }
-      }
-    }
+    folder:isolated#viewer@user:villain#...
 
-    relation {
-      name: "parent"
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "folder"
-          relation: "..."
-        }
-      }
-    }
-
-    relation {
-      name: "editor"
-
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "owner" } }
-        }
-      }
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "user"
-          relation: "..."
-        }
-      }
-    }
-
-    relation {
-      name: "viewer"
-
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "editor" } }
-          child {
-            tuple_to_userset {
-              tupleset { relation: "parent" }
-              computed_userset {
-                object: TUPLE_USERSET_OBJECT
-                relation: "viewer"
-              }
-            }
-          }
-        }
-      }
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "user"
-          relation: "..."
-        }
-        allowed_direct_relations {
-          namespace: "folder"
-          relation: "viewer"
-        }
-      }
-    }
-
-validation_tuples:
-  - "document:companyplan#parent@folder:company#..."
-  - "document:masterplan#parent@folder:strategy#..."
-  - "folder:strategy#parent@folder:company#..."
-  - "folder:company#owner@user:owner#..."
-  - "folder:company#viewer@user:legal#..."
-  - "folder:strategy#owner@user:vp_product#..."
-  - "document:masterplan#owner@user:product_manager#..."
-  - "document:masterplan#viewer@user:eng_lead#..."
-  - "document:masterplan#parent@folder:plans#..."
-  - "folder:plans#viewer@user:chief_financial_officer#..."
-  - "folder:auditors#viewer@user:auditor#..."
-  - "folder:company#viewer@folder:auditors#viewer"
-  - "document:healthplan#parent@folder:plans#..."
-  - "folder:isolated#viewer@user:villain#..."
-  - "document:specialplan#viewer_and_editor@user:multiroleguy#..."
-  - "document:specialplan#editor@user:multiroleguy#..."
-  - "document:specialplan#viewer_and_editor@user:missingrolegal#..."
+    document:specialplan#editor@user:multiroleguy#...
+assertions:
+    assertTrue: []
+    assertFalse: []

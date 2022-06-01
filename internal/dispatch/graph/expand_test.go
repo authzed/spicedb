@@ -28,85 +28,102 @@ import (
 )
 
 var (
-	_this *core.ObjectAndRelation
-
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
 		tuple.User(ONR("user", "owner", expand.Ellipsis)),
 	)
-	companyEditor = graph.Union(ONR("folder", "company", "editor"),
-		graph.Leaf(_this),
+	companyEditor = graph.Leaf(ONR("folder", "company", "editor"))
+
+	companyEdit = graph.Union(ONR("folder", "company", "edit"),
+		companyEditor,
 		companyOwner,
 	)
 
-	companyViewer = graph.Union(ONR("folder", "company", "viewer"),
-		graph.Leaf(_this,
-			tuple.User(ONR("user", "legal", "...")),
-			tuple.User(ONR("folder", "auditors", "viewer")),
-		),
-		companyEditor,
-		graph.Union(ONR("folder", "company", "viewer")),
+	companyViewer = graph.Leaf(ONR("folder", "company", "viewer"),
+		tuple.User(ONR("user", "legal", "...")),
+		tuple.User(ONR("folder", "auditors", "viewer")),
+	)
+
+	companyView = graph.Union(ONR("folder", "company", "view"),
+		companyViewer,
+		companyEdit,
+		graph.Union(ONR("folder", "company", "view")),
 	)
 
 	auditorsOwner = graph.Leaf(ONR("folder", "auditors", "owner"))
 
-	auditorsEditor = graph.Union(ONR("folder", "auditors", "editor"),
-		graph.Leaf(_this),
+	auditorsEditor = graph.Leaf(ONR("folder", "auditors", "editor"))
+
+	auditorsEdit = graph.Union(ONR("folder", "auditors", "edit"),
+		auditorsEditor,
 		auditorsOwner,
 	)
 
-	auditorsViewerRecursive = graph.Union(ONR("folder", "auditors", "viewer"),
-		graph.Leaf(_this,
-			tuple.User(ONR("user", "auditor", "...")),
-		),
-		auditorsEditor,
-		graph.Union(ONR("folder", "auditors", "viewer")),
+	auditorsViewer = graph.Leaf(ONR("folder", "auditors", "viewer"),
+		tuple.User(ONR("user", "auditor", "...")),
 	)
 
-	companyViewerRecursive = graph.Union(ONR("folder", "company", "viewer"),
-		graph.Union(ONR("folder", "company", "viewer"),
-			auditorsViewerRecursive,
-			graph.Leaf(_this,
-				tuple.User(ONR("user", "legal", "...")),
-				tuple.User(ONR("folder", "auditors", "viewer")),
-			),
-		),
-		companyEditor,
-		graph.Union(ONR("folder", "company", "viewer")),
+	auditorsViewRecursive = graph.Union(ONR("folder", "auditors", "view"),
+		auditorsViewer,
+		auditorsEdit,
+		graph.Union(ONR("folder", "auditors", "view")),
 	)
+
+	companyViewRecursive = graph.Union(ONR("folder", "company", "view"),
+		graph.Union(ONR("folder", "company", "viewer"),
+			graph.Leaf(ONR("folder", "auditors", "viewer"),
+				tuple.User(ONR("user", "auditor", "..."))),
+			graph.Leaf(ONR("folder", "company", "viewer"),
+				tuple.User(ONR("user", "legal", "...")),
+				tuple.User(ONR("folder", "auditors", "viewer")))),
+		graph.Union(ONR("folder", "company", "edit"),
+			graph.Leaf(ONR("folder", "company", "editor")),
+			graph.Leaf(ONR("folder", "company", "owner"),
+				tuple.User(ONR("user", "owner", "...")))),
+		graph.Union(ONR("folder", "company", "view")))
 
 	docOwner = graph.Leaf(ONR("document", "masterplan", "owner"),
 		tuple.User(ONR("user", "product_manager", "...")),
 	)
-	docEditor = graph.Union(ONR("document", "masterplan", "editor"),
-		graph.Leaf(_this),
+	docEditor = graph.Leaf(ONR("document", "masterplan", "editor"))
+
+	docEdit = graph.Union(ONR("document", "masterplan", "edit"),
 		docOwner,
-	)
-	docViewer = graph.Union(ONR("document", "masterplan", "viewer"),
-		graph.Leaf(_this,
-			tuple.User(ONR("user", "eng_lead", "...")),
-		),
 		docEditor,
-		graph.Union(ONR("document", "masterplan", "viewer"),
-			graph.Union(ONR("folder", "plans", "viewer"),
-				graph.Leaf(_this,
+	)
+
+	docViewer = graph.Leaf(ONR("document", "masterplan", "viewer"),
+		tuple.User(ONR("user", "eng_lead", "...")),
+	)
+
+	docView = graph.Union(ONR("document", "masterplan", "view"),
+		docViewer,
+		docEdit,
+		graph.Union(ONR("document", "masterplan", "view"),
+			graph.Union(ONR("folder", "plans", "view"),
+				graph.Leaf(ONR("folder", "plans", "viewer"),
 					tuple.User(ONR("user", "chief_financial_officer", "...")),
 				),
-				graph.Union(ONR("folder", "plans", "editor"),
-					graph.Leaf(_this),
-					graph.Leaf(ONR("folder", "plans", "owner")),
-				),
-				graph.Union(ONR("folder", "plans", "viewer")),
-			),
-			graph.Union(ONR("folder", "strategy", "viewer"),
-				graph.Leaf(_this),
-				graph.Union(ONR("folder", "strategy", "editor"),
-					graph.Leaf(_this),
+				graph.Union(ONR("folder", "plans", "edit"),
+					graph.Leaf(ONR("folder", "plans", "editor")),
+					graph.Leaf(ONR("folder", "plans", "owner"))),
+				graph.Union(ONR("folder", "plans", "view"))),
+			graph.Union(ONR("folder", "strategy", "view"),
+				graph.Leaf(ONR("folder", "strategy", "viewer")),
+				graph.Union(ONR("folder", "strategy", "edit"),
+					graph.Leaf(ONR("folder", "strategy", "editor")),
 					graph.Leaf(ONR("folder", "strategy", "owner"),
-						tuple.User(ONR("user", "vp_product", "...")),
+						tuple.User(ONR("user", "vp_product", "...")))),
+				graph.Union(ONR("folder", "strategy", "view"),
+					graph.Union(ONR("folder", "company", "view"),
+						graph.Leaf(ONR("folder", "company", "viewer"),
+							tuple.User(ONR("user", "legal", "...")),
+							tuple.User(ONR("folder", "auditors", "viewer"))),
+						graph.Union(ONR("folder", "company", "edit"),
+							graph.Leaf(ONR("folder", "company", "editor")),
+							graph.Leaf(ONR("folder", "company", "owner"),
+								tuple.User(ONR("user", "owner", "...")))),
+						graph.Union(ONR("folder", "company", "view")),
 					),
-				),
-				graph.Union(ONR("folder", "strategy", "viewer"),
-					companyViewer,
 				),
 			),
 		),
@@ -122,19 +139,19 @@ func TestExpand(t *testing.T) {
 		expectedDepthRequired int
 	}{
 		{start: ONR("folder", "company", "owner"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyOwner, expectedDispatchCount: 1, expectedDepthRequired: 1},
-		{start: ONR("folder", "company", "editor"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyEditor, expectedDispatchCount: 2, expectedDepthRequired: 2},
-		{start: ONR("folder", "company", "viewer"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyViewer, expectedDispatchCount: 3, expectedDepthRequired: 3},
+		{start: ONR("folder", "company", "edit"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyEdit, expectedDispatchCount: 3, expectedDepthRequired: 2},
+		{start: ONR("folder", "company", "view"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: companyView, expectedDispatchCount: 5, expectedDepthRequired: 3},
 		{start: ONR("document", "masterplan", "owner"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docOwner, expectedDispatchCount: 1, expectedDepthRequired: 1},
-		{start: ONR("document", "masterplan", "editor"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docEditor, expectedDispatchCount: 2, expectedDepthRequired: 2},
-		{start: ONR("document", "masterplan", "viewer"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docViewer, expectedDispatchCount: 12, expectedDepthRequired: 5},
+		{start: ONR("document", "masterplan", "edit"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docEdit, expectedDispatchCount: 3, expectedDepthRequired: 2},
+		{start: ONR("document", "masterplan", "view"), expansionMode: v1.DispatchExpandRequest_SHALLOW, expected: docView, expectedDispatchCount: 20, expectedDepthRequired: 5},
 
 		{start: ONR("folder", "auditors", "owner"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsOwner, expectedDispatchCount: 1, expectedDepthRequired: 1},
-		{start: ONR("folder", "auditors", "editor"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsEditor, expectedDispatchCount: 2, expectedDepthRequired: 2},
-		{start: ONR("folder", "auditors", "viewer"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsViewerRecursive, expectedDispatchCount: 3, expectedDepthRequired: 3},
+		{start: ONR("folder", "auditors", "edit"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsEdit, expectedDispatchCount: 3, expectedDepthRequired: 2},
+		{start: ONR("folder", "auditors", "view"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: auditorsViewRecursive, expectedDispatchCount: 5, expectedDepthRequired: 3},
 
 		{start: ONR("folder", "company", "owner"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyOwner, expectedDispatchCount: 1, expectedDepthRequired: 1},
-		{start: ONR("folder", "company", "editor"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyEditor, expectedDispatchCount: 2, expectedDepthRequired: 2},
-		{start: ONR("folder", "company", "viewer"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyViewerRecursive, expectedDispatchCount: 6, expectedDepthRequired: 4},
+		{start: ONR("folder", "company", "edit"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyEdit, expectedDispatchCount: 3, expectedDepthRequired: 2},
+		{start: ONR("folder", "company", "view"), expansionMode: v1.DispatchExpandRequest_RECURSIVE, expected: companyViewRecursive, expectedDispatchCount: 6, expectedDepthRequired: 3},
 	}
 
 	for _, tc := range testCases {
@@ -155,8 +172,8 @@ func TestExpand(t *testing.T) {
 			require.NoError(err)
 			require.NotNil(expandResult.TreeNode)
 			require.GreaterOrEqual(expandResult.Metadata.DepthRequired, uint32(1))
-			require.Equal(tc.expectedDispatchCount, int(expandResult.Metadata.DispatchCount))
-			require.Equal(tc.expectedDepthRequired, int(expandResult.Metadata.DepthRequired))
+			require.Equal(tc.expectedDispatchCount, int(expandResult.Metadata.DispatchCount), "mismatch in dispatch count")
+			require.Equal(tc.expectedDepthRequired, int(expandResult.Metadata.DepthRequired), "mismatch in depth required")
 
 			if diff := cmp.Diff(tc.expected, expandResult.TreeNode, protocmp.Transform()); diff != "" {
 				fset := token.NewFileSet()
@@ -207,11 +224,11 @@ func serialize(node *core.RelationTupleTreeNode) *ast.CallExpr {
 	case *core.RelationTupleTreeNode_IntermediateNode:
 		switch node.GetIntermediateNode().Operation {
 		case core.SetOperationUserset_EXCLUSION:
-			fName = "tf.E"
+			fName = "graph.Exclusion"
 		case core.SetOperationUserset_INTERSECTION:
-			fName = "tf.I"
+			fName = "graph.Intersection"
 		case core.SetOperationUserset_UNION:
-			fName = "tf.U"
+			fName = "graph.Union"
 		default:
 			panic("Unknown set operation")
 		}
@@ -221,11 +238,11 @@ func serialize(node *core.RelationTupleTreeNode) *ast.CallExpr {
 		}
 
 	case *core.RelationTupleTreeNode_LeafNode:
-		fName = "tf.Leaf"
+		fName = "graph.Leaf"
 		for _, user := range node.GetLeafNode().Users {
 			onrExpr := onrExpr(user.GetUserset())
 			children = append(children, &ast.CallExpr{
-				Fun:  ast.NewIdent("User"),
+				Fun:  ast.NewIdent("tuple.User"),
 				Args: []ast.Expr{onrExpr},
 			})
 		}
@@ -239,7 +256,7 @@ func serialize(node *core.RelationTupleTreeNode) *ast.CallExpr {
 
 func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 	return &ast.CallExpr{
-		Fun: ast.NewIdent("tf.ONR"),
+		Fun: ast.NewIdent("ONR"),
 		Args: []ast.Expr{
 			ast.NewIdent("\"" + onr.Namespace + "\""),
 			ast.NewIdent("\"" + onr.ObjectId + "\""),
@@ -285,7 +302,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	dispatch := NewLocalOnlyDispatcher()
 
 	_, err = dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
-		ObjectAndRelation: ONR("folder", "oops", "viewer"),
+		ObjectAndRelation: ONR("folder", "oops", "view"),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,

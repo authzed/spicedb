@@ -92,7 +92,9 @@ func TestGenerator(t *testing.T) {
 			"legacy relation",
 			namespace.Namespace("foos/test",
 				namespace.Relation("somerel", namespace.Union(
-					namespace.This(),
+					&core.SetOperation_Child{
+						ChildType: &core.SetOperation_Child_XThis{},
+					},
 					namespace.ComputedUserset("anotherrel"),
 				), namespace.AllowedRelation("foos/bars", "hiya")),
 			),
