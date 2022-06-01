@@ -123,7 +123,7 @@ func (cr *clusterDispatcher) Close() error {
 	return nil
 }
 
-// Always verify that we implement the interfaces
+// Ready returns whether the underlying dispatch connection is available
 func (cr *clusterDispatcher) Ready() bool {
 	return cr.conn.GetState() == connectivity.Ready ||
 		cr.conn.GetState() == connectivity.Idle
