@@ -46,7 +46,7 @@ func TestHealthCheck(t *testing.T) {
 	}
 
 	// Check server without dispatching
-	conn, cleanup, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	t.Cleanup(cleanup)
 	runHealthChecks(require, conn)
 }
