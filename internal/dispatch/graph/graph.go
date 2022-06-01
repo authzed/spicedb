@@ -265,6 +265,10 @@ func (ld *localDispatcher) Close() error {
 	return nil
 }
 
+func (ld *localDispatcher) Ready() bool {
+	return true
+}
+
 func rewriteError(original error) error {
 	nsNotFound := datastore.ErrNamespaceNotFound{}
 

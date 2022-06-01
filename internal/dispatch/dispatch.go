@@ -24,6 +24,9 @@ type Dispatcher interface {
 
 	// Close closes the dispatcher.
 	Close() error
+
+	// Ready returns true when dispatcher is able to respond to requests
+	Ready() bool
 }
 
 // Check interface describes just the methods required to dispatch check requests.

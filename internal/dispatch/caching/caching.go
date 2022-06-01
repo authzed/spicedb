@@ -367,5 +367,9 @@ func (cd *Dispatcher) Close() error {
 	return nil
 }
 
+func (cd *Dispatcher) Ready() bool {
+	return cd.c != nil && cd.d.Ready()
+}
+
 // Always verify that we implement the interfaces
 var _ dispatch.Dispatcher = &Dispatcher{}

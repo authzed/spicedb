@@ -114,7 +114,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		if err != nil {
 			return nil, err
 		}
-		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), &keys.CanonicalKeyHandler{})
+		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, &keys.CanonicalKeyHandler{})
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)

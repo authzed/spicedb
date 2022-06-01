@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
@@ -22,16 +23,17 @@ type clusterClient interface {
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
-func NewClusterDispatcher(client clusterClient, keyHandler keys.Handler) dispatch.Dispatcher {
+func NewClusterDispatcher(client clusterClient, conn *grpc.ClientConn, keyHandler keys.Handler) dispatch.Dispatcher {
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
 	}
 
-	return &clusterDispatcher{clusterClient: client, keyHandler: keyHandler}
+	return &clusterDispatcher{clusterClient: client, conn: conn, keyHandler: keyHandler}
 }
 
 type clusterDispatcher struct {
 	clusterClient clusterClient
+	conn          *grpc.ClientConn
 	keyHandler    keys.Handler
 }
 
@@ -121,7 +123,13 @@ func (cr *clusterDispatcher) Close() error {
 	return nil
 }
 
-// Always verify that we implement the interfaces
+// Ready returns whether the underlying dispatch connection is available
+func (cr *clusterDispatcher) Ready() bool {
+	return cr.conn.GetState() == connectivity.Ready ||
+		cr.conn.GetState() == connectivity.Idle
+}
+
+// Always verify that we implement the interface
 var _ dispatch.Dispatcher = &clusterDispatcher{}
 
 var emptyMetadata *v1.ResponseMeta = &v1.ResponseMeta{
