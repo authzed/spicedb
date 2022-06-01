@@ -3,10 +3,11 @@ package server
 import (
 	"fmt"
 
-	"github.com/dgraph-io/ristretto"
 	"github.com/dustin/go-humanize"
 	"github.com/jzelinskie/stringz"
 	"github.com/spf13/pflag"
+
+	"github.com/authzed/spicedb/pkg/cache"
 )
 
 // CacheConfig defines configuration for a ristretto cache.
@@ -23,8 +24,8 @@ const (
 	defaultBufferItems = 64
 )
 
-// Complete converts the cache config into a ristretto cache config.
-func (cc *CacheConfig) Complete() (*ristretto.Config, error) {
+// Complete translates the CLI cache config into a cache config.
+func (cc *CacheConfig) Complete() (*cache.Config, error) {
 	if cc.MaxCost == "" || cc.NumCounters == 0 {
 		return nil, nil
 	}
@@ -34,7 +35,7 @@ func (cc *CacheConfig) Complete() (*ristretto.Config, error) {
 		return nil, fmt.Errorf("error parsing cache max cost `%s`: %w", cc.MaxCost, err)
 	}
 
-	return &ristretto.Config{
+	return &cache.Config{
 		MaxCost:     int64(maxCost),
 		NumCounters: cc.NumCounters,
 		Metrics:     cc.Metrics,

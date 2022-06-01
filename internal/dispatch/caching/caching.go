@@ -6,7 +6,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/dgraph-io/ristretto"
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/pkg/cache"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -26,7 +26,7 @@ const (
 // Dispatcher is a dispatcher with built-in caching.
 type Dispatcher struct {
 	d          dispatch.Dispatcher
-	c          *ristretto.Cache
+	c          cache.Cache
 	keyHandler keys.Handler
 
 	checkTotalCounter                  prometheus.Counter
@@ -63,12 +63,12 @@ var (
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
 // and caches the responses when possible and desirable.
 func NewCachingDispatcher(
-	cacheConfig *ristretto.Config,
+	cacheConfig *cache.Config,
 	prometheusSubsystem string,
 	keyHandler keys.Handler,
 ) (*Dispatcher, error) {
 	if cacheConfig == nil {
-		cacheConfig = &ristretto.Config{
+		cacheConfig = &cache.Config{
 			NumCounters: 1e4,     // number of keys to track frequency of (10k).
 			MaxCost:     1 << 24, // maximum cost of cache (16MB).
 			BufferItems: 64,      // number of keys per Get buffer.
@@ -78,7 +78,7 @@ func NewCachingDispatcher(
 		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching dispatcher")
 	}
 
-	cache, err := ristretto.NewCache(cacheConfig)
+	cache, err := cache.NewCache(cacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errCachingInitialization, err)
 	}
@@ -121,14 +121,14 @@ func NewCachingDispatcher(
 		Subsystem: prometheusSubsystem,
 		Name:      "cache_hits_total",
 	}, func() float64 {
-		return float64(cache.Metrics.Hits())
+		return float64(cache.GetMetrics().Hits())
 	})
 	cacheMissesTotal := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "cache_misses_total",
 	}, func() float64 {
-		return float64(cache.Metrics.Misses())
+		return float64(cache.GetMetrics().Misses())
 	})
 
 	costAddedBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -136,7 +136,7 @@ func NewCachingDispatcher(
 		Subsystem: prometheusSubsystem,
 		Name:      "cost_added_bytes",
 	}, func() float64 {
-		return float64(cache.Metrics.CostAdded())
+		return float64(cache.GetMetrics().CostAdded())
 	})
 
 	costEvictedBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -144,7 +144,7 @@ func NewCachingDispatcher(
 		Subsystem: prometheusSubsystem,
 		Name:      "cost_evicted_bytes",
 	}, func() float64 {
-		return float64(cache.Metrics.CostEvicted())
+		return float64(cache.GetMetrics().CostEvicted())
 	})
 
 	if prometheusSubsystem != "" {
