@@ -2,7 +2,8 @@
 
 This directory contains a variety of quickstart examples to start SpiceDB with various storage engines.
 
-:warning: These examples are **not** production-ready and are provided purely for local testing only :warning:
+> **Warning**
+> These examples are **not** production-ready and are provided purely for local testing only.
 
 ## Usage
 
@@ -26,7 +27,8 @@ docker compose -f postgres.yml down
 
 to shut down the containers.
 
-> Note: Most quickstarts have configuration services in them to properly set up the storage engine. This means it may take a minute or so before the quickstart is ready to use.
+> **Note**
+> Most quickstarts have configuration services in them to properly set up the storage engine. This means it may take a minute or so before the quickstart is ready to use.
 
 ## Available quickstarts
 
