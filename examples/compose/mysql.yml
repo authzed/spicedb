@@ -1,0 +1,54 @@
+---
+# This runs SpiceDB, using MySQL as the storage engine. SpiceDB will not have
+# any schema written to it.
+#
+# Once the database service is running, the migrate service executes, running
+# "spicedb migrate head" to migrate MySQL to the most current revision. After
+# MySQL is migrated, the migrate service will stop.
+#
+# SpiceDB settings:
+#   pre-shared key: foobar
+#   dashboard address: http://localhost:8080
+#   metrics address: http://localhost:9090
+#   grpc address: http://localhost:50051
+#
+# MySQL settings:
+#   user: root
+#   password: secret
+#   port: 3306
+
+version: "3"
+
+services:
+  spicedb:
+    image: "authzed/spicedb"
+    command: "serve"
+    restart: "always"
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+      - "50051:50051"
+    environment:
+      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_DATASTORE_ENGINE=mysql"
+      - "SPICEDB_DATASTORE_CONN_URI=root:secret@tcp(database:3306)/spicedb?parseTime=true"
+    depends_on:
+      - "migrate"
+
+  migrate:
+    image: "authzed/spicedb"
+    command: "migrate head"
+    restart: "on-failure"
+    environment:
+      - "SPICEDB_DATASTORE_ENGINE=mysql"
+      - "SPICEDB_DATASTORE_CONN_URI=root:secret@tcp(database:3306)/spicedb?parseTime=true"
+    depends_on:
+      - "database"
+
+  database:
+    image: "mysql"
+    ports:
+      - "3306:3306"
+    environment:
+      - "MYSQL_ROOT_PASSWORD=secret"
+      - "MYSQL_DATABASE=spicedb"

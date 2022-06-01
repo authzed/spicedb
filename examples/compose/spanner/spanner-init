@@ -1,0 +1,24 @@
+#!/bin/bash
+#/ Sets up a spanner instance for SpiceDB.
+#/
+#/ Expects the following environment variables:
+#/   EMULATOR_HOST  Host of the the Spanner emulator (i.e. http://localhost:9020/)
+#/                    WARN: This must have a trailing /
+#/   INSTANCE_NAME  Name of the Spanner instance
+#/   PROJECT_ID     Name of the project id
+
+# configure gcloud cli to connect to emulator
+gcloud config set auth/disable_credentials true
+gcloud config set project $PROJECT_ID
+gcloud config set api_endpoint_overrides/spanner $EMULATOR_HOST
+
+# create spanner instance
+gcloud spanner instances create $INSTANCE_NAME \
+  --config=emulator-config \
+  --description="Test Instance" \
+  --nodes=1
+
+gcloud config set spanner/instance $INSTANCE_NAME
+
+# create database
+gcloud spanner databases create spicedb

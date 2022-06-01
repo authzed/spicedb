@@ -1,0 +1,69 @@
+---
+# This runs SpiceDB, using CockroachDB as the storage engine. SpiceDB will not
+# have any schema written to it.
+#
+# Once the database service is running, the init_database service will
+# initialize CockroachDB for SpiceDB by creating the "spicedb" database. Next,
+# the migrate service executes, running "spicedb migrate head" to migrate
+# CockroachDB to the most current revision. After CockroachDB is intialized and
+# migrated, the init_database and migrate services will stop.
+#
+# Note: CockroachDB is run using a single node configuration.
+#
+# SpiceDB settings:
+#   pre-shared key: foobar
+#   dashboard address: http://localhost:8080
+#   metrics address: http://localhost:9090
+#   grpc address: http://localhost:50051
+#
+# CockroachDB settings:
+#   user: root
+#   password: secret
+#   port: 26257
+#   dashboard address: http://localhost:8081
+
+version: "3"
+
+services:
+  spicedb:
+    image: "authzed/spicedb"
+    command: "serve"
+    restart: "always"
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+      - "50051:50051"
+    environment:
+      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
+      - "SPICEDB_DATASTORE_CONN_URI=postgresql://root:secret@database:26257/spicedb?sslmode=disable"
+    depends_on:
+      - "migrate"
+
+  migrate:
+    image: "authzed/spicedb"
+    command: "migrate head"
+    restart: "on-failure"
+    environment:
+      - "SPICEDB_DATASTORE_ENGINE=cockroachdb"
+      - "SPICEDB_DATASTORE_CONN_URI=postgresql://root:secret@database:26257/spicedb?sslmode=disable"
+    depends_on:
+      - "init_database"
+
+  init_database:
+    image: "cockroachdb/cockroach"
+    restart: "on-failure"
+    command: "sql --insecure -e 'CREATE DATABASE IF NOT EXISTS spicedb;'"
+    environment:
+      - "COCKROACH_HOST=database:26257"
+    depends_on:
+      - "database"
+
+  database:
+    image: "cockroachdb/cockroach"
+    command: "start-single-node --insecure"
+    ports:
+      - "26257:26257"
+      - "8081:8080" # Using 8081 because 8080 is used by SpiceDB
+    environment:
+      - "POSTGRES_PASSWORD=secret"
