@@ -63,8 +63,8 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
 	golang.org/x/sync v0.0.0-20220513210516-0976fa681c29
 	golang.org/x/tools v0.1.10
-	google.golang.org/api v0.80.0
-	google.golang.org/genproto v0.0.0-20220519153652-3a47de7e79bd
+	google.golang.org/api v0.82.0
+	google.golang.org/genproto v0.0.0-20220527130721-00d5c0f3be58
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/yaml.v2 v2.4.0
