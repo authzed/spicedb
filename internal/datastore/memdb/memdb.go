@@ -136,6 +136,11 @@ func (mdb *memdbDatastore) ReadWriteTx(
 					return
 				}
 
+				if mdb.db == nil {
+					err = fmt.Errorf("datastore is closed")
+					return
+				}
+
 				tx = mdb.db.Txn(true)
 				tx.TrackChanges()
 				mdb.activeWriteTxn = tx
@@ -208,9 +213,12 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		mdb.activeWriteTxn = nil
 
 		// Create a snapshot and add it to the revisions slice
+		if mdb.db == nil {
+			return datastore.NoRevision, fmt.Errorf("datastore has been closed")
+		}
+
 		snap := mdb.db.Snapshot()
 		mdb.revisions = append(mdb.revisions, snapshot{newRevision, snap})
-
 		return newRevision, nil
 	}
 
