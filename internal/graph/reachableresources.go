@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/scylladb/go-set/strset"
 	"github.com/shopspring/decimal"
@@ -36,11 +37,22 @@ type ValidatedReachableResourcesRequest struct {
 	Revision decimal.Decimal
 }
 
+type syncONRSet struct {
+	items sync.Map
+}
+
+func (s *syncONRSet) Add(onr *core.ObjectAndRelation) bool {
+	key := tuple.StringONR(onr)
+	_, existed := s.items.LoadOrStore(key, struct{}{})
+	return !existed
+}
+
 func (crr *ConcurrentReachableResources) ReachableResources(
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
 	ctx := stream.Context()
+	dispatched := &syncONRSet{}
 
 	// If the resource type matches the subject type, yield directly.
 	if req.Subject.Namespace == req.ObjectRelation.Namespace &&
@@ -83,7 +95,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	for _, entrypoint := range entrypoints {
 		switch entrypoint.EntrypointKind() {
 		case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-			err := crr.lookupRelationEntrypoint(subCtx, entrypoint, rg, g, reader, req, stream)
+			err := crr.lookupRelationEntrypoint(subCtx, entrypoint, rg, g, reader, req, stream, dispatched)
 			if err != nil {
 				return err
 			}
@@ -96,7 +108,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 				Relation:  containingRelation.Relation,
 			}
 
-			err := crr.redispatchOrReport(subCtx, rewrittenSubjectTpl, rg, g, entrypoint, stream, req)
+			err := crr.redispatchOrReport(subCtx, rewrittenSubjectTpl, rg, g, entrypoint, stream, req, dispatched)
 			if err != nil {
 				return err
 			}
@@ -154,7 +166,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 						Relation:  containingRelation.Relation,
 					}
 
-					err := crr.redispatchOrReport(subCtx, rewrittenObjectTpl, rg, g, entrypoint, stream, req)
+					err := crr.redispatchOrReport(subCtx, rewrittenObjectTpl, rg, g, entrypoint, stream, req, dispatched)
 					if err != nil {
 						return err
 					}
@@ -176,6 +188,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 	reader datastore.Reader,
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
+	dispatched *syncONRSet,
 ) error {
 	relationReference := entrypoint.DirectRelation()
 	_, relTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, relationReference.Namespace, reader)
@@ -218,7 +231,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 				return it.Err()
 			}
 
-			err := crr.redispatchOrReport(ctx, tpl.ObjectAndRelation, rg, g, entrypoint, stream, req)
+			err := crr.redispatchOrReport(ctx, tpl.ObjectAndRelation, rg, g, entrypoint, stream, req, dispatched)
 			if err != nil {
 				return err
 			}
@@ -252,7 +265,14 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 	entrypoint namespace.ReachabilityEntrypoint,
 	parentStream dispatch.ReachableResourcesStream,
 	parentRequest ValidatedReachableResourcesRequest,
+	dispatched *syncONRSet,
 ) error {
+	// Skip redispatching or checking for any resources already reported by this
+	// pass.
+	if !dispatched.Add(foundResource) {
+		return nil
+	}
+
 	// Check for entrypoints for the new found resource type.
 	hasResourceEntrypoints, err := rg.HasOptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: foundResource.Namespace,
