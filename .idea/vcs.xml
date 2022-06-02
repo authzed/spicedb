@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/authzed-spicedb" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/authzed-spicedb_-_2021-10-03_02-31-22" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cmd/spicedb/uhm/authzed-spicedb_-_2021-10-03_02-31-22" vcs="Git" />
+  </component>
+</project>

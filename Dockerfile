@@ -12,7 +12,7 @@ COPY --from=spicedb-builder /go/src/app/spicedb /usr/local/bin/spicedb
 ENTRYPOINT ["spicedb"]
 
 # Cloud Sql Proxy
-RUN apk update && apk add wget && apk add yarn
+RUN apk update && apk add wget && apk add yarn && add sh
 RUN wget https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
 RUN chmod +x cloud_sql_proxy
 
