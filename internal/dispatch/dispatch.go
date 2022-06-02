@@ -81,9 +81,21 @@ func CheckDepth(ctx context.Context, req HasMetadata) error {
 	return nil
 }
 
+type cachePrefix string
+
+const (
+	checkViaRelationPrefix   cachePrefix = "cr"
+	checkViaCanonicalPrefix  cachePrefix = "cc"
+	lookupPrefix             cachePrefix = "l"
+	expandPrefix             cachePrefix = "e"
+	reachableResourcesPrefix cachePrefix = "rr"
+)
+
+var cachePrefixes = []cachePrefix{checkViaRelationPrefix, checkViaCanonicalPrefix, lookupPrefix, expandPrefix, reachableResourcesPrefix}
+
 // CheckRequestToKey converts a check request into a cache key based on the relation
 func CheckRequestToKey(req *v1.DispatchCheckRequest) string {
-	return fmt.Sprintf("check//relation/%s@%s@%s", tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+	return fmt.Sprintf("%s//%s@%s@%s", checkViaRelationPrefix, tuple.StringONR(req.ObjectAndRelation), tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }
 
 // CheckRequestToKeyWithCanonical converts a check request into a cache key based
@@ -94,20 +106,20 @@ func CheckRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey s
 	}
 
 	// NOTE: canonical cache keys are only unique *within* a version of a namespace.
-	return fmt.Sprintf("check//canonical/%s:%s#%s@%s@%s", req.ObjectAndRelation.Namespace, req.ObjectAndRelation.ObjectId, canonicalKey, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+	return fmt.Sprintf("%s//%s:%s#%s@%s@%s", checkViaCanonicalPrefix, req.ObjectAndRelation.Namespace, req.ObjectAndRelation.ObjectId, canonicalKey, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }
 
 // LookupRequestToKey converts a lookup request into a cache key
 func LookupRequestToKey(req *v1.DispatchLookupRequest) string {
-	return fmt.Sprintf("lookup//%s#%s@%s@%s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+	return fmt.Sprintf("%s//%s#%s@%s@%s", lookupPrefix, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }
 
 // ExpandRequestToKey converts an expand request into a cache key
 func ExpandRequestToKey(req *v1.DispatchExpandRequest) string {
-	return fmt.Sprintf("expand//%s@%s", tuple.StringONR(req.ObjectAndRelation), req.Metadata.AtRevision)
+	return fmt.Sprintf("%s//%s@%s", expandPrefix, tuple.StringONR(req.ObjectAndRelation), req.Metadata.AtRevision)
 }
 
 // ReachableResourcesRequestToKey converts a reachable resources request into a cache key
 func ReachableResourcesRequestToKey(req *v1.DispatchReachableResourcesRequest) string {
-	return fmt.Sprintf("reachableresources//%s#%s@%s@%s", req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+	return fmt.Sprintf("%s//%s#%s@%s@%s", reachableResourcesPrefix, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
 }
