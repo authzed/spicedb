@@ -12,7 +12,7 @@ COPY --from=spicedb-builder /go/src/app/spicedb /usr/local/bin/spicedb
 
 
 # Cloud Sql Proxy
-RUN apk update && apk add wget && apk add yarn && add bin/sh
+RUN apk update && apk add wget && apk add yarn
 RUN wget https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
 RUN chmod +x cloud_sql_proxy
 
@@ -20,5 +20,5 @@ COPY . .
 
 RUN yarn
 
-CMD ["bin/sh", "-c", "./cloud_sql_proxy -instances=$CLOUD_SQL_CONNECTION_NAME=cog-analytics-backend:us-central1:authz-store=tcp:5433 & yarn start"]
+CMD ["#!/bin/bash", "-c", "./cloud_sql_proxy -instances=$CLOUD_SQL_CONNECTION_NAME=cog-analytics-backend:us-central1:authz-store=tcp:5433 & yarn start"]
 ENTRYPOINT ["spicedb"]
