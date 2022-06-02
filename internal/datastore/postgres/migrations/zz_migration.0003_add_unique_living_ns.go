@@ -1,5 +1,11 @@
 package migrations
 
+import (
+	"context"
+
+	"github.com/jackc/pgx/v4"
+)
+
 const createUniqueLivingTupleConstraint = `
 	ALTER TABLE namespace_config
 	ADD CONSTRAINT uq_namespace_living UNIQUE (namespace, deleted_transaction);
@@ -13,23 +19,17 @@ const deleteAllButNewestNamespace = `
 
 func init() {
 	if err := DatabaseMigrations.Register("add-unique-living-ns", "add-reverse-index", func(apd *AlembicPostgresDriver) error {
-		tx, err := apd.db.Beginx()
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
+		ctx := context.Background()
+		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, deleteAllButNewestNamespace); err != nil {
+				return err
+			}
 
-		_, err = tx.Exec(deleteAllButNewestNamespace)
-		if err != nil {
-			return err
-		}
-
-		_, err = tx.Exec(createUniqueLivingTupleConstraint)
-		if err != nil {
-			return err
-		}
-
-		return tx.Commit()
+			if _, err := tx.Exec(ctx, createUniqueLivingTupleConstraint); err != nil {
+				return err
+			}
+			return nil
+		})
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

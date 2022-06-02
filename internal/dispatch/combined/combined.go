@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/authzed/grpcutil"
-	"github.com/dgraph-io/ristretto"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,7 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
-	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/cache"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -29,7 +28,7 @@ type optionState struct {
 	upstreamCAPath      string
 	grpcPresharedKey    string
 	grpcDialOpts        []grpc.DialOption
-	cacheConfig         *ristretto.Config
+	cacheConfig         *cache.Config
 }
 
 // PrometheusSubsystem sets the subsystem name for the prometheus metrics
@@ -71,7 +70,7 @@ func GrpcDialOpts(opts ...grpc.DialOption) Option {
 }
 
 // CacheConfig sets the configuration for the local dispatcher's cache.
-func CacheConfig(config *ristretto.Config) Option {
+func CacheConfig(config *cache.Config) Option {
 	return func(state *optionState) {
 		state.cacheConfig = config
 	}
@@ -79,7 +78,7 @@ func CacheConfig(config *ristretto.Config) Option {
 
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
-func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatcher, error) {
+func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 	var opts optionState
 	for _, fn := range options {
 		fn(&opts)
@@ -90,12 +89,12 @@ func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatche
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, nsm, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}
 
-	redispatch := graph.NewDispatcher(cachingRedispatch, nsm)
+	redispatch := graph.NewDispatcher(cachingRedispatch)
 
 	// If an upstream is specified, create a cluster dispatcher.
 	if opts.upstreamAddr != "" {
@@ -115,7 +114,7 @@ func NewDispatcher(nsm namespace.Manager, options ...Option) (dispatch.Dispatche
 		if err != nil {
 			return nil, err
 		}
-		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), &keys.CanonicalKeyHandler{}, nsm)
+		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, &keys.CanonicalKeyHandler{})
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)

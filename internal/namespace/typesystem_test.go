@@ -4,13 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -27,13 +26,11 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("owner", nil),
 				ns.Relation("editor", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 				ns.Relation("parent", nil),
 				ns.Relation("lock", nil),
 				ns.Relation("viewer", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("editors"),
 					ns.TupleToUserset("parent", "viewer"),
 				)),
@@ -47,13 +44,11 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("owner", nil),
 				ns.Relation("editor", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 				ns.Relation("parent", nil),
 				ns.Relation("lock", nil),
 				ns.Relation("viewer", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("editor"),
 					ns.TupleToUserset("parents", "viewer"),
 				)),
@@ -96,13 +91,11 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("owner", nil, ns.AllowedRelation("someinvalidns", "...")),
 				ns.Relation("editor", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 				ns.Relation("parent", nil),
 				ns.Relation("lock", nil),
 				ns.Relation("viewer", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("editor"),
 					ns.TupleToUserset("parent", "viewer"),
 				)),
@@ -116,13 +109,11 @@ func TestTypeSystem(t *testing.T) {
 				"document",
 				ns.Relation("owner", nil, ns.AllowedRelation("anotherns", "foobar")),
 				ns.Relation("editor", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("owner"),
 				)),
 				ns.Relation("parent", nil),
 				ns.Relation("lock", nil),
 				ns.Relation("viewer", ns.Union(
-					ns.This(),
 					ns.ComputedUserset("editor"),
 					ns.TupleToUserset("parent", "viewer"),
 				)),
@@ -147,16 +138,15 @@ func TestTypeSystem(t *testing.T) {
 				ns.Relation("editor",
 					ns.Union(
 						ns.ComputedUserset("owner"),
-						ns.This(),
 					),
-					ns.AllowedRelation("user", "..."),
 				),
 				ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
-				ns.Relation("viewer", ns.Union(
-					ns.This(),
+				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
+				ns.Relation("view", ns.Union(
+					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("editor"),
-					ns.TupleToUserset("parent", "viewer"),
-				), ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
+					ns.TupleToUserset("parent", "view"),
+				)),
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
@@ -219,21 +209,22 @@ func TestTypeSystem(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
-			nsm, err := NewCachingNamespaceManager(nil)
+			ctx := context.Background()
+
+			lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				for _, otherNS := range tc.otherNamespaces {
+					if err := rwt.WriteNamespaces(otherNS); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
 			require.NoError(err)
 
-			var lastRevision decimal.Decimal
-			for _, otherNS := range tc.otherNamespaces {
-				var err error
-				lastRevision, err = ds.WriteNamespace(ctx, otherNS)
-				require.NoError(err)
-			}
-
-			ts, err := BuildNamespaceTypeSystemForManager(tc.toCheck, nsm, lastRevision)
+			ts, err := BuildNamespaceTypeSystemForDatastore(tc.toCheck, ds.SnapshotReader(lastRevision))
 			require.NoError(err)
 
 			_, terr := ts.Validate(ctx)

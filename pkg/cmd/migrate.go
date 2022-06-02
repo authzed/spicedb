@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/fatih/color"
@@ -8,12 +9,12 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	mysqlmigrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	spannermigrations "github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
@@ -96,7 +97,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	targetRevision := args[0]
 
 	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
-	if err := manager.Run(migrationDriver, targetRevision, migrate.LiveRun); err != nil {
+	if err := manager.Run(context.Background(), migrationDriver, targetRevision, migrate.LiveRun); err != nil {
 		log.Fatal().Err(err).Msg("unable to complete requested migrations")
 	}
 

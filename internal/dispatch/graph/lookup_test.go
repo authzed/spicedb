@@ -16,7 +16,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -45,20 +44,20 @@ func TestSimpleLookup(t *testing.T) {
 		expectedDepthRequired int
 	}{
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "unknown", "..."),
 			[]*core.ObjectAndRelation{},
-			9,
-			5,
+			1,
+			1,
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "eng_lead", "..."),
 			[]*core.ObjectAndRelation{
-				ONR("document", "masterplan", "viewer"),
+				ONR("document", "masterplan", "view"),
 			},
-			18,
-			6,
+			2,
+			2,
 		},
 		{
 			RR("document", "owner"),
@@ -67,36 +66,36 @@ func TestSimpleLookup(t *testing.T) {
 				ONR("document", "masterplan", "owner"),
 			},
 			2,
-			2,
+			1,
 		},
 		{
-			RR("document", "viewer"),
+			RR("document", "view"),
 			ONR("user", "legal", "..."),
 			[]*core.ObjectAndRelation{
-				ONR("document", "companyplan", "viewer"),
-				ONR("document", "masterplan", "viewer"),
+				ONR("document", "companyplan", "view"),
+				ONR("document", "masterplan", "view"),
 			},
-			48,
-			7,
+			6,
+			4,
 		},
 		{
-			RR("document", "viewer_and_editor"),
+			RR("document", "view_and_edit"),
 			ONR("user", "multiroleguy", "..."),
 			[]*core.ObjectAndRelation{
-				ONR("document", "specialplan", "viewer_and_editor"),
+				ONR("document", "specialplan", "view_and_edit"),
 			},
-			8,
-			2,
+			7,
+			4,
 		},
 		{
-			RR("folder", "viewer"),
+			RR("folder", "view"),
 			ONR("user", "owner", "..."),
 			[]*core.ObjectAndRelation{
-				ONR("folder", "strategy", "viewer"),
-				ONR("folder", "company", "viewer"),
+				ONR("folder", "strategy", "view"),
+				ONR("folder", "company", "view"),
 			},
-			33,
-			6,
+			8,
+			5,
 		},
 	}
 
@@ -126,11 +125,11 @@ func TestSimpleLookup(t *testing.T) {
 			})
 
 			require.NoError(err)
-			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
+			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs, "Found: %v, Expected: %v", lookupResult.ResolvedOnrs, tc.resolvedObjects)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
-			require.LessOrEqual(int(lookupResult.Metadata.DispatchCount), tc.expectedDispatchCount)
+			require.LessOrEqual(int(lookupResult.Metadata.DispatchCount), tc.expectedDispatchCount, "Found dispatch count greater than expected")
 			require.Equal(0, int(lookupResult.Metadata.CachedDispatchCount))
-			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired))
+			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired), "Depth required mismatch")
 
 			// We have to sleep a while to let the cache converge:
 			// https://github.com/dgraph-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
@@ -150,7 +149,7 @@ func TestSimpleLookup(t *testing.T) {
 			})
 
 			require.NoError(err)
-			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs)
+			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs, "Found: %v, Expected: %v", lookupResult.ResolvedOnrs, tc.resolvedObjects)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
 			require.Equal(0, int(lookupResult.Metadata.DispatchCount))
 			require.LessOrEqual(int(lookupResult.Metadata.CachedDispatchCount), tc.expectedDispatchCount)
@@ -162,20 +161,17 @@ func TestSimpleLookup(t *testing.T) {
 func TestMaxDepthLookup(t *testing.T) {
 	require := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC, 0)
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	nsm, err := namespace.NewCachingNamespaceManager(testCacheConfig)
-	require.NoError(err)
-
-	dispatch := NewLocalOnlyDispatcher(nsm)
+	dispatch := NewLocalOnlyDispatcher()
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	_, err = dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
-		ObjectRelation: RR("document", "viewer"),
+		ObjectRelation: RR("document", "view"),
 		Subject:        ONR("user", "legal", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
@@ -198,30 +194,3 @@ func (a OrderedResolved) Less(i, j int) bool {
 }
 
 func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-
-func TestPrefix(t *testing.T) {
-	tests := []struct {
-		ns         string
-		wantPrefix string
-	}{
-		{
-			ns:         "test",
-			wantPrefix: "",
-		},
-		{
-			ns:         "prefix/test",
-			wantPrefix: "prefix",
-		},
-		{
-			ns:         "prefix1/prefix2/test",
-			wantPrefix: "prefix1",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.ns+tt.wantPrefix, func(t *testing.T) {
-			if gotPrefix := prefix(tt.ns); gotPrefix != tt.wantPrefix {
-				t.Errorf("prefix() = %v, want %v", gotPrefix, tt.wantPrefix)
-			}
-		})
-	}
-}

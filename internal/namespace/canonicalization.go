@@ -5,7 +5,6 @@ import (
 	"hash/fnv"
 
 	"github.com/dalzilio/rudd"
-	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -115,9 +114,7 @@ func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation,
 	for index, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *core.SetOperation_Child_XThis:
-			// TODO(jschorr): Turn into an error once v0 API has been removed.
-			log.Warn().Stringer("operation", so).Msg("Use of _this is deprecated and will soon be an error! Please switch to using schema!")
-			values = append(values, builder(index, varMap.Get(relation.Name)))
+			panic("use of _this is disallowed")
 		case *core.SetOperation_Child_ComputedUserset:
 			values = append(values, builder(index, varMap.Get(child.ComputedUserset.Relation)))
 		case *core.SetOperation_Child_UsersetRewrite:

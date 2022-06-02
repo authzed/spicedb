@@ -21,6 +21,7 @@ type DispatchServiceClient interface {
 	DispatchCheck(ctx context.Context, in *DispatchCheckRequest, opts ...grpc.CallOption) (*DispatchCheckResponse, error)
 	DispatchExpand(ctx context.Context, in *DispatchExpandRequest, opts ...grpc.CallOption) (*DispatchExpandResponse, error)
 	DispatchLookup(ctx context.Context, in *DispatchLookupRequest, opts ...grpc.CallOption) (*DispatchLookupResponse, error)
+	DispatchReachableResources(ctx context.Context, in *DispatchReachableResourcesRequest, opts ...grpc.CallOption) (DispatchService_DispatchReachableResourcesClient, error)
 }
 
 type dispatchServiceClient struct {
@@ -58,6 +59,38 @@ func (c *dispatchServiceClient) DispatchLookup(ctx context.Context, in *Dispatch
 	return out, nil
 }
 
+func (c *dispatchServiceClient) DispatchReachableResources(ctx context.Context, in *DispatchReachableResourcesRequest, opts ...grpc.CallOption) (DispatchService_DispatchReachableResourcesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &DispatchService_ServiceDesc.Streams[0], "/dispatch.v1.DispatchService/DispatchReachableResources", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatchServiceDispatchReachableResourcesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DispatchService_DispatchReachableResourcesClient interface {
+	Recv() (*DispatchReachableResourcesResponse, error)
+	grpc.ClientStream
+}
+
+type dispatchServiceDispatchReachableResourcesClient struct {
+	grpc.ClientStream
+}
+
+func (x *dispatchServiceDispatchReachableResourcesClient) Recv() (*DispatchReachableResourcesResponse, error) {
+	m := new(DispatchReachableResourcesResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // DispatchServiceServer is the server API for DispatchService service.
 // All implementations must embed UnimplementedDispatchServiceServer
 // for forward compatibility
@@ -65,6 +98,7 @@ type DispatchServiceServer interface {
 	DispatchCheck(context.Context, *DispatchCheckRequest) (*DispatchCheckResponse, error)
 	DispatchExpand(context.Context, *DispatchExpandRequest) (*DispatchExpandResponse, error)
 	DispatchLookup(context.Context, *DispatchLookupRequest) (*DispatchLookupResponse, error)
+	DispatchReachableResources(*DispatchReachableResourcesRequest, DispatchService_DispatchReachableResourcesServer) error
 	mustEmbedUnimplementedDispatchServiceServer()
 }
 
@@ -80,6 +114,9 @@ func (UnimplementedDispatchServiceServer) DispatchExpand(context.Context, *Dispa
 }
 func (UnimplementedDispatchServiceServer) DispatchLookup(context.Context, *DispatchLookupRequest) (*DispatchLookupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DispatchLookup not implemented")
+}
+func (UnimplementedDispatchServiceServer) DispatchReachableResources(*DispatchReachableResourcesRequest, DispatchService_DispatchReachableResourcesServer) error {
+	return status.Errorf(codes.Unimplemented, "method DispatchReachableResources not implemented")
 }
 func (UnimplementedDispatchServiceServer) mustEmbedUnimplementedDispatchServiceServer() {}
 
@@ -148,6 +185,27 @@ func _DispatchService_DispatchLookup_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DispatchService_DispatchReachableResources_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DispatchReachableResourcesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DispatchServiceServer).DispatchReachableResources(m, &dispatchServiceDispatchReachableResourcesServer{stream})
+}
+
+type DispatchService_DispatchReachableResourcesServer interface {
+	Send(*DispatchReachableResourcesResponse) error
+	grpc.ServerStream
+}
+
+type dispatchServiceDispatchReachableResourcesServer struct {
+	grpc.ServerStream
+}
+
+func (x *dispatchServiceDispatchReachableResourcesServer) Send(m *DispatchReachableResourcesResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // DispatchService_ServiceDesc is the grpc.ServiceDesc for DispatchService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -168,6 +226,12 @@ var DispatchService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DispatchService_DispatchLookup_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "DispatchReachableResources",
+			Handler:       _DispatchService_DispatchReachableResources_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "dispatch/v1/dispatch.proto",
 }

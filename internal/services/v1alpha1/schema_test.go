@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
@@ -13,13 +13,13 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datastore"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestSchemaReadNoPrefix(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 
@@ -30,7 +30,7 @@ func TestSchemaReadNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteNoPrefix(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 
@@ -41,7 +41,7 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteNoPrefixNotRequired(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 
@@ -56,7 +56,7 @@ func TestSchemaWriteNoPrefixNotRequired(t *testing.T) {
 }
 
 func TestSchemaReadInvalidName(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 
@@ -67,7 +67,7 @@ func TestSchemaReadInvalidName(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidSchema(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 
@@ -83,7 +83,7 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 }
 
 func TestSchemaWriteAndReadBack(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 
@@ -113,42 +113,11 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	require.Equal(t, []string{userSchema}, readback.GetObjectDefinitions())
 }
 
-func TestSchemaReadUpgradeValid(t *testing.T) {
-	_, err := upgrade(t, []*v0.NamespaceDefinition{core.ToV0NamespaceDefinition(testfixtures.UserNS)})
-	require.NoError(t, err)
-}
-
-func TestSchemaReadUpgradeInvalid(t *testing.T) {
-	_, err := upgrade(t, core.ToV0NamespaceDefinitions([]*core.NamespaceDefinition{testfixtures.UserNS, testfixtures.DocumentNS, testfixtures.FolderNS}))
-	require.NoError(t, err)
-}
-
-func upgrade(t *testing.T, nsdefs []*v0.NamespaceDefinition) (*v1alpha1.ReadSchemaResponse, error) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
-	t.Cleanup(cleanup)
-	client := v1alpha1.NewSchemaServiceClient(conn)
-	v0client := v0.NewNamespaceServiceClient(conn)
-
-	_, err := v0client.WriteConfig(context.Background(), &v0.WriteConfigRequest{
-		Configs: nsdefs,
-	})
-	require.NoError(t, err)
-
-	nsdefNames := make([]string, 0, len(nsdefs))
-	for _, nsdef := range nsdefs {
-		nsdefNames = append(nsdefNames, nsdef.Name)
-	}
-
-	return client.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
-		ObjectDefinitionsNames: nsdefNames,
-	})
-}
-
 func TestSchemaDeleteRelation(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
-	v0client := v0.NewACLServiceClient(conn)
+	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
 	_, err := client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
@@ -162,10 +131,12 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a relationship for one of the relations.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Create(
-			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
-		))},
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{
+			tuple.UpdateToRelationshipUpdate(tuple.Create(
+				tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
+			)),
+		},
 	})
 	require.Nil(t, err)
 
@@ -182,7 +153,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	// Attempt to delete the `anotherrelation` relation, which should succeed.
 	_, err = client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
 		Schema: `definition example/user {}
-	
+
 		definition example/document {
 			relation somerelation: example/user
 		}`,
@@ -190,8 +161,8 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.Nil(t, err)
 
 	// Delete the relationship.
-	_, err = v0client.Write(context.Background(), &v0.WriteRequest{
-		Updates: []*v0.RelationTupleUpdate{core.ToV0RelationTupleUpdate(tuple.Delete(
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -200,7 +171,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	// Attempt to delete the `somerelation` relation, which should succeed.
 	writeResp, err := client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
 		Schema: `definition example/user {}
-		
+
 			definition example/document {}`,
 	})
 	require.Nil(t, err)
@@ -211,7 +182,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 }
 
 func TestSchemaReadUpdateAndFailWrite(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 
@@ -265,10 +236,9 @@ func TestSchemaReadUpdateAndFailWrite(t *testing.T) {
 }
 
 func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
-	conn, cleanup, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, 0, false, testfixtures.EmptyDatastore)
+	conn, cleanup, ds, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
-	v0client := v0.NewNamespaceServiceClient(conn)
 
 	requestedObjectDefNames := []string{"example/user"}
 
@@ -288,8 +258,14 @@ func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	// Issue a delete out of band for the namespace.
-	_, err = v0client.DeleteConfigs(context.Background(), &v0.DeleteConfigsRequest{
-		Namespaces: requestedObjectDefNames,
+	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		for _, nsName := range requestedObjectDefNames {
+			derr := rwt.DeleteNamespace(nsName)
+			if derr != nil {
+				return derr
+			}
+		}
+		return nil
 	})
 	require.NoError(t, err)
 

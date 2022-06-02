@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -20,8 +20,7 @@ type invalidRelationError struct {
 func validateTupleWrite(
 	ctx context.Context,
 	tpl *v0.RelationTuple,
-	nsm namespace.Manager,
-	revision decimal.Decimal,
+	ds datastore.Reader,
 ) error {
 	err := tuple.ValidateResourceID(tpl.ObjectAndRelation.ObjectId)
 	if err != nil {
@@ -33,12 +32,12 @@ func validateTupleWrite(
 		return err
 	}
 
-	if err := nsm.CheckNamespaceAndRelation(
+	if err := namespace.CheckNamespaceAndRelation(
 		ctx,
 		tpl.ObjectAndRelation.Namespace,
 		tpl.ObjectAndRelation.Relation,
 		false, // Disallow ellipsis
-		revision,
+		ds,
 	); err != nil {
 		return err
 	}
@@ -54,17 +53,17 @@ func validateTupleWrite(
 		}
 	}
 
-	if err := nsm.CheckNamespaceAndRelation(
+	if err := namespace.CheckNamespaceAndRelation(
 		ctx,
 		tpl.User.GetUserset().Namespace,
 		tpl.User.GetUserset().Relation,
 		true, // Allow Ellipsis
-		revision,
+		ds,
 	); err != nil {
 		return err
 	}
 
-	_, ts, err := nsm.ReadNamespaceAndTypes(ctx, tpl.ObjectAndRelation.Namespace, revision)
+	_, ts, err := namespace.ReadNamespaceAndTypes(ctx, tpl.ObjectAndRelation.Namespace, ds)
 	if err != nil {
 		return err
 	}

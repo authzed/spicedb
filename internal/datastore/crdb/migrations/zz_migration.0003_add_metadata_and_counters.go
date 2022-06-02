@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
 )
 
 const (
@@ -23,24 +24,20 @@ func init() {
 	if err := CRDBMigrations.Register("add-metadata-and-counters", "add-transactions-table", func(apd *CRDBDriver) error {
 		ctx := context.Background()
 
-		tx, err := apd.db.Begin(ctx)
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback(ctx)
+		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, createMetadataTable); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, createCounters); err != nil {
+				return err
+			}
 
-		if _, err := tx.Exec(ctx, createMetadataTable); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, createCounters); err != nil {
-			return err
-		}
+			if _, err := tx.Exec(ctx, insertUniqueID, uuid.NewString()); err != nil {
+				return err
+			}
 
-		if _, err := tx.Exec(ctx, insertUniqueID, uuid.NewString()); err != nil {
-			return err
-		}
-
-		return tx.Commit(ctx)
+			return nil
+		})
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

@@ -1,41 +1,21 @@
 ---
-namespace_configs:
-  - |
-    name: "exm/usr"
+schema: |+
+    definition exm/usr {}
 
-  - |
-    name: "exm/doc"
-
-    relation {
-      name: "wri"
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "exm/usr"
-          relation: "..."
-        }
-      }
+    definition exm/doc {
+    	relation wri: exm/usr
+        relation red: exm/usr
+    	permission can = red + wri
     }
 
-    relation {
-      name: "red"
+relationships: >-
+    exm/doc:firstdoc#wri@exm/usr:tom#...
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "wri" } }
-        }
-      }
+    exm/doc:firstdoc#red@exm/usr:fred#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "exm/usr"
-          relation: "..."
-        }
-      }
-    }
-
-validation_tuples:
-  - "exm/doc:firstdoc#wri@exm/usr:tom#..."
-  - "exm/doc:firstdoc#red@exm/usr:fred#..."
-  - "exm/doc:seconddoc#red@exm/usr:tom#..."
+    exm/doc:seconddoc#red@exm/usr:tom#...
+assertions:
+    assertTrue:
+        - "exm/doc:firstdoc#can@exm/usr:tom#..."
+        - "exm/doc:firstdoc#can@exm/usr:fred#..."
+    assertFalse: []

@@ -11,7 +11,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/internal/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const queryChangefeed = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s';"
@@ -28,7 +28,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 		pendingChanges := make(map[string]*datastore.RevisionChanges)
 
-		changes, err := cds.conn.Query(ctx, interpolated)
+		changes, err := cds.pool.Query(ctx, interpolated)
 		if err != nil {
 			if errors.Is(ctx.Err(), context.Canceled) {
 				errs <- datastore.NewWatchCanceledErr()

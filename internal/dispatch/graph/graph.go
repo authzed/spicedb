@@ -4,20 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
-	"github.com/authzed/spicedb/internal/namespace"
-	graphwalk "github.com/authzed/spicedb/pkg/graph"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -27,48 +23,46 @@ const errDispatch = "error dispatching request: %w"
 
 var tracer = otel.Tracer("spicedb/internal/dispatch/local")
 
-var slowLookupCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Name: "spicedb_dispatch_slow_lookup_total",
-	Help: "count of how many times the slow lookup path is taken",
-}, []string{"prefix"})
-
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
-func NewLocalOnlyDispatcher(
-	nsm namespace.Manager,
-) dispatch.Dispatcher {
-	d := &localDispatcher{nsm: nsm}
+func NewLocalOnlyDispatcher() dispatch.Dispatcher {
+	d := &localDispatcher{}
 
-	d.checker = graph.NewConcurrentChecker(d, nsm)
-	d.expander = graph.NewConcurrentExpander(d, nsm)
-	d.lookupHandler = graph.NewConcurrentLookup(d, d, nsm)
+	d.checker = graph.NewConcurrentChecker(d)
+	d.expander = graph.NewConcurrentExpander(d)
+	d.lookupHandler = graph.NewConcurrentLookup(d, d)
+	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d)
 
 	return d
 }
 
 // NewDispatcher creates a dispatcher that consults with the graph and redispatches subproblems to
 // the provided redispatcher.
-func NewDispatcher(
-	redispatcher dispatch.Dispatcher,
-	nsm namespace.Manager,
-) dispatch.Dispatcher {
-	checker := graph.NewConcurrentChecker(redispatcher, nsm)
-	expander := graph.NewConcurrentExpander(redispatcher, nsm)
-	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, nsm)
+func NewDispatcher(redispatcher dispatch.Dispatcher) dispatch.Dispatcher {
+	checker := graph.NewConcurrentChecker(redispatcher)
+	expander := graph.NewConcurrentExpander(redispatcher)
+	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher)
+	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher)
 
-	return &localDispatcher{checker, expander, lookupHandler, nsm}
+	return &localDispatcher{
+		checker:                   checker,
+		expander:                  expander,
+		lookupHandler:             lookupHandler,
+		reachableResourcesHandler: reachableResourcesHandler,
+	}
 }
 
 type localDispatcher struct {
-	checker       *graph.ConcurrentChecker
-	expander      *graph.ConcurrentExpander
-	lookupHandler *graph.ConcurrentLookup
-
-	nsm namespace.Manager
+	checker                   *graph.ConcurrentChecker
+	expander                  *graph.ConcurrentExpander
+	lookupHandler             *graph.ConcurrentLookup
+	reachableResourcesHandler *graph.ConcurrentReachableResources
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, error) {
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision)
+
 	// Load namespace and relation from the datastore
-	ns, err := ld.nsm.ReadNamespace(ctx, nsName, revision)
+	ns, _, err := ds.ReadNamespace(ctx, nsName)
 	if err != nil {
 		return nil, rewriteError(err)
 	}
@@ -234,63 +228,45 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 		Revision:              revision,
 	}
 
-	ns, err := ld.loadNamespace(ctx, req.ObjectRelation.Namespace, revision)
-	if err != nil {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
-	}
-
-	relation, err := ld.lookupRelation(ctx, ns, req.ObjectRelation.Relation, revision)
-	if err != nil {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
-	}
-
-	if ld.requiresLookupViaChecks(relation) {
-		log.Warn().Msg("slow path dispatch lookup")
-		slowLookupCounter.WithLabelValues(prefix(validatedReq.Subject.Namespace)).Inc()
-		return ld.lookupHandler.LookupViaChecks(ctx, validatedReq)
-	}
-
-	return ld.lookupHandler.Lookup(ctx, validatedReq)
+	return ld.lookupHandler.LookupViaReachability(ctx, validatedReq)
 }
 
-func prefix(namespace string) (prefix string) {
-	parts := strings.SplitN(namespace, "/", 2)
-	if len(parts) > 1 {
-		prefix = parts[0]
-	}
-	return prefix
-}
+// DispatchReachableResources implements dispatch.ReachableResources interface
+func (ld *localDispatcher) DispatchReachableResources(
+	req *v1.DispatchReachableResourcesRequest,
+	stream dispatch.ReachableResourcesStream,
+) error {
+	ctx, span := tracer.Start(stream.Context(), "DispatchReachableResources", trace.WithAttributes(
+		attribute.Stringer("start", stringableRelRef{req.ObjectRelation}),
+		attribute.Stringer("subject", stringableOnr{req.Subject}),
+	))
+	defer span.End()
 
-func (ld *localDispatcher) requiresLookupViaChecks(relation *core.Relation) bool {
-	// TODO: refactor walker so that we don't have to make two separate checks
-	// check top-level rewrite
-	if rw := relation.GetUsersetRewrite(); rw != nil {
-		switch rw.RewriteOperation.(type) {
-		case *core.UsersetRewrite_Intersection:
-			return true
-		case *core.UsersetRewrite_Exclusion:
-			return true
-		}
+	err := dispatch.CheckDepth(ctx, req)
+	if err != nil {
+		return err
 	}
 
-	// check child rewrites
-	childIntersectionExclusion := graphwalk.WalkRewrite(relation.GetUsersetRewrite(), func(childOneof *core.SetOperation_Child) interface{} {
-		switch child := childOneof.ChildType.(type) {
-		case *core.SetOperation_Child_UsersetRewrite:
-			switch child.UsersetRewrite.RewriteOperation.(type) {
-			case *core.UsersetRewrite_Intersection:
-				return true
-			case *core.UsersetRewrite_Exclusion:
-				return true
-			}
-		}
-		return nil
-	})
-	return childIntersectionExclusion != nil
+	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+	if err != nil {
+		return err
+	}
+
+	validatedReq := graph.ValidatedReachableResourcesRequest{
+		DispatchReachableResourcesRequest: req,
+		Revision:                          revision,
+	}
+
+	wrappedStream := dispatch.StreamWithContext[*v1.DispatchReachableResourcesResponse](ctx, stream)
+	return ld.reachableResourcesHandler.ReachableResources(validatedReq, wrappedStream)
 }
 
 func (ld *localDispatcher) Close() error {
 	return nil
+}
+
+func (ld *localDispatcher) Ready() bool {
+	return true
 }
 
 func rewriteError(original error) error {

@@ -1,0 +1,76 @@
+---
+# This runs SpiceDB, using Spanner as the storage engine. SpiceDB will not have
+# any schema written to it.
+#
+# In order to run Spanner locally, a Spanner emulator must be spun up. This is
+# done by the database service. Once that is complete, the emulator must be
+# initialized with a project, instance, and database. This is accomplished by
+# the init_database service, which executes the init script found at
+# spanner/spanner-init. This script configures the Spanner emulator with the a
+# project, instance, and database. Finally, the migrate service executes,
+# running "spicedb migrate head" to migrate Spanner to the most current
+# revision. After Spanner is initialized and migrated, the init_database and
+# migrate services will stop.
+#
+# Note: Spanner is run using a single node configuration.
+#
+# SpiceDB settings:
+#   pre-shared key: foobar
+#   dashboard address: http://localhost:8080
+#   metrics address: http://localhost:9090
+#   grpc address: http://localhost:50051
+#
+# Spanner settings:
+#   project id: project-spicedb
+#   instance name: instance-spicedb
+#   database name: spicedb
+#   grpc port: 9010
+#   http port: 9020
+
+version: "3"
+
+services:
+  spicedb:
+    image: "authzed/spicedb"
+    command: "serve"
+    restart: "always"
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+      - "50051:50051"
+    environment:
+      - "SPICEDB_GRPC_PRESHARED_KEY=foobar"
+      - "SPICEDB_DATASTORE_ENGINE=spanner"
+      - "SPICEDB_DATASTORE_CONN_URI=projects/project-spicedb/instances/instance-spicedb/databases/spicedb"
+      - "SPANNER_EMULATOR_HOST=database:9010"
+    depends_on:
+      - "migrate"
+
+  migrate:
+    image: "authzed/spicedb"
+    command: "migrate head"
+    restart: "on-failure"
+    environment:
+      - "SPICEDB_DATASTORE_ENGINE=spanner"
+      - "SPICEDB_DATASTORE_CONN_URI=projects/project-spicedb/instances/instance-spicedb/databases/spicedb"
+      - "SPANNER_EMULATOR_HOST=database:9010"
+    depends_on:
+      - "database_init"
+
+  database_init:
+    build:
+      context: "./spanner"
+      dockerfile: "Dockerfile.spanner"
+    restart: "on-failure"
+    environment:
+      - "EMULATOR_HOST=http://database:9020/"
+      - "INSTANCE_NAME=instance-spicedb"
+      - "PROJECT_ID=project-spicedb"
+    depends_on:
+      - "database"
+
+  database:
+    image: "gcr.io/cloud-spanner-emulator/emulator"
+    ports:
+      - "9010:9010"
+      - "9020:9020"

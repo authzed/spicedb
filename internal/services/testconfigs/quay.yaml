@@ -1,253 +1,78 @@
 ---
-namespace_configs:
-  - |
-    name: "quay/user"
+schema: |+
+    definition quay/user {}
 
-  - |
-    name: "quay/namespace"
+    definition quay/namespace {
+    	relation parent: quay/namespace | quay/organization
+    	relation admin: quay/user
+    	relation creator: quay/user
 
-    relation {
-      name: "parent"
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/namespace"
-          relation: "..."
-        }
-        allowed_direct_relations {
-          namespace: "quay/organization"
-          relation: "..."
-        }
-      }
+        permission can_admin = admin + parent->admin
+        permission create = can_admin + parent->create
     }
 
-    relation {
-      name: "admin"
+    definition quay/organization {
+    	relation admin: quay/user | quay/team#member
+    	relation creator: quay/user | quay/team#member
+    	relation direct_member: quay/user
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child {
-            tuple_to_userset {
-              tupleset { relation: "parent" }
-              computed_userset {
-                object: TUPLE_USERSET_OBJECT
-                relation: "admin"
-              }
-            }
-          }
-        }
-      }
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/user"
-          relation: "..."
-        }
-      }
+        permission can_admin = admin
+        permission create = creator + can_admin
+        permission member = direct_member + create
     }
 
-    relation {
-      name: "creator"
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "admin" } }
-          child {
-            tuple_to_userset {
-              tupleset { relation: "parent" }
-              computed_userset {
-                  object: TUPLE_USERSET_OBJECT
-                  relation: "creator"
-              }
-            }
-          }
-        }
-      }
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/user"
-          relation: "..."
-        }
-      }
-    }
-  - |
-    name: "quay/organization"
+    definition quay/repo {
+    	relation parent: quay/namespace
+    	relation admin: quay/user
+    	relation writers: quay/user
+    	relation readers: quay/user
 
-    relation {
-      name: "admin"
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/user"
-          relation: "..."
-        }
-        allowed_direct_relations {
-          namespace: "quay/team"
-          relation: "member"
-        }
-      }
+        permission can_admin = admin + parent->can_admin
+        permission write = writers + can_admin
+        permission view = readers + write
     }
 
-    relation {
-      name: "creator"
-
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "admin" } }
-        }
-      }
-
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/user"
-          relation: "..."
-        }
-        allowed_direct_relations {
-          namespace: "quay/team"
-          relation: "member"
-        }
-      }
+    definition quay/team {
+    	relation parent_org: quay/organization
+    	relation direct_member: quay/user
+        permission member = direct_member
     }
 
-    relation {
-      name: "member"
+relationships: >-
+    quay/organization:megacorp#admin@quay/user:cto#...
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "creator" } }
-        }
-      }
+    quay/team:owners#direct_member@quay/user:cto#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/user"
-          relation: "..."
-        }
-      }
-    }
-  - |
-    name: "quay/repo"
+    quay/team:owners#direct_member@quay/user:ceo#...
 
-    relation {
-      name: "parent"
+    quay/team:owners#parent_org@quay/organization:megacorp#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/namespace"
-          relation: "..."
-        }
-      }
-    }
+    quay/organization:megacorp#admin@quay/team:owners#member
 
-    relation {
-      name: "admin"
+    quay/team:creator#direct_member@quay/user:eng_director#...
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child {
-            tuple_to_userset {
-              tupleset { relation: "parent" }
-              computed_userset {
-                object: TUPLE_USERSET_OBJECT
-                relation: "admin"
-              }
-            }
-          }
-        }
-      }
+    quay/team:creator#parent_org@quay/organization:megacorp#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/user"
-          relation: "..."
-        }
-      }
-    }
+    quay/organization:megacorp#creator@quay/team:creator#member
 
-    relation {
-      name: "writers"
+    quay/namespace:buynlarge#parent@quay/organization:megacorp#...
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "admin" } }
-        }
-      }
+    quay/namespace:buynlarge#admin@quay/user:eng_manager#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/user"
-          relation: "..."
-        }
-      }
-    }
+    quay/repo:buynlarge/orgrepo#parent@quay/namespace:buynlarge#...
 
-    relation {
-      name: "readers"
+    quay/repo:buynlarge/orgrepo#admin@quay/user:eng_manager#...
 
-      userset_rewrite {
-        union {
-          child { _this {} }
-          child { computed_userset { relation: "writers" } }
-        }
-      }
+    quay/repo:buynlarge/orgrepo#writers@quay/user:engineer#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/user"
-          relation: "..."
-        }
-      }
-    }
-  - |
-    name: "quay/team"
+    quay/repo:buynlarge/orgrepo#readers@quay/user:test_engineer#...
 
-    relation {
-      name: "parent_org"
+    quay/namespace:purnkleen#parent@quay/organization:megacorp#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/organization"
-          relation: "..."
-        }
-      }
-    }
+    quay/namespace:purnkleen#admin@quay/user:eng_director#...
 
-    relation {
-      name: "member"
+    quay/organization:villainorg#admin@quay/user:villain#...
 
-      type_information {
-        allowed_direct_relations {
-          namespace: "quay/user"
-          relation: "..."
-        }
-      }
-    }
-
-validation_tuples:
-  - "quay/organization:megacorp#admin@quay/user:cto#..."
-
-  - "quay/team:owners#member@quay/user:cto#..."
-  - "quay/team:owners#member@quay/user:ceo#..."
-  - "quay/team:owners#parent_org@quay/organization:megacorp#..."
-  - "quay/organization:megacorp#admin@quay/team:owners#member"
-
-  - "quay/team:creator#member@quay/user:eng_director#..."
-  - "quay/team:creator#parent_org@quay/organization:megacorp#..."
-  - "quay/organization:megacorp#creator@quay/team:creator#member"
-
-  - "quay/namespace:buynlarge#parent@quay/organization:megacorp#..."
-  - "quay/namespace:buynlarge#admin@quay/user:eng_manager#..."
-  - "quay/repo:buynlarge/orgrepo#parent@quay/namespace:buynlarge#..."
-  - "quay/repo:buynlarge/orgrepo#admin@quay/user:eng_manager#..."
-  - "quay/repo:buynlarge/orgrepo#writers@quay/user:engineer#..."
-  - "quay/repo:buynlarge/orgrepo#readers@quay/user:test_engineer#..."
-
-  - "quay/namespace:purnkleen#parent@quay/organization:megacorp#..."
-  - "quay/namespace:purnkleen#admin@quay/user:eng_director#..."
-
-  - "quay/organization:villainorg#admin@quay/user:villain#..."
+assertions:
+    assertTrue: []
+    assertFalse: []

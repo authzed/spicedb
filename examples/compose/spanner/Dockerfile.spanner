@@ -1,0 +1,11 @@
+FROM google/cloud-sdk:slim
+
+RUN apt-get install -y google-cloud-sdk
+
+ENV EMULATOR_HOST=""
+ENV INSTANCE_NAME=""
+ENV PROJECT_ID=""
+
+COPY spanner-init .
+
+CMD ./spanner-init

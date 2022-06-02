@@ -10,8 +10,8 @@ import (
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	pgmigrations "github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
@@ -90,7 +90,7 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 
 	migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(connectStr)
 	require.NoError(t, err)
-	require.NoError(t, pgmigrations.DatabaseMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun))
+	require.NoError(t, pgmigrations.DatabaseMigrations.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun))
 
 	return initFunc("postgres", connectStr)
 }

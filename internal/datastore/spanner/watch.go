@@ -8,8 +8,8 @@ import (
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 

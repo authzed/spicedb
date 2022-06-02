@@ -19,15 +19,14 @@ import (
 )
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
-func NewConcurrentChecker(d dispatch.Check, nsm namespace.Manager) *ConcurrentChecker {
-	return &ConcurrentChecker{d: d, nsm: nsm}
+func NewConcurrentChecker(d dispatch.Check) *ConcurrentChecker {
+	return &ConcurrentChecker{d: d}
 }
 
 // ConcurrentChecker exposes a method to perform Check requests, and delegates subproblems to the
 // provided dispatch.Check instance.
 type ConcurrentChecker struct {
-	d   dispatch.Check
-	nsm namespace.Manager
+	d dispatch.Check
 }
 
 func onrEqual(lhs, rhs *core.ObjectAndRelation) bool {
@@ -46,20 +45,19 @@ type ValidatedCheckRequest struct {
 func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) (*v1.DispatchCheckResponse, error) {
 	var directFunc ReduceableCheckFunc
 
-	// TODO(jschorr): Turn into an error once v0 API has been removed.
 	if relation.GetTypeInformation() == nil && relation.GetUsersetRewrite() == nil {
-		log.Ctx(ctx).Warn().Str("relation", relation.Name).Msg("Found relation without type information. Please switch to using schema. This will be an error in the future!")
-	}
-
-	if req.Subject.ObjectId == tuple.PublicWildcard {
-		directFunc = checkError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")))
-	} else if onrEqual(req.Subject, req.ObjectAndRelation) {
-		// If we have found the goal's ONR, then we know that the ONR is a member.
-		directFunc = alwaysMember()
-	} else if relation.UsersetRewrite == nil {
-		directFunc = cc.checkDirect(ctx, req)
+		directFunc = checkError(fmt.Errorf("found relation `%s` without type information; to fix, please re-write your schema", relation.Name))
 	} else {
-		directFunc = cc.checkUsersetRewrite(ctx, req, relation.UsersetRewrite)
+		if req.Subject.ObjectId == tuple.PublicWildcard {
+			directFunc = checkError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")))
+		} else if onrEqual(req.Subject, req.ObjectAndRelation) {
+			// If we have found the goal's ONR, then we know that the ONR is a member.
+			directFunc = alwaysMember()
+		} else if relation.UsersetRewrite == nil {
+			directFunc = cc.checkDirect(ctx, req)
+		} else {
+			directFunc = cc.checkUsersetRewrite(ctx, req, relation.UsersetRewrite)
+		}
 	}
 
 	resolved := union(ctx, []ReduceableCheckFunc{directFunc})
@@ -82,14 +80,14 @@ func onrEqualOrWildcard(tpl, target *core.ObjectAndRelation) bool {
 func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheckRequest) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("direct", req).Send()
-		ds := datastoremw.MustFromContext(ctx)
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 
 		// TODO(jschorr): Use type information to further optimize this query.
-		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   req.ObjectAndRelation.Relation,
-		}, req.Revision)
+		})
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return
@@ -142,9 +140,7 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req Validate
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *core.SetOperation_Child_XThis:
-			// TODO(jschorr): Turn into an error once v0 API has been removed.
-			log.Ctx(ctx).Warn().Stringer("operation", so).Msg("Use of _this is deprecated and will soon be an error! Please switch to using schema!")
-			requests = append(requests, cc.checkDirect(ctx, req))
+			return checkError(errors.New("use of _this is unsupported; please rewrite your schema"))
 		case *core.SetOperation_Child_ComputedUserset:
 			requests = append(requests, cc.checkComputedUserset(ctx, req, child.ComputedUserset, nil))
 		case *core.SetOperation_Child_UsersetRewrite:
@@ -191,7 +187,8 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 	}
 
 	// Check if the target relation exists. If not, return nothing.
-	err := cc.nsm.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, req.Revision)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+	err := namespace.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, ds)
 	if err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
 			return notMember()
@@ -213,12 +210,12 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req ValidatedCheckRequest, ttu *core.TupleToUserset) ReduceableCheckFunc {
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
-		ds := datastoremw.MustFromContext(ctx)
-		it, err := ds.QueryTuples(ctx, &v1_proto.RelationshipFilter{
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
+		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
 			ResourceType:       req.ObjectAndRelation.Namespace,
 			OptionalResourceId: req.ObjectAndRelation.ObjectId,
 			OptionalRelation:   ttu.Tupleset.Relation,
-		}, req.Revision)
+		})
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
 			return

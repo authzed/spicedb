@@ -10,8 +10,8 @@ import (
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
@@ -91,7 +91,7 @@ func (r *crdbTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Dat
 
 	migrationDriver, err := crdbmigrations.NewCRDBDriver(connectStr)
 	require.NoError(t, err)
-	require.NoError(t, crdbmigrations.CRDBMigrations.Run(migrationDriver, migrate.Head, migrate.LiveRun))
+	require.NoError(t, crdbmigrations.CRDBMigrations.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun))
 
 	return initFunc("cockroachdb", connectStr)
 }

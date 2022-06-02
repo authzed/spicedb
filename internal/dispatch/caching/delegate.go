@@ -11,6 +11,10 @@ const errMessage = "fake delegate should never be called, call SetDelegate on th
 
 type fakeDelegate struct{}
 
+func (fd fakeDelegate) Ready() bool {
+	panic(errMessage)
+}
+
 func (fd fakeDelegate) Close() error {
 	panic(errMessage)
 }
@@ -24,6 +28,10 @@ func (fd fakeDelegate) DispatchExpand(ctx context.Context, req *v1.DispatchExpan
 }
 
 func (fd fakeDelegate) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+	panic(errMessage)
+}
+
+func (fd fakeDelegate) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
 	panic(errMessage)
 }
 

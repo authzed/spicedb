@@ -5,15 +5,13 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/commonerrors"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/rs/zerolog/log"
+	"github.com/scylladb/go-set/strset"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -21,6 +19,9 @@ import (
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	"github.com/authzed/spicedb/pkg/commonerrors"
+	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -44,9 +45,9 @@ type schemaServer struct {
 
 func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
 	readRevision, _ := consistency.MustRevisionFromContext(ctx)
-	ds := datastoremw.MustFromContext(ctx)
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(readRevision)
 
-	nsDefs, err := ds.ListNamespaces(ctx, readRevision)
+	nsDefs, err := ds.ListNamespaces(ctx)
 	if err != nil {
 		return nil, rewriteSchemaError(ctx, err)
 	}
@@ -73,23 +74,11 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaRequest) (*v1.WriteSchemaResponse, error) {
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 
-	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 	ds := datastoremw.MustFromContext(ctx)
 
 	inputSchema := compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: in.GetSchema(),
-	}
-
-	// Build a map of existing definitions to determine those being removed, if any.
-	existingDefs, err := ds.ListNamespaces(ctx, readRevision)
-	if err != nil {
-		return nil, rewriteSchemaError(ctx, err)
-	}
-
-	existingDefMap := map[string]bool{}
-	for _, existingDef := range existingDefs {
-		existingDefMap[existingDef.Name] = true
 	}
 
 	// Compile the schema into the namespace definitions.
@@ -100,8 +89,8 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	}
 	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
 
-	// For each definition, perform a diff and ensure the changes will not result in any
-	// relationships left without associated schema.
+	// Do as much validation as we can before talking to the datastore
+	newDefs := strset.NewWithSize(len(nsdefs))
 	for _, nsdef := range nsdefs {
 		ts, err := namespace.BuildNamespaceTypeSystemForDefs(nsdef, nsdefs)
 		if err != nil {
@@ -117,58 +106,78 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 			return nil, rewriteSchemaError(ctx, err)
 		}
 
-		if err := shared.SanityCheckExistingRelationships(ctx, ds, nsdef, readRevision); err != nil {
-			return nil, rewriteSchemaError(ctx, err)
-		}
-
-		existingDefMap[nsdef.Name] = false
+		newDefs.Add(nsdef.Name)
 	}
-	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("validated namespace definitions")
 
-	// Ensure that deleting namespaces will not result in any relationships left without associated
-	// schema.
-	for nsdefName, removed := range existingDefMap {
-		if !removed {
-			continue
-		}
-
-		err := shared.EnsureNoRelationshipsExist(ctx, ds, nsdefName)
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		// Build a map of existing definitions to determine those being removed, if any.
+		existingDefs, err := rwt.ListNamespaces(ctx)
 		if err != nil {
-			return nil, rewriteSchemaError(ctx, err)
-		}
-	}
-
-	// Write the new namespaces.
-	names := make([]string, 0, len(nsdefs))
-	for _, nsdef := range nsdefs {
-		if _, err := ds.WriteNamespace(ctx, nsdef); err != nil {
-			return nil, rewriteSchemaError(ctx, err)
+			return err
 		}
 
-		names = append(names, nsdef.Name)
-	}
+		existingDefMap := make(map[string]*core.NamespaceDefinition, len(existingDefs))
+		existing := strset.NewWithSize(len(existingDefs))
+		for _, existingDef := range existingDefs {
+			existingDefMap[existingDef.Name] = existingDef
+			existing.Add(existingDef.Name)
+		}
 
-	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		DispatchCount: uint32(len(nsdefs)),
+		// For each definition, perform a diff and ensure the changes will not result in any
+		// relationships left without associated schema.
+		for _, nsdef := range nsdefs {
+			if err := shared.SanityCheckExistingRelationships(ctx, rwt, nsdef, existingDefMap); err != nil {
+				return err
+			}
+		}
+		log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("validated namespace definitions")
+
+		// Ensure that deleting namespaces will not result in any relationships left without associated
+		// schema.
+		removed := strset.Difference(existing, newDefs)
+		var checkRelErr error
+		removed.Each(func(nsdefName string) bool {
+			checkRelErr = shared.EnsureNoRelationshipsExist(ctx, rwt, nsdefName)
+			return checkRelErr == nil
+		})
+		if checkRelErr != nil {
+			return checkRelErr
+		}
+
+		// Write the new namespaces.
+		if err := rwt.WriteNamespaces(nsdefs...); err != nil {
+			return err
+		}
+
+		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+			DispatchCount: uint32(len(nsdefs)),
+		})
+
+		// Delete the removed namespaces.
+		var removeErr error
+		removed.Each(func(nsdefName string) bool {
+			removeErr = rwt.DeleteNamespace(nsdefName)
+			return removeErr == nil
+		})
+		if removeErr != nil {
+			return removeErr
+		}
+
+		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
+			DispatchCount: uint32(len(nsdefs) + removed.Size()),
+		})
+
+		log.Ctx(ctx).Trace().
+			Interface("namespaceDefinitions", nsdefs).
+			Strs("addedOrChanged", newDefs.List()).
+			Strs("removed", removed.List()).
+			Msg("wrote namespace definitions")
+
+		return nil
 	})
-
-	// Delete the removed namespaces.
-	removedNames := make([]string, 0, len(existingDefMap))
-	for nsdefName, removed := range existingDefMap {
-		if !removed {
-			continue
-		}
-		if _, err := ds.DeleteNamespace(ctx, nsdefName); err != nil {
-			return nil, rewriteSchemaError(ctx, err)
-		}
-		removedNames = append(removedNames, nsdefName)
+	if err != nil {
+		return nil, rewriteSchemaError(ctx, err)
 	}
-
-	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		DispatchCount: uint32(len(nsdefs) + len(removedNames)),
-	})
-
-	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Strs("addedOrChanged", names).Strs("removed", removedNames).Msg("wrote namespace definitions")
 
 	return &v1.WriteSchemaResponse{}, nil
 }
@@ -190,7 +199,7 @@ func rewriteSchemaError(ctx context.Context, err error) error {
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return serviceerrors.ErrServiceReadOnly
 	default:
-		log.Ctx(ctx).Err(err)
+		log.Ctx(ctx).Err(err).Msg("received unexpected error")
 		return err
 	}
 }

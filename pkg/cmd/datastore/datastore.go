@@ -9,13 +9,13 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/mysql"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/spanner"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -110,7 +110,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	cmd.Flags().DurationVar(&opts.FollowerReadDelay, "datastore-follower-read-delay-duration", 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
 	cmd.Flags().Uint16Var(&opts.SplitQueryCount, "datastore-query-userset-batch-size", 1024, "number of usersets after which a relationship query will be split into multiple queries")
-	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 50, "number of times a retriable transaction should be retried (cockroach driver only)")
+	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 10, "number of times a retriable transaction should be retried")
 	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
@@ -171,7 +171,7 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 
-		nsDefs, err := ds.ListNamespaces(context.Background(), revision)
+		nsDefs, err := ds.SnapshotReader(revision).ListNamespaces(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
@@ -219,7 +219,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.MinOpenConns(opts.MinOpenConns),
 		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
-		crdb.MaxRetries(opts.MaxRetries),
+		crdb.MaxRetries(uint8(opts.MaxRetries)),
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),
@@ -241,6 +241,7 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.EnableTracing(),
 		postgres.WatchBufferLength(opts.WatchBufferLength),
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		postgres.MaxRetries(uint8(opts.MaxRetries)),
 	}
 	return postgres.NewPostgresDatastore(opts.URI, pgOpts...)
 }
@@ -269,11 +270,13 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		mysql.MaxRetries(uint8(opts.MaxRetries)),
+		mysql.OverrideLockWaitTimeout(1),
 	}
 	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
 }
 
 func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
-	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow, 0)
+	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow)
 }
