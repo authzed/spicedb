@@ -19,6 +19,6 @@ RUN chmod +x cloud_sql_proxy
 COPY . .
 
 RUN yarn
-
+RUN docker logs
 CMD ["#!/bin/bash", "-c", "./cloud_sql_proxy -instances=$CLOUD_SQL_CONNECTION_NAME=cog-analytics-backend:us-central1:authz-store=tcp:5433 & yarn start"]
 ENTRYPOINT ["spicedb"]
