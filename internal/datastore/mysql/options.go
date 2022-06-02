@@ -132,6 +132,13 @@ func GCInterval(interval time.Duration) Option {
 func MaxRetries(maxRetries uint8) Option {
 	return func(mo *mysqlOptions) {
 		mo.maxRetries = maxRetries
+// GCMaxOperationTime is the maximum operation time of a garbage collection
+// pass before it times out.
+//
+// This value defaults to 1 minute.
+func GCMaxOperationTime(time time.Duration) Option {
+	return func(mo *mysqlOptions) {
+		mo.gcMaxOperationTime = time
 	}
 }
 
@@ -141,6 +148,16 @@ func MaxRetries(maxRetries uint8) Option {
 func TablePrefix(prefix string) Option {
 	return func(mo *mysqlOptions) {
 		mo.tablePrefix = prefix
+	}
+}
+
+// SplitAtUsersetCount is the batch size for which userset queries will be
+// split into smaller queries.
+//
+// This defaults to 1024.
+func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
+	return func(mo *mysqlOptions) {
+		mo.splitAtUsersetCount = splitAtUsersetCount
 	}
 }
 
@@ -192,8 +209,8 @@ func MaxOpenConns(conns int) Option {
 //
 // Disabled by default.
 func DebugAnalyzeBeforeStatistics() Option {
-	return func(po *mysqlOptions) {
-		po.analyzeBeforeStats = true
+	return func(mo *mysqlOptions) {
+		mo.analyzeBeforeStats = true
 	}
 }
 
