@@ -9,13 +9,13 @@ FROM alpine:3.15
 RUN [ ! -e /etc/nsswitch.conf ] && echo 'hosts: files dns' > /etc/nsswitch.conf
 COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.6 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe
 COPY --from=spicedb-builder /go/src/app/spicedb /usr/local/bin/spicedb
-
+ENTRYPOINT ["spicedb"]
 
 # Cloud Sql Proxy
-RUN apk update && apk add wget && apk add yarn
+RUN apk update && apk add wget
 RUN wget https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 -O cloud_sql_proxy
 RUN chmod +x cloud_sql_proxy
 COPY . .
 
 #CMD ["#!/bin/bash", "-c", "./cloud_sql_proxy -instances=$CLOUD_SQL_CONNECTION_NAME=cog-analytics-backend:us-central1:authz-store=tcp:5433"]
-ENTRYPOINT ["spicedb"]
+
