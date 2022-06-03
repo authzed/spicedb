@@ -5,6 +5,7 @@ import (
 	dbsql "database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -109,17 +110,26 @@ type sqlFilter interface {
 // database by leveraging manual book-keeping to implement revisioning.
 //
 // This datastore is also tested to be compatible with CockroachDB.
+
 func NewPostgresDatastore(
 	url string,
 	options ...Option,
 ) (datastore.Datastore, error) {
+	fmt.Println(url, "url")
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
 	// config must be initialized by ParseConfig
-	pgxConfig, err := pgxpool.ParseConfig(url)
+	//pgxConfig, err := pgxpool.ParseConfig(url)
+	socketDir, isSet := os.LookupEnv("DB_SOCKET_DIR")
+	if !isSet {
+		socketDir = "/cloudsql"
+	}
+	dbURI := fmt.Sprintf("user=%s password=%s database=%s host=%s/%s", "new", "Happy123", "postgres", socketDir, "cog-analytics-backend:us-central1:authz-store")
+
+	pgxConfig, err := pgxpool.ParseConfig(dbURI)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -142,13 +152,15 @@ func NewPostgresDatastore(
 
 	pgxConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
 
-	dbpool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
+	pool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
+	// ...
+
+	//pool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
-
 	if config.enablePrometheusStats {
-		collector := NewPgxpoolStatsCollector(dbpool, "spicedb")
+		collector := NewPgxpoolStatsCollector(pool, "spicedb")
 		err := prometheus.Register(collector)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -166,7 +178,8 @@ func NewPostgresDatastore(
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 	}
-
+	fmt.Printf("Underlying Type: %T\n", pool)
+	fmt.Printf("Underlying Value: %v\n", pool)
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
 	quantizationPeriodNanos := config.revisionQuantization.Nanoseconds()
@@ -197,7 +210,7 @@ func NewPostgresDatastore(
 			maxRevisionStaleness,
 		),
 		dburl:                   url,
-		dbpool:                  dbpool,
+		dbpool:                  pool,
 		watchBufferLength:       config.watchBufferLength,
 		optimizedRevisionQuery:  revisionQuery,
 		validTransactionQuery:   validTransactionQuery,
