@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <script src="wasm_exec.js"></script>
+    <script>
+        // Based on: https://github.com/golang/go/blob/master/misc/wasm/wasm_exec.html
+        if (WebAssembly) {
+            // WebAssembly.instantiateStreaming is not currently available in Safari
+            if (WebAssembly && !WebAssembly.instantiateStreaming) { // polyfill
+                WebAssembly.instantiateStreaming = async (resp, importObject) => {
+                    const source = await (await resp).arrayBuffer();
+                    return await WebAssembly.instantiate(source, importObject);
+                };
+            }
+
+            const go = new Go();
+            WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+                go.run(result.instance);
+            });
+        } else {
+            console.log("WebAssembly is not supported in your browser")
+        }
+    </script>
+    <script>
+        function test() {
+            const [devErrs, err] = runSpiceDBDevelopmentOperations(
+                JSON.stringify({
+                    'schema': `definition user {}
+                    
+                        definition document {
+                            relation viewer: user
+                            permission view = viewer
+                        }`
+                    ,
+                    'relationships': [
+                        {
+                            resource_and_relation: {
+                                namespace: 'document',
+                                object_id: 'somedoc',
+                                relation: 'viewer',
+                            },
+                            subject: {
+                                    namespace: 'user',
+                                    object_id: 'foo',
+                                    relation: '...'
+                            }
+                        }
+                    ],
+                }),
+                [
+                    {
+                        operation: 'check',
+                        parameters: JSON.stringify({
+                            resource: {
+                                namespace: 'document',
+                                object_id: 'somedoc',
+                                relation: 'view',
+                            },
+                            subject: {
+                                namespace: 'user',
+                                object_id: 'foo',
+                                relation: '...',
+                            }
+                        }),
+                        callback: (result, err) => {
+                            console.log(result, err)
+                        }
+                    },
+                    {
+                        operation: 'runAssertions',
+                        parameters: JSON.stringify({
+                            assertions_yaml: `
+                            assertTrue:
+                            - document:somedoc#view@user:foo
+                            assertFalse: []
+                            `
+                        }),
+                        callback: (result, err) => {
+                            console.log(result, err)
+                        }
+                    },
+                    {
+                        operation: 'runValidation',
+                        parameters: JSON.stringify({
+                            validation_yaml: `
+                                document:somedoc#view:
+                                - "[user:foo] is <documents:somedoc#viewer>"
+                            `
+                        }),
+                        callback: (deverrs, err) => {
+                            console.log(deverrs ? JSON.parse(deverrs) : '', err)
+                        }
+                    },
+                ]
+            )
+            console.log(devErrs, err)
+        }
+    </script>
+</head>
+
+<body>
+    <button onClick="test()">Test</button>
+</body>
+
+</html>

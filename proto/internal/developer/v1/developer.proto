@@ -7,6 +7,8 @@ import "google/protobuf/any.proto";
 import "validate/validate.proto";
 import "core/v1/core.proto";
 
+// RequestContext is the context for setting up a development package environment for one or more
+// operations.
 message RequestContext {
   string schema = 1;
   repeated core.v1.RelationTuple relationships = 2;
@@ -46,4 +48,20 @@ message DeveloperError {
   // context holds the context for the error. For schema issues, this will be the
   // name of the object type. For relationship issues, the full relationship string.
   string context = 7;
+}
+
+// CheckOperationParameters are the parameters for a `check` operation.
+message CheckOperationParameters {
+  core.v1.ObjectAndRelation resource = 1;
+  core.v1.ObjectAndRelation subject = 2;
+}
+
+// RunAssertionsParameters are the parameters for a `runAssertions` operation.
+message RunAssertionsParameters {
+  string assertions_yaml = 1;
+}
+
+// RunValidationParameters are the parameters for a `runValidation` operation.
+message RunValidationParameters {
+  string validation_yaml = 1;
 }
