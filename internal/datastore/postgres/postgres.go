@@ -127,7 +127,7 @@ func NewPostgresDatastore(
 	if !isSet {
 		socketDir = "/cloudsql"
 	}
-	dbURI := fmt.Sprintf("user=%s password=%s database=%s host=%s/%s", "new", "Happy123", "postgres", socketDir, "cog-analytics-backend:us-central1:authz-store")
+	dbURI := fmt.Sprintf("user=%s password=%s database=%s host=%s/%s", "new", "Happy456", "postgres", socketDir, "cog-analytics-backend:us-central1:authz-store")
 
 	pgxConfig, err := pgxpool.ParseConfig(dbURI)
 	if err != nil {
