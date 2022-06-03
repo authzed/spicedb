@@ -133,11 +133,12 @@ func GCInterval(interval time.Duration) Option {
 func GCMaxOperationTime(time time.Duration) Option {
 	return func(mo *mysqlOptions) {
 		mo.gcMaxOperationTime = time
-  }
+	}
 }
 
 // MaxRetries is the maximum number of times a retriable transaction will be
 // client-side retried.
+//
 // Default: 10
 func MaxRetries(maxRetries uint8) Option {
 	return func(mo *mysqlOptions) {
