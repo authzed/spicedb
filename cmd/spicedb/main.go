@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 	"os"
 	"time"
@@ -45,6 +46,7 @@ func main() {
 	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		cmd.Println(err)
 		cmd.Println(cmd.UsageString())
+		fmt.Println("Somewhere in the middle")
 		return errParsing
 	})
 	cmd.RegisterRootFlags(rootCmd)
@@ -83,5 +85,6 @@ func main() {
 		}
 		os.Exit(1)
 	}
+	fmt.Println("I got here though")
 
 }
