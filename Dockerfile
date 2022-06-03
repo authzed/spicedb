@@ -1,7 +1,7 @@
 FROM golang:1.18-alpine3.15 AS spicedb-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
-COPY . .
+COPY . ./
 #Spice build
 RUN go build -v ./cmd/spicedb/
 
@@ -10,4 +10,4 @@ RUN [ ! -e /etc/nsswitch.conf ] && echo 'hosts: files dns' > /etc/nsswitch.conf
 COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.6 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe
 COPY --from=spicedb-builder /go/src/app/spicedb /usr/local/bin/spicedb
 ENTRYPOINT ["spicedb"]
-CMD ["serve --grpc-preshared-key \"realkeyhere\""]
+CMD ["./... serve --grpc-preshared-key \"realkeyhere\""]
