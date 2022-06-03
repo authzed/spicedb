@@ -123,8 +123,8 @@ func (cr *clusterDispatcher) Close() error {
 	return nil
 }
 
-// Ready returns whether the underlying dispatch connection is available
-func (cr *clusterDispatcher) Ready() bool {
+// IsReady returns whether the underlying dispatch connection is available
+func (cr *clusterDispatcher) IsReady() bool {
 	return cr.conn.GetState() == connectivity.Ready ||
 		cr.conn.GetState() == connectivity.Idle
 }

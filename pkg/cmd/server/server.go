@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
+	"github.com/authzed/spicedb/internal/services/health"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/balancer"
@@ -218,10 +219,12 @@ func (c *Config) Complete() (RunnableServer, error) {
 		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
 	}
 
+	healthManager := health.NewHealthManager(dispatcher, ds)
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(
 				server,
+				healthManager,
 				dispatcher,
 				c.DispatchMaxDepth,
 				prefixRequiredOption,
@@ -313,6 +316,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		streamingMiddleware: c.StreamingMiddleware,
 		presharedKeys:       c.PresharedKey,
 		telemetryReporter:   reporter,
+		healthManager:       healthManager,
 		closeFunc: func() {
 			if err := ds.Close(); err != nil {
 				log.Warn().Err(err).Msg("couldn't close datastore")
@@ -349,6 +353,7 @@ type completedServerConfig struct {
 	metricsServer      util.RunnableHTTPServer
 	dashboardServer    util.RunnableHTTPServer
 	telemetryReporter  telemetry.Reporter
+	healthManager      health.Manager
 
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
@@ -394,6 +399,7 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	}
 
 	grpcServer := c.gRPCServer.WithOpts(grpc.ChainUnaryInterceptor(c.unaryMiddleware...), grpc.ChainStreamInterceptor(c.streamingMiddleware...))
+	g.Go(c.healthManager.Checker(ctx))
 	g.Go(grpcServer.Listen)
 	g.Go(stopOnCancel(grpcServer.GracefulStop))
 

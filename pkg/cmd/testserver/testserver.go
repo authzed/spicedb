@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/readonly"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/services"
+	"github.com/authzed/spicedb/internal/services/health"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
@@ -34,14 +35,23 @@ type RunnableTestServer interface {
 	ReadOnlyGRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
 
+type datastoreReady struct{}
+
+func (dr datastoreReady) IsReady(ctx context.Context) (bool, error) {
+	return true, nil
+}
+
 func (c *Config) Complete() (RunnableTestServer, error) {
 	dispatcher := graph.NewLocalOnlyDispatcher()
 
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs)
 
+	healthManager := health.NewHealthManager(dispatcher, &datastoreReady{})
+
 	registerServices := func(srv *grpc.Server) {
 		services.RegisterGrpcServices(
 			srv,
+			healthManager,
 			dispatcher,
 			maxDepth,
 			v1alpha1svc.PrefixNotRequired,
@@ -89,12 +99,14 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 	return &completedTestServer{
 		gRPCServer:         gRPCSrv,
 		readOnlyGRPCServer: readOnlyGRPCSrv,
+		healthManager:      healthManager,
 	}, nil
 }
 
 type completedTestServer struct {
 	gRPCServer         util.RunnableGRPCServer
 	readOnlyGRPCServer util.RunnableGRPCServer
+	healthManager      health.Manager
 }
 
 func (c *completedTestServer) Run(ctx context.Context) error {
@@ -108,6 +120,7 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 		}
 	}
 
+	g.Go(c.healthManager.Checker(ctx))
 	g.Go(c.gRPCServer.Listen)
 	g.Go(stopOnCancel(c.gRPCServer.GracefulStop))
 	g.Go(c.readOnlyGRPCServer.Listen)
