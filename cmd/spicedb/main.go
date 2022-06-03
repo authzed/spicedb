@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -83,7 +82,7 @@ func main() {
 		if !errors.Is(err, errParsing) {
 			log.Err(err).Msg("terminated with errors")
 		}
-		os.Exit(1)
+		//os.Exit(1)
 	}
 	fmt.Println("I got here though")
 
