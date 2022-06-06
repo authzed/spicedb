@@ -18,7 +18,7 @@ func SignalContextWithGracePeriod(ctx context.Context, gracePeriod time.Duration
 	go func() {
 		signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		<-signalctx.Done()
-		log.Info().Msg("received interrupt")
+		log.Info().Msg("received interrupt, this one??")
 
 		if gracePeriod > 0 {
 			interruptGrace, _ := signal.NotifyContext(context.Background(), os.Interrupt)
