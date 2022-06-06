@@ -5,6 +5,7 @@ import (
 	dbsql "database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -121,14 +122,14 @@ func NewPostgresDatastore(
 	}
 
 	// config must be initialized by ParseConfig
-	pgxConfig, err := pgxpool.ParseConfig(url)
-	/*	socketDir, isSet := os.LookupEnv("DB_SOCKET_DIR")
-		if !isSet {
-			socketDir = "/cloudsql"
-		}*/
-	//dbURI := fmt.Sprintf("user=%s password=%s database=%s host=%s/%sparseTime=true", "new", "Happy456", "postgres", socketDir, "cog-analytics-backend:us-central1:authz-store")
+	//pgxConfig, err := pgxpool.ParseConfig(url)
+	socketDir, isSet := os.LookupEnv("DB_SOCKET_DIR")
+	if !isSet {
+		socketDir = "/cloudsql"
+	}
+	dbURI := fmt.Sprintf("user=%s password=%s database=%s host=%s/%sparseTime=true", "new", "Happy456", "postgres", socketDir, "cog-analytics-backend:us-central1:authz-store")
 
-	//pgxConfig, err := pgxpool.ParseConfig(dbURI)
+	pgxConfig, err := pgxpool.ParseConfig(dbURI)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
