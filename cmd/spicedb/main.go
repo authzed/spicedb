@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -85,5 +86,30 @@ func main() {
 		//os.Exit(1)
 	}
 	fmt.Println("I got here though")
+}
 
+func connectUnixSocket() (*sql.DB, error) {
+	// Note: Saving credentials in environment variables is convenient, but not
+	// secure - consider a more secure solution such as
+	// Cloud Secret Manager (https://cloud.google.com/secret-manager) to help
+	// keep secrets safe.
+	var (
+		dbUser         = "user"                                                    // e.g. 'my-db-user'
+		dbPwd          = "Happy567"                                                // e.g. 'my-db-password'
+		unixSocketPath = "/cloudsql/cog-analytics-backend:us-central1:authz-store" // e.g. '/cloudsql/project:region:instance'
+		dbName         = "postgres"                                                // e.g. 'my-database'
+	)
+
+	dbURI := fmt.Sprintf("user=%s password=%s database=%s host=%s",
+		dbUser, dbPwd, dbName, unixSocketPath)
+
+	// dbPool is the pool of database connections.
+	dbPool, err := sql.Open("pgx", dbURI)
+	if err != nil {
+		return nil, fmt.Errorf("sql.Open: %v", err)
+	}
+
+	// ...
+	fmt.Println("we have successfully created A connection")
+	return dbPool, nil
 }
