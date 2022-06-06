@@ -6,7 +6,7 @@ import (
 	"github.com/jackc/pgx/v4"
 )
 
-const createUniqueLivingTupleConstraint = `
+const createUniqueLivingNamespaceConstraint = `
 	ALTER TABLE namespace_config
 	ADD CONSTRAINT uq_namespace_living UNIQUE (namespace, deleted_transaction);
 `
@@ -25,7 +25,7 @@ func init() {
 				return err
 			}
 
-			if _, err := tx.Exec(ctx, createUniqueLivingTupleConstraint); err != nil {
+			if _, err := tx.Exec(ctx, createUniqueLivingNamespaceConstraint); err != nil {
 				return err
 			}
 			return nil
