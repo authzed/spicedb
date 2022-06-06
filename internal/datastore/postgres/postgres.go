@@ -120,7 +120,6 @@ func NewPostgresDatastore(
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
-	fmt.Println("line 123")
 
 	// config must be initialized by ParseConfig
 	//pgxConfig, err := pgxpool.ParseConfig(url)
@@ -128,7 +127,7 @@ func NewPostgresDatastore(
 	if !isSet {
 		socketDir = "/cloudsql"
 	}
-	dbURI := fmt.Sprintf("user=%s password=%s database=%s host=%s/%s?parseTime=true", "new", "Happy456", "postgres", socketDir, "cog-analytics-backend:us-central1:authz-store")
+	dbURI := fmt.Sprintf("user=%s password=%s database=%s host=%s/%sparseTime=true", "new", "Happy456", "postgres", socketDir, "cog-analytics-backend:us-central1:authz-store")
 
 	pgxConfig, err := pgxpool.ParseConfig(dbURI)
 	if err != nil {
@@ -150,7 +149,7 @@ func NewPostgresDatastore(
 	if config.healthCheckPeriod != nil {
 		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
 	}
-	fmt.Println("line 153")
+
 	pgxConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
 
 	pool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
@@ -182,7 +181,7 @@ func NewPostgresDatastore(
 	fmt.Printf("Underlying Type: %T\n", pool)
 	fmt.Printf("Underlying Value: %v\n", pool)
 	gcCtx, cancelGc := context.WithCancel(context.Background())
-	fmt.Println("line 185")
+
 	quantizationPeriodNanos := config.revisionQuantization.Nanoseconds()
 	if quantizationPeriodNanos < 1 {
 		quantizationPeriodNanos = 1
@@ -227,7 +226,7 @@ func NewPostgresDatastore(
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
-	fmt.Println("line 230")
+
 	// Start a goroutine for garbage collection.
 	if datastore.gcInterval > 0*time.Minute {
 		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
