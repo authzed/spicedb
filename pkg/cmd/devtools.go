@@ -95,7 +95,7 @@ func runfunc(cmd *cobra.Command, args []string) error {
 	}()
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 	<-signalctx.Done()
-	log.Info().Msg("received interrupt")
+	log.Info().Msg("received interrupt or this one")
 	grpcServer.GracefulStop()
 	if err := metricsSrv.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
