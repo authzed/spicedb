@@ -85,7 +85,11 @@ func main() {
 		}
 		//os.Exit(1)
 	}
-	fmt.Println("I got here though")
+	socket, err := connectUnixSocket()
+	if err != nil {
+		return
+	}
+	fmt.Println("I got here though", socket)
 }
 
 func connectUnixSocket() (*sql.DB, error) {
