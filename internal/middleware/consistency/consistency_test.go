@@ -6,7 +6,6 @@ import (
 	"io"
 	"testing"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpc_testing "github.com/grpc-ecosystem/go-grpc-middleware/testing"
 	pb_testproto "github.com/grpc-ecosystem/go-grpc-middleware/testing/testproto"
@@ -18,9 +17,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/zedtoken"
-	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 var (
@@ -134,32 +131,6 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 		},
 	}, ds)
 	require.Error(err)
-	ds.AssertExpectations(t)
-}
-
-func TestAddRevisionToContextV0AtRevision(t *testing.T) {
-	require := require.New(t)
-
-	ds := &proxy_test.MockDatastore{}
-
-	updated := ContextWithHandle(context.Background())
-
-	err := AddRevisionToContext(updated, &v0.ReadRequest{AtRevision: core.ToV0Zookie(zookie.NewFromRevision(head))}, ds)
-	require.NoError(err)
-	require.Equal(head.IntPart(), RevisionFromContext(updated).IntPart())
-	ds.AssertExpectations(t)
-}
-
-func TestAddRevisionToContextV0NoAtRevision(t *testing.T) {
-	require := require.New(t)
-
-	ds := &proxy_test.MockDatastore{}
-	ds.On("OptimizedRevision").Return(optimized, nil).Once()
-
-	updated := ContextWithHandle(context.Background())
-	err := AddRevisionToContext(updated, &v0.ReadRequest{}, ds)
-	require.NoError(err)
-	require.Equal(optimized.IntPart(), RevisionFromContext(updated).IntPart())
 	ds.AssertExpectations(t)
 }
 

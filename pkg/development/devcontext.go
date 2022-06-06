@@ -42,7 +42,7 @@ type DevContext struct {
 	Ctx        context.Context
 	Datastore  datastore.Datastore
 	Revision   decimal.Decimal
-	Namespaces []*v0.NamespaceDefinition
+	Namespaces []*core.NamespaceDefinition
 	Dispatcher dispatch.Dispatcher
 }
 
@@ -82,17 +82,9 @@ func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0
 
 	var inputErrors []*v0.DeveloperError
 	currentRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		inputErrors, err = loadNamespaces(ctx, core.ToV0NamespaceDefinitions(namespaces), rwt)
+		inputErrors, err = loadNamespaces(ctx, namespaces, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err
-		}
-
-		// TODO(jschorr): Remove once LegacyNsConfigs is no longer supported in playground.
-		if len(developerRequestContext.LegacyNsConfigs) > 0 {
-			inputErrors, err = loadNamespaces(ctx, developerRequestContext.LegacyNsConfigs, rwt)
-			if err != nil || len(inputErrors) > 0 {
-				return err
-			}
 		}
 
 		// Load the test relationships into the datastore.
@@ -118,7 +110,7 @@ func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0
 	return &DevContext{
 		Ctx:        ctx,
 		Datastore:  ds,
-		Namespaces: core.ToV0NamespaceDefinitions(namespaces),
+		Namespaces: namespaces,
 		Revision:   currentRevision,
 		Dispatcher: graph.NewLocalOnlyDispatcher(),
 	}, nil, nil
@@ -181,14 +173,12 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, rwt datastore.R
 
 func loadNamespaces(
 	ctx context.Context,
-	namespaces []*v0.NamespaceDefinition,
+	namespaces []*core.NamespaceDefinition,
 	rwt datastore.ReadWriteTransaction,
 ) ([]*v0.DeveloperError, error) {
 	errors := make([]*v0.DeveloperError, 0, len(namespaces))
 	for _, nsDef := range namespaces {
-		coreNsDef := core.ToCoreNamespaceDefinition(nsDef)
-		coreNamespaces := core.ToCoreNamespaceDefinitions(namespaces)
-		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(coreNsDef, coreNamespaces)
+		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(nsDef, namespaces)
 		if terr != nil {
 			errWithSource, ok := commonerrors.AsErrorWithSource(terr)
 			if ok {
@@ -214,7 +204,7 @@ func loadNamespaces(
 
 		_, tverr := ts.Validate(ctx)
 		if tverr == nil {
-			if err := rwt.WriteNamespaces(coreNsDef); err != nil {
+			if err := rwt.WriteNamespaces(nsDef); err != nil {
 				return errors, err
 			}
 			continue
