@@ -7,8 +7,6 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-
-	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 var encodeRevisionTests = []decimal.Decimal{
@@ -31,20 +29,6 @@ func TestZedTokenEncode(t *testing.T) {
 			require := require.New(t)
 			encoded := NewFromRevision(rev)
 			decoded, err := DecodeRevision(encoded)
-			require.NoError(err)
-			require.True(rev.Equal(decoded))
-		})
-	}
-}
-
-func TestZookieV2Compatibility(t *testing.T) {
-	for _, rev := range encodeRevisionTests {
-		t.Run(rev.String(), func(t *testing.T) {
-			require := require.New(t)
-			encodedZookie := zookie.NewFromRevision(rev)
-			decoded, err := DecodeRevision(&v1.ZedToken{
-				Token: encodedZookie.Token,
-			})
 			require.NoError(err)
 			require.True(rev.Equal(decoded))
 		})

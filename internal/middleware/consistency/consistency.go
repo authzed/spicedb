@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
@@ -14,21 +13,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/zedtoken"
-	"github.com/authzed/spicedb/pkg/zookie"
 )
 
 type hasConsistency interface {
 	GetConsistency() *v1.Consistency
-}
-
-type hasAtRevision interface {
-	GetAtRevision() *v0.Zookie
 }
 
 type ctxKeyType struct{}
@@ -74,8 +66,6 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 	switch req := req.(type) {
 	case hasConsistency:
 		return addRevisionToContextFromConsistency(ctx, req, ds)
-	case hasAtRevision:
-		return addRevisionToContextFromAtRevision(ctx, req, ds)
 	default:
 		return addHeadRevision(ctx, ds)
 	}
@@ -155,33 +145,6 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 	return nil
 }
 
-// addRevisionToContextFromAtRevision adds a revision to the given context, based on the AtRevision field (v0 api only)
-func addRevisionToContextFromAtRevision(ctx context.Context, req hasAtRevision, ds datastore.Datastore) error {
-	handle := ctx.Value(revisionKey)
-	if handle == nil {
-		return nil
-	}
-
-	// Read should attempt to use the exact revision requested
-	if req, ok := req.(*v0.ReadRequest); ok && req.AtRevision != nil {
-		decoded, err := zookie.DecodeRevision(core.ToCoreZookie(req.AtRevision))
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "bad request revision: %s", err)
-		}
-
-		handle.(*revisionHandle).revision = decoded
-		return nil
-	}
-
-	// all other requests pick a revision
-	revision, err := pickBestRevisionV0(ctx, core.ToCoreZookie(req.GetAtRevision()), ds)
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, err.Error())
-	}
-	handle.(*revisionHandle).revision = revision
-	return nil
-}
-
 var bypassServiceWhitelist = map[string]struct{}{
 	"/grpc.reflection.v1alpha.ServerReflection/": {},
 	"/grpc.health.v1.Health/":                    {},
@@ -251,28 +214,6 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 
 	if requested != nil {
 		requestedRev, err := zedtoken.DecodeRevision(requested)
-		if err != nil {
-			return decimal.Zero, errInvalidZedToken
-		}
-
-		if requestedRev.GreaterThan(databaseRev) {
-			return requestedRev, nil
-		}
-		return databaseRev, nil
-	}
-
-	return databaseRev, nil
-}
-
-func pickBestRevisionV0(ctx context.Context, requested *core.Zookie, ds datastore.Datastore) (decimal.Decimal, error) {
-	// Calculate a revision as we see fit
-	databaseRev, err := ds.OptimizedRevision(ctx)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	if requested != nil {
-		requestedRev, err := zookie.DecodeRevision(requested)
 		if err != nil {
 			return decimal.Zero, errInvalidZedToken
 		}
