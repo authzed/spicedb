@@ -3,6 +3,7 @@ package migrate
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -10,15 +11,15 @@ import (
 type fakeDriver struct{}
 
 func (*fakeDriver) Version(ctx context.Context) (string, error) {
-	return "", nil
+	return "", ctx.Err()
 }
 
 func (*fakeDriver) WriteVersion(ctx context.Context, version, replaced string) error {
-	return nil
+	return ctx.Err()
 }
 
 func (*fakeDriver) Close(ctx context.Context) error {
-	return nil
+	return ctx.Err()
 }
 
 func TestParameterChecking(t *testing.T) {
@@ -27,8 +28,10 @@ func TestParameterChecking(t *testing.T) {
 		up          interface{}
 		expectError bool
 	}{
-		{&fakeDriver{}, func(d Driver) {}, false},
-		{&fakeDriver{}, func(fd *fakeDriver) {}, false},
+		{&fakeDriver{}, func(ctx context.Context, d Driver) {}, false},
+		{&fakeDriver{}, func(ctx context.Context, fd *fakeDriver) {}, false},
+		{&fakeDriver{}, func(invalidType int, fd *fakeDriver) {}, true},
+		{&fakeDriver{}, func(ctx context.Context, invalidType int) {}, true},
 		{nil, nil, true},
 		{&fakeDriver{}, nil, true},
 		{&fakeDriver{}, func(a *int) {}, true},
@@ -36,11 +39,33 @@ func TestParameterChecking(t *testing.T) {
 		{nil, &fakeDriver{}, true},
 	}
 
-	require := require.New(t)
 	for _, tc := range testCases {
-		err := checkTypes(tc.driver, tc.up)
-		require.Equal(tc.expectError, err != nil, err)
+		t.Run("", func(t *testing.T) {
+			req := require.New(t)
+			err := checkTypes(tc.driver, tc.up)
+			req.Equal(tc.expectError, err != nil, err)
+		})
 	}
+}
+
+func TestContextError(t *testing.T) {
+	req := require.New(t)
+	ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(1*time.Millisecond))
+	m := NewManager()
+
+	err := m.Register("1", "", func(ctx context.Context, driver Driver) error {
+		cancelFunc()
+		return nil
+	})
+	req.NoError(err)
+
+	err = m.Register("2", "1", func(ctx context.Context, driver Driver) error {
+		panic("the second migration should never be executed")
+	})
+	req.NoError(err)
+
+	err = m.Run(ctx, &fakeDriver{}, Head, false)
+	req.ErrorIs(err, context.Canceled)
 }
 
 type revisionRangeTest struct {

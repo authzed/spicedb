@@ -14,9 +14,7 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("add-transactions-table", "initial", func(apd *CRDBDriver) error {
-		ctx := context.Background()
-
+	if err := CRDBMigrations.Register("add-transactions-table", "initial", func(ctx context.Context, apd *CRDBDriver) error {
 		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 			statements := []string{
 				createTransactions,

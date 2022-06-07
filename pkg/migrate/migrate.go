@@ -124,7 +124,7 @@ func (m *Manager) Run(ctx context.Context, driver Driver, throughRevision string
 
 			log.Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
 
-			in := []reflect.Value{reflect.ValueOf(driver)}
+			in := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(driver)}
 			upFunction := reflect.ValueOf(migrationToRun.up)
 
 			errArg := upFunction.Call(in)[0]
@@ -200,14 +200,20 @@ func checkTypes(driver Driver, shouldBeFunction interface{}) error {
 		return errors.New("function pointer is nil")
 	}
 
-	if funcType.NumIn() != 1 {
-		return errors.New("function must take one and only one parameter")
+	if funcType.NumIn() != 2 {
+		return errors.New("function must take two arguments: context and driver")
 	}
 
-	onlyParam := funcType.In(0)
+	ctxParam := funcType.In(0)
+	ctxType := reflect.TypeOf(context.Background())
 
-	if !driverType.AssignableTo(onlyParam) {
-		return errors.New("driver object must be assignable to function parameter")
+	if !ctxType.AssignableTo(ctxParam) {
+		return errors.New("context object must be assignable to first migration function parameter")
+	}
+
+	driveParam := funcType.In(1)
+	if !driverType.AssignableTo(driveParam) {
+		return errors.New("driver object must be assignable to second migration function parameter")
 	}
 
 	return nil

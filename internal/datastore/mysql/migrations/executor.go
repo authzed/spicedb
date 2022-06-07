@@ -18,19 +18,19 @@ func newExecutor(statements ...driverExecutor) executor {
 	}
 }
 
-func (e executor) migrate(driver *MySQLDriver) error {
+func (e executor) migrate(ctx context.Context, driver *MySQLDriver) error {
 	if len(e.statements) == 0 {
 		return errors.New("executor.migrate: No statements to migrate")
 	}
 
-	tx, err := driver.db.Begin()
+	tx, err := driver.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer LogOnError(context.Background(), tx.Rollback)
+	defer LogOnError(ctx, tx.Rollback)
 
 	for _, stmt := range e.statements {
-		_, err := tx.Exec(stmt(driver))
+		_, err := tx.ExecContext(ctx, stmt(driver))
 		if err != nil {
 			return fmt.Errorf("executor.migrate: failed to run statement: %w", err)
 		}

@@ -101,7 +101,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		log.Fatal().Err(err).Msg("unable to complete requested migrations")
 	}
 
-	if err := migrationDriver.Close(); err != nil {
+	if err := migrationDriver.Close(context.Background()); err != nil {
 		log.Fatal().Err(err).Msg("unable to close migration driver")
 	}
 

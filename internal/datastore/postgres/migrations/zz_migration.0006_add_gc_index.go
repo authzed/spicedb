@@ -7,8 +7,8 @@ const (
 )
 
 func init() {
-	if err := DatabaseMigrations.Register("add-gc-index", "change-transaction-timestamp-default", func(apd *AlembicPostgresDriver) error {
-		_, err := apd.db.Exec(context.Background(), createDeletedTransactionIndex)
+	if err := DatabaseMigrations.Register("add-gc-index", "change-transaction-timestamp-default", func(ctx context.Context, apd *AlembicPostgresDriver) error {
+		_, err := apd.db.Exec(ctx, createDeletedTransactionIndex)
 		return err
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
