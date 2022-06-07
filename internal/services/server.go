@@ -1,18 +1,15 @@
 package services
 
 import (
-	"time"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
-	"github.com/cenkalti/backoff/v4"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 )
@@ -26,7 +23,9 @@ const (
 
 	// V1SchemaServiceEnabled indicates that the V1 schema service is enabled.
 	V1SchemaServiceEnabled SchemaServiceOption = 1
+)
 
+const (
 	// Empty string is used for grpc health check requests for the overall system.
 	OverallServerHealthCheckKey = ""
 )
@@ -34,59 +33,28 @@ const (
 // RegisterGrpcServices registers all services to be exposed on the GRPC server.
 func RegisterGrpcServices(
 	srv *grpc.Server,
+	healthManager health.Manager,
 	dispatch dispatch.Dispatcher,
 	maxDepth uint32,
 	prefixRequired v1alpha1svc.PrefixRequiredOption,
 	schemaServiceOption SchemaServiceOption,
 ) {
-	healthSrv := grpcutil.NewAuthlessHealthServer()
+	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
 	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(prefixRequired))
-	healthSrv.SetServicesHealthy(&v1alpha1.SchemaService_ServiceDesc)
+	healthManager.RegisterReportedService(v1alpha1.SchemaService_ServiceDesc.ServiceName)
 
 	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, maxDepth))
-	healthSrv.Server.SetServingStatus(v1.PermissionsService_ServiceDesc.ServiceName, healthpb.HealthCheckResponse_NOT_SERVING)
+	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
 	v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer())
-	healthSrv.SetServicesHealthy(&v1.WatchService_ServiceDesc)
+	healthManager.RegisterReportedService(v1.WatchService_ServiceDesc.ServiceName)
 
 	if schemaServiceOption == V1SchemaServiceEnabled {
 		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer())
-		healthSrv.SetServicesHealthy(&v1.SchemaService_ServiceDesc)
+		healthManager.RegisterReportedService(v1.SchemaService_ServiceDesc.ServiceName)
 	}
 
-	healthpb.RegisterHealthServer(srv, healthSrv)
-
+	healthpb.RegisterHealthServer(srv, healthManager.HealthSvc())
 	reflection.Register(grpcutil.NewAuthlessReflectionInterceptor(srv))
-
-	go checkDispatcherServicesReady(dispatch, healthSrv, v1.PermissionsService_ServiceDesc.ServiceName, OverallServerHealthCheckKey)
-}
-
-// checkDispatcherServicesReady waits for the dispatcher to become ready before setting the health check status for the given services
-func checkDispatcherServicesReady(dispatch dispatch.Dispatcher, healthSrv *grpcutil.AuthlessHealthServer, services ...string) {
-	backoffInterval := backoff.NewExponentialBackOff()
-	// Run immediately for the initial check
-	ticker := time.After(0)
-
-	for {
-		_, ok := <-ticker
-		if !ok {
-			log.Warn().Msg("backoff error while waiting for dispatcher health")
-			return
-		}
-
-		if dispatch.Ready() {
-			for _, s := range services {
-				healthSrv.Server.SetServingStatus(s, healthpb.HealthCheckResponse_SERVING)
-			}
-			return
-		}
-
-		nextPush := backoffInterval.NextBackOff()
-		if nextPush == backoff.Stop {
-			log.Warn().Msg("exceed max attempts to check for dispatch ready")
-			return
-		}
-		ticker = time.After(nextPush)
-	}
 }

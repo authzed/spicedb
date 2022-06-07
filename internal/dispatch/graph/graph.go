@@ -265,7 +265,7 @@ func (ld *localDispatcher) Close() error {
 	return nil
 }
 
-func (ld *localDispatcher) Ready() bool {
+func (ld *localDispatcher) IsReady() bool {
 	return true
 }
 

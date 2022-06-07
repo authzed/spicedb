@@ -154,7 +154,7 @@ func (ddm delegateDispatchMock) Close() error {
 	return nil
 }
 
-func (ddm delegateDispatchMock) Ready() bool {
+func (ddm delegateDispatchMock) IsReady() bool {
 	return true
 }
 
