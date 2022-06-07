@@ -18,7 +18,7 @@ type ReverseQueryOptions struct {
 	ResRelation  *ResourceRelation
 }
 
-// ResourceRelations combines a resource object type and relation.
+// ResourceRelation combines a resource object type and relation.
 type ResourceRelation struct {
 	Namespace string
 	Relation  string
