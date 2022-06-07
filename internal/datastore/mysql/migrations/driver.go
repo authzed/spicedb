@@ -113,7 +113,7 @@ func (driver *MySQLDriver) WriteVersion(ctx context.Context, version, replaced s
 	return nil
 }
 
-func (driver *MySQLDriver) Close() error {
+func (driver *MySQLDriver) Close(_ context.Context) error {
 	return driver.db.Close()
 }
 

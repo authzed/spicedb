@@ -82,7 +82,7 @@ func (smd SpannerMigrationDriver) WriteVersion(ctx context.Context, version, rep
 	return err
 }
 
-func (smd SpannerMigrationDriver) Close() error {
+func (smd SpannerMigrationDriver) Close(_ context.Context) error {
 	smd.client.Close()
 	return nil
 }

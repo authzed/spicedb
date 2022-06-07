@@ -17,7 +17,7 @@ func (*fakeDriver) WriteVersion(ctx context.Context, version, replaced string) e
 	return nil
 }
 
-func (*fakeDriver) Close() error {
+func (*fakeDriver) Close(ctx context.Context) error {
 	return nil
 }
 

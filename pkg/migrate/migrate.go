@@ -34,7 +34,7 @@ type Driver interface {
 	WriteVersion(ctx context.Context, version, replaced string) error
 
 	// Close frees up any resources in use by the driver.
-	Close() error
+	Close(ctx context.Context) error
 }
 
 type migration struct {

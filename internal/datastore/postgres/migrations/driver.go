@@ -74,7 +74,7 @@ func (apd *AlembicPostgresDriver) WriteVersion(ctx context.Context, version, rep
 	return nil
 }
 
-// Dispose disposes the driver.
-func (apd *AlembicPostgresDriver) Close() error {
-	return apd.db.Close(context.Background())
+// Close disposes the driver.
+func (apd *AlembicPostgresDriver) Close(ctx context.Context) error {
+	return apd.db.Close(ctx)
 }
