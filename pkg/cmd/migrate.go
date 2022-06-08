@@ -25,7 +25,7 @@ func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance")
 	cmd.Flags().String("datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().String("datastore-mysql-table-prefix", "", "prefix to add to the name of all mysql database tables")
-	cmd.Flags().Duration("migration-timeout", 0*time.Second, "defines a timeout for the execution of the migration, disabled by default")
+	cmd.Flags().Duration("migration-timeout", 1*time.Hour, "defines a timeout for the execution of the migration, set to 1 hour by default")
 }
 
 func NewMigrateCommand(programName string) *cobra.Command {
@@ -100,12 +100,8 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	targetRevision := args[0]
 
 	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
-	ctx := cmd.Context()
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(cmd.Context(), timeout)
-		defer cancel()
-	}
+	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+	defer cancel()
 	if err := manager.Run(ctx, migrationDriver, targetRevision, migrate.LiveRun); err != nil {
 		log.Fatal().Err(err).Msg("unable to complete requested migrations")
 	}
