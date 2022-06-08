@@ -103,7 +103,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	if timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(cmd.Context(), time.Now().Add(timeout))
+		ctx, cancel = context.WithTimeout(cmd.Context(), timeout)
 		defer cancel()
 	}
 	if err := manager.Run(ctx, migrationDriver, targetRevision, migrate.LiveRun); err != nil {
