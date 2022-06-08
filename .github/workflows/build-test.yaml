@@ -129,11 +129,8 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "~1.18"
-      - name: "Install Go Protobuf plugins"
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
-          go install github.com/envoyproxy/protoc-gen-validate@v0.6.7
+      - name: "Install Go Tools"
+        run: "./install-tools.sh"
       - uses: "authzed/actions/buf-generate@main"
       - uses: "bufbuild/buf-breaking-action@v0.4.0"
         if: "github.event_name == 'pull_request'"
