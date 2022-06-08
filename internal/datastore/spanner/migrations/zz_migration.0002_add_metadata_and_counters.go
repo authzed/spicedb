@@ -20,9 +20,7 @@ const (
 )
 
 func init() {
-	if err := SpannerMigrations.Register("add-metadata-and-counters", "initial", func(smd SpannerMigrationDriver) error {
-		ctx := context.Background()
-
+	if err := SpannerMigrations.Register("add-metadata-and-counters", "initial", func(ctx context.Context, smd *SpannerMigrationDriver) error {
 		updateOp, err := smd.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
 			Database: smd.client.DatabaseName(),
 			Statements: []string{

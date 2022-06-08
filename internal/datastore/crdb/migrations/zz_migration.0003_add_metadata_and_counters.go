@@ -21,9 +21,7 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("add-metadata-and-counters", "add-transactions-table", func(apd *CRDBDriver) error {
-		ctx := context.Background()
-
+	if err := CRDBMigrations.Register("add-metadata-and-counters", "add-transactions-table", func(ctx context.Context, apd *CRDBDriver) error {
 		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 			if _, err := tx.Exec(ctx, createMetadataTable); err != nil {
 				return err

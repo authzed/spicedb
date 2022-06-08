@@ -12,9 +12,7 @@ const (
 )
 
 func init() {
-	if err := DatabaseMigrations.Register("add-reverse-index", "1eaeba4b8a73", func(apd *AlembicPostgresDriver) error {
-		ctx := context.Background()
-
+	if err := DatabaseMigrations.Register("add-reverse-index", "1eaeba4b8a73", func(ctx context.Context, apd *AlembicPostgresDriver) error {
 		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 			for _, stmt := range []string{
 				createReverseQueryIndex,

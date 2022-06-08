@@ -13,16 +13,18 @@ var (
 	migrationNameRe = regexp.MustCompile(migrationNamePattern)
 
 	// Manager is the singleton migration manager instance for MySQL
-	Manager = migrate.NewManager()
+	Manager = migrate.NewManager[*MySQLDriver]()
 )
 
-func mustRegisterMigration(version, replaces string, up interface{}) {
+type mySQLMigrationFunc = migrate.MigrationFunc[*MySQLDriver]
+
+func mustRegisterMigration(version, replaces string, up mySQLMigrationFunc) {
 	if err := registerMigration(version, replaces, up); err != nil {
 		panic("failed to register migration  " + err.Error())
 	}
 }
 
-func registerMigration(version, replaces string, up interface{}) error {
+func registerMigration(version, replaces string, up mySQLMigrationFunc) error {
 	// validate migration names to ensure they are compatible with mysql column names
 	for _, v := range []string{version, replaces} {
 		if match := migrationNameRe.MatchString(version); !match {

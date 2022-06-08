@@ -37,9 +37,7 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("initial", "", func(apd *CRDBDriver) error {
-		ctx := context.Background()
-
+	if err := CRDBMigrations.Register("initial", "", func(ctx context.Context, apd *CRDBDriver) error {
 		_, err := apd.db.Exec(ctx, enableRangefeeds)
 		if err != nil {
 			return err

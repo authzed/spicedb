@@ -4,6 +4,7 @@
 package migrations
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,8 @@ import (
 
 func TestMySQLMigrationsWithUnsupportedPrefix(t *testing.T) {
 	req := require.New(t)
-	err := registerMigration("888", "", struct{}{})
+	err := registerMigration("888", "", func(ctx context.Context, d *MySQLDriver) error {
+		return nil
+	})
 	req.Error(err)
 }
