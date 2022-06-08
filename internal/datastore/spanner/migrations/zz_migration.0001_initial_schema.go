@@ -48,7 +48,7 @@ const (
 )
 
 func init() {
-	if err := SpannerMigrations.Register("initial", "", func(ctx context.Context, smd SpannerMigrationDriver) error {
+	if err := SpannerMigrations.Register("initial", "", func(ctx context.Context, smd *SpannerMigrationDriver) error {
 		updateOp, err := smd.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
 			Database: smd.client.DatabaseName(),
 			Statements: []string{

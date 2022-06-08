@@ -14,7 +14,7 @@ func (*fakeDriver) Version(ctx context.Context) (string, error) {
 	return "", ctx.Err()
 }
 
-func (*fakeDriver) WriteVersion(ctx context.Context, version, replaced string) error {
+func (*fakeDriver) WriteVersion(ctx context.Context, _, _ string) error {
 	return ctx.Err()
 }
 
@@ -22,36 +22,10 @@ func (*fakeDriver) Close(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func TestParameterChecking(t *testing.T) {
-	testCases := []struct {
-		driver      Driver
-		up          interface{}
-		expectError bool
-	}{
-		{&fakeDriver{}, func(ctx context.Context, d Driver) {}, false},
-		{&fakeDriver{}, func(ctx context.Context, fd *fakeDriver) {}, false},
-		{&fakeDriver{}, func(invalidType int, fd *fakeDriver) {}, true},
-		{&fakeDriver{}, func(ctx context.Context, invalidType int) {}, true},
-		{nil, nil, true},
-		{&fakeDriver{}, nil, true},
-		{&fakeDriver{}, func(a *int) {}, true},
-		{nil, func(a *int) {}, true},
-		{nil, &fakeDriver{}, true},
-	}
-
-	for _, tc := range testCases {
-		t.Run("", func(t *testing.T) {
-			req := require.New(t)
-			err := checkTypes(tc.driver, tc.up)
-			req.Equal(tc.expectError, err != nil, err)
-		})
-	}
-}
-
 func TestContextError(t *testing.T) {
 	req := require.New(t)
 	ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(1*time.Millisecond))
-	m := NewManager()
+	m := NewManager[Driver]()
 
 	err := m.Register("1", "", func(ctx context.Context, driver Driver) error {
 		cancelFunc()
@@ -76,7 +50,7 @@ type revisionRangeTest struct {
 
 func TestRevisionWalking(t *testing.T) {
 	testCases := []struct {
-		migrations map[string]migration
+		migrations map[string]migration[Driver]
 		ranges     []revisionRangeTest
 	}{
 		{noMigrations, []revisionRangeTest{
@@ -136,7 +110,7 @@ func TestRevisionWalking(t *testing.T) {
 
 func TestComputeHeadRevision(t *testing.T) {
 	testCases := []struct {
-		migrations   map[string]migration
+		migrations   map[string]migration[Driver]
 		headRevision string
 		expectError  bool
 	}{
@@ -149,7 +123,7 @@ func TestComputeHeadRevision(t *testing.T) {
 
 	require := require.New(t)
 	for _, tc := range testCases {
-		m := Manager{migrations: tc.migrations}
+		m := Manager[Driver]{migrations: tc.migrations}
 		head, err := m.HeadRevision()
 		require.Equal(tc.expectError, err != nil, err)
 		require.Equal(tc.headRevision, head)
@@ -158,7 +132,7 @@ func TestComputeHeadRevision(t *testing.T) {
 
 func TestIsHeadCompatible(t *testing.T) {
 	testCases := []struct {
-		migrations       map[string]migration
+		migrations       map[string]migration[Driver]
 		currentMigration string
 		expectedResult   bool
 		expectError      bool
@@ -176,33 +150,33 @@ func TestIsHeadCompatible(t *testing.T) {
 
 	req := require.New(t)
 	for _, tc := range testCases {
-		m := Manager{migrations: tc.migrations}
+		m := Manager[Driver]{migrations: tc.migrations}
 		compatible, err := m.IsHeadCompatible(tc.currentMigration)
 		req.Equal(compatible, tc.expectedResult)
 		req.Equal(tc.expectError, err != nil, err)
 	}
 }
 
-var noMigrations = map[string]migration{}
+var noMigrations = map[string]migration[Driver]{}
 
-var simpleMigrations = map[string]migration{
+var simpleMigrations = map[string]migration[Driver]{
 	"123": {"123", "", nil},
 }
 
-var singleHeadedChain = map[string]migration{
+var singleHeadedChain = map[string]migration[Driver]{
 	"123": {"123", "", nil},
 	"456": {"456", "123", nil},
 	"789": {"789", "456", nil},
 }
 
-var multiHeadedChain = map[string]migration{
+var multiHeadedChain = map[string]migration[Driver]{
 	"123":  {"123", "", nil},
 	"456":  {"456", "123", nil},
 	"789a": {"789a", "456", nil},
 	"789b": {"789b", "456", nil},
 }
 
-var missingEarlyMigrations = map[string]migration{
+var missingEarlyMigrations = map[string]migration[Driver]{
 	"456": {"456", "123", nil},
 	"789": {"789", "456", nil},
 	"10":  {"10", "789", nil},

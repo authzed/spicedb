@@ -27,7 +27,7 @@ type SpannerMigrationDriver struct {
 }
 
 // NewSpannerDriver returns a migration driver for the given Cloud Spanner instance
-func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (SpannerMigrationDriver, error) {
+func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (*SpannerMigrationDriver, error) {
 	ctx := context.Background()
 
 	if len(emulatorHost) > 0 {
@@ -37,18 +37,18 @@ func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (Spann
 	log.Info().Str("credentials", credentialsFilePath).Str("db", database).Msg("connecting")
 	client, err := spanner.NewClient(ctx, database, option.WithCredentialsFile(credentialsFilePath))
 	if err != nil {
-		return SpannerMigrationDriver{}, err
+		return nil, err
 	}
 
 	adminClient, err := admin.NewDatabaseAdminClient(ctx, option.WithCredentialsFile(credentialsFilePath))
 	if err != nil {
-		return SpannerMigrationDriver{}, err
+		return nil, err
 	}
 
-	return SpannerMigrationDriver{client, adminClient}, nil
+	return &SpannerMigrationDriver{client, adminClient}, nil
 }
 
-func (smd SpannerMigrationDriver) Version(ctx context.Context) (string, error) {
+func (smd *SpannerMigrationDriver) Version(ctx context.Context) (string, error) {
 	rows := smd.client.Single().Read(
 		ctx,
 		tableSchemaVersion,
@@ -72,7 +72,7 @@ func (smd SpannerMigrationDriver) Version(ctx context.Context) (string, error) {
 	return schemaRevision, nil
 }
 
-func (smd SpannerMigrationDriver) WriteVersion(ctx context.Context, version, replaced string) error {
+func (smd *SpannerMigrationDriver) WriteVersion(ctx context.Context, version, replaced string) error {
 	_, err := smd.client.ReadWriteTransaction(ctx, func(c context.Context, rwt *spanner.ReadWriteTransaction) error {
 		return rwt.BufferWrite([]*spanner.Mutation{
 			spanner.Delete(tableSchemaVersion, spanner.KeySetFromKeys(spanner.Key{replaced})),
@@ -82,9 +82,9 @@ func (smd SpannerMigrationDriver) WriteVersion(ctx context.Context, version, rep
 	return err
 }
 
-func (smd SpannerMigrationDriver) Close(_ context.Context) error {
+func (smd *SpannerMigrationDriver) Close(_ context.Context) error {
 	smd.client.Close()
 	return nil
 }
 
-var _ migrate.Driver = SpannerMigrationDriver{}
+var _ migrate.Driver = &SpannerMigrationDriver{}

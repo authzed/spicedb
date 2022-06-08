@@ -44,27 +44,24 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	dbURL := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
 	timeout := cobrautil.MustGetDuration(cmd, "migration-timeout")
 
-	var migrationDriver migrate.Driver
-	var manager *migrate.Manager
-
 	if datastoreEngine == "cockroachdb" {
 		log.Info().Msg("migrating cockroachdb datastore")
 
 		var err error
-		migrationDriver, err = crdbmigrations.NewCRDBDriver(dbURL)
+		migrationDriver, err := crdbmigrations.NewCRDBDriver(dbURL)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
-		manager = crdbmigrations.CRDBMigrations
+		runMigration(cmd.Context(), migrationDriver, crdbmigrations.CRDBMigrations, args[0], timeout)
 	} else if datastoreEngine == "postgres" {
 		log.Info().Msg("migrating postgres datastore")
 
 		var err error
-		migrationDriver, err = migrations.NewAlembicPostgresDriver(dbURL)
+		migrationDriver, err := migrations.NewAlembicPostgresDriver(dbURL)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
-		manager = migrations.DatabaseMigrations
+		runMigration(cmd.Context(), migrationDriver, migrations.DatabaseMigrations, args[0], timeout)
 	} else if datastoreEngine == "spanner" {
 		log.Info().Msg("migrating spanner datastore")
 
@@ -74,11 +71,11 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to get spanner emulator host")
 		}
-		migrationDriver, err = spannermigrations.NewSpannerDriver(dbURL, credFile, emulatorHost)
+		migrationDriver, err := spannermigrations.NewSpannerDriver(dbURL, credFile, emulatorHost)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
-		manager = spannermigrations.SpannerMigrations
+		runMigration(cmd.Context(), migrationDriver, spannermigrations.SpannerMigrations, args[0], timeout)
 	} else if datastoreEngine == "mysql" {
 		log.Info().Msg("migrating mysql datastore")
 
@@ -88,29 +85,29 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 			log.Fatal().Msg(fmt.Sprintf("unable to get table prefix: %s", err))
 		}
 
-		migrationDriver, err = mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix)
+		migrationDriver, err := mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
-		manager = mysqlmigrations.Manager
+		runMigration(cmd.Context(), migrationDriver, mysqlmigrations.Manager, args[0], timeout)
 	} else {
 		return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 	}
 
-	targetRevision := args[0]
+	return nil
+}
 
+func runMigration[T migrate.Driver](ctx context.Context, driver T, manager *migrate.Manager[T], targetRevision string, timeout time.Duration) {
 	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
-	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if err := manager.Run(ctx, migrationDriver, targetRevision, migrate.LiveRun); err != nil {
+	if err := manager.Run(ctx, driver, targetRevision, migrate.LiveRun); err != nil {
 		log.Fatal().Err(err).Msg("unable to complete requested migrations")
 	}
 
-	if err := migrationDriver.Close(ctx); err != nil {
+	if err := driver.Close(ctx); err != nil {
 		log.Fatal().Err(err).Msg("unable to close migration driver")
 	}
-
-	return nil
 }
 
 func RegisterHeadFlags(cmd *cobra.Command) {
