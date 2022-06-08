@@ -31,7 +31,10 @@ func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (*Span
 	ctx := context.Background()
 
 	if len(emulatorHost) > 0 {
-		os.Setenv(emulatorSettingKey, emulatorHost)
+		err := os.Setenv(emulatorSettingKey, emulatorHost)
+		if err != nil {
+			return nil, err
+		}
 	}
 	log.Info().Str("spanner-emulator-host", os.Getenv(emulatorSettingKey)).Msg("spanner emulator")
 	log.Info().Str("credentials", credentialsFilePath).Str("db", database).Msg("connecting")
