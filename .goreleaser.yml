@@ -13,7 +13,7 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       - "-s -w"
-      - "-X github.com/jzelinskie/cobrautil.Version={{ .Version }}"
+      - "-X github.com/jzelinskie/cobrautil.Version=v{{ .Version }}"
 nfpms:
   - vendor: "authzed inc."
     homepage: "https://spicedb.io"
