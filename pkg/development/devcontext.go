@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
@@ -23,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -30,11 +30,11 @@ import (
 type DeveloperErrors struct {
 	// InputErrors hold any errors found in the input to the development tooling,
 	// e.g. invalid schema, invalid relationship, etc.
-	InputErrors []*v0.DeveloperError
+	InputErrors []*devinterface.DeveloperError
 
 	// ValidationErrors holds any validation errors/inconsistencies found,
 	// e.g. assertion failure, incorrect expection relations, etc.
-	ValidationErrors []*v0.DeveloperError
+	ValidationErrors []*devinterface.DeveloperError
 }
 
 // DevContext holds the various helper types for running the developer calls.
@@ -48,14 +48,14 @@ type DevContext struct {
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
 // the datastore as needed.
-func NewDevContext(ctx context.Context, developerRequestContext *v0.RequestContext) (*DevContext, *DeveloperErrors, error) {
+func NewDevContext(ctx context.Context, requestContext *devinterface.RequestContext) (*DevContext, *DeveloperErrors, error) {
 	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, memdb.DisableGC)
 	if err != nil {
 		return nil, nil, err
 	}
 	ctx = datastoremw.ContextWithDatastore(ctx, ds)
 
-	dctx, devErrs, nerr := newDevContextWithDatastore(ctx, developerRequestContext, ds)
+	dctx, devErrs, nerr := newDevContextWithDatastore(ctx, requestContext, ds)
 	if nerr != nil || devErrs != nil {
 		// If any form of error occurred, immediately close the datastore
 		derr := ds.Close()
@@ -69,18 +69,18 @@ func NewDevContext(ctx context.Context, developerRequestContext *v0.RequestConte
 	return dctx, nil, nil
 }
 
-func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0.RequestContext, ds datastore.Datastore) (*DevContext, *DeveloperErrors, error) {
+func newDevContextWithDatastore(ctx context.Context, requestContext *devinterface.RequestContext, ds datastore.Datastore) (*DevContext, *DeveloperErrors, error) {
 	// Compile the schema and load its namespaces into the datastore.
-	namespaces, devError, err := CompileSchema(developerRequestContext.Schema)
+	namespaces, devError, err := CompileSchema(requestContext.Schema)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if devError != nil {
-		return nil, &DeveloperErrors{InputErrors: []*v0.DeveloperError{devError}}, nil
+		return nil, &DeveloperErrors{InputErrors: []*devinterface.DeveloperError{devError}}, nil
 	}
 
-	var inputErrors []*v0.DeveloperError
+	var inputErrors []*devinterface.DeveloperError
 	currentRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		inputErrors, err = loadNamespaces(ctx, namespaces, rwt)
 		if err != nil || len(inputErrors) > 0 {
@@ -88,7 +88,7 @@ func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0
 		}
 
 		// Load the test relationships into the datastore.
-		inputErrors, err = loadTuples(ctx, developerRequestContext.Relationships, rwt)
+		inputErrors, err = loadTuples(ctx, requestContext.Relationships, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err
 		}
@@ -102,7 +102,7 @@ func newDevContextWithDatastore(ctx context.Context, developerRequestContext *v0
 	// Sanity check: Make sure the request context for the developer is fully valid. We do this after
 	// the loading to ensure that any user-created errors are reported as developer errors,
 	// rather than internal errors.
-	verr := developerRequestContext.Validate()
+	verr := requestContext.Validate()
 	if verr != nil {
 		return nil, nil, verr
 	}
@@ -134,24 +134,24 @@ func (dc *DevContext) Dispose() {
 	}
 }
 
-func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, rwt datastore.ReadWriteTransaction) ([]*v0.DeveloperError, error) {
-	devErrors := make([]*v0.DeveloperError, 0, len(tuples))
+func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore.ReadWriteTransaction) ([]*devinterface.DeveloperError, error) {
+	devErrors := make([]*devinterface.DeveloperError, 0, len(tuples))
 	updates := make([]*v1.RelationshipUpdate, 0, len(tuples))
 	for _, tpl := range tuples {
 		verr := tpl.Validate()
 		if verr != nil {
-			devErrors = append(devErrors, &v0.DeveloperError{
+			devErrors = append(devErrors, &devinterface.DeveloperError{
 				Message: verr.Error(),
-				Source:  v0.DeveloperError_RELATIONSHIP,
-				Kind:    v0.DeveloperError_PARSE_ERROR,
-				Context: tuple.String(core.ToCoreRelationTuple(tpl)),
+				Source:  devinterface.DeveloperError_RELATIONSHIP,
+				Kind:    devinterface.DeveloperError_PARSE_ERROR,
+				Context: tuple.String(tpl),
 			})
 			continue
 		}
 
 		err := validateTupleWrite(ctx, tpl, rwt)
 		if err != nil {
-			devErr, wireErr := distinguishGraphError(ctx, err, v0.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(core.ToCoreRelationTuple(tpl)))
+			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl))
 			if devErr != nil {
 				devErrors = append(devErrors, devErr)
 				continue
@@ -162,7 +162,7 @@ func loadTuples(ctx context.Context, tuples []*v0.RelationTuple, rwt datastore.R
 
 		updates = append(updates, &v1.RelationshipUpdate{
 			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: tuple.MustToRelationship(core.ToCoreRelationTuple(tpl)),
+			Relationship: tuple.MustToRelationship(tpl),
 		})
 	}
 
@@ -175,17 +175,17 @@ func loadNamespaces(
 	ctx context.Context,
 	namespaces []*core.NamespaceDefinition,
 	rwt datastore.ReadWriteTransaction,
-) ([]*v0.DeveloperError, error) {
-	errors := make([]*v0.DeveloperError, 0, len(namespaces))
+) ([]*devinterface.DeveloperError, error) {
+	errors := make([]*devinterface.DeveloperError, 0, len(namespaces))
 	for _, nsDef := range namespaces {
 		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(nsDef, namespaces)
 		if terr != nil {
 			errWithSource, ok := commonerrors.AsErrorWithSource(terr)
 			if ok {
-				errors = append(errors, &v0.DeveloperError{
+				errors = append(errors, &devinterface.DeveloperError{
 					Message: terr.Error(),
-					Kind:    v0.DeveloperError_SCHEMA_ISSUE,
-					Source:  v0.DeveloperError_SCHEMA,
+					Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+					Source:  devinterface.DeveloperError_SCHEMA,
 					Context: errWithSource.SourceCodeString,
 					Line:    uint32(errWithSource.LineNumber),
 					Column:  uint32(errWithSource.ColumnPosition),
@@ -193,10 +193,10 @@ func loadNamespaces(
 				continue
 			}
 
-			errors = append(errors, &v0.DeveloperError{
+			errors = append(errors, &devinterface.DeveloperError{
 				Message: terr.Error(),
-				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
-				Source:  v0.DeveloperError_SCHEMA,
+				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+				Source:  devinterface.DeveloperError_SCHEMA,
 				Context: nsDef.Name,
 			})
 			continue
@@ -212,19 +212,19 @@ func loadNamespaces(
 
 		errWithSource, ok := commonerrors.AsErrorWithSource(tverr)
 		if ok {
-			errors = append(errors, &v0.DeveloperError{
+			errors = append(errors, &devinterface.DeveloperError{
 				Message: tverr.Error(),
-				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
-				Source:  v0.DeveloperError_SCHEMA,
+				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+				Source:  devinterface.DeveloperError_SCHEMA,
 				Context: errWithSource.SourceCodeString,
 				Line:    uint32(errWithSource.LineNumber),
 				Column:  uint32(errWithSource.ColumnPosition),
 			})
 		} else {
-			errors = append(errors, &v0.DeveloperError{
+			errors = append(errors, &devinterface.DeveloperError{
 				Message: tverr.Error(),
-				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
-				Source:  v0.DeveloperError_SCHEMA,
+				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+				Source:  devinterface.DeveloperError_SCHEMA,
 				Context: nsDef.Name,
 			})
 		}
@@ -235,19 +235,19 @@ func loadNamespaces(
 
 // DistinguishGraphError turns an error from a dispatch call into either a user-facing
 // DeveloperError or an internal error, based on the error raised by the dispatcher.
-func DistinguishGraphError(devContext *DevContext, dispatchError error, source v0.DeveloperError_Source, line uint32, column uint32, context string) (*v0.DeveloperError, error) {
+func DistinguishGraphError(devContext *DevContext, dispatchError error, source devinterface.DeveloperError_Source, line uint32, column uint32, context string) (*devinterface.DeveloperError, error) {
 	return distinguishGraphError(devContext.Ctx, dispatchError, source, line, column, context)
 }
 
-func distinguishGraphError(ctx context.Context, dispatchError error, source v0.DeveloperError_Source, line uint32, column uint32, context string) (*v0.DeveloperError, error) {
+func distinguishGraphError(ctx context.Context, dispatchError error, source devinterface.DeveloperError_Source, line uint32, column uint32, context string) (*devinterface.DeveloperError, error) {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
 
 	if errors.Is(dispatchError, dispatch.ErrMaxDepth) {
-		return &v0.DeveloperError{
+		return &devinterface.DeveloperError{
 			Message: dispatchError.Error(),
 			Source:  source,
-			Kind:    v0.DeveloperError_MAXIMUM_RECURSION,
+			Kind:    devinterface.DeveloperError_MAXIMUM_RECURSION,
 			Line:    line,
 			Column:  column,
 			Context: context,
@@ -255,10 +255,10 @@ func distinguishGraphError(ctx context.Context, dispatchError error, source v0.D
 	}
 
 	if errors.As(dispatchError, &nsNotFoundError) {
-		return &v0.DeveloperError{
+		return &devinterface.DeveloperError{
 			Message: dispatchError.Error(),
 			Source:  source,
-			Kind:    v0.DeveloperError_UNKNOWN_OBJECT_TYPE,
+			Kind:    devinterface.DeveloperError_UNKNOWN_OBJECT_TYPE,
 			Line:    line,
 			Column:  column,
 			Context: context,
@@ -266,10 +266,10 @@ func distinguishGraphError(ctx context.Context, dispatchError error, source v0.D
 	}
 
 	if errors.As(dispatchError, &relNotFoundError) {
-		return &v0.DeveloperError{
+		return &devinterface.DeveloperError{
 			Message: dispatchError.Error(),
 			Source:  source,
-			Kind:    v0.DeveloperError_UNKNOWN_RELATION,
+			Kind:    devinterface.DeveloperError_UNKNOWN_RELATION,
 			Line:    line,
 			Column:  column,
 			Context: context,
@@ -278,10 +278,10 @@ func distinguishGraphError(ctx context.Context, dispatchError error, source v0.D
 
 	var ire invalidRelationError
 	if errors.As(dispatchError, &ire) {
-		return &v0.DeveloperError{
+		return &devinterface.DeveloperError{
 			Message: dispatchError.Error(),
 			Source:  source,
-			Kind:    v0.DeveloperError_UNKNOWN_RELATION,
+			Kind:    devinterface.DeveloperError_UNKNOWN_RELATION,
 			Line:    line,
 			Column:  column,
 			Context: context,

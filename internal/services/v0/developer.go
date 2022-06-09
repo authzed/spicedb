@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/development"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -39,6 +40,38 @@ func NewDeveloperServer(store ShareStore) v0.DeveloperServiceServer {
 	}
 }
 
+func toV0Errors(errs []*devinterface.DeveloperError) []*v0.DeveloperError {
+	slice := make([]*v0.DeveloperError, 0, len(errs))
+	for _, err := range errs {
+		slice = append(slice, toV0Error(err))
+	}
+	return slice
+}
+
+func toV0Error(err *devinterface.DeveloperError) *v0.DeveloperError {
+	return &v0.DeveloperError{
+		Message: err.Message,
+		Line:    err.Line,
+		Column:  err.Column,
+		Source:  v0.DeveloperError_Source(err.Source),
+		Kind:    v0.DeveloperError_ErrorKind(err.Kind),
+		Path:    err.Path,
+		Context: err.Context,
+	}
+}
+
+func fromV0Context(rctx *v0.RequestContext) *devinterface.RequestContext {
+	relationships := make([]*core.RelationTuple, 0, len(rctx.Relationships))
+	for _, rel := range rctx.Relationships {
+		relationships = append(relationships, core.ToCoreRelationTuple(rel))
+	}
+
+	return &devinterface.RequestContext{
+		Schema:        rctx.Schema,
+		Relationships: relationships,
+	}
+}
+
 func (ds *devServer) FormatSchema(ctx context.Context, req *v0.FormatSchemaRequest) (*v0.FormatSchemaResponse, error) {
 	namespaces, devError, err := development.CompileSchema(req.Schema)
 	if err != nil {
@@ -47,7 +80,7 @@ func (ds *devServer) FormatSchema(ctx context.Context, req *v0.FormatSchemaReque
 
 	if devError != nil {
 		return &v0.FormatSchemaResponse{
-			Error: devError,
+			Error: toV0Error(devError),
 		}, nil
 	}
 
@@ -131,14 +164,14 @@ func (ds *devServer) LookupShared(ctx context.Context, req *v0.LookupShareReques
 }
 
 func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*v0.EditCheckResponse, error) {
-	devContext, devErr, err := development.NewDevContext(ctx, req.Context)
+	devContext, devErr, err := development.NewDevContext(ctx, fromV0Context(req.Context))
 	if err != nil {
 		return nil, err
 	}
 
 	if devErr != nil {
 		return &v0.EditCheckResponse{
-			RequestErrors: devErr.InputErrors,
+			RequestErrors: toV0Errors(devErr.InputErrors),
 		}, nil
 	}
 	defer devContext.Dispose()
@@ -155,7 +188,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 			devErr, wireErr := development.DistinguishGraphError(
 				devContext,
 				err,
-				v0.DeveloperError_CHECK_WATCH,
+				devinterface.DeveloperError_CHECK_WATCH,
 				0, 0,
 				tuple.String(core.ToCoreRelationTuple(checkTpl)),
 			)
@@ -166,7 +199,7 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 			results = append(results, &v0.EditCheckResult{
 				Relationship: checkTpl,
 				IsMember:     false,
-				Error:        devErr,
+				Error:        toV0Error(devErr),
 			})
 			continue
 		}
@@ -183,14 +216,14 @@ func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*
 }
 
 func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0.ValidateResponse, error) {
-	devContext, devErrs, err := development.NewDevContext(ctx, req.Context)
+	devContext, devErrs, err := development.NewDevContext(ctx, fromV0Context(req.Context))
 	if err != nil {
 		return nil, err
 	}
 
 	if devErrs != nil {
 		return &v0.ValidateResponse{
-			RequestErrors: devErrs.InputErrors,
+			RequestErrors: toV0Errors(devErrs.InputErrors),
 		}, nil
 	}
 	defer devContext.Dispose()
@@ -199,7 +232,7 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	assertions, devErr := development.ParseAssertionsYAML(req.AssertionsYaml)
 	if devErr != nil {
 		return &v0.ValidateResponse{
-			RequestErrors: []*v0.DeveloperError{devErr},
+			RequestErrors: []*v0.DeveloperError{toV0Error(devErr)},
 		}, nil
 	}
 
@@ -207,7 +240,7 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	expectedRelationsMap, devErr := development.ParseExpectedRelationsYAML(req.ValidationYaml)
 	if devErr != nil {
 		return &v0.ValidateResponse{
-			RequestErrors: []*v0.DeveloperError{devErr},
+			RequestErrors: []*v0.DeveloperError{toV0Error(devErr)},
 		}, nil
 	}
 
@@ -221,11 +254,11 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	if assertDevErrs != nil {
 		if len(assertDevErrs.InputErrors) > 0 {
 			return &v0.ValidateResponse{
-				RequestErrors: assertDevErrs.InputErrors,
+				RequestErrors: toV0Errors(assertDevErrs.InputErrors),
 			}, nil
 		}
 
-		failures = append(failures, assertDevErrs.ValidationErrors...)
+		failures = append(failures, toV0Errors(assertDevErrs.ValidationErrors)...)
 	}
 
 	// Run expected relations validation.
@@ -237,11 +270,11 @@ func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0
 	if erDevErrs != nil {
 		if len(erDevErrs.InputErrors) > 0 {
 			return &v0.ValidateResponse{
-				RequestErrors: erDevErrs.InputErrors,
+				RequestErrors: toV0Errors(erDevErrs.InputErrors),
 			}, nil
 		}
 
-		failures = append(failures, erDevErrs.ValidationErrors...)
+		failures = append(failures, toV0Errors(erDevErrs.ValidationErrors)...)
 	}
 
 	// If requested, regenerate the expected relations YAML.

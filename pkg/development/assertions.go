@@ -3,8 +3,7 @@ package development
 import (
 	"fmt"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
-
+	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
@@ -35,8 +34,8 @@ func RunAllAssertions(devContext *DevContext, assertions *blocks.Assertions) (*D
 	return nil, nil
 }
 
-func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expected bool, fmtString string) ([]*v0.DeveloperError, error) {
-	var failures []*v0.DeveloperError
+func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expected bool, fmtString string) ([]*devinterface.DeveloperError, error) {
+	var failures []*devinterface.DeveloperError
 	for _, assertion := range assertions {
 		tpl := tuple.MustFromRelationship(assertion.Relationship)
 		cr, err := RunCheck(devContext, tpl.ObjectAndRelation, tpl.User.GetUserset())
@@ -44,7 +43,7 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 			devErr, wireErr := DistinguishGraphError(
 				devContext,
 				err,
-				v0.DeveloperError_ASSERTION,
+				devinterface.DeveloperError_ASSERTION,
 				uint32(assertion.SourcePosition.LineNumber),
 				uint32(assertion.SourcePosition.ColumnPosition),
 				tuple.String(tpl),
@@ -56,10 +55,10 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 				failures = append(failures, devErr)
 			}
 		} else if (cr == v1.DispatchCheckResponse_MEMBER) != expected {
-			failures = append(failures, &v0.DeveloperError{
+			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf(fmtString, tuple.String(tpl)),
-				Source:  v0.DeveloperError_ASSERTION,
-				Kind:    v0.DeveloperError_ASSERTION_FAILED,
+				Source:  devinterface.DeveloperError_ASSERTION,
+				Kind:    devinterface.DeveloperError_ASSERTION_FAILED,
 				Context: tuple.String(tpl),
 				Line:    uint32(assertion.SourcePosition.LineNumber),
 				Column:  uint32(assertion.SourcePosition.ColumnPosition),

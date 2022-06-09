@@ -5,11 +5,11 @@ import (
 	"sort"
 	"strings"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/google/go-cmp/cmp"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/authzed/spicedb/internal/membership"
+	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
@@ -17,7 +17,7 @@ import (
 
 // RunValidation runs the parsed validation block against the data in the dev context.
 func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRelations) (*membership.Set, *DeveloperErrors, error) {
-	var failures []*v0.DeveloperError
+	var failures []*devinterface.DeveloperError
 	membershipSet := membership.NewMembershipSet()
 	ctx := devContext.Ctx
 
@@ -36,7 +36,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 		})
 		if derr != nil {
-			devErr, wireErr := DistinguishGraphError(devContext, derr, v0.DeveloperError_VALIDATION_YAML, 0, 0, onrKey.ObjectRelationString)
+			devErr, wireErr := DistinguishGraphError(devContext, derr, devinterface.DeveloperError_VALIDATION_YAML, 0, 0, onrKey.ObjectRelationString)
 			if wireErr != nil {
 				return nil, nil, wireErr
 			}
@@ -48,7 +48,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 		// Add the ONR and its expansion to the membership set.
 		foundSubjects, _, aerr := membershipSet.AddExpansion(onrKey.ObjectAndRelation, er.TreeNode)
 		if aerr != nil {
-			devErr, wireErr := DistinguishGraphError(devContext, aerr, v0.DeveloperError_VALIDATION_YAML, 0, 0, onrKey.ObjectRelationString)
+			devErr, wireErr := DistinguishGraphError(devContext, aerr, devinterface.DeveloperError_VALIDATION_YAML, 0, 0, onrKey.ObjectRelationString)
 			if wireErr != nil {
 				return nil, nil, wireErr
 			}
@@ -80,20 +80,20 @@ func wrapRelationships(onrStrings []string) []string {
 	return wrapped
 }
 
-func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects, expectedSubjects []blocks.ExpectedSubject) []*v0.DeveloperError {
+func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects, expectedSubjects []blocks.ExpectedSubject) []*devinterface.DeveloperError {
 	onr := onrKey.ObjectAndRelation
 
-	var failures []*v0.DeveloperError
+	var failures []*devinterface.DeveloperError
 
 	// Verify that every referenced subject is found in the membership.
 	encounteredSubjects := map[string]struct{}{}
 	for _, expectedSubject := range expectedSubjects {
 		subjectWithExceptions := expectedSubject.SubjectWithExceptions
 		if subjectWithExceptions == nil {
-			failures = append(failures, &v0.DeveloperError{
+			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, no expected subject specified in `%s`", tuple.StringONR(onr), expectedSubject.ValidationString),
-				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
+				Source:  devinterface.DeveloperError_VALIDATION_YAML,
+				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(expectedSubject.ValidationString),
 				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
 				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
@@ -105,10 +105,10 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects,
 
 		subject, ok := fs.LookupSubject(subjectWithExceptions.Subject)
 		if !ok {
-			failures = append(failures, &v0.DeveloperError{
+			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, missing expected subject `%s`", tuple.StringONR(onr), tuple.StringONR(subjectWithExceptions.Subject)),
-				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
+				Source:  devinterface.DeveloperError_VALIDATION_YAML,
+				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(expectedSubject.ValidationString),
 				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
 				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
@@ -122,15 +122,15 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects,
 		expectedONRStrings := tuple.StringsONRs(expectedSubject.Resources)
 		foundONRStrings := tuple.StringsONRs(foundRelationships)
 		if !cmp.Equal(expectedONRStrings, foundONRStrings) {
-			failures = append(failures, &v0.DeveloperError{
+			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, found different relationships for subject `%s`: Specified: `%s`, Computed: `%s`",
 					tuple.StringONR(onr),
 					tuple.StringONR(subjectWithExceptions.Subject),
 					strings.Join(wrapRelationships(expectedONRStrings), "/"),
 					strings.Join(wrapRelationships(foundONRStrings), "/"),
 				),
-				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
+				Source:  devinterface.DeveloperError_VALIDATION_YAML,
+				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(expectedSubject.ValidationString),
 				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
 				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
@@ -144,15 +144,15 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects,
 			expectedExcludedONRStrings := tuple.StringsONRs(expectedExcludedSubjects)
 			foundExcludedONRStrings := tuple.StringsONRs(foundExcludedSubjects)
 			if !cmp.Equal(expectedExcludedONRStrings, foundExcludedONRStrings) {
-				failures = append(failures, &v0.DeveloperError{
+				failures = append(failures, &devinterface.DeveloperError{
 					Message: fmt.Sprintf("For object and permission/relation `%s`, found different excluded subjects for subject `%s`: Specified: `%s`, Computed: `%s`",
 						tuple.StringONR(onr),
 						tuple.StringONR(subjectWithExceptions.Subject),
 						strings.Join(wrapRelationships(expectedExcludedONRStrings), ", "),
 						strings.Join(wrapRelationships(foundExcludedONRStrings), ", "),
 					),
-					Source:  v0.DeveloperError_VALIDATION_YAML,
-					Kind:    v0.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
+					Source:  devinterface.DeveloperError_VALIDATION_YAML,
+					Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 					Context: string(expectedSubject.ValidationString),
 					Line:    uint32(expectedSubject.SourcePosition.LineNumber),
 					Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
@@ -160,12 +160,12 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects,
 			}
 		} else {
 			if len(expectedExcludedSubjects) > 0 {
-				failures = append(failures, &v0.DeveloperError{
+				failures = append(failures, &devinterface.DeveloperError{
 					Message: fmt.Sprintf("For object and permission/relation `%s`, found unexpected excluded subjects",
 						tuple.StringONR(onr),
 					),
-					Source:  v0.DeveloperError_VALIDATION_YAML,
-					Kind:    v0.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
+					Source:  devinterface.DeveloperError_VALIDATION_YAML,
+					Kind:    devinterface.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
 					Context: string(expectedSubject.ValidationString),
 					Line:    uint32(expectedSubject.SourcePosition.LineNumber),
 					Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
@@ -178,13 +178,13 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects,
 	for _, foundSubject := range fs.ListFound() {
 		_, ok := encounteredSubjects[tuple.StringONR(foundSubject.Subject())]
 		if !ok {
-			failures = append(failures, &v0.DeveloperError{
+			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, subject `%s` found but missing from specified",
 					tuple.StringONR(onr),
 					tuple.StringONR(foundSubject.Subject()),
 				),
-				Source:  v0.DeveloperError_VALIDATION_YAML,
-				Kind:    v0.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
+				Source:  devinterface.DeveloperError_VALIDATION_YAML,
+				Kind:    devinterface.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
 				Context: tuple.StringONR(onr),
 				Line:    uint32(onrKey.SourcePosition.LineNumber),
 				Column:  uint32(onrKey.SourcePosition.ColumnPosition),
