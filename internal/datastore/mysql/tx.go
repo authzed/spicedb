@@ -7,7 +7,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 )
 
-// BeginTXFunc is a polyfill for database/sql which does a closure style transaction lifecycle.
+// BeginTxFunc is a polyfill for database/sql which does a closure style transaction lifecycle.
 // The underlying transaction is aborted if the supplied function returns an error.
 // The underlying transaction is committed if the supplied function returns nil.
 func BeginTxFunc(ctx context.Context, db *sql.DB, txOptions *sql.TxOptions, f func(*sql.Tx) error) error {
