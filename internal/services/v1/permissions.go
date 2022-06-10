@@ -50,7 +50,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			AtRevision:     atRevision.String(),
 			DepthRemaining: ps.defaultDepth,
 		},
-		ObjectAndRelation: &core.ObjectAndRelation{
+		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
 			ObjectId:  req.Resource.ObjectId,
 			Relation:  req.Permission,
@@ -96,7 +96,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 			AtRevision:     atRevision.String(),
 			DepthRemaining: ps.defaultDepth,
 		},
-		ObjectAndRelation: &core.ObjectAndRelation{
+		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
 			ObjectId:  req.Resource.ObjectId,
 			Relation:  req.Permission,
@@ -157,22 +157,18 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.Relati
 		}
 
 	case *v1.PermissionRelationshipTree_Leaf:
-		var users []*core.User
+		var subjects []*core.ObjectAndRelation
 		for _, subj := range t.Leaf.Subjects {
-			users = append(users, &core.User{
-				UserOneof: &core.User_Userset{
-					Userset: &core.ObjectAndRelation{
-						Namespace: subj.Object.ObjectType,
-						ObjectId:  subj.Object.ObjectId,
-						Relation:  stringz.DefaultEmpty(subj.OptionalRelation, graph.Ellipsis),
-					},
-				},
+			subjects = append(subjects, &core.ObjectAndRelation{
+				Namespace: subj.Object.ObjectType,
+				ObjectId:  subj.Object.ObjectId,
+				Relation:  stringz.DefaultEmpty(subj.OptionalRelation, graph.Ellipsis),
 			})
 		}
 
 		return &core.RelationTupleTreeNode{
 			NodeType: &core.RelationTupleTreeNode_LeafNode{
-				LeafNode: &core.DirectUserset{Users: users},
+				LeafNode: &core.DirectSubjects{Subjects: subjects},
 			},
 			Expanded: expanded,
 		}
@@ -225,13 +221,13 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 
 	case *core.RelationTupleTreeNode_LeafNode:
 		var subjects []*v1.SubjectReference
-		for _, found := range t.LeafNode.Users {
+		for _, found := range t.LeafNode.Subjects {
 			subjects = append(subjects, &v1.SubjectReference{
 				Object: &v1.ObjectReference{
-					ObjectType: found.GetUserset().Namespace,
-					ObjectId:   found.GetUserset().ObjectId,
+					ObjectType: found.Namespace,
+					ObjectId:   found.ObjectId,
 				},
-				OptionalRelation: denormalizeSubjectRelation(found.GetUserset().Relation),
+				OptionalRelation: denormalizeSubjectRelation(found.Relation),
 			})
 		}
 

@@ -173,16 +173,16 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Write a relationship.
 
 	tpl := &corev1.RelationTuple{
-		ObjectAndRelation: &corev1.ObjectAndRelation{
+		ResourceAndRelation: &corev1.ObjectAndRelation{
 			Namespace: "resource",
 			ObjectId:  "someresource",
 			Relation:  "reader",
 		},
-		User: &corev1.User{UserOneof: &corev1.User_Userset{Userset: &corev1.ObjectAndRelation{
+		Subject: &corev1.ObjectAndRelation{
 			Namespace: "user",
 			ObjectId:  "someuser",
 			Relation:  "...",
-		}}},
+		},
 	}
 	relationship := tuple.ToRelationship(tpl)
 
@@ -321,16 +321,16 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write a relationship.
 	tpl := &corev1.RelationTuple{
-		ObjectAndRelation: &corev1.ObjectAndRelation{
+		ResourceAndRelation: &corev1.ObjectAndRelation{
 			Namespace: "resource",
 			ObjectId:  "someresource",
 			Relation:  "reader",
 		},
-		User: &corev1.User{UserOneof: &corev1.User_Userset{Userset: &corev1.ObjectAndRelation{
+		Subject: &corev1.ObjectAndRelation{
 			Namespace: "user",
 			ObjectId:  "someuser",
 			Relation:  "...",
-		}}},
+		},
 	}
 	relationship := tuple.ToRelationship(tpl)
 
@@ -406,16 +406,16 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	var tuples []*corev1.RelationTuple
 	for i := 0; i < chunkRelationshipCount; i++ {
 		tpl := &corev1.RelationTuple{
-			ObjectAndRelation: &corev1.ObjectAndRelation{
+			ResourceAndRelation: &corev1.ObjectAndRelation{
 				Namespace: "resource",
 				ObjectId:  fmt.Sprintf("resource-%d", i),
 				Relation:  "reader",
 			},
-			User: &corev1.User{UserOneof: &corev1.User_Userset{Userset: &corev1.ObjectAndRelation{
+			Subject: &corev1.ObjectAndRelation{
 				Namespace: "user",
 				ObjectId:  "someuser",
 				Relation:  "...",
-			}}},
+			},
 		}
 		tuples = append(tuples, tpl)
 	}

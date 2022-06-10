@@ -14,12 +14,8 @@ import (
 func (cr *DispatchCheckRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", cr.Metadata)
 	e.Str("request", tuple.String(&core.RelationTuple{
-		ObjectAndRelation: cr.ObjectAndRelation,
-		User: &core.User{
-			UserOneof: &core.User_Userset{
-				Userset: cr.Subject,
-			},
-		},
+		ResourceAndRelation: cr.ResourceAndRelation,
+		Subject:             cr.Subject,
 	}))
 }
 
@@ -32,7 +28,7 @@ func (cr *DispatchCheckResponse) MarshalZerologObject(e *zerolog.Event) {
 // MarshalZerologObject implements zerolog object marshalling.
 func (er *DispatchExpandRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", er.Metadata)
-	e.Str("expand", tuple.StringONR(er.ObjectAndRelation))
+	e.Str("expand", tuple.StringONR(er.ResourceAndRelation))
 	e.Stringer("mode", er.ExpansionMode)
 }
 

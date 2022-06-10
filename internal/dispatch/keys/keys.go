@@ -32,7 +32,7 @@ func (c *CanonicalKeyHandler) ComputeCheckKey(ctx context.Context, req *v1.Dispa
 	// NOTE: We do not use the canonicalized cache key when checking within the same namespace, as
 	// we may get different results if the subject being checked matches the resource exactly, e.g.
 	// a check for `somenamespace:someobject#somerel@somenamespace:someobject#somerel`.
-	if req.ObjectAndRelation.Namespace != req.Subject.Namespace {
+	if req.ResourceAndRelation.Namespace != req.Subject.Namespace {
 		// Load the relation to get its computed cache key, if any.
 		revision, err := decimal.NewFromString(req.Metadata.AtRevision)
 		if err != nil {
@@ -43,8 +43,8 @@ func (c *CanonicalKeyHandler) ComputeCheckKey(ctx context.Context, req *v1.Dispa
 
 		_, relation, err := namespace.ReadNamespaceAndRelation(
 			ctx,
-			req.ObjectAndRelation.Namespace,
-			req.ObjectAndRelation.Relation,
+			req.ResourceAndRelation.Namespace,
+			req.ResourceAndRelation.Relation,
 			ds,
 		)
 		if err != nil {

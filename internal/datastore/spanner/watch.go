@@ -84,14 +84,9 @@ func (sd spannerDatastore) loadChanges(
 
 	newTimestamp := afterTimestamp
 	err = rows.Do(func(r *spanner.Row) error {
-		userset := &core.ObjectAndRelation{}
 		tpl := &core.RelationTuple{
-			ObjectAndRelation: &core.ObjectAndRelation{},
-			User: &core.User{
-				UserOneof: &core.User_Userset{
-					Userset: userset,
-				},
-			},
+			ResourceAndRelation: &core.ObjectAndRelation{},
+			Subject:             &core.ObjectAndRelation{},
 		}
 
 		var op int64
@@ -101,12 +96,12 @@ func (sd spannerDatastore) loadChanges(
 			&timestamp,
 			&colChangeUUID,
 			&op,
-			&tpl.ObjectAndRelation.Namespace,
-			&tpl.ObjectAndRelation.ObjectId,
-			&tpl.ObjectAndRelation.Relation,
-			&userset.Namespace,
-			&userset.ObjectId,
-			&userset.Relation,
+			&tpl.ResourceAndRelation.Namespace,
+			&tpl.ResourceAndRelation.ObjectId,
+			&tpl.ResourceAndRelation.Relation,
+			&tpl.Subject.Namespace,
+			&tpl.Subject.ObjectId,
+			&tpl.Subject.Relation,
 		)
 		if err != nil {
 			return err

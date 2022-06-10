@@ -22,10 +22,10 @@ var (
 	_this *core.ObjectAndRelation
 
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
-		tuple.User(ONR("user", "owner", Ellipsis)),
+		(ONR("user", "owner", Ellipsis)),
 	)
 	companyEditor = graph.Union(ONR("folder", "company", "editor"),
-		graph.Leaf(_this, tuple.User(ONR("user", "writer", Ellipsis))),
+		graph.Leaf(_this, (ONR("user", "writer", Ellipsis))),
 		companyOwner,
 	)
 
@@ -38,7 +38,7 @@ var (
 
 	auditorsViewerRecursive = graph.Union(ONR("folder", "auditors", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "auditor", "...")),
+			(ONR("user", "auditor", "...")),
 		),
 		auditorsEditor,
 		graph.Union(ONR("folder", "auditors", "viewer")),
@@ -48,8 +48,8 @@ var (
 		graph.Union(ONR("folder", "company", "viewer"),
 			auditorsViewerRecursive,
 			graph.Leaf(_this,
-				tuple.User(ONR("user", "legal", "...")),
-				tuple.User(ONR("folder", "auditors", "viewer")),
+				(ONR("user", "legal", "...")),
+				(ONR("folder", "auditors", "viewer")),
 			),
 		),
 		companyEditor,
@@ -84,11 +84,11 @@ func TestMembershipSetIntersectionBasic(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
 		),
 	)
 
@@ -104,11 +104,11 @@ func TestMembershipSetExclusion(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "legal", "...")),
 		),
 	)
 
@@ -124,15 +124,15 @@ func TestMembershipSetExclusionMultiple(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "legal", "...")),
-			tuple.User(ONR("user", "third", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
+			(ONR("user", "third", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
+			(ONR("user", "owner", "...")),
 		),
 	)
 
@@ -148,14 +148,14 @@ func TestMembershipSetExclusionMultipleWithWildcard(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "*", "...")),
 		),
 	)
 
@@ -171,15 +171,15 @@ func TestMembershipSetExclusionMultipleMiddle(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "legal", "...")),
-			tuple.User(ONR("user", "third", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
+			(ONR("user", "third", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "another", "...")),
+			(ONR("user", "another", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
+			(ONR("user", "owner", "...")),
 		),
 	)
 
@@ -195,11 +195,11 @@ func TestMembershipSetIntersectionWithOneWildcard(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "legal", "...")),
 		),
 	)
 
@@ -215,11 +215,11 @@ func TestMembershipSetIntersectionWithAllWildcardLeft(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "*", "...")),
 		),
 	)
 
@@ -235,11 +235,11 @@ func TestMembershipSetIntersectionWithAllWildcardRight(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "*", "...")),
 		),
 	)
 
@@ -255,11 +255,11 @@ func TestMembershipSetExclusionWithLeftWildcard(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "legal", "...")),
 		),
 	)
 
@@ -275,11 +275,11 @@ func TestMembershipSetExclusionWithRightWildcard(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "*", "...")),
 		),
 	)
 
@@ -295,14 +295,14 @@ func TestMembershipSetIntersectionWithThreeWildcards(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "*", "...")),
 		),
 	)
 
@@ -318,15 +318,15 @@ func TestMembershipSetIntersectionWithOneBranchMissingWildcards(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "legal", "...")),
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
+			(ONR("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
+			(ONR("user", "owner", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "*", "...")),
 		),
 	)
 
@@ -342,14 +342,14 @@ func TestMembershipSetIntersectionWithTwoBranchesMissingWildcards(t *testing.T) 
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "owner", "...")),
-			tuple.User(ONR("user", "legal", "...")),
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "another", "...")),
+			(ONR("user", "another", "...")),
 		),
 		graph.Leaf(_this,
-			tuple.User(ONR("user", "*", "...")),
+			(ONR("user", "*", "...")),
 		),
 	)
 

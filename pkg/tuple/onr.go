@@ -26,11 +26,6 @@ func ObjectAndRelation(ns, oid, rel string) *core.ObjectAndRelation {
 	}
 }
 
-// User creates a user wrapping a userset ONR.
-func User(userset *core.ObjectAndRelation) *core.User {
-	return &core.User{UserOneof: &core.User_Userset{Userset: userset}}
-}
-
 // ParseSubjectONR converts a string representation of a Subject ONR to a proto object. Unlike
 // ParseONR, this method allows for objects without relations. If an object without a relation
 // is given, the relation will be set to ellipsis.

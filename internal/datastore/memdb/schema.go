@@ -80,16 +80,16 @@ func (r relationship) Relationship() *v1.Relationship {
 
 func (r relationship) RelationTuple() *core.RelationTuple {
 	return &core.RelationTuple{
-		ObjectAndRelation: &core.ObjectAndRelation{
+		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: r.namespace,
 			ObjectId:  r.resourceID,
 			Relation:  r.relation,
 		},
-		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
+		Subject: &core.ObjectAndRelation{
 			Namespace: r.subjectNamespace,
 			ObjectId:  r.subjectObjectID,
 			Relation:  r.subjectRelation,
-		}}},
+		},
 	}
 }
 

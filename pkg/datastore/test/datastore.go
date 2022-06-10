@@ -62,16 +62,16 @@ var testUserNS = namespace.Namespace(testUserNamespace)
 
 func makeTestTuple(resourceID, userID string) *core.RelationTuple {
 	return &core.RelationTuple{
-		ObjectAndRelation: &core.ObjectAndRelation{
+		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: testResourceNamespace,
 			ObjectId:  resourceID,
 			Relation:  testReaderRelation,
 		},
-		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
+		Subject: &core.ObjectAndRelation{
 			Namespace: testUserNamespace,
 			ObjectId:  userID,
 			Relation:  ellipsis,
-		}}},
+		},
 	}
 }
 

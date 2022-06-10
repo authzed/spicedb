@@ -7,23 +7,11 @@ import "google/protobuf/any.proto";
 import "validate/validate.proto";
 
 message RelationTuple {
-  // Each tupleset specifies keys of a set of relation tuples. The set can
-  // include a single tuple key, or all tuples with a given object ID or
-  // userset in a namespace, optionally constrained by a relation name.
-  //
-  // examples:
-  // doc:readme#viewer@group:eng#member (fully specified)
-  // doc:*#*#group:eng#member (all tuples that this userset relates to)
-  // doc:12345#*#* (all tuples with a direct relationship to a document)
-  // doc:12345#writer#* (all tuples with direct write relationship with the
-  // document) doc:#writer#group:eng#member (all tuples that eng group has write
-  // relationship)
+  /** resource_and_relation is the resource for the tuple */
+  ObjectAndRelation resource_and_relation = 1 [ (validate.rules).message.required = true ];
 
-  /** object_and_relation is the resource for the tuple */
-  ObjectAndRelation object_and_relation = 1 [ (validate.rules).message.required = true ];
-
-  /** user is the subject for the tuple */
-  User user = 2 [ (validate.rules).message.required = true ];
+  /** subject is the subject for the tuple */
+  ObjectAndRelation subject = 2 [ (validate.rules).message.required = true ];
 }
 
 message ObjectAndRelation {
@@ -60,15 +48,6 @@ message RelationReference {
   } ];
 }
 
-message User {
-  // NOTE: deprecated, as only usersets are supported now.
-  oneof user_oneof {
-    option (validate.required) = true;
-
-    ObjectAndRelation userset = 2 [ (validate.rules).message.required = true ];
-  }
-}
-
 message Zookie {
   string token = 1 [ (validate.rules).string = {
     min_bytes : 1,
@@ -89,7 +68,7 @@ message RelationTupleUpdate {
 message RelationTupleTreeNode {
   oneof node_type {
     SetOperationUserset intermediate_node = 1;
-    DirectUserset leaf_node = 2;
+    DirectSubjects leaf_node = 2;
   }
   ObjectAndRelation expanded = 3;
 }
@@ -106,7 +85,7 @@ message SetOperationUserset {
   repeated RelationTupleTreeNode child_nodes = 2;
 }
 
-message DirectUserset { repeated User users = 1; }
+message DirectSubjects { repeated ObjectAndRelation subjects = 1; }
 
 /**
  * Metadata is compiler metadata added to namespace definitions, such as doc comments and

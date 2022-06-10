@@ -28,7 +28,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 
 		// Run a full recursive expansion over the ONR.
 		er, derr := devContext.Dispatcher.DispatchExpand(ctx, &v1.DispatchExpandRequest{
-			ObjectAndRelation: onrKey.ObjectAndRelation,
+			ResourceAndRelation: onrKey.ObjectAndRelation,
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     devContext.Revision.String(),
 				DepthRemaining: maxDispatchDepth,

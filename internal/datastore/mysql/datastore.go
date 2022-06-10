@@ -337,21 +337,17 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 		var tuples []*core.RelationTuple
 		for rows.Next() {
 			nextTuple := &core.RelationTuple{
-				ObjectAndRelation: &core.ObjectAndRelation{},
-				User: &core.User{
-					UserOneof: &core.User_Userset{
-						Userset: &core.ObjectAndRelation{},
-					},
-				},
+				ResourceAndRelation: &core.ObjectAndRelation{},
+				Subject:             &core.ObjectAndRelation{},
 			}
-			userset := nextTuple.User.GetUserset()
+
 			err := rows.Scan(
-				&nextTuple.ObjectAndRelation.Namespace,
-				&nextTuple.ObjectAndRelation.ObjectId,
-				&nextTuple.ObjectAndRelation.Relation,
-				&userset.Namespace,
-				&userset.ObjectId,
-				&userset.Relation,
+				&nextTuple.ResourceAndRelation.Namespace,
+				&nextTuple.ResourceAndRelation.ObjectId,
+				&nextTuple.ResourceAndRelation.Relation,
+				&nextTuple.Subject.Namespace,
+				&nextTuple.Subject.ObjectId,
+				&nextTuple.Subject.Relation,
 			)
 			if err != nil {
 				return nil, fmt.Errorf(errUnableToQueryTuples, err)

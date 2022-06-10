@@ -968,7 +968,7 @@ func TestDeveloperValidateONR(t *testing.T) {
 	require.NoError(err)
 	require.Equal(1, len(resp.RequestErrors))
 	require.Equal(&v0.DeveloperError{
-		Message: "invalid RelationTuple.ObjectAndRelation: embedded message failed validation | caused by: invalid ObjectAndRelation.Relation: value does not match regex pattern \"^(\\\\.\\\\.\\\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$\"",
+		Message: "invalid RelationTuple.ResourceAndRelation: embedded message failed validation | caused by: invalid ObjectAndRelation.Relation: value does not match regex pattern \"^(\\\\.\\\\.\\\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$\"",
 		Kind:    v0.DeveloperError_PARSE_ERROR,
 		Source:  v0.DeveloperError_RELATIONSHIP,
 		Context: `document:somedoc#writerIsNotValid@user:jimmy`,

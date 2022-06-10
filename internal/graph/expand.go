@@ -59,9 +59,9 @@ func (ce *ConcurrentExpander) expandDirect(
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
-			ResourceType:       req.ObjectAndRelation.Namespace,
-			OptionalResourceId: req.ObjectAndRelation.ObjectId,
-			OptionalRelation:   req.ObjectAndRelation.Relation,
+			ResourceType:       req.ResourceAndRelation.Namespace,
+			OptionalResourceId: req.ResourceAndRelation.ObjectId,
+			OptionalRelation:   req.ResourceAndRelation.Relation,
 		})
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
@@ -69,13 +69,13 @@ func (ce *ConcurrentExpander) expandDirect(
 		}
 		defer it.Close()
 
-		var foundNonTerminalUsersets []*core.User
-		var foundTerminalUsersets []*core.User
+		var foundNonTerminalUsersets []*core.ObjectAndRelation
+		var foundTerminalUsersets []*core.ObjectAndRelation
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-			if tpl.User.GetUserset().Relation == Ellipsis {
-				foundTerminalUsersets = append(foundTerminalUsersets, tpl.User)
+			if tpl.Subject.Relation == Ellipsis {
+				foundTerminalUsersets = append(foundTerminalUsersets, tpl.Subject)
 			} else {
-				foundNonTerminalUsersets = append(foundNonTerminalUsersets, tpl.User)
+				foundNonTerminalUsersets = append(foundNonTerminalUsersets, tpl.Subject)
 			}
 		}
 		if it.Err() != nil {
@@ -89,11 +89,11 @@ func (ce *ConcurrentExpander) expandDirect(
 			resultChan <- expandResult(
 				&core.RelationTupleTreeNode{
 					NodeType: &core.RelationTupleTreeNode_LeafNode{
-						LeafNode: &core.DirectUserset{
-							Users: append(foundTerminalUsersets, foundNonTerminalUsersets...),
+						LeafNode: &core.DirectSubjects{
+							Subjects: append(foundTerminalUsersets, foundNonTerminalUsersets...),
 						},
 					},
-					Expanded: req.ObjectAndRelation,
+					Expanded: req.ResourceAndRelation,
 				},
 				emptyMetadata,
 			)
@@ -106,15 +106,15 @@ func (ce *ConcurrentExpander) expandDirect(
 		for _, nonTerminalUser := range foundNonTerminalUsersets {
 			requestsToDispatch = append(requestsToDispatch, ce.dispatch(ValidatedExpandRequest{
 				&v1.DispatchExpandRequest{
-					ObjectAndRelation: nonTerminalUser.GetUserset(),
-					Metadata:          decrementDepth(req.Metadata),
-					ExpansionMode:     req.ExpansionMode,
+					ResourceAndRelation: nonTerminalUser,
+					Metadata:            decrementDepth(req.Metadata),
+					ExpansionMode:       req.ExpansionMode,
 				},
 				req.Revision,
 			}))
 		}
 
-		result := expandAny(ctx, req.ObjectAndRelation, requestsToDispatch)
+		result := expandAny(ctx, req.ResourceAndRelation, requestsToDispatch)
 		if result.Err != nil {
 			resultChan <- result
 			return
@@ -123,11 +123,11 @@ func (ce *ConcurrentExpander) expandDirect(
 		unionNode := result.Resp.TreeNode.GetIntermediateNode()
 		unionNode.ChildNodes = append(unionNode.ChildNodes, &core.RelationTupleTreeNode{
 			NodeType: &core.RelationTupleTreeNode_LeafNode{
-				LeafNode: &core.DirectUserset{
-					Users: append(foundTerminalUsersets, foundNonTerminalUsersets...),
+				LeafNode: &core.DirectSubjects{
+					Subjects: append(foundTerminalUsersets, foundNonTerminalUsersets...),
 				},
 			},
-			Expanded: req.ObjectAndRelation,
+			Expanded: req.ResourceAndRelation,
 		})
 		resultChan <- result
 	}
@@ -162,13 +162,13 @@ func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req Valida
 		case *core.SetOperation_Child_TupleToUserset:
 			requests = append(requests, ce.expandTupleToUserset(ctx, req, child.TupleToUserset))
 		case *core.SetOperation_Child_XNil:
-			requests = append(requests, emptyExpansion(req.ObjectAndRelation))
+			requests = append(requests, emptyExpansion(req.ResourceAndRelation))
 		default:
 			return expandError(fmt.Errorf("unknown set operation child `%T` in expand", child))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		resultChan <- reducer(ctx, req.ObjectAndRelation, requests)
+		resultChan <- reducer(ctx, req.ResourceAndRelation, requests)
 	}
 }
 
@@ -189,12 +189,12 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 			panic("computed userset for tupleset without tuple")
 		}
 
-		start = tpl.User.GetUserset()
+		start = tpl.Subject
 	} else if cu.Object == core.ComputedUserset_TUPLE_OBJECT {
 		if tpl != nil {
-			start = tpl.ObjectAndRelation
+			start = tpl.ResourceAndRelation
 		} else {
-			start = req.ObjectAndRelation
+			start = req.ResourceAndRelation
 		}
 	}
 
@@ -203,7 +203,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	err := namespace.CheckNamespaceAndRelation(ctx, start.Namespace, cu.Relation, true, ds)
 	if err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
-			return emptyExpansion(req.ObjectAndRelation)
+			return emptyExpansion(req.ResourceAndRelation)
 		}
 
 		return expandError(err)
@@ -211,7 +211,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 
 	return ce.dispatch(ValidatedExpandRequest{
 		&v1.DispatchExpandRequest{
-			ObjectAndRelation: &core.ObjectAndRelation{
+			ResourceAndRelation: &core.ObjectAndRelation{
 				Namespace: start.Namespace,
 				ObjectId:  start.ObjectId,
 				Relation:  cu.Relation,
@@ -227,8 +227,8 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req Vali
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
-			ResourceType:       req.ObjectAndRelation.Namespace,
-			OptionalResourceId: req.ObjectAndRelation.ObjectId,
+			ResourceType:       req.ResourceAndRelation.Namespace,
+			OptionalResourceId: req.ResourceAndRelation.ObjectId,
 			OptionalRelation:   ttu.Tupleset.Relation,
 		})
 		if err != nil {
@@ -246,7 +246,7 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req Vali
 			return
 		}
 
-		resultChan <- expandAny(ctx, req.ObjectAndRelation, requestsToDispatch)
+		resultChan <- expandAny(ctx, req.ResourceAndRelation, requestsToDispatch)
 	}
 }
 
@@ -314,7 +314,7 @@ func emptyExpansion(start *core.ObjectAndRelation) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		resultChan <- expandResult(&core.RelationTupleTreeNode{
 			NodeType: &core.RelationTupleTreeNode_LeafNode{
-				LeafNode: &core.DirectUserset{},
+				LeafNode: &core.DirectSubjects{},
 			},
 			Expanded: start,
 		}, emptyMetadata)

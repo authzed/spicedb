@@ -139,16 +139,16 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write a relationship.
 	tpl := &core.RelationTuple{
-		ObjectAndRelation: &core.ObjectAndRelation{
+		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: "resource",
 			ObjectId:  "someresource",
 			Relation:  "reader",
 		},
-		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
+		Subject: &core.ObjectAndRelation{
 			Namespace: "user",
 			ObjectId:  "someuser",
 			Relation:  "...",
-		}}},
+		},
 	}
 	relationship := tuple.ToRelationship(tpl)
 
@@ -312,16 +312,16 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write a relationship.
 	tpl := &core.RelationTuple{
-		ObjectAndRelation: &core.ObjectAndRelation{
+		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: "resource",
 			ObjectId:  "someresource",
 			Relation:  "reader",
 		},
-		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
+		Subject: &core.ObjectAndRelation{
 			Namespace: "user",
 			ObjectId:  "someuser",
 			Relation:  "...",
-		}}},
+		},
 	}
 	relationship := tuple.ToRelationship(tpl)
 
@@ -396,16 +396,16 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	var tpls []*core.RelationTuple
 	for i := 0; i < chunkRelationshipCount; i++ {
 		tpl := &core.RelationTuple{
-			ObjectAndRelation: &core.ObjectAndRelation{
+			ResourceAndRelation: &core.ObjectAndRelation{
 				Namespace: "resource",
 				ObjectId:  fmt.Sprintf("resource-%d", i),
 				Relation:  "reader",
 			},
-			User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
+			Subject: &core.ObjectAndRelation{
 				Namespace: "user",
 				ObjectId:  "someuser",
 				Relation:  "...",
-			}}},
+			},
 		}
 		tpls = append(tpls, tpl)
 	}
@@ -611,7 +611,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 			defer iter.Close()
 
 			for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
-				require.Equal(testfixtures.DocumentNS.Name, tpl.ObjectAndRelation.Namespace)
+				require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
 			}
 			require.NoError(iter.Err())
 		}

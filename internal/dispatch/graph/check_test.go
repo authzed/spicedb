@@ -126,8 +126,8 @@ func TestSimpleCheck(t *testing.T) {
 					ctx, dispatch, revision := newLocalDispatcher(require)
 
 					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-						ObjectAndRelation: ONR(tc.namespace, tc.objectID, expected.relation),
-						Subject:           userset.userset,
+						ResourceAndRelation: ONR(tc.namespace, tc.objectID, expected.relation),
+						Subject:             userset.userset,
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),
 							DepthRemaining: 50,
@@ -181,8 +181,8 @@ func TestMaxDepth(t *testing.T) {
 	dispatch := NewLocalOnlyDispatcher()
 
 	checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		ObjectAndRelation: ONR("folder", "oops", "owner"),
-		Subject:           ONR("user", "fake", graph.Ellipsis),
+		ResourceAndRelation: ONR("folder", "oops", "owner"),
+		Subject:             ONR("user", "fake", graph.Ellipsis),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
@@ -269,8 +269,8 @@ func TestCheckMetadata(t *testing.T) {
 					ctx, dispatch, revision := newLocalDispatcher(require)
 
 					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-						ObjectAndRelation: ONR(tc.namespace, tc.objectID, expected.relation),
-						Subject:           userset.userset,
+						ResourceAndRelation: ONR(tc.namespace, tc.objectID, expected.relation),
+						Subject:             userset.userset,
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),
 							DepthRemaining: 50,

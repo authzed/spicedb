@@ -85,9 +85,9 @@ func (pc *ParallelChecker) QueueCheck(resource *core.ObjectAndRelation, meta *v1
 	}
 
 	pc.toCheck <- &v1.DispatchCheckRequest{
-		Metadata:          meta,
-		ObjectAndRelation: resource,
-		Subject:           pc.subject,
+		Metadata:            meta,
+		ResourceAndRelation: resource,
+		Subject:             pc.subject,
 	}
 }
 
@@ -116,7 +116,7 @@ func (pc *ParallelChecker) Start() {
 					pc.mu.Lock()
 					defer pc.mu.Unlock()
 					if res.Membership == v1.DispatchCheckResponse_MEMBER {
-						pc.addResultsUnsafe(req.ObjectAndRelation)
+						pc.addResultsUnsafe(req.ResourceAndRelation)
 					}
 					pc.updateStatsUnsafe(res.Metadata)
 				}()

@@ -113,19 +113,15 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 			oneChange := &core.RelationTupleUpdate{
 				Tuple: &core.RelationTuple{
-					ObjectAndRelation: &core.ObjectAndRelation{
+					ResourceAndRelation: &core.ObjectAndRelation{
 						Namespace: pkValues[0],
 						ObjectId:  pkValues[1],
 						Relation:  pkValues[2],
 					},
-					User: &core.User{
-						UserOneof: &core.User_Userset{
-							Userset: &core.ObjectAndRelation{
-								Namespace: pkValues[3],
-								ObjectId:  pkValues[4],
-								Relation:  pkValues[5],
-							},
-						},
+					Subject: &core.ObjectAndRelation{
+						Namespace: pkValues[3],
+						ObjectId:  pkValues[4],
+						Relation:  pkValues[5],
 					},
 				},
 			}

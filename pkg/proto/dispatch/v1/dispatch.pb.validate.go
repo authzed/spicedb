@@ -97,9 +97,9 @@ func (m *DispatchCheckRequest) validate(all bool) error {
 		}
 	}
 
-	if m.GetObjectAndRelation() == nil {
+	if m.GetResourceAndRelation() == nil {
 		err := DispatchCheckRequestValidationError{
-			field:  "ObjectAndRelation",
+			field:  "ResourceAndRelation",
 			reason: "value is required",
 		}
 		if !all {
@@ -109,11 +109,11 @@ func (m *DispatchCheckRequest) validate(all bool) error {
 	}
 
 	if all {
-		switch v := interface{}(m.GetObjectAndRelation()).(type) {
+		switch v := interface{}(m.GetResourceAndRelation()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, DispatchCheckRequestValidationError{
-					field:  "ObjectAndRelation",
+					field:  "ResourceAndRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -121,16 +121,16 @@ func (m *DispatchCheckRequest) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, DispatchCheckRequestValidationError{
-					field:  "ObjectAndRelation",
+					field:  "ResourceAndRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetObjectAndRelation()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetResourceAndRelation()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchCheckRequestValidationError{
-				field:  "ObjectAndRelation",
+				field:  "ResourceAndRelation",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
@@ -452,9 +452,9 @@ func (m *DispatchExpandRequest) validate(all bool) error {
 		}
 	}
 
-	if m.GetObjectAndRelation() == nil {
+	if m.GetResourceAndRelation() == nil {
 		err := DispatchExpandRequestValidationError{
-			field:  "ObjectAndRelation",
+			field:  "ResourceAndRelation",
 			reason: "value is required",
 		}
 		if !all {
@@ -464,11 +464,11 @@ func (m *DispatchExpandRequest) validate(all bool) error {
 	}
 
 	if all {
-		switch v := interface{}(m.GetObjectAndRelation()).(type) {
+		switch v := interface{}(m.GetResourceAndRelation()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, DispatchExpandRequestValidationError{
-					field:  "ObjectAndRelation",
+					field:  "ResourceAndRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -476,16 +476,16 @@ func (m *DispatchExpandRequest) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, DispatchExpandRequestValidationError{
-					field:  "ObjectAndRelation",
+					field:  "ResourceAndRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetObjectAndRelation()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetResourceAndRelation()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchExpandRequestValidationError{
-				field:  "ObjectAndRelation",
+				field:  "ResourceAndRelation",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
