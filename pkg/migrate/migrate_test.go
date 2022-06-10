@@ -14,7 +14,7 @@ func (*fakeDriver) Version(ctx context.Context) (string, error) {
 	return "", ctx.Err()
 }
 
-func (*fakeDriver) Transact(ctx context.Context, f MigrationFunc[fakeTransaction], new, old string) error {
+func (*fakeDriver) Transact(ctx context.Context, f MigrationFunc[fakeTransaction], version, replaced string) error {
 	return f(ctx, fakeTransaction{})
 }
 

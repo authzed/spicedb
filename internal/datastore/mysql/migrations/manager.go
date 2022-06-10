@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"database/sql"
 	"fmt"
 	"regexp"
 
@@ -13,10 +14,15 @@ var (
 	migrationNameRe = regexp.MustCompile(migrationNamePattern)
 
 	// Manager is the singleton migration manager instance for MySQL
-	Manager = migrate.NewManager[*MySQLDriver]()
+	Manager = migrate.NewManager[*MySQLDriver, mysqlTx]()
 )
 
-type mySQLMigrationFunc = migrate.MigrationFunc[*MySQLDriver]
+type mySQLMigrationFunc = migrate.MigrationFunc[mysqlTx]
+
+type mysqlTx struct {
+	tx     *sql.Tx
+	tables *tables
+}
 
 func mustRegisterMigration(version, replaces string, up mySQLMigrationFunc) {
 	if err := registerMigration(version, replaces, up); err != nil {

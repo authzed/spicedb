@@ -14,8 +14,8 @@ const createUniqueIDTable = `CREATE TABLE metadata (
 const insertUniqueID = `INSERT INTO metadata (unique_id) VALUES ($1);`
 
 func init() {
-	if err := DatabaseMigrations.Register("add-unique-datastore-id", "add-gc-index", func(ctx context.Context, apd *AlembicPostgresDriver) error {
-		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
+	if err := DatabaseMigrations.Register("add-unique-datastore-id", "add-gc-index", func(ctx context.Context, tx pgx.Tx) error {
+		return tx.BeginFunc(ctx, func(tx pgx.Tx) error {
 			if _, err := tx.Exec(ctx, createUniqueIDTable); err != nil {
 				return err
 			}

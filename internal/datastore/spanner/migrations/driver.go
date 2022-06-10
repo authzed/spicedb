@@ -75,14 +75,22 @@ func (smd *SpannerMigrationDriver) Version(ctx context.Context) (string, error) 
 	return schemaRevision, nil
 }
 
-func (smd *SpannerMigrationDriver) WriteVersion(ctx context.Context, version, replaced string) error {
-	_, err := smd.client.ReadWriteTransaction(ctx, func(c context.Context, rwt *spanner.ReadWriteTransaction) error {
-		return rwt.BufferWrite([]*spanner.Mutation{
-			spanner.Delete(tableSchemaVersion, spanner.KeySetFromKeys(spanner.Key{replaced})),
-			spanner.Insert(tableSchemaVersion, []string{colVersionNum}, []interface{}{version}),
-		})
+func (smd *SpannerMigrationDriver) Transact(ctx context.Context, f migrate.MigrationFunc[*spanner.ReadWriteTransaction], version, replaced string) error {
+	_, err := smd.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
+		err := f(ctx, rwt)
+		if err != nil {
+			return err
+		}
+		return writeVersion(rwt, version, replaced)
 	})
 	return err
+}
+
+func writeVersion(rwt *spanner.ReadWriteTransaction, version, replaced string) error {
+	return rwt.BufferWrite([]*spanner.Mutation{
+		spanner.Delete(tableSchemaVersion, spanner.KeySetFromKeys(spanner.Key{replaced})),
+		spanner.Insert(tableSchemaVersion, []string{colVersionNum}, []interface{}{version}),
+	})
 }
 
 func (smd *SpannerMigrationDriver) Close(_ context.Context) error {
@@ -90,4 +98,4 @@ func (smd *SpannerMigrationDriver) Close(_ context.Context) error {
 	return nil
 }
 
-var _ migrate.Driver = &SpannerMigrationDriver{}
+var _ migrate.Driver[*spanner.ReadWriteTransaction] = &SpannerMigrationDriver{}

@@ -97,7 +97,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runMigration[T migrate.Driver](ctx context.Context, driver T, manager *migrate.Manager[T], targetRevision string, timeout time.Duration) {
+func runMigration[D migrate.Driver[T], T any](ctx context.Context, driver D, manager *migrate.Manager[D, T], targetRevision string, timeout time.Duration) {
 	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

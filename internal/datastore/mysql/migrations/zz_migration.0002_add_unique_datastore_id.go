@@ -4,18 +4,18 @@ import (
 	"fmt"
 )
 
-func createMetadataTable(driver *MySQLDriver) string {
+func createMetadataTable(t *tables) string {
 	return fmt.Sprintf(`CREATE TABLE %s (
 		id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
 		unique_id VARCHAR(36));`,
-		driver.Metadata(),
+		t.Metadata(),
 	)
 }
 
 func init() {
 	mustRegisterMigration("add_unique_datastore_id", "initial",
-		newExecutor(
+		newStatementBatch(
 			createMetadataTable,
-		).migrate,
+		).execute,
 	)
 }
