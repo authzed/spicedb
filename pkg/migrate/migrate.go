@@ -22,47 +22,53 @@ var (
 
 // Driver represents the common interface for reading and writing the revision
 // data from a migrateable backing datastore.
-type Driver interface {
+type Driver[T any] interface {
 	// Version returns the current version of the schema in the backing datastore.
 	// If the datastore is brand new, version should return the empty string without
 	// an error.
 	Version(ctx context.Context) (string, error)
 
 	// WriteVersion records the newly migrated version to the backing datastore.
-	WriteVersion(ctx context.Context, version, replaced string) error
+	WriteVersion(ctx context.Context, tx T, version, replaced string) error
+
+	// Transact executes the argument migration function with transactional semantics
+	Transact(ctx context.Context, f MigrationFunc[T]) error
 
 	// Close frees up any resources in use by the driver.
 	Close(ctx context.Context) error
 }
 
-type migration[T Driver] struct {
+type migration[T any] struct {
 	version  string
 	replaces string
 	up       MigrationFunc[T]
 }
 
-type MigrationFunc[T Driver] func(ctx context.Context, driver T) error
+type (
+	// MigrationFunc is a function that executes in the context of a specific transaction.
+	MigrationFunc[T any] func(ctx context.Context, tx T) error
+)
 
 // Manager is used to manage a self-contained set of migrations. Standard usage
 // would be to instantiate one at the package level for a particular application
 // and then statically register migrations to the single instantiation in init
 // functions.
-type Manager[T Driver] struct {
+type Manager[D Driver[T], T any] struct {
 	migrations map[string]migration[T]
 }
 
 // NewManager creates a new empty instance of a migration manager.
-func NewManager[T Driver]() *Manager[T] {
-	return &Manager[T]{migrations: make(map[string]migration[T])}
+func NewManager[D Driver[T], T any]() *Manager[D, T] {
+	return &Manager[D, T]{migrations: make(map[string]migration[T])}
 }
 
 // Register is used to associate a single migration with the migration engine.
 // The up parameter should be a function that performs the actual upgrade logic
 // and which takes a pointer to a concrete implementation of the Driver
-// interface as its only parameters, which will be passed direcly from the Run
+// interface as its only parameters, which will be passed directly from the Run
 // method into the upgrade function. If not extra fields or data are required
 // the function can alternatively take a Driver interface param.
-func (m *Manager[T]) Register(version, replaces string, up MigrationFunc[T]) error {
+func (m *Manager[D, T]) Register(version, replaces string, up MigrationFunc[T]) error {
 	if strings.ToLower(version) == Head {
 		return fmt.Errorf("unable to register version called head")
 	}
@@ -82,7 +88,7 @@ func (m *Manager[T]) Register(version, replaces string, up MigrationFunc[T]) err
 
 // Run will actually perform the necessary migrations to bring the backing datastore
 // from its current revision to the specified revision.
-func (m *Manager[T]) Run(ctx context.Context, driver T, throughRevision string, dryRun RunType) error {
+func (m *Manager[D, T]) Run(ctx context.Context, driver D, throughRevision string, dryRun RunType) error {
 	starting, err := driver.Version(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to compute target revision: %w", err)
@@ -113,13 +119,16 @@ func (m *Manager[T]) Run(ctx context.Context, driver T, throughRevision string, 
 			}
 
 			log.Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
-			err = migrationToRun.up(ctx, driver)
-			if err != nil {
-				return fmt.Errorf("error running migration up function: %w", err)
-			}
+			err = driver.Transact(ctx, func(ctx context.Context, tx T) error {
+				err = migrationToRun.up(ctx, tx)
+				if err != nil {
+					return err
+				}
 
-			if err := driver.WriteVersion(ctx, migrationToRun.version, migrationToRun.replaces); err != nil {
-				return fmt.Errorf("error writing migration version to driver: %w", err)
+				return driver.WriteVersion(ctx, tx, migrationToRun.version, migrationToRun.replaces)
+			})
+			if err != nil {
+				return fmt.Errorf("error executing migration function: %w", err)
 			}
 		}
 	}
@@ -127,7 +136,7 @@ func (m *Manager[T]) Run(ctx context.Context, driver T, throughRevision string, 
 	return nil
 }
 
-func (m *Manager[T]) HeadRevision() (string, error) {
+func (m *Manager[D, T]) HeadRevision() (string, error) {
 	candidates := make(map[string]struct{}, len(m.migrations))
 	for candidate := range m.migrations {
 		candidates[candidate] = struct{}{}
@@ -149,7 +158,7 @@ func (m *Manager[T]) HeadRevision() (string, error) {
 	return allHeads[0], nil
 }
 
-func (m *Manager[T]) IsHeadCompatible(revision string) (bool, error) {
+func (m *Manager[D, T]) IsHeadCompatible(revision string) (bool, error) {
 	headRevision, err := m.HeadRevision()
 	if err != nil {
 		return false, err
@@ -158,7 +167,7 @@ func (m *Manager[T]) IsHeadCompatible(revision string) (bool, error) {
 	return revision == headMigration.version || revision == headMigration.replaces, nil
 }
 
-func collectMigrationsInRange[T Driver](starting, through string, all map[string]migration[T]) ([]migration[T], error) {
+func collectMigrationsInRange[T any](starting, through string, all map[string]migration[T]) ([]migration[T], error) {
 	var found []migration[T]
 
 	lookingForRevision := through
