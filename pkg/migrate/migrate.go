@@ -21,33 +21,29 @@ var (
 )
 
 // Driver represents the common interface for reading and writing the revision
-// data from a migrateable backing datastore.
+// data from a migrateable backing datastore. The driver is parameterized
+// with a type representing a transaction
 type Driver[T any] interface {
 	// Version returns the current version of the schema in the backing datastore.
 	// If the datastore is brand new, version should return the empty string without
 	// an error.
 	Version(ctx context.Context) (string, error)
 
-	// WriteVersion records the newly migrated version to the backing datastore.
-	WriteVersion(ctx context.Context, tx T, version, replaced string) error
-
 	// Transact executes the argument migration function with transactional semantics
-	Transact(ctx context.Context, f MigrationFunc[T]) error
+	Transact(ctx context.Context, f MigrationFunc[T], version, replaced string) error
 
 	// Close frees up any resources in use by the driver.
 	Close(ctx context.Context) error
 }
+
+// MigrationFunc is a function that executes in the context of a specific transaction.
+type MigrationFunc[T any] func(ctx context.Context, tx T) error
 
 type migration[T any] struct {
 	version  string
 	replaces string
 	up       MigrationFunc[T]
 }
-
-type (
-	// MigrationFunc is a function that executes in the context of a specific transaction.
-	MigrationFunc[T any] func(ctx context.Context, tx T) error
-)
 
 // Manager is used to manage a self-contained set of migrations. Standard usage
 // would be to instantiate one at the package level for a particular application
@@ -119,14 +115,7 @@ func (m *Manager[D, T]) Run(ctx context.Context, driver D, throughRevision strin
 			}
 
 			log.Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
-			err = driver.Transact(ctx, func(ctx context.Context, tx T) error {
-				err = migrationToRun.up(ctx, tx)
-				if err != nil {
-					return err
-				}
-
-				return driver.WriteVersion(ctx, tx, migrationToRun.version, migrationToRun.replaces)
-			})
+			err = driver.Transact(ctx, migrationToRun.up, migrationToRun.version, migrationToRun.replaces)
 			if err != nil {
 				return fmt.Errorf("error executing migration function: %w", err)
 			}
