@@ -20,9 +20,9 @@ const (
 )
 
 func init() {
-	if err := SpannerMigrations.Register("add-metadata-and-counters", "initial", func(ctx context.Context, smd *SpannerMigrationDriver) error {
-		updateOp, err := smd.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
-			Database: smd.client.DatabaseName(),
+	if err := SpannerMigrations.Register("add-metadata-and-counters", "initial", func(ctx context.Context, twd transactionWithDriver) error {
+		updateOp, err := twd.Driver.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
+			Database: twd.Driver.client.DatabaseName(),
 			Statements: []string{
 				createMetadata,
 				createCounters,
@@ -36,7 +36,7 @@ func init() {
 			return err
 		}
 
-		if _, err := smd.client.Apply(ctx, []*spanner.Mutation{
+		if _, err := twd.Driver.client.Apply(ctx, []*spanner.Mutation{
 			spanner.Insert("metadata", []string{"unique_id"}, []interface{}{uuid.NewString()}),
 		}); err != nil {
 			return err

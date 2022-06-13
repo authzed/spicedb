@@ -26,6 +26,11 @@ type SpannerMigrationDriver struct {
 	adminClient *admin.DatabaseAdminClient
 }
 
+type transactionWithDriver struct {
+	Tx     *spanner.ReadWriteTransaction
+	Driver *SpannerMigrationDriver
+}
+
 // NewSpannerDriver returns a migration driver for the given Cloud Spanner instance
 func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (*SpannerMigrationDriver, error) {
 	ctx := context.Background()
@@ -75,9 +80,9 @@ func (smd *SpannerMigrationDriver) Version(ctx context.Context) (string, error) 
 	return schemaRevision, nil
 }
 
-func (smd *SpannerMigrationDriver) Transact(ctx context.Context, f migrate.MigrationFunc[*spanner.ReadWriteTransaction], version, replaced string) error {
+func (smd *SpannerMigrationDriver) Transact(ctx context.Context, f migrate.MigrationFunc[transactionWithDriver], version, replaced string) error {
 	_, err := smd.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
-		err := f(ctx, rwt)
+		err := f(ctx, transactionWithDriver{Driver: smd, Tx: rwt})
 		if err != nil {
 			return err
 		}
@@ -98,4 +103,4 @@ func (smd *SpannerMigrationDriver) Close(_ context.Context) error {
 	return nil
 }
 
-var _ migrate.Driver[*spanner.ReadWriteTransaction] = &SpannerMigrationDriver{}
+var _ migrate.Driver[transactionWithDriver] = &SpannerMigrationDriver{}
