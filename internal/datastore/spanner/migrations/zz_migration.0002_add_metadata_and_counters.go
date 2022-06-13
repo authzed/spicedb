@@ -35,14 +35,9 @@ func init() {
 		if err := updateOp.Wait(ctx); err != nil {
 			return err
 		}
-
-		if _, err := twd.Driver.client.Apply(ctx, []*spanner.Mutation{
+		return twd.Tx.BufferWrite([]*spanner.Mutation{
 			spanner.Insert("metadata", []string{"unique_id"}, []interface{}{uuid.NewString()}),
-		}); err != nil {
-			return err
-		}
-
-		return nil
+		})
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}
