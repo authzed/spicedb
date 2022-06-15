@@ -124,6 +124,13 @@ func (m *Manager[D, T]) Run(ctx context.Context, driver D, throughRevision strin
 			if err != nil {
 				return fmt.Errorf("error executing migration function: %w", err)
 			}
+			currentVersion, err = driver.Version(ctx)
+			if err != nil {
+				return fmt.Errorf("unable to load version from driver: %w", err)
+			}
+			if migrationToRun.version != currentVersion {
+				return fmt.Errorf("the migration function succeeded, but the driver did not report the expected version: %s", migrationToRun.version)
+			}
 		}
 	}
 

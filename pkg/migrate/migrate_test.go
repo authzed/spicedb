@@ -159,6 +159,17 @@ func TestIsHeadCompatible(t *testing.T) {
 	}
 }
 
+func TestManagerEnsureVersionIsWritten(t *testing.T) {
+	req := require.New(t)
+	m := NewManager[Driver[fakeConnPool], fakeConnPool]()
+	err := m.Register("0", "", func(ctx context.Context, conn fakeConnPool, version, replaced string) error {
+		return nil
+	})
+	req.NoError(err)
+	err = m.Run(context.Background(), &fakeDriver{}, "0", LiveRun)
+	req.Error(err)
+}
+
 var noMigrations = map[string]migration[fakeConnPool]{}
 
 var simpleMigrations = map[string]migration[fakeConnPool]{
