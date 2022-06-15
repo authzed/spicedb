@@ -12,9 +12,11 @@ const alterTimestampDefaultValue = `
 
 func init() {
 	if err := DatabaseMigrations.Register("change-transaction-timestamp-default", "add-transaction-timestamp-index",
-		func(ctx context.Context, tx pgx.Tx) error {
-			_, err := tx.Exec(ctx, alterTimestampDefaultValue)
-			return err
+		func(ctx context.Context, conn *pgx.Conn, version, replaced string) error {
+			return commitWithMigrationVersion(ctx, conn, version, replaced, func(tx pgx.Tx) error {
+				_, err := tx.Exec(ctx, alterTimestampDefaultValue)
+				return err
+			})
 		}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

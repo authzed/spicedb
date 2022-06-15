@@ -37,8 +37,8 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("initial", "", func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, enableRangefeeds)
+	if err := CRDBMigrations.Register("initial", "", func(ctx context.Context, conn *pgx.Conn, version, replaced string) error {
+		_, err := conn.Exec(ctx, enableRangefeeds)
 		if err != nil {
 			return err
 		}
@@ -51,13 +51,15 @@ func init() {
 			createReverseQueryIndex,
 			createReverseCheckIndex,
 		}
-		for _, stmt := range statements {
-			_, err := tx.Exec(ctx, stmt)
-			if err != nil {
-				return err
+		return commitWithMigrationVersion(ctx, conn, version, replaced, func(tx pgx.Tx) error {
+			for _, stmt := range statements {
+				_, err := tx.Exec(ctx, stmt)
+				if err != nil {
+					return err
+				}
 			}
-		}
-		return nil
+			return nil
+		})
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

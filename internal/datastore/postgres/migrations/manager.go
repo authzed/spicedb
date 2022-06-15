@@ -7,4 +7,4 @@ import (
 )
 
 // DatabaseMigrations implements a migration manager for the Postgres Driver.
-var DatabaseMigrations = migrate.NewManager[*AlembicPostgresDriver, pgx.Tx]()
+var DatabaseMigrations = migrate.NewManager[*AlembicPostgresDriver, *pgx.Conn]()

@@ -20,9 +20,9 @@ const (
 )
 
 func init() {
-	if err := SpannerMigrations.Register("add-metadata-and-counters", "initial", func(ctx context.Context, twd transactionWithDriver) error {
-		updateOp, err := twd.Driver.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
-			Database: twd.Driver.client.DatabaseName(),
+	if err := SpannerMigrations.Register("add-metadata-and-counters", "initial", func(ctx context.Context, w Wrapper, version, replaced string) error {
+		updateOp, err := w.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
+			Database: w.client.DatabaseName(),
 			Statements: []string{
 				createMetadata,
 				createCounters,
@@ -35,9 +35,16 @@ func init() {
 		if err := updateOp.Wait(ctx); err != nil {
 			return err
 		}
-		return twd.Tx.BufferWrite([]*spanner.Mutation{
-			spanner.Insert("metadata", []string{"unique_id"}, []interface{}{uuid.NewString()}),
+		_, err = w.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
+			err := rwt.BufferWrite([]*spanner.Mutation{
+				spanner.Insert("metadata", []string{"unique_id"}, []interface{}{uuid.NewString()}),
+			})
+			if err != nil {
+				return err
+			}
+			return writeVersion(rwt, version, replaced)
 		})
+		return err
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

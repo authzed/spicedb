@@ -5,4 +5,4 @@ import (
 )
 
 // SpannerMigrations implements a migration manager for the Spanner datastore.
-var SpannerMigrations = migrate.NewManager[*SpannerMigrationDriver, transactionWithDriver]()
+var SpannerMigrations = migrate.NewManager[*SpannerMigrationDriver, Wrapper]()

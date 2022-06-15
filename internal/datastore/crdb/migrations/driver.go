@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/migrate"
-
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
@@ -62,26 +60,16 @@ func (apd *CRDBDriver) Version(ctx context.Context) (string, error) {
 	return loaded, nil
 }
 
-func (apd *CRDBDriver) Transact(ctx context.Context, f migrate.MigrationFunc[pgx.Tx], version, replaced string) error {
-	tx, err := apd.db.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadWrite})
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	err = f(ctx, tx)
-	if err != nil {
-		return err
-	}
-	err = writeVersion(ctx, tx, version, replaced)
-	if err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+// Conn returns the underlying pgx.Conn instance for this driver
+func (apd *CRDBDriver) Conn() *pgx.Conn {
+	return apd.db
 }
 
-// WriteVersion overwrites the value stored to track the version of the
-// database schema.
+// Close disposes the driver.
+func (apd *CRDBDriver) Close(ctx context.Context) error {
+	return apd.db.Close(ctx)
+}
+
 func writeVersion(ctx context.Context, tx pgx.Tx, version, replaced string) error {
 	result, err := tx.Exec(ctx, queryWriteVersion, version, replaced)
 	if err != nil {
@@ -100,7 +88,11 @@ func writeVersion(ctx context.Context, tx pgx.Tx, version, replaced string) erro
 	return nil
 }
 
-// Close disposes the driver.
-func (apd *CRDBDriver) Close(ctx context.Context) error {
-	return apd.db.Close(ctx)
+func commitWithMigrationVersion(ctx context.Context, conn *pgx.Conn, version, replaced string, f func(tx pgx.Tx) error) error {
+	return conn.BeginFunc(ctx, func(tx pgx.Tx) error {
+		if err := f(tx); err != nil {
+			return err
+		}
+		return writeVersion(ctx, tx, version, replaced)
+	})
 }

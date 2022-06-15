@@ -21,17 +21,19 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("add-metadata-and-counters", "add-transactions-table", func(ctx context.Context, tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, createMetadataTable); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, createCounters); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, insertUniqueID, uuid.NewString()); err != nil {
-			return err
-		}
-		return nil
+	if err := CRDBMigrations.Register("add-metadata-and-counters", "add-transactions-table", func(ctx context.Context, conn *pgx.Conn, version, replaced string) error {
+		return commitWithMigrationVersion(ctx, conn, version, replaced, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, createMetadataTable); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, createCounters); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, insertUniqueID, uuid.NewString()); err != nil {
+				return err
+			}
+			return nil
+		})
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

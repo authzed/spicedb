@@ -14,9 +14,11 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("add-transactions-table", "initial", func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, createTransactions)
-		return err
+	if err := CRDBMigrations.Register("add-transactions-table", "initial", func(ctx context.Context, conn *pgx.Conn, version, replaced string) error {
+		return commitWithMigrationVersion(ctx, conn, version, replaced, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, createTransactions)
+			return err
+		})
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

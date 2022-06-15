@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/migrate"
-
 	sq "github.com/Masterminds/squirrel"
 	sqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/rs/zerolog/log"
@@ -100,29 +98,15 @@ func (driver *MySQLDriver) Version(ctx context.Context) (string, error) {
 	return "", errors.New("no migration version detected")
 }
 
-func (driver *MySQLDriver) Transact(ctx context.Context, f migrate.MigrationFunc[mysqlTx], version, replaced string) error {
-	tx, err := driver.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer LogOnError(ctx, tx.Rollback)
-
-	err = f(ctx, mysqlTx{tx: tx, tables: driver.tables})
-	if err != nil {
-		return err
-	}
-	err = driver.WriteVersion(ctx, tx, version, replaced)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+func (driver *MySQLDriver) Conn() Wrapper {
+	return Wrapper{DB: driver.db, Tables: driver.tables}
 }
 
-// WriteVersion overwrites the _meta_version_ column name which encodes the version
+// writeVersion overwrites the _meta_version_ column name which encodes the version
 // of the database schema.
-func (driver *MySQLDriver) WriteVersion(ctx context.Context, tx *sql.Tx, version, replaced string) error {
+func writeVersion(ctx context.Context, tx *sql.Tx, migrationVersionTableName, version, replaced string) error {
 	stmt := fmt.Sprintf("ALTER TABLE %s CHANGE %s %s VARCHAR(255) NOT NULL",
-		driver.migrationVersion(),
+		migrationVersionTableName,
 		revisionToColumnName(replaced),
 		revisionToColumnName(version),
 	)

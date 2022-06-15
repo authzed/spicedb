@@ -7,4 +7,4 @@ import (
 )
 
 // CRDBMigrations implements a migration manager for the CRDBDriver.
-var CRDBMigrations = migrate.NewManager[*CRDBDriver, pgx.Tx]()
+var CRDBMigrations = migrate.NewManager[*CRDBDriver, *pgx.Conn]()

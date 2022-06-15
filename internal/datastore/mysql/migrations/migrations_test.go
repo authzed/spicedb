@@ -12,7 +12,7 @@ import (
 
 func TestMySQLMigrationsWithUnsupportedPrefix(t *testing.T) {
 	req := require.New(t)
-	err := registerMigration("888", "", func(ctx context.Context, tx mysqlTx) error {
+	err := registerMigration("888", "", func(ctx context.Context, d Wrapper, version, replaced string) error {
 		return nil
 	})
 	req.Error(err)

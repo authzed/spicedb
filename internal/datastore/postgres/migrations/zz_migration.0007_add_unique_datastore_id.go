@@ -7,15 +7,16 @@ import (
 	"github.com/jackc/pgx/v4"
 )
 
-const createUniqueIDTable = `CREATE TABLE metadata (
-	unique_id VARCHAR PRIMARY KEY
-);`
-
-const insertUniqueID = `INSERT INTO metadata (unique_id) VALUES ($1);`
+const (
+	createUniqueIDTable = `CREATE TABLE metadata (
+		unique_id VARCHAR PRIMARY KEY
+	);`
+	insertUniqueID = `INSERT INTO metadata (unique_id) VALUES ($1);`
+)
 
 func init() {
-	if err := DatabaseMigrations.Register("add-unique-datastore-id", "add-gc-index", func(ctx context.Context, tx pgx.Tx) error {
-		return tx.BeginFunc(ctx, func(tx pgx.Tx) error {
+	if err := DatabaseMigrations.Register("add-unique-datastore-id", "add-gc-index", func(ctx context.Context, conn *pgx.Conn, version, replaced string) error {
+		return commitWithMigrationVersion(ctx, conn, version, replaced, func(tx pgx.Tx) error {
 			if _, err := tx.Exec(ctx, createUniqueIDTable); err != nil {
 				return err
 			}
@@ -23,7 +24,6 @@ func init() {
 			if _, err := tx.Exec(ctx, insertUniqueID, uuid.NewString()); err != nil {
 				return err
 			}
-
 			return nil
 		})
 	}); err != nil {

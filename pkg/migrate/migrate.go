@@ -20,24 +20,26 @@ var (
 	LiveRun RunType = false
 )
 
-// Driver represents the common interface for reading and writing the revision
-// data from a migrateable backing datastore. The driver is parameterized
-// with a type representing a transaction
+// Driver represents the common interface for enabling the orchestreation of migrations
+// for a specific type of datastore. The driver is parameterized with a type representing
+// a connection handler that will be forwarded by the Manager to the MigrationFunc to execute.
 type Driver[T any] interface {
 	// Version returns the current version of the schema in the backing datastore.
 	// If the datastore is brand new, version should return the empty string without
 	// an error.
 	Version(ctx context.Context) (string, error)
 
-	// Transact executes the argument migration function with transactional semantics
-	Transact(ctx context.Context, f MigrationFunc[T], version, replaced string) error
+	// Conn returns the drivers underlying connection handler to be used by one or more MigrationFunc
+	Conn() T
 
 	// Close frees up any resources in use by the driver.
 	Close(ctx context.Context) error
 }
 
-// MigrationFunc is a function that executes in the context of a specific transaction.
-type MigrationFunc[T any] func(ctx context.Context, tx T) error
+// MigrationFunc is a function that executes in the context of a specific database connection handler.
+// The version string represents the version of this migration to run, and replaced
+// represents the previous version that is being superseded.
+type MigrationFunc[T any] func(ctx context.Context, conn T, version, replaced string) error
 
 type migration[T any] struct {
 	version  string
@@ -49,6 +51,9 @@ type migration[T any] struct {
 // would be to instantiate one at the package level for a particular application
 // and then statically register migrations to the single instantiation in init
 // functions.
+// The manager is parameterized using the Driver interface along the concrete type of
+// a database connection handler. This makes it possible for MigrationFunc to run without
+// having to abstract each connection handler behind a common interface.
 type Manager[D Driver[T], T any] struct {
 	migrations map[string]migration[T]
 }
@@ -115,7 +120,7 @@ func (m *Manager[D, T]) Run(ctx context.Context, driver D, throughRevision strin
 			}
 
 			log.Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
-			err = driver.Transact(ctx, migrationToRun.up, migrationToRun.version, migrationToRun.replaces)
+			err = migrationToRun.up(ctx, driver.Conn(), migrationToRun.version, migrationToRun.replaces)
 			if err != nil {
 				return fmt.Errorf("error executing migration function: %w", err)
 			}

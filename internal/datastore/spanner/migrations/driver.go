@@ -26,9 +26,10 @@ type SpannerMigrationDriver struct {
 	adminClient *admin.DatabaseAdminClient
 }
 
-type transactionWithDriver struct {
-	Tx     *spanner.ReadWriteTransaction
-	Driver *SpannerMigrationDriver
+// Wrapper makes it possible to forward the spanner clients to the MigrationFunc's to execute
+type Wrapper struct {
+	client      *spanner.Client
+	adminClient *admin.DatabaseAdminClient
 }
 
 // NewSpannerDriver returns a migration driver for the given Cloud Spanner instance
@@ -80,15 +81,9 @@ func (smd *SpannerMigrationDriver) Version(ctx context.Context) (string, error) 
 	return schemaRevision, nil
 }
 
-func (smd *SpannerMigrationDriver) Transact(ctx context.Context, f migrate.MigrationFunc[transactionWithDriver], version, replaced string) error {
-	_, err := smd.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
-		err := f(ctx, transactionWithDriver{Driver: smd, Tx: rwt})
-		if err != nil {
-			return err
-		}
-		return writeVersion(rwt, version, replaced)
-	})
-	return err
+// Conn returns the underlying spanner clients in a Wrapper instance for MigrationFunc to use
+func (smd *SpannerMigrationDriver) Conn() Wrapper {
+	return Wrapper{client: smd.client, adminClient: smd.adminClient}
 }
 
 func writeVersion(rwt *spanner.ReadWriteTransaction, version, replaced string) error {
@@ -103,4 +98,4 @@ func (smd *SpannerMigrationDriver) Close(_ context.Context) error {
 	return nil
 }
 
-var _ migrate.Driver[transactionWithDriver] = &SpannerMigrationDriver{}
+var _ migrate.Driver[Wrapper] = &SpannerMigrationDriver{}
