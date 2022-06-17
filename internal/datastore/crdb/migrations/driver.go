@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/rs/zerolog/log"
+
+	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 const (
@@ -65,12 +67,18 @@ func (apd *CRDBDriver) Conn() *pgx.Conn {
 	return apd.db
 }
 
+func (apd *CRDBDriver) RunTx(ctx context.Context, f migrate.TxMigrationFunc[pgx.Tx]) error {
+	return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
+		return f(ctx, tx)
+	})
+}
+
 // Close disposes the driver.
 func (apd *CRDBDriver) Close(ctx context.Context) error {
 	return apd.db.Close(ctx)
 }
 
-func writeVersion(ctx context.Context, tx pgx.Tx, version, replaced string) error {
+func (apd *CRDBDriver) WriteVersion(ctx context.Context, tx pgx.Tx, version, replaced string) error {
 	result, err := tx.Exec(ctx, queryWriteVersion, version, replaced)
 	if err != nil {
 		return fmt.Errorf("unable to update version row: %w", err)
@@ -88,11 +96,4 @@ func writeVersion(ctx context.Context, tx pgx.Tx, version, replaced string) erro
 	return nil
 }
 
-func commitWithMigrationVersion(ctx context.Context, conn *pgx.Conn, version, replaced string, f func(tx pgx.Tx) error) error {
-	return conn.BeginFunc(ctx, func(tx pgx.Tx) error {
-		if err := f(tx); err != nil {
-			return err
-		}
-		return writeVersion(ctx, tx, version, replaced)
-	})
-}
+var _ migrate.Driver[*pgx.Conn, pgx.Tx] = &CRDBDriver{}

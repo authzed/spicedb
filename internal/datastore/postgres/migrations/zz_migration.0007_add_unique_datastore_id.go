@@ -15,17 +15,15 @@ const (
 )
 
 func init() {
-	if err := DatabaseMigrations.Register("add-unique-datastore-id", "add-gc-index", func(ctx context.Context, conn *pgx.Conn, version, replaced string) error {
-		return commitWithMigrationVersion(ctx, conn, version, replaced, func(tx pgx.Tx) error {
-			if _, err := tx.Exec(ctx, createUniqueIDTable); err != nil {
-				return err
-			}
+	if err := DatabaseMigrations.Register("add-unique-datastore-id", "add-gc-index", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, createUniqueIDTable); err != nil {
+			return err
+		}
 
-			if _, err := tx.Exec(ctx, insertUniqueID, uuid.NewString()); err != nil {
-				return err
-			}
-			return nil
-		})
+		if _, err := tx.Exec(ctx, insertUniqueID, uuid.NewString()); err != nil {
+			return err
+		}
+		return nil
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

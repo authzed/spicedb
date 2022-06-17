@@ -60,7 +60,7 @@ func createRelationTupleTransaction(t *tables) string {
 }
 
 func init() {
-	mustRegisterMigration("initial", "",
+	mustRegisterMigration("initial", "", noNonatomicMigration,
 		newStatementBatch(
 			createMigrationVersion,
 			createNamespaceConfig,

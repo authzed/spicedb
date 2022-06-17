@@ -10,6 +10,8 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	sqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/rs/zerolog/log"
+
+	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 const (
@@ -99,18 +101,50 @@ func (driver *MySQLDriver) Version(ctx context.Context) (string, error) {
 }
 
 func (driver *MySQLDriver) Conn() Wrapper {
-	return Wrapper{DB: driver.db, Tables: driver.tables}
+	return Wrapper{db: driver.db, tables: driver.tables}
 }
 
-// writeVersion overwrites the _meta_version_ column name which encodes the version
+func (driver *MySQLDriver) RunTx(ctx context.Context, f migrate.TxMigrationFunc[TxWrapper]) error {
+	return BeginTxFunc(
+		ctx,
+		driver.db,
+		&sql.TxOptions{Isolation: sql.LevelSerializable},
+		func(tx *sql.Tx) error {
+			return f(ctx, TxWrapper{tx, driver.tables})
+		},
+	)
+}
+
+// BeginTxFunc is a polyfill for database/sql which implements a closure style transaction lifecycle.
+// The underlying transaction is aborted if the supplied function returns an error.
+// The underlying transaction is committed if the supplied function returns nil.
+func BeginTxFunc(ctx context.Context, db *sql.DB, txOptions *sql.TxOptions, f func(*sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, txOptions)
+	if err != nil {
+		return err
+	}
+	defer LogOnError(ctx, tx.Rollback)
+
+	if err := f(tx); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// WriteVersion overwrites the _meta_version_ column name which encodes the version
 // of the database schema.
-func writeVersion(ctx context.Context, tx *sql.Tx, migrationVersionTableName, version, replaced string) error {
+func (driver *MySQLDriver) WriteVersion(ctx context.Context, txWrapper TxWrapper, version, replaced string) error {
 	stmt := fmt.Sprintf("ALTER TABLE %s CHANGE %s %s VARCHAR(255) NOT NULL",
-		migrationVersionTableName,
+		driver.tables.migrationVersion(),
 		revisionToColumnName(replaced),
 		revisionToColumnName(version),
 	)
-	if _, err := tx.ExecContext(ctx, stmt); err != nil {
+	if _, err := txWrapper.tx.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("unable to write version: %w", err)
 	}
 
@@ -128,3 +162,5 @@ func LogOnError(ctx context.Context, f func() error) {
 		log.Ctx(ctx).Error().Err(err)
 	}
 }
+
+var _ migrate.Driver[Wrapper, TxWrapper] = &MySQLDriver{}

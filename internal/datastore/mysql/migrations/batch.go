@@ -18,24 +18,16 @@ func newStatementBatch(statements ...templatedStatement) statementBatch {
 	}
 }
 
-func (e statementBatch) execute(ctx context.Context, driver Wrapper, version, replaced string) error {
+func (e statementBatch) execute(ctx context.Context, wrapper TxWrapper) error {
 	if len(e.statements) == 0 {
 		return errors.New("executor.migrate: No statements to migrate")
 	}
 
-	tx, err := driver.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
 	for _, stmt := range e.statements {
-		_, err := tx.ExecContext(ctx, stmt(driver.Tables))
-		if err != nil {
+		if _, err := wrapper.tx.ExecContext(ctx, stmt(wrapper.tables)); err != nil {
 			return fmt.Errorf("statementBatch.execute: failed to exec statement: %w", err)
 		}
 	}
-	err = writeVersion(ctx, tx, driver.Tables.migrationVersion(), version, replaced)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+
+	return nil
 }

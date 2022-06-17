@@ -11,11 +11,9 @@ const createIndexOnTupleTransactionTimestamp = `
 `
 
 func init() {
-	if err := DatabaseMigrations.Register("add-transaction-timestamp-index", "add-unique-living-ns", func(ctx context.Context, conn *pgx.Conn, version, replaced string) error {
-		return commitWithMigrationVersion(ctx, conn, version, replaced, func(tx pgx.Tx) error {
-			_, err := tx.Exec(ctx, createIndexOnTupleTransactionTimestamp)
-			return err
-		})
+	if err := DatabaseMigrations.Register("add-transaction-timestamp-index", "add-unique-living-ns", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, createIndexOnTupleTransactionTimestamp)
+		return err
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

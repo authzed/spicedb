@@ -8,14 +8,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type fakeDriver struct{}
+var (
+	noNonatomicMigration MigrationFunc[fakeConnPool]
+	noTxMigration        TxMigrationFunc[fakeTx]
+)
 
-func (*fakeDriver) Version(ctx context.Context) (string, error) {
-	return "", ctx.Err()
+type fakeDriver struct {
+	currentVersion string
+}
+
+func (fd *fakeDriver) Version(ctx context.Context) (string, error) {
+	return fd.currentVersion, ctx.Err()
+}
+
+func (fd *fakeDriver) WriteVersion(ctx context.Context, tx fakeTx, to, from string) error {
+	if ctx.Err() == nil {
+		fd.currentVersion = to
+	}
+	return ctx.Err()
 }
 
 func (*fakeDriver) Conn() fakeConnPool {
 	return fakeConnPool{}
+}
+
+func (*fakeDriver) RunTx(ctx context.Context, f TxMigrationFunc[fakeTx]) error {
+	return ctx.Err()
 }
 
 func (*fakeDriver) Close(ctx context.Context) error {
@@ -24,20 +42,22 @@ func (*fakeDriver) Close(ctx context.Context) error {
 
 type fakeConnPool struct{}
 
+type fakeTx struct{}
+
 func TestContextError(t *testing.T) {
 	req := require.New(t)
 	ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(1*time.Millisecond))
-	m := NewManager[Driver[fakeConnPool], fakeConnPool]()
+	m := NewManager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]()
 
-	err := m.Register("1", "", func(ctx context.Context, conn fakeConnPool, version, replaced string) error {
+	err := m.Register("1", "", func(ctx context.Context, conn fakeConnPool) error {
 		cancelFunc()
 		return nil
-	})
+	}, noTxMigration)
 	req.NoError(err)
 
-	err = m.Register("2", "1", func(ctx context.Context, conn fakeConnPool, version, replaced string) error {
+	err = m.Register("2", "1", func(ctx context.Context, conn fakeConnPool) error {
 		panic("the second migration should never be executed")
-	})
+	}, noTxMigration)
 	req.NoError(err)
 
 	err = m.Run(ctx, &fakeDriver{}, Head, false)
@@ -52,7 +72,7 @@ type revisionRangeTest struct {
 
 func TestRevisionWalking(t *testing.T) {
 	testCases := []struct {
-		migrations map[string]migration[fakeConnPool]
+		migrations map[string]migration[fakeConnPool, fakeTx]
 		ranges     []revisionRangeTest
 	}{
 		{noMigrations, []revisionRangeTest{
@@ -112,7 +132,7 @@ func TestRevisionWalking(t *testing.T) {
 
 func TestComputeHeadRevision(t *testing.T) {
 	testCases := []struct {
-		migrations   map[string]migration[fakeConnPool]
+		migrations   map[string]migration[fakeConnPool, fakeTx]
 		headRevision string
 		expectError  bool
 	}{
@@ -125,7 +145,7 @@ func TestComputeHeadRevision(t *testing.T) {
 
 	require := require.New(t)
 	for _, tc := range testCases {
-		m := Manager[Driver[fakeConnPool], fakeConnPool]{migrations: tc.migrations}
+		m := Manager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]{migrations: tc.migrations}
 		head, err := m.HeadRevision()
 		require.Equal(tc.expectError, err != nil, err)
 		require.Equal(tc.headRevision, head)
@@ -134,7 +154,7 @@ func TestComputeHeadRevision(t *testing.T) {
 
 func TestIsHeadCompatible(t *testing.T) {
 	testCases := []struct {
-		migrations       map[string]migration[fakeConnPool]
+		migrations       map[string]migration[fakeConnPool, fakeTx]
 		currentMigration string
 		expectedResult   bool
 		expectError      bool
@@ -152,7 +172,7 @@ func TestIsHeadCompatible(t *testing.T) {
 
 	req := require.New(t)
 	for _, tc := range testCases {
-		m := Manager[Driver[fakeConnPool], fakeConnPool]{migrations: tc.migrations}
+		m := Manager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]{migrations: tc.migrations}
 		compatible, err := m.IsHeadCompatible(tc.currentMigration)
 		req.Equal(compatible, tc.expectedResult)
 		req.Equal(tc.expectError, err != nil, err)
@@ -161,36 +181,39 @@ func TestIsHeadCompatible(t *testing.T) {
 
 func TestManagerEnsureVersionIsWritten(t *testing.T) {
 	req := require.New(t)
-	m := NewManager[Driver[fakeConnPool], fakeConnPool]()
-	err := m.Register("0", "", func(ctx context.Context, conn fakeConnPool, version, replaced string) error {
-		return nil
-	})
+	m := NewManager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]()
+	err := m.Register("0", "", noNonatomicMigration, noTxMigration)
 	req.NoError(err)
-	err = m.Run(context.Background(), &fakeDriver{}, "0", LiveRun)
+	drv := &fakeDriver{}
+	err = m.Run(context.Background(), drv, "0", LiveRun)
 	req.Error(err)
+
+	writtenVer, err := drv.Version(context.Background())
+	req.NoError(err)
+	req.Equal("", writtenVer)
 }
 
-var noMigrations = map[string]migration[fakeConnPool]{}
+var noMigrations = map[string]migration[fakeConnPool, fakeTx]{}
 
-var simpleMigrations = map[string]migration[fakeConnPool]{
-	"123": {"123", "", nil},
+var simpleMigrations = map[string]migration[fakeConnPool, fakeTx]{
+	"123": {"123", "", noNonatomicMigration, noTxMigration},
 }
 
-var singleHeadedChain = map[string]migration[fakeConnPool]{
-	"123": {"123", "", nil},
-	"456": {"456", "123", nil},
-	"789": {"789", "456", nil},
+var singleHeadedChain = map[string]migration[fakeConnPool, fakeTx]{
+	"123": {"123", "", noNonatomicMigration, noTxMigration},
+	"456": {"456", "123", noNonatomicMigration, noTxMigration},
+	"789": {"789", "456", noNonatomicMigration, noTxMigration},
 }
 
-var multiHeadedChain = map[string]migration[fakeConnPool]{
-	"123":  {"123", "", nil},
-	"456":  {"456", "123", nil},
-	"789a": {"789a", "456", nil},
-	"789b": {"789b", "456", nil},
+var multiHeadedChain = map[string]migration[fakeConnPool, fakeTx]{
+	"123":  {"123", "", noNonatomicMigration, noTxMigration},
+	"456":  {"456", "123", noNonatomicMigration, noTxMigration},
+	"789a": {"789a", "456", noNonatomicMigration, noTxMigration},
+	"789b": {"789b", "456", noNonatomicMigration, noTxMigration},
 }
 
-var missingEarlyMigrations = map[string]migration[fakeConnPool]{
-	"456": {"456", "123", nil},
-	"789": {"789", "456", nil},
-	"10":  {"10", "789", nil},
+var missingEarlyMigrations = map[string]migration[fakeConnPool, fakeTx]{
+	"456": {"456", "123", noNonatomicMigration, noTxMigration},
+	"789": {"789", "456", noNonatomicMigration, noTxMigration},
+	"10":  {"10", "789", noNonatomicMigration, noTxMigration},
 }

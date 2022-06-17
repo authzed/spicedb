@@ -20,31 +20,39 @@ var (
 	LiveRun RunType = false
 )
 
-// Driver represents the common interface for enabling the orchestreation of migrations
+// Driver represents the common interface for enabling the orchestration of migrations
 // for a specific type of datastore. The driver is parameterized with a type representing
 // a connection handler that will be forwarded by the Manager to the MigrationFunc to execute.
-type Driver[T any] interface {
+type Driver[C any, T any] interface {
 	// Version returns the current version of the schema in the backing datastore.
 	// If the datastore is brand new, version should return the empty string without
 	// an error.
 	Version(ctx context.Context) (string, error)
 
+	// WriteVersion stores the migration version being run
+	WriteVersion(ctx context.Context, tx T, version string, replaced string) error
+
 	// Conn returns the drivers underlying connection handler to be used by one or more MigrationFunc
-	Conn() T
+	Conn() C
+
+	// RunTx returns a transaction for to be used by one or more TxMigrationFunc
+	RunTx(context.Context, TxMigrationFunc[T]) error
 
 	// Close frees up any resources in use by the driver.
 	Close(ctx context.Context) error
 }
 
 // MigrationFunc is a function that executes in the context of a specific database connection handler.
-// The version string represents the version of this migration to run, and replaced
-// represents the previous version that is being superseded.
-type MigrationFunc[T any] func(ctx context.Context, conn T, version, replaced string) error
+type MigrationFunc[C any] func(ctx context.Context, conn C) error
 
-type migration[T any] struct {
+// TxMigrationFunc is a function that executes in the context of a specific database transaction.
+type TxMigrationFunc[T any] func(ctx context.Context, tx T) error
+
+type migration[C any, T any] struct {
 	version  string
 	replaces string
-	up       MigrationFunc[T]
+	up       MigrationFunc[C]
+	upTx     TxMigrationFunc[T]
 }
 
 // Manager is used to manage a self-contained set of migrations. Standard usage
@@ -54,13 +62,13 @@ type migration[T any] struct {
 // The manager is parameterized using the Driver interface along the concrete type of
 // a database connection handler. This makes it possible for MigrationFunc to run without
 // having to abstract each connection handler behind a common interface.
-type Manager[D Driver[T], T any] struct {
-	migrations map[string]migration[T]
+type Manager[D Driver[C, T], C any, T any] struct {
+	migrations map[string]migration[C, T]
 }
 
 // NewManager creates a new empty instance of a migration manager.
-func NewManager[D Driver[T], T any]() *Manager[D, T] {
-	return &Manager[D, T]{migrations: make(map[string]migration[T])}
+func NewManager[D Driver[C, T], C any, T any]() *Manager[D, C, T] {
+	return &Manager[D, C, T]{migrations: make(map[string]migration[C, T])}
 }
 
 // Register is used to associate a single migration with the migration engine.
@@ -69,7 +77,7 @@ func NewManager[D Driver[T], T any]() *Manager[D, T] {
 // interface as its only parameters, which will be passed directly from the Run
 // method into the upgrade function. If not extra fields or data are required
 // the function can alternatively take a Driver interface param.
-func (m *Manager[D, T]) Register(version, replaces string, up MigrationFunc[T]) error {
+func (m *Manager[D, C, T]) Register(version, replaces string, up MigrationFunc[C], upTx TxMigrationFunc[T]) error {
 	if strings.ToLower(version) == Head {
 		return fmt.Errorf("unable to register version called head")
 	}
@@ -78,10 +86,11 @@ func (m *Manager[D, T]) Register(version, replaces string, up MigrationFunc[T]) 
 		return fmt.Errorf("revision already exists: %s", version)
 	}
 
-	m.migrations[version] = migration[T]{
+	m.migrations[version] = migration[C, T]{
 		version:  version,
 		replaces: replaces,
 		up:       up,
+		upTx:     upTx,
 	}
 
 	return nil
@@ -89,7 +98,7 @@ func (m *Manager[D, T]) Register(version, replaces string, up MigrationFunc[T]) 
 
 // Run will actually perform the necessary migrations to bring the backing datastore
 // from its current revision to the specified revision.
-func (m *Manager[D, T]) Run(ctx context.Context, driver D, throughRevision string, dryRun RunType) error {
+func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision string, dryRun RunType) error {
 	starting, err := driver.Version(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to compute target revision: %w", err)
@@ -120,10 +129,28 @@ func (m *Manager[D, T]) Run(ctx context.Context, driver D, throughRevision strin
 			}
 
 			log.Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
-			err = migrationToRun.up(ctx, driver.Conn(), migrationToRun.version, migrationToRun.replaces)
-			if err != nil {
-				return fmt.Errorf("error executing migration function: %w", err)
+			if migrationToRun.up != nil {
+				if err = migrationToRun.up(ctx, driver.Conn()); err != nil {
+					return fmt.Errorf("error executing migration function: %w", err)
+				}
 			}
+
+			if err := driver.RunTx(ctx, func(ctx context.Context, tx T) error {
+				if migrationToRun.upTx != nil {
+					if err := migrationToRun.upTx(ctx, tx); err != nil {
+						return err
+					}
+				}
+
+				if err := driver.WriteVersion(ctx, tx, migrationToRun.version, migrationToRun.replaces); err != nil {
+					return err
+				}
+
+				return nil
+			}); err != nil {
+				return fmt.Errorf("error executing migration transaction function: %w", err)
+			}
+
 			currentVersion, err = driver.Version(ctx)
 			if err != nil {
 				return fmt.Errorf("unable to load version from driver: %w", err)
@@ -137,7 +164,7 @@ func (m *Manager[D, T]) Run(ctx context.Context, driver D, throughRevision strin
 	return nil
 }
 
-func (m *Manager[D, T]) HeadRevision() (string, error) {
+func (m *Manager[D, C, T]) HeadRevision() (string, error) {
 	candidates := make(map[string]struct{}, len(m.migrations))
 	for candidate := range m.migrations {
 		candidates[candidate] = struct{}{}
@@ -159,7 +186,7 @@ func (m *Manager[D, T]) HeadRevision() (string, error) {
 	return allHeads[0], nil
 }
 
-func (m *Manager[D, T]) IsHeadCompatible(revision string) (bool, error) {
+func (m *Manager[D, C, T]) IsHeadCompatible(revision string) (bool, error) {
 	headRevision, err := m.HeadRevision()
 	if err != nil {
 		return false, err
@@ -168,17 +195,17 @@ func (m *Manager[D, T]) IsHeadCompatible(revision string) (bool, error) {
 	return revision == headMigration.version || revision == headMigration.replaces, nil
 }
 
-func collectMigrationsInRange[T any](starting, through string, all map[string]migration[T]) ([]migration[T], error) {
-	var found []migration[T]
+func collectMigrationsInRange[C any, T any](starting, through string, all map[string]migration[C, T]) ([]migration[C, T], error) {
+	var found []migration[C, T]
 
 	lookingForRevision := through
 	for lookingForRevision != starting {
 		foundMigration, ok := all[lookingForRevision]
 		if !ok {
-			return []migration[T]{}, fmt.Errorf("unable to find migration for revision: %s", lookingForRevision)
+			return []migration[C, T]{}, fmt.Errorf("unable to find migration for revision: %s", lookingForRevision)
 		}
 
-		found = append([]migration[T]{foundMigration}, found...)
+		found = append([]migration[C, T]{foundMigration}, found...)
 		lookingForRevision = foundMigration.replaces
 	}
 

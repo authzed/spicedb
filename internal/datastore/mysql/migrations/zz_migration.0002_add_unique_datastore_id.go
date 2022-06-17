@@ -13,7 +13,7 @@ func createMetadataTable(t *tables) string {
 }
 
 func init() {
-	mustRegisterMigration("add_unique_datastore_id", "initial",
+	mustRegisterMigration("add_unique_datastore_id", "initial", noNonatomicMigration,
 		newStatementBatch(
 			createMetadataTable,
 		).execute,

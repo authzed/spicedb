@@ -48,7 +48,7 @@ const (
 )
 
 func init() {
-	if err := SpannerMigrations.Register("initial", "", func(ctx context.Context, w Wrapper, version, replaced string) error {
+	if err := SpannerMigrations.Register("initial", "", func(ctx context.Context, w Wrapper) error {
 		updateOp, err := w.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
 			Database: w.client.DatabaseName(),
 			Statements: []string{
@@ -64,17 +64,9 @@ func init() {
 			return err
 		}
 
-		if err := updateOp.Wait(ctx); err != nil {
-			return err
-		}
-
-		_, err = w.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
-			_, err := rwt.Update(ctx, spanner.NewStatement(insertEmptyVersion))
-			if err != nil {
-				return err
-			}
-			return writeVersion(rwt, version, replaced)
-		})
+		return updateOp.Wait(ctx)
+	}, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
+		_, err := rwt.Update(ctx, spanner.NewStatement(insertEmptyVersion))
 		return err
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
