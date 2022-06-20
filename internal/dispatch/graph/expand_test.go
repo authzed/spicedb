@@ -29,7 +29,7 @@ import (
 
 var (
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
-		tuple.User(ONR("user", "owner", expand.Ellipsis)),
+		(ONR("user", "owner", expand.Ellipsis)),
 	)
 	companyEditor = graph.Leaf(ONR("folder", "company", "editor"))
 
@@ -39,8 +39,8 @@ var (
 	)
 
 	companyViewer = graph.Leaf(ONR("folder", "company", "viewer"),
-		tuple.User(ONR("user", "legal", "...")),
-		tuple.User(ONR("folder", "auditors", "viewer")),
+		(ONR("user", "legal", "...")),
+		(ONR("folder", "auditors", "viewer")),
 	)
 
 	companyView = graph.Union(ONR("folder", "company", "view"),
@@ -59,7 +59,7 @@ var (
 	)
 
 	auditorsViewer = graph.Leaf(ONR("folder", "auditors", "viewer"),
-		tuple.User(ONR("user", "auditor", "...")),
+		(ONR("user", "auditor", "...")),
 	)
 
 	auditorsViewRecursive = graph.Union(ONR("folder", "auditors", "view"),
@@ -71,18 +71,18 @@ var (
 	companyViewRecursive = graph.Union(ONR("folder", "company", "view"),
 		graph.Union(ONR("folder", "company", "viewer"),
 			graph.Leaf(ONR("folder", "auditors", "viewer"),
-				tuple.User(ONR("user", "auditor", "..."))),
+				(ONR("user", "auditor", "..."))),
 			graph.Leaf(ONR("folder", "company", "viewer"),
-				tuple.User(ONR("user", "legal", "...")),
-				tuple.User(ONR("folder", "auditors", "viewer")))),
+				(ONR("user", "legal", "...")),
+				(ONR("folder", "auditors", "viewer")))),
 		graph.Union(ONR("folder", "company", "edit"),
 			graph.Leaf(ONR("folder", "company", "editor")),
 			graph.Leaf(ONR("folder", "company", "owner"),
-				tuple.User(ONR("user", "owner", "...")))),
+				(ONR("user", "owner", "...")))),
 		graph.Union(ONR("folder", "company", "view")))
 
 	docOwner = graph.Leaf(ONR("document", "masterplan", "owner"),
-		tuple.User(ONR("user", "product_manager", "...")),
+		(ONR("user", "product_manager", "...")),
 	)
 	docEditor = graph.Leaf(ONR("document", "masterplan", "editor"))
 
@@ -92,7 +92,7 @@ var (
 	)
 
 	docViewer = graph.Leaf(ONR("document", "masterplan", "viewer"),
-		tuple.User(ONR("user", "eng_lead", "...")),
+		(ONR("user", "eng_lead", "...")),
 	)
 
 	docView = graph.Union(ONR("document", "masterplan", "view"),
@@ -101,7 +101,7 @@ var (
 		graph.Union(ONR("document", "masterplan", "view"),
 			graph.Union(ONR("folder", "plans", "view"),
 				graph.Leaf(ONR("folder", "plans", "viewer"),
-					tuple.User(ONR("user", "chief_financial_officer", "...")),
+					(ONR("user", "chief_financial_officer", "...")),
 				),
 				graph.Union(ONR("folder", "plans", "edit"),
 					graph.Leaf(ONR("folder", "plans", "editor")),
@@ -112,16 +112,16 @@ var (
 				graph.Union(ONR("folder", "strategy", "edit"),
 					graph.Leaf(ONR("folder", "strategy", "editor")),
 					graph.Leaf(ONR("folder", "strategy", "owner"),
-						tuple.User(ONR("user", "vp_product", "...")))),
+						(ONR("user", "vp_product", "...")))),
 				graph.Union(ONR("folder", "strategy", "view"),
 					graph.Union(ONR("folder", "company", "view"),
 						graph.Leaf(ONR("folder", "company", "viewer"),
-							tuple.User(ONR("user", "legal", "...")),
-							tuple.User(ONR("folder", "auditors", "viewer"))),
+							(ONR("user", "legal", "...")),
+							(ONR("folder", "auditors", "viewer"))),
 						graph.Union(ONR("folder", "company", "edit"),
 							graph.Leaf(ONR("folder", "company", "editor")),
 							graph.Leaf(ONR("folder", "company", "owner"),
-								tuple.User(ONR("user", "owner", "...")))),
+								(ONR("user", "owner", "...")))),
 						graph.Union(ONR("folder", "company", "view")),
 					),
 				),
@@ -161,7 +161,7 @@ func TestExpand(t *testing.T) {
 			ctx, dispatch, revision := newLocalDispatcher(require)
 
 			expandResult, err := dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
-				ObjectAndRelation: tc.start,
+				ResourceAndRelation: tc.start,
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -239,10 +239,10 @@ func serialize(node *core.RelationTupleTreeNode) *ast.CallExpr {
 
 	case *core.RelationTupleTreeNode_LeafNode:
 		fName = "graph.Leaf"
-		for _, user := range node.GetLeafNode().Users {
-			onrExpr := onrExpr(user.GetUserset())
+		for _, subject := range node.GetLeafNode().Subjects {
+			onrExpr := onrExpr(subject)
 			children = append(children, &ast.CallExpr{
-				Fun:  ast.NewIdent("tuple.User"),
+				Fun:  ast.NewIdent(""),
 				Args: []ast.Expr{onrExpr},
 			})
 		}
@@ -302,7 +302,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	dispatch := NewLocalOnlyDispatcher()
 
 	_, err = dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
-		ObjectAndRelation: ONR("folder", "oops", "view"),
+		ResourceAndRelation: ONR("folder", "oops", "view"),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,

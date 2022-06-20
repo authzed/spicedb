@@ -31,12 +31,10 @@ func RequireEqualEmptyNil(t *testing.T, expected, actual interface{}, msgAndArgs
 			core.ObjectAndRelation{},
 			core.RelationReference{},
 			core.Relation{},
-			core.User_Userset{},
-			core.User{},
 			core.RelationTupleTreeNode_IntermediateNode{},
 			core.RelationTupleTreeNode{},
 			core.RelationTupleTreeNode_LeafNode{},
-			core.DirectUserset{},
+			core.DirectSubjects{},
 			core.SetOperationUserset{}),
 		cmpopts.EquateEmpty(),
 	}

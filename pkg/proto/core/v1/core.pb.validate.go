@@ -57,9 +57,9 @@ func (m *RelationTuple) validate(all bool) error {
 
 	var errors []error
 
-	if m.GetObjectAndRelation() == nil {
+	if m.GetResourceAndRelation() == nil {
 		err := RelationTupleValidationError{
-			field:  "ObjectAndRelation",
+			field:  "ResourceAndRelation",
 			reason: "value is required",
 		}
 		if !all {
@@ -69,11 +69,11 @@ func (m *RelationTuple) validate(all bool) error {
 	}
 
 	if all {
-		switch v := interface{}(m.GetObjectAndRelation()).(type) {
+		switch v := interface{}(m.GetResourceAndRelation()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, RelationTupleValidationError{
-					field:  "ObjectAndRelation",
+					field:  "ResourceAndRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -81,25 +81,25 @@ func (m *RelationTuple) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, RelationTupleValidationError{
-					field:  "ObjectAndRelation",
+					field:  "ResourceAndRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetObjectAndRelation()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetResourceAndRelation()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return RelationTupleValidationError{
-				field:  "ObjectAndRelation",
+				field:  "ResourceAndRelation",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
 		}
 	}
 
-	if m.GetUser() == nil {
+	if m.GetSubject() == nil {
 		err := RelationTupleValidationError{
-			field:  "User",
+			field:  "Subject",
 			reason: "value is required",
 		}
 		if !all {
@@ -109,11 +109,11 @@ func (m *RelationTuple) validate(all bool) error {
 	}
 
 	if all {
-		switch v := interface{}(m.GetUser()).(type) {
+		switch v := interface{}(m.GetSubject()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, RelationTupleValidationError{
-					field:  "User",
+					field:  "Subject",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -121,16 +121,16 @@ func (m *RelationTuple) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, RelationTupleValidationError{
-					field:  "User",
+					field:  "Subject",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetUser()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetSubject()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return RelationTupleValidationError{
-				field:  "User",
+				field:  "Subject",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
@@ -538,160 +538,6 @@ var _ interface {
 var _RelationReference_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$")
 
 var _RelationReference_Relation_Pattern = regexp.MustCompile("^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$")
-
-// Validate checks the field values on User with the rules defined in the proto
-// definition for this message. If any rules are violated, the first error
-// encountered is returned, or nil if there are no violations.
-func (m *User) Validate() error {
-	return m.validate(false)
-}
-
-// ValidateAll checks the field values on User with the rules defined in the
-// proto definition for this message. If any rules are violated, the result is
-// a list of violation errors wrapped in UserMultiError, or nil if none found.
-func (m *User) ValidateAll() error {
-	return m.validate(true)
-}
-
-func (m *User) validate(all bool) error {
-	if m == nil {
-		return nil
-	}
-
-	var errors []error
-
-	switch m.UserOneof.(type) {
-
-	case *User_Userset:
-
-		if m.GetUserset() == nil {
-			err := UserValidationError{
-				field:  "Userset",
-				reason: "value is required",
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		}
-
-		if all {
-			switch v := interface{}(m.GetUserset()).(type) {
-			case interface{ ValidateAll() error }:
-				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, UserValidationError{
-						field:  "Userset",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			case interface{ Validate() error }:
-				if err := v.Validate(); err != nil {
-					errors = append(errors, UserValidationError{
-						field:  "Userset",
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			}
-		} else if v, ok := interface{}(m.GetUserset()).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return UserValidationError{
-					field:  "Userset",
-					reason: "embedded message failed validation",
-					cause:  err,
-				}
-			}
-		}
-
-	default:
-		err := UserValidationError{
-			field:  "UserOneof",
-			reason: "value is required",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-
-	}
-
-	if len(errors) > 0 {
-		return UserMultiError(errors)
-	}
-
-	return nil
-}
-
-// UserMultiError is an error wrapping multiple validation errors returned by
-// User.ValidateAll() if the designated constraints aren't met.
-type UserMultiError []error
-
-// Error returns a concatenation of all the error messages it wraps.
-func (m UserMultiError) Error() string {
-	var msgs []string
-	for _, err := range m {
-		msgs = append(msgs, err.Error())
-	}
-	return strings.Join(msgs, "; ")
-}
-
-// AllErrors returns a list of validation violation errors.
-func (m UserMultiError) AllErrors() []error { return m }
-
-// UserValidationError is the validation error returned by User.Validate if the
-// designated constraints aren't met.
-type UserValidationError struct {
-	field  string
-	reason string
-	cause  error
-	key    bool
-}
-
-// Field function returns field value.
-func (e UserValidationError) Field() string { return e.field }
-
-// Reason function returns reason value.
-func (e UserValidationError) Reason() string { return e.reason }
-
-// Cause function returns cause value.
-func (e UserValidationError) Cause() error { return e.cause }
-
-// Key function returns key value.
-func (e UserValidationError) Key() bool { return e.key }
-
-// ErrorName returns error name.
-func (e UserValidationError) ErrorName() string { return "UserValidationError" }
-
-// Error satisfies the builtin error interface
-func (e UserValidationError) Error() string {
-	cause := ""
-	if e.cause != nil {
-		cause = fmt.Sprintf(" | caused by: %v", e.cause)
-	}
-
-	key := ""
-	if e.key {
-		key = "key for "
-	}
-
-	return fmt.Sprintf(
-		"invalid %sUser.%s: %s%s",
-		key,
-		e.field,
-		e.reason,
-		cause)
-}
-
-var _ error = UserValidationError{}
-
-var _ interface {
-	Field() string
-	Reason() string
-	Key() bool
-	Cause() error
-	ErrorName() string
-} = UserValidationError{}
 
 // Validate checks the field values on Zookie with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
@@ -1290,45 +1136,45 @@ var _ interface {
 	ErrorName() string
 } = SetOperationUsersetValidationError{}
 
-// Validate checks the field values on DirectUserset with the rules defined in
+// Validate checks the field values on DirectSubjects with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
-func (m *DirectUserset) Validate() error {
+func (m *DirectSubjects) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on DirectUserset with the rules defined
+// ValidateAll checks the field values on DirectSubjects with the rules defined
 // in the proto definition for this message. If any rules are violated, the
-// result is a list of violation errors wrapped in DirectUsersetMultiError, or
-// nil if none found.
-func (m *DirectUserset) ValidateAll() error {
+// result is a list of violation errors wrapped in DirectSubjectsMultiError,
+// or nil if none found.
+func (m *DirectSubjects) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *DirectUserset) validate(all bool) error {
+func (m *DirectSubjects) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
 	var errors []error
 
-	for idx, item := range m.GetUsers() {
+	for idx, item := range m.GetSubjects() {
 		_, _ = idx, item
 
 		if all {
 			switch v := interface{}(item).(type) {
 			case interface{ ValidateAll() error }:
 				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, DirectUsersetValidationError{
-						field:  fmt.Sprintf("Users[%v]", idx),
+					errors = append(errors, DirectSubjectsValidationError{
+						field:  fmt.Sprintf("Subjects[%v]", idx),
 						reason: "embedded message failed validation",
 						cause:  err,
 					})
 				}
 			case interface{ Validate() error }:
 				if err := v.Validate(); err != nil {
-					errors = append(errors, DirectUsersetValidationError{
-						field:  fmt.Sprintf("Users[%v]", idx),
+					errors = append(errors, DirectSubjectsValidationError{
+						field:  fmt.Sprintf("Subjects[%v]", idx),
 						reason: "embedded message failed validation",
 						cause:  err,
 					})
@@ -1336,8 +1182,8 @@ func (m *DirectUserset) validate(all bool) error {
 			}
 		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
-				return DirectUsersetValidationError{
-					field:  fmt.Sprintf("Users[%v]", idx),
+				return DirectSubjectsValidationError{
+					field:  fmt.Sprintf("Subjects[%v]", idx),
 					reason: "embedded message failed validation",
 					cause:  err,
 				}
@@ -1347,19 +1193,19 @@ func (m *DirectUserset) validate(all bool) error {
 	}
 
 	if len(errors) > 0 {
-		return DirectUsersetMultiError(errors)
+		return DirectSubjectsMultiError(errors)
 	}
 
 	return nil
 }
 
-// DirectUsersetMultiError is an error wrapping multiple validation errors
-// returned by DirectUserset.ValidateAll() if the designated constraints
+// DirectSubjectsMultiError is an error wrapping multiple validation errors
+// returned by DirectSubjects.ValidateAll() if the designated constraints
 // aren't met.
-type DirectUsersetMultiError []error
+type DirectSubjectsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m DirectUsersetMultiError) Error() string {
+func (m DirectSubjectsMultiError) Error() string {
 	var msgs []string
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -1368,11 +1214,11 @@ func (m DirectUsersetMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m DirectUsersetMultiError) AllErrors() []error { return m }
+func (m DirectSubjectsMultiError) AllErrors() []error { return m }
 
-// DirectUsersetValidationError is the validation error returned by
-// DirectUserset.Validate if the designated constraints aren't met.
-type DirectUsersetValidationError struct {
+// DirectSubjectsValidationError is the validation error returned by
+// DirectSubjects.Validate if the designated constraints aren't met.
+type DirectSubjectsValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -1380,22 +1226,22 @@ type DirectUsersetValidationError struct {
 }
 
 // Field function returns field value.
-func (e DirectUsersetValidationError) Field() string { return e.field }
+func (e DirectSubjectsValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e DirectUsersetValidationError) Reason() string { return e.reason }
+func (e DirectSubjectsValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e DirectUsersetValidationError) Cause() error { return e.cause }
+func (e DirectSubjectsValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e DirectUsersetValidationError) Key() bool { return e.key }
+func (e DirectSubjectsValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e DirectUsersetValidationError) ErrorName() string { return "DirectUsersetValidationError" }
+func (e DirectSubjectsValidationError) ErrorName() string { return "DirectSubjectsValidationError" }
 
 // Error satisfies the builtin error interface
-func (e DirectUsersetValidationError) Error() string {
+func (e DirectSubjectsValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -1407,14 +1253,14 @@ func (e DirectUsersetValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sDirectUserset.%s: %s%s",
+		"invalid %sDirectSubjects.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = DirectUsersetValidationError{}
+var _ error = DirectSubjectsValidationError{}
 
 var _ interface {
 	Field() string
@@ -1422,7 +1268,7 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = DirectUsersetValidationError{}
+} = DirectSubjectsValidationError{}
 
 // Validate checks the field values on Metadata with the rules defined in the
 // proto definition for this message. If any rules are violated, the first

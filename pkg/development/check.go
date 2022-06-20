@@ -13,8 +13,8 @@ import (
 func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation) (v1.DispatchCheckResponse_Membership, error) {
 	ctx := devContext.Ctx
 	cr, err := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		ObjectAndRelation: resource,
-		Subject:           subject,
+		ResourceAndRelation: resource,
+		Subject:             subject,
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     devContext.Revision.String(),
 			DepthRemaining: maxDispatchDepth,

@@ -38,7 +38,7 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 	var failures []*devinterface.DeveloperError
 	for _, assertion := range assertions {
 		tpl := tuple.MustFromRelationship(assertion.Relationship)
-		cr, err := RunCheck(devContext, tpl.ObjectAndRelation, tpl.User.GetUserset())
+		cr, err := RunCheck(devContext, tpl.ResourceAndRelation, tpl.Subject)
 		if err != nil {
 			devErr, wireErr := DistinguishGraphError(
 				devContext,

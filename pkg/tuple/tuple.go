@@ -75,11 +75,11 @@ func ValidateSubjectID(subjectID string) error {
 
 // String converts a tuple to a string. If the tuple is nil or empty, returns empty string.
 func String(tpl *core.RelationTuple) string {
-	if tpl == nil || tpl.ObjectAndRelation == nil || tpl.User == nil || tpl.User.GetUserset() == nil {
+	if tpl == nil || tpl.ResourceAndRelation == nil || tpl.Subject == nil {
 		return ""
 	}
 
-	return fmt.Sprintf("%s@%s", StringONR(tpl.ObjectAndRelation), StringONR(tpl.User.GetUserset()))
+	return fmt.Sprintf("%s@%s", StringONR(tpl.ResourceAndRelation), StringONR(tpl.Subject))
 }
 
 // MustRelString converts a relationship into a string.  Will panic if
@@ -119,16 +119,16 @@ func Parse(tpl string) *core.RelationTuple {
 	}
 
 	return &core.RelationTuple{
-		ObjectAndRelation: &core.ObjectAndRelation{
+		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceType")],
 			ObjectId:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceID")],
 			Relation:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceRel")],
 		},
-		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
+		Subject: &core.ObjectAndRelation{
 			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectType")],
 			ObjectId:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectID")],
 			Relation:  subjectRelation,
-		}}},
+		},
 	}
 }
 
@@ -175,16 +175,16 @@ func MustToRelationship(tpl *core.RelationTuple) *v1.Relationship {
 func ToRelationship(tpl *core.RelationTuple) *v1.Relationship {
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
-			ObjectType: tpl.ObjectAndRelation.Namespace,
-			ObjectId:   tpl.ObjectAndRelation.ObjectId,
+			ObjectType: tpl.ResourceAndRelation.Namespace,
+			ObjectId:   tpl.ResourceAndRelation.ObjectId,
 		},
-		Relation: tpl.ObjectAndRelation.Relation,
+		Relation: tpl.ResourceAndRelation.Relation,
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
-				ObjectType: tpl.User.GetUserset().Namespace,
-				ObjectId:   tpl.User.GetUserset().ObjectId,
+				ObjectType: tpl.Subject.Namespace,
+				ObjectId:   tpl.Subject.ObjectId,
 			},
-			OptionalRelation: stringz.Default(tpl.User.GetUserset().Relation, "", Ellipsis),
+			OptionalRelation: stringz.Default(tpl.Subject.Relation, "", Ellipsis),
 		},
 	}
 }
@@ -202,10 +202,10 @@ func MustToFilter(tpl *core.RelationTuple) *v1.RelationshipFilter {
 // ToFilter converts a RelationTuple into a RelationshipFilter.
 func ToFilter(tpl *core.RelationTuple) *v1.RelationshipFilter {
 	return &v1.RelationshipFilter{
-		ResourceType:          tpl.ObjectAndRelation.Namespace,
-		OptionalResourceId:    tpl.ObjectAndRelation.ObjectId,
-		OptionalRelation:      tpl.ObjectAndRelation.Relation,
-		OptionalSubjectFilter: UsersetToSubjectFilter(tpl.User.GetUserset()),
+		ResourceType:          tpl.ResourceAndRelation.Namespace,
+		OptionalResourceId:    tpl.ResourceAndRelation.ObjectId,
+		OptionalRelation:      tpl.ResourceAndRelation.Relation,
+		OptionalSubjectFilter: UsersetToSubjectFilter(tpl.Subject),
 	}
 }
 
@@ -290,16 +290,16 @@ func MustFromRelationship(r *v1.Relationship) *core.RelationTuple {
 // FromRelationship converts a Relationship into a RelationTuple.
 func FromRelationship(r *v1.Relationship) *core.RelationTuple {
 	return &core.RelationTuple{
-		ObjectAndRelation: &core.ObjectAndRelation{
+		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: r.Resource.ObjectType,
 			ObjectId:  r.Resource.ObjectId,
 			Relation:  r.Relation,
 		},
-		User: &core.User{UserOneof: &core.User_Userset{Userset: &core.ObjectAndRelation{
+		Subject: &core.ObjectAndRelation{
 			Namespace: r.Subject.Object.ObjectType,
 			ObjectId:  r.Subject.Object.ObjectId,
 			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, Ellipsis),
-		}}},
+		},
 	}
 }
 

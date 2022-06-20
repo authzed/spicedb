@@ -135,19 +135,15 @@ func (v1st v1ServiceTester) Read(ctx context.Context, namespaceName string, atRe
 		}
 
 		tuples = append(tuples, &core.RelationTuple{
-			ObjectAndRelation: &core.ObjectAndRelation{
+			ResourceAndRelation: &core.ObjectAndRelation{
 				Namespace: resp.Relationship.Resource.ObjectType,
 				ObjectId:  resp.Relationship.Resource.ObjectId,
 				Relation:  resp.Relationship.Relation,
 			},
-			User: &core.User{
-				UserOneof: &core.User_Userset{
-					Userset: &core.ObjectAndRelation{
-						Namespace: resp.Relationship.Subject.Object.ObjectType,
-						ObjectId:  resp.Relationship.Subject.Object.ObjectId,
-						Relation:  deoptionalizeRelation(resp.Relationship.Subject.OptionalRelation),
-					},
-				},
+			Subject: &core.ObjectAndRelation{
+				Namespace: resp.Relationship.Subject.Object.ObjectType,
+				ObjectId:  resp.Relationship.Subject.Object.ObjectId,
+				Relation:  deoptionalizeRelation(resp.Relationship.Subject.OptionalRelation),
 			},
 		})
 	}

@@ -127,8 +127,8 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 
 	case *core.RelationTupleTreeNode_LeafNode:
 		toReturn := NewTrackingSubjectSet()
-		for _, user := range typed.LeafNode.Users {
-			fs := NewFoundSubject(user.GetUserset())
+		for _, subject := range typed.LeafNode.Subjects {
+			fs := NewFoundSubject(subject)
 			toReturn.Add(fs)
 			fs.relationships.Add(resource)
 		}

@@ -295,19 +295,15 @@ func TestDatastoreE2E(t *testing.T) {
 
 	expectedTuples := []*core.RelationTuple{
 		{
-			ObjectAndRelation: &core.ObjectAndRelation{
+			ResourceAndRelation: &core.ObjectAndRelation{
 				Namespace: "test",
 				ObjectId:  "test",
 				Relation:  "test",
 			},
-			User: &core.User{
-				UserOneof: &core.User_Userset{
-					Userset: &core.ObjectAndRelation{
-						Namespace: "test",
-						ObjectId:  "test",
-						Relation:  "test",
-					},
-				},
+			Subject: &core.ObjectAndRelation{
+				Namespace: "test",
+				ObjectId:  "test",
+				Relation:  "test",
 			},
 		},
 	}

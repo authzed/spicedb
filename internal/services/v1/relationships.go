@@ -103,25 +103,25 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	defer tupleIterator.Close()
 
 	for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
-		tupleUserset := tuple.User.GetUserset()
+		subject := tuple.Subject
 
 		subjectRelation := ""
-		if tupleUserset.Relation != datastore.Ellipsis {
-			subjectRelation = tupleUserset.Relation
+		if subject.Relation != datastore.Ellipsis {
+			subjectRelation = subject.Relation
 		}
 
 		err := resp.Send(&v1.ReadRelationshipsResponse{
 			ReadAt: revisionReadAt,
 			Relationship: &v1.Relationship{
 				Resource: &v1.ObjectReference{
-					ObjectType: tuple.ObjectAndRelation.Namespace,
-					ObjectId:   tuple.ObjectAndRelation.ObjectId,
+					ObjectType: tuple.ResourceAndRelation.Namespace,
+					ObjectId:   tuple.ResourceAndRelation.ObjectId,
 				},
-				Relation: tuple.ObjectAndRelation.Relation,
+				Relation: tuple.ResourceAndRelation.Relation,
 				Subject: &v1.SubjectReference{
 					Object: &v1.ObjectReference{
-						ObjectType: tupleUserset.Namespace,
-						ObjectId:   tupleUserset.ObjectId,
+						ObjectType: subject.Namespace,
+						ObjectId:   subject.ObjectId,
 					},
 					OptionalRelation: subjectRelation,
 				},

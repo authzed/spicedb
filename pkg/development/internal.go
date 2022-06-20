@@ -22,20 +22,20 @@ func validateTupleWrite(
 	tpl *core.RelationTuple,
 	ds datastore.Reader,
 ) error {
-	err := tuple.ValidateResourceID(tpl.ObjectAndRelation.ObjectId)
+	err := tuple.ValidateResourceID(tpl.ResourceAndRelation.ObjectId)
 	if err != nil {
 		return err
 	}
 
-	err = tuple.ValidateSubjectID(tpl.User.GetUserset().ObjectId)
+	err = tuple.ValidateSubjectID(tpl.Subject.ObjectId)
 	if err != nil {
 		return err
 	}
 
 	if err := namespace.CheckNamespaceAndRelation(
 		ctx,
-		tpl.ObjectAndRelation.Namespace,
-		tpl.ObjectAndRelation.Relation,
+		tpl.ResourceAndRelation.Namespace,
+		tpl.ResourceAndRelation.Relation,
 		false, // Disallow ellipsis
 		ds,
 	); err != nil {
@@ -43,68 +43,68 @@ func validateTupleWrite(
 	}
 
 	// Ensure wildcard writes have no subject relation.
-	if tpl.User.GetUserset().ObjectId == tuple.PublicWildcard {
-		if tpl.User.GetUserset().Relation != tuple.Ellipsis {
+	if tpl.Subject.ObjectId == tuple.PublicWildcard {
+		if tpl.Subject.Relation != tuple.Ellipsis {
 			return invalidRelationError{
-				error:   fmt.Errorf("wildcard relationships require a subject relation of `...` on %v", tpl.ObjectAndRelation),
-				subject: tpl.User.GetUserset(),
-				onr:     tpl.ObjectAndRelation,
+				error:   fmt.Errorf("wildcard relationships require a subject relation of `...` on %v", tpl.ResourceAndRelation),
+				subject: tpl.Subject,
+				onr:     tpl.ResourceAndRelation,
 			}
 		}
 	}
 
 	if err := namespace.CheckNamespaceAndRelation(
 		ctx,
-		tpl.User.GetUserset().Namespace,
-		tpl.User.GetUserset().Relation,
+		tpl.Subject.Namespace,
+		tpl.Subject.Relation,
 		true, // Allow Ellipsis
 		ds,
 	); err != nil {
 		return err
 	}
 
-	_, ts, err := namespace.ReadNamespaceAndTypes(ctx, tpl.ObjectAndRelation.Namespace, ds)
+	_, ts, err := namespace.ReadNamespaceAndTypes(ctx, tpl.ResourceAndRelation.Namespace, ds)
 	if err != nil {
 		return err
 	}
 
-	if ts.IsPermission(tpl.ObjectAndRelation.Relation) {
+	if ts.IsPermission(tpl.ResourceAndRelation.Relation) {
 		return invalidRelationError{
-			error:   fmt.Errorf("cannot write a relationship to permission %s", tpl.ObjectAndRelation),
-			subject: tpl.User.GetUserset(),
-			onr:     tpl.ObjectAndRelation,
+			error:   fmt.Errorf("cannot write a relationship to permission %s", tpl.ResourceAndRelation),
+			subject: tpl.Subject,
+			onr:     tpl.ResourceAndRelation,
 		}
 	}
 
-	if tpl.User.GetUserset().ObjectId == tuple.PublicWildcard {
+	if tpl.Subject.ObjectId == tuple.PublicWildcard {
 		isAllowed, err := ts.IsAllowedPublicNamespace(
-			tpl.ObjectAndRelation.Relation,
-			tpl.User.GetUserset().Namespace)
+			tpl.ResourceAndRelation.Relation,
+			tpl.Subject.Namespace)
 		if err != nil {
 			return err
 		}
 
 		if isAllowed != namespace.PublicSubjectAllowed {
 			return invalidRelationError{
-				error:   fmt.Errorf("wildcard subjects of type %s are not allowed on %v", tpl.User.GetUserset().Namespace, tpl.ObjectAndRelation),
-				subject: tpl.User.GetUserset(),
-				onr:     tpl.ObjectAndRelation,
+				error:   fmt.Errorf("wildcard subjects of type `%s` are not allowed on `%s`", tpl.Subject.Namespace, tuple.StringONR(tpl.ResourceAndRelation)),
+				subject: tpl.Subject,
+				onr:     tpl.ResourceAndRelation,
 			}
 		}
 	} else {
 		isAllowed, err := ts.IsAllowedDirectRelation(
-			tpl.ObjectAndRelation.Relation,
-			tpl.User.GetUserset().Namespace,
-			tpl.User.GetUserset().Relation)
+			tpl.ResourceAndRelation.Relation,
+			tpl.Subject.Namespace,
+			tpl.Subject.Relation)
 		if err != nil {
 			return err
 		}
 
 		if isAllowed == namespace.DirectRelationNotValid {
 			return invalidRelationError{
-				error:   fmt.Errorf("relation/permission %v is not allowed as the subject of %v", tpl.User, tpl.ObjectAndRelation),
-				subject: tpl.User.GetUserset(),
-				onr:     tpl.ObjectAndRelation,
+				error:   fmt.Errorf("relation/permission `%s` is not allowed as the subject of `%s`", tuple.StringONR(tpl.Subject), tuple.StringONR(tpl.ResourceAndRelation)),
+				subject: tpl.Subject,
+				onr:     tpl.ResourceAndRelation,
 			}
 		}
 	}

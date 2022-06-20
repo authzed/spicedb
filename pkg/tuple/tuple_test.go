@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func makeTuple(onr *core.ObjectAndRelation, userset *core.ObjectAndRelation) *core.RelationTuple {
+func makeTuple(onr *core.ObjectAndRelation, subject *core.ObjectAndRelation) *core.RelationTuple {
 	return &core.RelationTuple{
-		ObjectAndRelation: onr,
-		User:              &core.User{UserOneof: &core.User_Userset{Userset: userset}},
+		ResourceAndRelation: onr,
+		Subject:             subject,
 	}
 }
 

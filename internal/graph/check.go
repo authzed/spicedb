@@ -50,7 +50,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 	} else {
 		if req.Subject.ObjectId == tuple.PublicWildcard {
 			directFunc = checkError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")))
-		} else if onrEqual(req.Subject, req.ObjectAndRelation) {
+		} else if onrEqual(req.Subject, req.ResourceAndRelation) {
 			// If we have found the goal's ONR, then we know that the ONR is a member.
 			directFunc = alwaysMember()
 		} else if relation.UsersetRewrite == nil {
@@ -84,9 +84,9 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 
 		// TODO(jschorr): Use type information to further optimize this query.
 		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
-			ResourceType:       req.ObjectAndRelation.Namespace,
-			OptionalResourceId: req.ObjectAndRelation.ObjectId,
-			OptionalRelation:   req.ObjectAndRelation.Relation,
+			ResourceType:       req.ResourceAndRelation.Namespace,
+			OptionalResourceId: req.ResourceAndRelation.ObjectId,
+			OptionalRelation:   req.ResourceAndRelation.Relation,
 		})
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
@@ -96,17 +96,16 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 
 		var requestsToDispatch []ReduceableCheckFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-			tplUserset := tpl.User.GetUserset()
-			if onrEqualOrWildcard(tplUserset, req.Subject) {
+			if onrEqualOrWildcard(tpl.Subject, req.Subject) {
 				resultChan <- checkResult(v1.DispatchCheckResponse_MEMBER, emptyMetadata)
 				return
 			}
-			if tplUserset.Relation != Ellipsis {
+			if tpl.Subject.Relation != Ellipsis {
 				// We need to recursively call check here, potentially changing namespaces
 				requestsToDispatch = append(requestsToDispatch, cc.dispatch(ValidatedCheckRequest{
 					&v1.DispatchCheckRequest{
-						ObjectAndRelation: tplUserset,
-						Subject:           req.Subject,
+						ResourceAndRelation: tpl.Subject,
+						Subject:             req.Subject,
 
 						Metadata: decrementDepth(req.Metadata),
 					},
@@ -166,12 +165,12 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 			panic("computed userset for tupleset without tuple")
 		}
 
-		start = tpl.User.GetUserset()
+		start = tpl.Subject
 	} else if cu.Object == core.ComputedUserset_TUPLE_OBJECT {
 		if tpl != nil {
-			start = tpl.ObjectAndRelation
+			start = tpl.ResourceAndRelation
 		} else {
-			start = req.ObjectAndRelation
+			start = req.ResourceAndRelation
 		}
 	}
 
@@ -199,9 +198,9 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 
 	return cc.dispatch(ValidatedCheckRequest{
 		&v1.DispatchCheckRequest{
-			ObjectAndRelation: targetOnr,
-			Subject:           req.Subject,
-			Metadata:          decrementDepth(req.Metadata),
+			ResourceAndRelation: targetOnr,
+			Subject:             req.Subject,
+			Metadata:            decrementDepth(req.Metadata),
 		},
 		req.Revision,
 	})
@@ -212,8 +211,8 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req Valida
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
-			ResourceType:       req.ObjectAndRelation.Namespace,
-			OptionalResourceId: req.ObjectAndRelation.ObjectId,
+			ResourceType:       req.ResourceAndRelation.Namespace,
+			OptionalResourceId: req.ResourceAndRelation.ObjectId,
 			OptionalRelation:   ttu.Tupleset.Relation,
 		})
 		if err != nil {

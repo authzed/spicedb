@@ -113,25 +113,20 @@ func (mds *Datastore) loadChanges(
 	stagedChanges := common.NewChanges()
 
 	for rows.Next() {
-		userset := &core.ObjectAndRelation{}
-		tpl := &core.RelationTuple{
-			ObjectAndRelation: &core.ObjectAndRelation{},
-			User: &core.User{
-				UserOneof: &core.User_Userset{
-					Userset: userset,
-				},
-			},
+		nextTuple := &core.RelationTuple{
+			ResourceAndRelation: &core.ObjectAndRelation{},
+			Subject:             &core.ObjectAndRelation{},
 		}
 
 		var createdTxn uint64
 		var deletedTxn uint64
 		err = rows.Scan(
-			&tpl.ObjectAndRelation.Namespace,
-			&tpl.ObjectAndRelation.ObjectId,
-			&tpl.ObjectAndRelation.Relation,
-			&userset.Namespace,
-			&userset.ObjectId,
-			&userset.Relation,
+			&nextTuple.ResourceAndRelation.Namespace,
+			&nextTuple.ResourceAndRelation.ObjectId,
+			&nextTuple.ResourceAndRelation.Relation,
+			&nextTuple.Subject.Namespace,
+			&nextTuple.Subject.ObjectId,
+			&nextTuple.Subject.Relation,
 			&createdTxn,
 			&deletedTxn,
 		)
@@ -140,11 +135,11 @@ func (mds *Datastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			stagedChanges.AddChange(ctx, revisionFromTransaction(createdTxn), tpl, core.RelationTupleUpdate_TOUCH)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(createdTxn), nextTuple, core.RelationTupleUpdate_TOUCH)
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			stagedChanges.AddChange(ctx, revisionFromTransaction(deletedTxn), tpl, core.RelationTupleUpdate_DELETE)
+			stagedChanges.AddChange(ctx, revisionFromTransaction(deletedTxn), nextTuple, core.RelationTupleUpdate_DELETE)
 		}
 	}
 	if err = rows.Err(); err != nil {

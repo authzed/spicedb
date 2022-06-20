@@ -511,38 +511,35 @@ func countLeafs(node *v1.PermissionRelationshipTree) int {
 }
 
 func TestTranslateExpansionTree(t *testing.T) {
-	var (
-		ONR  = tuple.ObjectAndRelation
-		User = tuple.User
-	)
+	ONR := tuple.ObjectAndRelation
 
 	table := []struct {
 		name  string
 		input *core.RelationTupleTreeNode
 	}{
-		{"simple leaf", pgraph.Leaf(nil, User(ONR("user", "user1", "...")))},
+		{"simple leaf", pgraph.Leaf(nil, (ONR("user", "user1", "...")))},
 		{
 			"simple union",
 			pgraph.Union(nil,
-				pgraph.Leaf(nil, User(ONR("user", "user1", "..."))),
-				pgraph.Leaf(nil, User(ONR("user", "user2", "..."))),
-				pgraph.Leaf(nil, User(ONR("user", "user3", "..."))),
+				pgraph.Leaf(nil, (ONR("user", "user1", "..."))),
+				pgraph.Leaf(nil, (ONR("user", "user2", "..."))),
+				pgraph.Leaf(nil, (ONR("user", "user3", "..."))),
 			),
 		},
 		{
 			"simple intersection",
 			pgraph.Intersection(nil,
 				pgraph.Leaf(nil,
-					User(ONR("user", "user1", "...")),
-					User(ONR("user", "user2", "...")),
+					(ONR("user", "user1", "...")),
+					(ONR("user", "user2", "...")),
 				),
 				pgraph.Leaf(nil,
-					User(ONR("user", "user2", "...")),
-					User(ONR("user", "user3", "...")),
+					(ONR("user", "user2", "...")),
+					(ONR("user", "user3", "...")),
 				),
 				pgraph.Leaf(nil,
-					User(ONR("user", "user2", "...")),
-					User(ONR("user", "user4", "...")),
+					(ONR("user", "user2", "...")),
+					(ONR("user", "user4", "...")),
 				),
 			),
 		},
@@ -550,12 +547,12 @@ func TestTranslateExpansionTree(t *testing.T) {
 			"empty intersection",
 			pgraph.Intersection(nil,
 				pgraph.Leaf(nil,
-					User(ONR("user", "user1", "...")),
-					User(ONR("user", "user2", "...")),
+					(ONR("user", "user1", "...")),
+					(ONR("user", "user2", "...")),
 				),
 				pgraph.Leaf(nil,
-					User(ONR("user", "user3", "...")),
-					User(ONR("user", "user4", "...")),
+					(ONR("user", "user3", "...")),
+					(ONR("user", "user4", "...")),
 				),
 			),
 		},
@@ -563,22 +560,22 @@ func TestTranslateExpansionTree(t *testing.T) {
 			"simple exclusion",
 			pgraph.Exclusion(nil,
 				pgraph.Leaf(nil,
-					User(ONR("user", "user1", "...")),
-					User(ONR("user", "user2", "...")),
+					(ONR("user", "user1", "...")),
+					(ONR("user", "user2", "...")),
 				),
-				pgraph.Leaf(nil, User(ONR("user", "user2", "..."))),
-				pgraph.Leaf(nil, User(ONR("user", "user3", "..."))),
+				pgraph.Leaf(nil, (ONR("user", "user2", "..."))),
+				pgraph.Leaf(nil, (ONR("user", "user3", "..."))),
 			),
 		},
 		{
 			"empty exclusion",
 			pgraph.Exclusion(nil,
 				pgraph.Leaf(nil,
-					User(ONR("user", "user1", "...")),
-					User(ONR("user", "user2", "...")),
+					(ONR("user", "user1", "...")),
+					(ONR("user", "user2", "...")),
 				),
-				pgraph.Leaf(nil, User(ONR("user", "user1", "..."))),
-				pgraph.Leaf(nil, User(ONR("user", "user2", "..."))),
+				pgraph.Leaf(nil, (ONR("user", "user1", "..."))),
+				pgraph.Leaf(nil, (ONR("user", "user2", "..."))),
 			),
 		},
 	}

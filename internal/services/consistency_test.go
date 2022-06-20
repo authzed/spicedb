@@ -94,7 +94,7 @@ func TestConsistency(t *testing.T) {
 							// Build the list of tuples per namespace.
 							tuplesPerNamespace := slicemultimap.New()
 							for _, tpl := range fullyResolved.Tuples {
-								tuplesPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl)
+								tuplesPerNamespace.Put(tpl.ResourceAndRelation.Namespace, tpl)
 							}
 
 							// Run the consistency tests for each service.
@@ -140,17 +140,17 @@ func runAssertions(t *testing.T,
 		for _, assertTrue := range parsedFile.Assertions.AssertTrue {
 			// Ensure the assertion passes Check.
 			rel := tuple.MustFromRelationship(assertTrue.Relationship)
-			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
+			result, err := tester.Check(context.Background(), rel.ResourceAndRelation, rel.Subject, revision)
 			require.NoError(t, err)
 			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.String(rel))
 
 			// Ensure the assertion passes Lookup.
 			resolvedObjectIds, err := tester.Lookup(context.Background(), &core.RelationReference{
-				Namespace: rel.ObjectAndRelation.Namespace,
-				Relation:  rel.ObjectAndRelation.Relation,
-			}, rel.User.GetUserset(), revision)
+				Namespace: rel.ResourceAndRelation.Namespace,
+				Relation:  rel.ResourceAndRelation.Relation,
+			}, rel.Subject, revision)
 			require.NoError(t, err)
-			require.Contains(t, resolvedObjectIds, rel.ObjectAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ObjectAndRelation, rel)
+			require.Contains(t, resolvedObjectIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
 		}
 
 		for _, assertFalse := range parsedFile.Assertions.AssertFalse {
@@ -158,17 +158,17 @@ func runAssertions(t *testing.T,
 			rel := tuple.MustFromRelationship(assertFalse.Relationship)
 
 			// Ensure the assertion does not pass Check.
-			result, err := tester.Check(context.Background(), rel.ObjectAndRelation, rel.User.GetUserset(), revision)
+			result, err := tester.Check(context.Background(), rel.ResourceAndRelation, rel.Subject, revision)
 			require.NoError(t, err)
 			require.False(t, result, "Assertion `%s` returned true; false expected", tuple.String(rel))
 
 			// Ensure the assertion does not pass Lookup.
 			resolvedObjectIds, err := tester.Lookup(context.Background(), &core.RelationReference{
-				Namespace: rel.ObjectAndRelation.Namespace,
-				Relation:  rel.ObjectAndRelation.Relation,
-			}, rel.User.GetUserset(), revision)
+				Namespace: rel.ResourceAndRelation.Namespace,
+				Relation:  rel.ResourceAndRelation.Relation,
+			}, rel.Subject, revision)
 			require.NoError(t, err)
-			require.NotContains(t, resolvedObjectIds, rel.ObjectAndRelation.ObjectId, "Found unexpected object %s in lookup for false assertion %s", rel.ObjectAndRelation, rel)
+			require.NotContains(t, resolvedObjectIds, rel.ResourceAndRelation.ObjectId, "Found unexpected object %s in lookup for false assertion %s", rel.ResourceAndRelation, rel)
 		}
 	}
 }
@@ -190,7 +190,7 @@ func runCrossVersionTests(t *testing.T,
 			})
 
 			for _, tpl := range fullyResolved.Tuples {
-				if tpl.ObjectAndRelation.Namespace != nsDef.Name {
+				if tpl.ResourceAndRelation.Namespace != nsDef.Name {
 					continue
 				}
 
@@ -198,7 +198,7 @@ func runCrossVersionTests(t *testing.T,
 					return tester.Expand(context.Background(), &core.ObjectAndRelation{
 						Namespace: nsDef.Name,
 						Relation:  relation.Name,
-						ObjectId:  tpl.ObjectAndRelation.ObjectId,
+						ObjectId:  tpl.ResourceAndRelation.ObjectId,
 					}, revision)
 				})
 
@@ -207,9 +207,9 @@ func runCrossVersionTests(t *testing.T,
 						Namespace: nsDef.Name,
 						Relation:  relation.Name,
 					}, &core.ObjectAndRelation{
-						Namespace: tpl.ObjectAndRelation.Namespace,
-						Relation:  tpl.ObjectAndRelation.Relation,
-						ObjectId:  tpl.ObjectAndRelation.ObjectId,
+						Namespace: tpl.ResourceAndRelation.Namespace,
+						Relation:  tpl.ResourceAndRelation.Relation,
+						ObjectId:  tpl.ResourceAndRelation.ObjectId,
 					}, revision)
 				})
 			}
@@ -272,16 +272,12 @@ func runConsistencyTests(t *testing.T,
 	subjects := tuple.NewONRSet()
 	subjectsNoWildcard := tuple.NewONRSet()
 	for _, tpl := range fullyResolved.Tuples {
-		objectsPerNamespace.Put(tpl.ObjectAndRelation.Namespace, tpl.ObjectAndRelation.ObjectId)
+		objectsPerNamespace.Put(tpl.ResourceAndRelation.Namespace, tpl.ResourceAndRelation.ObjectId)
+		subjects.Add(tpl.Subject)
 
-		switch m := tpl.User.UserOneof.(type) {
-		case *core.User_Userset:
-			// NOTE: we skip adding wildcards as subjects or object IDs.
-			subjects.Add(m.Userset)
-			if m.Userset.ObjectId != tuple.PublicWildcard {
-				objectsPerNamespace.Put(m.Userset.Namespace, m.Userset.ObjectId)
-				subjectsNoWildcard.Add(m.Userset)
-			}
+		if tpl.Subject.ObjectId != tuple.PublicWildcard {
+			objectsPerNamespace.Put(tpl.Subject.Namespace, tpl.Subject.ObjectId)
+			subjectsNoWildcard.Add(tpl.Subject)
 		}
 	}
 
@@ -362,7 +358,7 @@ func accessibleViaWildcardOnly(t *testing.T, ds datastore.Datastore, dispatch di
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	resp, err := dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
-		ObjectAndRelation: onr,
+		ResourceAndRelation: onr,
 		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 100,
@@ -498,16 +494,12 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 					for _, objectID := range allObjectIds {
 						objectIDStr := objectID.(string)
 						checkRelationships = append(checkRelationships, &core.RelationTuple{
-							ObjectAndRelation: &core.ObjectAndRelation{
+							ResourceAndRelation: &core.ObjectAndRelation{
 								Namespace: nsDef.Name,
 								Relation:  relation.Name,
 								ObjectId:  objectIDStr,
 							},
-							User: &core.User{
-								UserOneof: &core.User_Userset{
-									Userset: subject,
-								},
-							},
+							Subject: subject,
 						})
 					}
 
@@ -637,7 +629,7 @@ func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *valid
 
 					// Run a non-recursive expansion to verify no errors are raised.
 					_, err := vctx.dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
-						ObjectAndRelation: &core.ObjectAndRelation{
+						ResourceAndRelation: &core.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,
@@ -652,7 +644,7 @@ func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *valid
 
 					// Run a *recursive* expansion and ensure that the subjects found matches those found via Check.
 					resp, err := vctx.dispatch.DispatchExpand(ctx, &dispatchv1.DispatchExpandRequest{
-						ObjectAndRelation: &core.ObjectAndRelation{
+						ResourceAndRelation: &core.ObjectAndRelation{
 							Namespace: nsDef.Name,
 							Relation:  relation.Name,
 							ObjectId:  objectIDStr,

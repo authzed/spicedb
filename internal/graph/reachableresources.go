@@ -162,7 +162,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 
 					rewrittenObjectTpl := &core.ObjectAndRelation{
 						Namespace: containingRelation.Namespace,
-						ObjectId:  tpl.ObjectAndRelation.ObjectId,
+						ObjectId:  tpl.ResourceAndRelation.ObjectId,
 						Relation:  containingRelation.Relation,
 					}
 
@@ -231,7 +231,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 				return it.Err()
 			}
 
-			err := crr.redispatchOrReport(ctx, tpl.ObjectAndRelation, rg, g, entrypoint, stream, req, dispatched)
+			err := crr.redispatchOrReport(ctx, tpl.ResourceAndRelation, rg, g, entrypoint, stream, req, dispatched)
 			if err != nil {
 				return err
 			}
