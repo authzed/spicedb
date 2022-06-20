@@ -302,7 +302,7 @@ func expandSetOperation(
 			}
 			children = append(children, result.Resp.TreeNode)
 		case <-ctx.Done():
-			return expandResultError(NewRequestCanceledErr(), responseMetadata)
+			return expandResultError(NewRequestCanceledErr(responseMetadata), responseMetadata)
 		}
 	}
 
@@ -355,7 +355,7 @@ func expandOne(ctx context.Context, request ReduceableExpandFunc) ExpandResult {
 		}
 		return result
 	case <-ctx.Done():
-		return expandResultError(NewRequestCanceledErr(), emptyMetadata)
+		return expandResultError(NewRequestCanceledErr(emptyMetadata), emptyMetadata)
 	}
 }
 

@@ -61,10 +61,12 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			Relation:  normalizeSubjectRelation(req.Subject),
 		},
 	})
-	usagemetrics.SetInContext(ctx, cr.Metadata)
 	if err != nil {
+		usagemetrics.SetInContext(ctx, err.GetMetadata())
 		return nil, rewritePermissionsError(ctx, err)
 	}
+
+	usagemetrics.SetInContext(ctx, cr.Metadata)
 
 	var permissionship v1.CheckPermissionResponse_Permissionship
 	switch cr.Membership {

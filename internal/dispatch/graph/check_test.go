@@ -190,7 +190,7 @@ func TestMaxDepth(t *testing.T) {
 	})
 
 	require.Error(err)
-	require.Equal(v1.DispatchCheckResponse_UNKNOWN, checkResult.Membership)
+	require.Nil(checkResult)
 }
 
 func TestCheckMetadata(t *testing.T) {

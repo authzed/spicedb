@@ -3,21 +3,30 @@ package graph
 import (
 	"errors"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/rs/zerolog"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/sharederrors"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 // ErrRequestCanceled occurs when a request has been canceled.
 type ErrRequestCanceled struct {
 	error
+	metadata *v1.ResponseMeta
+}
+
+func (err ErrRequestCanceled) GetMetadata() *v1.ResponseMeta {
+	return err.metadata
 }
 
 // NewRequestCanceledErr constructs a new request was canceled error.
-func NewRequestCanceledErr() error {
+func NewRequestCanceledErr(metadata *v1.ResponseMeta) dispatch.MetadataError {
 	return ErrRequestCanceled{
-		error: errors.New("request canceled"),
+		error:    errors.New("request canceled"),
+		metadata: metadata,
 	}
 }
 
@@ -25,12 +34,23 @@ func NewRequestCanceledErr() error {
 // namespaces and relations not being found.
 type ErrCheckFailure struct {
 	error
+	metadata *v1.ResponseMeta
 }
 
+func (err ErrCheckFailure) GetMetadata() *v1.ResponseMeta {
+	return err.metadata
+}
+
+func (err ErrCheckFailure) Unwrap() error { return err.error }
+
 // NewCheckFailureErr constructs a new check failed error.
-func NewCheckFailureErr(baseErr error) error {
+func NewCheckFailureErr(baseErr error, metadata *v1.ResponseMeta) dispatch.MetadataError {
+	if baseErr == nil {
+		debug.PrintStack()
+	}
 	return ErrCheckFailure{
-		error: fmt.Errorf("error performing check: %w", baseErr),
+		error:    fmt.Errorf("error performing check: %w", baseErr),
+		metadata: metadata,
 	}
 }
 
@@ -53,8 +73,12 @@ type ErrAlwaysFail struct {
 	error
 }
 
+func (err ErrAlwaysFail) GetMetadata() *v1.ResponseMeta {
+	return emptyMetadata
+}
+
 // NewAlwaysFailErr constructs a new always fail error.
-func NewAlwaysFailErr() error {
+func NewAlwaysFailErr() dispatch.MetadataError {
 	return ErrAlwaysFail{
 		error: errors.New("always fail"),
 	}

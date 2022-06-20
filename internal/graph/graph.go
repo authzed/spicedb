@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -29,15 +30,18 @@ type LookupResult struct {
 	Err  error
 }
 
-// ReduceableCheckFunc is a function that can be bound to a execution context.
-type ReduceableCheckFunc func(ctx context.Context, resultChan chan<- CheckResult)
+type CheckFunc func(ctx context.Context) (*v1.DispatchCheckResponse, dispatch.MetadataError)
 
 // Reducer is a type for the functions Any and All which combine check results.
-type Reducer func(ctx context.Context, requests []ReduceableCheckFunc) CheckResult
+type Reducer func(
+	ctx context.Context,
+	requests []CheckFunc,
+	concurrencyLimit int,
+) (*v1.DispatchCheckResponse, dispatch.MetadataError)
 
 // AlwaysFail is a ReduceableCheckFunc which will always fail when reduced.
-func AlwaysFail(ctx context.Context, resultChan chan<- CheckResult) {
-	resultChan <- checkResultError(NewAlwaysFailErr(), emptyMetadata)
+func AlwaysFail(ctx context.Context) (*v1.DispatchCheckResponse, dispatch.MetadataError) {
+	return nil, NewAlwaysFailErr()
 }
 
 // ReduceableExpandFunc is a function that can be bound to a execution context.

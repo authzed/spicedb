@@ -219,12 +219,12 @@ func (cd *Dispatcher) SetDelegate(delegate dispatch.Dispatcher) {
 }
 
 // DispatchCheck implements dispatch.Check interface
-func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, dispatch.MetadataError) {
 	cd.checkTotalCounter.Inc()
 
 	requestKey, err := cd.keyHandler.ComputeCheckKey(ctx, req)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{}}, err
+		return nil, dispatch.WrapWithMetadata(err, &v1.ResponseMeta{})
 	}
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
@@ -235,10 +235,10 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 		}
 	}
 
-	computed, err := cd.d.DispatchCheck(ctx, req)
+	computed, dispatchErr := cd.d.DispatchCheck(ctx, req)
 
 	// We only want to cache the result if there was no error
-	if err == nil {
+	if dispatchErr == nil {
 		adjustedComputed := proto.Clone(computed).(*v1.DispatchCheckResponse)
 		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
 		adjustedComputed.Metadata.DispatchCount = 0
@@ -249,7 +249,7 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 
 	// Return both the computed and err in ALL cases: computed contains resolved metadata even
 	// if there was an error.
-	return computed, err
+	return computed, dispatchErr
 }
 
 // DispatchExpand implements dispatch.Expand interface and does not do any caching yet.

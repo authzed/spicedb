@@ -32,7 +32,7 @@ type Dispatcher interface {
 // Check interface describes just the methods required to dispatch check requests.
 type Check interface {
 	// DispatchCheck submits a single check request and returns its result.
-	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error)
+	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, MetadataError)
 }
 
 // Expand interface describes just the methods required to dispatch expand requests.

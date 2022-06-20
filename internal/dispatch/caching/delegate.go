@@ -19,7 +19,7 @@ func (fd fakeDelegate) Close() error {
 	panic(errMessage)
 }
 
-func (fd fakeDelegate) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (fd fakeDelegate) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, dispatch.MetadataError) {
 	panic(errMessage)
 }
 

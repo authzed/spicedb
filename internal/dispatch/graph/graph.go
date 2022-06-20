@@ -103,7 +103,7 @@ func (rr stringableRelRef) String() string {
 }
 
 // DispatchCheck implements dispatch.Check interface
-func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, dispatch.MetadataError) {
 	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
 		attribute.Stringer("start", stringableOnr{req.ResourceAndRelation}),
 		attribute.Stringer("subject", stringableOnr{req.Subject}),
@@ -112,22 +112,22 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 
 	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		return nil, dispatch.WrapWithMetadata(err, emptyMetadata)
 	}
 
 	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		return nil, dispatch.WrapWithMetadata(err, emptyMetadata)
 	}
 
 	ns, err := ld.loadNamespace(ctx, req.ResourceAndRelation.Namespace, revision)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		return nil, dispatch.WrapWithMetadata(err, emptyMetadata)
 	}
 
 	relation, err := ld.lookupRelation(ctx, ns, req.ResourceAndRelation.Relation, revision)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		return nil, dispatch.WrapWithMetadata(err, emptyMetadata)
 	}
 
 	// If the relation is aliasing another one and the subject does not have the same type as
@@ -137,7 +137,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	if relation.AliasingRelation != "" && req.ResourceAndRelation.Namespace != req.Subject.Namespace {
 		relation, err := ld.lookupRelation(ctx, ns, relation.AliasingRelation, revision)
 		if err != nil {
-			return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+			return nil, dispatch.WrapWithMetadata(err, emptyMetadata)
 		}
 
 		// Rewrite the request over the aliased relation.
@@ -257,7 +257,7 @@ func (ld *localDispatcher) DispatchReachableResources(
 		Revision:                          revision,
 	}
 
-	wrappedStream := dispatch.StreamWithContext[*v1.DispatchReachableResourcesResponse](ctx, stream)
+	wrappedStream := dispatch.StreamWithContext(ctx, stream)
 	return ld.reachableResourcesHandler.ReachableResources(validatedReq, wrappedStream)
 }
 

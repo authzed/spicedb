@@ -38,33 +38,33 @@ type clusterDispatcher struct {
 	keyHandler    keys.Handler
 }
 
-func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (cd *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, dispatch.MetadataError) {
 	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		return nil, dispatch.WrapWithMetadata(err, emptyMetadata)
 	}
 
-	requestKey, err := cr.keyHandler.ComputeCheckKey(ctx, req)
+	requestKey, err := cd.keyHandler.ComputeCheckKey(ctx, req)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		return nil, dispatch.WrapWithMetadata(err, emptyMetadata)
 	}
 
 	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(requestKey))
-	resp, err := cr.clusterClient.DispatchCheck(ctx, req)
+	resp, err := cd.clusterClient.DispatchCheck(ctx, req)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
+		return nil, dispatch.WrapWithMetadata(err, requestFailureMetadata)
 	}
 
 	return resp, nil
 }
 
-func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+func (cd *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.ExpandRequestToKey(req)))
-	resp, err := cr.clusterClient.DispatchExpand(ctx, req)
+	resp, err := cd.clusterClient.DispatchExpand(ctx, req)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: requestFailureMetadata}, err
 	}
@@ -72,13 +72,13 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 	return resp, nil
 }
 
-func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+func (cd *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
 	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.LookupRequestToKey(req)))
-	resp, err := cr.clusterClient.DispatchLookup(ctx, req)
+	resp, err := cd.clusterClient.DispatchLookup(ctx, req)
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: requestFailureMetadata}, err
 	}
@@ -86,7 +86,7 @@ func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	return resp, nil
 }
 
-func (cr *clusterDispatcher) DispatchReachableResources(
+func (cd *clusterDispatcher) DispatchReachableResources(
 	req *v1.DispatchReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
@@ -98,7 +98,7 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 		return err
 	}
 
-	client, err := cr.clusterClient.DispatchReachableResources(ctx, req)
+	client, err := cd.clusterClient.DispatchReachableResources(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -120,13 +120,13 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 	}
 }
 
-func (cr *clusterDispatcher) Close() error {
+func (cd *clusterDispatcher) Close() error {
 	return nil
 }
 
 // IsReady returns whether the underlying dispatch connection is available
-func (cr *clusterDispatcher) IsReady() bool {
-	state := cr.conn.GetState()
+func (cd *clusterDispatcher) IsReady() bool {
+	state := cd.conn.GetState()
 	log.Trace().Interface("connection-state", state).Msg("checked if cluster dispatcher is ready")
 	return state == connectivity.Ready || state == connectivity.Idle
 }
