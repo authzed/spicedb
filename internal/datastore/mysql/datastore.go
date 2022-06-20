@@ -246,7 +246,7 @@ func (mds *Datastore) ReadWriteTx(
 	var err error
 	for i := uint8(0); i <= mds.maxRetries; i++ {
 		var newTxnID uint64
-		if err = BeginTxFunc(ctx, mds.db, &sql.TxOptions{Isolation: sql.LevelSerializable}, func(tx *sql.Tx) error {
+		if err = migrations.BeginTxFunc(ctx, mds.db, &sql.TxOptions{Isolation: sql.LevelSerializable}, func(tx *sql.Tx) error {
 			newTxnID, err = mds.createNewTransaction(ctx, tx)
 			if err != nil {
 				return fmt.Errorf("unable to create new txn ID: %w", err)

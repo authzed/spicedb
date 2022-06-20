@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/lib/pq"
+
+	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 const errUnableToInstantiate = "unable to instantiate AlembicPostgresDriver: %w"
@@ -37,6 +39,17 @@ func NewAlembicPostgresDriver(url string) (*AlembicPostgresDriver, error) {
 	return &AlembicPostgresDriver{db}, nil
 }
 
+// Conn returns the underlying pgx.Conn instance for this driver
+func (apd *AlembicPostgresDriver) Conn() *pgx.Conn {
+	return apd.db
+}
+
+func (apd *AlembicPostgresDriver) RunTx(ctx context.Context, f migrate.TxMigrationFunc[pgx.Tx]) error {
+	return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
+		return f(ctx, tx)
+	})
+}
+
 // Version returns the version of the schema to which the connected database
 // has been migrated.
 func (apd *AlembicPostgresDriver) Version(ctx context.Context) (string, error) {
@@ -53,10 +66,13 @@ func (apd *AlembicPostgresDriver) Version(ctx context.Context) (string, error) {
 	return loaded, nil
 }
 
-// WriteVersion overwrites the value stored to track the version of the
-// database schema.
-func (apd *AlembicPostgresDriver) WriteVersion(ctx context.Context, version, replaced string) error {
-	result, err := apd.db.Exec(
+// Close disposes the driver.
+func (apd *AlembicPostgresDriver) Close(ctx context.Context) error {
+	return apd.db.Close(ctx)
+}
+
+func (apd *AlembicPostgresDriver) WriteVersion(ctx context.Context, tx pgx.Tx, version, replaced string) error {
+	result, err := tx.Exec(
 		ctx,
 		"UPDATE alembic_version SET version_num=$1 WHERE version_num=$2",
 		version,
@@ -74,7 +90,4 @@ func (apd *AlembicPostgresDriver) WriteVersion(ctx context.Context, version, rep
 	return nil
 }
 
-// Close disposes the driver.
-func (apd *AlembicPostgresDriver) Close(ctx context.Context) error {
-	return apd.db.Close(ctx)
-}
+var _ migrate.Driver[*pgx.Conn, pgx.Tx] = &AlembicPostgresDriver{}

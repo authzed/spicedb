@@ -48,9 +48,9 @@ const (
 )
 
 func init() {
-	if err := SpannerMigrations.Register("initial", "", func(ctx context.Context, smd *SpannerMigrationDriver) error {
-		updateOp, err := smd.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
-			Database: smd.client.DatabaseName(),
+	if err := SpannerMigrations.Register("initial", "", func(ctx context.Context, w Wrapper) error {
+		updateOp, err := w.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
+			Database: w.client.DatabaseName(),
 			Statements: []string{
 				createNamespaceConfig,
 				createRelationTuple,
@@ -64,15 +64,9 @@ func init() {
 			return err
 		}
 
-		if err := updateOp.Wait(ctx); err != nil {
-			return err
-		}
-
-		_, err = smd.client.ReadWriteTransaction(ctx, func(c context.Context, rwt *spanner.ReadWriteTransaction) error {
-			_, err := rwt.Update(c, spanner.NewStatement(insertEmptyVersion))
-			return err
-		})
-
+		return updateOp.Wait(ctx)
+	}, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
+		_, err := rwt.Update(ctx, spanner.NewStatement(insertEmptyVersion))
 		return err
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())

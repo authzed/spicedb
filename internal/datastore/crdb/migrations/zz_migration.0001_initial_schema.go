@@ -37,29 +37,25 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("initial", "", func(ctx context.Context, apd *CRDBDriver) error {
-		_, err := apd.db.Exec(ctx, enableRangefeeds)
-		if err != nil {
-			return err
+	if err := CRDBMigrations.Register("initial", "", func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, enableRangefeeds)
+		return err
+	}, func(ctx context.Context, tx pgx.Tx) error {
+		statements := []string{
+			createNamespaceConfig,
+			createRelationTuple,
+			createSchemaVersion,
+			insertEmptyVersion,
+			createReverseQueryIndex,
+			createReverseCheckIndex,
 		}
-
-		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
-			statements := []string{
-				createNamespaceConfig,
-				createRelationTuple,
-				createSchemaVersion,
-				insertEmptyVersion,
-				createReverseQueryIndex,
-				createReverseCheckIndex,
+		for _, stmt := range statements {
+			_, err := tx.Exec(ctx, stmt)
+			if err != nil {
+				return err
 			}
-			for _, stmt := range statements {
-				_, err := tx.Exec(ctx, stmt)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
+		}
+		return nil
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

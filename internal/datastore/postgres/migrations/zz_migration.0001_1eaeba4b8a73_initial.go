@@ -44,7 +44,7 @@ const createAlembicVersion = `CREATE TABLE alembic_version (
 const insertEmptyVersion = `INSERT INTO alembic_version (version_num) VALUES ('');`
 
 func init() {
-	if err := DatabaseMigrations.Register("1eaeba4b8a73", "", func(ctx context.Context, apd *AlembicPostgresDriver) error {
+	if err := DatabaseMigrations.Register("1eaeba4b8a73", "", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
 		statements := []string{
 			createRelationTupleTransaction,
 			createNamespaceConfig,
@@ -53,15 +53,12 @@ func init() {
 			createAlembicVersion,
 			insertEmptyVersion,
 		}
-		return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
-			for _, stmt := range statements {
-				_, err := tx.Exec(ctx, stmt)
-				if err != nil {
-					return err
-				}
+		for _, stmt := range statements {
+			if _, err := tx.Exec(ctx, stmt); err != nil {
+				return err
 			}
-			return nil
-		})
+		}
+		return nil
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}
