@@ -20,6 +20,10 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/test/bufconn"
 
+	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	// register cert watcher metrics
+	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics"
+
 	"github.com/authzed/spicedb/pkg/x509util"
 )
 
@@ -77,7 +81,7 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		MaxConnectionAge: c.MaxConnAge,
 	}), grpc.NumStreamWorkers(c.MaxWorkers))
 
-	tlsOpts, err := c.tlsOpts()
+	tlsOpts, certWatcher, err := c.tlsOpts()
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +114,9 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 			log.WithLevel(level).Str("addr", c.Address).Str("network", c.Network).
 				Str("prefix", c.flagPrefix).Msg("grpc server stopped listening")
 		},
-		stopFunc: srv.GracefulStop,
-		creds:    clientCreds,
+		stopFunc:    srv.GracefulStop,
+		creds:       clientCreds,
+		certWatcher: certWatcher,
 	}, nil
 }
 
@@ -137,19 +142,23 @@ func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialF
 	}, nil, nil
 }
 
-func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, error) {
+func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *certwatcher.CertWatcher, error) {
 	switch {
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
 		log.Warn().Str("prefix", c.flagPrefix).Msg("grpc server serving plaintext")
-		return nil, nil
+		return nil, nil, nil
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		creds, err := credentials.NewServerTLSFromFile(c.TLSCertPath, c.TLSKeyPath)
+		watcher, err := certwatcher.New(c.TLSCertPath, c.TLSKeyPath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []grpc.ServerOption{grpc.Creds(creds)}, nil
+		creds := credentials.NewTLS(&tls.Config{
+			GetCertificate: watcher.GetCertificate,
+			MinVersion:     tls.VersionTLS12,
+		})
+		return []grpc.ServerOption{grpc.Creds(creds)}, watcher, nil
 	default:
-		return nil, nil
+		return nil, nil, nil
 	}
 }
 
@@ -177,7 +186,7 @@ func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, erro
 
 type RunnableGRPCServer interface {
 	WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer
-	Listen() error
+	Listen(ctx context.Context) func() error
 	DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 	NetDialContext(ctx context.Context, s string) (net.Conn, error)
 	Insecure() bool
@@ -194,6 +203,7 @@ type completedGRPCServer struct {
 	dial              func(context.Context, ...grpc.DialOption) (*grpc.ClientConn, error)
 	netDial           func(ctx context.Context, s string) (net.Conn, error)
 	creds             credentials.TransportCredentials
+	certWatcher       *certwatcher.CertWatcher
 }
 
 // WithOpts adds to the options for running the server
@@ -209,8 +219,15 @@ func (c *completedGRPCServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCSe
 }
 
 // Listen runs a configured server
-func (c *completedGRPCServer) Listen() error {
-	return c.listenFunc()
+func (c *completedGRPCServer) Listen(ctx context.Context) func() error {
+	if c.certWatcher != nil {
+		go func() {
+			if err := c.certWatcher.Start(ctx); err != nil {
+				log.Error().Err(err).Msg("error watching tls certs")
+			}
+		}()
+	}
+	return c.listenFunc
 }
 
 // DialContext starts a connection to grpc server
@@ -243,8 +260,10 @@ func (d *disabledGrpcServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCSer
 }
 
 // Listen runs a configured server
-func (d *disabledGrpcServer) Listen() error {
-	return nil
+func (d *disabledGrpcServer) Listen(ctx context.Context) func() error {
+	return func() error {
+		return nil
+	}
 }
 
 // Insecure returns true if the server is configured without TLS enabled
@@ -291,9 +310,21 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 		}
 
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
+		watcher, err := certwatcher.New(c.TLSCertPath, c.TLSKeyPath)
+		if err != nil {
+			return nil, err
+		}
+
+		listener, err := tls.Listen("tcp", srv.Addr, &tls.Config{
+			GetCertificate: watcher.GetCertificate,
+			MinVersion:     tls.VersionTLS12,
+		})
+		if err != nil {
+			return nil, err
+		}
 		serveFunc = func() error {
 			log.WithLevel(level).Str("addr", srv.Addr).Str("prefix", c.flagPrefix).Msg("https server started serving")
-			return srv.ListenAndServeTLS(c.TLSCertPath, c.TLSKeyPath)
+			return srv.Serve(listener)
 		}
 	default:
 		return nil, fmt.Errorf("failed to start http server: must provide both --%s-tls-cert-path and --%s-tls-key-path",
