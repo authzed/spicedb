@@ -3,15 +3,15 @@ package export
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"strings"
+
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
-	"io"
-	"strings"
 )
 
 func WriteSchemaTo(definition []*corev1.NamespaceDefinition, w io.Writer) error {
-
 	var objects []*Object
 	for _, def := range definition {
 		o, err := mapDefinition(def)
@@ -33,7 +33,6 @@ func WriteSchemaTo(definition []*corev1.NamespaceDefinition, w io.Writer) error 
 }
 
 func mapDefinition(def *corev1.NamespaceDefinition) (*Object, error) {
-
 	relations := []*Relation{}
 	permissions := []*Permission{}
 	for _, r := range def.Relation {
