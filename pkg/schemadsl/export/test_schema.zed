@@ -1,0 +1,44 @@
+
+/** user represents a user within our system, this is usually the subject when checking permissions */
+definition user {}
+
+/** platform represents an entire system deployment.
+ * There is exactly one platform per system deployment
+ */
+definition platform {
+	relation administrator: user
+
+	permission super_admin = administrator
+
+	permission create_tenant = administrator
+}
+
+/** tenant represents a tenant within the permission graph.
+ */
+definition tenant {
+	relation platform: platform
+
+	relation parent: tenant
+
+	relation administrator: user
+	relation agent: user
+
+	// administer the tenant, i.e. tenant-level configuration, creating administrators
+	relation tenant_administrator: user
+
+	// administer the administrators, i.e. create, change permissions etc.
+	relation admin_administrator: user
+
+	permission administer_user = platform->super_admin + (user_administrator & administrator)
+	permission create_admin = (admin_administrator & administrator)
+}
+
+/** admin represents the attributes of a user which is a administrator */
+definition administrator {
+	relation self: user
+	relation tenant: tenant
+
+	permission write = tenant->create_admin + self
+	permission read = write
+}
+
