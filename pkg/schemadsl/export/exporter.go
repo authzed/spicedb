@@ -3,7 +3,9 @@ package export
 import (
 	"encoding/json"
 	"fmt"
+	ns "github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"io"
 	"strings"
 )
@@ -35,13 +37,13 @@ func mapDefinition(def *corev1.NamespaceDefinition) (*Object, error) {
 	relations := []*Relation{}
 	permissions := []*Permission{}
 	for _, r := range def.Relation {
-		//TODO: Is there a better way to distinguish the two?
-		if r.TypeInformation != nil && r.UsersetRewrite == nil {
-			relations = append(relations, mapRelation(r))
-		} else if r.TypeInformation == nil && r.UsersetRewrite != nil {
+		kind := ns.GetRelationKind(r)
+		if kind == iv1.RelationMetadata_PERMISSION {
 			permissions = append(permissions, mapPermission(r))
+		} else if kind == iv1.RelationMetadata_RELATION {
+			relations = append(relations, mapRelation(r))
 		} else {
-			return nil, fmt.Errorf("unexpected relationship: %s", r.Name)
+			return nil, fmt.Errorf("unexpected relation %q, neither permission nor relation", r.Name)
 		}
 	}
 
