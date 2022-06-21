@@ -1,6 +1,6 @@
 package export
 
-type Relationship struct {
+type Relation struct {
 	Name string `json:"name"`
 }
 
@@ -9,10 +9,10 @@ type Permission struct {
 }
 
 type Object struct {
-	Name          string          `json:"name"`
-	Namespace     string          `json:"namespace"`
-	Relationships []*Relationship `json:"relationships"`
-	Permissions   []*Permission   `json:"permissions"`
+	Name        string        `json:"name"`
+	Namespace   string        `json:"namespace"`
+	Relations   []*Relation   `json:"relations"`
+	Permissions []*Permission `json:"permissions"`
 }
 
 type Schema struct {

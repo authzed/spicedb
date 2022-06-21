@@ -32,7 +32,7 @@ func WriteSchemaTo(definition []*corev1.NamespaceDefinition, w io.Writer) error 
 
 func mapDefinition(def *corev1.NamespaceDefinition) (*Object, error) {
 
-	relations := []*Relationship{}
+	relations := []*Relation{}
 	permissions := []*Permission{}
 	for _, r := range def.Relation {
 		//TODO: Is there a better way to distinguish the two?
@@ -53,15 +53,15 @@ func mapDefinition(def *corev1.NamespaceDefinition) (*Object, error) {
 	name := splits[1]
 
 	return &Object{
-		Name:          name,
-		Namespace:     namespace,
-		Relationships: relations,
-		Permissions:   permissions,
+		Name:        name,
+		Namespace:   namespace,
+		Relations:   relations,
+		Permissions: permissions,
 	}, nil
 }
 
-func mapRelation(relation *corev1.Relation) *Relationship {
-	return &Relationship{Name: relation.Name}
+func mapRelation(relation *corev1.Relation) *Relation {
+	return &Relation{Name: relation.Name}
 }
 
 func mapPermission(relation *corev1.Relation) *Permission {
