@@ -39,7 +39,7 @@ func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 	clusterID := dbStats.UniqueID
 	buildInfo, ok := debug.ReadBuildInfo()
 	if !ok {
-		panic("failed to read build info")
+		return nil, fmt.Errorf("failed to read BuildInfo")
 	}
 
 	if err := registry.Register(&collector{
