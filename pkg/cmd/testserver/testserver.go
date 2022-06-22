@@ -121,9 +121,9 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 	}
 
 	g.Go(c.healthManager.Checker(ctx))
-	g.Go(c.gRPCServer.Listen)
+	g.Go(c.gRPCServer.Listen(ctx))
 	g.Go(stopOnCancel(c.gRPCServer.GracefulStop))
-	g.Go(c.readOnlyGRPCServer.Listen)
+	g.Go(c.readOnlyGRPCServer.Listen(ctx))
 	g.Go(stopOnCancel(c.readOnlyGRPCServer.GracefulStop))
 
 	if err := g.Wait(); err != nil {

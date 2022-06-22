@@ -400,10 +400,10 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 
 	grpcServer := c.gRPCServer.WithOpts(grpc.ChainUnaryInterceptor(c.unaryMiddleware...), grpc.ChainStreamInterceptor(c.streamingMiddleware...))
 	g.Go(c.healthManager.Checker(ctx))
-	g.Go(grpcServer.Listen)
+	g.Go(grpcServer.Listen(ctx))
 	g.Go(stopOnCancel(grpcServer.GracefulStop))
 
-	g.Go(c.dispatchGRPCServer.Listen)
+	g.Go(c.dispatchGRPCServer.Listen(ctx))
 	g.Go(stopOnCancel(c.dispatchGRPCServer.GracefulStop))
 
 	g.Go(c.gatewayServer.ListenAndServe)
