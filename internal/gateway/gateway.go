@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -43,7 +44,12 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 		opts = append(opts, grpcutil.WithCustomCerts(upstreamTLSCertPath, grpcutil.SkipVerifyCA))
 	}
 
-	gwMux := runtime.NewServeMux(runtime.WithMetadata(OtelAnnotator))
+	healthConn, err := grpc.Dial(upstreamAddr, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	gwMux := runtime.NewServeMux(runtime.WithMetadata(OtelAnnotator), runtime.WithHealthzEndpoint(healthpb.NewHealthClient(healthConn)))
 	if err := v1.RegisterSchemaServiceHandlerFromEndpoint(ctx, gwMux, upstreamAddr, opts); err != nil {
 		return nil, err
 	}
