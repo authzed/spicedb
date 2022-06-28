@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
@@ -125,8 +126,9 @@ func (cr *clusterDispatcher) Close() error {
 
 // IsReady returns whether the underlying dispatch connection is available
 func (cr *clusterDispatcher) IsReady() bool {
-	return cr.conn.GetState() == connectivity.Ready ||
-		cr.conn.GetState() == connectivity.Idle
+	state := cr.conn.GetState()
+	log.Trace().Interface("connection-state", state).Msg("checked if cluster dispatcher is ready")
+	return state == connectivity.Ready || state == connectivity.Idle
 }
 
 // Always verify that we implement the interface
