@@ -7,130 +7,33 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-var (
-	gcDurationHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "spicedb",
-		Subsystem: "datastore_postgres",
-		Name:      "gc_duration_seconds",
-		Help:      "The duration of Postgres datastore garbage collection.",
-		Buckets:   []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
-	})
+var _ common.GarbageCollector = (*pgDatastore)(nil)
 
-	gcRelationshipsClearedCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "spicedb",
-		Subsystem: "datastore_postgres",
-		Name:      "gc_relationships_total",
-		Help:      "The number of relationships cleared by the Postgres datastore garbage collection.",
-	})
-
-	gcTransactionsClearedCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "spicedb",
-		Subsystem: "datastore_postgres",
-		Name:      "gc_transactions_total",
-		Help:      "The number of transactions cleared by the Postgres datastore garbage collection.",
-	})
-
-	gcNamespacesClearedCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "spicedb",
-		Subsystem: "datastore_postgres",
-		Name:      "gc_namespaces_total",
-		Help:      "The number of namespaces cleared by the Postgres datastore garbage collection.",
-	})
-)
-
-func registerGCMetrics() error {
-	for _, metric := range []prometheus.Collector{
-		gcDurationHistogram,
-		gcRelationshipsClearedCounter,
-		gcTransactionsClearedCounter,
-		gcNamespacesClearedCounter,
-	} {
-		if err := prometheus.Register(metric); err != nil {
-			return err
-		}
+func (pgd *pgDatastore) Now(ctx context.Context) (time.Time, error) {
+	// Retrieve the `now` time from the database.
+	nowSQL, nowArgs, err := getNow.ToSql()
+	if err != nil {
+		return time.Time{}, err
 	}
 
-	return nil
+	var now time.Time
+	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	// RelationTupleTransaction is not timezone aware -- explicitly use UTC
+	// before using as a query arg.
+	return now.UTC(), nil
 }
 
-func (pgd *pgDatastore) runGarbageCollector() error {
-	log.Info().Dur("interval", pgd.gcInterval).Msg("garbage collection worker started for postgres driver")
-
-	for {
-		select {
-		case <-pgd.gcCtx.Done():
-			log.Info().Msg("shutting down garbage collection worker for postgres driver")
-			return pgd.gcCtx.Err()
-
-		case <-time.After(pgd.gcInterval):
-			err := pgd.collectGarbage()
-			if err != nil {
-				log.Warn().Err(err).Msg("error when attempting to perform garbage collection")
-			} else {
-				log.Debug().Msg("garbage collection completed for postgres")
-			}
-		}
-	}
-}
-
-func (pgd *pgDatastore) collectGarbage() error {
-	ctx, cancel := context.WithTimeout(context.Background(), pgd.gcMaxOperationTime)
-	defer cancel()
-
-	var (
-		startTime = time.Now()
-		amounts   garbageAmounts
-		watermark uint64
-	)
-
-	defer func() {
-		collectionDuration := time.Since(startTime)
-		gcDurationHistogram.Observe(collectionDuration.Seconds())
-
-		log.Ctx(ctx).Trace().
-			Uint64("highestTxID", watermark).
-			Dur("duration", collectionDuration).
-			Interface("collected", amounts).
-			Msg("datastore garbage collection completed")
-
-		gcRelationshipsClearedCounter.Add(float64(amounts.relationships))
-		gcTransactionsClearedCounter.Add(float64(amounts.transactions))
-		gcNamespacesClearedCounter.Add(float64(amounts.namespaces))
-	}()
-
-	// Ensure the database is ready.
-	ready, err := pgd.IsReady(ctx)
-	if err != nil {
-		return err
-	}
-
-	if !ready {
-		log.Ctx(ctx).Warn().Msg("cannot perform datastore garbage collection: datastore is not yet ready")
-		return nil
-	}
-
-	now, err := pgd.getNow(ctx)
-	if err != nil {
-		return err
-	}
-
-	watermark, err = pgd.mostRecentTxBefore(ctx, now.Add(pgd.gcWindowInverted))
-	if err != nil {
-		return err
-	}
-
-	amounts, err = pgd.deleteBefore(ctx, watermark)
-	return err
-}
-
-func (pgd *pgDatastore) mostRecentTxBefore(ctx context.Context, before time.Time) (uint64, error) {
+func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (uint64, error) {
 	// Find the highest transaction ID before the GC window.
 	sql, args, err := getRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
 	if err != nil {
@@ -159,22 +62,9 @@ func (pgd *pgDatastore) mostRecentTxBefore(ctx context.Context, before time.Time
 	return highest, nil
 }
 
-type garbageAmounts struct {
-	relationships int64
-	transactions  int64
-	namespaces    int64
-}
-
-func (g garbageAmounts) MarshalZerologObject(e *zerolog.Event) {
-	e.
-		Int64("relationships", g.relationships).
-		Int64("transactions", g.transactions).
-		Int64("namespaces", g.namespaces)
-}
-
-func (pgd *pgDatastore) deleteBefore(ctx context.Context, txID uint64) (amounts garbageAmounts, err error) {
+func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID uint64) (amounts common.GarbageCollectedAmounts, err error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	amounts.relationships, err = pgd.batchDelete(ctx, tableTuple, sq.LtOrEq{colDeletedTxn: txID})
+	amounts.Relationships, err = pgd.batchDelete(ctx, tableTuple, sq.LtOrEq{colDeletedTxn: txID})
 	if err != nil {
 		return
 	}
@@ -183,13 +73,13 @@ func (pgd *pgDatastore) deleteBefore(ctx context.Context, txID uint64) (amounts 
 	//
 	// We don't delete the transaction itself to ensure there is always at least
 	// one transaction present.
-	amounts.transactions, err = pgd.batchDelete(ctx, tableTransaction, sq.Lt{colID: txID})
+	amounts.Transactions, err = pgd.batchDelete(ctx, tableTransaction, sq.Lt{colID: txID})
 	if err != nil {
 		return
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
-	amounts.namespaces, err = pgd.batchDelete(ctx, tableNamespace, sq.Lt{colID: txID})
+	amounts.Namespaces, err = pgd.batchDelete(ctx, tableNamespace, sq.LtOrEq{colDeletedTxn: txID})
 	if err != nil {
 		return
 	}

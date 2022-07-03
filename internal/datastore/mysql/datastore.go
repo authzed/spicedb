@@ -116,7 +116,7 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 
-		if err := registerGCMetrics(); err != nil {
+		if err := common.RegisterGCMetrics(); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 	} else {
@@ -150,8 +150,6 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 		quantizationPeriodNanos = 1
 	}
 
-	gcWindowInverted := -1 * config.gcWindow
-
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,
 		colID,
@@ -165,7 +163,7 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 		colID,
 		driver.RelationTupleTransaction(),
 		colTimestamp,
-		gcWindowInverted.Seconds(),
+		-1*config.gcWindow.Seconds(),
 	)
 
 	store := &Datastore{
@@ -173,9 +171,9 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 		driver:                 driver,
 		url:                    uri,
 		revisionQuantization:   config.revisionQuantization,
-		gcWindowInverted:       gcWindowInverted,
+		gcWindow:               config.gcWindow,
 		gcInterval:             config.gcInterval,
-		gcMaxOperationTime:     config.gcMaxOperationTime,
+		gcTimeout:              config.gcMaxOperationTime,
 		gcCtx:                  gcCtx,
 		cancelGc:               cancelGc,
 		watchBufferLength:      config.watchBufferLength,
@@ -205,9 +203,17 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	// Start a goroutine for garbage collection.
 	if store.gcInterval > 0*time.Minute {
 		store.gcGroup, store.gcCtx = errgroup.WithContext(store.gcCtx)
-		store.gcGroup.Go(store.runGarbageCollector)
+		store.gcGroup.Go(func() error {
+			return common.StartGarbageCollector(
+				store.gcCtx,
+				store,
+				store.gcInterval,
+				store.gcWindow,
+				store.gcTimeout,
+			)
+		})
 	} else {
-		log.Warn().Msg("garbage collection disabled in mysql driver")
+		log.Warn().Msg("datastore garbage collection disabled")
 	}
 
 	return store, nil
@@ -375,9 +381,9 @@ type Datastore struct {
 	analyzeBeforeStats bool
 
 	revisionQuantization time.Duration
-	gcWindowInverted     time.Duration
+	gcWindow             time.Duration
 	gcInterval           time.Duration
-	gcMaxOperationTime   time.Duration
+	gcTimeout            time.Duration
 	watchBufferLength    uint16
 	usersetBatchSize     uint16
 	maxRetries           uint8
@@ -406,26 +412,6 @@ func (mds *Datastore) Close() error {
 		}
 	}
 	return mds.db.Close()
-}
-
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func (mds *Datastore) getNow(ctx context.Context) (time.Time, error) {
-	// Retrieve the `now` time from the database.
-	nowSQL, nowArgs, err := getNow.ToSql()
-	if err != nil {
-		return time.Now(), err
-	}
-
-	var now time.Time
-	err = mds.db.QueryRowContext(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
-	if err != nil {
-		return time.Now(), err
-	}
-
-	// Just for convenience while debugging - MySQL and the driver do properly handle timezones
-	now = now.UTC()
-
-	return now, nil
 }
 
 // IsReady returns whether the datastore is ready to accept data. Datastores that require

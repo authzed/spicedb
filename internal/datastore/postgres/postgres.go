@@ -128,7 +128,7 @@ func NewPostgresDatastore(
 		if err := prometheus.Register(collector); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
-		if err := registerGCMetrics(); err != nil {
+		if err := common.RegisterGCMetrics(); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 	}
@@ -167,9 +167,9 @@ func NewPostgresDatastore(
 		watchBufferLength:       config.watchBufferLength,
 		optimizedRevisionQuery:  revisionQuery,
 		validTransactionQuery:   validTransactionQuery,
-		gcWindowInverted:        -1 * config.gcWindow,
+		gcWindow:                config.gcWindow,
 		gcInterval:              config.gcInterval,
-		gcMaxOperationTime:      config.gcMaxOperationTime,
+		gcTimeout:               config.gcMaxOperationTime,
 		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
 		usersetBatchSize:        config.splitAtUsersetCount,
 		gcCtx:                   gcCtx,
@@ -183,9 +183,17 @@ func NewPostgresDatastore(
 	// Start a goroutine for garbage collection.
 	if datastore.gcInterval > 0*time.Minute {
 		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
-		datastore.gcGroup.Go(datastore.runGarbageCollector)
+		datastore.gcGroup.Go(func() error {
+			return common.StartGarbageCollector(
+				datastore.gcCtx,
+				datastore,
+				datastore.gcInterval,
+				datastore.gcWindow,
+				datastore.gcTimeout,
+			)
+		})
 	} else {
-		log.Warn().Msg("garbage collection disabled in postgres driver")
+		log.Warn().Msg("datastore garbage collection disabled")
 	}
 
 	return datastore, nil
@@ -199,9 +207,9 @@ type pgDatastore struct {
 	watchBufferLength       uint16
 	optimizedRevisionQuery  string
 	validTransactionQuery   string
-	gcWindowInverted        time.Duration
+	gcWindow                time.Duration
 	gcInterval              time.Duration
-	gcMaxOperationTime      time.Duration
+	gcTimeout               time.Duration
 	usersetBatchSize        uint16
 	analyzeBeforeStatistics bool
 	readTxOptions           pgx.TxOptions
@@ -314,26 +322,6 @@ func errorRetryable(err error) bool {
 	// unique constraint violations are raised instead of serialization errors.
 	// (e.g. https://www.postgresql.org/message-id/flat/CAGPCyEZG76zjv7S31v_xPeLNRuzj-m%3DY2GOY7PEzu7vhB%3DyQog%40mail.gmail.com)
 	return pgerr.SQLState() == pgSerializationFailure || pgerr.SQLState() == pgUniqueConstraintViolation
-}
-
-func (pgd *pgDatastore) getNow(ctx context.Context) (time.Time, error) {
-	// Retrieve the `now` time from the database.
-	nowSQL, nowArgs, err := getNow.ToSql()
-	if err != nil {
-		return time.Now(), err
-	}
-
-	var now time.Time
-	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
-	if err != nil {
-		return time.Now(), err
-	}
-
-	// RelationTupleTransaction is not timezone aware
-	// Explicitly use UTC before using as a query arg
-	now = now.UTC()
-
-	return now, nil
 }
 
 func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {

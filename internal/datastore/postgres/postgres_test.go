@@ -133,9 +133,9 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Run GC at the transaction and ensure no relationships are removed.
 	pds := ds.(*pgDatastore)
 
-	relsDeleted, _, err := pds.collectGarbageForTransaction(ctx, uint64(writtenAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
+	amounts, err := pds.DeleteBeforeTx(ctx, uint64(writtenAt.IntPart()))
 	require.NoError(err)
+	require.Zero(amounts.Relationships)
 
 	// Write a relationship.
 	tpl := &core.RelationTuple{
@@ -161,16 +161,16 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
-	relsDeleted, transactionsDeleted, err := pds.collectGarbageForTransaction(ctx, uint64(relWrittenAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
+	amounts, err = pds.DeleteBeforeTx(ctx, uint64(relWrittenAt.IntPart()))
 	require.NoError(err)
+	require.Zero(amounts.Relationships)
+	require.Equal(int64(1), amounts.Transactions)
 
 	// Run GC again and ensure there are no changes.
-	relsDeleted, transactionsDeleted, err = pds.collectGarbageForTransaction(ctx, uint64(relWrittenAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
-	require.Equal(int64(0), transactionsDeleted)
+	amounts, err = pds.DeleteBeforeTx(ctx, uint64(relWrittenAt.IntPart()))
 	require.NoError(err)
+	require.Zero(amounts.Relationships)
+	require.Zero(amounts.Transactions)
 
 	// Ensure the relationship is still present.
 	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
@@ -186,16 +186,16 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC at the transaction and ensure the (older copy of the) relationship is removed, as well as 1 transaction (the write).
-	relsDeleted, transactionsDeleted, err = pds.collectGarbageForTransaction(ctx, uint64(relOverwrittenAt.IntPart()))
-	require.Equal(int64(1), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
+	amounts, err = pds.DeleteBeforeTx(ctx, uint64(relOverwrittenAt.IntPart()))
 	require.NoError(err)
+	require.Equal(int64(1), amounts.Relationships)
+	require.Equal(int64(1), amounts.Transactions)
 
 	// Run GC again and ensure there are no changes.
-	relsDeleted, transactionsDeleted, err = pds.collectGarbageForTransaction(ctx, uint64(relOverwrittenAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
-	require.Equal(int64(0), transactionsDeleted)
+	amounts, err = pds.DeleteBeforeTx(ctx, uint64(relOverwrittenAt.IntPart()))
 	require.NoError(err)
+	require.Zero(amounts.Relationships)
+	require.Zero(amounts.Transactions)
 
 	// Ensure the relationship is still present.
 	tRequire.TupleExists(ctx, tpl, relOverwrittenAt)
@@ -213,16 +213,16 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
 
 	// Run GC at the transaction and ensure the relationship is removed, as well as 1 transaction (the overwrite).
-	relsDeleted, transactionsDeleted, err = pds.collectGarbageForTransaction(ctx, uint64(relDeletedAt.IntPart()))
-	require.Equal(int64(1), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
+	amounts, err = pds.DeleteBeforeTx(ctx, uint64(relDeletedAt.IntPart()))
 	require.NoError(err)
+	require.Equal(int64(1), amounts.Relationships)
+	require.Equal(int64(1), amounts.Transactions)
 
 	// Run GC again and ensure there are no changes.
-	relsDeleted, transactionsDeleted, err = pds.collectGarbageForTransaction(ctx, uint64(relDeletedAt.IntPart()))
-	require.Equal(int64(0), relsDeleted)
-	require.Equal(int64(0), transactionsDeleted)
+	amounts, err = pds.DeleteBeforeTx(ctx, uint64(relDeletedAt.IntPart()))
 	require.NoError(err)
+	require.Zero(amounts.Relationships)
+	require.Zero(amounts.Transactions)
 
 	// Write a the relationship a few times.
 	var relLastWriteAt datastore.Revision
@@ -239,10 +239,10 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
 	// as well as the 2 older write transactions and the older delete transaction.
-	relsDeleted, transactionsDeleted, err = pds.collectGarbageForTransaction(ctx, uint64(relLastWriteAt.IntPart()))
-	require.Equal(int64(2), relsDeleted)
-	require.Equal(int64(3), transactionsDeleted)
+	amounts, err = pds.DeleteBeforeTx(ctx, uint64(relLastWriteAt.IntPart()))
 	require.NoError(err)
+	require.Equal(int64(2), amounts.Relationships)
+	require.Equal(int64(3), amounts.Transactions)
 
 	// Ensure the relationship is still present.
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
@@ -262,7 +262,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Get timestamp in UTC as reference
-	startTimeUTC, err := pgd.getNow(ctx)
+	startTimeUTC, err := pgd.Now(ctx)
 	require.NoError(err)
 
 	// Transaction timestamp should not be stored in system time zone
@@ -334,13 +334,16 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC and ensure only transactions were removed.
-	afterWrite, err := pds.getNow(ctx)
+	afterWrite, err := pds.Now(ctx)
 	require.NoError(err)
 
-	relsDeleted, transactionsDeleted, err := pds.collectGarbageBefore(ctx, afterWrite)
-	require.Equal(int64(0), relsDeleted)
-	require.True(transactionsDeleted > 0)
+	afterWriteTx, err := pds.TxIDBefore(ctx, afterWrite)
 	require.NoError(err)
+
+	amounts, err := pds.DeleteBeforeTx(ctx, afterWriteTx)
+	require.NoError(err)
+	require.Zero(amounts.Relationships)
+	require.True(amounts.Transactions > 0)
 
 	// Ensure the relationship is still present.
 	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
@@ -359,13 +362,16 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC and ensure the relationship is removed.
-	afterDelete, err := pds.getNow(ctx)
+	afterDelete, err := pds.Now(ctx)
 	require.NoError(err)
 
-	relsDeleted, transactionsDeleted, err = pds.collectGarbageBefore(ctx, afterDelete)
-	require.Equal(int64(1), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
+	afterDeleteTx, err := pds.TxIDBefore(ctx, afterDelete)
 	require.NoError(err)
+
+	amounts, err = pds.DeleteBeforeTx(ctx, afterDeleteTx)
+	require.NoError(err)
+	require.Equal(int64(1), amounts.Relationships)
+	require.Equal(int64(1), amounts.Transactions)
 
 	// Ensure the relationship is still not present.
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
@@ -432,13 +438,16 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	}
 
 	// Run GC and ensure only transactions were removed.
-	afterWrite, err := pds.getNow(ctx)
+	afterWrite, err := pds.Now(ctx)
 	require.NoError(err)
 
-	relsDeleted, transactionsDeleted, err := pds.collectGarbageBefore(ctx, afterWrite)
-	require.Equal(int64(0), relsDeleted)
-	require.True(transactionsDeleted > 0)
+	afterWriteTx, err := pds.TxIDBefore(ctx, afterWrite)
 	require.NoError(err)
+
+	amounts, err := pds.DeleteBeforeTx(ctx, afterWriteTx)
+	require.NoError(err)
+	require.Zero(amounts.Relationships)
+	require.True(amounts.Transactions > 0)
 
 	// Sleep to ensure the relationships will GC.
 	time.Sleep(1 * time.Millisecond)
@@ -467,13 +476,16 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Run GC and ensure all the stale relationships are removed.
-	afterDelete, err := pds.getNow(ctx)
+	afterDelete, err := pds.Now(ctx)
 	require.NoError(err)
 
-	relsDeleted, transactionsDeleted, err = pds.collectGarbageBefore(ctx, afterDelete)
-	require.Equal(int64(chunkRelationshipCount), relsDeleted)
-	require.Equal(int64(1), transactionsDeleted)
+	afterDeleteTx, err := pds.TxIDBefore(ctx, afterDelete)
 	require.NoError(err)
+
+	amounts, err = pds.DeleteBeforeTx(ctx, afterDeleteTx)
+	require.NoError(err)
+	require.Equal(int64(chunkRelationshipCount), amounts.Relationships)
+	require.Equal(int64(1), amounts.Transactions)
 }
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
