@@ -53,7 +53,7 @@ require (
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.5
+	github.com/stretchr/testify v1.8.0
 	go.buf.build/protocolbuffers/go/prometheus/prometheus v1.2.3
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.32.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.32.0
