@@ -33,7 +33,7 @@ import (
 func TestCertRotation(t *testing.T) {
 	const (
 		// length of time the initial cert is valid
-		initialValidDuration = 500 * time.Millisecond
+		initialValidDuration = 1 * time.Second
 		// continue making requests for waitFactor*initialValidDuration
 		waitFactor = 3
 	)
