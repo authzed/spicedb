@@ -18,25 +18,25 @@ var (
 		Buckets:   []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
 	})
 
-	gcRelationshipsClearedCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	gcRelationshipsCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_relationships_total",
-		Help:      "The number of relationships cleared by the datastore garbage collection.",
+		Help:      "The number of stale relationships deleted by the datastore garbage collection.",
 	})
 
-	gcTransactionsClearedCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	gcTransactionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_transactions_total",
-		Help:      "The number of transactions cleared by the datastore garbage collection.",
+		Help:      "The number of stale transactions deleted by the datastore garbage collection.",
 	})
 
-	gcNamespacesClearedCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	gcNamespacesCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_namespaces_total",
-		Help:      "The number of namespaces cleared by the datastore garbage collection.",
+		Help:      "The number of stale namespaces deleted by the datastore garbage collection.",
 	})
 )
 
@@ -45,9 +45,9 @@ var (
 func RegisterGCMetrics() error {
 	for _, metric := range []prometheus.Collector{
 		gcDurationHistogram,
-		gcRelationshipsClearedCounter,
-		gcTransactionsClearedCounter,
-		gcNamespacesClearedCounter,
+		gcRelationshipsCounter,
+		gcTransactionsCounter,
+		gcNamespacesCounter,
 	} {
 		if err := prometheus.Register(metric); err != nil {
 			return err
@@ -63,18 +63,18 @@ type GarbageCollector interface {
 	IsReady(context.Context) (bool, error)
 	Now(context.Context) (time.Time, error)
 	TxIDBefore(context.Context, time.Time) (uint64, error)
-	DeleteBeforeTx(context.Context, uint64) (GarbageCollectedAmounts, error)
+	DeleteBeforeTx(ctx context.Context, txID uint64) (DeletionCounts, error)
 }
 
-// GarbageCollectedAmounts is the collection of amounts of deletions from
-// an individual run of the garbage collector.
-type GarbageCollectedAmounts struct {
+// DeletionCounts tracks the amount of deletions that occurred when calling
+// DeleteBeforeTx.
+type DeletionCounts struct {
 	Relationships int64
 	Transactions  int64
 	Namespaces    int64
 }
 
-func (g GarbageCollectedAmounts) MarshalZerologObject(e *zerolog.Event) {
+func (g DeletionCounts) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Int64("relationships", g.Relationships).
 		Int64("transactions", g.Transactions).
@@ -122,7 +122,7 @@ func collect(gc GarbageCollector, window, timeout time.Duration) error {
 
 	var (
 		startTime = time.Now()
-		amounts   GarbageCollectedAmounts
+		collected DeletionCounts
 		watermark uint64
 	)
 
@@ -133,12 +133,12 @@ func collect(gc GarbageCollector, window, timeout time.Duration) error {
 		log.Ctx(ctx).Debug().
 			Uint64("highestTxID", watermark).
 			Dur("duration", collectionDuration).
-			Interface("collected", amounts).
+			Interface("collected", collected).
 			Msg("datastore garbage collection completed")
 
-		gcRelationshipsClearedCounter.Add(float64(amounts.Relationships))
-		gcTransactionsClearedCounter.Add(float64(amounts.Transactions))
-		gcNamespacesClearedCounter.Add(float64(amounts.Namespaces))
+		gcRelationshipsCounter.Add(float64(collected.Relationships))
+		gcTransactionsCounter.Add(float64(collected.Transactions))
+		gcNamespacesCounter.Add(float64(collected.Namespaces))
 	}()
 
 	now, err := gc.Now(ctx)
@@ -151,6 +151,6 @@ func collect(gc GarbageCollector, window, timeout time.Duration) error {
 		return err
 	}
 
-	amounts, err = gc.DeleteBeforeTx(ctx, watermark)
+	collected, err = gc.DeleteBeforeTx(ctx, watermark)
 	return err
 }

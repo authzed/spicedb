@@ -62,9 +62,9 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (uint6
 	return highest, nil
 }
 
-func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID uint64) (amounts common.GarbageCollectedAmounts, err error) {
+func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID uint64) (removed common.DeletionCounts, err error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	amounts.Relationships, err = pgd.batchDelete(ctx, tableTuple, sq.LtOrEq{colDeletedTxn: txID})
+	removed.Relationships, err = pgd.batchDelete(ctx, tableTuple, sq.LtOrEq{colDeletedTxn: txID})
 	if err != nil {
 		return
 	}
@@ -73,13 +73,13 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID uint64) (amount
 	//
 	// We don't delete the transaction itself to ensure there is always at least
 	// one transaction present.
-	amounts.Transactions, err = pgd.batchDelete(ctx, tableTransaction, sq.Lt{colID: txID})
+	removed.Transactions, err = pgd.batchDelete(ctx, tableTransaction, sq.Lt{colID: txID})
 	if err != nil {
 		return
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
-	amounts.Namespaces, err = pgd.batchDelete(ctx, tableNamespace, sq.LtOrEq{colDeletedTxn: txID})
+	removed.Namespaces, err = pgd.batchDelete(ctx, tableNamespace, sq.LtOrEq{colDeletedTxn: txID})
 	if err != nil {
 		return
 	}

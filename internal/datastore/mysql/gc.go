@@ -59,9 +59,9 @@ func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (uint64,
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - implementation misses metrics
-func (mds *Datastore) DeleteBeforeTx(ctx context.Context, txID uint64) (amounts common.GarbageCollectedAmounts, err error) {
+func (mds *Datastore) DeleteBeforeTx(ctx context.Context, txID uint64) (removed common.DeletionCounts, err error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	amounts.Relationships, err = mds.batchDelete(ctx, mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: txID})
+	removed.Relationships, err = mds.batchDelete(ctx, mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: txID})
 	if err != nil {
 		return
 	}
@@ -70,13 +70,13 @@ func (mds *Datastore) DeleteBeforeTx(ctx context.Context, txID uint64) (amounts 
 	//
 	// We don't delete the transaction itself to ensure there is always at least
 	// one transaction present.
-	amounts.Transactions, err = mds.batchDelete(ctx, mds.driver.RelationTupleTransaction(), sq.Lt{colID: txID})
+	removed.Transactions, err = mds.batchDelete(ctx, mds.driver.RelationTupleTransaction(), sq.Lt{colID: txID})
 	if err != nil {
 		return
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
-	amounts.Namespaces, err = mds.batchDelete(ctx, mds.driver.Namespace(), sq.LtOrEq{colDeletedTxn: txID})
+	removed.Namespaces, err = mds.batchDelete(ctx, mds.driver.Namespace(), sq.LtOrEq{colDeletedTxn: txID})
 	return
 }
 
