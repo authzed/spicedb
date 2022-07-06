@@ -56,6 +56,9 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 	if err := v1.RegisterPermissionsServiceHandlerFromEndpoint(ctx, gwMux, upstreamAddr, opts); err != nil {
 		return nil, err
 	}
+	if err := v1.RegisterWatchServiceHandlerFromEndpoint(ctx, gwMux, upstreamAddr, opts); err != nil {
+		return nil, err
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/openapi.json", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

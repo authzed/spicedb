@@ -71,4 +71,13 @@ func TestRESTGateway(t *testing.T) {
 
 	require.Equal(200, resp.StatusCode)
 	require.Contains(string(body), "definition user {")
+
+	// Execute a watch call with an invalid auth header and ensure it 403s.
+	watchUrl := fmt.Sprintf("http://localhost:%s/v1/watch", tester.httpPort)
+	watchReq, err := http.NewRequest("POST", watchUrl, nil)
+	watchReq.Header.Add("Authorization", "Bearer notcorrect")
+
+	watchResp, err := http.DefaultClient.Do(watchReq)
+	require.NoError(err)
+	require.Equal(403, watchResp.StatusCode)
 }
