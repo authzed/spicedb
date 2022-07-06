@@ -208,7 +208,7 @@ func NewPostgresDatastore(
 		usersetBatchSize:        config.splitAtUsersetCount,
 		gcCtx:                   gcCtx,
 		cancelGc:                cancelGc,
-		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.Serializable, AccessMode: pgx.ReadOnly},
+		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
 		maxRetries:              config.maxRetries,
 	}
 
