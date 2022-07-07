@@ -282,3 +282,371 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DeveloperErrorValidationError{}
+
+// Validate checks the field values on CheckOperationParameters with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CheckOperationParameters) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CheckOperationParameters with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CheckOperationParametersMultiError, or nil if none found.
+func (m *CheckOperationParameters) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CheckOperationParameters) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetResource()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CheckOperationParametersValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CheckOperationParametersValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetResource()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CheckOperationParametersValidationError{
+				field:  "Resource",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetSubject()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CheckOperationParametersValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CheckOperationParametersValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSubject()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CheckOperationParametersValidationError{
+				field:  "Subject",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CheckOperationParametersMultiError(errors)
+	}
+
+	return nil
+}
+
+// CheckOperationParametersMultiError is an error wrapping multiple validation
+// errors returned by CheckOperationParameters.ValidateAll() if the designated
+// constraints aren't met.
+type CheckOperationParametersMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CheckOperationParametersMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CheckOperationParametersMultiError) AllErrors() []error { return m }
+
+// CheckOperationParametersValidationError is the validation error returned by
+// CheckOperationParameters.Validate if the designated constraints aren't met.
+type CheckOperationParametersValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CheckOperationParametersValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CheckOperationParametersValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CheckOperationParametersValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CheckOperationParametersValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CheckOperationParametersValidationError) ErrorName() string {
+	return "CheckOperationParametersValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CheckOperationParametersValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCheckOperationParameters.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CheckOperationParametersValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CheckOperationParametersValidationError{}
+
+// Validate checks the field values on RunAssertionsParameters with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RunAssertionsParameters) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RunAssertionsParameters with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RunAssertionsParametersMultiError, or nil if none found.
+func (m *RunAssertionsParameters) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RunAssertionsParameters) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for AssertionsYaml
+
+	if len(errors) > 0 {
+		return RunAssertionsParametersMultiError(errors)
+	}
+
+	return nil
+}
+
+// RunAssertionsParametersMultiError is an error wrapping multiple validation
+// errors returned by RunAssertionsParameters.ValidateAll() if the designated
+// constraints aren't met.
+type RunAssertionsParametersMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RunAssertionsParametersMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RunAssertionsParametersMultiError) AllErrors() []error { return m }
+
+// RunAssertionsParametersValidationError is the validation error returned by
+// RunAssertionsParameters.Validate if the designated constraints aren't met.
+type RunAssertionsParametersValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RunAssertionsParametersValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RunAssertionsParametersValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RunAssertionsParametersValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RunAssertionsParametersValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RunAssertionsParametersValidationError) ErrorName() string {
+	return "RunAssertionsParametersValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RunAssertionsParametersValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRunAssertionsParameters.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RunAssertionsParametersValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RunAssertionsParametersValidationError{}
+
+// Validate checks the field values on RunValidationParameters with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RunValidationParameters) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RunValidationParameters with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RunValidationParametersMultiError, or nil if none found.
+func (m *RunValidationParameters) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RunValidationParameters) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ValidationYaml
+
+	if len(errors) > 0 {
+		return RunValidationParametersMultiError(errors)
+	}
+
+	return nil
+}
+
+// RunValidationParametersMultiError is an error wrapping multiple validation
+// errors returned by RunValidationParameters.ValidateAll() if the designated
+// constraints aren't met.
+type RunValidationParametersMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RunValidationParametersMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RunValidationParametersMultiError) AllErrors() []error { return m }
+
+// RunValidationParametersValidationError is the validation error returned by
+// RunValidationParameters.Validate if the designated constraints aren't met.
+type RunValidationParametersValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RunValidationParametersValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RunValidationParametersValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RunValidationParametersValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RunValidationParametersValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RunValidationParametersValidationError) ErrorName() string {
+	return "RunValidationParametersValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RunValidationParametersValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRunValidationParameters.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RunValidationParametersValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RunValidationParametersValidationError{}
