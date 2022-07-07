@@ -78,9 +78,15 @@ func NewCachingDispatcher(
 		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching dispatcher")
 	}
 
-	cache, err := cache.NewCache(cacheConfig)
-	if err != nil {
-		return nil, fmt.Errorf(errCachingInitialization, err)
+	var built cache.Cache
+	if cacheConfig.Disabled {
+		built = cache.NoopCache()
+	} else {
+		c, err := cache.NewCache(cacheConfig)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
+		built = c
 	}
 
 	checkTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
@@ -121,14 +127,14 @@ func NewCachingDispatcher(
 		Subsystem: prometheusSubsystem,
 		Name:      "cache_hits_total",
 	}, func() float64 {
-		return float64(cache.GetMetrics().Hits())
+		return float64(built.GetMetrics().Hits())
 	})
 	cacheMissesTotal := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "cache_misses_total",
 	}, func() float64 {
-		return float64(cache.GetMetrics().Misses())
+		return float64(built.GetMetrics().Misses())
 	})
 
 	costAddedBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -136,7 +142,7 @@ func NewCachingDispatcher(
 		Subsystem: prometheusSubsystem,
 		Name:      "cost_added_bytes",
 	}, func() float64 {
-		return float64(cache.GetMetrics().CostAdded())
+		return float64(built.GetMetrics().CostAdded())
 	})
 
 	costEvictedBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -144,11 +150,11 @@ func NewCachingDispatcher(
 		Subsystem: prometheusSubsystem,
 		Name:      "cost_evicted_bytes",
 	}, func() float64 {
-		return float64(cache.GetMetrics().CostEvicted())
+		return float64(built.GetMetrics().CostEvicted())
 	})
 
 	if prometheusSubsystem != "" {
-		err = prometheus.Register(checkTotalCounter)
+		err := prometheus.Register(checkTotalCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
@@ -198,7 +204,7 @@ func NewCachingDispatcher(
 
 	return &Dispatcher{
 		d:                                  fakeDelegate{},
-		c:                                  cache,
+		c:                                  built,
 		keyHandler:                         keyHandler,
 		checkTotalCounter:                  checkTotalCounter,
 		checkFromCacheCounter:              checkFromCacheCounter,
