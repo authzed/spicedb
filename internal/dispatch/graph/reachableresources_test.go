@@ -145,8 +145,12 @@ func TestSimpleReachableResources(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-				ObjectRelation: tc.start,
-				Subject:        tc.target,
+				ResourceRelation: tc.start,
+				SubjectRelation: &core.RelationReference{
+					Namespace: tc.target.Namespace,
+					Relation:  tc.target.Relation,
+				},
+				SubjectIds: []string{tc.target.ObjectId},
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -155,10 +159,16 @@ func TestSimpleReachableResources(t *testing.T) {
 
 			results := []reachableResource{}
 			for _, streamResult := range stream.Results() {
-				results = append(results, reachableResource{
-					tuple.StringONR(streamResult.Resource.Resource),
-					streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
-				})
+				for _, rid := range streamResult.Resource.ResourceIds {
+					results = append(results, reachableResource{
+						tuple.StringONR(&core.ObjectAndRelation{
+							Namespace: tc.start.Namespace,
+							ObjectId:  rid,
+							Relation:  tc.start.Relation,
+						}),
+						streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
+					})
+				}
 			}
 			sort.Sort(byONR(results))
 			sort.Sort(byONR(tc.reachable))
@@ -176,8 +186,9 @@ func TestMaxDepthreachableResources(t *testing.T) {
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 	err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ObjectRelation: RR("document", "view"),
-		Subject:        ONR("user", "legal", "..."),
+		ResourceRelation: RR("document", "view"),
+		SubjectRelation:  RR("user", "..."),
+		SubjectIds:       []string{"legal"},
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
@@ -245,8 +256,12 @@ func BenchmarkReachableResources(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 				err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-					ObjectRelation: tc.start,
-					Subject:        tc.target,
+					ResourceRelation: tc.start,
+					SubjectRelation: &core.RelationReference{
+						Namespace: tc.target.Namespace,
+						Relation:  tc.target.Relation,
+					},
+					SubjectIds: []string{tc.target.ObjectId},
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     revision.String(),
 						DepthRemaining: 50,
@@ -256,7 +271,13 @@ func BenchmarkReachableResources(b *testing.B) {
 
 				results := []*core.ObjectAndRelation{}
 				for _, streamResult := range stream.Results() {
-					results = append(results, streamResult.Resource.Resource)
+					for _, rid := range streamResult.Resource.ResourceIds {
+						results = append(results, &core.ObjectAndRelation{
+							Namespace: tc.start.Namespace,
+							ObjectId:  rid,
+							Relation:  tc.start.Relation,
+						})
+					}
 				}
 				require.GreaterOrEqual(len(results), 0)
 			}

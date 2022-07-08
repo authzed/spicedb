@@ -1258,9 +1258,9 @@ func (m *DispatchReachableResourcesRequest) validate(all bool) error {
 		}
 	}
 
-	if m.GetObjectRelation() == nil {
+	if m.GetResourceRelation() == nil {
 		err := DispatchReachableResourcesRequestValidationError{
-			field:  "ObjectRelation",
+			field:  "ResourceRelation",
 			reason: "value is required",
 		}
 		if !all {
@@ -1270,11 +1270,11 @@ func (m *DispatchReachableResourcesRequest) validate(all bool) error {
 	}
 
 	if all {
-		switch v := interface{}(m.GetObjectRelation()).(type) {
+		switch v := interface{}(m.GetResourceRelation()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, DispatchReachableResourcesRequestValidationError{
-					field:  "ObjectRelation",
+					field:  "ResourceRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -1282,25 +1282,25 @@ func (m *DispatchReachableResourcesRequest) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, DispatchReachableResourcesRequestValidationError{
-					field:  "ObjectRelation",
+					field:  "ResourceRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetObjectRelation()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetResourceRelation()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchReachableResourcesRequestValidationError{
-				field:  "ObjectRelation",
+				field:  "ResourceRelation",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
 		}
 	}
 
-	if m.GetSubject() == nil {
+	if m.GetSubjectRelation() == nil {
 		err := DispatchReachableResourcesRequestValidationError{
-			field:  "Subject",
+			field:  "SubjectRelation",
 			reason: "value is required",
 		}
 		if !all {
@@ -1310,11 +1310,11 @@ func (m *DispatchReachableResourcesRequest) validate(all bool) error {
 	}
 
 	if all {
-		switch v := interface{}(m.GetSubject()).(type) {
+		switch v := interface{}(m.GetSubjectRelation()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, DispatchReachableResourcesRequestValidationError{
-					field:  "Subject",
+					field:  "SubjectRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -1322,16 +1322,16 @@ func (m *DispatchReachableResourcesRequest) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, DispatchReachableResourcesRequestValidationError{
-					field:  "Subject",
+					field:  "SubjectRelation",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetSubject()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetSubjectRelation()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return DispatchReachableResourcesRequestValidationError{
-				field:  "Subject",
+				field:  "SubjectRelation",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
@@ -1441,46 +1441,6 @@ func (m *ReachableResource) validate(all bool) error {
 	}
 
 	var errors []error
-
-	if m.GetResource() == nil {
-		err := ReachableResourceValidationError{
-			field:  "Resource",
-			reason: "value is required",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
-	if all {
-		switch v := interface{}(m.GetResource()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, ReachableResourceValidationError{
-					field:  "Resource",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, ReachableResourceValidationError{
-					field:  "Resource",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetResource()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return ReachableResourceValidationError{
-				field:  "Resource",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
 
 	// no validation rules for ResultStatus
 

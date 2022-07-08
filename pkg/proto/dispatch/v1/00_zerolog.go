@@ -50,13 +50,23 @@ func (lr *DispatchLookupRequest) MarshalZerologObject(e *zerolog.Event) {
 // MarshalZerologObject implements zerolog object marshalling.
 func (lr *DispatchReachableResourcesRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", lr.Metadata)
-	e.Str("object", fmt.Sprintf("%s#%s", lr.ObjectRelation.Namespace, lr.ObjectRelation.Relation))
-	e.Str("subject", tuple.StringONR(lr.Subject))
+	e.Str("resource-type", fmt.Sprintf("%s#%s", lr.ResourceRelation.Namespace, lr.ResourceRelation.Relation))
+	e.Str("subject-type", fmt.Sprintf("%s#%s", lr.SubjectRelation.Namespace, lr.SubjectRelation.Relation))
+	e.Array("subject-ids", strArray(lr.SubjectIds))
 }
+
+type strArray []string
 
 type onArray []*core.RelationReference
 
 type zerologON core.RelationReference
+
+// MarshalZerologArray implements zerolog array marshalling.
+func (strs strArray) MarshalZerologArray(a *zerolog.Array) {
+	for _, val := range strs {
+		a.Str(val)
+	}
+}
 
 // MarshalZerologArray implements zerolog array marshalling.
 func (onrs onArray) MarshalZerologArray(a *zerolog.Array) {

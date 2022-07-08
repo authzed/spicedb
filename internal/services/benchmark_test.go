@@ -2,8 +2,7 @@ package services_test
 
 import (
 	"context"
-	"path"
-	"runtime"
+	"embed"
 	"testing"
 	"time"
 
@@ -22,16 +21,15 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-type runner func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error
-
-type benchmarkTest struct {
-	title    string
-	fileName string
-	runner   runner
-}
+//go:embed benchconfigs/*.yaml testconfigs/*.yaml
+var testFiles embed.FS
 
 func BenchmarkServices(b *testing.B) {
-	bts := []benchmarkTest{
+	bts := []struct {
+		title    string
+		fileName string
+		runner   func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error
+	}{
 		{
 			"basic lookup of view for a user",
 			"testconfigs/basicrbac.yaml",
@@ -82,23 +80,24 @@ func BenchmarkServices(b *testing.B) {
 		},
 	}
 
-	_, filename, _, _ := runtime.Caller(0)
-
 	for _, bt := range bts {
 		b.Run(bt.title, func(b *testing.B) {
-			for _, engineId := range datastore.Engines {
-				b.Run(engineId, func(b *testing.B) {
+			for _, engineID := range datastore.Engines {
+				b.Run(engineID, func(b *testing.B) {
 					brequire := require.New(b)
 
-					rde := testdatastore.RunDatastoreEngine(b, engineId)
+					rde := testdatastore.RunDatastoreEngine(b, engineID)
 					ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(b,
 						dsconfig.WithWatchBufferLength(0),
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 						dsconfig.WithRevisionQuantization(10)))
 
-					filePath := path.Join(path.Dir(filename), bt.fileName)
+					contents, err := testFiles.ReadFile(bt.fileName)
+					require.NoError(b, err)
 
-					_, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
+					_, revision, err := validationfile.PopulateFromFilesContents(ds, map[string][]byte{
+						"testfile": contents,
+					})
 					brequire.NoError(err)
 
 					conn, cleanup := testserver.TestClusterWithDispatchAndCacheConfig(b, 1, ds, false /* no cache */)

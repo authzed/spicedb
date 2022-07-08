@@ -66,15 +66,23 @@ func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesRespons
 		ls.depthRequired = max(result.Metadata.DepthRequired, ls.depthRequired)
 	}()
 
-	if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
-		ls.checker.AddResult(result.Resource.Resource)
-		return nil
-	}
+	for _, id := range result.Resource.ResourceIds {
+		resource := &core.ObjectAndRelation{
+			Namespace: ls.req.ObjectRelation.Namespace,
+			ObjectId:  id,
+			Relation:  ls.req.ObjectRelation.Relation,
+		}
 
-	ls.checker.QueueCheck(result.Resource.Resource, &v1.ResolverMeta{
-		AtRevision:     ls.req.Revision.String(),
-		DepthRemaining: ls.req.Metadata.DepthRemaining,
-	})
+		if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
+			ls.checker.AddResult(resource)
+			continue
+		}
+
+		ls.checker.QueueCheck(resource, &v1.ResolverMeta{
+			AtRevision:     ls.req.Revision.String(),
+			DepthRemaining: ls.req.Metadata.DepthRemaining,
+		})
+	}
 	return nil
 }
 
@@ -96,9 +104,13 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	// Dispatch to the reachability API to find all reachable objects and queue them
 	// either for checks, or directly as results.
 	err := cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ObjectRelation: req.ObjectRelation,
-		Subject:        req.Subject,
-		Metadata:       req.Metadata,
+		ResourceRelation: req.ObjectRelation,
+		SubjectRelation: &core.RelationReference{
+			Namespace: req.Subject.Namespace,
+			Relation:  req.Subject.Relation,
+		},
+		SubjectIds: []string{req.Subject.ObjectId},
+		Metadata:   req.Metadata,
 	}, stream)
 	if err != nil {
 		resp := lookupResultError(NewErrInvalidArgument(fmt.Errorf("error in reachablility: %w", err)), emptyMetadata)

@@ -123,7 +123,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 				require := require.New(t)
 				_, err := proxy.
 					SnapshotReader(datastore.NoRevision).
-					ReverseQueryRelationships(context.Background(), &v1.SubjectFilter{})
+					ReverseQueryRelationships(context.Background(), datastore.SubjectsFilter{})
 				if expectFirst {
 					require.ErrorIs(errKnown, err)
 				} else {
