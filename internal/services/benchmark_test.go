@@ -34,7 +34,7 @@ func BenchmarkServices(b *testing.B) {
 	bts := []benchmarkTest{
 		{
 			"basic lookup of view for a user",
-			"basicrbac.yaml",
+			"testconfigs/basicrbac.yaml",
 			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
 				results, err := tester.Lookup(ctx, &core.RelationReference{
 					Namespace: "example/document",
@@ -47,9 +47,10 @@ func BenchmarkServices(b *testing.B) {
 				require.GreaterOrEqual(b, len(results), 0)
 				return err
 			},
-		}, {
-			"lookup of view for a user recursively through groups",
-			"simplerecursive.yaml",
+		},
+		{
+			"recursively through groups",
+			"testconfigs/simplerecursive.yaml",
 			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
 				results, err := tester.Lookup(ctx, &core.RelationReference{
 					Namespace: "srrr/resource",
@@ -57,6 +58,22 @@ func BenchmarkServices(b *testing.B) {
 				}, &core.ObjectAndRelation{
 					Namespace: "srrr/user",
 					ObjectId:  "someguy",
+					Relation:  tuple.Ellipsis,
+				}, revision)
+				require.GreaterOrEqual(b, len(results), 0)
+				return err
+			},
+		},
+		{
+			"recursively through wide groups",
+			"benchconfigs/widegroups.yaml",
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+				results, err := tester.Lookup(ctx, &core.RelationReference{
+					Namespace: "resource",
+					Relation:  "view",
+				}, &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
 				}, revision)
 				require.GreaterOrEqual(b, len(results), 0)
@@ -79,7 +96,7 @@ func BenchmarkServices(b *testing.B) {
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 						dsconfig.WithRevisionQuantization(10)))
 
-					filePath := path.Join(path.Join(path.Dir(filename), "testconfigs"), bt.fileName)
+					filePath := path.Join(path.Dir(filename), bt.fileName)
 
 					_, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
 					brequire.NoError(err)
