@@ -137,7 +137,26 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Zero(removed.Namespaces)
-	require.Zero(removed.Namespaces)
+
+	// Replace the namespace with a new one.
+	writtenAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(
+			namespace.Namespace(
+				"resource",
+				namespace.Relation("reader", nil),
+				namespace.Relation("unused", nil),
+			),
+			namespace.Namespace("user"),
+		)
+	})
+	require.NoError(err)
+
+	// Run GC to remove the old namespace
+	removed, err = pds.DeleteBeforeTx(ctx, uint64(writtenAt.IntPart()))
+	require.NoError(err)
+	require.Zero(removed.Relationships)
+	require.Equal(int64(1), removed.Transactions)
+	require.Equal(int64(2), removed.Namespaces)
 
 	// Write a relationship.
 	tpl := &core.RelationTuple{
