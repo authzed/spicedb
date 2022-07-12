@@ -10,6 +10,8 @@ SpiceDB is an open source database system for managing security-critical applica
 
 Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
+[client library]: https://github.com/orgs/authzed/repositories?q=client+library
+
 Features that distinguish SpiceDB from other systems include:
 
 - Expressive [gRPC] and [HTTP] APIs for checking permissions, listing access, and powering devtools
@@ -19,11 +21,6 @@ Features that distinguish SpiceDB from other systems include:
 - Pluggable storage system supporting [memdb], [MySQL], [PostgreSQL], [CockroachDB], and [Cloud Spanner]
 - Deep observability with [Prometheus metrics], structured logging, and [OpenTelemetry tracing]
 
-Have questions? Join our [Discord].
-
-Looking to contribute? See [CONTRIBUTING.md].
-
-[client library]: https://github.com/orgs/authzed/repositories?q=client+library
 [gRPC]: https://buf.build/authzed/api/docs/main:authzed.api.v1
 [Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [HTTP]: https://app.swaggerhub.com/apis-docs/authzed/authzed/1.0
@@ -41,8 +38,22 @@ Looking to contribute? See [CONTRIBUTING.md].
 [Cloud Spanner]: https://cloud.google.com/spanner
 [Prometheus metrics]: https://prometheus.io
 [OpenTelemetry tracing]: https://opentelemetry.io
+
+Have questions? Join our [Discord].
+
+Looking to contribute? See [CONTRIBUTING.md].
+
+You can find issues by priority: [Urgent], [High], [Medium], [Low], [Maybe].
+There are also [good first issues].
+
 [Discord]: https://authzed.com/discord
 [CONTRIBUTING.md]: https://github.com/authzed/spicedb/blob/main/CONTRIBUTING.md
+[Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
+[High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
+[Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
+[Low]: https://github.com/authzed/spicedb/labels/priority%2F3%20low
+[Maybe]: https://github.com/authzed/spicedb/labels/priority%2F4%20maybe
+[good first issues]: https://github.com/authzed/spicedb/labels/hint%2Fgood%20first%20issue
 
 ## Why SpiceDB?
 
