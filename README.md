@@ -100,6 +100,22 @@ This has strategy has become an industry best-practice and is being used to grea
 - Explore the gRPC API documentation on the [Buf Registry]
 - [Install zed] and interact with a live database
 
+## Open Issues
+
+View by priority:
+
+- [Urgent]
+- [High]
+- [Medium]
+- [Low]
+- [Maybe]
+
+[Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
+[High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
+[Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
+[Low]: https://github.com/authzed/spicedb/labels/priority%2F3%20low
+[Maybe]: https://github.com/authzed/spicedb/labels/priority%2F4%20maybe
+
 [Protecting Your First App]: https://docs.authzed.com/guides/first-app
 [Buf Registry]: https://buf.build/authzed/api/docs
 [Install zed]: https://github.com/authzed/zed
