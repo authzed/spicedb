@@ -23,7 +23,7 @@ Have questions? Join our [Discord].
 
 Looking to contribute? See [CONTRIBUTING.md].
 
-[client library]: https://docs.authzed.com/reference/api#client-libraries
+[client library]: https://github.com/orgs/authzed/repositories?q=client+library
 [gRPC]: https://buf.build/authzed/api/docs/main:authzed.api.v1
 [Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [HTTP]: https://app.swaggerhub.com/apis-docs/authzed/authzed/1.0
@@ -76,11 +76,13 @@ This has strategy has become an industry best-practice and is being used to grea
 
 - Install SpiceDB with [homebrew] on macOS and Linux
 - Run a SpiceDB container using a container engine such as [docker]
-- Deploy a single-node example [Kubernetes deployment]
+- Deploy non-production-ready [examples] using [Kubernetes] and [Docker Compose]
 
 [homebrew]: https://docs.authzed.com/spicedb/installing#brew
 [docker]: https://docs.authzed.com/spicedb/installing#docker
-[Kubernetes deployment]: https://github.com/authzed/spicedb/blob/main/k8s/example.yaml
+[examples]: https://github.com/authzed/examples
+[Docker Compose]: https://github.com/authzed/examples/tree/main/docker-compose
+[Kubernetes]: https://github.com/authzed/examples/tree/main/kubernetes
 
 ### Developing your own schema
 
