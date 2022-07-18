@@ -29,7 +29,8 @@ func CheckAndLogRunE() cobrautil.CobraRunFunc {
 
 		state, currentVersion, release, err := CheckIsLatestVersion(ctx, CurrentVersion, GetLatestRelease)
 		if err != nil {
-			return err
+			log.Warn().Str("this-version", currentVersion).Err(err).Msg("could not perform version checking; if this problem persists or to skip this check, add --skip-release-check=true")
+			return nil
 		}
 
 		switch state {
