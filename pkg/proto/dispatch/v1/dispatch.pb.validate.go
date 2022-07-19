@@ -177,6 +177,8 @@ func (m *DispatchCheckRequest) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for Debug
+
 	if len(errors) > 0 {
 		return DispatchCheckRequestMultiError(errors)
 	}
@@ -1876,72 +1878,33 @@ func (m *ResponseMeta) validate(all bool) error {
 
 	// no validation rules for CachedDispatchCount
 
-	for idx, item := range m.GetLookupExcludedDirect() {
-		_, _ = idx, item
-
-		if all {
-			switch v := interface{}(item).(type) {
-			case interface{ ValidateAll() error }:
-				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, ResponseMetaValidationError{
-						field:  fmt.Sprintf("LookupExcludedDirect[%v]", idx),
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			case interface{ Validate() error }:
-				if err := v.Validate(); err != nil {
-					errors = append(errors, ResponseMetaValidationError{
-						field:  fmt.Sprintf("LookupExcludedDirect[%v]", idx),
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			}
-		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
-			if err := v.Validate(); err != nil {
-				return ResponseMetaValidationError{
-					field:  fmt.Sprintf("LookupExcludedDirect[%v]", idx),
+	if all {
+		switch v := interface{}(m.GetDebugInfo()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ResponseMetaValidationError{
+					field:  "DebugInfo",
 					reason: "embedded message failed validation",
 					cause:  err,
-				}
+				})
 			}
-		}
-
-	}
-
-	for idx, item := range m.GetLookupExcludedTtu() {
-		_, _ = idx, item
-
-		if all {
-			switch v := interface{}(item).(type) {
-			case interface{ ValidateAll() error }:
-				if err := v.ValidateAll(); err != nil {
-					errors = append(errors, ResponseMetaValidationError{
-						field:  fmt.Sprintf("LookupExcludedTtu[%v]", idx),
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			case interface{ Validate() error }:
-				if err := v.Validate(); err != nil {
-					errors = append(errors, ResponseMetaValidationError{
-						field:  fmt.Sprintf("LookupExcludedTtu[%v]", idx),
-						reason: "embedded message failed validation",
-						cause:  err,
-					})
-				}
-			}
-		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
-				return ResponseMetaValidationError{
-					field:  fmt.Sprintf("LookupExcludedTtu[%v]", idx),
+				errors = append(errors, ResponseMetaValidationError{
+					field:  "DebugInfo",
 					reason: "embedded message failed validation",
 					cause:  err,
-				}
+				})
 			}
 		}
-
+	} else if v, ok := interface{}(m.GetDebugInfo()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ResponseMetaValidationError{
+				field:  "DebugInfo",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
 	}
 
 	if len(errors) > 0 {
@@ -2020,3 +1983,301 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ResponseMetaValidationError{}
+
+// Validate checks the field values on DebugInformation with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *DebugInformation) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DebugInformation with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DebugInformationMultiError, or nil if none found.
+func (m *DebugInformation) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DebugInformation) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetCheck()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DebugInformationValidationError{
+					field:  "Check",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DebugInformationValidationError{
+					field:  "Check",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCheck()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DebugInformationValidationError{
+				field:  "Check",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return DebugInformationMultiError(errors)
+	}
+
+	return nil
+}
+
+// DebugInformationMultiError is an error wrapping multiple validation errors
+// returned by DebugInformation.ValidateAll() if the designated constraints
+// aren't met.
+type DebugInformationMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DebugInformationMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DebugInformationMultiError) AllErrors() []error { return m }
+
+// DebugInformationValidationError is the validation error returned by
+// DebugInformation.Validate if the designated constraints aren't met.
+type DebugInformationValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DebugInformationValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DebugInformationValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DebugInformationValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DebugInformationValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DebugInformationValidationError) ErrorName() string { return "DebugInformationValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DebugInformationValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDebugInformation.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DebugInformationValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DebugInformationValidationError{}
+
+// Validate checks the field values on CheckDebugTrace with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *CheckDebugTrace) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CheckDebugTrace with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CheckDebugTraceMultiError, or nil if none found.
+func (m *CheckDebugTrace) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CheckDebugTrace) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRequest()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CheckDebugTraceValidationError{
+					field:  "Request",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CheckDebugTraceValidationError{
+					field:  "Request",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRequest()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CheckDebugTraceValidationError{
+				field:  "Request",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for ResourceRelationType
+
+	// no validation rules for HasPermission
+
+	// no validation rules for IsCachedResult
+
+	for idx, item := range m.GetSubProblems() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, CheckDebugTraceValidationError{
+						field:  fmt.Sprintf("SubProblems[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, CheckDebugTraceValidationError{
+						field:  fmt.Sprintf("SubProblems[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return CheckDebugTraceValidationError{
+					field:  fmt.Sprintf("SubProblems[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return CheckDebugTraceMultiError(errors)
+	}
+
+	return nil
+}
+
+// CheckDebugTraceMultiError is an error wrapping multiple validation errors
+// returned by CheckDebugTrace.ValidateAll() if the designated constraints
+// aren't met.
+type CheckDebugTraceMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CheckDebugTraceMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CheckDebugTraceMultiError) AllErrors() []error { return m }
+
+// CheckDebugTraceValidationError is the validation error returned by
+// CheckDebugTrace.Validate if the designated constraints aren't met.
+type CheckDebugTraceValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CheckDebugTraceValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CheckDebugTraceValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CheckDebugTraceValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CheckDebugTraceValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CheckDebugTraceValidationError) ErrorName() string { return "CheckDebugTraceValidationError" }
+
+// Error satisfies the builtin error interface
+func (e CheckDebugTraceValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCheckDebugTrace.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CheckDebugTraceValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CheckDebugTraceValidationError{}

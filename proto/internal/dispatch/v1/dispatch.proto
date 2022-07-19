@@ -14,12 +14,19 @@ service DispatchService {
 }
 
 message DispatchCheckRequest {
+  enum DebugSetting {
+    NO_DEBUG = 0;
+    ENABLE_DEBUGGING = 1;
+  }
+
   ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
 
   core.v1.ObjectAndRelation resource_and_relation = 2
       [ (validate.rules).message.required = true ];
   core.v1.ObjectAndRelation subject = 3
       [ (validate.rules).message.required = true ];
+
+  DebugSetting debug = 4;
 }
 
 message DispatchCheckResponse {
@@ -117,7 +124,25 @@ message ResponseMeta {
   uint32 depth_required = 2;
   uint32 cached_dispatch_count = 3;
 
-  // LEGACY: To be removed
-  repeated core.v1.RelationReference lookup_excluded_direct = 4;
-  repeated core.v1.RelationReference lookup_excluded_ttu = 5;
+  reserved 4,5;
+
+  DebugInformation debug_info = 6;
+}
+
+message DebugInformation {
+  CheckDebugTrace check = 1;
+}
+
+message CheckDebugTrace {
+  enum RelationType {
+    UNKNOWN = 0;
+    RELATION = 1;
+    PERMISSION = 2;
+  }
+
+  DispatchCheckRequest request = 1;
+  RelationType resource_relation_type = 2;
+  bool has_permission = 3;
+  bool is_cached_result = 4;
+  repeated CheckDebugTrace sub_problems = 5;
 }

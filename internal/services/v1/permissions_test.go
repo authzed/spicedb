@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
@@ -27,6 +29,8 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	pgraph "github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -228,47 +232,121 @@ func TestCheckPermissions(t *testing.T) {
 
 	for _, delta := range testTimedeltas {
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
-			for _, tc := range testCases {
-				t.Run(fmt.Sprintf(
-					"%s:%s#%s@%s:%s#%s",
-					tc.resource.ObjectType,
-					tc.resource.ObjectId,
-					tc.permission,
-					tc.subject.Object.ObjectType,
-					tc.subject.Object.ObjectId,
-					tc.subject.OptionalRelation,
-				), func(t *testing.T) {
-					require := require.New(t)
-					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
-					client := v1.NewPermissionsServiceClient(conn)
-					t.Cleanup(cleanup)
+			for _, debug := range []bool{false, true} {
+				t.Run(fmt.Sprintf("debug%v", debug), func(t *testing.T) {
+					for _, tc := range testCases {
+						t.Run(fmt.Sprintf(
+							"%s:%s#%s@%s:%s#%s",
+							tc.resource.ObjectType,
+							tc.resource.ObjectId,
+							tc.permission,
+							tc.subject.Object.ObjectType,
+							tc.subject.Object.ObjectId,
+							tc.subject.OptionalRelation,
+						), func(t *testing.T) {
+							require := require.New(t)
+							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+							client := v1.NewPermissionsServiceClient(conn)
+							t.Cleanup(cleanup)
 
-					var trailer metadata.MD
-					checkResp, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
-						Consistency: &v1.Consistency{
-							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
-							},
-						},
-						Resource:   tc.resource,
-						Permission: tc.permission,
-						Subject:    tc.subject,
-					}, grpc.Trailer(&trailer))
+							ctx := context.Background()
+							if debug {
+								ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+							}
 
-					if tc.expectedStatus == codes.OK {
-						require.NoError(err)
-						require.Equal(tc.expected, checkResp.Permissionship)
+							var trailer metadata.MD
+							checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
+								Consistency: &v1.Consistency{
+									Requirement: &v1.Consistency_AtLeastAsFresh{
+										AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+									},
+								},
+								Resource:   tc.resource,
+								Permission: tc.permission,
+								Subject:    tc.subject,
+							}, grpc.Trailer(&trailer))
 
-						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
-						require.NoError(err)
-						require.GreaterOrEqual(dispatchCount, 0)
-					} else {
-						grpcutil.RequireStatus(t, tc.expectedStatus, err)
+							if tc.expectedStatus == codes.OK {
+								require.NoError(err)
+								require.Equal(tc.expected, checkResp.Permissionship)
+
+								dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+								require.NoError(err)
+								require.GreaterOrEqual(dispatchCount, 0)
+
+								encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
+								require.NoError(err)
+
+								if debug {
+									require.NotNil(encodedDebugInfo)
+
+									debugInfo := &v1.DebugInformation{}
+									err = protojson.Unmarshal([]byte(*encodedDebugInfo), debugInfo)
+									require.NoError(err)
+									require.NotNil(debugInfo.Check)
+									require.Equal(tuple.StringObjectRef(tc.resource), tuple.StringObjectRef(debugInfo.Check.Resource))
+									require.Equal(tc.permission, debugInfo.Check.Permission)
+									require.Equal(tuple.StringSubjectRef(tc.subject), tuple.StringSubjectRef(debugInfo.Check.Subject))
+								} else {
+									require.Nil(encodedDebugInfo)
+								}
+							} else {
+								grpcutil.RequireStatus(t, tc.expectedStatus, err)
+							}
+						})
 					}
 				})
 			}
 		})
 	}
+}
+
+func TestCheckPermissionWithDebugInfo(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(require, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	var trailer metadata.MD
+	checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		Resource:   obj("document", "masterplan"),
+		Permission: "view",
+		Subject:    sub("user", "auditor", ""),
+	}, grpc.Trailer(&trailer))
+
+	require.NoError(err)
+	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, checkResp.Permissionship)
+
+	encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
+	require.NoError(err)
+
+	require.NotNil(encodedDebugInfo)
+
+	debugInfo := &v1.DebugInformation{}
+	err = protojson.Unmarshal([]byte(*encodedDebugInfo), debugInfo)
+	require.NoError(err)
+
+	require.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), 1)
+	require.NotEmpty(debugInfo.SchemaUsed)
+
+	inputSchema := compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: debugInfo.SchemaUsed,
+	}
+
+	// Compile the schema into the namespace definitions.
+	emptyDefaultPrefix := ""
+	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
+	require.NoError(err, "Invalid schema: %s", debugInfo.SchemaUsed)
+	require.Equal(3, len(nsdefs))
 }
 
 func TestLookupResources(t *testing.T) {
