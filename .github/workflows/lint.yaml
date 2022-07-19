@@ -56,9 +56,6 @@ jobs:
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/yaml-lint@main"
-      - uses: "instrumenta/kubeval-action@5915e4adba5adccac07cb156b82e54c3fed74921"
-        with:
-          files: "examples/k8s"
       - uses: "authzed/actions/markdown-lint@main"
       - uses: "ludeeus/action-shellcheck@1.1.0"
         with:
