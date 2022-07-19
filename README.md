@@ -80,7 +80,7 @@ This has strategy has become an industry best-practice and is being used to grea
 
 [homebrew]: https://docs.authzed.com/spicedb/installing#brew
 [docker]: https://docs.authzed.com/spicedb/installing#docker
-[Kubernetes deployment]: https://github.com/authzed/spicedb/blob/main/k8s/example.yaml
+[Kubernetes deployment]: https://github.com/authzed/spicedb/blob/main/examples/k8s/example.yaml
 
 ### Developing your own schema
 
