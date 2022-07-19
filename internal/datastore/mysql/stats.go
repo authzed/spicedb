@@ -48,6 +48,20 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 		return datastore.Stats{}, err
 	}
 
+	if count == 0 {
+		// If we get a count of zero, its possible the information schema table has not yet
+		// been updated, so we use a slower count(*) call.
+		query, args, err := mds.QueryBuilder.CountTupleQuery.ToSql()
+		if err != nil {
+			return datastore.Stats{}, err
+		}
+		var count uint64
+		err = mds.db.QueryRowContext(ctx, query, args...).Scan(&count)
+		if err != nil {
+			return datastore.Stats{}, err
+		}
+	}
+
 	nsQuery := mds.ReadNamespaceQuery.Where(squirrel.Eq{colDeletedTxn: liveDeletedTxnID})
 
 	tx, err := mds.db.BeginTx(ctx, nil)

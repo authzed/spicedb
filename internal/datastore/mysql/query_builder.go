@@ -23,6 +23,7 @@ type QueryBuilder struct {
 	QueryTupleExistsQuery sq.SelectBuilder
 	WriteTupleQuery       sq.InsertBuilder
 	QueryChangedQuery     sq.SelectBuilder
+	CountTupleQuery       sq.SelectBuilder
 }
 
 // NewQueryBuilder returns a new QueryBuilder instance. The migration
@@ -47,6 +48,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder.QueryTupleExistsQuery = queryTupleExists(driver.RelationTuple())
 	builder.WriteTupleQuery = writeTuple(driver.RelationTuple())
 	builder.QueryChangedQuery = queryChanged(driver.RelationTuple())
+	builder.CountTupleQuery = countTuples(driver.RelationTuple())
 
 	return &builder
 }
@@ -93,6 +95,12 @@ func queryTuples(tableTuple string) sq.SelectBuilder {
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+	).From(tableTuple)
+}
+
+func countTuples(tableTuple string) sq.SelectBuilder {
+	return sb.Select(
+		"count(*)",
 	).From(tableTuple)
 }
 
