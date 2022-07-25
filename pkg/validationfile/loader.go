@@ -38,11 +38,7 @@ type PopulatedValidationFile struct {
 // PopulateFromFiles populates the given datastore with the namespaces and tuples found in
 // the validation file(s) specified.
 func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedValidationFile, decimal.Decimal, error) {
-	var revision decimal.Decimal
-	nsDefs := []*core.NamespaceDefinition{}
-	schema := ""
-	tuples := []*core.RelationTuple{}
-	files := []ValidationFile{}
+	contents := map[string][]byte{}
 
 	for _, filePath := range filePaths {
 		fileContents, err := os.ReadFile(filePath)
@@ -50,6 +46,22 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 			return nil, decimal.Zero, err
 		}
 
+		contents[filePath] = fileContents
+	}
+
+	return PopulateFromFilesContents(ds, contents)
+}
+
+// PopulateFromFilesContents populates the given datastore with the namespaces and tuples found in
+// the validation file(s) contents specified.
+func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string][]byte) (*PopulatedValidationFile, decimal.Decimal, error) {
+	var revision decimal.Decimal
+	nsDefs := []*core.NamespaceDefinition{}
+	schema := ""
+	tuples := []*core.RelationTuple{}
+	files := []ValidationFile{}
+
+	for filePath, fileContents := range filesContents {
 		parsed, err := DecodeValidationFile(fileContents)
 		if err != nil {
 			return nil, decimal.Zero, fmt.Errorf("error when parsing config file %s: %w", filePath, err)

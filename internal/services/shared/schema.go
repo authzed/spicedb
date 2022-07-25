@@ -32,7 +32,7 @@ func EnsureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 		return err
 	}
 
-	qy, qyErr = rwt.ReverseQueryRelationships(ctx, &v1.SubjectFilter{
+	qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 		SubjectType: namespaceName,
 	}, options.WithReverseLimit(options.LimitOne))
 	if err := ErrorIfTupleIteratorReturnsTuples(
@@ -81,10 +81,10 @@ func SanityCheckExistingRelationships(
 			}
 
 			// Also check for right sides of tuples.
-			qy, qyErr = rwt.ReverseQueryRelationships(ctx, &v1.SubjectFilter{
+			qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 				SubjectType: nsdef.Name,
-				OptionalRelation: &v1.SubjectFilter_RelationFilter{
-					Relation: delta.RelationName,
+				RelationFilter: datastore.SubjectRelationFilter{
+					NonEllipsisRelation: delta.RelationName,
 				},
 			}, options.WithReverseLimit(options.LimitOne))
 			err = ErrorIfTupleIteratorReturnsTuples(
@@ -99,9 +99,9 @@ func SanityCheckExistingRelationships(
 		case namespace.RelationDirectWildcardTypeRemoved:
 			qy, qyErr := rwt.ReverseQueryRelationships(
 				ctx,
-				&v1.SubjectFilter{
-					SubjectType:       delta.WildcardType,
-					OptionalSubjectId: tuple.PublicWildcard,
+				datastore.SubjectsFilter{
+					SubjectType: delta.WildcardType,
+					SubjectIds:  []string{tuple.PublicWildcard},
 				},
 				options.WithResRelation(&options.ResourceRelation{
 					Namespace: nsdef.Name,
@@ -122,10 +122,10 @@ func SanityCheckExistingRelationships(
 		case namespace.RelationDirectTypeRemoved:
 			qy, qyErr := rwt.ReverseQueryRelationships(
 				ctx,
-				&v1.SubjectFilter{
+				datastore.SubjectsFilter{
 					SubjectType: delta.DirectType.Namespace,
-					OptionalRelation: &v1.SubjectFilter_RelationFilter{
-						Relation: delta.DirectType.Relation,
+					RelationFilter: datastore.SubjectRelationFilter{
+						NonEllipsisRelation: delta.RelationName,
 					},
 				},
 				options.WithResRelation(&options.ResourceRelation{

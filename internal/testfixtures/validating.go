@@ -123,13 +123,9 @@ func (vsr validatingSnapshotReader) ReadNamespace(
 }
 
 func (vsr validatingSnapshotReader) ReverseQueryRelationships(ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	if err := subjectFilter.Validate(); err != nil {
-		return nil, err
-	}
-
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 	if queryOpts.ResRelation != nil {
 		if queryOpts.ResRelation.Namespace == "" {
@@ -140,7 +136,7 @@ func (vsr validatingSnapshotReader) ReverseQueryRelationships(ctx context.Contex
 		}
 	}
 
-	return vsr.delegate.ReverseQueryRelationships(ctx, subjectFilter, opts...)
+	return vsr.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
 type validatingReadWriteTransaction struct {

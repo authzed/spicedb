@@ -248,7 +248,7 @@ func (hp hedgingReader) QueryRelationships(
 
 func (hp hedgingReader) ReverseQueryRelationships(
 	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	return hp.executeQuery(ctx, func(c context.Context) (datastore.RelationshipIterator, error) {

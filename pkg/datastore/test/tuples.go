@@ -138,7 +138,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 				iter, err = dsReader.ReverseQueryRelationships(
 					ctx,
-					tuple.UsersetToSubjectFilter(tupleSubject),
+					onrToSubjectsFilter(tupleSubject),
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: tupleToFind.ResourceAndRelation.Namespace,
 						Relation:  tupleToFind.ResourceAndRelation.Relation,
@@ -149,7 +149,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 				iter, err = dsReader.ReverseQueryRelationships(
 					ctx,
-					tuple.UsersetToSubjectFilter(tupleSubject),
+					onrToSubjectsFilter(tupleSubject),
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: tupleToFind.ResourceAndRelation.Namespace,
 						Relation:  tupleToFind.ResourceAndRelation.Relation,
@@ -213,7 +213,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 				iter, err = dsReader.ReverseQueryRelationships(
 					ctx,
-					tuple.UsersetToSubjectFilter(incorrectUserset),
+					onrToSubjectsFilter(incorrectUserset),
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: tupleToFind.ResourceAndRelation.Namespace,
 						Relation:  tupleToFind.ResourceAndRelation.Relation,
@@ -242,7 +242,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire.VerifyIteratorResults(iter, testTuples[0])
 
 			// Check for larger reverse queries.
-			iter, err = dsReader.ReverseQueryRelationships(ctx, &v1.SubjectFilter{
+			iter, err = dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 				SubjectType: testUserNamespace,
 			})
 			require.NoError(err)
@@ -251,7 +251,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			// Check limit.
 			if len(testTuples) > 1 {
 				limit := uint64(len(testTuples) - 1)
-				iter, err := dsReader.ReverseQueryRelationships(ctx, &v1.SubjectFilter{
+				iter, err := dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 					SubjectType: testUserNamespace,
 				}, options.WithReverseLimit(&limit))
 				require.NoError(err)
@@ -693,4 +693,12 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.NoError(g.Wait())
 	require.Less(time.Since(startTime), 10*time.Second)
+}
+
+func onrToSubjectsFilter(onr *core.ObjectAndRelation) datastore.SubjectsFilter {
+	return datastore.SubjectsFilter{
+		SubjectType:    onr.Namespace,
+		SubjectIds:     []string{onr.ObjectId},
+		RelationFilter: datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(onr.Relation),
+	}
 }

@@ -80,10 +80,11 @@ message DispatchLookupResponse {
 message DispatchReachableResourcesRequest {
   ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
 
-  core.v1.RelationReference object_relation = 2
+  core.v1.RelationReference resource_relation = 2
       [ (validate.rules).message.required = true ];
-  core.v1.ObjectAndRelation subject = 3
+  core.v1.RelationReference subject_relation = 3
       [ (validate.rules).message.required = true ];
+  repeated string subject_ids = 4;
 }
 
 message ReachableResource {
@@ -101,9 +102,7 @@ message ReachableResource {
     HAS_PERMISSION = 1;
   }
 
-  core.v1.ObjectAndRelation resource = 1
-      [ (validate.rules).message.required = true ];
-
+  repeated string resource_ids = 1;
   ResultStatus result_status = 2;
 }
 

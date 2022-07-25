@@ -104,6 +104,72 @@ func (sqf SchemaQueryFilterer) FilterToRelation(relation string) SchemaQueryFilt
 	return sqf
 }
 
+// FilterWithSubjectsFilter returns a new SchemaQueryFilterer that is limited to resources with
+// subjects that match the specified filter.
+func (sqf SchemaQueryFilterer) FilterWithSubjectsFilter(filter datastore.SubjectsFilter) SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetNamespace: filter.SubjectType})
+	sqf.tracerAttributes = append(sqf.tracerAttributes, SubNamespaceNameKey.String(filter.SubjectType))
+
+	if len(filter.SubjectIds) == 1 {
+		subjectID := filter.SubjectIds[0]
+		sqf.tracerAttributes = append(sqf.tracerAttributes, SubObjectIDKey.String(subjectID))
+		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetObjectID: subjectID})
+	} else if len(filter.SubjectIds) > 1 {
+		// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
+		if len(filter.SubjectIds) > 100 {
+			panic("Cannot have more than 100 subject IDs in a single filter")
+		}
+
+		inClause := fmt.Sprintf("%s IN (", sqf.schema.ColUsersetObjectID)
+		args := make([]interface{}, 0, len(filter.SubjectIds))
+
+		for index, subjectID := range filter.SubjectIds {
+			if len(subjectID) == 0 {
+				panic("got empty subject id")
+			}
+
+			if index > 0 {
+				inClause += ", "
+			}
+
+			inClause += "?"
+
+			args = append(args, subjectID)
+			sqf.tracerAttributes = append(sqf.tracerAttributes, SubObjectIDKey.String(subjectID))
+		}
+
+		sqf.queryBuilder = sqf.queryBuilder.Where(inClause+")", args...)
+	}
+
+	if !filter.RelationFilter.IsEmpty() {
+		relations := make([]string, 0, 2)
+		if filter.RelationFilter.IncludeEllipsisRelation {
+			relations = append(relations, datastore.Ellipsis)
+		}
+
+		if filter.RelationFilter.NonEllipsisRelation != "" {
+			relations = append(relations, filter.RelationFilter.NonEllipsisRelation)
+		}
+
+		if len(relations) == 1 {
+			relName := relations[0]
+			sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(relName))
+			sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetRelation: relName})
+		} else {
+			orClause := sq.Or{}
+			for _, relationName := range relations {
+				dsRelationName := stringz.DefaultEmpty(relationName, datastore.Ellipsis)
+				orClause = append(orClause, sq.Eq{sqf.schema.ColUsersetRelation: dsRelationName})
+				sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(dsRelationName))
+			}
+
+			sqf.queryBuilder = sqf.queryBuilder.Where(orClause)
+		}
+	}
+
+	return sqf
+}
+
 // FilterToSubjectFilter returns a new SchemaQueryFilterer that is limited to resources with
 // subjects that match the specified filter.
 func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) SchemaQueryFilterer {

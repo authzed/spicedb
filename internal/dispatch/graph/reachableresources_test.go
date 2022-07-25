@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,7 +11,10 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/testfixtures"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -141,8 +145,12 @@ func TestSimpleReachableResources(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-				ObjectRelation: tc.start,
-				Subject:        tc.target,
+				ResourceRelation: tc.start,
+				SubjectRelation: &core.RelationReference{
+					Namespace: tc.target.Namespace,
+					Relation:  tc.target.Relation,
+				},
+				SubjectIds: []string{tc.target.ObjectId},
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -151,10 +159,16 @@ func TestSimpleReachableResources(t *testing.T) {
 
 			results := []reachableResource{}
 			for _, streamResult := range stream.Results() {
-				results = append(results, reachableResource{
-					tuple.StringONR(streamResult.Resource.Resource),
-					streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
-				})
+				for _, rid := range streamResult.Resource.ResourceIds {
+					results = append(results, reachableResource{
+						tuple.StringONR(&core.ObjectAndRelation{
+							Namespace: tc.start.Namespace,
+							ObjectId:  rid,
+							Relation:  tc.start.Relation,
+						}),
+						streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
+					})
+				}
 			}
 			sort.Sort(byONR(results))
 			sort.Sort(byONR(tc.reachable))
@@ -172,8 +186,9 @@ func TestMaxDepthreachableResources(t *testing.T) {
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 	err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ObjectRelation: RR("document", "view"),
-		Subject:        ONR("user", "legal", "..."),
+		ResourceRelation: RR("document", "view"),
+		SubjectRelation:  RR("user", "..."),
+		SubjectIds:       []string{"legal"},
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
@@ -190,3 +205,82 @@ func (a byONR) Less(i, j int) bool {
 	return strings.Compare(a[i].onr, a[j].onr) < 0
 }
 func (a byONR) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func BenchmarkReachableResources(b *testing.B) {
+	testCases := []struct {
+		start  *core.RelationReference
+		target *core.ObjectAndRelation
+	}{
+		{
+			RR("document", "view"),
+			ONR("user", "legal", "..."),
+		},
+		{
+			RR("document", "view"),
+			ONR("user", "multiroleguy", "..."),
+		},
+		{
+			RR("document", "view_and_edit"),
+			ONR("user", "multiroleguy", "..."),
+		},
+		{
+			RR("document", "view"),
+			ONR("user", "owner", "..."),
+		},
+		{
+			RR("folder", "view"),
+			ONR("user", "owner", "..."),
+		},
+	}
+
+	for _, tc := range testCases {
+		name := fmt.Sprintf(
+			"%s#%s->%s",
+			tc.start.Namespace,
+			tc.start.Relation,
+			tuple.StringONR(tc.target),
+		)
+
+		require := require.New(b)
+		rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+		require.NoError(err)
+
+		ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+		dispatcher := NewLocalOnlyDispatcher()
+
+		ctx := datastoremw.ContextWithHandle(context.Background())
+		require.NoError(datastoremw.SetInContext(ctx, ds))
+
+		b.Run(name, func(t *testing.B) {
+			for n := 0; n < b.N; n++ {
+				stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
+				err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+					ResourceRelation: tc.start,
+					SubjectRelation: &core.RelationReference{
+						Namespace: tc.target.Namespace,
+						Relation:  tc.target.Relation,
+					},
+					SubjectIds: []string{tc.target.ObjectId},
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     revision.String(),
+						DepthRemaining: 50,
+					},
+				}, stream)
+				require.NoError(err)
+
+				results := []*core.ObjectAndRelation{}
+				for _, streamResult := range stream.Results() {
+					for _, rid := range streamResult.Resource.ResourceIds {
+						results = append(results, &core.ObjectAndRelation{
+							Namespace: tc.start.Namespace,
+							ObjectId:  rid,
+							Relation:  tc.start.Relation,
+						})
+					}
+				}
+				require.GreaterOrEqual(len(results), 0)
+			}
+		})
+	}
+}

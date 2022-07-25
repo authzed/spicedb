@@ -54,6 +54,7 @@ func (r *memdbReader) QueryRelationships(
 		filter.OptionalResourceId,
 		filter.OptionalRelation,
 		filter.OptionalSubjectFilter,
+		nil,
 		queryOpts.Usersets,
 	)
 	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
@@ -75,7 +76,7 @@ func (r *memdbReader) QueryRelationships(
 // ReverseQueryRelationships reads relationships starting from the subject.
 func (r *memdbReader) ReverseQueryRelationships(
 	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
 	if r.initErr != nil {
@@ -92,31 +93,11 @@ func (r *memdbReader) ReverseQueryRelationships(
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 
-	var bestIterator memdb.ResultIterator
-	if queryOpts.ResRelation != nil {
-		bestIterator, err = tx.Get(
-			tableRelationship,
-			indexSubjectAndResourceRelation,
-			subjectFilter.SubjectType,
-			queryOpts.ResRelation.Namespace,
-			queryOpts.ResRelation.Relation,
-		)
-	} else if subjectFilter.OptionalSubjectId != "" && subjectFilter.OptionalRelation != nil {
-		bestIterator, err = tx.Get(
-			tableRelationship,
-			indexFullSubject,
-			subjectFilter.SubjectType,
-			subjectFilter.OptionalSubjectId,
-			stringz.DefaultEmpty(subjectFilter.OptionalRelation.Relation, datastore.Ellipsis),
-		)
-	} else {
-		bestIterator, err = tx.Get(
-			tableRelationship,
-			indexSubjectNamespace,
-			subjectFilter.SubjectType,
-		)
-	}
-
+	iterator, err := tx.Get(
+		tableRelationship,
+		indexSubjectNamespace,
+		subjectsFilter.SubjectType,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -131,10 +112,11 @@ func (r *memdbReader) ReverseQueryRelationships(
 		filterObjectType,
 		"",
 		filterRelation,
-		subjectFilter,
+		nil,
+		&subjectsFilter,
 		nil,
 	)
-	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
+	filteredIterator := memdb.NewFilterIterator(iterator, matchingRelationshipsFilterFunc)
 
 	iter := &memdbTupleIterator{
 		it:    filteredIterator,
@@ -259,7 +241,8 @@ func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.Res
 }
 
 func filterFuncForFilters(optionalObjectType, optionalObjectID, optionalRelation string,
-	optionalSubjectFilter *v1.SubjectFilter, usersets []*core.ObjectAndRelation,
+	optionalSubjectFilter *v1.SubjectFilter, optionalSubjectsFilter *datastore.SubjectsFilter,
+	usersets []*core.ObjectAndRelation,
 ) memdb.FilterFunc {
 	return func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*relationship)
@@ -280,6 +263,26 @@ func filterFuncForFilters(optionalObjectType, optionalObjectID, optionalRelation
 			case optionalSubjectFilter.OptionalSubjectId != "" && optionalSubjectFilter.OptionalSubjectId != tuple.subjectObjectID:
 				return true
 			case optionalSubjectFilter.OptionalRelation != nil && stringz.DefaultEmpty(optionalSubjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
+				return true
+			}
+		}
+
+		if optionalSubjectsFilter != nil {
+			relations := make([]string, 0, 2)
+			if optionalSubjectsFilter.RelationFilter.IncludeEllipsisRelation {
+				relations = append(relations, datastore.Ellipsis)
+			}
+
+			if optionalSubjectsFilter.RelationFilter.NonEllipsisRelation != "" {
+				relations = append(relations, optionalSubjectsFilter.RelationFilter.NonEllipsisRelation)
+			}
+
+			switch {
+			case optionalSubjectsFilter.SubjectType != tuple.subjectNamespace:
+				return true
+			case len(optionalSubjectsFilter.SubjectIds) > 0 && !stringz.SliceContains(optionalSubjectsFilter.SubjectIds, tuple.subjectObjectID):
+				return true
+			case len(relations) > 0 && !stringz.SliceContains(relations, tuple.subjectRelation):
 				return true
 			}
 		}

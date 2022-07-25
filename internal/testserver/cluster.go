@@ -17,6 +17,7 @@ import (
 
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	hashbalancer "github.com/authzed/spicedb/pkg/balancer"
+	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -136,6 +137,11 @@ func (r *SafeManualResolver) Close() {}
 // TestClusterWithDispatch creates a cluster with `size` nodes
 // The cluster has a real dispatch stack that uses bufconn grpc connections
 func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore) ([]*grpc.ClientConn, func()) {
+	return TestClusterWithDispatchAndCacheConfig(t, size, ds, true)
+}
+
+// TestClusterWithDispatchAndCacheConfig creates a cluster with `size` nodes and with cache toggled.
+func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore.Datastore, cacheEnabled bool) ([]*grpc.ClientConn, func()) {
 	// each cluster gets a unique prefix since grpc resolution is process-global
 	prefix := getPrefix(t)
 
@@ -154,8 +160,8 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore) ([
 	cancelFuncs := make([]func(), 0, size)
 
 	for i := uint(0); i < size; i++ {
-		dispatcher, err := combineddispatch.NewDispatcher(
-			combineddispatch.UpstreamAddr("test://"+prefix),
+		dispatcherOptions := []combineddispatch.Option{
+			combineddispatch.UpstreamAddr("test://" + prefix),
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithDefaultServiceConfig(hashbalancer.BalancerServiceConfig),
@@ -173,10 +179,19 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore) ([
 					return dialers[i](ctx, s)
 				}),
 			),
+		}
+		if !cacheEnabled {
+			dispatcherOptions = append(dispatcherOptions, combineddispatch.CacheConfig(&cache.Config{
+				Disabled: true,
+			}))
+		}
+
+		dispatcher, err := combineddispatch.NewDispatcher(
+			dispatcherOptions...,
 		)
 		require.NoError(t, err)
 
-		srv, err := server.NewConfigWithOptions(
+		serverOptions := []server.ConfigOption{
 			server.WithDatastore(ds),
 			server.WithDispatcher(dispatcher),
 			server.WithDispatchMaxDepth(50),
@@ -196,6 +211,19 @@ func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore) ([
 				Network: util.BufferedNetwork,
 			}),
 			server.WithDispatchClusterMetricsPrefix(fmt.Sprintf("%s_%d_dispatch", prefix, i)),
+		}
+		if !cacheEnabled {
+			serverOptions = append(serverOptions, server.WithDispatchCacheConfig(server.CacheConfig{
+				Disabled: true,
+			}))
+
+			serverOptions = append(serverOptions, server.WithClusterDispatchCacheConfig(server.CacheConfig{
+				Disabled: true,
+			}))
+		}
+
+		srv, err := server.NewConfigWithOptions(
+			serverOptions...,
 		).Complete()
 		require.NoError(t, err)
 

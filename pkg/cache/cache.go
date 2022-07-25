@@ -37,6 +37,9 @@ type Config struct {
 	// only set this flag to true when testing or throughput performance isn't a
 	// major factor.
 	Metrics bool
+
+	// Disabled, if specified, completely disables the cache.
+	Disabled bool
 }
 
 // Cache defines an interface for a generic cache.
@@ -70,4 +73,29 @@ type Metrics interface {
 
 	// CostEvicted returns the total cost of evicted items.
 	CostEvicted() uint64
+}
+
+// NoopCache returns an implementation of the cache interface that does nothing.
+func NoopCache() Cache {
+	return &noopCache{}
+}
+
+type noopCache struct{}
+
+func (no *noopCache) Get(key interface{}) (interface{}, bool) {
+	return nil, false
+}
+
+func (no *noopCache) Set(key interface{}, entry interface{}, cost int64) bool {
+	return false
+}
+
+func (no *noopCache) Wait() {
+}
+
+func (no *noopCache) Close() {
+}
+
+func (no *noopCache) GetMetrics() Metrics {
+	return nil
 }
