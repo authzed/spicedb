@@ -291,6 +291,8 @@ func (c *Config) Complete() (RunnableServer, error) {
 	reporter := telemetry.DisabledReporter
 	if c.SilentlyDisableTelemetry {
 		reporter = telemetry.SilentlyDisabledReporter
+	} else if c.TelemetryEndpoint != "" && c.DatastoreConfig.DisableStats {
+		reporter = telemetry.DisabledReporter
 	} else if c.TelemetryEndpoint != "" && registry != nil {
 		var err error
 		reporter, err = telemetry.RemoteReporter(

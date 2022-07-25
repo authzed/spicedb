@@ -29,6 +29,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.SplitQueryCount = c.SplitQueryCount
 		to.ReadOnly = c.ReadOnly
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
+		to.DisableStats = c.DisableStats
 		to.BootstrapFiles = c.BootstrapFiles
 		to.BootstrapOverwrite = c.BootstrapOverwrite
 		to.RequestHedgingEnabled = c.RequestHedgingEnabled
@@ -138,6 +139,13 @@ func WithReadOnly(readOnly bool) ConfigOption {
 func WithEnableDatastoreMetrics(enableDatastoreMetrics bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableDatastoreMetrics = enableDatastoreMetrics
+	}
+}
+
+// WithDisableStats returns an option that can set DisableStats on a Config
+func WithDisableStats(disableStats bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableStats = disableStats
 	}
 }
 

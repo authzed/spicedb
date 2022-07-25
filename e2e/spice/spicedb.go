@@ -85,6 +85,7 @@ func (s *Node) Start(ctx context.Context, logprefix string, args ...string) erro
 		fmt.Sprintf("--dispatch-cluster-addr=:%d", s.DispatchPort),
 		fmt.Sprintf("--metrics-addr=:%d", s.MetricsPort),
 		fmt.Sprintf("--dashboard-addr=:%d", s.DashboardPort),
+		"--datastore-disable-stats=true",
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
