@@ -20,6 +20,7 @@ type crdbOptions struct {
 	splitAtUsersetCount         uint16
 	overlapStrategy             string
 	overlapKey                  string
+	disableStats                bool
 }
 
 const (
@@ -55,6 +56,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		maxRetries:                  defaultMaxRetries,
 		overlapKey:                  defaultOverlapKey,
 		overlapStrategy:             defaultOverlapStrategy,
+		disableStats:                false,
 	}
 
 	for _, option := range options {
@@ -195,5 +197,12 @@ func OverlapStrategy(strategy string) Option {
 func OverlapKey(key string) Option {
 	return func(po *crdbOptions) {
 		po.overlapKey = key
+	}
+}
+
+// DisableStats disables recording counts to the stats table
+func DisableStats(disable bool) Option {
+	return func(po *crdbOptions) {
+		po.disableStats = disable
 	}
 }

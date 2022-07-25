@@ -53,6 +53,7 @@ type Config struct {
 	SplitQueryCount        uint16
 	ReadOnly               bool
 	EnableDatastoreMetrics bool
+	DisableStats           bool
 
 	// Bootstrap
 	BootstrapFiles     []string
@@ -117,6 +118,12 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.SpannerEmulatorHost, "datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-mysql-table-prefix", "", "prefix to add to the name of all SpiceDB database tables")
 
+	// disabling stats is only for tests
+	cmd.Flags().BoolVar(&opts.DisableStats, "datastore-disable-stats", false, "disable recording relationship counts to the stats table")
+	if err := cmd.Flags().MarkHidden("datastore-disable-stats"); err != nil {
+		panic("failed to mark flag hidden: " + err.Error())
+	}
+
 	cmd.Flags().DurationVar(&opts.LegacyFuzzing, "datastore-revision-fuzzing-duration", -1, "amount of time to advertize stale revisions")
 	if err := cmd.Flags().MarkDeprecated("datastore-revision-fuzzing-duration", "please use datastore-revision-quantization-interval instead"); err != nil {
 		panic("failed to mark flag deprecated: " + err.Error())
@@ -139,6 +146,7 @@ func DefaultDatastoreConfig() *Config {
 		GCMaxOperationTime:     1 * time.Minute,
 		WatchBufferLength:      128,
 		EnableDatastoreMetrics: true,
+		DisableStats:           false,
 	}
 }
 
@@ -223,6 +231,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),
+		crdb.DisableStats(opts.DisableStats),
 	)
 }
 

@@ -143,6 +143,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		keyer,
 		config.splitAtUsersetCount,
 		executeWithMaxRetries(config.maxRetries),
+		config.disableStats,
 	}
 
 	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
@@ -159,6 +160,7 @@ type crdbDatastore struct {
 	writeOverlapKeyer overlapKeyer
 	usersetBatchSize  uint16
 	execute           executeTxRetryFunc
+	disableStats      bool
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
@@ -236,6 +238,15 @@ func (cds *crdbDatastore) ReadWriteTx(
 				if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
 					return fmt.Errorf("error writing overlapping keys: %w", err)
 				}
+			}
+
+			if cds.disableStats {
+				var err error
+				commitTimestamp, err = readCRDBNow(ctx, tx)
+				if err != nil {
+					return fmt.Errorf("error getting commit timestamp: %w", err)
+				}
+				return nil
 			}
 
 			var err error
