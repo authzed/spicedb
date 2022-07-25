@@ -23,6 +23,7 @@ type Node struct {
 	Httpaddr  string
 	ID        string
 	MaxOffset time.Duration
+	Region    string
 	Cancel    context.CancelFunc
 	// only available after Start()
 	pid  int
@@ -45,6 +46,7 @@ func (c *Node) Start(ctx context.Context) error {
 		"--http-addr=" + c.Httpaddr,
 		"--join=" + strings.Join(c.Peers, ","),
 		"--max-offset=" + c.MaxOffset.String(),
+		"--locality=region=" + c.Region,
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -129,6 +131,7 @@ func NewCluster(n int) Cluster {
 			Addr:      addr,
 			Httpaddr:  net.JoinHostPort("localhost", strconv.Itoa(http+i)),
 			MaxOffset: 5 * time.Second,
+			Region:    fmt.Sprintf("region-%d", i),
 		})
 	}
 	for i := range cs {

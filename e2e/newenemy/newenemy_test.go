@@ -1,14 +1,19 @@
 package newenemy
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -83,7 +88,7 @@ func TestMain(m *testing.M) {
 
 const (
 	createDb       = "CREATE DATABASE %s;"
-	setSmallRanges = "ALTER DATABASE %s CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1, gc.ttlseconds = 10;"
+	setSmallRanges = "ALTER DATABASE %s CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1, num_voters = 1, gc.ttlseconds = 10;"
 	dbName         = "spicedbnetest"
 )
 
@@ -105,9 +110,32 @@ func initializeTestCRDBCluster(ctx context.Context, t testing.TB) cockroach.Clus
 	crdbCluster.Init(ctx, tlog, tlog)
 	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
 		"SET CLUSTER SETTING kv.range.backpressure_range_size_multiplier=0;",
+		"SET CLUSTER SETTING sql.defaults.override_multi_region_zone_config.enabled=true;",
 	))
 	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
 		fmt.Sprintf(createDb, dbName),
+	))
+
+	// request a trial license
+	var clusterIdResp bytes.Buffer
+	require.NoError(crdbCluster.SQL(ctx, bufio.NewWriter(&clusterIdResp), tlog, "SELECT crdb_internal.cluster_id()"))
+	clusterId := strings.TrimSpace(strings.TrimPrefix(clusterIdResp.String(), "crdb_internal.cluster_id"))
+	t.Log(clusterId)
+	resp, err := http.Get(fmt.Sprintf("https://register.cockroachdb.com/api/license?kind=demo&clusterid=%s", url.QueryEscape(clusterId)))
+	require.NoError(err)
+	licenseBytes, err := ioutil.ReadAll(resp.Body)
+	require.NoError(err)
+	t.Log(string(licenseBytes))
+	require.Equal(http.StatusOK, resp.StatusCode)
+
+	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
+		fmt.Sprintf(`SET CLUSTER SETTING cluster.organization = "authzed-testing";`),
+	))
+	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
+		fmt.Sprintf(`SET CLUSTER SETTING  enterprise.license = "%s";`, string(licenseBytes)),
+	))
+	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
+		fmt.Sprintf(`ALTER DATABASE %s SET PRIMARY REGION "%s";`, dbName, crdbCluster[0].Region),
 	))
 
 	t.Log("migrating...")
