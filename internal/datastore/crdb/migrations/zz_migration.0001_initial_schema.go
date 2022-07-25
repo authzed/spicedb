@@ -30,17 +30,12 @@ const (
 
 	insertEmptyVersion = `INSERT INTO schema_version (version_num) VALUES ('');`
 
-	enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
-
 	createReverseQueryIndex = `CREATE INDEX ix_relation_tuple_by_subject ON relation_tuple (userset_object_id, userset_namespace, userset_relation, namespace, relation)`
 	createReverseCheckIndex = `CREATE INDEX ix_relation_tuple_by_subject_relation ON relation_tuple (userset_namespace, userset_relation, namespace, relation)`
 )
 
 func init() {
-	if err := CRDBMigrations.Register("initial", "", func(ctx context.Context, conn *pgx.Conn) error {
-		_, err := conn.Exec(ctx, enableRangefeeds)
-		return err
-	}, func(ctx context.Context, tx pgx.Tx) error {
+	if err := CRDBMigrations.Register("initial", "", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
 		statements := []string{
 			createNamespaceConfig,
 			createRelationTuple,
