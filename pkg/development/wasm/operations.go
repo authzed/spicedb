@@ -84,21 +84,31 @@ func runOperation(devContext *development.DevContext, op js.Value) error {
 		validation, devErr := development.ParseExpectedRelationsYAML(params.ValidationYaml)
 		if devErr != nil {
 			encoded, err := encodeDevError(devErr)
-			callback.Invoke(encoded, err)
+			callback.Invoke(nil, encoded, err)
 			return nil
 		}
 
-		_, devErrs, err := development.RunValidation(devContext, validation)
+		membershipSet, devErrs, err := development.RunValidation(devContext, validation)
+
+		updatedValidationYaml := ""
+		if membershipSet != nil {
+			generatedValidationYaml, gerr := development.GenerateValidation(membershipSet)
+			if gerr != nil {
+				return gerr
+			}
+			updatedValidationYaml = generatedValidationYaml
+		}
+
 		if err != nil {
-			callback.Invoke(nil, err.Error())
+			callback.Invoke(updatedValidationYaml, nil, err.Error())
 			return nil
 		} else if devErrs != nil {
 			encoded, err := encodeDevErrors(devErrs)
-			callback.Invoke(encoded, err)
+			callback.Invoke(updatedValidationYaml, encoded, err)
 			return nil
 		}
 
-		callback.Invoke(nil, nil)
+		callback.Invoke(updatedValidationYaml, nil, nil)
 	default:
 		return fmt.Errorf("unknown operation: `%v`", operation)
 	}
