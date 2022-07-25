@@ -35,7 +35,6 @@ var DocumentNS = ns.Namespace(
 		ns.AllowedRelation("user", "..."),
 	),
 	ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
-	ns.Relation("lock", nil),
 	ns.Relation("edit",
 		ns.Union(
 			ns.ComputedUserset("owner"),

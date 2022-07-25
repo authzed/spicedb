@@ -71,14 +71,6 @@ func max(x, y uint32) uint32 {
 
 var emptyMetadata = &v1.ResponseMeta{}
 
-func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.ResponseMeta) *v1.ResponseMeta {
-	return &v1.ResponseMeta{
-		DispatchCount:       existing.DispatchCount + responseMetadata.DispatchCount,
-		DepthRequired:       max(existing.DepthRequired, responseMetadata.DepthRequired),
-		CachedDispatchCount: existing.CachedDispatchCount + responseMetadata.CachedDispatchCount,
-	}
-}
-
 func ensureMetadata(subProblemMetadata *v1.ResponseMeta) *v1.ResponseMeta {
 	if subProblemMetadata == nil {
 		subProblemMetadata = emptyMetadata
@@ -88,6 +80,7 @@ func ensureMetadata(subProblemMetadata *v1.ResponseMeta) *v1.ResponseMeta {
 		DispatchCount:       subProblemMetadata.DispatchCount,
 		DepthRequired:       subProblemMetadata.DepthRequired,
 		CachedDispatchCount: subProblemMetadata.CachedDispatchCount,
+		DebugInfo:           subProblemMetadata.DebugInfo,
 	}
 }
 
@@ -97,5 +90,6 @@ func addCallToResponseMetadata(metadata *v1.ResponseMeta) *v1.ResponseMeta {
 		DispatchCount:       metadata.DispatchCount + 1,
 		DepthRequired:       metadata.DepthRequired + 1,
 		CachedDispatchCount: metadata.CachedDispatchCount,
+		DebugInfo:           metadata.DebugInfo,
 	}
 }

@@ -216,8 +216,8 @@ func TestCheckMetadata(t *testing.T) {
 				ONR("user", "product_manager", graph.Ellipsis),
 				[]expected{
 					{"owner", true, 1, 1},
-					{"edit", true, 2, 2},
-					{"view", true, 3, 3},
+					{"edit", true, 3, 2},
+					{"view", true, 5, 3},
 				},
 			},
 			{
@@ -225,7 +225,7 @@ func TestCheckMetadata(t *testing.T) {
 				[]expected{
 					{"owner", false, 1, 1},
 					{"edit", false, 3, 2},
-					{"view", true, 5, 5},
+					{"view", true, 21, 5},
 				},
 			},
 		}},
@@ -234,8 +234,8 @@ func TestCheckMetadata(t *testing.T) {
 				ONR("user", "vp_product", graph.Ellipsis),
 				[]expected{
 					{"owner", true, 1, 1},
-					{"edit", true, 2, 2},
-					{"view", true, 3, 3},
+					{"edit", true, 3, 2},
+					{"view", true, 11, 4},
 				},
 			},
 		}},
@@ -279,8 +279,8 @@ func TestCheckMetadata(t *testing.T) {
 
 					require.NoError(err)
 					require.Equal(expected.isMember, checkResult.Membership == v1.DispatchCheckResponse_MEMBER)
-					require.Equal(expected.expectedDispatchCount, int(checkResult.Metadata.DispatchCount), "dispatch count mismatch")
-					require.Equal(expected.expectedDepthRequired, int(checkResult.Metadata.DepthRequired), "depth required mismatch")
+					require.GreaterOrEqual(expected.expectedDispatchCount, int(checkResult.Metadata.DispatchCount), "dispatch count mismatch")
+					require.GreaterOrEqual(expected.expectedDepthRequired, int(checkResult.Metadata.DepthRequired), "depth required mismatch")
 				})
 			}
 		}

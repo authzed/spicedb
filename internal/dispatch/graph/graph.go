@@ -112,7 +112,25 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 
 	err := dispatch.CheckDepth(ctx, req)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		if req.Debug != v1.DispatchCheckRequest_ENABLE_DEBUGGING {
+			return &v1.DispatchCheckResponse{
+				Metadata: &v1.ResponseMeta{
+					DispatchCount: 0,
+				},
+			}, err
+		}
+
+		// NOTE: we return debug information here to ensure tooling can see the cycle.
+		return &v1.DispatchCheckResponse{
+			Metadata: &v1.ResponseMeta{
+				DispatchCount: 0,
+				DebugInfo: &v1.DebugInformation{
+					Check: &v1.CheckDebugTrace{
+						Request: req,
+					},
+				},
+			},
+		}, err
 	}
 
 	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
@@ -150,6 +168,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 				},
 				Subject:  req.Subject,
 				Metadata: req.Metadata,
+				Debug:    req.Debug,
 			},
 			Revision: revision,
 		}

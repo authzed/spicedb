@@ -9,12 +9,13 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	nspkg "github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -62,6 +63,28 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 
 	resolved := union(ctx, []ReduceableCheckFunc{directFunc})
 	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
+	if req.Debug != v1.DispatchCheckRequest_ENABLE_DEBUGGING {
+		return resolved.Resp, resolved.Err
+	}
+
+	// Add debug information if requested.
+	debugInfo := resolved.Resp.Metadata.DebugInfo
+	if debugInfo == nil {
+		debugInfo = &v1.DebugInformation{
+			Check: &v1.CheckDebugTrace{},
+		}
+	}
+
+	debugInfo.Check.Request = req.DispatchCheckRequest
+
+	if nspkg.GetRelationKind(relation) == iv1.RelationMetadata_PERMISSION {
+		debugInfo.Check.ResourceRelationType = v1.CheckDebugTrace_PERMISSION
+	} else if nspkg.GetRelationKind(relation) == iv1.RelationMetadata_RELATION {
+		debugInfo.Check.ResourceRelationType = v1.CheckDebugTrace_RELATION
+	}
+
+	debugInfo.Check.HasPermission = resolved.Resp.Membership == v1.DispatchCheckResponse_MEMBER
+	resolved.Resp.Metadata.DebugInfo = debugInfo
 	return resolved.Resp, resolved.Err
 }
 
@@ -108,6 +131,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 						Subject:             req.Subject,
 
 						Metadata: decrementDepth(req.Metadata),
+						Debug:    req.Debug,
 					},
 					req.Revision,
 				}))
@@ -201,6 +225,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, req Valid
 			ResourceAndRelation: targetOnr,
 			Subject:             req.Subject,
 			Metadata:            decrementDepth(req.Metadata),
+			Debug:               req.Debug,
 		},
 		req.Revision,
 	})
@@ -312,10 +337,11 @@ func union(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
 
 			if result.Err == nil && result.Resp.Membership == v1.DispatchCheckResponse_MEMBER {
-				return checkResult(v1.DispatchCheckResponse_MEMBER, result.Resp.Metadata)
+				return checkResult(v1.DispatchCheckResponse_MEMBER, responseMetadata)
 			}
+
 			if result.Err != nil {
-				return checkResultError(result.Err, result.Resp.Metadata)
+				return checkResultError(result.Err, responseMetadata)
 			}
 		case <-ctx.Done():
 			log.Ctx(ctx).Trace().Msg("anyCanceled")
@@ -389,4 +415,32 @@ func checkResultError(err error, subProblemMetadata *v1.ResponseMeta) CheckResul
 		},
 		err,
 	}
+}
+
+func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.ResponseMeta) *v1.ResponseMeta {
+	combined := &v1.ResponseMeta{
+		DispatchCount:       existing.DispatchCount + responseMetadata.DispatchCount,
+		DepthRequired:       max(existing.DepthRequired, responseMetadata.DepthRequired),
+		CachedDispatchCount: existing.CachedDispatchCount + responseMetadata.CachedDispatchCount,
+	}
+
+	if responseMetadata.DebugInfo == nil {
+		return combined
+	}
+
+	debugInfo := existing.DebugInfo
+	if debugInfo == nil {
+		debugInfo = &v1.DebugInformation{
+			Check: &v1.CheckDebugTrace{},
+		}
+	}
+
+	if responseMetadata.DebugInfo.Check.Request != nil {
+		debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.DebugInfo.Check)
+	} else {
+		debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.DebugInfo.Check.SubProblems...)
+	}
+
+	combined.DebugInfo = debugInfo
+	return combined
 }

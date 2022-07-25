@@ -4,10 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/authzed-go/pkg/requestmeta"
+
+	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -45,6 +51,13 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, rewritePermissionsError(ctx, err)
 	}
 
+	debugging := dispatch.DispatchCheckRequest_NO_DEBUG
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if _, isDebuggingEnabled := md[string(requestmeta.RequestDebugInformation)]; isDebuggingEnabled {
+			debugging = dispatch.DispatchCheckRequest_ENABLE_DEBUGGING
+		}
+	}
+
 	cr, err := ps.dispatch.DispatchCheck(ctx, &dispatch.DispatchCheckRequest{
 		Metadata: &dispatch.ResolverMeta{
 			AtRevision:     atRevision.String(),
@@ -60,8 +73,31 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			ObjectId:  req.Subject.Object.ObjectId,
 			Relation:  normalizeSubjectRelation(req.Subject),
 		},
+		Debug: debugging,
 	})
 	usagemetrics.SetInContext(ctx, cr.Metadata)
+
+	if debugging == dispatch.DispatchCheckRequest_ENABLE_DEBUGGING && cr.Metadata.DebugInfo != nil {
+		// Convert the dispatch debug information into API debug information and marshal into
+		// the footer.
+		converted, cerr := dispatchpkg.ConvertDispatchDebugInformation(ctx, cr.Metadata, ds)
+		if cerr != nil {
+			return nil, rewritePermissionsError(ctx, cerr)
+		}
+
+		marshaled, merr := protojson.Marshal(converted)
+		if merr != nil {
+			return nil, rewritePermissionsError(ctx, merr)
+		}
+
+		serr := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
+			responsemeta.DebugInformation: string(marshaled),
+		})
+		if serr != nil {
+			return nil, rewritePermissionsError(ctx, serr)
+		}
+	}
+
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)
 	}
