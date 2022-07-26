@@ -109,11 +109,11 @@ func (dm *MockReader) QueryRelationships(
 
 func (dm *MockReader) ReverseQueryRelationships(
 	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectsFilter datastore.SubjectsFilter,
 	options ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
 	callArgs := make([]interface{}, 0, len(options)+1)
-	callArgs = append(callArgs, subjectFilter)
+	callArgs = append(callArgs, subjectsFilter)
 	for _, option := range options {
 		callArgs = append(callArgs, option)
 	}
@@ -172,11 +172,11 @@ func (dm *MockReadWriteTransaction) QueryRelationships(
 
 func (dm *MockReadWriteTransaction) ReverseQueryRelationships(
 	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectsFilter datastore.SubjectsFilter,
 	options ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
 	callArgs := make([]interface{}, 0, len(options)+1)
-	callArgs = append(callArgs, subjectFilter)
+	callArgs = append(callArgs, subjectsFilter)
 	for _, option := range options {
 		callArgs = append(callArgs, option)
 	}

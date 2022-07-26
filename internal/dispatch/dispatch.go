@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -121,5 +122,13 @@ func ExpandRequestToKey(req *v1.DispatchExpandRequest) string {
 
 // ReachableResourcesRequestToKey converts a reachable resources request into a cache key
 func ReachableResourcesRequestToKey(req *v1.DispatchReachableResourcesRequest) string {
-	return fmt.Sprintf("%s//%s#%s@%s@%s", reachableResourcesPrefix, req.ObjectRelation.Namespace, req.ObjectRelation.Relation, tuple.StringONR(req.Subject), req.Metadata.AtRevision)
+	return fmt.Sprintf("%s//%s#%s@%s#%s:[%s]@%s",
+		reachableResourcesPrefix,
+		req.ResourceRelation.Namespace,
+		req.ResourceRelation.Relation,
+		req.SubjectRelation.Namespace,
+		req.SubjectRelation.Relation,
+		strings.Join(req.SubjectIds, ","),
+		req.Metadata.AtRevision,
+	)
 }

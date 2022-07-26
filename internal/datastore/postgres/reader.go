@@ -78,11 +78,11 @@ func (r *pgReader) QueryRelationships(
 
 func (r *pgReader) ReverseQueryRelationships(
 	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).
-		FilterToSubjectFilter(subjectFilter)
+		FilterWithSubjectsFilter(subjectsFilter)
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 

@@ -75,12 +75,12 @@ func (mr *mysqlReader) QueryRelationships(
 
 func (mr *mysqlReader) ReverseQueryRelationships(
 	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	qBuilder := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).
-		FilterToSubjectFilter(subjectFilter)
+		FilterWithSubjectsFilter(subjectsFilter)
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 

@@ -144,11 +144,11 @@ func (cr *crdbReader) QueryRelationships(
 
 func (cr *crdbReader) ReverseQueryRelationships(
 	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
-		FilterToSubjectFilter(subjectFilter)
+		FilterWithSubjectsFilter(subjectsFilter)
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 

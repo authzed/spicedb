@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/scylladb/go-set/strset"
 	"github.com/shopspring/decimal"
 	"golang.org/x/sync/errgroup"
 
@@ -18,6 +17,8 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+var dispatchChunkSizes = []int{5, 10, 25, 50, 100}
 
 // NewConcurrentReachableResources creates an instance of ConcurrentReachableResources.
 func NewConcurrentReachableResources(d dispatch.ReachableResources) *ConcurrentReachableResources {
@@ -54,12 +55,16 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	ctx := stream.Context()
 	dispatched := &syncONRSet{}
 
+	if len(req.SubjectIds) == 0 {
+		return fmt.Errorf("no subjects ids given to reachable resources dispatch")
+	}
+
 	// If the resource type matches the subject type, yield directly.
-	if req.Subject.Namespace == req.ObjectRelation.Namespace &&
-		req.Subject.Relation == req.ObjectRelation.Relation {
+	if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
+		req.SubjectRelation.Relation == req.ResourceRelation.Relation {
 		err := stream.Publish(&v1.DispatchReachableResourcesResponse{
 			Resource: &v1.ReachableResource{
-				Resource:     req.Subject,
+				ResourceIds:  req.SubjectIds,
 				ResultStatus: v1.ReachableResource_HAS_PERMISSION,
 			},
 			Metadata: emptyMetadata,
@@ -72,16 +77,16 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
 	ds := datastoremw.MustFromContext(ctx)
 	reader := ds.SnapshotReader(req.Revision)
-	_, typeSystem, err := namespace.ReadNamespaceAndTypes(ctx, req.ObjectRelation.Namespace, reader)
+	_, typeSystem, err := namespace.ReadNamespaceAndTypes(ctx, req.ResourceRelation.Namespace, reader)
 	if err != nil {
 		return err
 	}
 
 	rg := namespace.ReachabilityGraphFor(typeSystem.AsValidated())
 	entrypoints, err := rg.OptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
-		Namespace: req.Subject.Namespace,
-		Relation:  req.Subject.Relation,
-	}, req.ObjectRelation)
+		Namespace: req.SubjectRelation.Namespace,
+		Relation:  req.SubjectRelation.Relation,
+	}, req.ResourceRelation)
 	if err != nil {
 		return err
 	}
@@ -102,75 +107,20 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 
 		case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
 			containingRelation := entrypoint.ContainingRelationOrPermission()
-			rewrittenSubjectTpl := &core.ObjectAndRelation{
+			rewrittenSubjectRelation := &core.RelationReference{
 				Namespace: containingRelation.Namespace,
-				ObjectId:  req.Subject.ObjectId,
 				Relation:  containingRelation.Relation,
 			}
 
-			err := crr.redispatchOrReport(subCtx, rewrittenSubjectTpl, rg, g, entrypoint, stream, req, dispatched)
+			err := crr.redispatchOrReport(subCtx, rewrittenSubjectRelation, req.SubjectIds, rg, g, entrypoint, stream, req, dispatched)
 			if err != nil {
 				return err
 			}
 
 		case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
-			containingRelation := entrypoint.ContainingRelationOrPermission()
-
-			_, ttuTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
+			err := crr.lookupTTUEntrypoint(subCtx, entrypoint, rg, g, reader, req, stream, dispatched)
 			if err != nil {
 				return err
-			}
-
-			tuplesetRelation := entrypoint.TuplesetRelation()
-
-			// Search for the resolved subject in the tupleset of the TTU. Note that we need to do so
-			// for both `...` as well as the subject's defined relation, as either is applicable in
-			// the tupleset (the relation is ignored when following the arrow).
-			relations := strset.New(tuple.Ellipsis, req.Subject.Relation)
-
-			for _, subjectRelation := range relations.List() {
-				isAllowed, err := ttuTypeSystem.IsAllowedDirectRelation(tuplesetRelation, req.Subject.Namespace, subjectRelation)
-				if err != nil {
-					return err
-				}
-
-				if isAllowed != namespace.DirectRelationValid {
-					continue
-				}
-
-				it, err := reader.ReverseQueryRelationships(
-					ctx,
-					tuple.UsersetToSubjectFilter(&core.ObjectAndRelation{
-						Namespace: req.Subject.Namespace,
-						ObjectId:  req.Subject.ObjectId,
-						Relation:  subjectRelation,
-					}),
-					options.WithResRelation(&options.ResourceRelation{
-						Namespace: containingRelation.Namespace,
-						Relation:  tuplesetRelation,
-					}),
-				)
-				if err != nil {
-					return err
-				}
-				defer it.Close()
-
-				for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-					if it.Err() != nil {
-						return it.Err()
-					}
-
-					rewrittenObjectTpl := &core.ObjectAndRelation{
-						Namespace: containingRelation.Namespace,
-						ObjectId:  tpl.ResourceAndRelation.ObjectId,
-						Relation:  containingRelation.Relation,
-					}
-
-					err := crr.redispatchOrReport(subCtx, rewrittenObjectTpl, rg, g, entrypoint, stream, req, dispatched)
-					if err != nil {
-						return err
-					}
-				}
 			}
 
 		default:
@@ -196,26 +146,46 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 		return err
 	}
 
-	isDirectAllowed, err := relTypeSystem.IsAllowedDirectRelation(relationReference.Relation, req.Subject.Namespace, req.Subject.Relation)
+	// Build the list of subjects to lookup based on the type information available.
+	isDirectAllowed, err := relTypeSystem.IsAllowedDirectRelation(
+		relationReference.Relation,
+		req.SubjectRelation.Namespace,
+		req.SubjectRelation.Relation,
+	)
 	if err != nil {
 		return err
 	}
 
-	isWildcardAllowed, err := relTypeSystem.IsAllowedPublicNamespace(relationReference.Relation, req.Subject.Namespace)
-	if err != nil {
-		return err
+	subjectIds := make([]string, 0, len(req.SubjectIds)+1)
+	if isDirectAllowed == namespace.DirectRelationValid {
+		subjectIds = append(subjectIds, req.SubjectIds...)
 	}
 
-	// TODO(jschorr): Combine these into a single query once the datastore supports a direct or wildcard
-	// query option (which should also be used for check).
-	collectResults := func(objectId string) error {
+	if req.SubjectRelation.Relation == tuple.Ellipsis {
+		isWildcardAllowed, err := relTypeSystem.IsAllowedPublicNamespace(relationReference.Relation, req.SubjectRelation.Namespace)
+		if err != nil {
+			return err
+		}
+
+		if isWildcardAllowed == namespace.PublicSubjectAllowed {
+			subjectIds = append(subjectIds, "*")
+		}
+	}
+
+	// Lookup the subjects and then redispatch/report results.
+	subjectsFilter := datastore.SubjectsFilter{
+		SubjectType: req.SubjectRelation.Namespace,
+		RelationFilter: datastore.SubjectRelationFilter{
+			NonEllipsisRelation: req.SubjectRelation.Relation,
+		},
+		SubjectIds: subjectIds,
+	}
+
+	// Fire off a query lookup in parallel.
+	g.Go(func() error {
 		it, err := reader.ReverseQueryRelationships(
 			ctx,
-			tuple.UsersetToSubjectFilter(&core.ObjectAndRelation{
-				Namespace: req.Subject.Namespace,
-				ObjectId:  objectId,
-				Relation:  req.Subject.Relation,
-			}),
+			subjectsFilter,
 			options.WithResRelation(&options.ResourceRelation{
 				Namespace: relationReference.Namespace,
 				Relation:  relationReference.Relation,
@@ -226,30 +196,122 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 		}
 		defer it.Close()
 
-		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+		return crr.chunkedRedispatch(it, func(resourceIdsFound []string) error {
+			return crr.redispatchOrReport(ctx, &core.RelationReference{
+				Namespace: relationReference.Namespace,
+				Relation:  relationReference.Relation,
+			}, resourceIdsFound, rg, g, entrypoint, stream, req, dispatched)
+		})
+	})
+
+	return nil
+}
+
+func min(a, b int) int {
+	if b < a {
+		return b
+	}
+	return a
+}
+
+func (crr *ConcurrentReachableResources) chunkedRedispatch(it datastore.RelationshipIterator, handler func(resourceIdsFound []string) error) error {
+	for chunkIndex := 0; /* until done with all relationships */ true; chunkIndex++ {
+		chunkSize := dispatchChunkSizes[min(chunkIndex, len(dispatchChunkSizes)-1)]
+		resourceIdsFound := make([]string, 0, chunkSize)
+		for i := 0; i < chunkSize; i++ {
+			tpl := it.Next()
 			if it.Err() != nil {
 				return it.Err()
 			}
 
-			err := crr.redispatchOrReport(ctx, tpl.ResourceAndRelation, rg, g, entrypoint, stream, req, dispatched)
-			if err != nil {
-				return err
+			if tpl == nil {
+				break
 			}
+
+			resourceIdsFound = append(resourceIdsFound, tpl.ResourceAndRelation.ObjectId)
 		}
+
+		if len(resourceIdsFound) == 0 {
+			return nil
+		}
+
+		err := handler(resourceIdsFound)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context,
+	entrypoint namespace.ReachabilityEntrypoint,
+	rg *namespace.ReachabilityGraph,
+	g *errgroup.Group,
+	reader datastore.Reader,
+	req ValidatedReachableResourcesRequest,
+	stream dispatch.ReachableResourcesStream,
+	dispatched *syncONRSet,
+) error {
+	containingRelation := entrypoint.ContainingRelationOrPermission()
+
+	_, ttuTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
+	if err != nil {
+		return err
+	}
+
+	tuplesetRelation := entrypoint.TuplesetRelation()
+
+	// Determine the subject relation(s) for which to search. Note that we need to do so
+	// for both `...` as well as the subject's defined relation, as either is applicable in
+	// the tupleset (the relation is ignored when following the arrow).
+	relationFilter := datastore.SubjectRelationFilter{}
+
+	isEllipsisAllowed, err := ttuTypeSystem.IsAllowedDirectRelation(tuplesetRelation, req.SubjectRelation.Namespace, tuple.Ellipsis)
+	if err != nil {
+		return err
+	}
+	if isEllipsisAllowed == namespace.DirectRelationValid {
+		relationFilter = relationFilter.WithEllipsisRelation()
+	}
+
+	isDirectAllowed, err := ttuTypeSystem.IsAllowedDirectRelation(tuplesetRelation, req.SubjectRelation.Namespace, req.SubjectRelation.Relation)
+	if err != nil {
+		return err
+	}
+	if isDirectAllowed == namespace.DirectRelationValid {
+		relationFilter = relationFilter.WithNonEllipsisRelation(req.SubjectRelation.Relation)
+	}
+
+	if relationFilter.IsEmpty() {
 		return nil
 	}
 
-	if isDirectAllowed == namespace.DirectRelationValid {
-		g.Go(func() error {
-			return collectResults(req.Subject.ObjectId)
-		})
+	// Search for the resolved subjects in the tupleset of the TTU.
+	subjectsFilter := datastore.SubjectsFilter{
+		SubjectType:    req.SubjectRelation.Namespace,
+		RelationFilter: relationFilter,
+		SubjectIds:     req.SubjectIds,
 	}
 
-	if isWildcardAllowed == namespace.PublicSubjectAllowed {
-		g.Go(func() error {
-			return collectResults(tuple.PublicWildcard)
+	// Fire off a query lookup in parallel.
+	g.Go(func() error {
+		it, err := reader.ReverseQueryRelationships(
+			ctx,
+			subjectsFilter,
+			options.WithResRelation(&options.ResourceRelation{
+				Namespace: containingRelation.Namespace,
+				Relation:  tuplesetRelation,
+			}),
+		)
+		if err != nil {
+			return err
+		}
+		defer it.Close()
+
+		return crr.chunkedRedispatch(it, func(resourceIdsFound []string) error {
+			return crr.redispatchOrReport(ctx, containingRelation, resourceIdsFound, rg, g, entrypoint, stream, req, dispatched)
 		})
-	}
+	})
 
 	return nil
 }
@@ -259,7 +321,8 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 // the resource is reported to the parent stream.
 func (crr *ConcurrentReachableResources) redispatchOrReport(
 	ctx context.Context,
-	foundResource *core.ObjectAndRelation,
+	foundResourceType *core.RelationReference,
+	foundResourceIds []string,
 	rg *namespace.ReachabilityGraph,
 	g *errgroup.Group,
 	entrypoint namespace.ReachabilityEntrypoint,
@@ -267,17 +330,29 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 	parentRequest ValidatedReachableResourcesRequest,
 	dispatched *syncONRSet,
 ) error {
+	toDispatchResourceIds := make([]string, 0, len(foundResourceIds))
+
 	// Skip redispatching or checking for any resources already reported by this
 	// pass.
-	if !dispatched.Add(foundResource) {
+	for _, resourceID := range foundResourceIds {
+		if !dispatched.Add(&core.ObjectAndRelation{
+			Namespace: foundResourceType.Namespace,
+			ObjectId:  resourceID,
+			Relation:  foundResourceType.Relation,
+		}) {
+			continue
+		}
+
+		toDispatchResourceIds = append(toDispatchResourceIds, resourceID)
+	}
+
+	if len(toDispatchResourceIds) == 0 {
+		// Nothing more to do.
 		return nil
 	}
 
 	// Check for entrypoints for the new found resource type.
-	hasResourceEntrypoints, err := rg.HasOptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
-		Namespace: foundResource.Namespace,
-		Relation:  foundResource.Relation,
-	}, parentRequest.ObjectRelation)
+	hasResourceEntrypoints, err := rg.HasOptimizedEntrypointsForSubjectToResource(ctx, foundResourceType, parentRequest.ResourceRelation)
 	if err != nil {
 		return err
 	}
@@ -285,8 +360,8 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 	// If there are no entrypoints, then no further dispatch is necessary.
 	if !hasResourceEntrypoints {
 		// If the found resource matches the target resource type and relation, yield the resource.
-		if foundResource.Namespace == parentRequest.ObjectRelation.Namespace &&
-			foundResource.Relation == parentRequest.ObjectRelation.Relation {
+		if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace &&
+			foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
 			status := v1.ReachableResource_REQUIRES_CHECK
 			if entrypoint.IsDirectResult() {
 				status = v1.ReachableResource_HAS_PERMISSION
@@ -294,7 +369,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 
 			return parentStream.Publish(&v1.DispatchReachableResourcesResponse{
 				Resource: &v1.ReachableResource{
-					Resource:     foundResource,
+					ResourceIds:  toDispatchResourceIds,
 					ResultStatus: status,
 				},
 				Metadata: emptyMetadata,
@@ -320,7 +395,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 
 				return &v1.DispatchReachableResourcesResponse{
 					Resource: &v1.ReachableResource{
-						Resource:     result.Resource.Resource,
+						ResourceIds:  result.Resource.ResourceIds,
 						ResultStatus: status,
 					},
 					Metadata: addCallToResponseMetadata(result.Metadata),
@@ -329,8 +404,9 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 		}
 
 		return crr.d.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-			ObjectRelation: parentRequest.ObjectRelation,
-			Subject:        foundResource,
+			ResourceRelation: parentRequest.ResourceRelation,
+			SubjectRelation:  foundResourceType,
+			SubjectIds:       toDispatchResourceIds,
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     parentRequest.Revision.String(),
 				DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,

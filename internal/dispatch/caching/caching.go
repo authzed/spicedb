@@ -23,7 +23,7 @@ const (
 	prometheusNamespace = "spicedb"
 )
 
-// Dispatcher is a dispatcher with built-in caching.
+// Dispatcher is a dispatcher with cacheInst-in caching.
 type Dispatcher struct {
 	d          dispatch.Dispatcher
 	c          cache.Cache
@@ -78,9 +78,15 @@ func NewCachingDispatcher(
 		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching dispatcher")
 	}
 
-	cache, err := cache.NewCache(cacheConfig)
-	if err != nil {
-		return nil, fmt.Errorf(errCachingInitialization, err)
+	var cacheInst cache.Cache
+	if cacheConfig.Disabled {
+		cacheInst = cache.NoopCache()
+	} else {
+		c, err := cache.NewCache(cacheConfig)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
+		cacheInst = c
 	}
 
 	checkTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
@@ -121,14 +127,14 @@ func NewCachingDispatcher(
 		Subsystem: prometheusSubsystem,
 		Name:      "cache_hits_total",
 	}, func() float64 {
-		return float64(cache.GetMetrics().Hits())
+		return float64(cacheInst.GetMetrics().Hits())
 	})
 	cacheMissesTotal := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
 		Name:      "cache_misses_total",
 	}, func() float64 {
-		return float64(cache.GetMetrics().Misses())
+		return float64(cacheInst.GetMetrics().Misses())
 	})
 
 	costAddedBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -136,7 +142,7 @@ func NewCachingDispatcher(
 		Subsystem: prometheusSubsystem,
 		Name:      "cost_added_bytes",
 	}, func() float64 {
-		return float64(cache.GetMetrics().CostAdded())
+		return float64(cacheInst.GetMetrics().CostAdded())
 	})
 
 	costEvictedBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -144,11 +150,11 @@ func NewCachingDispatcher(
 		Subsystem: prometheusSubsystem,
 		Name:      "cost_evicted_bytes",
 	}, func() float64 {
-		return float64(cache.GetMetrics().CostEvicted())
+		return float64(cacheInst.GetMetrics().CostEvicted())
 	})
 
 	if prometheusSubsystem != "" {
-		err = prometheus.Register(checkTotalCounter)
+		err := prometheus.Register(checkTotalCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
@@ -198,7 +204,7 @@ func NewCachingDispatcher(
 
 	return &Dispatcher{
 		d:                                  fakeDelegate{},
-		c:                                  cache,
+		c:                                  cacheInst,
 		keyHandler:                         keyHandler,
 		checkTotalCounter:                  checkTotalCounter,
 		checkFromCacheCounter:              checkFromCacheCounter,
@@ -347,7 +353,10 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 			adjustedResult.Metadata.DebugInfo = nil
 
 			toCacheResults = append(toCacheResults, adjustedResult)
-			estimatedSize += int64(len(result.Resource.Resource.Namespace) + len(result.Resource.Resource.ObjectId) + len(result.Resource.Resource.Relation))
+
+			for _, id := range result.Resource.ResourceIds {
+				estimatedSize += int64(len(id))
+			}
 			return result, nil
 		},
 	}
