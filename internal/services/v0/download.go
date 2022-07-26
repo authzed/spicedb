@@ -3,6 +3,7 @@ package v0
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
@@ -14,8 +15,9 @@ func NewHTTPDownloadServer(addr string, shareStore ShareStore) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc(downloadPath, downloadHandler(shareStore))
 	return &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 }
 

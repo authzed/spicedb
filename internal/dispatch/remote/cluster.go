@@ -134,10 +134,10 @@ func (cr *clusterDispatcher) IsReady() bool {
 // Always verify that we implement the interface
 var _ dispatch.Dispatcher = &clusterDispatcher{}
 
-var emptyMetadata *v1.ResponseMeta = &v1.ResponseMeta{
+var emptyMetadata = &v1.ResponseMeta{
 	DispatchCount: 0,
 }
 
-var requestFailureMetadata *v1.ResponseMeta = &v1.ResponseMeta{
+var requestFailureMetadata = &v1.ResponseMeta{
 	DispatchCount: 1,
 }
