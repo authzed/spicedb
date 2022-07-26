@@ -15,18 +15,17 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const MaxConcurrentSlowLookupChecks = 10
-
 // NewConcurrentLookup creates and instance of ConcurrentLookup.
-func NewConcurrentLookup(c dispatch.Check, r dispatch.ReachableResources) *ConcurrentLookup {
-	return &ConcurrentLookup{c: c, r: r}
+func NewConcurrentLookup(c dispatch.Check, r dispatch.ReachableResources, concurrencyLimit uint16) *ConcurrentLookup {
+	return &ConcurrentLookup{c, r, concurrencyLimit}
 }
 
 // ConcurrentLookup exposes a method to perform Lookup requests, and delegates subproblems to the
 // provided dispatch.Lookup instance.
 type ConcurrentLookup struct {
-	c dispatch.Check
-	r dispatch.ReachableResources
+	c                dispatch.Check
+	r                dispatch.ReachableResources
+	concurrencyLimit uint16
 }
 
 // ValidatedLookupRequest represents a request after it has been validated and parsed for internal
@@ -95,7 +94,7 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	cancelCtx, checkCancel := context.WithCancel(ctx)
 	defer checkCancel()
 
-	checker := NewParallelChecker(cancelCtx, cl.c, req.Subject, 10)
+	checker := NewParallelChecker(cancelCtx, cl.c, req.Subject, cl.concurrencyLimit)
 	stream := &collectingStream{checker, req, cancelCtx, 0, 0, 0, sync.Mutex{}}
 
 	// Start the checker.

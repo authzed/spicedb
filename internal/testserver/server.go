@@ -30,7 +30,7 @@ func NewTestServer(require *require.Assertions,
 	ds, revision := dsInitFunc(emptyDS, require)
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher()),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10)),
 		server.WithDispatchMaxDepth(50),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,

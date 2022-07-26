@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
@@ -20,14 +21,15 @@ import (
 )
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
-func NewConcurrentChecker(d dispatch.Check) *ConcurrentChecker {
-	return &ConcurrentChecker{d: d}
+func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16) *ConcurrentChecker {
+	return &ConcurrentChecker{d, concurrencyLimit}
 }
 
 // ConcurrentChecker exposes a method to perform Check requests, and delegates subproblems to the
 // provided dispatch.Check instance.
 type ConcurrentChecker struct {
-	d dispatch.Check
+	d                dispatch.Check
+	concurrencyLimit uint16
 }
 
 func onrEqual(lhs, rhs *core.ObjectAndRelation) bool {
@@ -61,7 +63,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 		}
 	}
 
-	resolved := union(ctx, []ReduceableCheckFunc{directFunc})
+	resolved := union(ctx, []ReduceableCheckFunc{directFunc}, cc.concurrencyLimit)
 	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
 	if req.Debug != v1.DispatchCheckRequest_ENABLE_DEBUGGING {
 		return resolved.Resp, resolved.Err
@@ -141,7 +143,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 			resultChan <- checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
 			return
 		}
-		resultChan <- union(ctx, requestsToDispatch)
+		resultChan <- union(ctx, requestsToDispatch, cc.concurrencyLimit)
 	}
 }
 
@@ -178,7 +180,7 @@ func (cc *ConcurrentChecker) checkSetOperation(ctx context.Context, req Validate
 	}
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("setOperation", req).Stringer("operation", so).Send()
-		resultChan <- reducer(ctx, requests)
+		resultChan <- reducer(ctx, requests, cc.concurrencyLimit)
 	}
 }
 
@@ -255,12 +257,12 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req Valida
 			return
 		}
 
-		resultChan <- union(ctx, requestsToDispatch)
+		resultChan <- union(ctx, requestsToDispatch, cc.concurrencyLimit)
 	}
 }
 
 // all returns whether all of the lazy checks pass, and is used for intersection.
-func all(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
+func all(ctx context.Context, requests []ReduceableCheckFunc, concurrencyLimit uint16) CheckResult {
 	if len(requests) == 0 {
 		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, emptyMetadata)
 	}
@@ -268,11 +270,14 @@ func all(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 	responseMetadata := emptyMetadata
 	resultChan := make(chan CheckResult, len(requests))
 	childCtx, cancelFn := context.WithCancel(ctx)
-	defer cancelFn()
 
-	for _, req := range requests {
-		go req(childCtx, resultChan)
-	}
+	cleanupFunc := dispatchAllAsync(childCtx, requests, resultChan, concurrencyLimit)
+
+	defer func() {
+		cancelFn()
+		cleanupFunc()
+		close(resultChan)
+	}()
 
 	for i := 0; i < len(requests); i++ {
 		select {
@@ -315,18 +320,21 @@ func notMember() ReduceableCheckFunc {
 }
 
 // union returns whether any one of the lazy checks pass, and is used for union.
-func union(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
+func union(ctx context.Context, requests []ReduceableCheckFunc, concurrencyLimit uint16) CheckResult {
 	if len(requests) == 0 {
 		return checkResult(v1.DispatchCheckResponse_NOT_MEMBER, emptyMetadata)
 	}
 
 	resultChan := make(chan CheckResult, len(requests))
 	childCtx, cancelFn := context.WithCancel(ctx)
-	defer cancelFn()
 
-	for _, req := range requests {
-		go req(childCtx, resultChan)
-	}
+	dispatcherCleanup := dispatchAllAsync(childCtx, requests, resultChan, concurrencyLimit)
+
+	defer func() {
+		cancelFn()
+		dispatcherCleanup()
+		close(resultChan)
+	}()
 
 	responseMetadata := emptyMetadata
 
@@ -353,17 +361,28 @@ func union(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
 }
 
 // difference returns whether the first lazy check passes and none of the supsequent checks pass.
-func difference(ctx context.Context, requests []ReduceableCheckFunc) CheckResult {
+func difference(ctx context.Context, requests []ReduceableCheckFunc, concurrencyLimit uint16) CheckResult {
 	childCtx, cancelFn := context.WithCancel(ctx)
-	defer cancelFn()
 
 	baseChan := make(chan CheckResult, 1)
 	othersChan := make(chan CheckResult, len(requests)-1)
 
-	go requests[0](childCtx, baseChan)
-	for _, req := range requests[1:] {
-		go req(childCtx, othersChan)
-	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		requests[0](childCtx, baseChan)
+		wg.Done()
+	}()
+
+	cleanupFunc := dispatchAllAsync(childCtx, requests[1:], othersChan, concurrencyLimit-1)
+
+	defer func() {
+		cancelFn()
+		cleanupFunc()
+		close(othersChan)
+		wg.Wait()
+		close(baseChan)
+	}()
 
 	responseMetadata := emptyMetadata
 
@@ -443,4 +462,39 @@ func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.Res
 
 	combined.DebugInfo = debugInfo
 	return combined
+}
+
+func dispatchAllAsync(
+	ctx context.Context,
+	requests []ReduceableCheckFunc,
+	resultChan chan<- CheckResult,
+	concurrencyLimit uint16,
+) func() {
+	sem := make(chan struct{}, concurrencyLimit)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+	dispatcher:
+		for _, req := range requests {
+			req := req
+			select {
+			case sem <- struct{}{}:
+				wg.Add(1)
+				go func() {
+					req(ctx, resultChan)
+					<-sem
+					wg.Done()
+				}()
+			case <-ctx.Done():
+				break dispatcher
+			}
+		}
+		wg.Done()
+	}()
+
+	return func() {
+		wg.Wait()
+		close(sem)
+	}
 }

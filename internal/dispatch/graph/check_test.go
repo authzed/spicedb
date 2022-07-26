@@ -178,7 +178,7 @@ func TestMaxDepth(t *testing.T) {
 	require.NoError(err)
 	require.True(revision.GreaterThan(decimal.Zero))
 
-	dispatch := NewLocalOnlyDispatcher()
+	dispatch := NewLocalOnlyDispatcher(10)
 
 	checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceAndRelation: ONR("folder", "oops", "owner"),
@@ -293,7 +293,7 @@ func newLocalDispatcher(require *require.Assertions) (context.Context, dispatch.
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	dispatch := NewLocalOnlyDispatcher()
+	dispatch := NewLocalOnlyDispatcher(10)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(nil, "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)

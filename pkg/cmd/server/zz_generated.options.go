@@ -41,6 +41,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
 		to.DispatchMaxDepth = c.DispatchMaxDepth
+		to.DispatchConcurrencyLimit = c.DispatchConcurrencyLimit
 		to.DispatchUpstreamAddr = c.DispatchUpstreamAddr
 		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
 		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
@@ -193,6 +194,13 @@ func WithDispatchServer(dispatchServer util.GRPCServerConfig) ConfigOption {
 func WithDispatchMaxDepth(dispatchMaxDepth uint32) ConfigOption {
 	return func(c *Config) {
 		c.DispatchMaxDepth = dispatchMaxDepth
+	}
+}
+
+// WithDispatchConcurrencyLimit returns an option that can set DispatchConcurrencyLimit on a Config
+func WithDispatchConcurrencyLimit(dispatchConcurrencyLimit uint16) ConfigOption {
+	return func(c *Config) {
+		c.DispatchConcurrencyLimit = dispatchConcurrencyLimit
 	}
 }
 

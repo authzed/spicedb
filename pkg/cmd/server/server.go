@@ -64,6 +64,7 @@ type Config struct {
 	// Dispatch options
 	DispatchServer               util.GRPCServerConfig
 	DispatchMaxDepth             uint32
+	DispatchConcurrencyLimit     uint16
 	DispatchUpstreamAddr         string
 	DispatchUpstreamCAPath       string
 	DispatchClientMetricsPrefix  string
@@ -162,6 +163,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 			),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
 			combineddispatch.CacheConfig(cc),
+			combineddispatch.ConcurrencyLimit(c.DispatchConcurrencyLimit),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)

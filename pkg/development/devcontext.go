@@ -112,7 +112,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		Datastore:  ds,
 		Namespaces: namespaces,
 		Revision:   currentRevision,
-		Dispatcher: graph.NewLocalOnlyDispatcher(),
+		Dispatcher: graph.NewLocalOnlyDispatcher(10),
 	}, nil, nil
 }
 
