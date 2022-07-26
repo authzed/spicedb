@@ -30,7 +30,7 @@ func NewLocalOnlyDispatcher(concurrencyLimit uint16) dispatch.Dispatcher {
 	d.checker = graph.NewConcurrentChecker(d, concurrencyLimit)
 	d.expander = graph.NewConcurrentExpander(d)
 	d.lookupHandler = graph.NewConcurrentLookup(d, d, concurrencyLimit)
-	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d)
+	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, concurrencyLimit)
 
 	return d
 }
@@ -41,7 +41,7 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimit uint16) di
 	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimit)
 	expander := graph.NewConcurrentExpander(redispatcher)
 	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, concurrencyLimit)
-	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher)
+	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher, concurrencyLimit)
 
 	return &localDispatcher{
 		checker:                   checker,
@@ -304,6 +304,6 @@ func rewriteError(original error) error {
 	}
 }
 
-var emptyMetadata *v1.ResponseMeta = &v1.ResponseMeta{
+var emptyMetadata = &v1.ResponseMeta{
 	DispatchCount: 0,
 }
