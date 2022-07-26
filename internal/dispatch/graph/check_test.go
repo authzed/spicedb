@@ -169,7 +169,7 @@ func TestMaxDepth(t *testing.T) {
 		},
 	}}
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -299,7 +299,7 @@ func newLocalDispatcher(require *require.Assertions) (context.Context, dispatch.
 	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(err)
 
-	ctx := datastoremw.ContextWithHandle(context.Background())
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	return ctx, cachingDispatcher, revision
