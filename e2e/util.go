@@ -8,7 +8,6 @@ import (
 // TLogger wraps a testing.TB and makes it conform to io.Writer
 type TLogger struct {
 	testing.TB
-	skip int
 }
 
 // Write satisfied io.Writer

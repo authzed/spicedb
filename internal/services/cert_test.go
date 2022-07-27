@@ -112,7 +112,7 @@ func TestCertRotation(t *testing.T) {
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require.New(t))
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher()),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(1)),
 		server.WithDispatchMaxDepth(50),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network:      util.BufferedNetwork,

@@ -33,7 +33,7 @@ type LookupResult struct {
 type ReduceableCheckFunc func(ctx context.Context, resultChan chan<- CheckResult)
 
 // Reducer is a type for the functions Any and All which combine check results.
-type Reducer func(ctx context.Context, requests []ReduceableCheckFunc) CheckResult
+type Reducer func(ctx context.Context, requests []ReduceableCheckFunc, concurrencyLimit uint16) CheckResult
 
 // AlwaysFail is a ReduceableCheckFunc which will always fail when reduced.
 func AlwaysFail(ctx context.Context, resultChan chan<- CheckResult) {

@@ -21,14 +21,15 @@ import (
 var dispatchChunkSizes = []int{5, 10, 25, 50, 100}
 
 // NewConcurrentReachableResources creates an instance of ConcurrentReachableResources.
-func NewConcurrentReachableResources(d dispatch.ReachableResources) *ConcurrentReachableResources {
-	return &ConcurrentReachableResources{d: d}
+func NewConcurrentReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16) *ConcurrentReachableResources {
+	return &ConcurrentReachableResources{d, concurrencyLimit}
 }
 
 // ConcurrentReachableResources exposes a method to perform ReachableResources requests, and
 // delegates subproblems to the provided dispatch.ReachableResources instance.
 type ConcurrentReachableResources struct {
-	d dispatch.ReachableResources
+	d                dispatch.ReachableResources
+	concurrencyLimit uint16
 }
 
 // ValidatedReachableResourcesRequest represents a request after it has been validated and parsed for internal
@@ -95,6 +96,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	defer checkCancel()
 
 	g, subCtx := errgroup.WithContext(cancelCtx)
+	g.SetLimit(int(crr.concurrencyLimit))
 
 	// For each entrypoint, load the necessary data and re-dispatch if a subproblem was found.
 	for _, entrypoint := range entrypoints {

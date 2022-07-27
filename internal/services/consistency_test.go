@@ -98,12 +98,12 @@ func TestConsistency(t *testing.T) {
 							}
 
 							// Run the consistency tests for each service.
-							dispatcher := graph.NewLocalOnlyDispatcher()
+							dispatcher := graph.NewLocalOnlyDispatcher(10)
 							if dispatcherKind == "caching" {
 								cachingDispatcher, err := caching.NewCachingDispatcher(nil, "", &keys.CanonicalKeyHandler{})
 								lrequire.NoError(err)
 
-								localDispatcher := graph.NewDispatcher(cachingDispatcher)
+								localDispatcher := graph.NewDispatcher(cachingDispatcher, 10)
 								defer localDispatcher.Close()
 								cachingDispatcher.SetDelegate(localDispatcher)
 								dispatcher = cachingDispatcher

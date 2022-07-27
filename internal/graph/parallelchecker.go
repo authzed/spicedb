@@ -24,7 +24,7 @@ type ParallelChecker struct {
 	g             *errgroup.Group
 	checkCtx      context.Context
 	subject       *core.ObjectAndRelation
-	maxConcurrent uint8
+	maxConcurrent uint16
 	results       *tuple.ONRSet
 
 	dispatchCount       uint32
@@ -35,7 +35,7 @@ type ParallelChecker struct {
 }
 
 // NewParallelChecker creates a new parallel checker, for a given subject.
-func NewParallelChecker(ctx context.Context, c dispatch.Check, subject *core.ObjectAndRelation, maxConcurrent uint8) *ParallelChecker {
+func NewParallelChecker(ctx context.Context, c dispatch.Check, subject *core.ObjectAndRelation, maxConcurrent uint16) *ParallelChecker {
 	g, checkCtx := errgroup.WithContext(ctx)
 	toCheck := make(chan *v1.DispatchCheckRequest)
 	return &ParallelChecker{toCheck, tuple.NewONRSet(), c, g, checkCtx, subject, maxConcurrent, tuple.NewONRSet(), 0, 0, 0, sync.Mutex{}}

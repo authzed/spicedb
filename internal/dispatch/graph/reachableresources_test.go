@@ -247,7 +247,7 @@ func BenchmarkReachableResources(b *testing.B) {
 
 		ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-		dispatcher := NewLocalOnlyDispatcher()
+		dispatcher := NewLocalOnlyDispatcher(10)
 
 		ctx := datastoremw.ContextWithHandle(context.Background())
 		require.NoError(datastoremw.SetInContext(ctx, ds))

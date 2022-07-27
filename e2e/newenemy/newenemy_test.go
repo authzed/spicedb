@@ -82,7 +82,7 @@ func TestMain(m *testing.M) {
 }
 
 const (
-	createDb       = "CREATE DATABASE %s;"
+	createDB       = "CREATE DATABASE %s;"
 	setSmallRanges = "ALTER DATABASE %s CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1, gc.ttlseconds = 10;"
 	dbName         = "spicedbnetest"
 )
@@ -107,7 +107,7 @@ func initializeTestCRDBCluster(ctx context.Context, t testing.TB) cockroach.Clus
 		"SET CLUSTER SETTING kv.range.backpressure_range_size_multiplier=0;",
 	))
 	require.NoError(crdbCluster.SQL(ctx, tlog, tlog,
-		fmt.Sprintf(createDb, dbName),
+		fmt.Sprintf(createDB, dbName),
 	))
 
 	t.Log("migrating...")
@@ -143,26 +143,26 @@ func TestNoNewEnemy(t *testing.T) {
 	tlog := e2e.NewTLog(t)
 
 	t.Log("starting vulnerable spicedb...")
-	vulnerableSpiceDb := spice.NewClusterFromCockroachCluster(crdb, spice.WithDbName(dbName))
-	require.NoError(t, vulnerableSpiceDb.Start(ctx, tlog, "vulnerable",
+	vulnerableSpiceDB := spice.NewClusterFromCockroachCluster(crdb, spice.WithDBName(dbName))
+	require.NoError(t, vulnerableSpiceDB.Start(ctx, tlog, "vulnerable",
 		"--datastore-tx-overlap-strategy=insecure"))
-	require.NoError(t, vulnerableSpiceDb.Connect(ctx, tlog))
+	require.NoError(t, vulnerableSpiceDB.Connect(ctx, tlog))
 	t.Cleanup(func() {
-		require.NoError(t, vulnerableSpiceDb.Stop(tlog))
+		require.NoError(t, vulnerableSpiceDB.Stop(tlog))
 	})
 
 	t.Log("start protected spicedb cluster")
-	protectedSpiceDb := spice.NewClusterFromCockroachCluster(crdb,
+	protectedSpiceDB := spice.NewClusterFromCockroachCluster(crdb,
 		spice.WithGrpcPort(50061),
 		spice.WithDispatchPort(50062),
-		spice.WithHttpPort(8444),
+		spice.WithHTTPPort(8444),
 		spice.WithMetricsPort(9100),
 		spice.WithDashboardPort(8100),
-		spice.WithDbName(dbName))
-	require.NoError(t, protectedSpiceDb.Start(ctx, tlog, "protected"))
-	require.NoError(t, protectedSpiceDb.Connect(ctx, tlog))
+		spice.WithDBName(dbName))
+	require.NoError(t, protectedSpiceDB.Start(ctx, tlog, "protected"))
+	require.NoError(t, protectedSpiceDB.Connect(ctx, tlog))
 	t.Cleanup(func() {
-		require.NoError(t, protectedSpiceDb.Stop(tlog))
+		require.NoError(t, protectedSpiceDB.Stop(tlog))
 	})
 
 	t.Log("configure small ranges, single replicas, short ttl")
@@ -174,12 +174,12 @@ func TestNoNewEnemy(t *testing.T) {
 	// 4000 is larger than we need to span all three nodes, but a higher number
 	// seems to make the test converge faster
 	schemaData := generateSchemaData(4000, 500)
-	fillSchema(t, schemaTpl, schemaData, vulnerableSpiceDb[1].Client().V1Alpha1().Schema())
+	fillSchema(t, schemaTpl, schemaData, vulnerableSpiceDB[1].Client().V1Alpha1().Schema())
 	slowNodeID, err := crdb[1].NodeID(ctx)
 	require.NoError(t, err)
-	prefix := namespacesForNode(ctx, t, crdb[1].Conn(), vulnerableSpiceDb[0].Client().V1Alpha1().Schema(), slowNodeID)
+	prefix := namespacesForNode(ctx, t, crdb[1].Conn(), vulnerableSpiceDB[0].Client().V1Alpha1().Schema(), slowNodeID)
 	t.Log("fill with relationships to span multiple ranges")
-	fill(ctx, t, vulnerableSpiceDb[0].Client().V1().Permissions(), prefix, generator.NewUniqueGenerator(objIDRegex), 500, 500)
+	fill(ctx, t, vulnerableSpiceDB[0].Client().V1().Permissions(), prefix, generator.NewUniqueGenerator(objIDRegex), 500, 500)
 
 	t.Log("modifying time")
 	require.NoError(t, crdb.TimeDelay(ctx, e2e.MustFile(ctx, t, "timeattack-1.log"), 1, -200*time.Millisecond))
@@ -194,10 +194,10 @@ func TestNoNewEnemy(t *testing.T) {
 		{
 			name: "protected from data newenemy",
 			vulnerableProbe: func(count int) (bool, int) {
-				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, vulnerableSpiceDb, count, true)
+				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, vulnerableSpiceDB, count, true)
 			},
 			protectedProbe: func(count int) (bool, int) {
-				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, protectedSpiceDb, count, false)
+				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, protectedSpiceDB, count, false)
 			},
 			vulnerableMax: 20,
 			sampleSize:    5,
@@ -579,7 +579,7 @@ func generateTuples(names NamespaceNames, n int, objIDGenerator *generator.Uniqu
 // getLeaderNode returns the node with the lease leader for the range containing the tuple
 func getLeaderNode(ctx context.Context, conn *pgx.Conn, tuple *v1.Relationship) int {
 	t := tuple
-	rows, err := conn.Query(ctx, "SHOW RANGE FROM TABLE relation_tuple FOR ROW ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text)",
+	row := conn.QueryRow(ctx, "SHOW RANGE FROM TABLE relation_tuple FOR ROW ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text)",
 		t.Resource.ObjectType,
 		t.Resource.ObjectId,
 		t.Relation,
@@ -587,28 +587,21 @@ func getLeaderNode(ctx context.Context, conn *pgx.Conn, tuple *v1.Relationship) 
 		t.Subject.Object.ObjectId,
 		t.Subject.OptionalRelation,
 	)
-	defer rows.Close()
-	if err != nil {
-		log.Fatalf("failed to exec: %v", err)
-	}
-	return leaderFromRangeRow(rows)
+
+	return leaderFromRangeRow(row)
 }
 
 // getLeaderNodeForNamespace returns the node with the lease leader for the range containing the namespace
 func getLeaderNodeForNamespace(ctx context.Context, conn *pgx.Conn, namespace string) int {
-	rows, err := conn.Query(ctx, "SHOW RANGE FROM TABLE namespace_config FOR ROW ($1::text)",
+	rows := conn.QueryRow(ctx, "SHOW RANGE FROM TABLE namespace_config FOR ROW ($1::text)",
 		namespace,
 	)
-	defer rows.Close()
-	if err != nil {
-		log.Fatalf("failed to exec: %v", err)
-	}
 	return leaderFromRangeRow(rows)
 }
 
 // leaderFromRangeRow parses the rows from a `SHOW RANGE` query and returns the
 // leader node id for the range
-func leaderFromRangeRow(rows pgx.Rows) int {
+func leaderFromRangeRow(row pgx.Row) int {
 	var (
 		startKey           sql.NullString
 		endKey             sql.NullString
@@ -619,11 +612,9 @@ func leaderFromRangeRow(rows pgx.Rows) int {
 		replicaLocalities  pgtype.TextArray
 	)
 
-	for rows.Next() {
-		if err := rows.Scan(&startKey, &endKey, &rangeID, &leaseHolder, &leaseHoldeLocality, &replicas, &replicaLocalities); err != nil {
-			panic(err)
-		}
-		break
+	if err := row.Scan(&startKey, &endKey, &rangeID, &leaseHolder, &leaseHoldeLocality, &replicas, &replicaLocalities); err != nil {
+		log.Fatal(fmt.Errorf("failed to load leader id: %w", err))
 	}
+
 	return leaseHolder
 }

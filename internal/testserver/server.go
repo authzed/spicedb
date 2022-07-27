@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/middleware/logging"
 )
 
 func NewTestServer(require *require.Assertions,
@@ -29,7 +30,7 @@ func NewTestServer(require *require.Assertions,
 	ds, revision := dsInitFunc(emptyDS, require)
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher()),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10)),
 		server.WithDispatchMaxDepth(50),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
@@ -46,10 +47,12 @@ func NewTestServer(require *require.Assertions,
 	).Complete()
 	require.NoError(err)
 	srv.SetMiddleware([]grpc.UnaryServerInterceptor{
+		logging.UnaryServerInterceptor(),
 		datastoremw.UnaryServerInterceptor(ds),
 		consistency.UnaryServerInterceptor(),
 		servicespecific.UnaryServerInterceptor,
 	}, []grpc.StreamServerInterceptor{
+		logging.StreamServerInterceptor(),
 		datastoremw.StreamServerInterceptor(ds),
 		consistency.StreamServerInterceptor(),
 		servicespecific.StreamServerInterceptor,

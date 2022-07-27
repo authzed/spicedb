@@ -298,8 +298,9 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 		return &disabledHTTPServer{}, nil
 	}
 	srv := &http.Server{
-		Addr:    c.Address,
-		Handler: handler,
+		Addr:              c.Address,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 	var serveFunc func() error
 	switch {

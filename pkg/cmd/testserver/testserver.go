@@ -42,7 +42,7 @@ func (dr datastoreReady) IsReady(ctx context.Context) (bool, error) {
 }
 
 func (c *Config) Complete() (RunnableTestServer, error) {
-	dispatcher := graph.NewLocalOnlyDispatcher()
+	dispatcher := graph.NewLocalOnlyDispatcher(10)
 
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs)
 

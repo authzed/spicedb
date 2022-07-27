@@ -24,24 +24,24 @@ const errDispatch = "error dispatching request: %w"
 var tracer = otel.Tracer("spicedb/internal/dispatch/local")
 
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
-func NewLocalOnlyDispatcher() dispatch.Dispatcher {
+func NewLocalOnlyDispatcher(concurrencyLimit uint16) dispatch.Dispatcher {
 	d := &localDispatcher{}
 
-	d.checker = graph.NewConcurrentChecker(d)
+	d.checker = graph.NewConcurrentChecker(d, concurrencyLimit)
 	d.expander = graph.NewConcurrentExpander(d)
-	d.lookupHandler = graph.NewConcurrentLookup(d, d)
-	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d)
+	d.lookupHandler = graph.NewConcurrentLookup(d, d, concurrencyLimit)
+	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, concurrencyLimit)
 
 	return d
 }
 
 // NewDispatcher creates a dispatcher that consults with the graph and redispatches subproblems to
 // the provided redispatcher.
-func NewDispatcher(redispatcher dispatch.Dispatcher) dispatch.Dispatcher {
-	checker := graph.NewConcurrentChecker(redispatcher)
+func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimit uint16) dispatch.Dispatcher {
+	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimit)
 	expander := graph.NewConcurrentExpander(redispatcher)
-	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher)
-	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher)
+	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, concurrencyLimit)
+	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher, concurrencyLimit)
 
 	return &localDispatcher{
 		checker:                   checker,
@@ -277,7 +277,7 @@ func (ld *localDispatcher) DispatchReachableResources(
 		Revision:                          revision,
 	}
 
-	wrappedStream := dispatch.StreamWithContext[*v1.DispatchReachableResourcesResponse](ctx, stream)
+	wrappedStream := dispatch.StreamWithContext(ctx, stream)
 	return ld.reachableResourcesHandler.ReachableResources(validatedReq, wrappedStream)
 }
 
@@ -304,6 +304,6 @@ func rewriteError(original error) error {
 	}
 }
 
-var emptyMetadata *v1.ResponseMeta = &v1.ResponseMeta{
+var emptyMetadata = &v1.ResponseMeta{
 	DispatchCount: 0,
 }
