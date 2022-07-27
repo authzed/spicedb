@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/authzed/spicedb/e2e"
 	"github.com/authzed/spicedb/e2e/cockroach"
@@ -22,7 +23,7 @@ type Node struct {
 	ID             string
 	PresharedKey   string
 	Datastore      string
-	DbName         string
+	DBName         string
 	URI            string
 	GrpcPort       int
 	HTTPPort       int
@@ -57,8 +58,8 @@ func WithTestDefaults(opts ...NodeOption) NodeOption {
 			// this would typically be 8080, but conflicts with Node's dash
 			s.DashboardPort = 8090
 		}
-		if len(s.DbName) == 0 {
-			s.DbName = "spicedb"
+		if len(s.DBName) == 0 {
+			s.DBName = "spicedb"
 		}
 		if len(s.PresharedKey) == 0 {
 			s.PresharedKey = "testtesttesttest"
@@ -113,9 +114,13 @@ func (s *Node) Connect(ctx context.Context, out io.Writer) error {
 	addr := net.JoinHostPort("localhost", strconv.Itoa(s.GrpcPort))
 	e2e.WaitForServerReady(addr, out)
 
-	conn, err := grpc.DialContext(ctx, addr,
-		grpc.WithBlock(), grpc.WithInsecure(),
-		grpcutil.WithInsecureBearerToken(s.PresharedKey))
+	conn, err := grpc.DialContext(
+		ctx,
+		addr,
+		grpc.WithBlock(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpcutil.WithInsecureBearerToken(s.PresharedKey),
+	)
 	if err != nil {
 		return err
 	}
@@ -145,7 +150,7 @@ func NewClusterFromCockroachCluster(c cockroach.Cluster, opts ...NodeOption) Clu
 			ID:            strconv.Itoa(i + 1),
 			PresharedKey:  proto.PresharedKey,
 			Datastore:     "cockroachdb",
-			URI:           c[i].ConnectionString(proto.DbName),
+			URI:           c[i].ConnectionString(proto.DBName),
 			GrpcPort:      proto.GrpcPort + 2*i,
 			DispatchPort:  proto.DispatchPort + 2*i,
 			HTTPPort:      proto.HTTPPort + 2*i,
