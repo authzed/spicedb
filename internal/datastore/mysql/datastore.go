@@ -451,6 +451,10 @@ func (mds *Datastore) IsReady(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+func (mds *Datastore) Features(ctx context.Context) (*datastore.Features, error) {
+	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+}
+
 // isSeeded determines if the backing database has been seeded
 func (mds *Datastore) isSeeded(ctx context.Context) (bool, error) {
 	headRevision, err := mds.HeadRevision(ctx)

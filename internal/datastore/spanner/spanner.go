@@ -156,6 +156,10 @@ func (sd spannerDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
+func (sd spannerDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+}
+
 func (sd spannerDatastore) Close() error {
 	sd.stopGC()
 	sd.client.Close()

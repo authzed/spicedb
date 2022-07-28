@@ -52,6 +52,7 @@ const (
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	errRevision            = "unable to find revision: %w"
 
+	queryShowRangefeed      = "SHOW CLUSTER SETTING kv.rangefeed.enabled;"
 	querySelectNow          = "SELECT cluster_logical_timestamp()"
 	queryShowZoneConfig     = "SHOW ZONE CONFIGURATION FOR RANGE default;"
 	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
@@ -305,6 +306,18 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 	})
 
 	return hlcNow, err
+}
+
+func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	var features datastore.Features
+	err := cds.pool.QueryRow(ctx, queryShowRangefeed).Scan(&features.Watch.Enabled)
+	if err != nil {
+		return nil, err
+	}
+	if !features.Watch.Enabled {
+		features.Watch.Reason = "Range feeds must be enabled in CockroachDB to support the Watch API. A CockroachDB admin can set kv.rangefeed.enabled = true to enable range feeds."
+	}
+	return &features, nil
 }
 
 func readCRDBNow(ctx context.Context, tx pgx.Tx) (decimal.Decimal, error) {

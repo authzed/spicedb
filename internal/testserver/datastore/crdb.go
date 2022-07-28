@@ -16,6 +16,8 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
+const enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
+
 type crdbTester struct {
 	conn     *pgx.Conn
 	hostname string
@@ -61,7 +63,10 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForT
 		if err != nil {
 			return err
 		}
-		return nil
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		_, err = builder.conn.Exec(ctx, enableRangefeeds)
+		return err
 	}))
 
 	return builder

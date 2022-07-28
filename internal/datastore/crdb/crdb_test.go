@@ -35,7 +35,7 @@ func TestCRDBDatastore(t *testing.T) {
 	}))
 }
 
-func CRDBDatastoreWithFollowerReadsTest(t *testing.T, ds datastore.Datastore) {
+func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 

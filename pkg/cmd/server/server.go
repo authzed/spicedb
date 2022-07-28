@@ -207,6 +207,14 @@ func (c *Config) Complete() (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	datastoreFeatures, err := ds.Features(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error determining datastore features: %w", err)
+	}
+
 	prefixRequiredOption := v1alpha1svc.PrefixRequired
 	if !c.SchemaPrefixesRequired {
 		prefixRequiredOption = v1alpha1svc.PrefixNotRequired
@@ -215,6 +223,12 @@ func (c *Config) Complete() (RunnableServer, error) {
 	v1SchemaServiceOption := services.V1SchemaServiceEnabled
 	if c.DisableV1SchemaAPI {
 		v1SchemaServiceOption = services.V1SchemaServiceDisabled
+	}
+
+	watchServiceOption := services.WatchServiceEnabled
+	if !datastoreFeatures.Watch.Enabled {
+		log.Warn().Str("reason", datastoreFeatures.Watch.Reason).Msg("watch api disabled; underlying datastore does not support it")
+		watchServiceOption = services.WatchServiceDisabled
 	}
 
 	if len(c.UnaryMiddleware) == 0 && len(c.StreamingMiddleware) == 0 {
@@ -231,6 +245,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 				c.DispatchMaxDepth,
 				prefixRequiredOption,
 				v1SchemaServiceOption,
+				watchServiceOption,
 			)
 		},
 	)
