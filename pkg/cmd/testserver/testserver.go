@@ -2,6 +2,7 @@ package testserver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -9,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/gateway"
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
@@ -24,9 +26,11 @@ const maxDepth = 50
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
-	GRPCServer         util.GRPCServerConfig
-	ReadOnlyGRPCServer util.GRPCServerConfig
-	LoadConfigs        []string
+	GRPCServer          util.GRPCServerConfig
+	ReadOnlyGRPCServer  util.GRPCServerConfig
+	HTTPGateway         util.HTTPServerConfig
+	ReadOnlyHTTPGateway util.HTTPServerConfig
+	LoadConfigs         []string
 }
 
 type RunnableTestServer interface {
@@ -96,17 +100,51 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		return nil, err
 	}
 
+	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.GRPCServer.Address, c.GRPCServer.TLSCertPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
+	}
+
+	if c.HTTPGateway.Enabled {
+		log.Info().Msg("starting REST gateway")
+	}
+
+	gatewayServer, err := c.HTTPGateway.Complete(zerolog.InfoLevel, gatewayHandler)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
+	}
+
+	readOnlyGatewayHandler, err := gateway.NewHandler(context.TODO(), c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
+	}
+
+	if c.ReadOnlyHTTPGateway.Enabled {
+		log.Info().Msg("starting REST gateway")
+	}
+
+	readOnlyGatewayServer, err := c.ReadOnlyHTTPGateway.Complete(zerolog.InfoLevel, readOnlyGatewayHandler)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
+	}
+
 	return &completedTestServer{
-		gRPCServer:         gRPCSrv,
-		readOnlyGRPCServer: readOnlyGRPCSrv,
-		healthManager:      healthManager,
+		gRPCServer:            gRPCSrv,
+		readOnlyGRPCServer:    readOnlyGRPCSrv,
+		gatewayServer:         gatewayServer,
+		readOnlyGatewayServer: readOnlyGatewayServer,
+		healthManager:         healthManager,
 	}, nil
 }
 
 type completedTestServer struct {
 	gRPCServer         util.RunnableGRPCServer
 	readOnlyGRPCServer util.RunnableGRPCServer
-	healthManager      health.Manager
+
+	gatewayServer         util.RunnableHTTPServer
+	readOnlyGatewayServer util.RunnableHTTPServer
+
+	healthManager health.Manager
 }
 
 func (c *completedTestServer) Run(ctx context.Context) error {
@@ -121,10 +159,18 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 	}
 
 	g.Go(c.healthManager.Checker(ctx))
+
 	g.Go(c.gRPCServer.Listen(ctx))
 	g.Go(stopOnCancel(c.gRPCServer.GracefulStop))
+
 	g.Go(c.readOnlyGRPCServer.Listen(ctx))
 	g.Go(stopOnCancel(c.readOnlyGRPCServer.GracefulStop))
+
+	g.Go(c.gatewayServer.ListenAndServe)
+	g.Go(stopOnCancel(c.gatewayServer.Close))
+
+	g.Go(c.readOnlyGatewayServer.ListenAndServe)
+	g.Go(stopOnCancel(c.readOnlyGatewayServer.Close))
 
 	if err := g.Wait(); err != nil {
 		log.Warn().Err(err).Msg("error shutting down servers")

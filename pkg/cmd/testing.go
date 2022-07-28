@@ -13,6 +13,10 @@ import (
 func RegisterTestingFlags(cmd *cobra.Command, config *testserver.Config) {
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.ReadOnlyGRPCServer, "readonly-grpc", "read-only gRPC", ":50052", true)
+
+	util.RegisterHTTPServerFlags(cmd.Flags(), &config.HTTPGateway, "http", "http", ":8081", false)
+	util.RegisterHTTPServerFlags(cmd.Flags(), &config.ReadOnlyHTTPGateway, "readonly-http", "read-only HTTP", ":8082", false)
+
 	cmd.Flags().StringSliceVar(&config.LoadConfigs, "load-configs", []string{}, "configuration yaml files to load")
 }
 
