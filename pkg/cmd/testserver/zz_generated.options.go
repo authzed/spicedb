@@ -19,6 +19,8 @@ func (c *Config) ToOption() ConfigOption {
 	return func(to *Config) {
 		to.GRPCServer = c.GRPCServer
 		to.ReadOnlyGRPCServer = c.ReadOnlyGRPCServer
+		to.HTTPGateway = c.HTTPGateway
+		to.ReadOnlyHTTPGateway = c.ReadOnlyHTTPGateway
 		to.LoadConfigs = c.LoadConfigs
 	}
 }
@@ -42,6 +44,20 @@ func WithGRPCServer(gRPCServer util.GRPCServerConfig) ConfigOption {
 func WithReadOnlyGRPCServer(readOnlyGRPCServer util.GRPCServerConfig) ConfigOption {
 	return func(c *Config) {
 		c.ReadOnlyGRPCServer = readOnlyGRPCServer
+	}
+}
+
+// WithHTTPGateway returns an option that can set HTTPGateway on a Config
+func WithHTTPGateway(hTTPGateway util.HTTPServerConfig) ConfigOption {
+	return func(c *Config) {
+		c.HTTPGateway = hTTPGateway
+	}
+}
+
+// WithReadOnlyHTTPGateway returns an option that can set ReadOnlyHTTPGateway on a Config
+func WithReadOnlyHTTPGateway(readOnlyHTTPGateway util.HTTPServerConfig) ConfigOption {
+	return func(c *Config) {
+		c.ReadOnlyHTTPGateway = readOnlyHTTPGateway
 	}
 }
 

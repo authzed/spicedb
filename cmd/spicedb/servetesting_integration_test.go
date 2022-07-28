@@ -6,7 +6,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,10 +32,17 @@ func TestTestServer(t *testing.T) {
 
 	tester, err := newTester(t,
 		&dockertest.RunOptions{
-			Repository:   "authzed/spicedb",
-			Tag:          "ci",
-			Cmd:          []string{"serve-testing", "--log-level", "debug"},
-			ExposedPorts: []string{"50051/tcp", "50052/tcp"},
+			Repository: "authzed/spicedb",
+			Tag:        "ci",
+			Cmd: []string{
+				"serve-testing",
+				"--log-level", "debug",
+				"--http-addr", ":8443",
+				"--readonly-http-addr", ":8444",
+				"--http-enabled",
+				"--readonly-http-enabled",
+			},
+			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
 		},
 		"",
 	)
@@ -113,13 +123,38 @@ func TestTestServer(t *testing.T) {
 	s, ok := status.FromError(err)
 	require.True(ok)
 	require.Equal(codes.FailedPrecondition, s.Code())
+
+	// Make an HTTP call and ensure it succeeds.
+	readUrl := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.httpPort)
+	hresp, err := http.Post(readUrl, "", nil)
+	require.NoError(err)
+
+	body, err := ioutil.ReadAll(hresp.Body)
+	require.NoError(err)
+
+	require.Equal(200, hresp.StatusCode)
+	require.Contains(string(body), "schemaText")
+	require.Contains(string(body), "definition resource")
+
+	// Attempt to write to the read only HTTP and ensure it fails.
+	writeUrl := fmt.Sprintf("http://localhost:%s/v1/schema/write", tester.readonlyHttpPort)
+	wresp, err := http.Post(writeUrl, "application/json", strings.NewReader(`{
+		"schemaText": "definition user {}\ndefinition resource {\nrelation reader: user\nrelation writer: user\nrelation foobar: user\n}"
+	}`))
+	require.NoError(err)
+	require.Equal(503, wresp.StatusCode)
+
+	body, err = ioutil.ReadAll(wresp.Body)
+	require.NoError(err)
+	require.Contains(string(body), "SERVICE_READ_ONLY")
 }
 
 type spicedbHandle struct {
-	port         string
-	readonlyPort string
-	httpPort     string
-	cleanup      func()
+	port             string
+	readonlyPort     string
+	httpPort         string
+	readonlyHttpPort string
+	cleanup          func()
 }
 
 func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string) (*spicedbHandle, error) {
@@ -136,6 +171,7 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string)
 	port := resource.GetPort("50051/tcp")
 	readonlyPort := resource.GetPort("50052/tcp")
 	httpPort := resource.GetPort("8443/tcp")
+	readonlyHttpPort := resource.GetPort("8444/tcp")
 
 	cleanup := func() {
 		// When you're done, kill and remove the container
@@ -178,5 +214,11 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string)
 		return err == nil
 	}, 3*time.Second, 10*time.Millisecond, "could not start test server")
 
-	return &spicedbHandle{port: port, readonlyPort: readonlyPort, httpPort: httpPort, cleanup: cleanup}, nil
+	return &spicedbHandle{
+		port:             port,
+		readonlyPort:     readonlyPort,
+		httpPort:         httpPort,
+		readonlyHttpPort: readonlyHttpPort,
+		cleanup:          cleanup,
+	}, nil
 }
