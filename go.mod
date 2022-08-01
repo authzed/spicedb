@@ -45,7 +45,7 @@ require (
 	github.com/ory/dockertest/v3 v3.8.2-0.20220414165644-e38b9742dc7d
 	github.com/prometheus/client_golang v1.12.2
 	github.com/prometheus/client_model v0.2.0
-	github.com/prometheus/common v0.35.0
+	github.com/prometheus/common v0.37.0
 	github.com/rs/cors v1.8.2
 	github.com/rs/zerolog v1.27.0
 	github.com/scylladb/go-set v1.0.2
@@ -54,16 +54,16 @@ require (
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
-	go.buf.build/protocolbuffers/go/prometheus/prometheus v1.2.3
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.32.0
+	go.buf.build/protocolbuffers/go/prometheus/prometheus v1.3.3
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.33.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.32.0
 	go.opentelemetry.io/otel v1.8.0
 	go.opentelemetry.io/otel/trace v1.8.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
-	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/tools v0.1.11
-	google.golang.org/api v0.86.0
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/tools v0.1.12
+	google.golang.org/api v0.90.0
 	google.golang.org/genproto v0.0.0-20220728213248-dd149ef739b9
 	google.golang.org/grpc v1.48.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
@@ -152,7 +152,7 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
-	go.buf.build/protocolbuffers/go/gogo/protobuf v1.2.9 // indirect
+	go.buf.build/protocolbuffers/go/gogo/protobuf v1.3.9 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.7.0 // indirect
 	go.opentelemetry.io/contrib/propagators/ot v1.7.0 // indirect
@@ -168,9 +168,9 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
+	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
 	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c // indirect
-	golang.org/x/sys v0.0.0-20220624220833-87e55d714810 // indirect
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
