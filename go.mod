@@ -45,7 +45,7 @@ require (
 	github.com/ory/dockertest/v3 v3.8.2-0.20220414165644-e38b9742dc7d
 	github.com/prometheus/client_golang v1.12.2
 	github.com/prometheus/client_model v0.2.0
-	github.com/prometheus/common v0.35.0
+	github.com/prometheus/common v0.37.0
 	github.com/rs/cors v1.8.2
 	github.com/rs/zerolog v1.27.0
 	github.com/scylladb/go-set v1.0.2
