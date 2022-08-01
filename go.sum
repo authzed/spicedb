@@ -214,8 +214,8 @@ github.com/fsnotify/fsnotify v1.5.4 h1:jRbGcIw6P2Meqdwuo0H1p6JVLbL5DHKAKlYndzMwV
 github.com/fsnotify/fsnotify v1.5.4/go.mod h1:OVB6XrOHzAwXMpEM7uPOzcehqUV2UqJxmVXmkdnm1bU=
 github.com/getkin/kin-openapi v0.76.0/go.mod h1:660oXbgy5JFMKreazJaQTw7o+X00qeSyhcnluiMv+Xg=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
-github.com/go-co-op/gocron v1.15.0 h1:XmiPazahD9aq0/QdK5toCVHfgTXfrZ/s83RpAgzr6SM=
-github.com/go-co-op/gocron v1.15.0/go.mod h1:On9zUZTv7FBeuj9D/cdYyAWcPUiLqqAx7nsPHd0EmKM=
+github.com/go-co-op/gocron v1.16.1 h1:N4MhkCmYx22WqYoII13mMMFW/Fv4RJuz8ft/YPPK7MY=
+github.com/go-co-op/gocron v1.16.1/go.mod h1:W/N9G7bntRo5fVQlmjncvqSt74jxCxHfjyHlgcB33T8=
 github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9AVAgeJqvqgH9Q5CA+iKCZ2gyEVpxRU=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20191125211704-12ad95a8df72/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20200222043503-6f7a984d4dc4/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
