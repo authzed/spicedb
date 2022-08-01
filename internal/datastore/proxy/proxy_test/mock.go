@@ -59,6 +59,11 @@ func (dm *MockDatastore) IsReady(ctx context.Context) (bool, error) {
 	return args.Bool(0), args.Error(1)
 }
 
+func (dm *MockDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	args := dm.Called()
+	return args.Get(0).(*datastore.Features), args.Error(1)
+}
+
 func (dm *MockDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	args := dm.Called()
 	return args.Get(0).(datastore.Stats), args.Error(1)

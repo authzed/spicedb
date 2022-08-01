@@ -159,11 +159,28 @@ type Datastore interface {
 	// the necessary tables.
 	IsReady(ctx context.Context) (bool, error)
 
+	// Features returns an object representing what features this
+	// datastore can support.
+	Features(ctx context.Context) (*Features, error)
+
 	// Statistics returns relevant values about the data contained in this cluster.
 	Statistics(ctx context.Context) (Stats, error)
 
 	// Close closes the data store.
 	Close() error
+}
+
+// Feature represents a capability that a datastore can support, plus an
+// optional message explaining the feature is available (or not).
+type Feature struct {
+	Enabled bool
+	Reason  string
+}
+
+// Features holds values that represent what features a database can support.
+type Features struct {
+	// Watch is enabled if the underlying datastore can support the Watch api.
+	Watch Feature
 }
 
 // ObjectTypeStat represents statistics for a single object type (namespace).

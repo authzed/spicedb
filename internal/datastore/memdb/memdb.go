@@ -241,6 +241,10 @@ func (mdb *memdbDatastore) IsReady(ctx context.Context) (bool, error) {
 	return len(mdb.revisions) > 0, nil
 }
 
+func (mdb *memdbDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+}
+
 func (mdb *memdbDatastore) Close() error {
 	mdb.Lock()
 	defer mdb.Unlock()
