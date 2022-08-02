@@ -2,6 +2,7 @@ package crdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -52,7 +53,6 @@ const (
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	errRevision            = "unable to find revision: %w"
 
-	queryShowRangefeed      = "SHOW CLUSTER SETTING kv.rangefeed.enabled;"
 	querySelectNow          = "SELECT cluster_logical_timestamp()"
 	queryShowZoneConfig     = "SHOW ZONE CONFIGURATION FOR RANGE default;"
 	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
@@ -310,13 +310,27 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 
 func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, error) {
 	var features datastore.Features
-	err := cds.pool.QueryRow(ctx, queryShowRangefeed).Scan(&features.Watch.Enabled)
+
+	head, err := cds.HeadRevision(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if !features.Watch.Enabled {
-		features.Watch.Reason = "Range feeds must be enabled in CockroachDB to support the Watch API. A CockroachDB admin can set kv.rangefeed.enabled = true to enable range feeds."
+
+	// streams don't return at all if they succeed, so the only way to know
+	// it was created successfully is to wait a bit and then cancel
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	time.AfterFunc(1*time.Second, cancel)
+	_, err = cds.pool.Exec(streamCtx, fmt.Sprintf(queryChangefeed, tableTuple, head))
+	if err != nil && errors.Is(err, context.Canceled) {
+		features.Watch.Enabled = true
+		features.Watch.Reason = ""
+	} else if err != nil {
+		features.Watch.Enabled = false
+		features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
 	}
+	<-streamCtx.Done()
+
 	return &features, nil
 }
 
