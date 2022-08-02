@@ -79,23 +79,71 @@ func TestNamespaceDiff(t *testing.T) {
 			},
 		},
 		{
-			"changed relation impl",
+			"added permission",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
-					ns.ComputedUserset("owner"),
-				)),
+				ns.Relation("someperm", ns.Union(ns.ComputedUserset("hiya"))),
 			),
 			[]Delta{
-				{Type: ChangedRelationImpl, RelationName: "somerel"},
+				{Type: AddedPermission, RelationName: "someperm"},
 			},
 		},
 		{
-			"changed relation impl 2",
+			"remove permission",
+			ns.Namespace(
+				"document",
+				ns.Relation("someperm", ns.Union(ns.ComputedUserset("hiya"))),
+			),
+			ns.Namespace(
+				"document",
+			),
+			[]Delta{
+				{Type: RemovedPermission, RelationName: "someperm"},
+			},
+		},
+		{
+			"renamed permission",
+			ns.Namespace(
+				"document",
+				ns.Relation("someperm", ns.Union(ns.ComputedUserset("hiya"))),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("someperm2", ns.Union(ns.ComputedUserset("hiya"))),
+			),
+			[]Delta{
+				{Type: RemovedPermission, RelationName: "someperm"},
+				{Type: AddedPermission, RelationName: "someperm2"},
+			},
+		},
+		{
+			"legacy changed relation impl",
+			ns.Namespace(
+				"document",
+				ns.Relation(
+					"somerel",
+					nil,
+					ns.AllowedRelation("someothernamespace", "somerel"),
+				),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel",
+					ns.Union(
+						ns.ComputedUserset("owner"),
+					),
+					ns.AllowedRelation("someothernamespace", "somerel"),
+				),
+			),
+			[]Delta{
+				{Type: LegacyChangedRelationImpl, RelationName: "somerel"},
+			},
+		},
+		{
+			"changed permission impl",
 			ns.Namespace(
 				"document",
 				ns.Relation("somerel", ns.Union(
@@ -109,7 +157,7 @@ func TestNamespaceDiff(t *testing.T) {
 				)),
 			),
 			[]Delta{
-				{Type: ChangedRelationImpl, RelationName: "somerel"},
+				{Type: ChangedPermissionImpl, RelationName: "somerel"},
 			},
 		},
 		{
@@ -132,15 +180,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"added direct type",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
-					ns.ComputedUserset("owner"),
-				)),
+				ns.Relation("somerel", nil),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
-					ns.ComputedUserset("owner"),
-				), ns.AllowedRelation("foo", "bar")),
+				ns.Relation("somerel", nil, ns.AllowedRelation("foo", "bar")),
 			),
 			[]Delta{
 				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &core.RelationReference{
@@ -153,15 +197,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"removed direct type",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
-					ns.ComputedUserset("owner"),
-				), ns.AllowedRelation("foo", "bar")),
+				ns.Relation("somerel", nil, ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
-					ns.ComputedUserset("owner"),
-				)),
+				ns.Relation("somerel", nil),
 			),
 			[]Delta{
 				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &core.RelationReference{
@@ -268,6 +308,36 @@ func TestNamespaceDiff(t *testing.T) {
 					Namespace: "organization",
 					Relation:  "user",
 				}},
+			},
+		},
+		{
+			"added relation and removed permission with same name",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", ns.Union(ns.ComputedUserset("someotherrel"))),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil),
+			),
+			[]Delta{
+				{Type: AddedRelation, RelationName: "somerel"},
+				{Type: RemovedPermission, RelationName: "somerel"},
+			},
+		},
+		{
+			"added permission and removed relation with same name",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", ns.Union(ns.ComputedUserset("someotherrel"))),
+			),
+			[]Delta{
+				{Type: RemovedRelation, RelationName: "somerel"},
+				{Type: AddedPermission, RelationName: "somerel"},
 			},
 		},
 	}
