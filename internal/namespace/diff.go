@@ -7,7 +7,9 @@ import (
 	"github.com/scylladb/go-set/strset"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 
+	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -27,9 +29,20 @@ const (
 	// RemovedRelation indicates that the relation was removed from the namespace.
 	RemovedRelation DeltaType = "removed-relation"
 
-	// ChangedRelationImpl indicates that the implementation of the relation has changed in some
+	// AddedPermission indicates that the permission was added to the namespace.
+	AddedPermission DeltaType = "added-permission"
+
+	// RemovedPermission indicates that the permission was removed from the namespace.
+	RemovedPermission DeltaType = "removed-permission"
+
+	// ChangedPermissionImpl indicates that the implementation of the permission has changed in some
 	// way.
-	ChangedRelationImpl DeltaType = "changed-relation-implementation"
+	ChangedPermissionImpl DeltaType = "changed-permission-implementation"
+
+	// LegacyChangedRelationImpl indicates that the implementation of the relation has changed in some
+	// way. This is for legacy checks and should not apply to any modern namespaces created
+	// via schema.
+	LegacyChangedRelationImpl DeltaType = "legacy-changed-relation-implementation"
 
 	// RelationDirectTypeAdded indicates that an allowed direct relation type has been added to
 	// the relation.
@@ -112,8 +125,14 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 	existingRels := map[string]*core.Relation{}
 	existingRelNames := strset.New()
 
+	existingPerms := map[string]*core.Relation{}
+	existingPermNames := strset.New()
+
 	updatedRels := map[string]*core.Relation{}
 	updatedRelNames := strset.New()
+
+	updatedPerms := map[string]*core.Relation{}
+	updatedPermNames := strset.New()
 
 	for _, relation := range existing.Relation {
 		_, ok := existingRels[relation.Name]
@@ -121,8 +140,13 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 			return nil, fmt.Errorf("found duplicate relation %s in existing definition %s", relation.Name, existing.Name)
 		}
 
-		existingRels[relation.Name] = relation
-		existingRelNames.Add(relation.Name)
+		if isPermission(relation) {
+			existingPerms[relation.Name] = relation
+			existingPermNames.Add(relation.Name)
+		} else {
+			existingRels[relation.Name] = relation
+			existingRelNames.Add(relation.Name)
+		}
 	}
 
 	for _, relation := range updated.Relation {
@@ -131,8 +155,13 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 			return nil, fmt.Errorf("found duplicate relation %s in updated definition %s", relation.Name, updated.Name)
 		}
 
-		updatedRels[relation.Name] = relation
-		updatedRelNames.Add(relation.Name)
+		if isPermission(relation) {
+			updatedPerms[relation.Name] = relation
+			updatedPermNames.Add(relation.Name)
+		} else {
+			updatedRels[relation.Name] = relation
+			updatedRelNames.Add(relation.Name)
+		}
 	}
 
 	for _, removed := range strset.Difference(existingRelNames, updatedRelNames).List() {
@@ -149,17 +178,41 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		})
 	}
 
+	for _, removed := range strset.Difference(existingPermNames, updatedPermNames).List() {
+		deltas = append(deltas, Delta{
+			Type:         RemovedPermission,
+			RelationName: removed,
+		})
+	}
+
+	for _, added := range strset.Difference(updatedPermNames, existingPermNames).List() {
+		deltas = append(deltas, Delta{
+			Type:         AddedPermission,
+			RelationName: added,
+		})
+	}
+
+	for _, shared := range strset.Intersection(existingPermNames, updatedPermNames).List() {
+		existingPerm := existingPerms[shared]
+		updatedPerm := updatedPerms[shared]
+
+		// Compare implementations.
+		if areDifferentExpressions(existingPerm.UsersetRewrite, updatedPerm.UsersetRewrite) {
+			deltas = append(deltas, Delta{
+				Type:         ChangedPermissionImpl,
+				RelationName: shared,
+			})
+		}
+	}
+
 	for _, shared := range strset.Intersection(existingRelNames, updatedRelNames).List() {
 		existingRel := existingRels[shared]
 		updatedRel := updatedRels[shared]
 
-		// Compare implementations.
-		m := &jsonpb.Marshaler{}
-		existingRewriteJSON, _ := m.MarshalToString(existingRel.UsersetRewrite)
-		updatedRewriteJSON, _ := m.MarshalToString(updatedRel.UsersetRewrite)
-		if existingRewriteJSON != updatedRewriteJSON {
+		// Compare implementations (legacy).
+		if areDifferentExpressions(existingRel.UsersetRewrite, updatedRel.UsersetRewrite) {
 			deltas = append(deltas, Delta{
-				Type:         ChangedRelationImpl,
+				Type:         LegacyChangedRelationImpl,
 				RelationName: shared,
 			})
 		}
@@ -258,4 +311,31 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		updated:  updated,
 		deltas:   deltas,
 	}, nil
+}
+
+func isPermission(relation *core.Relation) bool {
+	return nspkg.GetRelationKind(relation) == iv1.RelationMetadata_PERMISSION
+}
+
+func areDifferentExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite) bool {
+	m := &jsonpb.Marshaler{}
+	existingRewriteJSON := ""
+	updatedRewriteJSON := ""
+	var merr error
+
+	if existing != nil {
+		existingRewriteJSON, merr = m.MarshalToString(existing)
+		if merr != nil {
+			panic(fmt.Sprintf("got error in marshaling rewrite: %v", merr))
+		}
+	}
+
+	if updated != nil {
+		updatedRewriteJSON, merr = m.MarshalToString(updated)
+		if merr != nil {
+			panic(fmt.Sprintf("got error in marshaling rewrite: %v", merr))
+		}
+	}
+
+	return existingRewriteJSON != updatedRewriteJSON
 }
