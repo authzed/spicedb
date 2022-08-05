@@ -126,8 +126,19 @@ func GCInterval(interval time.Duration) Option {
 	}
 }
 
+// GCMaxOperationTime is the maximum operation time of a garbage collection
+// pass before it times out.
+//
+// This value defaults to 1 minute.
+func GCMaxOperationTime(time time.Duration) Option {
+	return func(mo *mysqlOptions) {
+		mo.gcMaxOperationTime = time
+	}
+}
+
 // MaxRetries is the maximum number of times a retriable transaction will be
 // client-side retried.
+//
 // Default: 10
 func MaxRetries(maxRetries uint8) Option {
 	return func(mo *mysqlOptions) {
