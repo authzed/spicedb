@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"sync"
 
-	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datastore"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -108,10 +108,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, req ValidatedCheck
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 
 		// TODO(jschorr): Use type information to further optimize this query.
-		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
-			ResourceType:       req.ResourceAndRelation.Namespace,
-			OptionalResourceId: req.ResourceAndRelation.ObjectId,
-			OptionalRelation:   req.ResourceAndRelation.Relation,
+		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			ResourceType:             req.ResourceAndRelation.Namespace,
+			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
+			OptionalResourceRelation: req.ResourceAndRelation.Relation,
 		})
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)
@@ -237,10 +237,10 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, req Valida
 	return func(ctx context.Context, resultChan chan<- CheckResult) {
 		log.Ctx(ctx).Trace().Object("ttu", req).Send()
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
-		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
-			ResourceType:       req.ResourceAndRelation.Namespace,
-			OptionalResourceId: req.ResourceAndRelation.ObjectId,
-			OptionalRelation:   ttu.Tupleset.Relation,
+		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			ResourceType:             req.ResourceAndRelation.Namespace,
+			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
+			OptionalResourceRelation: ttu.Tupleset.Relation,
 		})
 		if err != nil {
 			resultChan <- checkResultError(NewCheckFailureErr(err), emptyMetadata)

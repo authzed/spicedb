@@ -42,13 +42,68 @@ type RevisionChanges struct {
 	Changes  []*core.RelationTupleUpdate
 }
 
+// RelationshipsFilter is a filter for relationships.
+type RelationshipsFilter struct {
+	// ResourceType is the namespace/type for the resources to be found.
+	ResourceType string
+
+	// OptionalResourceIds are the IDs of the resources to find. If nil empty, any resource ID will be allowed.
+	OptionalResourceIds []string
+
+	// OptionalResourceRelation is the relation of the resource to find. If empty, any relation is allowed.
+	OptionalResourceRelation string
+
+	// OptionalSubjectsFilter is the filter to use for subjects of the relationship. If nil, all subjects are allowed.
+	OptionalSubjectsFilter *SubjectsFilter
+}
+
+// RelationshipsFilterFromPublicFilter constructs a datastore RelationshipsFilter from an API-defined RelationshipFilter.
+func RelationshipsFilterFromPublicFilter(filter *v1.RelationshipFilter) RelationshipsFilter {
+	var resourceIds []string
+	if filter.OptionalResourceId != "" {
+		resourceIds = []string{filter.OptionalResourceId}
+	}
+
+	var subjectsFilter *SubjectsFilter
+	if filter.OptionalSubjectFilter != nil {
+		var subjectIds []string
+		if filter.OptionalSubjectFilter.OptionalSubjectId != "" {
+			subjectIds = []string{filter.OptionalSubjectFilter.OptionalSubjectId}
+		}
+
+		relationFilter := SubjectRelationFilter{}
+
+		if filter.OptionalSubjectFilter.OptionalRelation != nil {
+			relation := filter.OptionalSubjectFilter.OptionalRelation.GetRelation()
+			if relation != "" {
+				relationFilter = relationFilter.WithNonEllipsisRelation(relation)
+			} else {
+				relationFilter = relationFilter.WithEllipsisRelation()
+			}
+		}
+
+		subjectsFilter = &SubjectsFilter{
+			SubjectType:        filter.OptionalSubjectFilter.SubjectType,
+			OptionalSubjectIds: subjectIds,
+			RelationFilter:     relationFilter,
+		}
+	}
+
+	return RelationshipsFilter{
+		ResourceType:             filter.ResourceType,
+		OptionalResourceIds:      resourceIds,
+		OptionalResourceRelation: filter.OptionalRelation,
+		OptionalSubjectsFilter:   subjectsFilter,
+	}
+}
+
 // SubjectsFilter is a filter for subjects.
 type SubjectsFilter struct {
 	// SubjectType is the namespace/type for the subjects to be found.
 	SubjectType string
 
-	// SubjectIds are the IDs of the subjects to find. If empty, any subjects ID will be allowed.
-	SubjectIds []string
+	// OptionalSubjectIds are the IDs of the subjects to find. If nil or empty, any subject ID will be allowed.
+	OptionalSubjectIds []string
 
 	// RelationFilter is the filter to use for the relation(s) of the subjects. If neither field
 	// is set, any relation is allowed.
@@ -89,7 +144,7 @@ type Reader interface {
 	// QueryRelationships reads relationships, starting from the resource side.
 	QueryRelationships(
 		ctx context.Context,
-		filter *v1.RelationshipFilter,
+		filter RelationshipsFilter,
 		options ...options.QueryOptionsOption,
 	) (RelationshipIterator, error)
 

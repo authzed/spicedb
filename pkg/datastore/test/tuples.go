@@ -94,44 +94,44 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				tupleSubject := tupleToFind.Subject
 
 				// Check that we can find the tuple a number of ways
-				iter, err := dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
+				iter, err := dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:        tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds: []string{tupleToFind.ResourceAndRelation.ObjectId},
 				})
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					ResourceType: tupleToFind.ResourceAndRelation.Namespace,
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
-					OptionalRelation:   tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				})
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:        tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds: []string{tupleToFind.ResourceAndRelation.ObjectId},
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:     tupleToFind.ResourceAndRelation.Namespace,
-					OptionalRelation: tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:     tupleToFind.ResourceAndRelation.Namespace,
-					OptionalRelation: tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(tupleSubject), options.WithLimit(options.LimitOne))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
@@ -160,10 +160,10 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
 				// Check that we fail to find the tuple with the wrong filters
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
-					OptionalRelation:   "fake",
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
+					OptionalResourceRelation: "fake",
 				})
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
@@ -173,40 +173,40 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 					ObjectId:  tupleSubject.ObjectId,
 					Relation:  "fake",
 				}
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					ResourceType: tupleToFind.ResourceAndRelation.Namespace,
 				}, options.WithUsersets(incorrectUserset))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
-					OptionalRelation:   tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(incorrectUserset))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
-					OptionalRelation:   "fake",
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
+					OptionalResourceRelation: "fake",
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: "fake",
-					OptionalRelation:   tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{"fake"},
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: "fake",
-					OptionalRelation:   tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{"fake"},
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(tupleSubject), options.WithLimit(options.LimitOne))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
@@ -224,18 +224,18 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Check a query that returns a number of tuples
-			iter, err := dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+			iter, err := dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testResourceNamespace,
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			// Filter it down to a single tuple with a userset
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testResourceNamespace,
-				OptionalSubjectFilter: &v1.SubjectFilter{
-					SubjectType:       testUserNamespace,
-					OptionalSubjectId: "user0",
+				OptionalSubjectsFilter: &datastore.SubjectsFilter{
+					SubjectType:        testUserNamespace,
+					OptionalSubjectIds: []string{"user0"},
 				},
 			})
 			require.NoError(err)
@@ -259,28 +259,28 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Check that we can find the group of tuples too
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testTuples[0].ResourceAndRelation.Namespace,
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-				ResourceType:     testTuples[0].ResourceAndRelation.Namespace,
-				OptionalRelation: testTuples[0].ResourceAndRelation.Relation,
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+				ResourceType:             testTuples[0].ResourceAndRelation.Namespace,
+				OptionalResourceRelation: testTuples[0].ResourceAndRelation.Relation,
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			// Try some bad queries
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-				ResourceType:       testTuples[0].ResourceAndRelation.Namespace,
-				OptionalResourceId: "fakeobectid",
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+				ResourceType:        testTuples[0].ResourceAndRelation.Namespace,
+				OptionalResourceIds: []string{"fakeobectid"},
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter)
 
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testTuples[0].ResourceAndRelation.Namespace,
 			}, options.WithUsersets(&core.ObjectAndRelation{
 				Namespace: "test/user",
@@ -323,7 +323,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire.NoTupleExists(ctx, testTuples[0], deletedAt)
 			alreadyDeletedIter, err := ds.SnapshotReader(deletedAt).QueryRelationships(
 				ctx,
-				&v1.RelationshipFilter{
+				datastore.RelationshipsFilter{
 					ResourceType: testTuples[0].ResourceAndRelation.Namespace,
 				},
 			)
@@ -591,7 +591,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 				}
 
 				// Query for the tuples as a single query.
-				iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, &v1.RelationshipFilter{
+				iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 					ResourceType: testResourceNamespace,
 				}, options.SetUsersets(usersets))
 				require.NoError(err)
@@ -611,13 +611,13 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 	ctx := context.Background()
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		it, err := rwt.QueryRelationships(ctx, &v1.RelationshipFilter{
+		it, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			ResourceType: "document",
 		})
 		require.NoError(err)
 		it.Close()
 
-		it, err = rwt.QueryRelationships(ctx, &v1.RelationshipFilter{
+		it, err = rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			ResourceType: "folder",
 		})
 		require.NoError(err)
@@ -650,7 +650,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 
 	g.Go(func() error {
 		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			iter, err := rwt.QueryRelationships(ctx, &v1.RelationshipFilter{
+			iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testResourceNamespace,
 			})
 			iter.Close()
@@ -697,8 +697,8 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 
 func onrToSubjectsFilter(onr *core.ObjectAndRelation) datastore.SubjectsFilter {
 	return datastore.SubjectsFilter{
-		SubjectType:    onr.Namespace,
-		SubjectIds:     []string{onr.ObjectId},
-		RelationFilter: datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(onr.Relation),
+		SubjectType:        onr.Namespace,
+		OptionalSubjectIds: []string{onr.ObjectId},
+		RelationFilter:     datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(onr.Relation),
 	}
 }

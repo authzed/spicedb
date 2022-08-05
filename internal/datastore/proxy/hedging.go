@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/benbjohnson/clock"
 	"github.com/influxdata/tdigest"
 	"github.com/prometheus/client_golang/prometheus"
@@ -238,7 +237,7 @@ func (hp hedgingReader) ReadNamespace(
 
 func (hp hedgingReader) QueryRelationships(
 	ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	options ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	return hp.executeQuery(ctx, func(c context.Context) (datastore.RelationshipIterator, error) {

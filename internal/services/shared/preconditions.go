@@ -21,7 +21,7 @@ func CheckPreconditions(
 	preconditions []*v1.Precondition,
 ) error {
 	for _, precond := range preconditions {
-		iter, err := rwt.QueryRelationships(ctx, precond.Filter, options.WithLimit(&limitOne))
+		iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilterFromPublicFilter(precond.Filter), options.WithLimit(&limitOne))
 		if err != nil {
 			return fmt.Errorf("error reading relationships: %w", err)
 		}

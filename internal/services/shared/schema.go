@@ -3,7 +3,6 @@ package shared
 import (
 	"context"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -19,7 +18,7 @@ import (
 func EnsureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTransaction, namespaceName string) error {
 	qy, qyErr := rwt.QueryRelationships(
 		ctx,
-		&v1.RelationshipFilter{ResourceType: namespaceName},
+		datastore.RelationshipsFilter{ResourceType: namespaceName},
 		options.WithLimit(options.LimitOne),
 	)
 	if err := ErrorIfTupleIteratorReturnsTuples(
@@ -66,9 +65,9 @@ func SanityCheckExistingRelationships(
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
 		case namespace.RemovedRelation:
-			qy, qyErr := rwt.QueryRelationships(ctx, &v1.RelationshipFilter{
-				ResourceType:     nsdef.Name,
-				OptionalRelation: delta.RelationName,
+			qy, qyErr := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
+				ResourceType:             nsdef.Name,
+				OptionalResourceRelation: delta.RelationName,
 			})
 
 			err = ErrorIfTupleIteratorReturnsTuples(
@@ -100,8 +99,8 @@ func SanityCheckExistingRelationships(
 			qy, qyErr := rwt.ReverseQueryRelationships(
 				ctx,
 				datastore.SubjectsFilter{
-					SubjectType: delta.WildcardType,
-					SubjectIds:  []string{tuple.PublicWildcard},
+					SubjectType:        delta.WildcardType,
+					OptionalSubjectIds: []string{tuple.PublicWildcard},
 				},
 				options.WithResRelation(&options.ResourceRelation{
 					Namespace: nsdef.Name,

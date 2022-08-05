@@ -94,7 +94,7 @@ func (dm *MockReader) ReadNamespace(
 
 func (dm *MockReader) QueryRelationships(
 	ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	options ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
 	callArgs := make([]interface{}, 0, len(options)+1)
@@ -157,7 +157,7 @@ func (dm *MockReadWriteTransaction) ReadNamespace(
 
 func (dm *MockReadWriteTransaction) QueryRelationships(
 	ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	options ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
 	callArgs := make([]interface{}, 0, len(options)+1)

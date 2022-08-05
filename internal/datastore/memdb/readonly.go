@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"runtime"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/protobuf/proto"
@@ -27,7 +26,7 @@ type memdbReader struct {
 // QueryRelationships reads relationships starting from the resource side.
 func (r *memdbReader) QueryRelationships(
 	ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
 	if r.initErr != nil {
@@ -51,10 +50,9 @@ func (r *memdbReader) QueryRelationships(
 
 	matchingRelationshipsFilterFunc := filterFuncForFilters(
 		filter.ResourceType,
-		filter.OptionalResourceId,
-		filter.OptionalRelation,
-		filter.OptionalSubjectFilter,
-		nil,
+		filter.OptionalResourceIds,
+		filter.OptionalResourceRelation,
+		filter.OptionalSubjectsFilter,
 		queryOpts.Usersets,
 	)
 	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
@@ -110,9 +108,8 @@ func (r *memdbReader) ReverseQueryRelationships(
 
 	matchingRelationshipsFilterFunc := filterFuncForFilters(
 		filterObjectType,
-		"",
-		filterRelation,
 		nil,
+		filterRelation,
 		&subjectsFilter,
 		nil,
 	)
@@ -206,29 +203,14 @@ func (r *memdbReader) lockOrPanic() {
 	}
 }
 
-func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.ResultIterator, error) {
+func iteratorForFilter(txn *memdb.Txn, filter datastore.RelationshipsFilter) (memdb.ResultIterator, error) {
 	switch {
-	case filter.OptionalResourceId != "":
-		return txn.Get(
-			tableRelationship,
-			indexNamespaceAndResourceID,
-			filter.ResourceType,
-			filter.OptionalResourceId,
-		)
-	case filter.OptionalSubjectFilter != nil && filter.OptionalSubjectFilter.OptionalSubjectId != "":
-		return txn.Get(
-			tableRelationship,
-			indexNamespaceAndSubjectID,
-			filter.ResourceType,
-			filter.OptionalSubjectFilter.SubjectType,
-			filter.OptionalSubjectFilter.OptionalSubjectId,
-		)
-	case filter.OptionalRelation != "":
+	case filter.OptionalResourceRelation != "":
 		return txn.Get(
 			tableRelationship,
 			indexNamespaceAndRelation,
 			filter.ResourceType,
-			filter.OptionalRelation,
+			filter.OptionalResourceRelation,
 		)
 	}
 
@@ -240,31 +222,23 @@ func iteratorForFilter(txn *memdb.Txn, filter *v1.RelationshipFilter) (memdb.Res
 	return iter, err
 }
 
-func filterFuncForFilters(optionalObjectType, optionalObjectID, optionalRelation string,
-	optionalSubjectFilter *v1.SubjectFilter, optionalSubjectsFilter *datastore.SubjectsFilter,
+func filterFuncForFilters(
+	optionalResourceType string,
+	optionalResourceIds []string,
+	optionalRelation string,
+	optionalSubjectsFilter *datastore.SubjectsFilter,
 	usersets []*core.ObjectAndRelation,
 ) memdb.FilterFunc {
 	return func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*relationship)
 
 		switch {
-		case optionalObjectType != "" && optionalObjectType != tuple.namespace:
+		case optionalResourceType != "" && optionalResourceType != tuple.namespace:
 			return true
-		case optionalObjectID != "" && optionalObjectID != tuple.resourceID:
+		case len(optionalResourceIds) > 0 && !stringz.SliceContains(optionalResourceIds, tuple.resourceID):
 			return true
 		case optionalRelation != "" && optionalRelation != tuple.relation:
 			return true
-		}
-
-		if optionalSubjectFilter != nil {
-			switch {
-			case optionalSubjectFilter.SubjectType != tuple.subjectNamespace:
-				return true
-			case optionalSubjectFilter.OptionalSubjectId != "" && optionalSubjectFilter.OptionalSubjectId != tuple.subjectObjectID:
-				return true
-			case optionalSubjectFilter.OptionalRelation != nil && stringz.DefaultEmpty(optionalSubjectFilter.OptionalRelation.Relation, datastore.Ellipsis) != tuple.subjectRelation:
-				return true
-			}
 		}
 
 		if optionalSubjectsFilter != nil {
@@ -280,7 +254,7 @@ func filterFuncForFilters(optionalObjectType, optionalObjectID, optionalRelation
 			switch {
 			case optionalSubjectsFilter.SubjectType != tuple.subjectNamespace:
 				return true
-			case len(optionalSubjectsFilter.SubjectIds) > 0 && !stringz.SliceContains(optionalSubjectsFilter.SubjectIds, tuple.subjectObjectID):
+			case len(optionalSubjectsFilter.OptionalSubjectIds) > 0 && !stringz.SliceContains(optionalSubjectsFilter.OptionalSubjectIds, tuple.subjectObjectID):
 				return true
 			case len(relations) > 0 && !stringz.SliceContains(relations, tuple.subjectRelation):
 				return true

@@ -96,11 +96,63 @@ func (sqf SchemaQueryFilterer) FilterToResourceID(objectID string) SchemaQueryFi
 	return sqf
 }
 
+// FilterToResourceIDs returns a new SchemaQueryFilterer that is limited to resources with any of the
+// specified IDs.
+func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) SchemaQueryFilterer {
+	// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
+	if len(resourceIds) > 100 {
+		panic("Cannot have more than 100 resources IDs in a single filter")
+	}
+
+	inClause := fmt.Sprintf("%s IN (", sqf.schema.ColObjectID)
+	args := make([]interface{}, 0, len(resourceIds))
+
+	for index, resourceID := range resourceIds {
+		if len(resourceID) == 0 {
+			panic("got empty resource id")
+		}
+
+		if index > 0 {
+			inClause += ", "
+		}
+
+		inClause += "?"
+
+		args = append(args, resourceID)
+		sqf.tracerAttributes = append(sqf.tracerAttributes, ObjIDKey.String(resourceID))
+	}
+
+	sqf.queryBuilder = sqf.queryBuilder.Where(inClause+")", args...)
+	return sqf
+}
+
 // FilterToRelation returns a new SchemaQueryFilterer that is limited to resources with the
 // specified relation.
 func (sqf SchemaQueryFilterer) FilterToRelation(relation string) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColRelation: relation})
 	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjRelationNameKey.String(relation))
+	return sqf
+}
+
+// FilterWithRelationshipsFilter returns a new SchemaQueryFilterer that is limited to resources with
+// resources that match the specified filter.
+func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.RelationshipsFilter) SchemaQueryFilterer {
+	sqf = sqf.FilterToResourceType(filter.ResourceType)
+
+	if filter.OptionalResourceRelation != "" {
+		sqf = sqf.FilterToRelation(filter.OptionalResourceRelation)
+	}
+
+	if len(filter.OptionalResourceIds) == 1 {
+		sqf = sqf.FilterToResourceID(filter.OptionalResourceIds[0])
+	} else if len(filter.OptionalResourceIds) > 1 {
+		sqf = sqf.FilterToResourceIDs(filter.OptionalResourceIds)
+	}
+
+	if filter.OptionalSubjectsFilter != nil {
+		sqf = sqf.FilterWithSubjectsFilter(*filter.OptionalSubjectsFilter)
+	}
+
 	return sqf
 }
 
@@ -110,20 +162,20 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsFilter(filter datastore.Subject
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetNamespace: filter.SubjectType})
 	sqf.tracerAttributes = append(sqf.tracerAttributes, SubNamespaceNameKey.String(filter.SubjectType))
 
-	if len(filter.SubjectIds) == 1 {
-		subjectID := filter.SubjectIds[0]
+	if len(filter.OptionalSubjectIds) == 1 {
+		subjectID := filter.OptionalSubjectIds[0]
 		sqf.tracerAttributes = append(sqf.tracerAttributes, SubObjectIDKey.String(subjectID))
 		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetObjectID: subjectID})
-	} else if len(filter.SubjectIds) > 1 {
+	} else if len(filter.OptionalSubjectIds) > 1 {
 		// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
-		if len(filter.SubjectIds) > 100 {
+		if len(filter.OptionalSubjectIds) > 100 {
 			panic("Cannot have more than 100 subject IDs in a single filter")
 		}
 
 		inClause := fmt.Sprintf("%s IN (", sqf.schema.ColUsersetObjectID)
-		args := make([]interface{}, 0, len(filter.SubjectIds))
+		args := make([]interface{}, 0, len(filter.OptionalSubjectIds))
 
-		for index, subjectID := range filter.SubjectIds {
+		for index, subjectID := range filter.OptionalSubjectIds {
 			if len(subjectID) == 0 {
 				panic("got empty subject id")
 			}

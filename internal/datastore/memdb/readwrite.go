@@ -100,7 +100,7 @@ func (rwt *memdbReadWriteTx) DeleteRelationships(filter *v1.RelationshipFilter) 
 // caller must already hold the concurrent access lock
 func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.RelationshipFilter) error {
 	// Create an iterator to find the relevant tuples
-	bestIter, err := iteratorForFilter(tx, filter)
+	bestIter, err := iteratorForFilter(tx, datastore.RelationshipsFilterFromPublicFilter(filter))
 	if err != nil {
 		return err
 	}

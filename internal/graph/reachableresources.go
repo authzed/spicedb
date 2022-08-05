@@ -180,7 +180,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 		RelationFilter: datastore.SubjectRelationFilter{
 			NonEllipsisRelation: req.SubjectRelation.Relation,
 		},
-		SubjectIds: subjectIds,
+		OptionalSubjectIds: subjectIds,
 	}
 
 	// Fire off a query lookup in parallel.
@@ -290,9 +290,9 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 
 	// Search for the resolved subjects in the tupleset of the TTU.
 	subjectsFilter := datastore.SubjectsFilter{
-		SubjectType:    req.SubjectRelation.Namespace,
-		RelationFilter: relationFilter,
-		SubjectIds:     req.SubjectIds,
+		SubjectType:        req.SubjectRelation.Namespace,
+		RelationFilter:     relationFilter,
+		OptionalSubjectIds: req.SubjectIds,
 	}
 
 	// Fire off a query lookup in parallel.
