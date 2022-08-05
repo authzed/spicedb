@@ -5,15 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 

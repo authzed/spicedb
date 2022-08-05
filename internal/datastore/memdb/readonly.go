@@ -204,17 +204,14 @@ func (r *memdbReader) lockOrPanic() {
 }
 
 func iteratorForFilter(txn *memdb.Txn, filter datastore.RelationshipsFilter) (memdb.ResultIterator, error) {
-	switch {
-	case filter.OptionalResourceRelation != "":
-		return txn.Get(
-			tableRelationship,
-			indexNamespaceAndRelation,
-			filter.ResourceType,
-			filter.OptionalResourceRelation,
-		)
+	index := indexNamespace
+	args := []any{filter.ResourceType}
+	if filter.OptionalResourceRelation != "" {
+		args = append(args, filter.OptionalResourceRelation)
+		index = indexNamespaceAndRelation
 	}
 
-	iter, err := txn.Get(tableRelationship, indexNamespace, filter.ResourceType)
+	iter, err := txn.Get(tableRelationship, index, args...)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get iterator for filter: %w", err)
 	}

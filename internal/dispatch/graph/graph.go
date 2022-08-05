@@ -31,6 +31,7 @@ func NewLocalOnlyDispatcher(concurrencyLimit uint16) dispatch.Dispatcher {
 	d.expander = graph.NewConcurrentExpander(d)
 	d.lookupHandler = graph.NewConcurrentLookup(d, d, concurrencyLimit)
 	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, concurrencyLimit)
+	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimit)
 
 	return d
 }
@@ -42,12 +43,14 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimit uint16) di
 	expander := graph.NewConcurrentExpander(redispatcher)
 	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, concurrencyLimit)
 	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher, concurrencyLimit)
+	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimit)
 
 	return &localDispatcher{
 		checker:                   checker,
 		expander:                  expander,
 		lookupHandler:             lookupHandler,
 		reachableResourcesHandler: reachableResourcesHandler,
+		lookupSubjectsHandler:     lookupSubjectsHandler,
 	}
 }
 
@@ -56,6 +59,7 @@ type localDispatcher struct {
 	expander                  *graph.ConcurrentExpander
 	lookupHandler             *graph.ConcurrentLookup
 	reachableResourcesHandler *graph.ConcurrentReachableResources
+	lookupSubjectsHandler     *graph.ConcurrentLookupSubjects
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, error) {
@@ -110,8 +114,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	))
 	defer span.End()
 
-	err := dispatch.CheckDepth(ctx, req)
-	if err != nil {
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		if req.Debug != v1.DispatchCheckRequest_ENABLE_DEBUGGING {
 			return &v1.DispatchCheckResponse{
 				Metadata: &v1.ResponseMeta{
@@ -176,12 +179,10 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		return ld.checker.Check(ctx, validatedReq, relation)
 	}
 
-	validatedReq := graph.ValidatedCheckRequest{
+	return ld.checker.Check(ctx, graph.ValidatedCheckRequest{
 		DispatchCheckRequest: req,
 		Revision:             revision,
-	}
-
-	return ld.checker.Check(ctx, validatedReq, relation)
+	}, relation)
 }
 
 // DispatchExpand implements dispatch.Expand interface
@@ -191,8 +192,7 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 	))
 	defer span.End()
 
-	err := dispatch.CheckDepth(ctx, req)
-	if err != nil {
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
@@ -211,12 +211,10 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	validatedReq := graph.ValidatedExpandRequest{
+	return ld.expander.Expand(ctx, graph.ValidatedExpandRequest{
 		DispatchExpandRequest: req,
 		Revision:              revision,
-	}
-
-	return ld.expander.Expand(ctx, validatedReq, relation)
+	}, relation)
 }
 
 // DispatchLookup implements dispatch.Lookup interface
@@ -228,8 +226,7 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	))
 	defer span.End()
 
-	err := dispatch.CheckDepth(ctx, req)
-	if err != nil {
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
 
@@ -242,12 +239,10 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
 	}
 
-	validatedReq := graph.ValidatedLookupRequest{
+	return ld.lookupHandler.LookupViaReachability(ctx, graph.ValidatedLookupRequest{
 		DispatchLookupRequest: req,
 		Revision:              revision,
-	}
-
-	return ld.lookupHandler.LookupViaReachability(ctx, validatedReq)
+	})
 }
 
 // DispatchReachableResources implements dispatch.ReachableResources interface
@@ -262,8 +257,7 @@ func (ld *localDispatcher) DispatchReachableResources(
 	))
 	defer span.End()
 
-	err := dispatch.CheckDepth(ctx, req)
-	if err != nil {
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return err
 	}
 
@@ -272,13 +266,43 @@ func (ld *localDispatcher) DispatchReachableResources(
 		return err
 	}
 
-	validatedReq := graph.ValidatedReachableResourcesRequest{
-		DispatchReachableResourcesRequest: req,
-		Revision:                          revision,
+	return ld.reachableResourcesHandler.ReachableResources(
+		graph.ValidatedReachableResourcesRequest{
+			DispatchReachableResourcesRequest: req,
+			Revision:                          revision,
+		},
+		dispatch.StreamWithContext(ctx, stream),
+	)
+}
+
+// DispatchLookupSubjects implements dispatch.LookupSubjects interface
+func (ld *localDispatcher) DispatchLookupSubjects(
+	req *v1.DispatchLookupSubjectsRequest,
+	stream dispatch.LookupSubjectsStream,
+) error {
+	ctx, span := tracer.Start(stream.Context(), "DispatchLookupSubjects", trace.WithAttributes(
+		attribute.Stringer("resource-type", stringableRelRef{req.ResourceRelation}),
+		attribute.Stringer("subject-type", stringableRelRef{req.SubjectRelation}),
+		attribute.StringSlice("resource-ids", req.ResourceIds),
+	))
+	defer span.End()
+
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
+		return err
 	}
 
-	wrappedStream := dispatch.StreamWithContext(ctx, stream)
-	return ld.reachableResourcesHandler.ReachableResources(validatedReq, wrappedStream)
+	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+	if err != nil {
+		return err
+	}
+
+	return ld.lookupSubjectsHandler.LookupSubjects(
+		graph.ValidatedLookupSubjectsRequest{
+			DispatchLookupSubjectsRequest: req,
+			Revision:                      revision,
+		},
+		dispatch.StreamWithContext(ctx, stream),
+	)
 }
 
 func (ld *localDispatcher) Close() error {

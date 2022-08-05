@@ -11,6 +11,7 @@ service DispatchService {
   rpc DispatchExpand(DispatchExpandRequest) returns (DispatchExpandResponse) {}
   rpc DispatchLookup(DispatchLookupRequest) returns (DispatchLookupResponse) {}
   rpc DispatchReachableResources(DispatchReachableResourcesRequest) returns (stream DispatchReachableResourcesResponse) {}
+  rpc DispatchLookupSubjects(DispatchLookupSubjectsRequest) returns (stream DispatchLookupSubjectsResponse) {}
 }
 
 message DispatchCheckRequest {
@@ -108,6 +109,22 @@ message ReachableResource {
 
 message DispatchReachableResourcesResponse {
   ReachableResource resource = 1;
+  ResponseMeta metadata = 2;
+}
+
+message DispatchLookupSubjectsRequest {
+  ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
+
+  core.v1.RelationReference resource_relation = 2
+      [ (validate.rules).message.required = true ];
+  repeated string resource_ids = 3;
+
+  core.v1.RelationReference subject_relation = 4
+      [ (validate.rules).message.required = true ];
+}
+
+message DispatchLookupSubjectsResponse {
+  repeated string found_subject_ids = 1;
   ResponseMeta metadata = 2;
 }
 

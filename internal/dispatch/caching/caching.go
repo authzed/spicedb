@@ -35,6 +35,8 @@ type Dispatcher struct {
 	lookupFromCacheCounter             prometheus.Counter
 	reachableResourcesTotalCounter     prometheus.Counter
 	reachableResourcesFromCacheCounter prometheus.Counter
+	lookupSubjectsTotalCounter         prometheus.Counter
+	lookupSubjectsFromCacheCounter     prometheus.Counter
 
 	cacheHits        prometheus.CounterFunc
 	cacheMisses      prometheus.CounterFunc
@@ -54,10 +56,15 @@ type reachableResourcesResultEntry struct {
 	responses []*v1.DispatchReachableResourcesResponse
 }
 
+type lookupSubjectsResultEntry struct {
+	responses []*v1.DispatchLookupSubjectsResponse
+}
+
 var (
 	checkResultEntryCost            = int64(unsafe.Sizeof(checkResultEntry{}))
 	lookupResultEntryEmptyCost      = int64(unsafe.Sizeof(lookupResultEntry{}))
 	reachbleResourcesEntryEmptyCost = int64(unsafe.Sizeof(reachableResourcesResultEntry{}))
+	lookupSubjectsEntryEmptyCost    = int64(unsafe.Sizeof(lookupSubjectsResultEntry{}))
 )
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
@@ -122,6 +129,17 @@ func NewCachingDispatcher(
 		Name:      "reachable_resources_from_cache_total",
 	})
 
+	lookupSubjectsTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "lookup_subjects_total",
+	})
+	lookupSubjectsFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: prometheusNamespace,
+		Subsystem: prometheusSubsystem,
+		Name:      "lookup_subjects_from_cache_total",
+	})
+
 	cacheHitsTotal := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
@@ -178,6 +196,14 @@ func NewCachingDispatcher(
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
+		err = prometheus.Register(lookupSubjectsTotalCounter)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
+		err = prometheus.Register(lookupSubjectsFromCacheCounter)
+		if err != nil {
+			return nil, fmt.Errorf(errCachingInitialization, err)
+		}
 
 		// Export some ristretto metrics
 		err = prometheus.Register(cacheHitsTotal)
@@ -212,6 +238,8 @@ func NewCachingDispatcher(
 		lookupFromCacheCounter:             lookupFromCacheCounter,
 		reachableResourcesTotalCounter:     reachableResourcesTotalCounter,
 		reachableResourcesFromCacheCounter: reachableResourcesFromCacheCounter,
+		lookupSubjectsTotalCounter:         lookupSubjectsTotalCounter,
+		lookupSubjectsFromCacheCounter:     lookupSubjectsFromCacheCounter,
 		cacheHits:                          cacheHitsTotal,
 		cacheMisses:                        cacheMissesTotal,
 		costAddedBytes:                     costAddedBytes,
@@ -330,7 +358,7 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 		for _, result := range cachedResult.responses {
 			err := stream.Publish(result)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not publish cached reachable resources result: %w", err)
 			}
 		}
 
@@ -343,33 +371,85 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
 		Stream: stream,
 		Ctx:    stream.Context(),
-		Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, error) {
-			mu.Lock()
-			defer mu.Unlock()
-
+		Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
 			adjustedResult := proto.Clone(result).(*v1.DispatchReachableResourcesResponse)
 			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
 			adjustedResult.Metadata.DispatchCount = 0
 			adjustedResult.Metadata.DebugInfo = nil
 
-			toCacheResults = append(toCacheResults, adjustedResult)
+			mu.Lock()
+			defer mu.Unlock()
 
 			for _, id := range result.Resource.ResourceIds {
 				estimatedSize += int64(len(id))
 			}
-			return result, nil
+
+			toCacheResults = append(toCacheResults, adjustedResult)
+			return result, true, nil
 		},
 	}
 
 	err := cd.d.DispatchReachableResources(req, wrapped)
-
-	// We only want to cache the result if there was no error
-	if err == nil {
-		toCache := reachableResourcesResultEntry{toCacheResults}
-		cd.c.Set(requestKey, toCache, estimatedSize)
+	if err != nil {
+		return err
 	}
 
-	return err
+	toCache := reachableResourcesResultEntry{toCacheResults}
+	cd.c.Set(requestKey, toCache, estimatedSize)
+	return nil
+}
+
+// DispatchLookupSubjects implements dispatch.LookupSubjects interface and does not do any caching yet.
+func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
+	cd.lookupSubjectsTotalCounter.Inc()
+
+	requestKey := dispatch.LookupSubjectsRequestToKey(req)
+	if cachedResultRaw, found := cd.c.Get(requestKey); found {
+		cachedResult := cachedResultRaw.(lookupSubjectsResultEntry)
+		cd.lookupSubjectsFromCacheCounter.Inc()
+		for _, result := range cachedResult.responses {
+			err := stream.Publish(result)
+			if err != nil {
+				return fmt.Errorf("could not publish cached lookup subjects result: %w", err)
+			}
+		}
+
+		return nil
+	}
+
+	var mu sync.Mutex
+	estimatedSize := lookupSubjectsEntryEmptyCost
+	toCacheResults := []*v1.DispatchLookupSubjectsResponse{}
+	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
+		Stream: stream,
+		Ctx:    stream.Context(),
+		Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
+			adjustedResult := proto.Clone(result).(*v1.DispatchLookupSubjectsResponse)
+			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
+			adjustedResult.Metadata.DispatchCount = 0
+			adjustedResult.Metadata.DebugInfo = nil
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			for _, id := range result.FoundSubjectIds {
+				estimatedSize += int64(len(id))
+			}
+
+			toCacheResults = append(toCacheResults, adjustedResult)
+			return result, true, nil
+		},
+	}
+
+	err := cd.d.DispatchLookupSubjects(req, wrapped)
+	if err != nil {
+		return err
+	}
+
+	// We only want to cache the result if there was no error
+	toCache := lookupSubjectsResultEntry{toCacheResults}
+	cd.c.Set(requestKey, toCache, estimatedSize)
+	return nil
 }
 
 func (cd *Dispatcher) Close() error {

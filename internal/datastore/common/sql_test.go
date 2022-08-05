@@ -18,7 +18,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		name         string
 		run          func(filterer SchemaQueryFilterer) SchemaQueryFilterer
 		expectedSQL  string
-		expectedArgs []interface{}
+		expectedArgs []any
 	}{
 		{
 			"relation filter",
@@ -26,7 +26,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.FilterToRelation("somerelation")
 			},
 			"SELECT * WHERE relation = ?",
-			[]interface{}{"somerelation"},
+			[]any{"somerelation"},
 		},
 		{
 			"resource ID filter",
@@ -34,7 +34,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.FilterToResourceID("someresourceid")
 			},
 			"SELECT * WHERE object_id = ?",
-			[]interface{}{"someresourceid"},
+			[]any{"someresourceid"},
 		},
 		{
 			"resource IDs filter",
@@ -42,7 +42,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.FilterToResourceIDs([]string{"someresourceid", "anotherresourceid"})
 			},
 			"SELECT * WHERE object_id IN (?, ?)",
-			[]interface{}{"someresourceid", "anotherresourceid"},
+			[]any{"someresourceid", "anotherresourceid"},
 		},
 		{
 			"resource type filter",
@@ -50,7 +50,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.FilterToResourceType("sometype")
 			},
 			"SELECT * WHERE ns = ?",
-			[]interface{}{"sometype"},
+			[]any{"sometype"},
 		},
 		{
 			"resource filter",
@@ -58,7 +58,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj").FilterToRelation("somerel")
 			},
 			"SELECT * WHERE ns = ? AND object_id = ? AND relation = ?",
-			[]interface{}{"sometype", "someobj", "somerel"},
+			[]any{"sometype", "someobj", "somerel"},
 		},
 		{
 			"relationships filter with no IDs or relations",
@@ -68,7 +68,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE ns = ?",
-			[]interface{}{"sometype"},
+			[]any{"sometype"},
 		},
 		{
 			"relationships filter with single ID",
@@ -78,8 +78,19 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalResourceIds: []string{"someid"},
 				})
 			},
-			"SELECT * WHERE ns = ? AND object_id = ?",
-			[]interface{}{"sometype", "someid"},
+			"SELECT * WHERE ns = ? AND object_id IN (?)",
+			[]any{"sometype", "someid"},
+		},
+		{
+			"relationships filter with no IDs",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterWithRelationshipsFilter(datastore.RelationshipsFilter{
+					ResourceType:        "sometype",
+					OptionalResourceIds: []string{},
+				})
+			},
+			"SELECT * WHERE ns = ?",
+			[]any{"sometype"},
 		},
 		{
 			"relationships filter with multiple IDs",
@@ -90,7 +101,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE ns = ? AND object_id IN (?, ?)",
-			[]interface{}{"sometype", "someid", "anotherid"},
+			[]any{"sometype", "someid", "anotherid"},
 		},
 		{
 			"subjects filter with no IDs or relations",
@@ -100,7 +111,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ?",
-			[]interface{}{"somesubjectype"},
+			[]any{"somesubjectype"},
 		},
 		{
 			"subjects filter with single ID",
@@ -110,8 +121,8 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds: []string{"somesubjectid"},
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_object_id = ?",
-			[]interface{}{"somesubjectype", "somesubjectid"},
+			"SELECT * WHERE subject_ns = ? AND subject_object_id IN (?)",
+			[]any{"somesubjectype", "somesubjectid"},
 		},
 		{
 			"subjects filter with multiple IDs",
@@ -122,7 +133,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_object_id IN (?, ?)",
-			[]interface{}{"somesubjectype", "somesubjectid", "anothersubjectid"},
+			[]any{"somesubjectype", "somesubjectid", "anothersubjectid"},
 		},
 		{
 			"subjects filter with single ellipsis relation",
@@ -133,7 +144,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
-			[]interface{}{"somesubjectype", "..."},
+			[]any{"somesubjectype", "..."},
 		},
 		{
 			"subjects filter with single defined relation",
@@ -144,7 +155,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
-			[]interface{}{"somesubjectype", "somesubrel"},
+			[]any{"somesubjectype", "somesubrel"},
 		},
 		{
 			"subjects filter with defined relation and ellipsis",
@@ -155,7 +166,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ? AND (subject_relation = ? OR subject_relation = ?)",
-			[]interface{}{"somesubjectype", "...", "somesubrel"},
+			[]any{"somesubjectype", "...", "somesubrel"},
 		},
 		{
 			"subjects filter",
@@ -167,7 +178,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)",
-			[]interface{}{"somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
+			[]any{"somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
 		},
 		{
 			"v1 subject filter with namespace",
@@ -177,7 +188,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ?",
-			[]interface{}{"subns"},
+			[]any{"subns"},
 		},
 		{
 			"v1 subject filter with subject id",
@@ -188,7 +199,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_object_id = ?",
-			[]interface{}{"subns", "subid"},
+			[]any{"subns", "subid"},
 		},
 		{
 			"v1 subject filter with relation",
@@ -201,7 +212,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
-			[]interface{}{"subns", "subrel"},
+			[]any{"subns", "subrel"},
 		},
 		{
 			"v1 subject filter with empty relation",
@@ -214,7 +225,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
-			[]interface{}{"subns", "..."},
+			[]any{"subns", "..."},
 		},
 		{
 			"v1 subject filter",
@@ -228,7 +239,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
-			[]interface{}{"subns", "subid", "somerel"},
+			[]any{"subns", "subid", "somerel"},
 		},
 		{
 			"empty filterToUsersets",
@@ -247,7 +258,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				})
 			},
 			"SELECT * WHERE (subject_ns = ? AND subject_object_id = ? AND subject_relation = ? OR subject_ns = ? AND subject_object_id = ? AND subject_relation = ?)",
-			[]interface{}{"document", "foo", "somerel", "team", "bar", "member"},
+			[]any{"document", "foo", "somerel", "team", "bar", "member"},
 		},
 		{
 			"limit",
@@ -274,7 +285,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				)
 			},
 			"SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?, ?) AND subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)",
-			[]interface{}{"someresourcetype", "somerelation", "someid", "anotherid", "somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
+			[]any{"someresourcetype", "somerelation", "someid", "anotherid", "somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
 		},
 	}
 

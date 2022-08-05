@@ -387,7 +387,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 		stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
 			Stream: parentStream,
 			Ctx:    ctx,
-			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, error) {
+			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
 				// If the entrypoint is not a direct result, then a check is required to determine
 				// whether the resource actually has permission.
 				status := result.Resource.ResultStatus
@@ -401,7 +401,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 						ResultStatus: status,
 					},
 					Metadata: addCallToResponseMetadata(result.Metadata),
-				}, nil
+				}, true, nil
 			},
 		}
 

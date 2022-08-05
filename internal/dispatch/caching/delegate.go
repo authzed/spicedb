@@ -35,4 +35,8 @@ func (fd fakeDelegate) DispatchReachableResources(req *v1.DispatchReachableResou
 	panic(errMessage)
 }
 
+func (fd fakeDelegate) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
+	panic(errMessage)
+}
+
 var _ dispatch.Dispatcher = fakeDelegate{}

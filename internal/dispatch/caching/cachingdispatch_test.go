@@ -150,6 +150,10 @@ func (ddm delegateDispatchMock) DispatchReachableResources(req *v1.DispatchReach
 	return nil
 }
 
+func (ddm delegateDispatchMock) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
+	return nil
+}
+
 func (ddm delegateDispatchMock) Close() error {
 	return nil
 }

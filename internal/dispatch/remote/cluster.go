@@ -20,6 +20,7 @@ type clusterClient interface {
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
 	DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest, opts ...grpc.CallOption) (*v1.DispatchLookupResponse, error)
 	DispatchReachableResources(ctx context.Context, in *v1.DispatchReachableResourcesRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchReachableResourcesClient, error)
+	DispatchLookupSubjects(ctx context.Context, in *v1.DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupSubjectsClient, error)
 }
 
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
@@ -39,8 +40,7 @@ type clusterDispatcher struct {
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
-	err := dispatch.CheckDepth(ctx, req)
-	if err != nil {
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
@@ -59,8 +59,7 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 }
 
 func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
-	err := dispatch.CheckDepth(ctx, req)
-	if err != nil {
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.ExpandRequestToKey(req)))
@@ -73,8 +72,7 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 }
 
 func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
-	err := dispatch.CheckDepth(ctx, req)
-	if err != nil {
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
 	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.LookupRequestToKey(req)))
@@ -93,8 +91,7 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 	ctx := context.WithValue(stream.Context(), balancer.CtxKey, []byte(dispatch.ReachableResourcesRequestToKey(req)))
 	stream = dispatch.StreamWithContext(ctx, stream)
 
-	err := dispatch.CheckDepth(ctx, req)
-	if err != nil {
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return err
 	}
 
@@ -106,7 +103,7 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 	for {
 		result, err := client.Recv()
 		if errors.Is(err, io.EOF) {
-			return nil
+			break
 		}
 
 		if err != nil {
@@ -118,6 +115,43 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 			return serr
 		}
 	}
+
+	return nil
+}
+
+func (cr *clusterDispatcher) DispatchLookupSubjects(
+	req *v1.DispatchLookupSubjectsRequest,
+	stream dispatch.LookupSubjectsStream,
+) error {
+	ctx := context.WithValue(stream.Context(), balancer.CtxKey, []byte(dispatch.LookupSubjectsRequestToKey(req)))
+	stream = dispatch.StreamWithContext(ctx, stream)
+
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
+		return err
+	}
+
+	client, err := cr.clusterClient.DispatchLookupSubjects(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	for {
+		result, err := client.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		if err != nil {
+			return err
+		}
+
+		serr := stream.Publish(result)
+		if serr != nil {
+			return serr
+		}
+	}
+
+	return nil
 }
 
 func (cr *clusterDispatcher) Close() error {
