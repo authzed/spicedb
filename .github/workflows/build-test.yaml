@@ -130,7 +130,7 @@ jobs:
         with:
           go-version: "~1.18"
       - name: "Install Go Tools"
-        run: "./install-tools.sh"
+        run: "./hack/install-tools.sh"
       - uses: "authzed/actions/buf-generate@main"
       - uses: "bufbuild/buf-breaking-action@v0.4.0"
         if: "github.event_name == 'pull_request'"
