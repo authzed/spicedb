@@ -2,6 +2,7 @@ package revisions
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -160,5 +161,25 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 	err := g.Wait()
 	require.NoError(err)
 
+	mock.AssertExpectations(t)
+}
+
+func TestSingleFlightError(t *testing.T) {
+	req := require.New(t)
+
+	or := NewCachedOptimizedRevisions(0)
+	mock := trackingRevisionFunction{}
+	or.SetOptimizedRevisionFunc(mock.optimizedRevisionFunc)
+
+	mock.
+		On("optimizedRevisionFunc").
+		Return(one, time.Duration(0), errors.New("fail")).
+		Once()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	_, err := or.OptimizedRevision(ctx)
+	req.Error(err)
 	mock.AssertExpectations(t)
 }
