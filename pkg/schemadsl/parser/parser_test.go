@@ -3,7 +3,6 @@ package parser
 import (
 	"container/list"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
@@ -27,7 +26,7 @@ type parserTest struct {
 }
 
 func (pt *parserTest) input() string {
-	b, err := ioutil.ReadFile(fmt.Sprintf("tests/%s.zed", pt.filename))
+	b, err := os.ReadFile(fmt.Sprintf("tests/%s.zed", pt.filename))
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +35,7 @@ func (pt *parserTest) input() string {
 }
 
 func (pt *parserTest) tree() string {
-	b, err := ioutil.ReadFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename))
+	b, err := os.ReadFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename))
 	if err != nil {
 		panic(err)
 	}
@@ -45,7 +44,7 @@ func (pt *parserTest) tree() string {
 }
 
 func (pt *parserTest) writeTree(value string) {
-	err := ioutil.WriteFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename), []byte(value), 0o600)
+	err := os.WriteFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename), []byte(value), 0o600)
 	if err != nil {
 		panic(err)
 	}

@@ -10,7 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -74,7 +74,7 @@ func writeTimeSeries(ctx context.Context, client *http.Client, endpoint string, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf(
 			"unexpected Prometheus remote write response: %d: %s",
 			resp.StatusCode,

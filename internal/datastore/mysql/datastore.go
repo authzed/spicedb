@@ -419,9 +419,9 @@ func (mds *Datastore) Close() error {
 // the necessary tables.
 //
 // fundamentally different from PSQL implementation:
-// - checking if the current migration version is compatible is implemented with IsHeadCompatible
-// - Database seeding is handled here, so that we can decouple schema migration from data migration
-//   and support skeema-based migrations.
+//   - checking if the current migration version is compatible is implemented with IsHeadCompatible
+//   - Database seeding is handled here, so that we can decouple schema migration from data migration
+//     and support skeema-based migrations.
 func (mds *Datastore) IsReady(ctx context.Context) (bool, error) {
 	if err := mds.db.PingContext(ctx); err != nil {
 		return false, err
