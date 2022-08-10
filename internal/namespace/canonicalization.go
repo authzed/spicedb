@@ -22,28 +22,31 @@ const computedKeyPrefix = "%"
 // and the operations (+, -, &) are converted into binary operations.
 //
 // For example, for the namespace:
-//   definition somenamespace {
-//      relation first: ...
-//      relation second: ...
-//      relation third: ...
-//      permission someperm = second + (first - third->something)
-//   }
+//
+//	definition somenamespace {
+//	   relation first: ...
+//	   relation second: ...
+//	   relation third: ...
+//	   permission someperm = second + (first - third->something)
+//	}
 //
 // We begin by assigning a unique integer index to each relation and arrow found for all
 // expressions in the namespace:
-//   definition somenamespace {
-//	    relation first: ...
-//               ^ index 0
-//      relation second: ...
-//               ^ index 1
-//      relation third: ...
-//               ^ index 2
-//      permission someperm = second + (first - third->something)
-//                            ^ 1       ^ 0     ^ index 3
-//   }
+//
+//	  definition somenamespace {
+//		    relation first: ...
+//	              ^ index 0
+//	     relation second: ...
+//	              ^ index 1
+//	     relation third: ...
+//	              ^ index 2
+//	     permission someperm = second + (first - third->something)
+//	                           ^ 1       ^ 0     ^ index 3
+//	  }
 //
 // These indexes are then used with the rudd library to build the expression:
-//    someperm => `bdd.Or(bdd.Ithvar(1), bdd.And(bdd.Ithvar(0), bdd.NIthvar(2)))`
+//
+//	someperm => `bdd.Or(bdd.Ithvar(1), bdd.And(bdd.Ithvar(0), bdd.NIthvar(2)))`
 //
 // The `rudd` library automatically handles associativity, and produces a hash representing the
 // canonical representation of the binary expression. These hashes can then be used for caching,

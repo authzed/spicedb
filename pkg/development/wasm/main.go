@@ -33,25 +33,26 @@ func derr(derrs *development.DeveloperErrors) interface{} {
 // one or more development operations.
 //
 // The arguments are:
-//   1) JSON-string form of the development context:
-//      {
-//	        "schema": "definition user {}"
-//          "relationships": [
-//             {
-//								"resource_and_relation": {"namespace": "ns", "object_id": "oid", "relation": "viewer"},
-//								"subject": {... same fields as resource_and_relation ...}
-//						 }
-//				  ]
-//      }
 //
-//   2) An array (*not* JSON encoded) of operations to be run by the package:
-//			[
-//				{
-//					"operation": "check",
-// 					"parameters": "(json string with parameters for operation)",
-//					"callback": callback: (result, err) => { ... },
-//				}
-//      ]
+//  1. JSON-string form of the development context:
+//     {
+//     "schema": "definition user {}"
+//     "relationships": [
+//     {
+//     "resource_and_relation": {"namespace": "ns", "object_id": "oid", "relation": "viewer"},
+//     "subject": {... same fields as resource_and_relation ...}
+//     }
+//     ]
+//     }
+//
+//  2. An array (*not* JSON encoded) of operations to be run by the package:
+//     [
+//     {
+//     "operation": "check",
+//     "parameters": "(json string with parameters for operation)",
+//     "callback": callback: (result, err) => { ... },
+//     }
+//     ]
 //
 // See example/wasm.html for an example and the individual operations for their parameters
 // and callback arguments.

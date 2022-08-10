@@ -68,7 +68,9 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 
 		return optimized, nil
 	})
-
+	if err != nil {
+		return datastore.NoRevision, err
+	}
 	return lastQuantizedRevision.(decimal.Decimal), err
 }
 
