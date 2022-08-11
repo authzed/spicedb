@@ -87,6 +87,10 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		poolConfig.MaxConnLifetime = *config.connMaxLifetime
 	}
 
+	if config.connHealthCheckInterval != nil {
+		poolConfig.HealthCheckPeriod = *config.connHealthCheckInterval
+	}
+
 	poolConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
 
 	pool, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
