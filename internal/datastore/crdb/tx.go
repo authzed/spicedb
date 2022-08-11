@@ -58,6 +58,7 @@ func executeWithResets(ctx context.Context, fn innerFunc, maxRetries uint8) (err
 	for retries = 0; retries <= maxRetries; retries++ {
 		err = fn(ctx)
 		if resettable(ctx, err) {
+			log.Ctx(ctx).Warn().Err(err).Msg("retrying resetteable database error")
 			continue
 		}
 
@@ -91,7 +92,7 @@ func resettable(ctx context.Context, err error) bool {
 func sqlErrorCode(ctx context.Context, err error) string {
 	var pgerr *pgconn.PgError
 	if !errors.As(err, &pgerr) {
-		log.Debug().Err(err).Msg("couldn't determine a sqlstate error code")
+		log.Ctx(ctx).Debug().Err(err).Msg("couldn't determine a sqlstate error code")
 		return ""
 	}
 
