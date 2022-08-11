@@ -5,6 +5,7 @@ package crdb
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -64,7 +65,7 @@ func TestTxReset(t *testing.T) {
 			errors: []error{
 				&pgconn.PgError{Code: crdbAmbiguousErrorCode},
 				&pgconn.PgError{Code: crdbAmbiguousErrorCode},
-				&pgconn.PgError{Code: crdbAmbiguousErrorCode},
+				&pgconn.PgError{Code: crdbServerNotAcceptingClients},
 			},
 			expectError: false,
 		},
@@ -92,6 +93,15 @@ func TestTxReset(t *testing.T) {
 				&pgconn.PgError{Code: crdbAmbiguousErrorCode},
 			},
 			expectError: true,
+		},
+		{
+			name:       "stale connections",
+			maxRetries: 3,
+			errors: []error{
+				errors.New("unexpected EOF"),
+				errors.New("broken pipe"),
+			},
+			expectError: false,
 		},
 		{
 			name:       "clockSkew",
