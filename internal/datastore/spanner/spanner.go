@@ -63,13 +63,13 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if len(config.emulatorHost) > 0 {
+	if len(config.emulatorHost) > 0 || len(os.Getenv("SPANNER_EMULATOR_HOST")) > 0 {
 		os.Setenv("SPANNER_EMULATOR_HOST", config.emulatorHost)
+		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
 	}
 
 	config.gcInterval = common.WithJitter(0.2, config.gcInterval)
 	log.Info().Float64("factor", 0.2).Msg("gc configured with jitter")
-	log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("spanner emulator")
 
 	client, err := spanner.NewClient(context.Background(), database, option.WithCredentialsFile(config.credentialsFilePath))
 	if err != nil {
