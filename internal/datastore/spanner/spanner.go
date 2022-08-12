@@ -63,8 +63,10 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if len(config.emulatorHost) > 0 || len(os.Getenv("SPANNER_EMULATOR_HOST")) > 0 {
+	if len(config.emulatorHost) > 0 {
 		os.Setenv("SPANNER_EMULATOR_HOST", config.emulatorHost)
+	}
+	if len(os.Getenv("SPANNER_EMULATOR_HOST")) > 0 {
 		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
 	}
 
