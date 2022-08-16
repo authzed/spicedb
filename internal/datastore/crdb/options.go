@@ -90,7 +90,7 @@ func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
 // are checked, and also the frequency at which the minimum number of connections is
 // checked. This happens asynchronously.
 //
-// This is not the only approach to evaluate those counts: connection idle/max lifetime
+// This is not the only approach to evaluate these counts: connection idle/max lifetime
 // is also checked when connections are released to the pool.
 //
 // There is no guarantee connections won't last longer than their specified idle/max lifetime. It's largely
