@@ -87,15 +87,15 @@ func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
 }
 
 // ConnHealthCheckInterval is the frequency at which both idle and max lifetime connections
-// are checked, and also the frequency at which minimum number of connections is
+// are checked, and also the frequency at which the minimum number of connections is
 // checked. This happens asynchronously.
 //
-// This is not the only approach to evaluate those: connection idle/max lifetime
+// This is not the only approach to evaluate those counts: connection idle/max lifetime
 // is also checked when connections are released to the pool.
 //
 // There is no guarantee connections won't last longer than their specified idle/max lifetime. It's largely
 // dependent on the health-check goroutine being able to pull them from the connection pool. The health-check
-// may not be able to clean up those connections is they are held by the application very frequently.
+// may not be able to clean up those connections if they are held by the application very frequently.
 //
 // This value defaults to 30s.
 func ConnHealthCheckInterval(interval time.Duration) Option {
