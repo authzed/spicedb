@@ -1,7 +1,7 @@
 package balancer
 
 import (
-	"math/rand"
+	"crypto/rand"
 	"sync"
 	"time"
 
