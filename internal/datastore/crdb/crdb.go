@@ -87,6 +87,10 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		poolConfig.MaxConnLifetime = *config.connMaxLifetime
 	}
 
+	if config.connHealthCheckInterval != nil {
+		poolConfig.HealthCheckPeriod = *config.connHealthCheckInterval
+	}
+
 	poolConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
 
 	pool, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
@@ -295,14 +299,16 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 	defer span.End()
 
 	var hlcNow datastore.Revision
-	err := cds.pool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		var fnErr error
-		hlcNow, fnErr = readCRDBNow(ctx, tx)
-		if fnErr != nil {
-			hlcNow = datastore.NoRevision
-			return fmt.Errorf(errRevision, fnErr)
-		}
-		return nil
+	err := cds.execute(ctx, func(ctx context.Context) error {
+		return cds.pool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+			var fnErr error
+			hlcNow, fnErr = readCRDBNow(ctx, tx)
+			if fnErr != nil {
+				hlcNow = datastore.NoRevision
+				return fmt.Errorf(errRevision, fnErr)
+			}
+			return nil
+		})
 	})
 
 	return hlcNow, err

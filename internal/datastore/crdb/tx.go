@@ -16,12 +16,14 @@ const (
 	crdbRetryErrCode = "40001"
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
 	crdbAmbiguousErrorCode = "40003"
+	// https://www.cockroachlabs.com/docs/stable/node-shutdown.html#connection-retry-loop
+	crdbServerNotAcceptingClients = "57P01"
 	// Error when SqlState is unknown
 	crdbUnknownSQLState = "XXUUU"
 	// Error message encountered when crdb nodes have large clock skew
 	crdbClockSkewMessage = "cannot specify timestamp in the future"
 
-	errReachedMaxAttempts = "maximum attempts reached (%d/%d): %w"
+	errReachedMaxRetries = "maximum retries reached (%d/%d): %w"
 )
 
 var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -58,6 +60,7 @@ func executeWithResets(ctx context.Context, fn innerFunc, maxRetries uint8) (err
 	for retries = 0; retries <= maxRetries; retries++ {
 		err = fn(ctx)
 		if resettable(ctx, err) {
+			log.Ctx(ctx).Warn().Err(err).Msg("retrying resetteable database error")
 			continue
 		}
 
@@ -66,7 +69,7 @@ func executeWithResets(ctx context.Context, fn innerFunc, maxRetries uint8) (err
 	}
 
 	// The last error was resettable but we're out of retries
-	return fmt.Errorf(errReachedMaxAttempts, retries, maxRetries+1, err)
+	return fmt.Errorf(errReachedMaxRetries, retries, maxRetries+1, err)
 }
 
 func resettable(ctx context.Context, err error) bool {
@@ -77,12 +80,18 @@ func resettable(ctx context.Context, err error) bool {
 	if strings.Contains(err.Error(), "broken pipe") {
 		return true
 	}
+	// detect when cockroach closed a connection
+	if strings.Contains(err.Error(), "unexpected EOF") {
+		return true
+	}
 	sqlState := sqlErrorCode(ctx, err)
 	// Ambiguous result error includes connection closed errors
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
 	return sqlState == crdbAmbiguousErrorCode ||
 		// Reset for retriable errors
 		sqlState == crdbRetryErrCode ||
+		// Retry on node draining
+		sqlState == crdbServerNotAcceptingClients ||
 		// Error encountered when crdb nodes have large clock skew
 		(sqlState == crdbUnknownSQLState && strings.Contains(err.Error(), crdbClockSkewMessage))
 }
@@ -91,7 +100,7 @@ func resettable(ctx context.Context, err error) bool {
 func sqlErrorCode(ctx context.Context, err error) string {
 	var pgerr *pgconn.PgError
 	if !errors.As(err, &pgerr) {
-		log.Debug().Err(err).Msg("couldn't determine a sqlstate error code")
+		log.Ctx(ctx).Debug().Err(err).Msg("couldn't determine a sqlstate error code")
 		return ""
 	}
 

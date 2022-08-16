@@ -6,10 +6,11 @@ import (
 )
 
 type crdbOptions struct {
-	connMaxIdleTime *time.Duration
-	connMaxLifetime *time.Duration
-	minOpenConns    *int
-	maxOpenConns    *int
+	connMaxIdleTime         *time.Duration
+	connMaxLifetime         *time.Duration
+	connHealthCheckInterval *time.Duration
+	minOpenConns            *int
+	maxOpenConns            *int
 
 	watchBufferLength           uint16
 	revisionQuantization        time.Duration
@@ -82,6 +83,24 @@ func generateConfig(options []Option) (crdbOptions, error) {
 func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
 	return func(po *crdbOptions) {
 		po.splitAtUsersetCount = splitAtUsersetCount
+	}
+}
+
+// ConnHealthCheckInterval is the frequency at which both idle and max lifetime connections
+// are checked, and also the frequency at which the minimum number of connections is
+// checked. This happens asynchronously.
+//
+// This is not the only approach to evaluate these counts: connection idle/max lifetime
+// is also checked when connections are released to the pool.
+//
+// There is no guarantee connections won't last longer than their specified idle/max lifetime. It's largely
+// dependent on the health-check goroutine being able to pull them from the connection pool. The health-check
+// may not be able to clean up those connections if they are held by the application very frequently.
+//
+// This value defaults to 30s.
+func ConnHealthCheckInterval(interval time.Duration) Option {
+	return func(po *crdbOptions) {
+		po.connHealthCheckInterval = &interval
 	}
 }
 

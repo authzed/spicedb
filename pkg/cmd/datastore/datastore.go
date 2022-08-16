@@ -223,6 +223,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.RevisionQuantization(opts.RevisionQuantization),
 		crdb.ConnMaxIdleTime(opts.MaxIdleTime),
 		crdb.ConnMaxLifetime(opts.MaxLifetime),
+		crdb.ConnHealthCheckInterval(opts.HealthCheckPeriod),
 		crdb.MaxOpenConns(opts.MaxOpenConns),
 		crdb.MinOpenConns(opts.MinOpenConns),
 		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
