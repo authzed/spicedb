@@ -156,8 +156,10 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			// Ensure every subject found has access.
 			for _, subjectID := range foundSubjectIds {
 				checkResult, err := dis.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-					ResourceAndRelation: ONR(tc.resourceType, tc.resourceID, tc.permission),
-					Subject:             ONR(tc.subjectType, subjectID, tc.subjectRelation),
+					ResourceRelation: RR(tc.resourceType, tc.permission),
+					ResourceIds:      []string{tc.resourceID},
+					ResultsSetting:   v1.DispatchCheckRequest_SHORT_CIRCUIT,
+					Subject:          ONR(tc.subjectType, subjectID, tc.subjectRelation),
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     revision.String(),
 						DepthRemaining: 50,
@@ -165,7 +167,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 				})
 
 				require.NoError(err)
-				require.Equal(v1.DispatchCheckResponse_MEMBER, checkResult.Membership)
+				require.Equal(v1.DispatchCheckResponse_MEMBER, checkResult.ResultsByResourceId[tc.resourceID].Membership)
 			}
 		})
 	}

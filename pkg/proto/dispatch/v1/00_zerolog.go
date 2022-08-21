@@ -13,16 +13,20 @@ import (
 // MarshalZerologObject implements zerolog object marshalling.
 func (cr *DispatchCheckRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", cr.Metadata)
-	e.Str("request", tuple.String(&core.RelationTuple{
-		ResourceAndRelation: cr.ResourceAndRelation,
-		Subject:             cr.Subject,
-	}))
+	e.Str("resource-type", fmt.Sprintf("%s#%s", cr.ResourceRelation.Namespace, cr.ResourceRelation.Relation))
+	e.Str("subject", tuple.StringONR(cr.Subject))
+	e.Array("resource-ids", strArray(cr.ResourceIds))
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (cr *DispatchCheckResponse) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", cr.Metadata)
-	e.Stringer("membership", cr.Membership)
+
+	results := zerolog.Dict()
+	for resourceId, result := range cr.ResultsByResourceId {
+		results.Bool(resourceId, result.Membership == DispatchCheckResponse_MEMBER)
+	}
+	e.Dict("results", results)
 }
 
 // MarshalZerologObject implements zerolog object marshalling.

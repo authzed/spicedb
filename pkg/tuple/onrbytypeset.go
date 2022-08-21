@@ -67,3 +67,8 @@ func (s *ONRByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Relati
 func (s *ONRByTypeSet) IsEmpty() bool {
 	return len(s.byType) == 0
 }
+
+// Len returns the number of keys in the set.
+func (s *ONRByTypeSet) Len() int {
+	return len(s.byType)
+}

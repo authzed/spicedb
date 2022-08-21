@@ -41,14 +41,14 @@ func TestAsyncDispatch(t *testing.T) {
 
 			channel := make(chan CheckResult, tc.numRequests)
 
-			dispatchAllAsync(ctx, ValidatedCheckRequest{}, reqs,
-				func(ctx context.Context, parentReq ValidatedCheckRequest, child int) CheckResult {
+			dispatchAllAsync(ctx, currentRequestContext{}, reqs,
+				func(ctx context.Context, crc currentRequestContext, child int) CheckResult {
 					l.Lock()
 					defer l.Unlock()
 					dispatchedCount++
 					letFinish.Wait()
 					completedCount++
-					return notMember()
+					return noMembers()
 				}, channel, tc.concurrencyLimit)
 
 			require.Eventually(func() bool {

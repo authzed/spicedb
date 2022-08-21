@@ -34,45 +34,66 @@ func ConvertDispatchDebugInformation(ctx context.Context, metadata *dispatch.Res
 	}
 
 	return &v1.DebugInformation{
-		Check:      convertCheckTrace(debugInfo.Check),
+		Check:      convertCheckTrace(debugInfo.Check)[0],
 		SchemaUsed: strings.TrimSpace(schema),
 	}, nil
 }
 
-func convertCheckTrace(ct *dispatch.CheckDebugTrace) *v1.CheckDebugTrace {
-	if ct == nil {
-		return nil
-	}
-
-	permissionType := v1.CheckDebugTrace_PERMISSION_TYPE_UNSPECIFIED
-	if ct.ResourceRelationType == dispatch.CheckDebugTrace_PERMISSION {
-		permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_PERMISSION
-	} else if ct.ResourceRelationType == dispatch.CheckDebugTrace_RELATION {
-		permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_RELATION
-	}
-
-	subRelation := ct.Request.Subject.Relation
-	if subRelation == tuple.Ellipsis {
-		subRelation = ""
-	}
-
-	result := v1.CheckDebugTrace_PERMISSIONSHIP_NO_PERMISSION
-	if ct.HasPermission {
-		result = v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION
-	}
-
-	if len(ct.SubProblems) > 0 {
-		subProblems := make([]*v1.CheckDebugTrace, 0, len(ct.SubProblems))
-		for _, subProblem := range ct.SubProblems {
-			subProblems = append(subProblems, convertCheckTrace(subProblem))
+func convertCheckTrace(ct *dispatch.CheckDebugTrace) []*v1.CheckDebugTrace {
+	traces := make([]*v1.CheckDebugTrace, 0, len(ct.Request.ResourceIds))
+	for _, resourceId := range ct.Request.ResourceIds {
+		permissionType := v1.CheckDebugTrace_PERMISSION_TYPE_UNSPECIFIED
+		if ct.ResourceRelationType == dispatch.CheckDebugTrace_PERMISSION {
+			permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_PERMISSION
+		} else if ct.ResourceRelationType == dispatch.CheckDebugTrace_RELATION {
+			permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_RELATION
 		}
 
-		return &v1.CheckDebugTrace{
+		subRelation := ct.Request.Subject.Relation
+		if subRelation == tuple.Ellipsis {
+			subRelation = ""
+		}
+
+		result := v1.CheckDebugTrace_PERMISSIONSHIP_NO_PERMISSION
+		if found, ok := ct.Results[resourceId]; ok && found.HasPermission {
+			result = v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION
+		}
+
+		if len(ct.SubProblems) > 0 {
+			subProblems := make([]*v1.CheckDebugTrace, 0, len(ct.SubProblems))
+			for _, subProblem := range ct.SubProblems {
+				subProblems = append(subProblems, convertCheckTrace(subProblem)...)
+			}
+
+			traces = append(traces, &v1.CheckDebugTrace{
+				Resource: &v1.ObjectReference{
+					ObjectType: ct.Request.ResourceRelation.Namespace,
+					ObjectId:   resourceId,
+				},
+				Permission:     ct.Request.ResourceRelation.Relation,
+				PermissionType: permissionType,
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: ct.Request.Subject.Namespace,
+						ObjectId:   ct.Request.Subject.ObjectId,
+					},
+					OptionalRelation: subRelation,
+				},
+				Result: result,
+				Resolution: &v1.CheckDebugTrace_SubProblems_{
+					SubProblems: &v1.CheckDebugTrace_SubProblems{
+						Traces: subProblems,
+					},
+				},
+			})
+		}
+
+		traces = append(traces, &v1.CheckDebugTrace{
 			Resource: &v1.ObjectReference{
-				ObjectType: ct.Request.ResourceAndRelation.Namespace,
-				ObjectId:   ct.Request.ResourceAndRelation.ObjectId,
+				ObjectType: ct.Request.ResourceRelation.Namespace,
+				ObjectId:   resourceId,
 			},
-			Permission:     ct.Request.ResourceAndRelation.Relation,
+			Permission:     ct.Request.ResourceRelation.Relation,
 			PermissionType: permissionType,
 			Subject: &v1.SubjectReference{
 				Object: &v1.ObjectReference{
@@ -82,31 +103,11 @@ func convertCheckTrace(ct *dispatch.CheckDebugTrace) *v1.CheckDebugTrace {
 				OptionalRelation: subRelation,
 			},
 			Result: result,
-			Resolution: &v1.CheckDebugTrace_SubProblems_{
-				SubProblems: &v1.CheckDebugTrace_SubProblems{
-					Traces: subProblems,
-				},
+			Resolution: &v1.CheckDebugTrace_WasCachedResult{
+				WasCachedResult: ct.IsCachedResult,
 			},
-		}
+		})
 	}
 
-	return &v1.CheckDebugTrace{
-		Resource: &v1.ObjectReference{
-			ObjectType: ct.Request.ResourceAndRelation.Namespace,
-			ObjectId:   ct.Request.ResourceAndRelation.ObjectId,
-		},
-		Permission:     ct.Request.ResourceAndRelation.Relation,
-		PermissionType: permissionType,
-		Subject: &v1.SubjectReference{
-			Object: &v1.ObjectReference{
-				ObjectType: ct.Request.Subject.Namespace,
-				ObjectId:   ct.Request.Subject.ObjectId,
-			},
-			OptionalRelation: subRelation,
-		},
-		Result: result,
-		Resolution: &v1.CheckDebugTrace_WasCachedResult{
-			WasCachedResult: ct.IsCachedResult,
-		},
-	}
+	return traces
 }
