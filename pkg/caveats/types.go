@@ -2,8 +2,13 @@ package caveats
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
+
+	"github.com/authzed/spicedb/pkg/caveats/customtypes"
 )
 
 // VariableType defines the supported types of variables in caveats.
@@ -13,6 +18,7 @@ type VariableType struct {
 }
 
 var (
+	AnyType       = VariableType{"any", cel.AnyType}
 	BooleanType   = VariableType{"bool", cel.BoolType}
 	StringType    = VariableType{"string", cel.StringType}
 	IntType       = VariableType{"int", cel.IntType}
@@ -24,6 +30,7 @@ var (
 )
 
 var basicTypes = []VariableType{
+	AnyType,
 	BooleanType,
 	StringType,
 	IntType,
@@ -66,5 +73,26 @@ func BasicTypeKeywords() []string {
 
 // TypeKeywords returns all keywords associated with types.
 func TypeKeywords() []string {
-	return append(BasicTypeKeywords(), listTypeKeyword, mapTypeKeyword)
+	keywords := append(BasicTypeKeywords(), listTypeKeyword, mapTypeKeyword)
+	for customTypeName := range customtypes.CustomTypes {
+		keywords = append(keywords, strings.ToLower(customTypeName))
+	}
+	return keywords
+}
+
+// Register the custom types.
+
+// IPAddressType defines a specialized representation of an IPAddress.
+var IPAddressType = VariableType{"ipaddress", cel.ObjectType("IPAddress")}
+
+type customTypeAdapter struct{}
+
+func (customTypeAdapter) NativeToValue(value interface{}) ref.Val {
+	switch t := value.(type) {
+	case customtypes.IPAddress:
+		return t
+
+	default:
+		return types.DefaultTypeAdapter.NativeToValue(value)
+	}
 }

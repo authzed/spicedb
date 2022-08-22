@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/google/cel-go/cel"
+
+	"github.com/authzed/spicedb/pkg/caveats/customtypes"
 )
 
 // Environment defines the evaluation environment for a caveat.
@@ -50,7 +52,13 @@ func (e *Environment) AddVariable(name string, varType VariableType) error {
 
 // asCelEnvironment converts the exported Environment into an internal CEL environment.
 func (e *Environment) asCelEnvironment() (*cel.Env, error) {
-	opts := make([]cel.EnvOption, 0, len(e.variables))
+	opts := make([]cel.EnvOption, 0, len(e.variables)+1)
+
+	// Add the custom type adapter and functions.
+	opts = append(opts, cel.CustomTypeAdapter(&customTypeAdapter{}))
+	for _, customTypeOpts := range customtypes.CustomTypes {
+		opts = append(opts, customTypeOpts...)
+	}
 
 	// Set options.
 	// DefaultUTCTimeZone: ensure all timestamps are evaluated at UTC
