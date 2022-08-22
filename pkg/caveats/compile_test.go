@@ -57,10 +57,10 @@ func TestCompile(t *testing.T) {
 		{
 			"valid expression",
 			mustEnvForVariables(map[string]VariableType{
-				"a": UIntType,
-				"b": UIntType,
+				"a": IntType,
+				"b": IntType,
 			}),
-			"a + b",
+			"a + b == 2",
 			[]string{},
 		},
 		{
@@ -74,9 +74,9 @@ func TestCompile(t *testing.T) {
 		{
 			"valid expression over a list",
 			mustEnvForVariables(map[string]VariableType{
-				"a": ListType(UIntType),
+				"a": ListType(IntType),
 			}),
-			"a[0]",
+			"a[0] == 1",
 			[]string{},
 		},
 		{
@@ -90,9 +90,9 @@ func TestCompile(t *testing.T) {
 		{
 			"valid expression over a map",
 			mustEnvForVariables(map[string]VariableType{
-				"a": MapType(StringType, UIntType),
+				"a": MapType(StringType, IntType),
 			}),
-			"a['hi']",
+			"a['hi'] == 1",
 			[]string{},
 		},
 		{
@@ -102,6 +102,15 @@ func TestCompile(t *testing.T) {
 			}),
 			"a['hi']",
 			[]string{"found no matching overload for '_[_]'"},
+		},
+		{
+			"non-boolean valid expression",
+			mustEnvForVariables(map[string]VariableType{
+				"a": IntType,
+				"b": IntType,
+			}),
+			"a + b",
+			[]string{"caveat expression must result in a boolean value: found `int`"},
 		},
 	}
 
@@ -127,13 +136,13 @@ func TestCompile(t *testing.T) {
 }
 
 func TestSerialization(t *testing.T) {
-	exprs := []string{"a", "a + b", "b - a"}
+	exprs := []string{"a == 1", "a + b == 2", "b - a == 4"}
 
 	for _, expr := range exprs {
 		t.Run(expr, func(t *testing.T) {
 			env := mustEnvForVariables(map[string]VariableType{
-				"a": UIntType,
-				"b": UIntType,
+				"a": IntType,
+				"b": IntType,
 			})
 			compiled, err := CompileCaveat(env, expr)
 			require.NoError(t, err)

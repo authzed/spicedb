@@ -1,6 +1,8 @@
 package caveats
 
 import (
+	"fmt"
+
 	"google.golang.org/protobuf/proto"
 
 	"github.com/google/cel-go/cel"
@@ -45,6 +47,10 @@ func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 	ast, issues := celEnv.CompileSource(s)
 	if issues != nil && issues.Err() != nil {
 		return nil, CompilationErrors{issues.Err(), issues}
+	}
+
+	if ast.OutputType() != cel.BoolType {
+		return nil, CompilationErrors{fmt.Errorf("caveat expression must result in a boolean value: found `%s`", ast.OutputType().String()), nil}
 	}
 
 	return &CompiledCaveat{celEnv, ast}, nil
