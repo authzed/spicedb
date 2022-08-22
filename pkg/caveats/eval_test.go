@@ -252,3 +252,20 @@ func TestPartialEvaluation(t *testing.T) {
 	require.False(t, fullResult.Value())
 	require.False(t, fullResult.IsPartial())
 }
+
+func TestEvalWithMaxCost(t *testing.T) {
+	compiled, err := CompileCaveat(mustEnvForVariables(map[string]VariableType{
+		"a": IntType,
+		"b": IntType,
+	}), "a + b > 47")
+	require.NoError(t, err)
+
+	_, err = EvaluateCaveatWithConfig(compiled, map[string]any{
+		"a": 42,
+		"b": 4,
+	}, &EvaluationConfig{
+		MaxCost: 1,
+	})
+	require.Error(t, err)
+	require.Equal(t, "operation cancelled: actual cost limit exceeded", err.Error())
+}
