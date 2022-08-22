@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/require"
 )
 
@@ -121,6 +122,31 @@ func TestCompile(t *testing.T) {
 					require.Contains(t, err.Error(), expectedError)
 				}
 			}
+		})
+	}
+}
+
+func TestSerialization(t *testing.T) {
+	exprs := []string{"a", "a + b", "b - a"}
+
+	for _, expr := range exprs {
+		t.Run(expr, func(t *testing.T) {
+			env := mustEnvForVariables(map[string]VariableType{
+				"a": UIntType,
+				"b": UIntType,
+			})
+			compiled, err := CompileCaveat(env, expr)
+			require.NoError(t, err)
+
+			serialized, err := compiled.Serialize()
+			require.NoError(t, err)
+
+			deserialized, err := DeserializeCaveat(env, serialized)
+			require.NoError(t, err)
+
+			astExpr, err := cel.AstToString(deserialized.ast)
+			require.NoError(t, err)
+			require.Equal(t, expr, astExpr)
 		})
 	}
 }

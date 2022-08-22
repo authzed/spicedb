@@ -1,8 +1,11 @@
 package caveats
 
 import (
+	"google.golang.org/protobuf/proto"
+
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common"
+	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
 
 // CompiledCaveat is a compiled form of a caveat.
@@ -12,6 +15,16 @@ type CompiledCaveat struct {
 
 	// ast is the AST form of the CEL program.
 	ast *cel.Ast
+}
+
+// Serialize serializes the compiled caveat into a byte string for storage.
+func (cc CompiledCaveat) Serialize() ([]byte, error) {
+	cexpr, err := cel.AstToCheckedExpr(cc.ast)
+	if err != nil {
+		return nil, err
+	}
+
+	return proto.Marshal(cexpr)
 }
 
 // CompilationErrors is a wrapping error for containing compilation errors for a Caveat.
@@ -34,5 +47,22 @@ func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 		return nil, CompilationErrors{issues.Err(), issues}
 	}
 
+	return &CompiledCaveat{celEnv, ast}, nil
+}
+
+// DeserializeCaveat deserializes a byte-serialized caveat back into a CompiledCaveat.
+func DeserializeCaveat(env *Environment, serialized []byte) (*CompiledCaveat, error) {
+	celEnv, err := env.asCelEnvironment()
+	if err != nil {
+		return nil, err
+	}
+
+	checkedExpr := exprpb.CheckedExpr{}
+	err = proto.Unmarshal(serialized, &checkedExpr)
+	if err != nil {
+		return nil, err
+	}
+
+	ast := cel.CheckedExprToAst(&checkedExpr)
 	return &CompiledCaveat{celEnv, ast}, nil
 }
