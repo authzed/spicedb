@@ -269,3 +269,19 @@ func TestEvalWithMaxCost(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, "operation cancelled: actual cost limit exceeded", err.Error())
 }
+
+func TestEvalWithNesting(t *testing.T) {
+	compiled, err := CompileCaveat(mustEnvForVariables(map[string]VariableType{
+		"foo.a": IntType,
+		"foo.b": IntType,
+	}), "foo.a + foo.b > 47")
+	require.NoError(t, err)
+
+	result, err := EvaluateCaveat(compiled, map[string]any{
+		"foo.a": 42,
+		"foo.b": 4,
+	})
+	require.NoError(t, err)
+	require.False(t, result.Value())
+	require.False(t, result.IsPartial())
+}
