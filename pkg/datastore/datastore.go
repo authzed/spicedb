@@ -129,7 +129,7 @@ type TxUserFunc func(context.Context, ReadWriteTransaction) error
 
 // Datastore represents tuple access for a single namespace.
 type Datastore interface {
-	// SnapshotRead creates a read-only handle that reads the datastore at the specified revision.
+	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 	// Any errors establishing the reader will be returned by subsequent calls.
 	SnapshotReader(Revision) Reader
 
@@ -198,7 +198,7 @@ type Stats struct {
 	UniqueID string
 
 	// EstimatedRelationshipCount is a best-guess estimate of the number of relationships
-	// in the datstore. Computing it should use a lightweight method such as reading
+	// in the datastore. Computing it should use a lightweight method such as reading
 	// table statistics.
 	EstimatedRelationshipCount uint64
 
@@ -212,14 +212,14 @@ type RelationshipIterator interface {
 	// Next returns the next tuple in the result set.
 	Next() *core.RelationTuple
 
-	// After receiving a nil response, the caller must check for an error.
+	// Err after receiving a nil response, the caller must check for an error.
 	Err() error
 
 	// Close cancels the query and closes any open connections.
 	Close()
 }
 
-// Revision is a type alias to make changing the revision type a little bit
+// Revision is a type alias to make changing the revision type a bit
 // easier if we need to do it in the future. Implementations should code
 // directly against decimal.Decimal when creating or parsing.
 type Revision = decimal.Decimal
