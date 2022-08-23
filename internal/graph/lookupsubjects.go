@@ -288,8 +288,6 @@ func (cl *ConcurrentLookupSubjects) lookupSetOperation(
 	return reducer.CompletedChildOperations()
 }
 
-const dispatchChunkSize = 100
-
 func (cl *ConcurrentLookupSubjects) dispatchTo(
 	ctx context.Context,
 	parentRequest ValidatedLookupSubjectsRequest,
@@ -318,7 +316,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 	}
 
 	toDispatchByType.ForEachType(func(resourceType *core.RelationReference, resourceIds []string) {
-		util.ForEachChunk(resourceIds, dispatchChunkSize, func(resourceIdChunk []string) {
+		util.ForEachChunk(resourceIds, maxDispatchChunkSize, func(resourceIdChunk []string) {
 			g.Go(func() error {
 				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 					ResourceRelation: resourceType,

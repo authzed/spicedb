@@ -100,8 +100,8 @@ func (sqf SchemaQueryFilterer) FilterToResourceID(objectID string) SchemaQueryFi
 // specified IDs.
 func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) SchemaQueryFilterer {
 	// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
-	if len(resourceIds) > 100 {
-		panic("Cannot have more than 100 resources IDs in a single filter")
+	if len(resourceIds) > datastore.FilterMaximumIDCount {
+		panic(fmt.Sprintf("Cannot have more than %d resources IDs in a single filter", datastore.FilterMaximumIDCount))
 	}
 
 	inClause := fmt.Sprintf("%s IN (", sqf.schema.ColObjectID)
@@ -162,8 +162,8 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsFilter(filter datastore.Subject
 
 	if len(filter.OptionalSubjectIds) > 0 {
 		// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
-		if len(filter.OptionalSubjectIds) > 100 {
-			panic("Cannot have more than 100 subject IDs in a single filter")
+		if len(filter.OptionalSubjectIds) > datastore.FilterMaximumIDCount {
+			panic(fmt.Sprintf("Cannot have more than %d subject IDs in a single filter", datastore.FilterMaximumIDCount))
 		}
 
 		inClause := fmt.Sprintf("%s IN (", sqf.schema.ColUsersetObjectID)

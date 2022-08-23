@@ -18,8 +18,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var dispatchChunkSizes = []int{5, 10, 25, 50, 100}
-
 // NewConcurrentReachableResources creates an instance of ConcurrentReachableResources.
 func NewConcurrentReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16) *ConcurrentReachableResources {
 	return &ConcurrentReachableResources{d, concurrencyLimit}
@@ -218,7 +216,7 @@ func min(a, b int) int {
 
 func (crr *ConcurrentReachableResources) chunkedRedispatch(it datastore.RelationshipIterator, handler func(resourceIdsFound []string) error) error {
 	for chunkIndex := 0; /* until done with all relationships */ true; chunkIndex++ {
-		chunkSize := dispatchChunkSizes[min(chunkIndex, len(dispatchChunkSizes)-1)]
+		chunkSize := progressiveDispatchChunkSizes[min(chunkIndex, len(progressiveDispatchChunkSizes)-1)]
 		resourceIdsFound := make([]string, 0, chunkSize)
 		for i := 0; i < chunkSize; i++ {
 			tpl := it.Next()
