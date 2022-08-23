@@ -60,6 +60,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
 		to.TelemetryInterval = c.TelemetryInterval
+		to.FeatureFlags = c.FeatureFlags
 	}
 }
 
@@ -355,5 +356,19 @@ func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
 func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.TelemetryInterval = telemetryInterval
+	}
+}
+
+// WithFeatureFlags returns an option that can append FeatureFlagss to Config.FeatureFlags
+func WithFeatureFlags(featureFlags string) ConfigOption {
+	return func(c *Config) {
+		c.FeatureFlags = append(c.FeatureFlags, featureFlags)
+	}
+}
+
+// SetFeatureFlags returns an option that can set FeatureFlags on a Config
+func SetFeatureFlags(featureFlags []string) ConfigOption {
+	return func(c *Config) {
+		c.FeatureFlags = featureFlags
 	}
 }

@@ -94,6 +94,9 @@ type Config struct {
 	TelemetryCAOverridePath  string
 	TelemetryEndpoint        string
 	TelemetryInterval        time.Duration
+
+	// Feature Flag
+	FeatureFlags []string
 }
 
 // Complete validates the config and fills out defaults.
@@ -172,9 +175,9 @@ func (c *Config) Complete() (RunnableServer, error) {
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey), ds)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey), ds, c.FeatureFlags)
 		} else {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.FeatureFlags)
 		}
 	}
 
@@ -232,7 +235,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	if len(c.UnaryMiddleware) == 0 && len(c.StreamingMiddleware) == 0 {
-		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds, c.FeatureFlags)
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

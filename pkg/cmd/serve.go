@@ -78,6 +78,9 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	cmd.Flags().StringVar(&config.TelemetryEndpoint, "telemetry-endpoint", telemetry.DefaultEndpoint, "endpoint to which telemetry is reported, empty string to disable")
 	cmd.Flags().StringVar(&config.TelemetryCAOverridePath, "telemetry-ca-override-path", "", "TODO")
 	cmd.Flags().DurationVar(&config.TelemetryInterval, "telemetry-interval", telemetry.DefaultInterval, "approximate period between telemetry reports, minimum 1 minute")
+
+	// Feature Flags
+	cmd.Flags().StringSliceVar(&config.FeatureFlags, "feature-flags", []string{}, "feature flags enabled")
 }
 
 func NewServeCommand(programName string, config *server.Config) *cobra.Command {

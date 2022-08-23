@@ -21,6 +21,7 @@ import (
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
+	"github.com/authzed/spicedb/internal/middleware/featureflag"
 	"github.com/authzed/spicedb/internal/middleware/serverversion"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -74,7 +75,7 @@ func MetricsHandler(telemetryRegistry *prometheus.Registry) http.Handler {
 	return mux
 }
 
-func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore, flags []string) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
@@ -87,6 +88,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enable
 			consistencymw.UnaryServerInterceptor(),
 			servicespecific.UnaryServerInterceptor,
 			serverversion.UnaryServerInterceptor(enableVersionResponse),
+			featureflag.UnaryServerInterceptor(flags),
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
@@ -99,10 +101,11 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enable
 			consistencymw.StreamServerInterceptor(),
 			servicespecific.StreamServerInterceptor,
 			serverversion.StreamServerInterceptor(enableVersionResponse),
+			featureflag.StreamServerInterceptor(flags),
 		}
 }
 
-func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore, flags []string) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
@@ -112,6 +115,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			grpcprom.UnaryServerInterceptor,
 			datastoremw.UnaryServerInterceptor(ds),
 			servicespecific.UnaryServerInterceptor,
+			featureflag.UnaryServerInterceptor(flags),
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
@@ -121,5 +125,6 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			grpcprom.StreamServerInterceptor,
 			datastoremw.StreamServerInterceptor(ds),
 			servicespecific.StreamServerInterceptor,
+			featureflag.StreamServerInterceptor(flags),
 		}
 }

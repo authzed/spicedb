@@ -10,27 +10,36 @@ import (
 
 var key = struct{}{}
 
-type Flags map[string]bool
+type Flags map[string]struct{}
 
-func WithFlag(ctx context.Context, flag string, enabled bool) context.Context {
+func WithFlag(ctx context.Context, flag string) context.Context {
 	flags := injector.FromContext[Flags](ctx, key)
 	if flags == nil {
-		flags = map[string]bool{flag: enabled}
+		flags = map[string]struct{}{flag: {}}
 		return injector.ContextWithValue(ctx, key, flags)
 	}
-	flags[flag] = enabled
+	flags[flag] = struct{}{}
 	return ctx
 }
 
 func FromContext(ctx context.Context, flag string) bool {
 	flags := injector.FromContext[Flags](ctx, key)
-	return flags[flag]
+	_, ok := flags[flag]
+	return ok
 }
 
-func UnaryServerInterceptor(value Flags) grpc.UnaryServerInterceptor {
-	return injector.UnaryServerInterceptor(key, value)
+func UnaryServerInterceptor(flags []string) grpc.UnaryServerInterceptor {
+	return injector.UnaryServerInterceptor(key, FromStringSlice(flags))
 }
 
-func StreamServerInterceptor(flags Flags) grpc.StreamServerInterceptor {
-	return injector.StreamServerInterceptor(key, flags)
+func StreamServerInterceptor(flags []string) grpc.StreamServerInterceptor {
+	return injector.StreamServerInterceptor(key, FromStringSlice(flags))
+}
+
+func FromStringSlice(flags []string) Flags {
+	flagMap := make(map[string]struct{}, len(flags))
+	for _, flag := range flags {
+		flagMap[flag] = struct{}{}
+	}
+	return flagMap
 }
