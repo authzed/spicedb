@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
@@ -51,25 +50,11 @@ var schema = common.SchemaInformation{
 
 func (mr *mysqlReader) QueryRelationships(
 	ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	qBuilder := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).
-		FilterToResourceType(filter.ResourceType)
-
-	if filter.OptionalResourceId != "" {
-		qBuilder = qBuilder.FilterToResourceID(filter.OptionalResourceId)
-	}
-
-	if filter.OptionalRelation != "" {
-		qBuilder = qBuilder.FilterToRelation(filter.OptionalRelation)
-	}
-
-	if filter.OptionalSubjectFilter != nil {
-		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
-	}
-
+	qBuilder := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).FilterWithRelationshipsFilter(filter)
 	return mr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
 }
 

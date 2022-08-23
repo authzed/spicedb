@@ -64,13 +64,9 @@ func (vsr validatingSnapshotReader) ListNamespaces(
 }
 
 func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	if err := filter.Validate(); err != nil {
-		return nil, err
-	}
-
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 	for _, sub := range queryOpts.Usersets {
 		if err := sub.Validate(); err != nil {

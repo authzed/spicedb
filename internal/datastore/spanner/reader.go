@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 
@@ -36,24 +35,10 @@ type spannerReader struct {
 
 func (sr spannerReader) QueryRelationships(
 	ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
-		FilterToResourceType(filter.ResourceType)
-
-	if filter.OptionalResourceId != "" {
-		qBuilder = qBuilder.FilterToResourceID(filter.OptionalResourceId)
-	}
-
-	if filter.OptionalRelation != "" {
-		qBuilder = qBuilder.FilterToRelation(filter.OptionalRelation)
-	}
-
-	if filter.OptionalSubjectFilter != nil {
-		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
-	}
-
+	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).FilterWithRelationshipsFilter(filter)
 	return sr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
 }
 

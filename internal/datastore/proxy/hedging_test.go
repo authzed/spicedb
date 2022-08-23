@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/benbjohnson/clock"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
@@ -105,7 +104,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 				require := require.New(t)
 				_, err := proxy.
 					SnapshotReader(datastore.NoRevision).
-					QueryRelationships(context.Background(), &v1.RelationshipFilter{})
+					QueryRelationships(context.Background(), datastore.RelationshipsFilter{})
 				if expectFirst {
 					require.ErrorIs(errKnown, err)
 				} else {
@@ -323,7 +322,7 @@ func TestDatastoreE2E(t *testing.T) {
 	autoAdvance(mockTime, slowQueryTime/2, 2*slowQueryTime)
 
 	it, err := proxy.SnapshotReader(revisionKnown).QueryRelationships(
-		context.Background(), &v1.RelationshipFilter{
+		context.Background(), datastore.RelationshipsFilter{
 			ResourceType: "test",
 		},
 	)

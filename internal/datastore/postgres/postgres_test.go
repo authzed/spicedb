@@ -647,7 +647,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 		require := require.New(b)
 
 		for i := 0; i < b.N; i++ {
-			iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), &v1.RelationshipFilter{
+			iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 				ResourceType: testfixtures.DocumentNS.Name,
 			})
 			require.NoError(err)

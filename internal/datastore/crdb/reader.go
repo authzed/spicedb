@@ -7,7 +7,6 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
 	"google.golang.org/protobuf/proto"
 
@@ -114,23 +113,10 @@ func (cr *crdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 
 func (cr *crdbReader) QueryRelationships(
 	ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
-		FilterToResourceType(filter.ResourceType)
-
-	if filter.OptionalResourceId != "" {
-		qBuilder = qBuilder.FilterToResourceID(filter.OptionalResourceId)
-	}
-
-	if filter.OptionalRelation != "" {
-		qBuilder = qBuilder.FilterToRelation(filter.OptionalRelation)
-	}
-
-	if filter.OptionalSubjectFilter != nil {
-		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
-	}
+	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).FilterWithRelationshipsFilter(filter)
 
 	if err := cr.execute(ctx, func(ctx context.Context) error {
 		iter, err = cr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)

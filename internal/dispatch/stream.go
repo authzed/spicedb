@@ -82,7 +82,7 @@ func (s *CollectingDispatchStream[T]) Publish(result T) error {
 type WrappedDispatchStream[T any] struct {
 	Stream    Stream[T]
 	Ctx       context.Context
-	Processor func(result T) (T, error)
+	Processor func(result T) (T, bool, error)
 }
 
 func (s *WrappedDispatchStream[T]) Publish(result T) error {
@@ -90,10 +90,14 @@ func (s *WrappedDispatchStream[T]) Publish(result T) error {
 		return s.Stream.Publish(result)
 	}
 
-	processed, err := s.Processor(result)
+	processed, ok, err := s.Processor(result)
 	if err != nil {
 		return err
 	}
+	if !ok {
+		return nil
+	}
+
 	return s.Stream.Publish(processed)
 }
 

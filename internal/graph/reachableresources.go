@@ -18,8 +18,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var dispatchChunkSizes = []int{5, 10, 25, 50, 100}
-
 // NewConcurrentReachableResources creates an instance of ConcurrentReachableResources.
 func NewConcurrentReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16) *ConcurrentReachableResources {
 	return &ConcurrentReachableResources{d, concurrencyLimit}
@@ -180,7 +178,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 		RelationFilter: datastore.SubjectRelationFilter{
 			NonEllipsisRelation: req.SubjectRelation.Relation,
 		},
-		SubjectIds: subjectIds,
+		OptionalSubjectIds: subjectIds,
 	}
 
 	// Fire off a query lookup in parallel.
@@ -218,7 +216,7 @@ func min(a, b int) int {
 
 func (crr *ConcurrentReachableResources) chunkedRedispatch(it datastore.RelationshipIterator, handler func(resourceIdsFound []string) error) error {
 	for chunkIndex := 0; /* until done with all relationships */ true; chunkIndex++ {
-		chunkSize := dispatchChunkSizes[min(chunkIndex, len(dispatchChunkSizes)-1)]
+		chunkSize := progressiveDispatchChunkSizes[min(chunkIndex, len(progressiveDispatchChunkSizes)-1)]
 		resourceIdsFound := make([]string, 0, chunkSize)
 		for i := 0; i < chunkSize; i++ {
 			tpl := it.Next()
@@ -290,9 +288,9 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 
 	// Search for the resolved subjects in the tupleset of the TTU.
 	subjectsFilter := datastore.SubjectsFilter{
-		SubjectType:    req.SubjectRelation.Namespace,
-		RelationFilter: relationFilter,
-		SubjectIds:     req.SubjectIds,
+		SubjectType:        req.SubjectRelation.Namespace,
+		RelationFilter:     relationFilter,
+		OptionalSubjectIds: req.SubjectIds,
 	}
 
 	// Fire off a query lookup in parallel.
@@ -387,7 +385,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 		stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
 			Stream: parentStream,
 			Ctx:    ctx,
-			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, error) {
+			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
 				// If the entrypoint is not a direct result, then a check is required to determine
 				// whether the resource actually has permission.
 				status := result.Resource.ResultStatus
@@ -401,7 +399,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 						ResultStatus: status,
 					},
 					Metadata: addCallToResponseMetadata(result.Metadata),
-				}, nil
+				}, true, nil
 			},
 		}
 

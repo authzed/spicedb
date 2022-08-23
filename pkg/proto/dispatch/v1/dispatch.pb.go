@@ -261,7 +261,7 @@ func (x CheckDebugTrace_RelationType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CheckDebugTrace_RelationType.Descriptor instead.
 func (CheckDebugTrace_RelationType) EnumDescriptor() ([]byte, []int) {
-	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{12, 0}
+	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{14, 0}
 }
 
 type DispatchCheckRequest struct {
@@ -839,6 +839,132 @@ func (x *DispatchReachableResourcesResponse) GetMetadata() *ResponseMeta {
 	return nil
 }
 
+type DispatchLookupSubjectsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Metadata         *ResolverMeta         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	ResourceRelation *v1.RelationReference `protobuf:"bytes,2,opt,name=resource_relation,json=resourceRelation,proto3" json:"resource_relation,omitempty"`
+	ResourceIds      []string              `protobuf:"bytes,3,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
+	SubjectRelation  *v1.RelationReference `protobuf:"bytes,4,opt,name=subject_relation,json=subjectRelation,proto3" json:"subject_relation,omitempty"`
+}
+
+func (x *DispatchLookupSubjectsRequest) Reset() {
+	*x = DispatchLookupSubjectsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_dispatch_v1_dispatch_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DispatchLookupSubjectsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DispatchLookupSubjectsRequest) ProtoMessage() {}
+
+func (x *DispatchLookupSubjectsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DispatchLookupSubjectsRequest.ProtoReflect.Descriptor instead.
+func (*DispatchLookupSubjectsRequest) Descriptor() ([]byte, []int) {
+	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *DispatchLookupSubjectsRequest) GetMetadata() *ResolverMeta {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *DispatchLookupSubjectsRequest) GetResourceRelation() *v1.RelationReference {
+	if x != nil {
+		return x.ResourceRelation
+	}
+	return nil
+}
+
+func (x *DispatchLookupSubjectsRequest) GetResourceIds() []string {
+	if x != nil {
+		return x.ResourceIds
+	}
+	return nil
+}
+
+func (x *DispatchLookupSubjectsRequest) GetSubjectRelation() *v1.RelationReference {
+	if x != nil {
+		return x.SubjectRelation
+	}
+	return nil
+}
+
+type DispatchLookupSubjectsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	FoundSubjectIds []string      `protobuf:"bytes,1,rep,name=found_subject_ids,json=foundSubjectIds,proto3" json:"found_subject_ids,omitempty"`
+	Metadata        *ResponseMeta `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
+}
+
+func (x *DispatchLookupSubjectsResponse) Reset() {
+	*x = DispatchLookupSubjectsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_dispatch_v1_dispatch_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DispatchLookupSubjectsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DispatchLookupSubjectsResponse) ProtoMessage() {}
+
+func (x *DispatchLookupSubjectsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DispatchLookupSubjectsResponse.ProtoReflect.Descriptor instead.
+func (*DispatchLookupSubjectsResponse) Descriptor() ([]byte, []int) {
+	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *DispatchLookupSubjectsResponse) GetFoundSubjectIds() []string {
+	if x != nil {
+		return x.FoundSubjectIds
+	}
+	return nil
+}
+
+func (x *DispatchLookupSubjectsResponse) GetMetadata() *ResponseMeta {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 type ResolverMeta struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -851,7 +977,7 @@ type ResolverMeta struct {
 func (x *ResolverMeta) Reset() {
 	*x = ResolverMeta{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_dispatch_v1_dispatch_proto_msgTypes[9]
+		mi := &file_dispatch_v1_dispatch_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -864,7 +990,7 @@ func (x *ResolverMeta) String() string {
 func (*ResolverMeta) ProtoMessage() {}
 
 func (x *ResolverMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_dispatch_v1_dispatch_proto_msgTypes[9]
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -877,7 +1003,7 @@ func (x *ResolverMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolverMeta.ProtoReflect.Descriptor instead.
 func (*ResolverMeta) Descriptor() ([]byte, []int) {
-	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{9}
+	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ResolverMeta) GetAtRevision() string {
@@ -908,7 +1034,7 @@ type ResponseMeta struct {
 func (x *ResponseMeta) Reset() {
 	*x = ResponseMeta{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_dispatch_v1_dispatch_proto_msgTypes[10]
+		mi := &file_dispatch_v1_dispatch_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -921,7 +1047,7 @@ func (x *ResponseMeta) String() string {
 func (*ResponseMeta) ProtoMessage() {}
 
 func (x *ResponseMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_dispatch_v1_dispatch_proto_msgTypes[10]
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -934,7 +1060,7 @@ func (x *ResponseMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResponseMeta.ProtoReflect.Descriptor instead.
 func (*ResponseMeta) Descriptor() ([]byte, []int) {
-	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{10}
+	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ResponseMeta) GetDispatchCount() uint32 {
@@ -976,7 +1102,7 @@ type DebugInformation struct {
 func (x *DebugInformation) Reset() {
 	*x = DebugInformation{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_dispatch_v1_dispatch_proto_msgTypes[11]
+		mi := &file_dispatch_v1_dispatch_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -989,7 +1115,7 @@ func (x *DebugInformation) String() string {
 func (*DebugInformation) ProtoMessage() {}
 
 func (x *DebugInformation) ProtoReflect() protoreflect.Message {
-	mi := &file_dispatch_v1_dispatch_proto_msgTypes[11]
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1002,7 +1128,7 @@ func (x *DebugInformation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DebugInformation.ProtoReflect.Descriptor instead.
 func (*DebugInformation) Descriptor() ([]byte, []int) {
-	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{11}
+	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DebugInformation) GetCheck() *CheckDebugTrace {
@@ -1027,7 +1153,7 @@ type CheckDebugTrace struct {
 func (x *CheckDebugTrace) Reset() {
 	*x = CheckDebugTrace{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_dispatch_v1_dispatch_proto_msgTypes[12]
+		mi := &file_dispatch_v1_dispatch_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1040,7 +1166,7 @@ func (x *CheckDebugTrace) String() string {
 func (*CheckDebugTrace) ProtoMessage() {}
 
 func (x *CheckDebugTrace) ProtoReflect() protoreflect.Message {
-	mi := &file_dispatch_v1_dispatch_proto_msgTypes[12]
+	mi := &file_dispatch_v1_dispatch_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1053,7 +1179,7 @@ func (x *CheckDebugTrace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckDebugTrace.ProtoReflect.Descriptor instead.
 func (*CheckDebugTrace) Descriptor() ([]byte, []int) {
-	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{12}
+	return file_dispatch_v1_dispatch_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CheckDebugTrace) GetRequest() *DispatchCheckRequest {
@@ -1240,6 +1366,33 @@ var file_dispatch_v1_dispatch_proto_rawDesc = []byte{
 	0x63, 0x65, 0x12, 0x35, 0x0a, 0x08, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02,
 	0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2e,
 	0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x52,
+	0x08, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x22, 0xa7, 0x02, 0x0a, 0x1d, 0x44, 0x69,
+	0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x53, 0x75, 0x62, 0x6a,
+	0x65, 0x63, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x3f, 0x0a, 0x08, 0x6d,
+	0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e,
+	0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x6f,
+	0x6c, 0x76, 0x65, 0x72, 0x4d, 0x65, 0x74, 0x61, 0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02,
+	0x10, 0x01, 0x52, 0x08, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x12, 0x51, 0x0a, 0x11,
+	0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f,
+	0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76,
+	0x31, 0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x66, 0x65, 0x72, 0x65,
+	0x6e, 0x63, 0x65, 0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02, 0x10, 0x01, 0x52, 0x10, 0x72,
+	0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12,
+	0x21, 0x0a, 0x0c, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x69, 0x64, 0x73, 0x18,
+	0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0b, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x49,
+	0x64, 0x73, 0x12, 0x4f, 0x0a, 0x10, 0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x5f, 0x72, 0x65,
+	0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x63,
+	0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52,
+	0x65, 0x66, 0x65, 0x72, 0x65, 0x6e, 0x63, 0x65, 0x42, 0x08, 0xfa, 0x42, 0x05, 0x8a, 0x01, 0x02,
+	0x10, 0x01, 0x52, 0x0f, 0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x52, 0x65, 0x6c, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x22, 0x83, 0x01, 0x0a, 0x1e, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68,
+	0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x73, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2a, 0x0a, 0x11, 0x66, 0x6f, 0x75, 0x6e, 0x64, 0x5f,
+	0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x5f, 0x69, 0x64, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28,
+	0x09, 0x52, 0x0f, 0x66, 0x6f, 0x75, 0x6e, 0x64, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x49,
+	0x64, 0x73, 0x12, 0x35, 0x0a, 0x08, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2e,
+	0x76, 0x31, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x52,
 	0x08, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x22, 0x7d, 0x0a, 0x0c, 0x52, 0x65, 0x73,
 	0x6f, 0x6c, 0x76, 0x65, 0x72, 0x4d, 0x65, 0x74, 0x61, 0x12, 0x3b, 0x0a, 0x0b, 0x61, 0x74, 0x5f,
 	0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x1a,
@@ -1290,7 +1443,7 @@ var file_dispatch_v1_dispatch_proto_rawDesc = []byte{
 	0x73, 0x22, 0x39, 0x0a, 0x0c, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70,
 	0x65, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x00, 0x12, 0x0c,
 	0x0a, 0x08, 0x52, 0x45, 0x4c, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a,
-	0x50, 0x45, 0x52, 0x4d, 0x49, 0x53, 0x53, 0x49, 0x4f, 0x4e, 0x10, 0x02, 0x32, 0xa9, 0x03, 0x0a,
+	0x50, 0x45, 0x52, 0x4d, 0x49, 0x53, 0x53, 0x49, 0x4f, 0x4e, 0x10, 0x02, 0x32, 0xa0, 0x04, 0x0a,
 	0x0f, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65,
 	0x12, 0x58, 0x0a, 0x0d, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x43, 0x68, 0x65, 0x63,
 	0x6b, 0x12, 0x21, 0x2e, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2e, 0x76, 0x31, 0x2e,
@@ -1317,18 +1470,26 @@ var file_dispatch_v1_dispatch_proto_rawDesc = []byte{
 	0x65, 0x73, 0x74, 0x1a, 0x2f, 0x2e, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2e, 0x76,
 	0x31, 0x2e, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x52, 0x65, 0x61, 0x63, 0x68, 0x61,
 	0x62, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x30, 0x01, 0x42, 0xaa, 0x01, 0x0a, 0x0f, 0x63, 0x6f, 0x6d,
-	0x2e, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2e, 0x76, 0x31, 0x42, 0x0d, 0x44, 0x69,
-	0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x3b, 0x67,
-	0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x75, 0x74, 0x68, 0x7a, 0x65,
-	0x64, 0x2f, 0x73, 0x70, 0x69, 0x63, 0x65, 0x64, 0x62, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x2f, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2f, 0x76, 0x31, 0x3b,
-	0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x76, 0x31, 0xa2, 0x02, 0x03, 0x44, 0x58, 0x58,
-	0xaa, 0x02, 0x0b, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2e, 0x56, 0x31, 0xca, 0x02,
-	0x0b, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x5c, 0x56, 0x31, 0xe2, 0x02, 0x17, 0x44,
-	0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x5c, 0x56, 0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65,
-	0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x0c, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63,
-	0x68, 0x3a, 0x3a, 0x56, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x30, 0x01, 0x12, 0x75, 0x0a, 0x16, 0x44, 0x69, 0x73, 0x70,
+	0x61, 0x74, 0x63, 0x68, 0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63,
+	0x74, 0x73, 0x12, 0x2a, 0x2e, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2e, 0x76, 0x31,
+	0x2e, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x53,
+	0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2b,
+	0x2e, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x69, 0x73,
+	0x70, 0x61, 0x74, 0x63, 0x68, 0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x53, 0x75, 0x62, 0x6a, 0x65,
+	0x63, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x30, 0x01, 0x42,
+	0xaa, 0x01, 0x0a, 0x0f, 0x63, 0x6f, 0x6d, 0x2e, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68,
+	0x2e, 0x76, 0x31, 0x42, 0x0d, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x50, 0x72, 0x6f,
+	0x74, 0x6f, 0x50, 0x01, 0x5a, 0x3b, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d,
+	0x2f, 0x61, 0x75, 0x74, 0x68, 0x7a, 0x65, 0x64, 0x2f, 0x73, 0x70, 0x69, 0x63, 0x65, 0x64, 0x62,
+	0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x64, 0x69, 0x73, 0x70, 0x61,
+	0x74, 0x63, 0x68, 0x2f, 0x76, 0x31, 0x3b, 0x64, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x76,
+	0x31, 0xa2, 0x02, 0x03, 0x44, 0x58, 0x58, 0xaa, 0x02, 0x0b, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74,
+	0x63, 0x68, 0x2e, 0x56, 0x31, 0xca, 0x02, 0x0b, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68,
+	0x5c, 0x56, 0x31, 0xe2, 0x02, 0x17, 0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x5c, 0x56,
+	0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x0c,
+	0x44, 0x69, 0x73, 0x70, 0x61, 0x74, 0x63, 0x68, 0x3a, 0x3a, 0x56, 0x31, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1344,7 +1505,7 @@ func file_dispatch_v1_dispatch_proto_rawDescGZIP() []byte {
 }
 
 var file_dispatch_v1_dispatch_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_dispatch_v1_dispatch_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_dispatch_v1_dispatch_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_dispatch_v1_dispatch_proto_goTypes = []interface{}{
 	(DispatchCheckRequest_DebugSetting)(0),     // 0: dispatch.v1.DispatchCheckRequest.DebugSetting
 	(DispatchCheckResponse_Membership)(0),      // 1: dispatch.v1.DispatchCheckResponse.Membership
@@ -1360,57 +1521,65 @@ var file_dispatch_v1_dispatch_proto_goTypes = []interface{}{
 	(*DispatchReachableResourcesRequest)(nil),  // 11: dispatch.v1.DispatchReachableResourcesRequest
 	(*ReachableResource)(nil),                  // 12: dispatch.v1.ReachableResource
 	(*DispatchReachableResourcesResponse)(nil), // 13: dispatch.v1.DispatchReachableResourcesResponse
-	(*ResolverMeta)(nil),                       // 14: dispatch.v1.ResolverMeta
-	(*ResponseMeta)(nil),                       // 15: dispatch.v1.ResponseMeta
-	(*DebugInformation)(nil),                   // 16: dispatch.v1.DebugInformation
-	(*CheckDebugTrace)(nil),                    // 17: dispatch.v1.CheckDebugTrace
-	(*v1.ObjectAndRelation)(nil),               // 18: core.v1.ObjectAndRelation
-	(*v1.RelationTupleTreeNode)(nil),           // 19: core.v1.RelationTupleTreeNode
-	(*v1.RelationReference)(nil),               // 20: core.v1.RelationReference
+	(*DispatchLookupSubjectsRequest)(nil),      // 14: dispatch.v1.DispatchLookupSubjectsRequest
+	(*DispatchLookupSubjectsResponse)(nil),     // 15: dispatch.v1.DispatchLookupSubjectsResponse
+	(*ResolverMeta)(nil),                       // 16: dispatch.v1.ResolverMeta
+	(*ResponseMeta)(nil),                       // 17: dispatch.v1.ResponseMeta
+	(*DebugInformation)(nil),                   // 18: dispatch.v1.DebugInformation
+	(*CheckDebugTrace)(nil),                    // 19: dispatch.v1.CheckDebugTrace
+	(*v1.ObjectAndRelation)(nil),               // 20: core.v1.ObjectAndRelation
+	(*v1.RelationTupleTreeNode)(nil),           // 21: core.v1.RelationTupleTreeNode
+	(*v1.RelationReference)(nil),               // 22: core.v1.RelationReference
 }
 var file_dispatch_v1_dispatch_proto_depIdxs = []int32{
-	14, // 0: dispatch.v1.DispatchCheckRequest.metadata:type_name -> dispatch.v1.ResolverMeta
-	18, // 1: dispatch.v1.DispatchCheckRequest.resource_and_relation:type_name -> core.v1.ObjectAndRelation
-	18, // 2: dispatch.v1.DispatchCheckRequest.subject:type_name -> core.v1.ObjectAndRelation
+	16, // 0: dispatch.v1.DispatchCheckRequest.metadata:type_name -> dispatch.v1.ResolverMeta
+	20, // 1: dispatch.v1.DispatchCheckRequest.resource_and_relation:type_name -> core.v1.ObjectAndRelation
+	20, // 2: dispatch.v1.DispatchCheckRequest.subject:type_name -> core.v1.ObjectAndRelation
 	0,  // 3: dispatch.v1.DispatchCheckRequest.debug:type_name -> dispatch.v1.DispatchCheckRequest.DebugSetting
-	15, // 4: dispatch.v1.DispatchCheckResponse.metadata:type_name -> dispatch.v1.ResponseMeta
+	17, // 4: dispatch.v1.DispatchCheckResponse.metadata:type_name -> dispatch.v1.ResponseMeta
 	1,  // 5: dispatch.v1.DispatchCheckResponse.membership:type_name -> dispatch.v1.DispatchCheckResponse.Membership
-	14, // 6: dispatch.v1.DispatchExpandRequest.metadata:type_name -> dispatch.v1.ResolverMeta
-	18, // 7: dispatch.v1.DispatchExpandRequest.resource_and_relation:type_name -> core.v1.ObjectAndRelation
+	16, // 6: dispatch.v1.DispatchExpandRequest.metadata:type_name -> dispatch.v1.ResolverMeta
+	20, // 7: dispatch.v1.DispatchExpandRequest.resource_and_relation:type_name -> core.v1.ObjectAndRelation
 	2,  // 8: dispatch.v1.DispatchExpandRequest.expansion_mode:type_name -> dispatch.v1.DispatchExpandRequest.ExpansionMode
-	15, // 9: dispatch.v1.DispatchExpandResponse.metadata:type_name -> dispatch.v1.ResponseMeta
-	19, // 10: dispatch.v1.DispatchExpandResponse.tree_node:type_name -> core.v1.RelationTupleTreeNode
-	14, // 11: dispatch.v1.DispatchLookupRequest.metadata:type_name -> dispatch.v1.ResolverMeta
-	20, // 12: dispatch.v1.DispatchLookupRequest.object_relation:type_name -> core.v1.RelationReference
-	18, // 13: dispatch.v1.DispatchLookupRequest.subject:type_name -> core.v1.ObjectAndRelation
-	20, // 14: dispatch.v1.DispatchLookupRequest.direct_stack:type_name -> core.v1.RelationReference
-	20, // 15: dispatch.v1.DispatchLookupRequest.ttu_stack:type_name -> core.v1.RelationReference
-	15, // 16: dispatch.v1.DispatchLookupResponse.metadata:type_name -> dispatch.v1.ResponseMeta
-	18, // 17: dispatch.v1.DispatchLookupResponse.resolved_onrs:type_name -> core.v1.ObjectAndRelation
-	14, // 18: dispatch.v1.DispatchReachableResourcesRequest.metadata:type_name -> dispatch.v1.ResolverMeta
-	20, // 19: dispatch.v1.DispatchReachableResourcesRequest.resource_relation:type_name -> core.v1.RelationReference
-	20, // 20: dispatch.v1.DispatchReachableResourcesRequest.subject_relation:type_name -> core.v1.RelationReference
+	17, // 9: dispatch.v1.DispatchExpandResponse.metadata:type_name -> dispatch.v1.ResponseMeta
+	21, // 10: dispatch.v1.DispatchExpandResponse.tree_node:type_name -> core.v1.RelationTupleTreeNode
+	16, // 11: dispatch.v1.DispatchLookupRequest.metadata:type_name -> dispatch.v1.ResolverMeta
+	22, // 12: dispatch.v1.DispatchLookupRequest.object_relation:type_name -> core.v1.RelationReference
+	20, // 13: dispatch.v1.DispatchLookupRequest.subject:type_name -> core.v1.ObjectAndRelation
+	22, // 14: dispatch.v1.DispatchLookupRequest.direct_stack:type_name -> core.v1.RelationReference
+	22, // 15: dispatch.v1.DispatchLookupRequest.ttu_stack:type_name -> core.v1.RelationReference
+	17, // 16: dispatch.v1.DispatchLookupResponse.metadata:type_name -> dispatch.v1.ResponseMeta
+	20, // 17: dispatch.v1.DispatchLookupResponse.resolved_onrs:type_name -> core.v1.ObjectAndRelation
+	16, // 18: dispatch.v1.DispatchReachableResourcesRequest.metadata:type_name -> dispatch.v1.ResolverMeta
+	22, // 19: dispatch.v1.DispatchReachableResourcesRequest.resource_relation:type_name -> core.v1.RelationReference
+	22, // 20: dispatch.v1.DispatchReachableResourcesRequest.subject_relation:type_name -> core.v1.RelationReference
 	3,  // 21: dispatch.v1.ReachableResource.result_status:type_name -> dispatch.v1.ReachableResource.ResultStatus
 	12, // 22: dispatch.v1.DispatchReachableResourcesResponse.resource:type_name -> dispatch.v1.ReachableResource
-	15, // 23: dispatch.v1.DispatchReachableResourcesResponse.metadata:type_name -> dispatch.v1.ResponseMeta
-	16, // 24: dispatch.v1.ResponseMeta.debug_info:type_name -> dispatch.v1.DebugInformation
-	17, // 25: dispatch.v1.DebugInformation.check:type_name -> dispatch.v1.CheckDebugTrace
-	5,  // 26: dispatch.v1.CheckDebugTrace.request:type_name -> dispatch.v1.DispatchCheckRequest
-	4,  // 27: dispatch.v1.CheckDebugTrace.resource_relation_type:type_name -> dispatch.v1.CheckDebugTrace.RelationType
-	17, // 28: dispatch.v1.CheckDebugTrace.sub_problems:type_name -> dispatch.v1.CheckDebugTrace
-	5,  // 29: dispatch.v1.DispatchService.DispatchCheck:input_type -> dispatch.v1.DispatchCheckRequest
-	7,  // 30: dispatch.v1.DispatchService.DispatchExpand:input_type -> dispatch.v1.DispatchExpandRequest
-	9,  // 31: dispatch.v1.DispatchService.DispatchLookup:input_type -> dispatch.v1.DispatchLookupRequest
-	11, // 32: dispatch.v1.DispatchService.DispatchReachableResources:input_type -> dispatch.v1.DispatchReachableResourcesRequest
-	6,  // 33: dispatch.v1.DispatchService.DispatchCheck:output_type -> dispatch.v1.DispatchCheckResponse
-	8,  // 34: dispatch.v1.DispatchService.DispatchExpand:output_type -> dispatch.v1.DispatchExpandResponse
-	10, // 35: dispatch.v1.DispatchService.DispatchLookup:output_type -> dispatch.v1.DispatchLookupResponse
-	13, // 36: dispatch.v1.DispatchService.DispatchReachableResources:output_type -> dispatch.v1.DispatchReachableResourcesResponse
-	33, // [33:37] is the sub-list for method output_type
-	29, // [29:33] is the sub-list for method input_type
-	29, // [29:29] is the sub-list for extension type_name
-	29, // [29:29] is the sub-list for extension extendee
-	0,  // [0:29] is the sub-list for field type_name
+	17, // 23: dispatch.v1.DispatchReachableResourcesResponse.metadata:type_name -> dispatch.v1.ResponseMeta
+	16, // 24: dispatch.v1.DispatchLookupSubjectsRequest.metadata:type_name -> dispatch.v1.ResolverMeta
+	22, // 25: dispatch.v1.DispatchLookupSubjectsRequest.resource_relation:type_name -> core.v1.RelationReference
+	22, // 26: dispatch.v1.DispatchLookupSubjectsRequest.subject_relation:type_name -> core.v1.RelationReference
+	17, // 27: dispatch.v1.DispatchLookupSubjectsResponse.metadata:type_name -> dispatch.v1.ResponseMeta
+	18, // 28: dispatch.v1.ResponseMeta.debug_info:type_name -> dispatch.v1.DebugInformation
+	19, // 29: dispatch.v1.DebugInformation.check:type_name -> dispatch.v1.CheckDebugTrace
+	5,  // 30: dispatch.v1.CheckDebugTrace.request:type_name -> dispatch.v1.DispatchCheckRequest
+	4,  // 31: dispatch.v1.CheckDebugTrace.resource_relation_type:type_name -> dispatch.v1.CheckDebugTrace.RelationType
+	19, // 32: dispatch.v1.CheckDebugTrace.sub_problems:type_name -> dispatch.v1.CheckDebugTrace
+	5,  // 33: dispatch.v1.DispatchService.DispatchCheck:input_type -> dispatch.v1.DispatchCheckRequest
+	7,  // 34: dispatch.v1.DispatchService.DispatchExpand:input_type -> dispatch.v1.DispatchExpandRequest
+	9,  // 35: dispatch.v1.DispatchService.DispatchLookup:input_type -> dispatch.v1.DispatchLookupRequest
+	11, // 36: dispatch.v1.DispatchService.DispatchReachableResources:input_type -> dispatch.v1.DispatchReachableResourcesRequest
+	14, // 37: dispatch.v1.DispatchService.DispatchLookupSubjects:input_type -> dispatch.v1.DispatchLookupSubjectsRequest
+	6,  // 38: dispatch.v1.DispatchService.DispatchCheck:output_type -> dispatch.v1.DispatchCheckResponse
+	8,  // 39: dispatch.v1.DispatchService.DispatchExpand:output_type -> dispatch.v1.DispatchExpandResponse
+	10, // 40: dispatch.v1.DispatchService.DispatchLookup:output_type -> dispatch.v1.DispatchLookupResponse
+	13, // 41: dispatch.v1.DispatchService.DispatchReachableResources:output_type -> dispatch.v1.DispatchReachableResourcesResponse
+	15, // 42: dispatch.v1.DispatchService.DispatchLookupSubjects:output_type -> dispatch.v1.DispatchLookupSubjectsResponse
+	38, // [38:43] is the sub-list for method output_type
+	33, // [33:38] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_dispatch_v1_dispatch_proto_init() }
@@ -1528,7 +1697,7 @@ func file_dispatch_v1_dispatch_proto_init() {
 			}
 		}
 		file_dispatch_v1_dispatch_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ResolverMeta); i {
+			switch v := v.(*DispatchLookupSubjectsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1540,7 +1709,7 @@ func file_dispatch_v1_dispatch_proto_init() {
 			}
 		}
 		file_dispatch_v1_dispatch_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ResponseMeta); i {
+			switch v := v.(*DispatchLookupSubjectsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1552,7 +1721,7 @@ func file_dispatch_v1_dispatch_proto_init() {
 			}
 		}
 		file_dispatch_v1_dispatch_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DebugInformation); i {
+			switch v := v.(*ResolverMeta); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1564,6 +1733,30 @@ func file_dispatch_v1_dispatch_proto_init() {
 			}
 		}
 		file_dispatch_v1_dispatch_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ResponseMeta); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_dispatch_v1_dispatch_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DebugInformation); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_dispatch_v1_dispatch_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CheckDebugTrace); i {
 			case 0:
 				return &v.state
@@ -1582,7 +1775,7 @@ func file_dispatch_v1_dispatch_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_dispatch_v1_dispatch_proto_rawDesc,
 			NumEnums:      5,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

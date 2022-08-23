@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -148,7 +147,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	deletedRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	iter, err := ds.SnapshotReader(deletedRevision).QueryRelationships(ctx, &v1.RelationshipFilter{
+	iter, err := ds.SnapshotReader(deletedRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		ResourceType: testfixtures.DocumentNS.Name,
 	})
 	require.NoError(err)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -22,6 +23,7 @@ type Dispatcher interface {
 	Expand
 	Lookup
 	ReachableResources
+	LookupSubjects
 
 	// Close closes the dispatcher.
 	Close() error
@@ -60,6 +62,18 @@ type ReachableResources interface {
 	) error
 }
 
+// LookupSubjectsStream is an alias for the stream to which found subjects will be written.
+type LookupSubjectsStream = Stream[*v1.DispatchLookupSubjectsResponse]
+
+// LookupSubjects interface describes just the methods required to dispatch lookup subjects requests.
+type LookupSubjects interface {
+	// DispatchLookupSubjects submits a single lookup subjects request, writing its results to the specified stream.
+	DispatchLookupSubjects(
+		req *v1.DispatchLookupSubjectsRequest,
+		stream LookupSubjectsStream,
+	) error
+}
+
 // HasMetadata is an interface for requests containing resolver metadata.
 type HasMetadata interface {
 	zerolog.LogObjectMarshaler
@@ -90,6 +104,7 @@ const (
 	lookupPrefix             cachePrefix = "l"
 	expandPrefix             cachePrefix = "e"
 	reachableResourcesPrefix cachePrefix = "rr"
+	lookupSubjectsPrefix     cachePrefix = "ls"
 )
 
 var cachePrefixes = []cachePrefix{checkViaRelationPrefix, checkViaCanonicalPrefix, lookupPrefix, expandPrefix, reachableResourcesPrefix}
@@ -129,6 +144,25 @@ func ReachableResourcesRequestToKey(req *v1.DispatchReachableResourcesRequest) s
 		req.SubjectRelation.Namespace,
 		req.SubjectRelation.Relation,
 		strings.Join(req.SubjectIds, ","),
+		req.Metadata.AtRevision,
+	)
+}
+
+// LookupSubjectsRequestToKey converts a lookup subjects request into a cache key
+func LookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest) string {
+	return stringz.Join("",
+		string(lookupSubjectsPrefix),
+		"//",
+		req.ResourceRelation.Namespace,
+		"#",
+		req.ResourceRelation.Relation,
+		"@",
+		req.SubjectRelation.Namespace,
+		"#",
+		req.SubjectRelation.Relation,
+		":",
+		strings.Join(req.ResourceIds, ","),
+		"@",
 		req.Metadata.AtRevision,
 	)
 }

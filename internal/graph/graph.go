@@ -5,11 +5,20 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/authzed/spicedb/pkg/datastore"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 // Ellipsis relation is used to signify a semantic-free relationship.
 const Ellipsis = "..."
+
+// maxDispatchChunkSize is the maximum size for a dispatch chunk. Must be less than or equal
+// to the maximum ID count for filters in the datastore.
+const maxDispatchChunkSize = datastore.FilterMaximumIDCount
+
+// progressiveDispatchChunkSizes are chunk sizes growing over time for dispatching. All entries
+// must be less than or equal to the maximum ID count for filters in the datastore.
+var progressiveDispatchChunkSizes = []int{5, 10, 25, 50, maxDispatchChunkSize}
 
 // CheckResult is the data that is returned by a single check or sub-check.
 type CheckResult struct {

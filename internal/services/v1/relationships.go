@@ -96,7 +96,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		DispatchCount: 1,
 	})
 
-	tupleIterator, err := ds.QueryRelationships(ctx, req.RelationshipFilter)
+	tupleIterator, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter))
 	if err != nil {
 		return rewritePermissionsError(ctx, err)
 	}

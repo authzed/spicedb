@@ -5,15 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	v1_proto "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -58,10 +57,10 @@ func (ce *ConcurrentExpander) expandDirect(
 	log.Ctx(ctx).Trace().Object("direct", req).Send()
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
-		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
-			ResourceType:       req.ResourceAndRelation.Namespace,
-			OptionalResourceId: req.ResourceAndRelation.ObjectId,
-			OptionalRelation:   req.ResourceAndRelation.Relation,
+		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			ResourceType:             req.ResourceAndRelation.Namespace,
+			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
+			OptionalResourceRelation: req.ResourceAndRelation.Relation,
 		})
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
@@ -226,10 +225,10 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req ValidatedExpandRequest, ttu *core.TupleToUserset) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
-		it, err := ds.QueryRelationships(ctx, &v1_proto.RelationshipFilter{
-			ResourceType:       req.ResourceAndRelation.Namespace,
-			OptionalResourceId: req.ResourceAndRelation.ObjectId,
-			OptionalRelation:   ttu.Tupleset.Relation,
+		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			ResourceType:             req.ResourceAndRelation.Namespace,
+			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
+			OptionalResourceRelation: ttu.Tupleset.Relation,
 		})
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
