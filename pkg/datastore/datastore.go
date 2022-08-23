@@ -13,7 +13,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-var Engines = []string{}
+var Engines []string
 
 // SortedEngineIDs returns the full set of engine IDs, sorted.
 func SortedEngineIDs() []string {
