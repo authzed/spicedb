@@ -182,6 +182,64 @@ func TestEvaluateCaveat(t *testing.T) {
 			false,
 			"",
 		},
+		{
+			"map dot evaluation",
+			mustEnvForVariables(map[string]VariableType{
+				"m": MapType(StringType, BooleanType),
+			}),
+			"m.foo",
+			map[string]any{
+				"m": map[string]bool{
+					"foo": true,
+				},
+			},
+			"",
+			true,
+			"",
+		},
+		{
+			"nested evaluation",
+			mustEnvForVariables(map[string]VariableType{
+				"metadata.l":   ListType(StringType),
+				"metadata.idx": IntType,
+			}),
+			"metadata.l[metadata.idx] == 'hello'",
+			map[string]any{
+				"metadata.l":   []string{"hi", "hello", "yo"},
+				"metadata.idx": 1,
+			},
+			"",
+			true,
+			"",
+		},
+		{
+			"nested evaluation with missing value",
+			mustEnvForVariables(map[string]VariableType{
+				"metadata.l":   ListType(StringType),
+				"metadata.idx": IntType,
+			}),
+			"metadata.l[metadata.idx] == 'hello'",
+			map[string]any{
+				"metadata.l": []string{"hi", "hello", "yo"},
+			},
+			"",
+			false,
+			`metadata.l[metadata.idx] == "hello"`,
+		},
+		{
+			"nested evaluation with missing list",
+			mustEnvForVariables(map[string]VariableType{
+				"metadata.l":   ListType(StringType),
+				"metadata.idx": IntType,
+			}),
+			"metadata.l[metadata.idx] == 'hello'",
+			map[string]any{
+				"metadata.idx": 1,
+			},
+			"",
+			false,
+			`metadata.l[metadata.idx] == "hello"`,
+		},
 	}
 
 	for _, tc := range tcs {
