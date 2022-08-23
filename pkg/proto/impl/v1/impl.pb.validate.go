@@ -35,6 +35,141 @@ var (
 	_ = sort.Sort
 )
 
+// Validate checks the field values on DecodedCaveat with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *DecodedCaveat) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DecodedCaveat with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in DecodedCaveatMultiError, or
+// nil if none found.
+func (m *DecodedCaveat) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DecodedCaveat) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch m.KindOneof.(type) {
+
+	case *DecodedCaveat_Cel:
+
+		if all {
+			switch v := interface{}(m.GetCel()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DecodedCaveatValidationError{
+						field:  "Cel",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DecodedCaveatValidationError{
+						field:  "Cel",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetCel()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return DecodedCaveatValidationError{
+					field:  "Cel",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return DecodedCaveatMultiError(errors)
+	}
+
+	return nil
+}
+
+// DecodedCaveatMultiError is an error wrapping multiple validation errors
+// returned by DecodedCaveat.ValidateAll() if the designated constraints
+// aren't met.
+type DecodedCaveatMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DecodedCaveatMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DecodedCaveatMultiError) AllErrors() []error { return m }
+
+// DecodedCaveatValidationError is the validation error returned by
+// DecodedCaveat.Validate if the designated constraints aren't met.
+type DecodedCaveatValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DecodedCaveatValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DecodedCaveatValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DecodedCaveatValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DecodedCaveatValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DecodedCaveatValidationError) ErrorName() string { return "DecodedCaveatValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DecodedCaveatValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDecodedCaveat.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DecodedCaveatValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DecodedCaveatValidationError{}
+
 // Validate checks the field values on DecodedZookie with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

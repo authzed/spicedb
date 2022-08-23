@@ -8,6 +8,7 @@ managed:
     except:
       - "buf.build/envoyproxy/protoc-gen-validate"
       - "buf.build/authzed/api"
+      - "buf.build/googleapis/googleapis"
 plugins:
   - name: "go"
     out: "."
