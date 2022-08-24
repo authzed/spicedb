@@ -343,8 +343,11 @@ func runConsistencyTests(t *testing.T,
 	validateExpansionSubjects(t, ds, vctx)
 
 	// For each relation in each namespace, for each user, collect the objects accessible
-	// to that user and then verify the lookup returns the same set of objects.
-	validateLookup(t, vctx)
+	// to that user and then verify the lookup resources returns the same set of objects.
+	validateLookupResources(t, vctx)
+
+	// For each object accessible, validate that the subjects that can access it are found.
+	validateLookupSubject(t, vctx)
 
 	// Run the developer APIs over the full set of context and ensure they also return the expected information.
 	store := v0svc.NewInMemoryShareStore("flavored")
@@ -435,9 +438,10 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 			require.True(t,
 				(vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject) == isMember ||
 					vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject) == isWildcard),
-				"Generated expected relations returned inaccessible member %s for %s",
+				"Generated expected relations returned inaccessible member %s for %s in `%s`",
 				tuple.StringONR(subjectWithExceptions.Subject),
-				tuple.StringONR(onr))
+				tuple.StringONR(onr),
+				updatedValidationYaml)
 		}
 	}
 
@@ -523,7 +527,7 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 	}
 }
 
-func validateLookup(t *testing.T, vctx *validationContext) {
+func validateLookupResources(t *testing.T, vctx *validationContext) {
 	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
 		for _, relation := range nsDef.Relation {
 			for _, subject := range vctx.subjectsNoWildcard.AsSlice() {
@@ -532,7 +536,7 @@ func validateLookup(t *testing.T, vctx *validationContext) {
 					Relation:  relation.Name,
 				}
 
-				t.Run(fmt.Sprintf("lookup_%s_%s_to_%s_%s_%s", objectRelation.Namespace, objectRelation.Relation, subject.Namespace, subject.ObjectId, subject.Relation), func(t *testing.T) {
+				t.Run(fmt.Sprintf("lookupresources_%s_%s_to_%s_%s_%s", objectRelation.Namespace, objectRelation.Relation, subject.Namespace, subject.ObjectId, subject.Relation), func(t *testing.T) {
 					vrequire := require.New(t)
 					accessibleObjectIds := vctx.accessibilitySet.AccessibleObjectIDs(objectRelation.Namespace, objectRelation.Relation, subject)
 
@@ -577,6 +581,79 @@ func validateLookup(t *testing.T, vctx *validationContext) {
 							tuple.StringONR(subject),
 						)
 					}
+				})
+			}
+		}
+	}
+}
+
+func validateLookupSubject(t *testing.T, vctx *validationContext) {
+	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
+		allObjectIds, ok := vctx.objectsPerNamespace.Get(nsDef.Name)
+		if !ok {
+			continue
+		}
+
+		for _, relation := range nsDef.Relation {
+			for _, objectID := range allObjectIds {
+				objectIDStr := objectID.(string)
+
+				accessibleSubjectsByType := vctx.accessibilitySet.AccessibleSubjectsByType(nsDef.Name, relation.Name, objectIDStr)
+				accessibleSubjectsByType.ForEachType(func(subjectType *core.RelationReference, expectedObjectIds []string) {
+					t.Run(fmt.Sprintf("lookupsubjects_%s_%s_%s_to_%s_%s", nsDef.Name, relation.Name, objectID, subjectType.Namespace, subjectType.Relation), func(t *testing.T) {
+						vrequire := require.New(t)
+
+						// Perform a lookup call and ensure it returns the at least the same set of object IDs.
+						resource := &core.ObjectAndRelation{
+							Namespace: nsDef.Name,
+							ObjectId:  objectIDStr,
+							Relation:  relation.Name,
+						}
+						resolvedObjectIds, err := vctx.tester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision)
+						vrequire.NoError(err)
+
+						sort.Strings(expectedObjectIds)
+						sort.Strings(resolvedObjectIds)
+
+						// Ensure the object IDs match.
+						for _, expectedObjectID := range expectedObjectIds {
+							vrequire.True(
+								contains(resolvedObjectIds, expectedObjectID),
+								"Object `%s` missing in lookup subjects results for subjects of %s under %s: Expected: %v. Found: %v",
+								expectedObjectID,
+								tuple.StringRR(subjectType),
+								tuple.StringONR(resource),
+								expectedObjectIds,
+								resolvedObjectIds,
+							)
+						}
+
+						// Ensure that every returned object Checks.
+						for _, resolvedObjectID := range resolvedObjectIds {
+							if resolvedObjectID == tuple.PublicWildcard {
+								continue
+							}
+
+							subject := &core.ObjectAndRelation{
+								Namespace: subjectType.Namespace,
+								ObjectId:  resolvedObjectID,
+								Relation:  subjectType.Relation,
+							}
+							isMember, err := vctx.tester.Check(context.Background(),
+								resource,
+								subject,
+								vctx.revision,
+							)
+							vrequire.NoError(err)
+							vrequire.True(
+								isMember,
+								"Found Check failure for resource %s and subject %s",
+								nsDef.Name,
+								tuple.StringONR(resource),
+								tuple.StringONR(subject),
+							)
+						}
+					})
 				})
 			}
 		}
@@ -803,8 +880,23 @@ func (rs *accessibilitySet) AccessibleObjectIDs(namespaceName string, relationNa
 	return accessibleObjectIDs
 }
 
+// AccessibleSubjects returns the set of subjects with accessible for the given object on the given relation on the namespace
+func (rs *accessibilitySet) AccessibleSubjectsByType(namespaceName string, relationName string, objectIDStr string) *tuple.ONRByTypeSet {
+	accessibleSubjects := tuple.NewONRByTypeSet()
+	for _, result := range rs.results {
+		if result.isMember == isNotMember || result.isMember == isWildcard || result.isMember == isMemberViaWildcard {
+			continue
+		}
+
+		if result.object.Namespace == namespaceName && result.object.Relation == relationName && result.object.ObjectId == objectIDStr {
+			accessibleSubjects.Add(result.subject)
+		}
+	}
+	return accessibleSubjects
+}
+
 // AccessibleTerminalSubjects returns the set of terminal subjects with accessible for the given object on the given relation on the namespace
-func (rs *accessibilitySet) AccessibleTerminalSubjects(namespaceName string, relationName string, objectIDStr string) membership.TrackingSubjectSet {
+func (rs *accessibilitySet) AccessibleTerminalSubjects(namespaceName string, relationName string, objectIDStr string) *membership.TrackingSubjectSet {
 	accessibleSubjects := membership.NewTrackingSubjectSet()
 	for _, result := range rs.results {
 		if result.isMember == isNotMember || result.isMember == isWildcard {

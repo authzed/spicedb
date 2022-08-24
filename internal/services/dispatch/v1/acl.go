@@ -56,6 +56,14 @@ func (ds *dispatchServer) DispatchReachableResources(
 		dispatch.WrapGRPCStream[*dispatchv1.DispatchReachableResourcesResponse](resp))
 }
 
+func (ds *dispatchServer) DispatchLookupSubjects(
+	req *dispatchv1.DispatchLookupSubjectsRequest,
+	resp dispatchv1.DispatchService_DispatchLookupSubjectsServer,
+) error {
+	return ds.localDispatch.DispatchLookupSubjects(req,
+		dispatch.WrapGRPCStream[*dispatchv1.DispatchLookupSubjectsResponse](resp))
+}
+
 func (ds *dispatchServer) Close() error {
 	return nil
 }

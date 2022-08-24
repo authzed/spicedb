@@ -123,8 +123,13 @@ message DispatchLookupSubjectsRequest {
       [ (validate.rules).message.required = true ];
 }
 
+message FoundSubject {
+  string subject_id = 1;
+  repeated string excluded_subject_ids = 2;
+}
+
 message DispatchLookupSubjectsResponse {
-  repeated string found_subject_ids = 1;
+  repeated FoundSubject found_subjects = 1;
   ResponseMeta metadata = 2;
 }
 

@@ -196,7 +196,7 @@ func TestCheckMetadata(t *testing.T) {
 				[]expected{
 					{"owner", true, 1, 1},
 					{"edit", true, 3, 2},
-					{"view", true, 21, 3},
+					{"view", true, 21, 5},
 				},
 			},
 			{

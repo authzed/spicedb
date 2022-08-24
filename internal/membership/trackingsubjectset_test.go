@@ -7,10 +7,11 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/authzed/spicedb/internal/util"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func set(subjects ...*core.ObjectAndRelation) TrackingSubjectSet {
+func set(subjects ...*core.ObjectAndRelation) *TrackingSubjectSet {
 	newSet := NewTrackingSubjectSet()
 	for _, subject := range subjects {
 		newSet.Add(NewFoundSubject(subject))
@@ -18,15 +19,16 @@ func set(subjects ...*core.ObjectAndRelation) TrackingSubjectSet {
 	return newSet
 }
 
-func union(firstSet TrackingSubjectSet, sets ...TrackingSubjectSet) TrackingSubjectSet {
+func union(firstSet *TrackingSubjectSet, sets ...*TrackingSubjectSet) *TrackingSubjectSet {
 	current := firstSet
 	for _, set := range sets {
 		current.AddFrom(set)
 	}
+
 	return current
 }
 
-func intersect(firstSet TrackingSubjectSet, sets ...TrackingSubjectSet) TrackingSubjectSet {
+func intersect(firstSet *TrackingSubjectSet, sets ...*TrackingSubjectSet) *TrackingSubjectSet {
 	current := firstSet
 	for _, set := range sets {
 		current = current.Intersect(set)
@@ -34,7 +36,7 @@ func intersect(firstSet TrackingSubjectSet, sets ...TrackingSubjectSet) Tracking
 	return current
 }
 
-func exclude(firstSet TrackingSubjectSet, sets ...TrackingSubjectSet) TrackingSubjectSet {
+func subtract(firstSet *TrackingSubjectSet, sets ...*TrackingSubjectSet) *TrackingSubjectSet {
 	current := firstSet
 	for _, set := range sets {
 		current = current.Exclude(set)
@@ -42,18 +44,18 @@ func exclude(firstSet TrackingSubjectSet, sets ...TrackingSubjectSet) TrackingSu
 	return current
 }
 
-func fs(subjectType string, subjectID string, subjectRel string, excludedSubjects ...*core.ObjectAndRelation) FoundSubject {
+func fs(subjectType string, subjectID string, subjectRel string, excludedSubjectIDs ...string) FoundSubject {
 	return FoundSubject{
-		subject:          ONR(subjectType, subjectID, subjectRel),
-		excludedSubjects: tuple.NewONRSet(excludedSubjects...),
-		relationships:    tuple.NewONRSet(),
+		subject:            ONR(subjectType, subjectID, subjectRel),
+		excludedSubjectIds: excludedSubjectIDs,
+		relationships:      tuple.NewONRSet(),
 	}
 }
 
 func TestTrackingSubjectSet(t *testing.T) {
 	testCases := []struct {
 		name     string
-		set      TrackingSubjectSet
+		set      *TrackingSubjectSet
 		expected []FoundSubject
 	}{
 		{
@@ -108,7 +110,7 @@ func TestTrackingSubjectSet(t *testing.T) {
 		},
 		{
 			"simple exclusion",
-			exclude(
+			subtract(
 				set(
 					(ONR("user", "user1", "...")),
 					(ONR("user", "user2", "...")),
@@ -120,7 +122,7 @@ func TestTrackingSubjectSet(t *testing.T) {
 		},
 		{
 			"empty exclusion",
-			exclude(
+			subtract(
 				set(
 					(ONR("user", "user1", "...")),
 					(ONR("user", "user2", "...")),
@@ -158,7 +160,7 @@ func TestTrackingSubjectSet(t *testing.T) {
 		},
 		{
 			"wildcard left side exclusion",
-			exclude(
+			subtract(
 				set(
 					(ONR("user", "*", "...")),
 					(ONR("user", "user2", "...")),
@@ -166,13 +168,13 @@ func TestTrackingSubjectSet(t *testing.T) {
 				set(ONR("user", "user1", "...")),
 			),
 			[]FoundSubject{
-				fs("user", "*", "...", ONR("user", "user1", "...")),
+				fs("user", "*", "...", "user1"),
 				fs("user", "user2", "..."),
 			},
 		},
 		{
 			"wildcard right side exclusion",
-			exclude(
+			subtract(
 				set(
 					(ONR("user", "user2", "...")),
 				),
@@ -182,19 +184,19 @@ func TestTrackingSubjectSet(t *testing.T) {
 		},
 		{
 			"wildcard right side concrete exclusion",
-			exclude(
+			subtract(
 				set(
 					(ONR("user", "*", "...")),
 				),
 				set(ONR("user", "user1", "...")),
 			),
 			[]FoundSubject{
-				fs("user", "*", "...", ONR("user", "user1", "...")),
+				fs("user", "*", "...", "user1"),
 			},
 		},
 		{
 			"wildcard both sides exclusion",
-			exclude(
+			subtract(
 				set(
 					(ONR("user", "user2", "...")),
 					(ONR("user", "*", "...")),
@@ -249,70 +251,72 @@ func TestTrackingSubjectSet(t *testing.T) {
 		{
 			"wildcard with exclusions union",
 			union(
-				NewTrackingSubjectSet(fs("user", "*", "...", ONR("user", "user1", "..."))),
-				NewTrackingSubjectSet(fs("user", "*", "...", ONR("user", "user2", "..."))),
+				NewTrackingSubjectSet(fs("user", "*", "...", "user1")),
+				NewTrackingSubjectSet(fs("user", "*", "...", "user2")),
 			),
 			[]FoundSubject{
-				fs("user", "*", "...", ONR("user", "user1", "..."), ONR("user", "user2", "...")),
+				fs("user", "*", "..."),
 			},
 		},
 		{
 			"wildcard with exclusions intersection",
 			intersect(
-				NewTrackingSubjectSet(fs("user", "*", "...", ONR("user", "user1", "..."))),
-				NewTrackingSubjectSet(fs("user", "*", "...", ONR("user", "user2", "..."))),
+				NewTrackingSubjectSet(fs("user", "*", "...", "user1")),
+				NewTrackingSubjectSet(fs("user", "*", "...", "user2")),
 			),
 			[]FoundSubject{
-				fs("user", "*", "...", ONR("user", "user1", "..."), ONR("user", "user2", "...")),
+				fs("user", "*", "...", "user1", "user2"),
 			},
 		},
 		{
-			"wildcard with exclusions exclusion",
-			exclude(
+			"wildcard with exclusions over subtraction",
+			subtract(
 				NewTrackingSubjectSet(
-					fs("user", "*", "...", ONR("user", "user1", "...")),
+					fs("user", "*", "...", "user1"),
 				),
-				NewTrackingSubjectSet(fs("user", "*", "...", ONR("user", "user2", "..."))),
+				NewTrackingSubjectSet(fs("user", "*", "...", "user2")),
 			),
-			[]FoundSubject{},
+			[]FoundSubject{
+				fs("user", "user2", "..."),
+			},
 		},
 		{
 			"wildcard with exclusions excluded user added",
-			exclude(
+			subtract(
 				NewTrackingSubjectSet(
-					fs("user", "*", "...", ONR("user", "user1", "...")),
+					fs("user", "*", "...", "user1"),
 				),
 				NewTrackingSubjectSet(fs("user", "user2", "...")),
 			),
 			[]FoundSubject{
-				fs("user", "*", "...", ONR("user", "user1", "..."), ONR("user", "user2", "...")),
+				fs("user", "*", "...", "user1", "user2"),
 			},
 		},
 		{
 			"wildcard multiple exclusions",
-			exclude(
+			subtract(
 				NewTrackingSubjectSet(
-					fs("user", "*", "...", ONR("user", "user1", "...")),
+					fs("user", "*", "...", "user1"),
 				),
 				NewTrackingSubjectSet(fs("user", "user2", "...")),
 				NewTrackingSubjectSet(fs("user", "user3", "...")),
 			),
 			[]FoundSubject{
-				fs("user", "*", "...", ONR("user", "user1", "..."), ONR("user", "user2", "..."), ONR("user", "user3", "...")),
+				fs("user", "*", "...", "user1", "user2", "user3"),
 			},
 		},
 		{
 			"intersection of exclusions",
 			intersect(
 				NewTrackingSubjectSet(
-					fs("user", "*", "...", ONR("user", "user1", "...")),
+					fs("user", "*", "...", "user1"),
 				),
 				NewTrackingSubjectSet(
-					fs("user", "*", "...", ONR("user", "user2", "...")),
+					fs("user", "*", "...", "user2"),
 				),
 			),
 			[]FoundSubject{
-				fs("user", "*", "...", ONR("user", "user1", "..."), ONR("user", "user2", "...")),
+				fs("user", "*", "...", "user1", "user2"),
 			},
 		},
 	}
@@ -320,24 +324,54 @@ func TestTrackingSubjectSet(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-
 			for _, fs := range tc.expected {
 				_, isWildcard := fs.WildcardType()
 				if isWildcard {
 					found, ok := tc.set.Get(fs.subject)
 					require.True(ok, "missing expected subject %s", fs.subject)
 
-					expectedExcluded := fs.excludedSubjects.AsSlice()
-					foundExcluded := found.excludedSubjects.AsSlice()
-					require.Len(fs.excludedSubjects.Subtract(found.excludedSubjects).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
-					require.Len(found.excludedSubjects.Subtract(fs.excludedSubjects).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
+					expectedExcluded := util.NewSet[string](fs.excludedSubjectIds...)
+					foundExcluded := util.NewSet[string](found.excludedSubjectIds...)
+					require.Len(expectedExcluded.Subtract(foundExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
+					require.Len(foundExcluded.Subtract(expectedExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
 				} else {
 					require.True(tc.set.Contains(fs.subject), "missing expected subject %s", fs.subject)
 				}
 				tc.set.removeExact(fs.subject)
 			}
 
-			require.Len(tc.set, 0)
+			require.True(tc.set.IsEmpty())
 		})
 	}
+}
+
+func TestTrackingSubjectSetResourceTracking(t *testing.T) {
+	tss := NewTrackingSubjectSet()
+	tss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "foo", "viewer")))
+	tss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "bar", "viewer")))
+
+	found, ok := tss.Get(ONR("user", "tom", "..."))
+	require.True(t, ok)
+	require.Equal(t, 2, len(found.Relationships()))
+
+	sss := NewTrackingSubjectSet()
+	sss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "baz", "viewer")))
+
+	intersection := tss.Intersect(sss)
+	found, ok = intersection.Get(ONR("user", "tom", "..."))
+	require.True(t, ok)
+	require.Equal(t, 3, len(found.Relationships()))
+}
+
+func TestTrackingSubjectSetResourceTrackingWithWildcard(t *testing.T) {
+	tss := NewTrackingSubjectSet()
+	tss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "foo", "viewer")))
+
+	sss := NewTrackingSubjectSet()
+	sss.Add(NewFoundSubject(ONR("user", "*", "..."), ONR("resource", "baz", "viewer")))
+
+	intersection := tss.Intersect(sss)
+	found, ok := intersection.Get(ONR("user", "tom", "..."))
+	require.True(t, ok)
+	require.Equal(t, 1, len(found.Relationships()))
 }

@@ -665,3 +665,152 @@ func TestTranslateExpansionTree(t *testing.T) {
 		})
 	}
 }
+
+func TestLookupSubjects(t *testing.T) {
+	testCases := []struct {
+		resource        *v1.ObjectReference
+		permission      string
+		subjectType     string
+		subjectRelation string
+
+		expectedSubjectIds []string
+		expectedErrorCode  codes.Code
+	}{
+		{
+			obj("document", "companyplan"),
+			"view",
+			"user",
+			"",
+			[]string{"auditor", "legal", "owner"},
+			codes.OK,
+		},
+		{
+			obj("document", "healthplan"),
+			"view",
+			"user",
+			"",
+			[]string{"chief_financial_officer"},
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"view",
+			"user",
+			"",
+			[]string{"auditor", "chief_financial_officer", "eng_lead", "legal", "owner", "product_manager", "vp_product"},
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"view_and_edit",
+			"user",
+			"",
+			nil,
+			codes.OK,
+		},
+		{
+			obj("document", "specialplan"),
+			"view_and_edit",
+			"user",
+			"",
+			[]string{"multiroleguy"},
+			codes.OK,
+		},
+		{
+			obj("document", "unknownobj"),
+			"view",
+			"user",
+			"",
+			nil,
+			codes.OK,
+		},
+		{
+			obj("document", "masterplan"),
+			"invalidperm",
+			"user",
+			"",
+			nil,
+			codes.FailedPrecondition,
+		},
+		{
+			obj("document", "masterplan"),
+			"view",
+			"invalidsubtype",
+			"",
+			nil,
+			codes.FailedPrecondition,
+		},
+		{
+			obj("unknown", "masterplan"),
+			"view",
+			"user",
+			"",
+			nil,
+			codes.FailedPrecondition,
+		},
+		{
+			obj("document", "masterplan"),
+			"view",
+			"user",
+			"invalidrel",
+			nil,
+			codes.FailedPrecondition,
+		},
+	}
+
+	for _, delta := range testTimedeltas {
+		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			for _, tc := range testCases {
+				t.Run(fmt.Sprintf("%s:%s#%s for %s#%s", tc.resource.ObjectType, tc.resource.ObjectId, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
+					require := require.New(t)
+					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+					client := v1.NewPermissionsServiceClient(conn)
+					t.Cleanup(func() {
+						goleak.VerifyNone(t, goleak.IgnoreCurrent())
+					})
+					t.Cleanup(cleanup)
+
+					var trailer metadata.MD
+					lookupClient, err := client.LookupSubjects(context.Background(), &v1.LookupSubjectsRequest{
+						Resource:                tc.resource,
+						Permission:              tc.permission,
+						SubjectObjectType:       tc.subjectType,
+						OptionalSubjectRelation: tc.subjectRelation,
+						Consistency: &v1.Consistency{
+							Requirement: &v1.Consistency_AtLeastAsFresh{
+								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+							},
+						},
+					}, grpc.Trailer(&trailer))
+
+					require.NoError(err)
+					if tc.expectedErrorCode == codes.OK {
+						var resolvedObjectIds []string
+						for {
+							resp, err := lookupClient.Recv()
+							if errors.Is(err, io.EOF) {
+								break
+							}
+
+							require.NoError(err)
+
+							resolvedObjectIds = append(resolvedObjectIds, resp.SubjectObjectId)
+						}
+
+						sort.Strings(tc.expectedSubjectIds)
+						sort.Strings(resolvedObjectIds)
+
+						require.Equal(tc.expectedSubjectIds, resolvedObjectIds)
+
+						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+						require.NoError(err)
+						require.GreaterOrEqual(dispatchCount, 0)
+					} else {
+						_, err := lookupClient.Recv()
+						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
+					}
+				})
+			}
+		})
+	}
+}

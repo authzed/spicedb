@@ -98,6 +98,71 @@ func TestMembershipSetIntersectionBasic(t *testing.T) {
 	verifySubjects(t, require, fso, "user:legal")
 }
 
+func TestMembershipSetIntersectionWithDifferentTypesOneMissingLeft(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			(ONR("user", "legal", "...")),
+			(ONR("folder", "foobar", "...")),
+		),
+		graph.Leaf(_this,
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
+		),
+	)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:legal")
+}
+
+func TestMembershipSetIntersectionWithDifferentTypesOneMissingRight(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			(ONR("user", "legal", "...")),
+		),
+		graph.Leaf(_this,
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
+			(ONR("folder", "foobar", "...")),
+		),
+	)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:legal")
+}
+
+func TestMembershipSetIntersectionWithDifferentTypes(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			(ONR("user", "legal", "...")),
+			(ONR("folder", "foobar", "...")),
+			(ONR("folder", "barbaz", "...")),
+		),
+		graph.Leaf(_this,
+			(ONR("user", "owner", "...")),
+			(ONR("user", "legal", "...")),
+			(ONR("folder", "barbaz", "...")),
+		),
+	)
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "folder:barbaz", "user:legal")
+}
+
 func TestMembershipSetExclusion(t *testing.T) {
 	require := require.New(t)
 	ms := NewMembershipSet()

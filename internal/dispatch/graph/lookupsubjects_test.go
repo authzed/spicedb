@@ -140,7 +140,13 @@ func TestSimpleLookupSubjects(t *testing.T) {
 
 			foundSubjectIds := []string{}
 			for _, result := range stream.Results() {
-				foundSubjectIds = append(foundSubjectIds, result.FoundSubjectIds...)
+				for _, found := range result.FoundSubjects {
+					if len(found.ExcludedSubjectIds) > 0 {
+						continue
+					}
+
+					foundSubjectIds = append(foundSubjectIds, found.SubjectId)
+				}
 			}
 
 			sort.Strings(foundSubjectIds)
@@ -211,7 +217,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 			"view",
 			"user",
 			"...",
-			4,
+			13,
 		},
 		{
 			"document",

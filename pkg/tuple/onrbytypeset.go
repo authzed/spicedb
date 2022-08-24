@@ -54,6 +54,9 @@ func (s *ONRByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Relati
 		if err != nil {
 			return nil, err
 		}
+		if updatedType == nil {
+			continue
+		}
 		updatedTypeKey := fmt.Sprintf("%s#%s", updatedType.Namespace, updatedType.Relation)
 		mapped.byType[updatedTypeKey] = objectIds
 	}

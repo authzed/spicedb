@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/tuple"
+
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
@@ -365,6 +367,84 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			return err
 		}
 	}
+	return nil
+}
+
+func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
+	ctx := resp.Context()
+	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
+
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+	// Perform our preflight checks in parallel
+	errG, checksCtx := errgroup.WithContext(ctx)
+	errG.Go(func() error {
+		return namespace.CheckNamespaceAndRelation(
+			checksCtx,
+			req.Resource.ObjectType,
+			req.Permission,
+			false,
+			ds,
+		)
+	})
+	errG.Go(func() error {
+		return namespace.CheckNamespaceAndRelation(
+			ctx,
+			req.SubjectObjectType,
+			stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
+			true,
+			ds,
+		)
+	})
+	if err := errG.Wait(); err != nil {
+		return rewritePermissionsError(ctx, err)
+	}
+
+	respMetadata := &dispatch.ResponseMeta{
+		DispatchCount:       0,
+		CachedDispatchCount: 0,
+		DepthRequired:       0,
+		DebugInfo:           nil,
+	}
+	usagemetrics.SetInContext(ctx, respMetadata)
+
+	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
+		for _, foundSubject := range result.FoundSubjects {
+			err := resp.Send(&v1.LookupSubjectsResponse{
+				SubjectObjectId:    foundSubject.SubjectId,
+				ExcludedSubjectIds: foundSubject.ExcludedSubjectIds,
+				LookedUpAt:         revisionReadAt,
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
+		return nil
+	})
+
+	err := ps.dispatch.DispatchLookupSubjects(
+		&dispatch.DispatchLookupSubjectsRequest{
+			Metadata: &dispatch.ResolverMeta{
+				AtRevision:     atRevision.String(),
+				DepthRemaining: ps.defaultDepth,
+			},
+			ResourceRelation: &core.RelationReference{
+				Namespace: req.Resource.ObjectType,
+				Relation:  req.Permission,
+			},
+			ResourceIds: []string{req.Resource.ObjectId},
+			SubjectRelation: &core.RelationReference{
+				Namespace: req.SubjectObjectType,
+				Relation:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
+			},
+		},
+		stream)
+	if err != nil {
+		return rewritePermissionsError(ctx, err)
+	}
+
 	return nil
 }
 
