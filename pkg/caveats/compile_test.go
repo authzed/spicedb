@@ -4,7 +4,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/require"
 )
 
@@ -153,7 +152,7 @@ func TestSerialization(t *testing.T) {
 			deserialized, err := DeserializeCaveat(env, serialized)
 			require.NoError(t, err)
 
-			astExpr, err := cel.AstToString(deserialized.ast)
+			astExpr, err := deserialized.ExprString()
 			require.NoError(t, err)
 			require.Equal(t, expr, astExpr)
 		})

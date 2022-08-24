@@ -20,6 +20,11 @@ type CompiledCaveat struct {
 	ast *cel.Ast
 }
 
+// ExprString returns the string-form of the caveat.
+func (cc CompiledCaveat) ExprString() (string, error) {
+	return cel.AstToString(cc.ast)
+}
+
 // Serialize serializes the compiled caveat into a byte string for storage.
 func (cc CompiledCaveat) Serialize() ([]byte, error) {
 	cexpr, err := cel.AstToCheckedExpr(cc.ast)
