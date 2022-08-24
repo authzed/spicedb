@@ -149,3 +149,5 @@ release:
   footer: |
     ## Docker Images
     This release is available at `authzed/spicedb:v{{ .Version }}`, `quay.io/authzed/spicedb:v{{ .Version }}`, `ghcr.io/authzed/spicedb:v{{ .Version }}`
+nightly:
+  name_template: "devel"
