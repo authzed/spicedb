@@ -1,6 +1,6 @@
 # MemDB Datastore Implementation
 
-The `memdb` datastore implementation is based on Hashicorp's [go-memdb library](github.com/hashicorp/go-memdb).
+The `memdb` datastore implementation is based on Hashicorp's [go-memdb library](https://github.com/hashicorp/go-memdb).
 Its implementation most closely mimics that of `spanner`, or `crdb`, where there is a single immutable datastore that supports querying at any point in time.
 The `memdb` datastore is used for validating and rapidly iterating on concepts from consumers of other datastores.
 It is 100% compliant with the datastore acceptance test suite and it should be possible to use it in place of any other datastore for development purposes.
