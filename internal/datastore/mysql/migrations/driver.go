@@ -85,7 +85,7 @@ func (driver *MySQLDriver) Version(ctx context.Context) (string, error) {
 	}
 	defer LogOnError(ctx, rows.Close)
 	if rows.Err() != nil {
-		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
+		return "", fmt.Errorf("unable to load driver migration revision: %w", rows.Err())
 	}
 	cols, err := rows.Columns()
 	if err != nil {

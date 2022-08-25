@@ -213,7 +213,7 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]*core.NamespaceDefinit
 	}
 
 	if rows.Err() != nil {
-		return nil, fmt.Errorf(errUnableToReadConfig, err)
+		return nil, fmt.Errorf(errUnableToReadConfig, rows.Err())
 	}
 
 	return nsDefs, nil

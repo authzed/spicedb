@@ -132,7 +132,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		}
 	}
 	if tupleIterator.Err() != nil {
-		return status.Errorf(codes.Internal, "error when reading tuples: %s", err)
+		return status.Errorf(codes.Internal, "error when reading tuples: %s", tupleIterator.Err())
 	}
 
 	return nil
