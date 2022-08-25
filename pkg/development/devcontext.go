@@ -59,7 +59,7 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 	if nerr != nil || devErrs != nil {
 		// If any form of error occurred, immediately close the datastore
 		derr := ds.Close()
-		if err != nil {
+		if derr != nil {
 			return nil, nil, derr
 		}
 
