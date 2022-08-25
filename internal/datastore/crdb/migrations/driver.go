@@ -85,10 +85,6 @@ func (apd *CRDBDriver) WriteVersion(ctx context.Context, tx pgx.Tx, version, rep
 	}
 
 	updatedCount := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("unable to compute number of rows affected: %w", err)
-	}
-
 	if updatedCount != 1 {
 		return fmt.Errorf("writing version update affected %d rows, should be 1", updatedCount)
 	}
