@@ -100,7 +100,7 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 	var foundSubjectIds []string
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
-			return err
+			return it.Err()
 		}
 
 		if tpl.Subject.Namespace == req.SubjectRelation.Namespace &&
@@ -187,7 +187,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 	toDispatchByTuplesetType := tuple.NewONRByTypeSet()
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
-			return err
+			return it.Err()
 		}
 
 		toDispatchByTuplesetType.Add(tpl.Subject)
