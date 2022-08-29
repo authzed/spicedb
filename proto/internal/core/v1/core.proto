@@ -12,6 +12,8 @@ message RelationTuple {
 
   /** subject is the subject for the tuple */
   ObjectAndRelation subject = 2 [ (validate.rules).message.required = true ];
+
+  bytes caveat = 3 [(validate.rules).bytes = {min_len: 0, max_len: 4096}];
 }
 
 message ObjectAndRelation {
