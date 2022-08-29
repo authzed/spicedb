@@ -184,7 +184,7 @@ func keyFromRelationship(r *core.RelationTuple) spanner.Key {
 		r.ResourceAndRelation.Relation,
 		r.Subject.Namespace,
 		r.Subject.ObjectId,
-		stringz.DefaultEmpty(r.Subject.Relation, datastore.Ellipsis),
+		r.Subject.Relation,
 	}
 }
 
@@ -198,7 +198,7 @@ func changeVals(changeUUID string, op int, r *core.RelationTuple) []interface{} 
 		r.ResourceAndRelation.Relation,
 		r.Subject.Namespace,
 		r.Subject.ObjectId,
-		stringz.DefaultEmpty(r.Subject.Relation, datastore.Ellipsis),
+		r.Subject.Relation,
 	}
 }
 

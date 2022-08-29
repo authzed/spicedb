@@ -64,7 +64,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations ...*core.RelationTupl
 				tpl.ResourceAndRelation.Relation,
 				tpl.Subject.Namespace,
 				tpl.Subject.ObjectId,
-				stringz.DefaultEmpty(tpl.Subject.Relation, datastore.Ellipsis),
+				tpl.Subject.Relation,
 				rwt.newTxnID,
 			)
 			bulkWriteHasValues = true
@@ -135,7 +135,7 @@ func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 		colRelation:         r.ResourceAndRelation.Relation,
 		colUsersetNamespace: r.Subject.Namespace,
 		colUsersetObjectID:  r.Subject.ObjectId,
-		colUsersetRelation:  stringz.DefaultEmpty(r.Subject.Relation, datastore.Ellipsis),
+		colUsersetRelation:  r.Subject.Relation,
 	}
 }
 

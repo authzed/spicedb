@@ -40,7 +40,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 			mutation.Tuple.ResourceAndRelation.Relation,
 			mutation.Tuple.Subject.Namespace,
 			mutation.Tuple.Subject.ObjectId,
-			stringz.DefaultEmpty(mutation.Tuple.Subject.Relation, datastore.Ellipsis),
+			mutation.Tuple.Subject.Relation,
 		}
 
 		found, err := tx.First(

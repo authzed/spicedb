@@ -106,7 +106,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations ...*core.RelationTuple
 				rel.ResourceAndRelation.Relation,
 				rel.Subject.Namespace,
 				rel.Subject.ObjectId,
-				stringz.DefaultEmpty(rel.Subject.Relation, datastore.Ellipsis),
+				rel.Subject.Relation,
 			)
 			bulkTouchCount++
 		case core.RelationTupleUpdate_CREATE:
@@ -117,7 +117,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations ...*core.RelationTuple
 				rel.ResourceAndRelation.Relation,
 				rel.Subject.Namespace,
 				rel.Subject.ObjectId,
-				stringz.DefaultEmpty(rel.Subject.Relation, datastore.Ellipsis),
+				rel.Subject.Relation,
 			)
 			bulkWriteCount++
 		case core.RelationTupleUpdate_DELETE:
@@ -165,7 +165,7 @@ func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 		colRelation:         r.ResourceAndRelation.Relation,
 		colUsersetNamespace: r.Subject.Namespace,
 		colUsersetObjectID:  r.Subject.ObjectId,
-		colUsersetRelation:  stringz.DefaultEmpty(r.Subject.Relation, datastore.Ellipsis),
+		colUsersetRelation:  r.Subject.Relation,
 	}
 }
 
