@@ -6,6 +6,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func SimpleCaveatTest(t *testing.T, tester DatastoreTester) {
 	u := tuple.Create(tpl)
 
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(u)
+		return rwt.WriteRelationships([]*core.RelationTupleUpdate{u})
 	})
 
 	req.NoError(err)
