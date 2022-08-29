@@ -763,6 +763,7 @@ func (x *DirectSubjects) GetSubjects() []*ObjectAndRelation {
 	return nil
 }
 
+//
 // Metadata is compiler metadata added to namespace definitions, such as doc comments and
 // relation kinds.
 type Metadata struct {
@@ -812,6 +813,7 @@ func (x *Metadata) GetMetadataMessage() []*anypb.Any {
 	return nil
 }
 
+//
 // NamespaceDefinition represents a single definition of an object type
 type NamespaceDefinition struct {
 	state         protoimpl.MessageState
@@ -888,6 +890,7 @@ func (x *NamespaceDefinition) GetSourcePosition() *SourcePosition {
 	return nil
 }
 
+//
 // Relation represents the definition of a relation or permission under a namespace.
 type Relation struct {
 	state         protoimpl.MessageState
@@ -991,6 +994,7 @@ func (x *Relation) GetCanonicalCacheKey() string {
 	return ""
 }
 
+//
 // ReachabilityGraph is a serialized form of a reachability graph, representing how a relation can
 // be reached from one or more subject types.
 //
@@ -999,29 +1003,27 @@ func (x *Relation) GetCanonicalCacheKey() string {
 //
 // For example, given the schema:
 // ```
+//   definition user {}
 //
-//	definition user {}
+//   definition organization {
+//     relation admin: user
+//   }
 //
-//	definition organization {
-//	  relation admin: user
-//	}
-//
-//	definition resource {
-//	  relation org: organization
-//	  relation viewer: user
-//	  relation owner: user
-//	  permission view = viewer + owner + org->admin
-//	}
-//
+//   definition resource {
+//     relation org: organization
+//     relation viewer: user
+//     relation owner: user
+//     permission view = viewer + owner + org->admin
+//   }
 // ```
 //
 // The reachability graph for `viewer` and the other relations will have entrypoints for each
 // subject type found for those relations.
 //
 // The full reachability graph for the `view` relation will have three entrypoints, representing:
-//  1. resource#viewer (computed_userset)
-//  2. resource#owner  (computed_userset)
-//  3. organization#admin (tupleset_to_userset)
+//   1) resource#viewer (computed_userset)
+//   2) resource#owner  (computed_userset)
+//   3) organization#admin (tupleset_to_userset)
 type ReachabilityGraph struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1083,6 +1085,7 @@ func (x *ReachabilityGraph) GetEntrypointsBySubjectRelation() map[string]*Reacha
 	return nil
 }
 
+//
 // ReachabilityEntrypoints represents all the entrypoints for a specific subject type or subject
 // relation into the reachability graph for a particular target relation.
 type ReachabilityEntrypoints struct {
@@ -1156,6 +1159,7 @@ func (x *ReachabilityEntrypoints) GetSubjectRelation() *RelationReference {
 	return nil
 }
 
+//
 // ReachabilityEntrypoint represents a single entrypoint for a specific subject type or subject
 // relation into the reachability graph for a particular target relation.
 type ReachabilityEntrypoint struct {
@@ -1239,6 +1243,7 @@ func (x *ReachabilityEntrypoint) GetTuplesetRelation() string {
 	return ""
 }
 
+//
 // TypeInformation defines the allowed types for a relation.
 type TypeInformation struct {
 	state         protoimpl.MessageState
@@ -1290,6 +1295,7 @@ func (x *TypeInformation) GetAllowedDirectRelations() []*AllowedRelation {
 	return nil
 }
 
+//
 // AllowedRelation is an allowed type of a relation when used as a subject.
 type AllowedRelation struct {
 	state         protoimpl.MessageState
