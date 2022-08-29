@@ -81,7 +81,7 @@ var (
 	)
 )
 
-func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpdate) error {
+func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteTuples")
 	defer span.End()
 
@@ -93,34 +93,34 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpda
 
 	// Process the actual updates
 	for _, mutation := range mutations {
-		rel := mutation.Relationship
-		rwt.addOverlapKey(rel.Resource.ObjectType)
-		rwt.addOverlapKey(rel.Subject.Object.ObjectType)
+		rel := mutation.Tuple
+		rwt.addOverlapKey(rel.ResourceAndRelation.Namespace)
+		rwt.addOverlapKey(rel.Subject.Namespace)
 
 		switch mutation.Operation {
-		case v1.RelationshipUpdate_OPERATION_TOUCH:
+		case core.RelationTupleUpdate_TOUCH:
 			rwt.relCountChange++
 			bulkTouch = bulkTouch.Values(
-				rel.Resource.ObjectType,
-				rel.Resource.ObjectId,
-				rel.Relation,
-				rel.Subject.Object.ObjectType,
-				rel.Subject.Object.ObjectId,
-				stringz.DefaultEmpty(rel.Subject.OptionalRelation, datastore.Ellipsis),
+				rel.ResourceAndRelation.Namespace,
+				rel.ResourceAndRelation.ObjectId,
+				rel.ResourceAndRelation.Relation,
+				rel.Subject.Namespace,
+				rel.Subject.ObjectId,
+				rel.Subject.Relation,
 			)
 			bulkTouchCount++
-		case v1.RelationshipUpdate_OPERATION_CREATE:
+		case core.RelationTupleUpdate_CREATE:
 			rwt.relCountChange++
 			bulkWrite = bulkWrite.Values(
-				rel.Resource.ObjectType,
-				rel.Resource.ObjectId,
-				rel.Relation,
-				rel.Subject.Object.ObjectType,
-				rel.Subject.Object.ObjectId,
-				stringz.DefaultEmpty(rel.Subject.OptionalRelation, datastore.Ellipsis),
+				rel.ResourceAndRelation.Namespace,
+				rel.ResourceAndRelation.ObjectId,
+				rel.ResourceAndRelation.Relation,
+				rel.Subject.Namespace,
+				rel.Subject.ObjectId,
+				rel.Subject.Relation,
 			)
 			bulkWriteCount++
-		case v1.RelationshipUpdate_OPERATION_DELETE:
+		case core.RelationTupleUpdate_DELETE:
 			rwt.relCountChange--
 			sql, args, err := queryDeleteTuples.Where(exactRelationshipClause(rel)).ToSql()
 			if err != nil {
@@ -158,14 +158,14 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpda
 	return nil
 }
 
-func exactRelationshipClause(r *v1.Relationship) sq.Eq {
+func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	return sq.Eq{
-		colNamespace:        r.Resource.ObjectType,
-		colObjectID:         r.Resource.ObjectId,
-		colRelation:         r.Relation,
-		colUsersetNamespace: r.Subject.Object.ObjectType,
-		colUsersetObjectID:  r.Subject.Object.ObjectId,
-		colUsersetRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
+		colNamespace:        r.ResourceAndRelation.Namespace,
+		colObjectID:         r.ResourceAndRelation.ObjectId,
+		colRelation:         r.ResourceAndRelation.Relation,
+		colUsersetNamespace: r.Subject.Namespace,
+		colUsersetObjectID:  r.Subject.ObjectId,
+		colUsersetRelation:  r.Subject.Relation,
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/encoding/prototext"
@@ -56,10 +55,10 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 // the validation file(s) contents specified.
 func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string][]byte) (*PopulatedValidationFile, decimal.Decimal, error) {
 	var revision decimal.Decimal
-	nsDefs := []*core.NamespaceDefinition{}
+	var nsDefs []*core.NamespaceDefinition
 	schema := ""
-	tuples := []*core.RelationTuple{}
-	files := []ValidationFile{}
+	var tuples []*core.RelationTuple
+	files := make([]ValidationFile, 0, len(filesContents))
 
 	for filePath, fileContents := range filesContents {
 		parsed, err := DecodeValidationFile(fileContents)
@@ -121,14 +120,11 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 		}
 
 		// Load the validation tuples/relationships.
-		var updates []*v1.RelationshipUpdate
+		var updates []*core.RelationTupleUpdate
 		seenTuples := map[string]bool{}
 		for _, rel := range parsed.Relationships.Relationships {
-			updates = append(updates, &v1.RelationshipUpdate{
-				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-				Relationship: rel,
-			})
 			tpl := tuple.MustFromRelationship(rel)
+			updates = append(updates, tuple.Create(tpl))
 			tuples = append(tuples, tpl)
 			seenTuples[tuple.String(tpl)] = true
 		}
@@ -147,10 +143,7 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 			seenTuples[tuple.String(tpl)] = true
 
 			tuples = append(tuples, tpl)
-			updates = append(updates, &v1.RelationshipUpdate{
-				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-				Relationship: tuple.MustToRelationship(tpl),
-			})
+			updates = append(updates, tuple.Create(tpl))
 		}
 
 		wrevision, terr := ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

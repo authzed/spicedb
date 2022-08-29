@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
@@ -136,7 +135,7 @@ func (dc *DevContext) Dispose() {
 
 func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore.ReadWriteTransaction) ([]*devinterface.DeveloperError, error) {
 	devErrors := make([]*devinterface.DeveloperError, 0, len(tuples))
-	updates := make([]*v1.RelationshipUpdate, 0, len(tuples))
+	updates := make([]*core.RelationTupleUpdate, 0, len(tuples))
 	for _, tpl := range tuples {
 		verr := tpl.Validate()
 		if verr != nil {
@@ -160,10 +159,7 @@ func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore
 			return devErrors, wireErr
 		}
 
-		updates = append(updates, &v1.RelationshipUpdate{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: tuple.MustToRelationship(tpl),
-		})
+		updates = append(updates, tuple.Touch(tpl))
 	}
 
 	err := rwt.WriteRelationships(updates)

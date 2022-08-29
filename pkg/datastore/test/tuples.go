@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -52,26 +53,15 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
 			var testTuples []*core.RelationTuple
+			for i := 0; i < numTuples; i++ {
+				resourceName := fmt.Sprintf("resource%d", i)
+				userName := fmt.Sprintf("user%d", i)
 
-			lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				for i := 0; i < numTuples; i++ {
-					resourceName := fmt.Sprintf("resource%d", i)
-					userName := fmt.Sprintf("user%d", i)
+				newTuple := makeTestTuple(resourceName, userName)
+				testTuples = append(testTuples, newTuple)
+			}
 
-					newTuple := makeTestTuple(resourceName, userName)
-					testTuples = append(testTuples, newTuple)
-
-					err := rwt.WriteRelationships(
-						[]*v1.RelationshipUpdate{{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(newTuple),
-						}},
-					)
-					require.NoError(err)
-				}
-
-				return nil
-			})
+			lastRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, testTuples...)
 			require.NoError(err)
 
 			for _, toCheck := range testTuples {
@@ -79,14 +69,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Write a duplicate tuple to make sure the datastore rejects it
-			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				return rwt.WriteRelationships(
-					[]*v1.RelationshipUpdate{{
-						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-						Relationship: tuple.MustToRelationship(testTuples[0]),
-					}},
-				)
-			})
+			_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, testTuples...)
 			require.Error(err)
 
 			dsReader := ds.SnapshotReader(lastRevision)
@@ -291,29 +274,11 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire.VerifyIteratorResults(iter)
 
 			// Delete the first tuple
-			deletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.WriteRelationships(
-					[]*v1.RelationshipUpdate{{
-						Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-						Relationship: tuple.MustToRelationship(testTuples[0]),
-					}},
-				)
-				require.NoError(err)
-				return err
-			})
+			deletedAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, testTuples[0])
 			require.NoError(err)
 
 			// Delete it AGAIN (idempotent delete) and make sure there's no error
-			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.WriteRelationships(
-					[]*v1.RelationshipUpdate{{
-						Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-						Relationship: tuple.MustToRelationship(testTuples[0]),
-					}},
-				)
-				require.NoError(err)
-				return err
-			})
+			_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, testTuples[0])
 			require.NoError(err)
 
 			// Verify it can still be read at the old revision
@@ -331,16 +296,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire.VerifyIteratorResults(alreadyDeletedIter, testTuples[1:]...)
 
 			// Write it back
-			returnedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.WriteRelationships(
-					[]*v1.RelationshipUpdate{{
-						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-						Relationship: tuple.MustToRelationship(testTuples[0]),
-					}},
-				)
-				require.NoError(err)
-				return err
-			})
+			returnedAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, testTuples[0])
 			require.NoError(err)
 			tRequire.TupleExists(ctx, testTuples[0], returnedAt)
 
@@ -440,14 +396,15 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
+			// TODO temporarily store tuples in multiple calls to ReadWriteTransaction since no Datastore
+			// handles correctly duplicate tuples
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				for _, tpl := range tt.inputTuples {
-					update := &v1.RelationshipUpdate{
-						Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-						Relationship: tuple.MustToRelationship(tpl),
+					update := tuple.Touch(tpl)
+					err := rwt.WriteRelationships([]*core.RelationTupleUpdate{update})
+					if err != nil {
+						return err
 					}
-					err := rwt.WriteRelationships([]*v1.RelationshipUpdate{update})
-					require.NoError(err)
 				}
 				return nil
 			})
@@ -494,14 +451,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		require.True(errors.As(err, &revisionErr))
 
 		newTuple := makeTestTuple("one", "one")
-		firstWrite, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			err := rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-				Relationship: tuple.MustToRelationship(newTuple),
-			}})
-			require.NoError(err)
-			return err
-		})
+		firstWrite, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, newTuple)
 		require.NoError(err)
 
 		// Check that we can read at the just written revision
@@ -512,16 +462,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		time.Sleep(testGCDuration * 2)
 
 		// Write another tuple which will allow the first revision to expire
-		nextWrite, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			err := rwt.WriteRelationships(
-				[]*v1.RelationshipUpdate{{
-					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-					Relationship: tuple.MustToRelationship(newTuple),
-				}},
-			)
-			require.NoError(err)
-			return err
-		})
+		nextWrite, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, newTuple)
 		require.NoError(err)
 
 		// Check that we can read at the just written revision
@@ -574,14 +515,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 					testTuples = append(testTuples, newTuple)
 					usersets = append(usersets, newTuple.Subject)
 
-					writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-						err := rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(newTuple),
-						}})
-						require.NoError(err)
-						return err
-					})
+					writtenAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, newTuple)
 					require.NoError(err)
 					require.True(writtenAt.GreaterThan(lastRevision))
 
@@ -658,12 +592,8 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 
 			// We do NOT assert the error here because serialization problems can manifest as errors
 			// on the individual writes.
-			err = rwt.WriteRelationships([]*v1.RelationshipUpdate{
-				{
-					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-					Relationship: makeTestRelationship("new_resource", "new_user"),
-				},
-			})
+			rtu := tuple.Touch(makeTestTuple("new_resource", "new_user"))
+			err = rwt.WriteRelationships([]*core.RelationTupleUpdate{rtu})
 
 			waitToStartCloser.Do(func() {
 				close(waitToStart)
@@ -683,12 +613,8 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 			close(waitToFinish)
 		})
 
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{
-			{
-				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-				Relationship: makeTestRelationship("another_resource", "another_user"),
-			},
-		})
+		rtu := tuple.Touch(makeTestTuple("another_resource", "another_user"))
+		return rwt.WriteRelationships([]*core.RelationTupleUpdate{rtu})
 	})
 	require.NoError(err)
 	require.NoError(g.Wait())

@@ -11,10 +11,10 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -193,26 +193,8 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write a relationship.
 
-	tpl := &corev1.RelationTuple{
-		ResourceAndRelation: &corev1.ObjectAndRelation{
-			Namespace: "resource",
-			ObjectId:  "someresource",
-			Relation:  "reader",
-		},
-		Subject: &corev1.ObjectAndRelation{
-			Namespace: "user",
-			ObjectId:  "someuser",
-			Relation:  "...",
-		},
-	}
-	relationship := tuple.ToRelationship(tpl)
-
-	relWrittenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: relationship,
-		}})
-	})
+	tpl := tuple.Parse("resource:someresource#reader@user:someuser#...")
+	relWrittenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
@@ -234,12 +216,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.TupleExists(ctx, tpl, relWrittenAt)
 
 	// Overwrite the relationship.
-	relOverwrittenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}})
-	})
+	relOverwrittenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure the (older copy of the) relationship is removed, as well as 1 transaction (the write).
@@ -260,12 +237,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.TupleExists(ctx, tpl, relOverwrittenAt)
 
 	// Delete the relationship.
-	relDeletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: relationship,
-		}})
-	})
+	relDeletedAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_DELETE, tpl)
 	req.NoError(err)
 
 	// Ensure the relationship is gone.
@@ -286,28 +258,13 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Zero(removed.Namespaces)
 
 	// Write the relationship a few times.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}})
-	})
+	_, err = common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
 	req.NoError(err)
 
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}})
-	})
+	_, err = common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
 	req.NoError(err)
 
-	relLastWriteAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}})
-	})
+	relLastWriteAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
@@ -348,26 +305,9 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Write a relationship.
-	tpl := &corev1.RelationTuple{
-		ResourceAndRelation: &corev1.ObjectAndRelation{
-			Namespace: "resource",
-			ObjectId:  "someresource",
-			Relation:  "reader",
-		},
-		Subject: &corev1.ObjectAndRelation{
-			Namespace: "user",
-			ObjectId:  "someuser",
-			Relation:  "...",
-		},
-	}
-	relationship := tuple.ToRelationship(tpl)
+	tpl := tuple.Parse("resource:someresource#reader@user:someuser#...")
 
-	relLastWriteAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: relationship,
-		}})
-	})
+	relLastWriteAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
 
 	// Run GC and ensure only transactions were removed.
@@ -391,12 +331,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Delete the relationship.
-	relDeletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: relationship,
-		}})
-	})
+	relDeletedAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_DELETE, tpl)
 	req.NoError(err)
 
 	// Run GC and ensure the relationship is removed.
@@ -441,34 +376,13 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Prepare relationships to write.
 	var tuples []*corev1.RelationTuple
 	for i := 0; i < chunkRelationshipCount; i++ {
-		tpl := &corev1.RelationTuple{
-			ResourceAndRelation: &corev1.ObjectAndRelation{
-				Namespace: "resource",
-				ObjectId:  fmt.Sprintf("resource-%d", i),
-				Relation:  "reader",
-			},
-			Subject: &corev1.ObjectAndRelation{
-				Namespace: "user",
-				ObjectId:  "someuser",
-				Relation:  "...",
-			},
-		}
+		tpl := tuple.Parse(fmt.Sprintf("resource:resource-%d#reader@user:someuser#...", i))
 		tuples = append(tuples, tpl)
 	}
 
 	// Write a large number of relationships.
-	updates := make([]*v1.RelationshipUpdate, 0, len(tuples))
-	for _, tpl := range tuples {
-		relationship := tuple.ToRelationship(tpl)
-		updates = append(updates, &v1.RelationshipUpdate{
-			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: relationship,
-		})
-	}
 
-	writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(updates)
-	})
+	writtenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tuples...)
 	req.NoError(err)
 
 	// Ensure the relationships were written.
@@ -494,18 +408,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Delete all the relationships.
-	deletes := make([]*v1.RelationshipUpdate, 0, len(tuples))
-	for _, tpl := range tuples {
-		relationship := tuple.ToRelationship(tpl)
-		deletes = append(deletes, &v1.RelationshipUpdate{
-			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: relationship,
-		})
-	}
-
-	deletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(deletes)
-	})
+	deletedAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_DELETE, tuples...)
 	req.NoError(err)
 
 	// Ensure the relationships were deleted.

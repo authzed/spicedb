@@ -3,14 +3,13 @@ package testfixtures
 import (
 	"context"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -145,19 +144,13 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 	ds, _ = StandardDatastoreWithSchema(ds, require)
 	ctx := context.Background()
 
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		for _, tupleStr := range StandardTuples {
-			tpl := tuple.Parse(tupleStr)
-			require.NotNil(tpl)
-
-			err := rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-				Relationship: tuple.MustToRelationship(tpl),
-			}})
-			require.NoError(err)
-		}
-		return nil
-	})
+	tuples := make([]*core.RelationTuple, 0, len(StandardTuples))
+	for _, tupleStr := range StandardTuples {
+		tpl := tuple.Parse(tupleStr)
+		require.NotNil(tpl)
+		tuples = append(tuples, tpl)
+	}
+	revision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tuples...)
 	require.NoError(err)
 
 	return ds, revision

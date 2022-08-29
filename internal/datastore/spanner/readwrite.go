@@ -22,7 +22,7 @@ type spannerReadWriteTXN struct {
 	spannerRWT *spanner.ReadWriteTransaction
 }
 
-func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpdate) error {
+func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
 	ctx, span := tracer.Start(rwt.ctx, "WriteTuples")
 	defer span.End()
 
@@ -34,17 +34,17 @@ func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUp
 		var txnMut *spanner.Mutation
 		var op int
 		switch mutation.Operation {
-		case v1.RelationshipUpdate_OPERATION_TOUCH:
+		case core.RelationTupleUpdate_TOUCH:
 			rowCountChange++
-			txnMut = spanner.InsertOrUpdate(tableRelationship, allRelationshipCols, upsertVals(mutation.Relationship))
+			txnMut = spanner.InsertOrUpdate(tableRelationship, allRelationshipCols, upsertVals(mutation.Tuple))
 			op = colChangeOpTouch
-		case v1.RelationshipUpdate_OPERATION_CREATE:
+		case core.RelationTupleUpdate_CREATE:
 			rowCountChange++
-			txnMut = spanner.Insert(tableRelationship, allRelationshipCols, upsertVals(mutation.Relationship))
+			txnMut = spanner.Insert(tableRelationship, allRelationshipCols, upsertVals(mutation.Tuple))
 			op = colChangeOpCreate
-		case v1.RelationshipUpdate_OPERATION_DELETE:
+		case core.RelationTupleUpdate_DELETE:
 			rowCountChange--
-			txnMut = spanner.Delete(tableRelationship, keyFromRelationship(mutation.Relationship))
+			txnMut = spanner.Delete(tableRelationship, keyFromRelationship(mutation.Tuple))
 			op = colChangeOpDelete
 		default:
 			log.Ctx(ctx).Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
@@ -54,7 +54,7 @@ func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUp
 			)
 		}
 
-		changelogMut := spanner.Insert(tableChangelog, allChangelogCols, changeVals(changeUUID, op, mutation.Relationship))
+		changelogMut := spanner.Insert(tableChangelog, allChangelogCols, changeVals(changeUUID, op, mutation.Tuple))
 		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
@@ -122,22 +122,20 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 	changeUUID := uuid.NewString()
 
 	// Pre-allocate a single relationship
-	rel := v1.Relationship{
-		Resource: &v1.ObjectReference{},
-		Subject: &v1.SubjectReference{
-			Object: &v1.ObjectReference{},
-		},
+	rel := core.RelationTuple{
+		ResourceAndRelation: &core.ObjectAndRelation{},
+		Subject:             &core.ObjectAndRelation{},
 	}
 
 	var changelogMutations []*spanner.Mutation
 	if err := toDelete.Do(func(row *spanner.Row) error {
 		err := row.Columns(
-			&rel.Resource.ObjectType,
-			&rel.Resource.ObjectId,
-			&rel.Relation,
-			&rel.Subject.Object.ObjectType,
-			&rel.Subject.Object.ObjectId,
-			&rel.Subject.OptionalRelation,
+			&rel.ResourceAndRelation.Namespace,
+			&rel.ResourceAndRelation.ObjectId,
+			&rel.ResourceAndRelation.Relation,
+			&rel.Subject.Namespace,
+			&rel.Subject.ObjectId,
+			&rel.Subject.Relation,
 		)
 		if err != nil {
 			return err
@@ -174,33 +172,33 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 	return nil
 }
 
-func upsertVals(r *v1.Relationship) []interface{} {
+func upsertVals(r *core.RelationTuple) []interface{} {
 	key := keyFromRelationship(r)
 	return append(key, spanner.CommitTimestamp)
 }
 
-func keyFromRelationship(r *v1.Relationship) spanner.Key {
+func keyFromRelationship(r *core.RelationTuple) spanner.Key {
 	return spanner.Key{
-		r.Resource.ObjectType,
-		r.Resource.ObjectId,
-		r.Relation,
-		r.Subject.Object.ObjectType,
-		r.Subject.Object.ObjectId,
-		stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
+		r.ResourceAndRelation.Namespace,
+		r.ResourceAndRelation.ObjectId,
+		r.ResourceAndRelation.Relation,
+		r.Subject.Namespace,
+		r.Subject.ObjectId,
+		r.Subject.Relation,
 	}
 }
 
-func changeVals(changeUUID string, op int, r *v1.Relationship) []interface{} {
+func changeVals(changeUUID string, op int, r *core.RelationTuple) []interface{} {
 	return []interface{}{
 		spanner.CommitTimestamp,
 		changeUUID,
 		op,
-		r.Resource.ObjectType,
-		r.Resource.ObjectId,
-		r.Relation,
-		r.Subject.Object.ObjectType,
-		r.Subject.Object.ObjectId,
-		stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
+		r.ResourceAndRelation.Namespace,
+		r.ResourceAndRelation.ObjectId,
+		r.ResourceAndRelation.Relation,
+		r.Subject.Namespace,
+		r.Subject.ObjectId,
+		r.Subject.Relation,
 	}
 }
 

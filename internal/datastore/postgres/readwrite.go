@@ -55,7 +55,7 @@ type pgReadWriteTXN struct {
 	newTxnID uint64
 }
 
-func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpdate) error {
+func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteTuples")
 	defer span.End()
 
@@ -66,20 +66,20 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpdate
 
 	// Process the actual updates
 	for _, mut := range mutations {
-		rel := mut.Relationship
+		tpl := mut.Tuple
 
-		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
-			deleteClauses = append(deleteClauses, exactRelationshipClause(rel))
+		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {
+			deleteClauses = append(deleteClauses, exactRelationshipClause(tpl))
 		}
 
-		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_CREATE {
+		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_CREATE {
 			bulkWrite = bulkWrite.Values(
-				rel.Resource.ObjectType,
-				rel.Resource.ObjectId,
-				rel.Relation,
-				rel.Subject.Object.ObjectType,
-				rel.Subject.Object.ObjectId,
-				stringz.DefaultEmpty(rel.Subject.OptionalRelation, datastore.Ellipsis),
+				tpl.ResourceAndRelation.Namespace,
+				tpl.ResourceAndRelation.ObjectId,
+				tpl.ResourceAndRelation.Relation,
+				tpl.Subject.Namespace,
+				tpl.Subject.ObjectId,
+				tpl.Subject.Relation,
 				rwt.newTxnID,
 			)
 			bulkWriteHasValues = true
@@ -250,14 +250,14 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	return nil
 }
 
-func exactRelationshipClause(r *v1.Relationship) sq.Eq {
+func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	return sq.Eq{
-		colNamespace:        r.Resource.ObjectType,
-		colObjectID:         r.Resource.ObjectId,
-		colRelation:         r.Relation,
-		colUsersetNamespace: r.Subject.Object.ObjectType,
-		colUsersetObjectID:  r.Subject.Object.ObjectId,
-		colUsersetRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
+		colNamespace:        r.ResourceAndRelation.Namespace,
+		colObjectID:         r.ResourceAndRelation.ObjectId,
+		colRelation:         r.ResourceAndRelation.Relation,
+		colUsersetNamespace: r.Subject.Namespace,
+		colUsersetObjectID:  r.Subject.ObjectId,
+		colUsersetRelation:  r.Subject.Relation,
 	}
 }
 

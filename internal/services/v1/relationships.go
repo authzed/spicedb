@@ -239,7 +239,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			return err
 		}
 
-		return rwt.WriteRelationships(req.Updates)
+		return rwt.WriteRelationships(tuple.UpdateFromRelationshipUpdates(req.Updates))
 	})
 	if err != nil {
 		return nil, rewritePermissionsError(ctx, err)

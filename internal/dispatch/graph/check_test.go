@@ -6,15 +6,12 @@ import (
 	"os"
 	"testing"
 
-	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
@@ -22,7 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -151,30 +148,12 @@ func TestMaxDepth(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	mutations := []*v1_api.RelationshipUpdate{{
-		Operation: v1_api.RelationshipUpdate_OPERATION_CREATE,
-		Relationship: &v1_api.Relationship{
-			Resource: &v1_api.ObjectReference{
-				ObjectType: "folder",
-				ObjectId:   "oops",
-			},
-			Relation: "owner",
-			Subject: &v1_api.SubjectReference{
-				Object: &v1_api.ObjectReference{
-					ObjectType: "folder",
-					ObjectId:   "oops",
-				},
-				OptionalRelation: "owner",
-			},
-		},
-	}}
+	mutation := tuple.Create(tuple.Parse("folder:oops#owner@folder:oops#owner"))
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(mutations)
-	})
+	revision, err := common.UpdateTuplesInDatastore(ctx, ds, mutation)
 	require.NoError(err)
 	require.True(revision.GreaterThan(decimal.Zero))
 
