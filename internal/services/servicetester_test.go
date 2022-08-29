@@ -23,6 +23,7 @@ type serviceTester interface {
 	Write(ctx context.Context, relationship *core.RelationTuple) error
 	Read(ctx context.Context, namespaceName string, atRevision decimal.Decimal) ([]*core.RelationTuple, error)
 	Lookup(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision decimal.Decimal) ([]string, error)
+	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision decimal.Decimal) ([]string, error)
 }
 
 func optionalizeRelation(relation string) string {
@@ -184,6 +185,43 @@ func (v1st v1ServiceTester) Lookup(ctx context.Context, resourceRelation *core.R
 		}
 
 		objectIds = append(objectIds, resp.ResourceObjectId)
+	}
+
+	sort.Strings(objectIds)
+	return objectIds, nil
+}
+
+func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision decimal.Decimal) ([]string, error) {
+	lookupResp, err := v1st.permClient.LookupSubjects(context.Background(), &v1.LookupSubjectsRequest{
+		Resource: &v1.ObjectReference{
+			ObjectType: resource.Namespace,
+			ObjectId:   resource.ObjectId,
+		},
+		Permission:              resource.Relation,
+		SubjectObjectType:       subjectRelation.Namespace,
+		OptionalSubjectRelation: optionalizeRelation(subjectRelation.Relation),
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(atRevision),
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var objectIds []string
+	for {
+		resp, err := lookupResp.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		objectIds = append(objectIds, resp.SubjectObjectId)
 	}
 
 	sort.Strings(objectIds)

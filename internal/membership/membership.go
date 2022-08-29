@@ -51,11 +51,11 @@ func (ms *Set) AddExpansion(onr *core.ObjectAndRelation, expansion *core.Relatio
 }
 
 // AccessibleExpansionSubjects returns a TrackingSubjectSet representing the set of accessible subjects in the expansion.
-func AccessibleExpansionSubjects(treeNode *core.RelationTupleTreeNode) (TrackingSubjectSet, error) {
+func AccessibleExpansionSubjects(treeNode *core.RelationTupleTreeNode) (*TrackingSubjectSet, error) {
 	return populateFoundSubjects(treeNode.Expanded, treeNode)
 }
 
-func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.RelationTupleTreeNode) (TrackingSubjectSet, error) {
+func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.RelationTupleTreeNode) (*TrackingSubjectSet, error) {
 	resource := rootONR
 	if treeNode.Expanded != nil {
 		resource = treeNode.Expanded

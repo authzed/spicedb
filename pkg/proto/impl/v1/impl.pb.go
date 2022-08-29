@@ -76,6 +76,7 @@ type DecodedZookie struct {
 
 	Version uint32 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	// Types that are assignable to VersionOneof:
+	//
 	//	*DecodedZookie_V1
 	//	*DecodedZookie_V2
 	VersionOneof isDecodedZookie_VersionOneof `protobuf_oneof:"version_oneof"`
@@ -163,6 +164,7 @@ type DecodedZedToken struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to VersionOneof:
+	//
 	//	*DecodedZedToken_DeprecatedV1Zookie
 	//	*DecodedZedToken_V1
 	VersionOneof isDecodedZedToken_VersionOneof `protobuf_oneof:"version_oneof"`

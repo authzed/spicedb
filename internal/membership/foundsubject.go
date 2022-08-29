@@ -12,7 +12,7 @@ import (
 
 // NewFoundSubject creates a new FoundSubject for a subject and a set of its resources.
 func NewFoundSubject(subject *core.ObjectAndRelation, resources ...*core.ObjectAndRelation) FoundSubject {
-	return FoundSubject{subject, tuple.NewONRSet(), tuple.NewONRSet(resources...)}
+	return FoundSubject{subject, nil, tuple.NewONRSet(resources...)}
 }
 
 // FoundSubject contains a single found subject and all the relationships in which that subject
@@ -22,11 +22,22 @@ type FoundSubject struct {
 	subject *core.ObjectAndRelation
 
 	// excludedSubjects are any subjects excluded. Only should be set if subject is a wildcard.
-	excludedSubjects *tuple.ONRSet
+	excludedSubjectIds []string
 
 	// relations are the relations under which the subject lives that informed the locating
 	// of this subject for the root ONR.
 	relationships *tuple.ONRSet
+}
+
+// GetSubjectId is named to match the Subject interface for the BaseSubjectSet.
+//
+//nolint:all
+func (fs FoundSubject) GetSubjectId() string {
+	return fs.subject.ObjectId
+}
+
+func (fs FoundSubject) GetExcludedSubjectIds() []string {
+	return fs.excludedSubjectIds
 }
 
 // Subject returns the Subject of the FoundSubject.
@@ -47,7 +58,16 @@ func (fs FoundSubject) WildcardType() (string, bool) {
 // If not a wildcard subject, returns false.
 func (fs FoundSubject) ExcludedSubjectsFromWildcard() ([]*core.ObjectAndRelation, bool) {
 	if fs.subject.ObjectId == tuple.PublicWildcard {
-		return fs.excludedSubjects.AsSlice(), true
+		excludedSubjects := make([]*core.ObjectAndRelation, 0, len(fs.excludedSubjectIds))
+		for _, excludedID := range fs.excludedSubjectIds {
+			excludedSubjects = append(excludedSubjects, &core.ObjectAndRelation{
+				Namespace: fs.subject.Namespace,
+				ObjectId:  excludedID,
+				Relation:  fs.subject.Relation,
+			})
+		}
+
+		return excludedSubjects, true
 	}
 
 	return []*core.ObjectAndRelation{}, false
@@ -76,67 +96,18 @@ func (fs FoundSubject) ToValidationString() string {
 	return onrString
 }
 
-// union performs merging of two FoundSubject's with the same subject.
-func (fs FoundSubject) union(other FoundSubject) FoundSubject {
-	if toKey(fs.subject) != toKey(other.subject) {
-		panic("Got wrong found subject to union")
-	}
-
-	relationships := fs.relationships.Union(other.relationships)
-	var excludedSubjects *tuple.ONRSet
-
-	// If a wildcard, then union together excluded subjects.
-	_, isWildcard := fs.WildcardType()
-	if isWildcard {
-		excludedSubjects = fs.excludedSubjects.Union(other.excludedSubjects)
-	}
-
-	return FoundSubject{
-		subject:          fs.subject,
-		excludedSubjects: excludedSubjects,
-		relationships:    relationships,
-	}
-}
-
-// intersect performs intersection between two FoundSubject's with the same subject.
-func (fs FoundSubject) intersect(other FoundSubject) FoundSubject {
-	if toKey(fs.subject) != toKey(other.subject) {
-		panic("Got wrong found subject to intersect")
-	}
-
-	relationships := fs.relationships.Union(other.relationships)
-	var excludedSubjects *tuple.ONRSet
-
-	// If a wildcard, then union together excluded subjects.
-	_, isWildcard := fs.WildcardType()
-	if isWildcard {
-		excludedSubjects = fs.excludedSubjects.Union(other.excludedSubjects)
-	}
-
-	return FoundSubject{
-		subject:          fs.subject,
-		excludedSubjects: excludedSubjects,
-		relationships:    relationships,
-	}
-}
-
 // FoundSubjects contains the subjects found for a specific ONR.
 type FoundSubjects struct {
 	// subjects is a map from the Subject ONR (as a string) to the FoundSubject information.
-	subjects map[string]FoundSubject
+	subjects TrackingSubjectSet
 }
 
 // ListFound returns a slice of all the FoundSubject's.
 func (fs FoundSubjects) ListFound() []FoundSubject {
-	found := []FoundSubject{}
-	for _, sub := range fs.subjects {
-		found = append(found, sub)
-	}
-	return found
+	return fs.subjects.ToSlice()
 }
 
 // LookupSubject returns the FoundSubject for a matching subject, if any.
 func (fs FoundSubjects) LookupSubject(subject *core.ObjectAndRelation) (FoundSubject, bool) {
-	found, ok := fs.subjects[toKey(subject)]
-	return found, ok
+	return fs.subjects.Get(subject)
 }

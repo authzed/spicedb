@@ -1,6 +1,6 @@
 ---
 name: "Lint"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "!dependabot/*"
@@ -15,7 +15,7 @@ jobs:
       - uses: "actions/checkout@v3"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.18"
+          go-version: "~1.19"
       - uses: "authzed/actions/go-test@main"
         with:
           working_directory: "tools/analyzers"
@@ -27,7 +27,7 @@ jobs:
       - uses: "actions/checkout@v3"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.18"
+          go-version: "~1.19"
       - uses: "authzed/actions/gofumpt@main"
       - uses: "authzed/actions/gofumpt@main"
         with:
@@ -48,7 +48,7 @@ jobs:
         with:
           working_directory: "tools/analyzers"
       - name: "Run custom analyzers"
-        run: "./tools/analyzers/analyzers -skip-pkg \"github.com/authzed/spicedb/pkg/proto/dispatch/v1\" -disallowed-nil-return-type-paths \"*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse\" ./..."
+        run: './tools/analyzers/analyzers -skip-pkg "github.com/authzed/spicedb/pkg/proto/dispatch/v1" -disallowed-nil-return-type-paths "*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse" ./...'
 
   extra-lint:
     name: "Lint YAML & Markdown"
@@ -92,4 +92,4 @@ jobs:
       - name: "Upload Trivy scan results to GitHub Security tab"
         uses: "github/codeql-action/upload-sarif@v2"
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: "trivy-results.sarif"

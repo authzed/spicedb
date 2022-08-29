@@ -166,3 +166,18 @@ func LookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest) string {
 		req.Metadata.AtRevision,
 	)
 }
+
+// AddResponseMetadata adds the metadata found in the incoming metadata to the existing
+// metadata, *modifying it in place*.
+func AddResponseMetadata(existing *v1.ResponseMeta, incoming *v1.ResponseMeta) {
+	existing.DispatchCount += incoming.DispatchCount
+	existing.CachedDispatchCount += incoming.CachedDispatchCount
+	existing.DepthRequired = max(existing.DepthRequired, incoming.DepthRequired)
+}
+
+func max(x, y uint32) uint32 {
+	if x < y {
+		return y
+	}
+	return x
+}

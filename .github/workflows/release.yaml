@@ -1,6 +1,6 @@
 ---
 name: "Release"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     tags:
       - "*"
@@ -16,7 +16,7 @@ jobs:
           fetch-depth: 0
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.18"
+          go-version: "~1.19"
       - uses: "authzed/actions/docker-login@main"
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"

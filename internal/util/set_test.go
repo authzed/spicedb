@@ -89,7 +89,7 @@ func TestSetIntersectionDifference(t *testing.T) {
 		{
 			[]int{1, 3, 5, 7, 9},
 			[]int{2, 4, 6, 8, 10},
-			[]int{},
+			nil,
 		},
 		{
 			[]int{1, 2, 3, 4, 5},

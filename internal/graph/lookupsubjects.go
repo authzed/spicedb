@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
@@ -51,8 +50,8 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 	if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
 		req.SubjectRelation.Relation == req.ResourceRelation.Relation {
 		err := stream.Publish(&v1.DispatchLookupSubjectsResponse{
-			FoundSubjectIds: req.ResourceIds,
-			Metadata:        emptyMetadata,
+			FoundSubjects: subjectsForIds(req.ResourceIds),
+			Metadata:      emptyMetadata,
 		})
 		if err != nil {
 			return err
@@ -76,6 +75,16 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 	}
 
 	return cl.lookupViaRewrite(ctx, req, stream, relation.UsersetRewrite)
+}
+
+func subjectsForIds(subjectIds []string) []*v1.FoundSubject {
+	foundSubjects := make([]*v1.FoundSubject, 0, len(subjectIds))
+	for _, subjectID := range subjectIds {
+		foundSubjects = append(foundSubjects, &v1.FoundSubject{
+			SubjectId: subjectID,
+		})
+	}
+	return foundSubjects
 }
 
 func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
@@ -115,8 +124,8 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 
 	if len(foundSubjectIds) > 0 {
 		err := stream.Publish(&v1.DispatchLookupSubjectsResponse{
-			FoundSubjectIds: foundSubjectIds,
-			Metadata:        emptyMetadata,
+			FoundSubjects: subjectsForIds(foundSubjectIds),
+			Metadata:      emptyMetadata,
 		})
 		if err != nil {
 			return err
@@ -147,8 +156,8 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		Ctx:    ctx,
 		Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
 			return &v1.DispatchLookupSubjectsResponse{
-				FoundSubjectIds: result.FoundSubjectIds,
-				Metadata:        addCallToResponseMetadata(result.Metadata),
+				FoundSubjects: result.FoundSubjects,
+				Metadata:      addCallToResponseMetadata(result.Metadata),
 			}, true, nil
 		},
 	}
@@ -309,8 +318,8 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 		Ctx:    subCtx,
 		Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
 			return &v1.DispatchLookupSubjectsResponse{
-				FoundSubjectIds: result.FoundSubjectIds,
-				Metadata:        addCallToResponseMetadata(result.Metadata),
+				FoundSubjects: result.FoundSubjects,
+				Metadata:      addCallToResponseMetadata(result.Metadata),
 			}, true, nil
 		},
 	}
@@ -342,47 +351,46 @@ type lookupSubjectsReducer interface {
 // Union
 type lookupSubjectsUnion struct {
 	parentStream dispatch.LookupSubjectsStream
-	encountered  *util.Set[string]
-	mu           sync.Mutex
+	collectors   map[int]*dispatch.CollectingDispatchStream[*v1.DispatchLookupSubjectsResponse]
 }
 
 func newLookupSubjectsUnion(parentStream dispatch.LookupSubjectsStream) *lookupSubjectsUnion {
 	return &lookupSubjectsUnion{
 		parentStream: parentStream,
-		encountered:  util.NewSet[string](),
-		mu:           sync.Mutex{},
+		collectors:   map[int]*dispatch.CollectingDispatchStream[*v1.DispatchLookupSubjectsResponse]{},
 	}
 }
 
 func (lsu *lookupSubjectsUnion) ForIndex(ctx context.Context, setOperationIndex int) dispatch.LookupSubjectsStream {
-	return &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
-		Stream: lsu.parentStream,
-		Ctx:    ctx,
-		Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
-			lsu.mu.Lock()
-			defer lsu.mu.Unlock()
-
-			filtered := make([]string, 0, len(result.FoundSubjectIds))
-			for _, subjectID := range result.FoundSubjectIds {
-				if lsu.encountered.Add(subjectID) {
-					filtered = append(filtered, subjectID)
-				}
-			}
-
-			if len(filtered) == 0 {
-				return nil, false, nil
-			}
-
-			return &v1.DispatchLookupSubjectsResponse{
-				FoundSubjectIds: filtered,
-				Metadata:        result.Metadata,
-			}, true, nil
-		},
-	}
+	collector := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
+	lsu.collectors[setOperationIndex] = collector
+	return collector
 }
 
 func (lsu *lookupSubjectsUnion) CompletedChildOperations() error {
-	return nil
+	foundSubjects := util.NewSubjectSet()
+	metadata := emptyMetadata
+
+	for index := 0; index < len(lsu.collectors); index++ {
+		collector, ok := lsu.collectors[index]
+		if !ok {
+			return fmt.Errorf("missing collector for index %d", index)
+		}
+
+		for _, result := range collector.Results() {
+			metadata = combineResponseMetadata(metadata, result.Metadata)
+			foundSubjects.UnionWith(result.FoundSubjects)
+		}
+	}
+
+	if foundSubjects.IsEmpty() {
+		return nil
+	}
+
+	return lsu.parentStream.Publish(&v1.DispatchLookupSubjectsResponse{
+		FoundSubjects: foundSubjects.AsSlice(),
+		Metadata:      metadata,
+	})
 }
 
 // Intersection
@@ -405,7 +413,7 @@ func (lsi *lookupSubjectsIntersection) ForIndex(ctx context.Context, setOperatio
 }
 
 func (lsi *lookupSubjectsIntersection) CompletedChildOperations() error {
-	var foundSubjectIds *util.Set[string]
+	var foundSubjects util.SubjectSet
 	metadata := emptyMetadata
 
 	for index := 0; index < len(lsi.collectors); index++ {
@@ -414,25 +422,25 @@ func (lsi *lookupSubjectsIntersection) CompletedChildOperations() error {
 			return fmt.Errorf("missing collector for index %d", index)
 		}
 
-		results := util.NewSet[string]()
+		results := util.NewSubjectSet()
 		for _, result := range collector.Results() {
 			metadata = combineResponseMetadata(metadata, result.Metadata)
-			results.Extend(result.FoundSubjectIds)
+			results.UnionWith(result.FoundSubjects)
 		}
 
 		if index == 0 {
-			foundSubjectIds = results
+			foundSubjects = results
 		} else {
-			foundSubjectIds.IntersectionDifference(results)
-			if foundSubjectIds.IsEmpty() {
+			foundSubjects.IntersectionDifference(results)
+			if foundSubjects.IsEmpty() {
 				return nil
 			}
 		}
 	}
 
 	return lsi.parentStream.Publish(&v1.DispatchLookupSubjectsResponse{
-		FoundSubjectIds: foundSubjectIds.AsSlice(),
-		Metadata:        metadata,
+		FoundSubjects: foundSubjects.AsSlice(),
+		Metadata:      metadata,
 	})
 }
 
@@ -456,29 +464,29 @@ func (lse *lookupSubjectsExclusion) ForIndex(ctx context.Context, setOperationIn
 }
 
 func (lse *lookupSubjectsExclusion) CompletedChildOperations() error {
-	var foundSubjectIds *util.Set[string]
+	var foundSubjects util.SubjectSet
 	metadata := emptyMetadata
 
 	for index := 0; index < len(lse.collectors); index++ {
 		collector := lse.collectors[index]
-		results := util.NewSet[string]()
+		results := util.NewSubjectSet()
 		for _, result := range collector.Results() {
 			metadata = combineResponseMetadata(metadata, result.Metadata)
-			results.Extend(result.FoundSubjectIds)
+			results.UnionWith(result.FoundSubjects)
 		}
 
 		if index == 0 {
-			foundSubjectIds = results
+			foundSubjects = results
 		} else {
-			foundSubjectIds.RemoveAll(results)
-			if foundSubjectIds.IsEmpty() {
+			foundSubjects.SubtractAll(results)
+			if foundSubjects.IsEmpty() {
 				return nil
 			}
 		}
 	}
 
 	return lse.parentStream.Publish(&v1.DispatchLookupSubjectsResponse{
-		FoundSubjectIds: foundSubjectIds.AsSlice(),
-		Metadata:        metadata,
+		FoundSubjects: foundSubjects.AsSlice(),
+		Metadata:      metadata,
 	})
 }

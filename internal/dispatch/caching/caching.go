@@ -432,8 +432,11 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 			mu.Lock()
 			defer mu.Unlock()
 
-			for _, id := range result.FoundSubjectIds {
-				estimatedSize += int64(len(id))
+			for _, found := range result.FoundSubjects {
+				estimatedSize += int64(len(found.SubjectId))
+				for _, excludedID := range found.ExcludedSubjectIds {
+					estimatedSize += int64(len(excludedID))
+				}
 			}
 
 			toCacheResults = append(toCacheResults, adjustedResult)

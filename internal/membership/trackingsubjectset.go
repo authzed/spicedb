@@ -2,171 +2,163 @@ package membership
 
 import (
 	"fmt"
+	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/internal/util"
 )
-
-func isWildcard(subject *core.ObjectAndRelation) bool {
-	return subject.ObjectId == tuple.PublicWildcard
-}
 
 // TrackingSubjectSet defines a set that tracks accessible subjects and their associated
 // relationships.
 //
 // NOTE: This is designed solely for the developer API and testing and should *not* be used in any
 // performance sensitive code.
-//
-// NOTE: Unlike a traditional set, unions between wildcards and a concrete subject will result
-// in *both* being present in the set, to maintain the proper relationship tracking and reporting
-// of concrete subjects.
-//
-// TODO(jschorr): Once we have stable generics support, break into a standard SubjectSet and
-// a tracking variant built on top of it.
-type TrackingSubjectSet map[string]FoundSubject
+type TrackingSubjectSet struct {
+	setByType map[string]util.BaseSubjectSet[FoundSubject]
+}
 
 // NewTrackingSubjectSet creates a new TrackingSubjectSet, with optional initial subjects.
-func NewTrackingSubjectSet(subjects ...FoundSubject) TrackingSubjectSet {
-	var toReturn TrackingSubjectSet = make(map[string]FoundSubject)
-	toReturn.Add(subjects...)
-	return toReturn
+func NewTrackingSubjectSet(subjects ...FoundSubject) *TrackingSubjectSet {
+	tss := &TrackingSubjectSet{
+		setByType: map[string]util.BaseSubjectSet[FoundSubject]{},
+	}
+	for _, subject := range subjects {
+		tss.Add(subject)
+	}
+	return tss
 }
 
 // AddFrom adds the subjects found in the other set to this set.
-func (tss TrackingSubjectSet) AddFrom(otherSet TrackingSubjectSet) {
-	for _, value := range otherSet {
-		tss.Add(value)
+func (tss *TrackingSubjectSet) AddFrom(otherSet *TrackingSubjectSet) {
+	for key, oss := range otherSet.setByType {
+		tss.getSetForKey(key).UnionWithSet(oss)
 	}
 }
 
 // RemoveFrom removes any subjects found in the other set from this set.
-func (tss TrackingSubjectSet) RemoveFrom(otherSet TrackingSubjectSet) {
-	for _, otherSAR := range otherSet {
-		tss.Remove(otherSAR.subject)
+func (tss *TrackingSubjectSet) RemoveFrom(otherSet *TrackingSubjectSet) {
+	for key, oss := range otherSet.setByType {
+		tss.getSetForKey(key).SubtractAll(oss)
 	}
 }
 
 // Add adds the given subjects to this set.
-func (tss TrackingSubjectSet) Add(subjectsAndResources ...FoundSubject) {
-	tss.AddWithResources(subjectsAndResources, nil)
+func (tss *TrackingSubjectSet) Add(subjectsAndResources ...FoundSubject) {
+	for _, fs := range subjectsAndResources {
+		tss.getSet(fs).Add(fs)
+	}
 }
 
-// AddWithResources adds the given subjects to this set, with the additional resources appended
-// for each subject to be included in their relationships.
-func (tss TrackingSubjectSet) AddWithResources(subjectsAndResources []FoundSubject, additionalResources *tuple.ONRSet) {
-	for _, sar := range subjectsAndResources {
-		found, ok := tss[toKey(sar.subject)]
-		if ok {
-			tss[toKey(sar.subject)] = found.union(sar)
-		} else {
-			tss[toKey(sar.subject)] = sar
-		}
+func keyFor(fs FoundSubject) string {
+	return fmt.Sprintf("%s#%s", fs.subject.Namespace, fs.subject.Relation)
+}
+
+func (tss *TrackingSubjectSet) getSetForKey(key string) util.BaseSubjectSet[FoundSubject] {
+	if existing, ok := tss.setByType[key]; ok {
+		return existing
 	}
+
+	parts := strings.Split(key, "#")
+
+	created := util.NewBaseSubjectSet[FoundSubject](
+		func(subjectID string, excludedSubjectIDs []string, sources ...FoundSubject) FoundSubject {
+			fs := NewFoundSubject(&core.ObjectAndRelation{
+				Namespace: parts[0],
+				ObjectId:  subjectID,
+				Relation:  parts[1],
+			})
+			fs.excludedSubjectIds = excludedSubjectIDs
+			for _, source := range sources {
+				fs.relationships.UpdateFrom(source.relationships)
+			}
+			return fs
+		},
+		func(existing FoundSubject, added FoundSubject) FoundSubject {
+			fs := NewFoundSubject(existing.subject)
+			fs.excludedSubjectIds = existing.excludedSubjectIds
+			fs.relationships = existing.relationships.Union(added.relationships)
+			return fs
+		},
+	)
+	tss.setByType[key] = created
+	return created
+}
+
+func (tss *TrackingSubjectSet) getSet(fs FoundSubject) util.BaseSubjectSet[FoundSubject] {
+	fsKey := keyFor(fs)
+	return tss.getSetForKey(fsKey)
 }
 
 // Get returns the found subject in the set, if any.
-func (tss TrackingSubjectSet) Get(subject *core.ObjectAndRelation) (FoundSubject, bool) {
-	found, ok := tss[toKey(subject)]
-	return found, ok
+func (tss *TrackingSubjectSet) Get(subject *core.ObjectAndRelation) (FoundSubject, bool) {
+	set, ok := tss.setByType[fmt.Sprintf("%s#%s", subject.Namespace, subject.Relation)]
+	if !ok {
+		return FoundSubject{}, false
+	}
+
+	return set.Get(subject.ObjectId)
 }
 
 // Contains returns true if the set contains the given subject.
-func (tss TrackingSubjectSet) Contains(subject *core.ObjectAndRelation) bool {
-	_, ok := tss[toKey(subject)]
+func (tss *TrackingSubjectSet) Contains(subject *core.ObjectAndRelation) bool {
+	_, ok := tss.Get(subject)
 	return ok
 }
 
-// removeExact removes the given subject(s) from the set. If the subject is a wildcard, only
-// the exact matching wildcard will be removed.
-func (tss TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
-	for _, subject := range subjects {
-		delete(tss, toKey(subject))
-	}
-}
-
-// Remove removes the given subject(s) from the set. If the subject is a wildcard, all matching
-// subjects are removed. If the subject matches a wildcard in the existing set, then it is added
-// to that wildcard as an exclusion.
-func (tss TrackingSubjectSet) Remove(subjects ...*core.ObjectAndRelation) {
-	for _, subject := range subjects {
-		delete(tss, toKey(subject))
-
-		// Delete any entries matching the wildcard, if applicable.
-		if isWildcard(subject) {
-			// Remove any subjects matching the type.
-			for key := range tss {
-				current := fromKey(key)
-				if current.Namespace == subject.Namespace {
-					delete(tss, key)
-				}
-			}
-		} else {
-			// Check for any wildcards matching and, if found, add to the exclusion.
-			for _, existing := range tss {
-				wildcardType, ok := existing.WildcardType()
-				if ok && wildcardType == subject.Namespace {
-					existing.excludedSubjects.Add(subject)
-				}
-			}
-		}
-	}
-}
-
-// WithType returns any subjects in the set with the given object type.
-func (tss TrackingSubjectSet) WithType(objectType string) []FoundSubject {
-	toReturn := make([]FoundSubject, 0, len(tss))
-	for _, current := range tss {
-		if current.subject.Namespace == objectType {
-			toReturn = append(toReturn, current)
-		}
-	}
-	return toReturn
-}
-
 // Exclude returns a new set that contains the items in this set minus those in the other set.
-func (tss TrackingSubjectSet) Exclude(otherSet TrackingSubjectSet) TrackingSubjectSet {
+func (tss *TrackingSubjectSet) Exclude(otherSet *TrackingSubjectSet) *TrackingSubjectSet {
 	newSet := NewTrackingSubjectSet()
-	newSet.AddFrom(tss)
-	newSet.RemoveFrom(otherSet)
+
+	for key, bss := range tss.setByType {
+		cloned := bss.Clone()
+		if oss, ok := otherSet.setByType[key]; ok {
+			cloned.SubtractAll(oss)
+		}
+
+		newSet.setByType[key] = cloned
+	}
+
 	return newSet
 }
 
 // Intersect returns a new set that contains the items in this set *and* the other set. Note that
 // if wildcard is found in *both* sets, it will be returned *along* with any concrete subjects found
 // on the other side of the intersection.
-func (tss TrackingSubjectSet) Intersect(otherSet TrackingSubjectSet) TrackingSubjectSet {
+func (tss *TrackingSubjectSet) Intersect(otherSet *TrackingSubjectSet) *TrackingSubjectSet {
 	newSet := NewTrackingSubjectSet()
-	for _, current := range tss {
-		// Add directly if shared by both.
-		other, ok := otherSet.Get(current.subject)
-		if ok {
-			newSet.Add(current.intersect(other))
-		}
 
-		// If the current is a wildcard, and add any matching.
-		if isWildcard(current.subject) {
-			newSet.AddWithResources(otherSet.WithType(current.subject.Namespace), current.relationships)
-		}
-	}
-
-	for _, current := range otherSet {
-		// If the current is a wildcard, add any matching.
-		if isWildcard(current.subject) {
-			newSet.AddWithResources(tss.WithType(current.subject.Namespace), current.relationships)
+	for key, bss := range tss.setByType {
+		if oss, ok := otherSet.setByType[key]; ok {
+			cloned := bss.Clone()
+			cloned.IntersectionDifference(oss)
+			newSet.setByType[key] = cloned
 		}
 	}
 
 	return newSet
 }
 
+// removeExact removes the given subject(s) from the set. If the subject is a wildcard, only
+// the exact matching wildcard will be removed.
+func (tss TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
+	for _, subject := range subjects {
+		if set, ok := tss.setByType[fmt.Sprintf("%s#%s", subject.Namespace, subject.Relation)]; ok {
+			set.UnsafeRemoveExact(FoundSubject{
+				subject: subject,
+			})
+		}
+	}
+}
+
 // ToSlice returns a slice of all subjects found in the set.
 func (tss TrackingSubjectSet) ToSlice() []FoundSubject {
-	toReturn := make([]FoundSubject, 0, len(tss))
-	for _, current := range tss {
-		toReturn = append(toReturn, current)
+	subjects := []FoundSubject{}
+	for _, bss := range tss.setByType {
+		subjects = append(subjects, bss.AsSlice()...)
 	}
-	return toReturn
+
+	return subjects
 }
 
 // ToFoundSubjects returns the set as a FoundSubjects struct.
@@ -174,12 +166,12 @@ func (tss TrackingSubjectSet) ToFoundSubjects() FoundSubjects {
 	return FoundSubjects{tss}
 }
 
-func toKey(subject *core.ObjectAndRelation) string {
-	return fmt.Sprintf("%s %s %s", subject.Namespace, subject.ObjectId, subject.Relation)
-}
-
-func fromKey(key string) *core.ObjectAndRelation {
-	subject := &core.ObjectAndRelation{}
-	fmt.Sscanf(key, "%s %s %s", &subject.Namespace, &subject.ObjectId, &subject.Relation)
-	return subject
+// IsEmpty returns true if the tracking subject set is empty.
+func (tss TrackingSubjectSet) IsEmpty() bool {
+	for _, bss := range tss.setByType {
+		if !bss.IsEmpty() {
+			return false
+		}
+	}
+	return true
 }
