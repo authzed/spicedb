@@ -8,7 +8,6 @@ import (
 //
 // NOTE: Unlike a traditional set, unions between wildcards and a concrete subject will result
 // in *both* being present in the set, to maintain the proper set semantics around wildcards.
-//
 type SubjectSet struct {
 	BaseSubjectSet[*v1.FoundSubject]
 }

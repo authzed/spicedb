@@ -30,6 +30,7 @@ type FoundSubject struct {
 }
 
 // GetSubjectId is named to match the Subject interface for the BaseSubjectSet.
+//
 //nolint:all
 func (fs FoundSubject) GetSubjectId() string {
 	return fs.subject.ObjectId

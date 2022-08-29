@@ -129,15 +129,12 @@ func (SetOperationUserset_Operation) EnumDescriptor() ([]byte, []int) {
 type ReachabilityEntrypoint_ReachabilityEntrypointKind int32
 
 const (
-	//
 	// RELATION_ENTRYPOINT indicates an entrypoint where the subject object can be directly
 	// found for a relationship.
 	ReachabilityEntrypoint_RELATION_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 0
-	//
 	// COMPUTED_USERSET_ENTRYPOINT indicates an entrypoint where the subject's relation is
 	// "rewritten" via a `computed_userset` to the target permission's operation node.
 	ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 1
-	//
 	// TUPLESET_TO_USERSET_ENTRYPOINT indicates an entrypoint where the subject's relation is
 	// walked via a `tupleset_to_userset` in the target permission's operation node.
 	ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 2
@@ -187,12 +184,10 @@ func (ReachabilityEntrypoint_ReachabilityEntrypointKind) EnumDescriptor() ([]byt
 type ReachabilityEntrypoint_EntrypointResultStatus int32
 
 const (
-	//
 	// REACHABLE_CONDITIONAL_RESULT indicates that the entrypoint is under one or more intersections
 	// or exclusion operations, indicating that any reachable object *may* be a result, conditional
 	// on the parent non-union operation(s).
 	ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT ReachabilityEntrypoint_EntrypointResultStatus = 0
-	//
 	// DIRECT_OPERATION_RESULT indicates that the entrypoint exists solely under zero or more
 	// union operations, making any reachable object also a *result* of the relation or permission.
 	ReachabilityEntrypoint_DIRECT_OPERATION_RESULT ReachabilityEntrypoint_EntrypointResultStatus = 1
@@ -571,6 +566,7 @@ type RelationTupleTreeNode struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to NodeType:
+	//
 	//	*RelationTupleTreeNode_IntermediateNode
 	//	*RelationTupleTreeNode_LeafNode
 	NodeType isRelationTupleTreeNode_NodeType `protobuf_oneof:"node_type"`
@@ -755,7 +751,6 @@ func (x *DirectSubjects) GetSubjects() []*ObjectAndRelation {
 	return nil
 }
 
-//
 // Metadata is compiler metadata added to namespace definitions, such as doc comments and
 // relation kinds.
 type Metadata struct {
@@ -805,7 +800,6 @@ func (x *Metadata) GetMetadataMessage() []*anypb.Any {
 	return nil
 }
 
-//
 // NamespaceDefinition represents a single definition of an object type
 type NamespaceDefinition struct {
 	state         protoimpl.MessageState
@@ -882,7 +876,6 @@ func (x *NamespaceDefinition) GetSourcePosition() *SourcePosition {
 	return nil
 }
 
-//
 // Relation represents the definition of a relation or permission under a namespace.
 type Relation struct {
 	state         protoimpl.MessageState
@@ -893,7 +886,6 @@ type Relation struct {
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// userset_rewrite, if specified, is the rewrite for computing the value of the permission.
 	UsersetRewrite *UsersetRewrite `protobuf:"bytes,2,opt,name=userset_rewrite,json=usersetRewrite,proto3" json:"userset_rewrite,omitempty"`
-	//
 	// type_information, if specified, is the list of allowed object types that can appear in this
 	// relation
 	TypeInformation *TypeInformation `protobuf:"bytes,3,opt,name=type_information,json=typeInformation,proto3" json:"type_information,omitempty"`
@@ -986,7 +978,6 @@ func (x *Relation) GetCanonicalCacheKey() string {
 	return ""
 }
 
-//
 // ReachabilityGraph is a serialized form of a reachability graph, representing how a relation can
 // be reached from one or more subject types.
 //
@@ -995,37 +986,37 @@ func (x *Relation) GetCanonicalCacheKey() string {
 //
 // For example, given the schema:
 // ```
-//   definition user {}
 //
-//   definition organization {
-//     relation admin: user
-//   }
+//	definition user {}
 //
-//   definition resource {
-//     relation org: organization
-//     relation viewer: user
-//     relation owner: user
-//     permission view = viewer + owner + org->admin
-//   }
+//	definition organization {
+//	  relation admin: user
+//	}
+//
+//	definition resource {
+//	  relation org: organization
+//	  relation viewer: user
+//	  relation owner: user
+//	  permission view = viewer + owner + org->admin
+//	}
+//
 // ```
 //
 // The reachability graph for `viewer` and the other relations will have entrypoints for each
 // subject type found for those relations.
 //
 // The full reachability graph for the `view` relation will have three entrypoints, representing:
-//   1) resource#viewer (computed_userset)
-//   2) resource#owner  (computed_userset)
-//   3) organization#admin (tupleset_to_userset)
+//  1. resource#viewer (computed_userset)
+//  2. resource#owner  (computed_userset)
+//  3. organization#admin (tupleset_to_userset)
 type ReachabilityGraph struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	//
 	// entrypoints_by_subject_type provides all entrypoints by subject *type*, representing wildcards.
 	// The keys of the map are the full path(s) for the namespace(s) referenced by reachable wildcards
 	EntrypointsBySubjectType map[string]*ReachabilityEntrypoints `protobuf:"bytes,1,rep,name=entrypoints_by_subject_type,json=entrypointsBySubjectType,proto3" json:"entrypoints_by_subject_type,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	//
 	// entrypoints_by_subject_relation provides all entrypoints by subject type+relation.
 	// The keys of the map are of the form `namespace_path#relation_name`
 	EntrypointsBySubjectRelation map[string]*ReachabilityEntrypoints `protobuf:"bytes,2,rep,name=entrypoints_by_subject_relation,json=entrypointsBySubjectRelation,proto3" json:"entrypoints_by_subject_relation,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -1077,7 +1068,6 @@ func (x *ReachabilityGraph) GetEntrypointsBySubjectRelation() map[string]*Reacha
 	return nil
 }
 
-//
 // ReachabilityEntrypoints represents all the entrypoints for a specific subject type or subject
 // relation into the reachability graph for a particular target relation.
 type ReachabilityEntrypoints struct {
@@ -1085,14 +1075,11 @@ type ReachabilityEntrypoints struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	//
 	// entrypoints are the entrypoints found.
 	Entrypoints []*ReachabilityEntrypoint `protobuf:"bytes,1,rep,name=entrypoints,proto3" json:"entrypoints,omitempty"`
-	//
 	// subject_type, if specified, is the type of subjects to which the entrypoint(s) apply. A
 	// subject type is only set for wildcards.
 	SubjectType string `protobuf:"bytes,2,opt,name=subject_type,json=subjectType,proto3" json:"subject_type,omitempty"`
-	//
 	// subject_relation, if specified, is the type and relation of subjects to which the
 	// entrypoint(s) apply.
 	SubjectRelation *RelationReference `protobuf:"bytes,3,opt,name=subject_relation,json=subjectRelation,proto3" json:"subject_relation,omitempty"`
@@ -1151,7 +1138,6 @@ func (x *ReachabilityEntrypoints) GetSubjectRelation() *RelationReference {
 	return nil
 }
 
-//
 // ReachabilityEntrypoint represents a single entrypoint for a specific subject type or subject
 // relation into the reachability graph for a particular target relation.
 type ReachabilityEntrypoint struct {
@@ -1159,17 +1145,13 @@ type ReachabilityEntrypoint struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	//
 	// kind is the kind of the entrypoint.
 	Kind ReachabilityEntrypoint_ReachabilityEntrypointKind `protobuf:"varint,1,opt,name=kind,proto3,enum=core.v1.ReachabilityEntrypoint_ReachabilityEntrypointKind" json:"kind,omitempty"`
-	//
 	// target_relation is the relation on which the entrypoint exists.
 	TargetRelation *RelationReference `protobuf:"bytes,2,opt,name=target_relation,json=targetRelation,proto3" json:"target_relation,omitempty"`
-	//
 	// result_status contains the status of objects found for this entrypoint as direct results for
 	// the parent relation/permission.
 	ResultStatus ReachabilityEntrypoint_EntrypointResultStatus `protobuf:"varint,4,opt,name=result_status,json=resultStatus,proto3,enum=core.v1.ReachabilityEntrypoint_EntrypointResultStatus" json:"result_status,omitempty"`
-	//
 	// tupleset_relation is the name of the tupleset relation on the TupleToUserset this entrypoint
 	// represents, if applicable.
 	TuplesetRelation string `protobuf:"bytes,5,opt,name=tupleset_relation,json=tuplesetRelation,proto3" json:"tupleset_relation,omitempty"`
@@ -1235,14 +1217,12 @@ func (x *ReachabilityEntrypoint) GetTuplesetRelation() string {
 	return ""
 }
 
-//
 // TypeInformation defines the allowed types for a relation.
 type TypeInformation struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	//
 	// allowed_direct_relations are those relation types allowed to be placed into a relation,
 	// e.g. the types of subjects allowed when a relationship is written to the relation
 	AllowedDirectRelations []*AllowedRelation `protobuf:"bytes,1,rep,name=allowed_direct_relations,json=allowedDirectRelations,proto3" json:"allowed_direct_relations,omitempty"`
@@ -1287,7 +1267,6 @@ func (x *TypeInformation) GetAllowedDirectRelations() []*AllowedRelation {
 	return nil
 }
 
-//
 // AllowedRelation is an allowed type of a relation when used as a subject.
 type AllowedRelation struct {
 	state         protoimpl.MessageState
@@ -1296,10 +1275,10 @@ type AllowedRelation struct {
 
 	// namespace is the full namespace path of the allowed object type
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	//
 	// relation_or_wildcard indicates the relation for the objects, or a wildcard.
 	//
 	// Types that are assignable to RelationOrWildcard:
+	//
 	//	*AllowedRelation_Relation
 	//	*AllowedRelation_PublicWildcard_
 	RelationOrWildcard isAllowedRelation_RelationOrWildcard `protobuf_oneof:"relation_or_wildcard"`
@@ -1396,6 +1375,7 @@ type UsersetRewrite struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to RewriteOperation:
+	//
 	//	*UsersetRewrite_Union
 	//	*UsersetRewrite_Intersection
 	//	*UsersetRewrite_Exclusion
@@ -1764,6 +1744,7 @@ type SetOperation_Child struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to ChildType:
+	//
 	//	*SetOperation_Child_XThis
 	//	*SetOperation_Child_ComputedUserset
 	//	*SetOperation_Child_TupleToUserset
@@ -1771,7 +1752,6 @@ type SetOperation_Child struct {
 	//	*SetOperation_Child_XNil
 	ChildType      isSetOperation_Child_ChildType `protobuf_oneof:"child_type"`
 	SourcePosition *SourcePosition                `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
-	//
 	// operation_path (if specified) is the *unique* ID for the set operation in the permission
 	// definition. It is a heirarchy representing the position of the operation under its parent
 	// operation. For example, the operation path of an operation which is the third child of the

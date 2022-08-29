@@ -21,7 +21,6 @@ type Subject interface {
 //
 // NOTE: Unlike a traditional set, unions between wildcards and a concrete subject will result
 // in *both* being present in the set, to maintain the proper set semantics around wildcards.
-//
 type BaseSubjectSet[T Subject] struct {
 	values      map[string]T
 	constructor func(subjectID string, excludedSubjectIDs []string, sources ...T) T
