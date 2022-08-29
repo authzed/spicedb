@@ -7,10 +7,10 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type validatingDatastore struct {
@@ -125,8 +125,8 @@ func (vrwt validatingReadWriteTransaction) DeleteNamespace(nsName string) error 
 	return vrwt.delegate.DeleteNamespace(nsName)
 }
 
-func (vrwt validatingReadWriteTransaction) WriteRelationships(mutations []*v1.RelationshipUpdate) error {
-	if err := common.ValidateUpdatesToWrite(mutations); err != nil {
+func (vrwt validatingReadWriteTransaction) WriteRelationships(mutations ...*core.RelationTupleUpdate) error {
+	if err := validateUpdatesToWrite(mutations...); err != nil {
 		return err
 	}
 	for _, mutation := range mutations {
@@ -135,7 +135,7 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(mutations []*v1.Re
 		}
 	}
 
-	return vrwt.delegate.WriteRelationships(mutations)
+	return vrwt.delegate.WriteRelationships(mutations...)
 }
 
 func (vrwt validatingReadWriteTransaction) DeleteRelationships(filter *v1.RelationshipFilter) error {
@@ -144,6 +144,25 @@ func (vrwt validatingReadWriteTransaction) DeleteRelationships(filter *v1.Relati
 	}
 
 	return vrwt.delegate.DeleteRelationships(filter)
+}
+
+// validateUpdatesToWrite performs basic validation on relationship updates going into datastores.
+func validateUpdatesToWrite(updates ...*core.RelationTupleUpdate) error {
+	for _, update := range updates {
+		err := tuple.UpdateToRelationshipUpdate(update).HandwrittenValidate()
+		if err != nil {
+			return err
+		}
+
+		if update.Tuple.Subject.ObjectId == tuple.PublicWildcard && update.Tuple.Subject.Relation != "" {
+			return fmt.Errorf(
+				"attempt to write a wildcard relationship (`%s`) with a non-empty relation. Please report this bug",
+				tuple.String(update.Tuple),
+			)
+		}
+	}
+
+	return nil
 }
 
 var (

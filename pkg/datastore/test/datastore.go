@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
@@ -71,22 +70,6 @@ func makeTestTuple(resourceID, userID string) *core.RelationTuple {
 			Namespace: testUserNamespace,
 			ObjectId:  userID,
 			Relation:  ellipsis,
-		},
-	}
-}
-
-func makeTestRelationship(resourceID, userID string) *v1.Relationship {
-	return &v1.Relationship{
-		Resource: &v1.ObjectReference{
-			ObjectType: testResourceNamespace,
-			ObjectId:   resourceID,
-		},
-		Relation: testReaderRelation,
-		Subject: &v1.SubjectReference{
-			Object: &v1.ObjectReference{
-				ObjectType: testUserNamespace,
-				ObjectId:   userID,
-			},
 		},
 	}
 }
