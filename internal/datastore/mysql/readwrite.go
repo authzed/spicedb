@@ -36,7 +36,7 @@ type mysqlReadWriteTXN struct {
 
 // WriteRelationships takes a list of existing relationships that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified namespace.
-func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpdate) error {
+func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations ...*core.RelationTupleUpdate) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// there are some fundamental changes introduced to prevent a deadlock in MySQL
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteTuples")
@@ -51,21 +51,20 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpd
 
 	// Process the actual updates
 	for _, mut := range mutations {
-		rel := mut.Relationship
-
+		tpl := mut.Tuple
 		// Implementation for TOUCH deviates from PostgreSQL datastore to prevent a deadlock in MySQL
-		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
-			clauses = append(clauses, exactRelationshipClause(rel))
+		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {
+			clauses = append(clauses, exactRelationshipClause(tpl))
 		}
 
-		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_CREATE {
+		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_CREATE {
 			bulkWrite = bulkWrite.Values(
-				rel.Resource.ObjectType,
-				rel.Resource.ObjectId,
-				rel.Relation,
-				rel.Subject.Object.ObjectType,
-				rel.Subject.Object.ObjectId,
-				stringz.DefaultEmpty(rel.Subject.OptionalRelation, datastore.Ellipsis),
+				tpl.ResourceAndRelation.Namespace,
+				tpl.ResourceAndRelation.ObjectId,
+				tpl.ResourceAndRelation.Relation,
+				tpl.Subject.Namespace,
+				tpl.Subject.ObjectId,
+				stringz.DefaultEmpty(tpl.Subject.Relation, datastore.Ellipsis),
 				rwt.newTxnID,
 			)
 			bulkWriteHasValues = true
@@ -129,14 +128,14 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpd
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func exactRelationshipClause(r *v1.Relationship) sq.Eq {
+func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	return sq.Eq{
-		colNamespace:        r.Resource.ObjectType,
-		colObjectID:         r.Resource.ObjectId,
-		colRelation:         r.Relation,
-		colUsersetNamespace: r.Subject.Object.ObjectType,
-		colUsersetObjectID:  r.Subject.Object.ObjectId,
-		colUsersetRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
+		colNamespace:        r.ResourceAndRelation.Namespace,
+		colObjectID:         r.ResourceAndRelation.ObjectId,
+		colRelation:         r.ResourceAndRelation.Relation,
+		colUsersetNamespace: r.Subject.Namespace,
+		colUsersetObjectID:  r.Subject.ObjectId,
+		colUsersetRelation:  stringz.DefaultEmpty(r.Subject.Relation, datastore.Ellipsis),
 	}
 }
 

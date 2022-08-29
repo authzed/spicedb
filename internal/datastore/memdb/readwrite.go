@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type memdbReadWriteTx struct {
@@ -17,7 +18,7 @@ type memdbReadWriteTx struct {
 	newRevision datastore.Revision
 }
 
-func (rwt *memdbReadWriteTx) WriteRelationships(mutations []*v1.RelationshipUpdate) error {
+func (rwt *memdbReadWriteTx) WriteRelationships(mutations ...*core.RelationTupleUpdate) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 
@@ -26,20 +27,20 @@ func (rwt *memdbReadWriteTx) WriteRelationships(mutations []*v1.RelationshipUpda
 		return err
 	}
 
-	return rwt.write(tx, mutations)
+	return rwt.write(tx, mutations...)
 }
 
 // Caller must already hold the concurrent access lock!
-func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations []*v1.RelationshipUpdate) error {
+func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTupleUpdate) error {
 	// Apply the mutations
 	for _, mutation := range mutations {
 		rel := &relationship{
-			mutation.Relationship.Resource.ObjectType,
-			mutation.Relationship.Resource.ObjectId,
-			mutation.Relationship.Relation,
-			mutation.Relationship.Subject.Object.ObjectType,
-			mutation.Relationship.Subject.Object.ObjectId,
-			stringz.DefaultEmpty(mutation.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
+			mutation.Tuple.ResourceAndRelation.Namespace,
+			mutation.Tuple.ResourceAndRelation.ObjectId,
+			mutation.Tuple.ResourceAndRelation.Relation,
+			mutation.Tuple.Subject.Namespace,
+			mutation.Tuple.Subject.ObjectId,
+			stringz.DefaultEmpty(mutation.Tuple.Subject.Relation, datastore.Ellipsis),
 		}
 
 		found, err := tx.First(
@@ -62,16 +63,16 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations []*v1.RelationshipUp
 		}
 
 		switch mutation.Operation {
-		case v1.RelationshipUpdate_OPERATION_CREATE:
+		case core.RelationTupleUpdate_CREATE:
 			if existing != nil {
 				return fmt.Errorf("duplicate relationship found for create operation")
 			}
 			fallthrough
-		case v1.RelationshipUpdate_OPERATION_TOUCH:
+		case core.RelationTupleUpdate_TOUCH:
 			if err := tx.Insert(tableRelationship, rel); err != nil {
 				return fmt.Errorf("error inserting relationship: %w", err)
 			}
-		case v1.RelationshipUpdate_OPERATION_DELETE:
+		case core.RelationTupleUpdate_DELETE:
 			if existing != nil {
 				if err := tx.Delete(tableRelationship, existing); err != nil {
 					return fmt.Errorf("error deleting relationship: %w", err)
@@ -107,15 +108,12 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 	filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(filter))
 
 	// Collect the tuples into a slice of mutations for the changelog
-	var mutations []*v1.RelationshipUpdate
+	var mutations []*core.RelationTupleUpdate
 	for row := filteredIter.Next(); row != nil; row = filteredIter.Next() {
-		mutations = append(mutations, &v1.RelationshipUpdate{
-			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: row.(*relationship).Relationship(),
-		})
+		mutations = append(mutations, tuple.Delete(row.(*relationship).RelationTuple()))
 	}
 
-	return rwt.write(tx, mutations)
+	return rwt.write(tx, mutations...)
 }
 
 func (rwt *memdbReadWriteTx) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {

@@ -200,7 +200,7 @@ func (dm *MockReadWriteTransaction) ListNamespaces(ctx context.Context) ([]*core
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) WriteRelationships(mutations []*v1.RelationshipUpdate) error {
+func (dm *MockReadWriteTransaction) WriteRelationships(mutations ...*core.RelationTupleUpdate) error {
 	args := dm.Called(mutations)
 	return args.Error(0)
 }

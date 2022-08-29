@@ -9,20 +9,18 @@ import (
 	"os"
 	"testing"
 
-	v1_api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	expand "github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/graph"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -273,28 +271,10 @@ func TestMaxDepthExpand(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	mutations := []*v1_api.RelationshipUpdate{{
-		Operation: v1_api.RelationshipUpdate_OPERATION_CREATE,
-		Relationship: &v1_api.Relationship{
-			Resource: &v1_api.ObjectReference{
-				ObjectType: "folder",
-				ObjectId:   "oops",
-			},
-			Relation: "parent",
-			Subject: &v1_api.SubjectReference{
-				Object: &v1_api.ObjectReference{
-					ObjectType: "folder",
-					ObjectId:   "oops",
-				},
-			},
-		},
-	}}
-
+	tpl := tuple.Parse("folder:oops#parent@folder:oops")
 	ctx := datastoremw.ContextWithHandle(context.Background())
 
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(mutations)
-	})
+	revision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
 	require.True(revision.GreaterThan(decimal.Zero))
 	require.NoError(datastoremw.SetInContext(ctx, ds))

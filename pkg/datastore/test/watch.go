@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -59,59 +59,33 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			changes, errchan := ds.Watch(ctx, lowestRevision)
 			require.Zero(len(errchan))
 
-			var testUpdates [][]*v1.RelationshipUpdate
-			var bulkDeletes []*v1.RelationshipUpdate
+			var testUpdates [][]*core.RelationTupleUpdate
+			var bulkDeletes []*core.RelationTupleUpdate
 			for i := 0; i < tc.numTuples; i++ {
-				newRelationship := makeTestRelationship(fmt.Sprintf("relation%d", i), "test_user")
-				newUpdate := &v1.RelationshipUpdate{
-					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-					Relationship: newRelationship,
-				}
-				batch := []*v1.RelationshipUpdate{newUpdate}
+				newRelationship := makeTestTuple(fmt.Sprintf("relation%d", i), "test_user")
+				newUpdate := tuple.Touch(newRelationship)
+				batch := []*core.RelationTupleUpdate{newUpdate}
 				testUpdates = append(testUpdates, batch)
-				_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-					err := rwt.WriteRelationships(batch)
-					require.NoError(err)
-					return err
-				})
+				_, err := common.WriteUpdates(ctx, ds, newUpdate)
 				require.NoError(err)
 
 				if i != 0 {
-					bulkDeletes = append(bulkDeletes, &v1.RelationshipUpdate{
-						Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-						Relationship: newRelationship,
-					})
+					bulkDeletes = append(bulkDeletes, tuple.Delete(newRelationship))
 				}
 			}
 
-			updateUpdate := &v1.RelationshipUpdate{
-				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-				Relationship: makeTestRelationship("relation0", "test_user"),
-			}
-			createUpdate := &v1.RelationshipUpdate{
-				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-				Relationship: makeTestRelationship("another_relation", "somestuff"),
-			}
-			batch := []*v1.RelationshipUpdate{updateUpdate, createUpdate}
-			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.WriteRelationships(batch)
-				require.NoError(err)
-				return err
-			})
+			updateUpdate := tuple.Touch(makeTestTuple("relation0", "test_user"))
+			createUpdate := tuple.Touch(makeTestTuple("another_relation", "somestuff"))
+
+			batch := []*core.RelationTupleUpdate{updateUpdate, createUpdate}
+			_, err = common.WriteUpdates(ctx, ds, batch...)
 			require.NoError(err)
 
-			deleteUpdate := &v1.RelationshipUpdate{
-				Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-				Relationship: makeTestRelationship("relation0", "test_user"),
-			}
-			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.WriteRelationships([]*v1.RelationshipUpdate{deleteUpdate})
-				require.NoError(err)
-				return err
-			})
+			deleteUpdate := tuple.Delete(makeTestTuple("relation0", "test_user"))
+			_, err = common.WriteUpdates(ctx, ds, deleteUpdate)
 			require.NoError(err)
 
-			testUpdates = append(testUpdates, batch, []*v1.RelationshipUpdate{deleteUpdate})
+			testUpdates = append(testUpdates, batch, []*core.RelationTupleUpdate{deleteUpdate})
 
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				err := rwt.DeleteRelationships(&v1.RelationshipFilter{
@@ -142,7 +116,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 func verifyUpdates(
 	require *require.Assertions,
-	testUpdates [][]*v1.RelationshipUpdate,
+	testUpdates [][]*core.RelationTupleUpdate,
 	changes <-chan *datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
@@ -164,7 +138,7 @@ func verifyUpdates(
 				return
 			}
 
-			expectedChangeSet := setOfChangesRel(expected)
+			expectedChangeSet := setOfChanges(expected)
 			actualChangeSet := setOfChanges(change.Changes)
 
 			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
@@ -178,14 +152,6 @@ func verifyUpdates(
 	}
 
 	require.False(expectDisconnect)
-}
-
-func setOfChangesRel(changes []*v1.RelationshipUpdate) *strset.Set {
-	changeSet := strset.NewWithSize(len(changes))
-	for _, change := range changes {
-		changeSet.Add(fmt.Sprintf("%s(%s)", change.Operation, tuple.MustRelString(change.Relationship)))
-	}
-	return changeSet
 }
 
 func setOfChanges(changes []*core.RelationTupleUpdate) *strset.Set {
@@ -210,14 +176,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, startWatchRevision)
 	require.Zero(len(errchan))
 
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: makeTestRelationship("test", "test"),
-		}})
-		require.NoError(err)
-		return err
-	})
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, makeTestTuple("test", "test"))
 	require.NoError(err)
 
 	cancel()

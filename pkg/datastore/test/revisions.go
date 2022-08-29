@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/tuple"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 // RevisionQuantizationTest tests whether or not the requirements for revisions hold
@@ -44,12 +44,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			var writtenAt datastore.Revision
 			tpl := makeTestTuple("first", "owner")
 			for i := 0; i < 10; i++ {
-				writtenAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-					return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-						Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-						Relationship: tuple.MustToRelationship(tpl),
-					}})
-				})
+				writtenAt, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl)
 				require.NoError(err)
 			}
 			require.True(writtenAt.GreaterThan(postSetupRevision))

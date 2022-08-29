@@ -97,11 +97,6 @@ func MustParse(tpl string) *core.RelationTuple {
 	panic("failed to parse tuple")
 }
 
-// RelString converts a relationship into a string.
-func RelString(tpl *v1.Relationship) string {
-	return String(FromRelationship(tpl))
-}
-
 // Parse unmarshals the string form of a Tuple and returns nil if there is a
 // failure.
 //
@@ -220,16 +215,6 @@ func UsersetToSubjectFilter(userset *core.ObjectAndRelation) *v1.SubjectFilter {
 	}
 }
 
-// MustRelToFilter converts a Relationship into a RelationshipFilter. Will panic if
-// the Relationship does not validate.
-func MustRelToFilter(rel *v1.Relationship) *v1.RelationshipFilter {
-	if err := rel.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid tuple: %#v %s", rel, err))
-	}
-
-	return RelToFilter(rel)
-}
-
 // RelToFilter converts a Relationship into a RelationshipFilter.
 func RelToFilter(rel *v1.Relationship) *v1.RelationshipFilter {
 	return &v1.RelationshipFilter{
@@ -253,6 +238,16 @@ func UpdatesToRelationshipUpdates(updates []*core.RelationTupleUpdate) []*v1.Rel
 
 	for _, update := range updates {
 		relationshipUpdates = append(relationshipUpdates, UpdateToRelationshipUpdate(update))
+	}
+
+	return relationshipUpdates
+}
+
+func UpdateFromRelationshipUpdates(updates []*v1.RelationshipUpdate) []*core.RelationTupleUpdate {
+	relationshipUpdates := make([]*core.RelationTupleUpdate, 0, len(updates))
+
+	for _, update := range updates {
+		relationshipUpdates = append(relationshipUpdates, UpdateFromRelationshipUpdate(update))
 	}
 
 	return relationshipUpdates
