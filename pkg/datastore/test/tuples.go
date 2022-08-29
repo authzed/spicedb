@@ -401,7 +401,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				for _, tpl := range tt.inputTuples {
 					update := tuple.Touch(tpl)
-					err := rwt.WriteRelationships(update)
+					err := rwt.WriteRelationships([]*core.RelationTupleUpdate{update})
 					if err != nil {
 						return err
 					}
@@ -593,7 +593,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 			// We do NOT assert the error here because serialization problems can manifest as errors
 			// on the individual writes.
 			rtu := tuple.Touch(makeTestTuple("new_resource", "new_user"))
-			err = rwt.WriteRelationships(rtu)
+			err = rwt.WriteRelationships([]*core.RelationTupleUpdate{rtu})
 
 			waitToStartCloser.Do(func() {
 				close(waitToStart)
@@ -614,7 +614,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 		})
 
 		rtu := tuple.Touch(makeTestTuple("another_resource", "another_user"))
-		return rwt.WriteRelationships(rtu)
+		return rwt.WriteRelationships([]*core.RelationTupleUpdate{rtu})
 	})
 	require.NoError(err)
 	require.NoError(g.Wait())

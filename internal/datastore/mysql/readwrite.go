@@ -36,7 +36,7 @@ type mysqlReadWriteTXN struct {
 
 // WriteRelationships takes a list of existing relationships that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified namespace.
-func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations ...*core.RelationTupleUpdate) error {
+func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// there are some fundamental changes introduced to prevent a deadlock in MySQL
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteTuples")

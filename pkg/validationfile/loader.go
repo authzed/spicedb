@@ -147,7 +147,7 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 		}
 
 		wrevision, terr := ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			return rwt.WriteRelationships(updates...)
+			return rwt.WriteRelationships(updates)
 		})
 		if terr != nil {
 			return nil, decimal.Zero, fmt.Errorf("error when loading validation tuples from file %s: %w", filePath, terr)

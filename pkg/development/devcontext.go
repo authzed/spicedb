@@ -162,7 +162,7 @@ func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore
 		updates = append(updates, tuple.Touch(tpl))
 	}
 
-	err := rwt.WriteRelationships(updates...)
+	err := rwt.WriteRelationships(updates)
 
 	return devErrors, err
 }

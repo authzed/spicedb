@@ -55,7 +55,7 @@ type pgReadWriteTXN struct {
 	newTxnID uint64
 }
 
-func (rwt *pgReadWriteTXN) WriteRelationships(mutations ...*core.RelationTupleUpdate) error {
+func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteTuples")
 	defer span.End()
 

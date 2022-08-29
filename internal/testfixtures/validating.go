@@ -125,7 +125,7 @@ func (vrwt validatingReadWriteTransaction) DeleteNamespace(nsName string) error 
 	return vrwt.delegate.DeleteNamespace(nsName)
 }
 
-func (vrwt validatingReadWriteTransaction) WriteRelationships(mutations ...*core.RelationTupleUpdate) error {
+func (vrwt validatingReadWriteTransaction) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
 	if err := validateUpdatesToWrite(mutations...); err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(mutations ...*core
 		}
 	}
 
-	return vrwt.delegate.WriteRelationships(mutations...)
+	return vrwt.delegate.WriteRelationships(mutations)
 }
 
 func (vrwt validatingReadWriteTransaction) DeleteRelationships(filter *v1.RelationshipFilter) error {

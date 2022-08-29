@@ -22,7 +22,7 @@ type spannerReadWriteTXN struct {
 	spannerRWT *spanner.ReadWriteTransaction
 }
 
-func (rwt spannerReadWriteTXN) WriteRelationships(mutations ...*core.RelationTupleUpdate) error {
+func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
 	ctx, span := tracer.Start(rwt.ctx, "WriteTuples")
 	defer span.End()
 

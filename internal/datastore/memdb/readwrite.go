@@ -18,7 +18,7 @@ type memdbReadWriteTx struct {
 	newRevision datastore.Revision
 }
 
-func (rwt *memdbReadWriteTx) WriteRelationships(mutations ...*core.RelationTupleUpdate) error {
+func (rwt *memdbReadWriteTx) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 

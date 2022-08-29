@@ -23,6 +23,6 @@ func WriteTuples(ctx context.Context, ds datastore.Datastore, op core.RelationTu
 // UpdateTuplesInDatastore is a convenience method to perform multiple relation update operations on a Datastore
 func UpdateTuplesInDatastore(ctx context.Context, ds datastore.Datastore, updates ...*core.RelationTupleUpdate) (datastore.Revision, error) {
 	return ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(updates...)
+		return rwt.WriteRelationships(updates)
 	})
 }

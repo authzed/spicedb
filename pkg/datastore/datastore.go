@@ -171,7 +171,7 @@ type ReadWriteTransaction interface {
 	Reader
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
-	WriteRelationships(mutations ...*core.RelationTupleUpdate) error
+	WriteRelationships(mutations []*core.RelationTupleUpdate) error
 
 	// DeleteRelationships deletes all Relationships that match the provided filter.
 	DeleteRelationships(filter *v1.RelationshipFilter) error
