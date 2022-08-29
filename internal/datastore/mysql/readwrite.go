@@ -65,6 +65,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*core.RelationTuple
 				tpl.Subject.Namespace,
 				tpl.Subject.ObjectId,
 				tpl.Subject.Relation,
+				tpl.Caveat,
 				rwt.newTxnID,
 			)
 			bulkWriteHasValues = true

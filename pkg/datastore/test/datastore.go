@@ -50,6 +50,8 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
 
 	t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
+
+	t.Run("TestCaveat", func(t *testing.T) { SimpleCaveatTest(t, tester) })
 }
 
 var testResourceNS = namespace.Namespace(
@@ -58,6 +60,12 @@ var testResourceNS = namespace.Namespace(
 )
 
 var testUserNS = namespace.Namespace(testUserNamespace)
+
+func makeTestCaveatedTuple(resourceID, userID, caveat string) *core.RelationTuple {
+	rt := makeTestTuple(resourceID, userID)
+	rt.Caveat = []byte(caveat)
+	return rt
+}
 
 func makeTestTuple(resourceID, userID string) *core.RelationTuple {
 	return &core.RelationTuple{

@@ -41,6 +41,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 			mutation.Tuple.Subject.Namespace,
 			mutation.Tuple.Subject.ObjectId,
 			mutation.Tuple.Subject.Relation,
+			mutation.Tuple.Caveat,
 		}
 
 		found, err := tx.First(

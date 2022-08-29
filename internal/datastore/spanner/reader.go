@@ -89,6 +89,7 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 				&nextTuple.Subject.Namespace,
 				&nextTuple.Subject.ObjectId,
 				&nextTuple.Subject.Relation,
+				&nextTuple.Caveat,
 			)
 			if err != nil {
 				return err
@@ -186,6 +187,7 @@ var queryTuples = sql.Select(
 	colUsersetNamespace,
 	colUsersetObjectID,
 	colUsersetRelation,
+	colCaveat,
 ).From(tableRelationship)
 
 var schema = common.SchemaInformation{
@@ -195,6 +197,7 @@ var schema = common.SchemaInformation{
 	ColUsersetNamespace: colUsersetNamespace,
 	ColUsersetObjectID:  colUsersetObjectID,
 	ColUsersetRelation:  colUsersetRelation,
+	ColCaveat:           colCaveat,
 }
 
 var _ datastore.Reader = spannerReader{}

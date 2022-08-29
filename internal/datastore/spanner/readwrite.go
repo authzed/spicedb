@@ -136,6 +136,7 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 			&rel.Subject.Namespace,
 			&rel.Subject.ObjectId,
 			&rel.Subject.Relation,
+			&rel.Caveat,
 		)
 		if err != nil {
 			return err
@@ -174,7 +175,7 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 
 func upsertVals(r *core.RelationTuple) []interface{} {
 	key := keyFromRelationship(r)
-	return append(key, spanner.CommitTimestamp)
+	return append(key, r.Caveat, spanner.CommitTimestamp)
 }
 
 func keyFromRelationship(r *core.RelationTuple) spanner.Key {
@@ -199,6 +200,7 @@ func changeVals(changeUUID string, op int, r *core.RelationTuple) []interface{} 
 		r.Subject.Namespace,
 		r.Subject.ObjectId,
 		r.Subject.Relation,
+		r.Caveat,
 	}
 }
 

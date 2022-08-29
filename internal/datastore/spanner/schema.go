@@ -29,6 +29,7 @@ const (
 	colChangeUsersetNamespace = "userset_namespace"
 	colChangeUsersetObjectID  = "userset_object_id"
 	colChangeUsersetRelation  = "userset_relation"
+	colCaveat                 = "caveat"
 
 	tableMetadata = "metadata"
 	colUniqueID   = "unique_id"
@@ -49,6 +50,7 @@ var allRelationshipCols = []string{
 	colUsersetNamespace,
 	colUsersetObjectID,
 	colUsersetRelation,
+	colCaveat,
 	colTimestamp,
 }
 
@@ -62,6 +64,7 @@ var allChangelogCols = []string{
 	colChangeUsersetNamespace,
 	colChangeUsersetObjectID,
 	colChangeUsersetRelation,
+	colCaveat,
 }
 
 // Both creates and touches are emitted as touched to match other datastores.

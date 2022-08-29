@@ -66,6 +66,7 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveat,
 	)
 
 	queryTouchTuple = queryWriteTuple.Suffix(upsertTupleSuffix)
@@ -107,6 +108,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleU
 				rel.Subject.Namespace,
 				rel.Subject.ObjectId,
 				rel.Subject.Relation,
+				rel.Caveat,
 			)
 			bulkTouchCount++
 		case core.RelationTupleUpdate_CREATE:
@@ -118,6 +120,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleU
 				rel.Subject.Namespace,
 				rel.Subject.ObjectId,
 				rel.Subject.Relation,
+				rel.Caveat,
 			)
 			bulkWriteCount++
 		case core.RelationTupleUpdate_DELETE:

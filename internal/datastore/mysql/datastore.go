@@ -40,6 +40,7 @@ const (
 	colUsersetNamespace = "userset_namespace"
 	colUsersetObjectID  = "userset_object_id"
 	colUsersetRelation  = "userset_relation"
+	colCaveat           = "caveat"
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	liveDeletedTxnID       = uint64(math.MaxInt64)
@@ -357,6 +358,7 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 				&nextTuple.Subject.Namespace,
 				&nextTuple.Subject.ObjectId,
 				&nextTuple.Subject.Relation,
+				&nextTuple.Caveat,
 			)
 			if err != nil {
 				return nil, fmt.Errorf(errUnableToQueryTuples, err)
