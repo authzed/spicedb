@@ -95,6 +95,7 @@ func queryTuples(tableTuple string) sq.SelectBuilder {
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveat,
 	).From(tableTuple)
 }
 
@@ -120,6 +121,7 @@ func writeTuple(tableTuple string) sq.InsertBuilder {
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveat,
 		colCreatedTxn,
 	)
 }

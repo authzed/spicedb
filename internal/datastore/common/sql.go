@@ -61,6 +61,7 @@ type SchemaInformation struct {
 	ColUsersetNamespace string
 	ColUsersetObjectID  string
 	ColUsersetRelation  string
+	ColCaveat           string
 }
 
 // SchemaQueryFilterer wraps a SchemaInformation and SelectBuilder to give an opinionated
@@ -368,6 +369,7 @@ func NewPGXExecutor(txSource TxFactory) ExecuteQueryFunc {
 				&nextTuple.Subject.Namespace,
 				&nextTuple.Subject.ObjectId,
 				&nextTuple.Subject.Relation,
+				&nextTuple.Caveat,
 			)
 			if err != nil {
 				return nil, fmt.Errorf(errUnableToQueryTuples, err)

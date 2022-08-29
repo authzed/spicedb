@@ -42,6 +42,7 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveat,
 		colCreatedTxn,
 	)
 
@@ -80,6 +81,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations ...*core.RelationTupleUp
 				tpl.Subject.Namespace,
 				tpl.Subject.ObjectId,
 				stringz.DefaultEmpty(tpl.Subject.Relation, datastore.Ellipsis),
+				tpl.Caveat,
 				rwt.newTxnID,
 			)
 			bulkWriteHasValues = true

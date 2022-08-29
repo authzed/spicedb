@@ -102,6 +102,7 @@ func (sd spannerDatastore) loadChanges(
 			&tpl.Subject.Namespace,
 			&tpl.Subject.ObjectId,
 			&tpl.Subject.Relation,
+			&tpl.Caveat,
 		)
 		if err != nil {
 			return err

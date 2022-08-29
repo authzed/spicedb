@@ -45,6 +45,7 @@ type relationship struct {
 	subjectNamespace string
 	subjectObjectID  string
 	subjectRelation  string
+	caveat           []byte
 }
 
 func (r relationship) MarshalZerologObject(e *zerolog.Event) {
@@ -88,6 +89,7 @@ func (r relationship) RelationTuple() *core.RelationTuple {
 			ObjectId:  r.subjectObjectID,
 			Relation:  r.subjectRelation,
 		},
+		Caveat: r.caveat,
 	}
 }
 

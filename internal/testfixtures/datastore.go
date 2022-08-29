@@ -3,7 +3,9 @@ package testfixtures
 import (
 	"context"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -182,17 +184,19 @@ func (tc TupleChecker) VerifyIteratorCount(iter datastore.RelationshipIterator, 
 func (tc TupleChecker) VerifyIteratorResults(iter datastore.RelationshipIterator, tpls ...*core.RelationTuple) {
 	defer iter.Close()
 
-	toFind := make(map[string]struct{}, 1024)
+	toFind := make(map[string]*core.RelationTuple, 1024)
 
 	for _, tpl := range tpls {
-		toFind[tuple.String(tpl)] = struct{}{}
+		toFind[tuple.String(tpl)] = tpl
 	}
 
 	for found := iter.Next(); found != nil; found = iter.Next() {
 		tc.Require.NoError(iter.Err())
 		foundStr := tuple.String(found)
-		_, ok := toFind[foundStr]
+		tpl, ok := toFind[foundStr]
 		tc.Require.True(ok, "found unexpected tuple %s in iterator", foundStr)
+		diff := cmp.Diff(found, tpl, protocmp.Transform())
+		tc.Require.True(diff == "", "unexpected tuple difference:\n%s", diff)
 		delete(toFind, foundStr)
 	}
 	tc.Require.NoError(iter.Err())

@@ -47,6 +47,7 @@ const (
 	colUsersetNamespace = "userset_namespace"
 	colUsersetObjectID  = "userset_object_id"
 	colUsersetRelation  = "userset_relation"
+	colCaveat           = "caveat"
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 

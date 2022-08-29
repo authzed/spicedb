@@ -106,3 +106,7 @@ func (smd *SpannerMigrationDriver) Close(_ context.Context) error {
 }
 
 var _ migrate.Driver[Wrapper, *spanner.ReadWriteTransaction] = &SpannerMigrationDriver{}
+
+func noReadWriteTransaction(_ context.Context, _ *spanner.ReadWriteTransaction) error {
+	return nil
+}
