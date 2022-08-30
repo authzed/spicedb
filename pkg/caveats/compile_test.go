@@ -95,7 +95,7 @@ func TestCompile(t *testing.T) {
 			[]string{},
 		},
 		{
-			"invvalid expression over a map",
+			"invalid expression over a map",
 			mustEnvForVariables(map[string]VariableType{
 				"a": MapType(BooleanType, UIntType),
 			}),
@@ -110,6 +110,78 @@ func TestCompile(t *testing.T) {
 			}),
 			"a + b",
 			[]string{"caveat expression must result in a boolean value: found `int`"},
+		},
+		{
+			"valid expression over a byte sequence",
+			mustEnvForVariables(map[string]VariableType{
+				"a": BytesType,
+			}),
+			"a == b\"abc\"",
+			[]string{},
+		},
+		{
+			"invalid expression over a byte sequence",
+			mustEnvForVariables(map[string]VariableType{
+				"a": BytesType,
+			}),
+			"a == \"abc\"",
+			[]string{"found no matching overload for '_==_'"},
+		},
+		{
+			"valid expression over a double",
+			mustEnvForVariables(map[string]VariableType{
+				"a": DoubleType,
+			}),
+			"a == 7.23",
+			[]string{},
+		},
+		{
+			"invalid expression over a double",
+			mustEnvForVariables(map[string]VariableType{
+				"a": DoubleType,
+			}),
+			"a == true",
+			[]string{"found no matching overload for '_==_'"},
+		},
+		{
+			"valid expression over a duration",
+			mustEnvForVariables(map[string]VariableType{
+				"a": DurationType,
+			}),
+			"a > duration(\"1h3m\")",
+			[]string{},
+		},
+		{
+			"invalid expression over a duration",
+			mustEnvForVariables(map[string]VariableType{
+				"a": DurationType,
+			}),
+			"a > \"1h3m\"",
+			[]string{"found no matching overload for '_>_'"},
+		},
+		{
+			"valid expression over a timestamp",
+			mustEnvForVariables(map[string]VariableType{
+				"a": TimestampType,
+			}),
+			"a == timestamp(\"1972-01-01T10:00:20.021-05:00\")",
+			[]string{},
+		},
+		{
+			"invalid expression over a timestamp",
+			mustEnvForVariables(map[string]VariableType{
+				"a": TimestampType,
+			}),
+			"a == \"1972-01-01T10:00:20.021-05:00\"",
+			[]string{"found no matching overload for '_==_'"},
+		},
+		{
+			"valid expression over any type",
+			mustEnvForVariables(map[string]VariableType{
+				"a": AnyType,
+			}),
+			"a == true",
+			[]string{},
 		},
 	}
 
