@@ -52,7 +52,7 @@ func (e *Environment) AddVariable(name string, varType VariableType) error {
 
 // asCelEnvironment converts the exported Environment into an internal CEL environment.
 func (e *Environment) asCelEnvironment() (*cel.Env, error) {
-	opts := make([]cel.EnvOption, 0, len(e.variables)+1)
+	opts := make([]cel.EnvOption, 0, len(e.variables)+len(customtypes.CustomTypes)+2)
 
 	// Add the custom type adapter and functions.
 	opts = append(opts, cel.CustomTypeAdapter(&customTypeAdapter{}))
