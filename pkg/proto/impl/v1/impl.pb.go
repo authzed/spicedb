@@ -76,6 +76,7 @@ type DecodedCaveat struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to KindOneof:
+	//
 	//	*DecodedCaveat_Cel
 	KindOneof isDecodedCaveat_KindOneof `protobuf_oneof:"kind_oneof"`
 }
