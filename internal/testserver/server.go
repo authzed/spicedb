@@ -19,10 +19,33 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/logging"
 )
 
+// ServerConfig is configuration for the test server.
+type ServerConfig struct {
+	MaxUpdatesPerWrite    uint16
+	MaxPreconditionsCount uint16
+}
+
+// NewTestServer creates a new test server, using defaults for the config.
 func NewTestServer(require *require.Assertions,
 	revisionQuantization time.Duration,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
+	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
+) (*grpc.ClientConn, func(), datastore.Datastore, decimal.Decimal) {
+	return NewTestServerWithConfig(require, revisionQuantization, gcWindow, schemaPrefixRequired,
+		ServerConfig{
+			MaxUpdatesPerWrite:    1000,
+			MaxPreconditionsCount: 1000,
+		},
+		dsInitFunc)
+}
+
+// NewTestServerWithConfig creates as new test server with the specified config.
+func NewTestServerWithConfig(require *require.Assertions,
+	revisionQuantization time.Duration,
+	gcWindow time.Duration,
+	schemaPrefixRequired bool,
+	config ServerConfig,
 	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
 ) (*grpc.ClientConn, func(), datastore.Datastore, decimal.Decimal) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
@@ -32,6 +55,8 @@ func NewTestServer(require *require.Assertions,
 		server.WithDatastore(ds),
 		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10)),
 		server.WithDispatchMaxDepth(50),
+		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
+		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 			Enabled: true,

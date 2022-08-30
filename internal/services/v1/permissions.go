@@ -63,7 +63,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	cr, err := ps.dispatch.DispatchCheck(ctx, &dispatch.DispatchCheckRequest{
 		Metadata: &dispatch.ResolverMeta{
 			AtRevision:     atRevision.String(),
-			DepthRemaining: ps.defaultDepth,
+			DepthRemaining: ps.config.MaximumAPIDepth,
 		},
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
@@ -132,7 +132,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 	resp, err := ps.dispatch.DispatchExpand(ctx, &dispatch.DispatchExpandRequest{
 		Metadata: &dispatch.ResolverMeta{
 			AtRevision:     atRevision.String(),
-			DepthRemaining: ps.defaultDepth,
+			DepthRemaining: ps.config.MaximumAPIDepth,
 		},
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
@@ -331,7 +331,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	lookupResp, err := ps.dispatch.DispatchLookup(ctx, &dispatch.DispatchLookupRequest{
 		Metadata: &dispatch.ResolverMeta{
 			AtRevision:     atRevision.String(),
-			DepthRemaining: ps.defaultDepth,
+			DepthRemaining: ps.config.MaximumAPIDepth,
 		},
 		ObjectRelation: &core.RelationReference{
 			Namespace: req.ResourceObjectType,
@@ -428,7 +428,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		&dispatch.DispatchLookupSubjectsRequest{
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
-				DepthRemaining: ps.defaultDepth,
+				DepthRemaining: ps.config.MaximumAPIDepth,
 			},
 			ResourceRelation: &core.RelationReference{
 				Namespace: req.Resource.ObjectType,

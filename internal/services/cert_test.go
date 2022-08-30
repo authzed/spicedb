@@ -114,6 +114,8 @@ func TestCertRotation(t *testing.T) {
 		server.WithDatastore(ds),
 		server.WithDispatcher(graph.NewLocalOnlyDispatcher(1)),
 		server.WithDispatchMaxDepth(50),
+		server.WithMaximumPreconditionCount(1000),
+		server.WithMaximumUpdatesPerWrite(1000),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network:      util.BufferedNetwork,
 			Enabled:      true,
