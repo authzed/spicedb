@@ -58,7 +58,7 @@ func EvaluateCaveat(caveat *CompiledCaveat, contextValues map[string]any) (*Cave
 // the result or an error.
 func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]any, config *EvaluationConfig) (*CaveatResult, error) {
 	env := caveat.celEnv
-	celopts := make([]cel.ProgramOption, 0, 1)
+	celopts := make([]cel.ProgramOption, 0, 3)
 
 	// TODO(jschorr): Turn off if we know we have all the context values necessary?
 	// Option: enables partial evaluation and state tracking for partial evaluation.
