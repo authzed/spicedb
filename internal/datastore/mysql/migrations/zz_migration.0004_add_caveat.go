@@ -3,6 +3,7 @@ package migrations
 import "fmt"
 
 func addCaveatColumn(t *tables) string {
+	// BLOB hax a max length of 64 KB
 	return fmt.Sprintf(`ALTER TABLE %s ADD COLUMN caveat BLOB;`, t.RelationTuple())
 }
 

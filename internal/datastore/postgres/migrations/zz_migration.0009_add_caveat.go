@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v4"
 )
 
+// BYTEA type has a variable length theoretically of any length, but the undocumented limit is 1GB
 const insertCaveatColumn = `ALTER TABLE relation_tuple ADD COLUMN caveat BYTEA;`
 
 func init() {

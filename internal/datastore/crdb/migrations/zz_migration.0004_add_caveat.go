@@ -6,6 +6,8 @@ import (
 	"github.com/jackc/pgx/v4"
 )
 
+// BYTEA type has a variable length theoretically of any length
+// The recommended max length is 1MB (https://www.cockroachlabs.com/docs/stable/bytes.html)
 const insertCaveatColumn = `ALTER TABLE relation_tuple ADD COLUMN caveat BYTEA;`
 
 func init() {

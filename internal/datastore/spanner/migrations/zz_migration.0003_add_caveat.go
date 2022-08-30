@@ -7,6 +7,8 @@ import (
 )
 
 const (
+	// Spanners requires a length for the BYTES datatype. The value is aligned with the limit
+	// established in the protobuf definition
 	addCaveatToRelationTuple     = `ALTER TABLE relation_tuple ADD COLUMN caveat BYTES(4096)`
 	addCaveatToRelationChangelog = `ALTER TABLE changelog ADD COLUMN caveat BYTES(4096)`
 )
