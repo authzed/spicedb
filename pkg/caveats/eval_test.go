@@ -2,12 +2,15 @@ package caveats
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEvaluateCaveat(t *testing.T) {
+	wetTz, err := time.LoadLocation("WET")
+	require.NoError(t, err)
 	tcs := []struct {
 		name       string
 		env        *Environment
@@ -239,6 +242,19 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			`metadata.l[metadata.idx] == "hello"`,
+		},
+		{
+			"timestamp operations default to UTC",
+			mustEnvForVariables(map[string]VariableType{
+				"a": TimestampType,
+			}),
+			"a.getHours() == 9",
+			map[string]any{
+				"a": time.Date(2000, 10, 10, 10, 10, 10, 10, wetTz),
+			},
+			"",
+			true,
+			"",
 		},
 	}
 
