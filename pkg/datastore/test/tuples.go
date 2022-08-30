@@ -621,6 +621,26 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	require.Less(time.Since(startTime), 10*time.Second)
 }
 
+// TupleWriteValidationTest makes sure a tuples are validated before storing
+func TupleWriteValidationTest(t *testing.T, tester DatastoreTester) {
+	req := require.New(t)
+	ctx := context.Background()
+
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	req.NoError(err)
+	defer ds.Close()
+
+	ok, err := ds.IsReady(ctx)
+	req.NoError(err)
+	req.True(ok)
+	setupDatastore(ds, req)
+
+	// tuple without resource or subject is invalid
+	tpl := &core.RelationTuple{}
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	req.Error(err)
+}
+
 func onrToSubjectsFilter(onr *core.ObjectAndRelation) datastore.SubjectsFilter {
 	return datastore.SubjectsFilter{
 		SubjectType:        onr.Namespace,

@@ -43,6 +43,7 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestUsersets", func(t *testing.T) { UsersetsTest(t, tester) })
 	t.Run("TestMultipleReadsInRWT", func(t *testing.T) { MultipleReadsInRWTTest(t, tester) })
 	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })
+	t.Run("TupleWriteValidationTest", func(t *testing.T) { TupleWriteValidationTest(t, tester) })
 
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 
