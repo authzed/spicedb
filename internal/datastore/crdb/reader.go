@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
 	"google.golang.org/protobuf/proto"
@@ -44,7 +46,7 @@ var (
 )
 
 type crdbReader struct {
-	txSource      common.TxFactory
+	txSource      pgxcommon.TxFactory
 	querySplitter common.TupleQuerySplitter
 	keyer         overlapKeyer
 	overlapKeySet keySet
