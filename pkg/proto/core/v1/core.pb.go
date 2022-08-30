@@ -287,7 +287,8 @@ type RelationTuple struct {
 	ResourceAndRelation *ObjectAndRelation `protobuf:"bytes,1,opt,name=resource_and_relation,json=resourceAndRelation,proto3" json:"resource_and_relation,omitempty"`
 	// subject is the subject for the tuple
 	Subject *ObjectAndRelation `protobuf:"bytes,2,opt,name=subject,proto3" json:"subject,omitempty"`
-	Caveat  []byte             `protobuf:"bytes,3,opt,name=caveat,proto3" json:"caveat,omitempty"`
+	// caveat is the byte representation of a set of contextual constraints applied over the tuple
+	Caveat []byte `protobuf:"bytes,3,opt,name=caveat,proto3" json:"caveat,omitempty"`
 }
 
 func (x *RelationTuple) Reset() {
