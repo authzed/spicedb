@@ -30,6 +30,7 @@ func update(
 	relation,
 	subObjType,
 	subObjectID string,
+	optionalRelation string,
 ) *v1.RelationshipUpdate {
 	return &v1.RelationshipUpdate{
 		Operation: op,
@@ -44,6 +45,7 @@ func update(
 					ObjectType: subObjType,
 					ObjectId:   subObjectID,
 				},
+				OptionalRelation: optionalRelation,
 			},
 		},
 	}
@@ -62,14 +64,14 @@ func TestWatch(t *testing.T) {
 			name:         "unfiltered watch",
 			expectedCode: codes.OK,
 			mutations: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1", ""),
+				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor", ""),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1", ""),
 			},
 			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1", ""),
+				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor", ""),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "folder", "folder2", "viewer", "user", "user1", ""),
 			},
 		},
 		{
@@ -77,13 +79,13 @@ func TestWatch(t *testing.T) {
 			expectedCode:      codes.OK,
 			objectTypesFilter: []string{"document"},
 			mutations: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1", ""),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1", ""),
+				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor", ""),
 			},
 			expectedUpdates: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
-				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1", ""),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1", ""),
 			},
 		},
 		{

@@ -1,0 +1,33 @@
+syntax = "proto3";
+package lookupwatch.v1;
+
+option go_package = "github.com/authzed/spicedb/pkg/proto/lookupwatch/v1";
+
+import "validate/validate.proto";
+import "authzed/api/v1/core.proto";
+import "authzed/api/v1/permission_service.proto";
+
+service LookupWatchService {
+  rpc WatchAccessibleResources(WatchAccessibleResourcesRequest) returns (stream WatchAccessibleResourcesResponse) {}
+}
+
+message WatchAccessibleResourcesRequest {
+  string resource_object_type = 1;
+  string permission = 2;
+
+  string subject_object_type = 3;
+  string optional_subject_relation = 4;
+
+  authzed.api.v1.ZedToken optional_start_cursor = 5;
+}
+
+message PermissionUpdate {
+  authzed.api.v1.SubjectReference subject = 1;
+  authzed.api.v1.ObjectReference resource = 2;
+  authzed.api.v1.CheckPermissionResponse.Permissionship updated_permission = 3;
+}
+
+message WatchAccessibleResourcesResponse {
+  repeated PermissionUpdate updates = 1;
+  authzed.api.v1.ZedToken changes_through = 2;
+}

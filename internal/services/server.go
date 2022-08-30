@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	v1lookupwatch "github.com/authzed/spicedb/pkg/proto/lookupwatch/v1"
 )
 
 // SchemaServiceOption defines the options for enabling or disabling the V1 Schema service.
@@ -54,8 +55,11 @@ func RegisterGrpcServices(
 	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(prefixRequired))
 	healthManager.RegisterReportedService(v1alpha1.SchemaService_ServiceDesc.ServiceName)
 
-	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, maxDepth))
+	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, maxDepth)) //TODO Register lookupwatch
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
+
+	v1lookupwatch.RegisterLookupWatchServiceServer(srv, v1svc.NewLookupWatchServer(dispatch, maxDepth))
+	healthManager.RegisterReportedService(v1lookupwatch.LookupWatchService_ServiceDesc.ServiceName)
 
 	if watchServiceOption == WatchServiceEnabled {
 		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer())
