@@ -269,6 +269,8 @@ func TestEvaluateCaveat(t *testing.T) {
 					require.Equal(t, tc.expectedPartialExpr, astExpr)
 				} else {
 					require.False(t, result.IsPartial())
+					_, partialErr := result.PartialValue()
+					require.Error(t, partialErr)
 				}
 			}
 		})
