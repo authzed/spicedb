@@ -31,6 +31,9 @@ func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupl
 	var rowCountChange int64
 
 	for _, mutation := range mutations {
+		if err := mutation.Validate(); err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
 		var txnMut *spanner.Mutation
 		var op int
 		switch mutation.Operation {

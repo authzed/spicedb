@@ -51,6 +51,9 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*core.RelationTuple
 
 	// Process the actual updates
 	for _, mut := range mutations {
+		if err := mut.Validate(); err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
 		tpl := mut.Tuple
 		// Implementation for TOUCH deviates from PostgreSQL datastore to prevent a deadlock in MySQL
 		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {

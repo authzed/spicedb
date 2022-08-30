@@ -34,6 +34,9 @@ func (rwt *memdbReadWriteTx) WriteRelationships(mutations []*core.RelationTupleU
 func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTupleUpdate) error {
 	// Apply the mutations
 	for _, mutation := range mutations {
+		if err := mutation.Validate(); err != nil {
+			return fmt.Errorf("error writing relationship: %w", err)
+		}
 		rel := &relationship{
 			mutation.Tuple.ResourceAndRelation.Namespace,
 			mutation.Tuple.ResourceAndRelation.ObjectId,

@@ -67,6 +67,9 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 
 	// Process the actual updates
 	for _, mut := range mutations {
+		if err := mut.Validate(); err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
 		tpl := mut.Tuple
 
 		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {

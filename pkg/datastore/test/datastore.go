@@ -61,9 +61,9 @@ var testResourceNS = namespace.Namespace(
 
 var testUserNS = namespace.Namespace(testUserNamespace)
 
-func makeTestCaveatedTuple(resourceID, userID, caveat string) *core.RelationTuple {
+func makeTestCaveatedTuple(resourceID, userID string, caveat []byte) *core.RelationTuple {
 	rt := makeTestTuple(resourceID, userID)
-	rt.Caveat = []byte(caveat)
+	rt.Caveat = caveat
 	return rt
 }
 

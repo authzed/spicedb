@@ -94,6 +94,9 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleU
 
 	// Process the actual updates
 	for _, mutation := range mutations {
+		if err := mutation.Validate(); err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
 		rel := mutation.Tuple
 		rwt.addOverlapKey(rel.ResourceAndRelation.Namespace)
 		rwt.addOverlapKey(rel.Subject.Namespace)
