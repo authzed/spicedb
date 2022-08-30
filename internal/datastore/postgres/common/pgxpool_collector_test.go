@@ -1,7 +1,7 @@
 //go:build ci
 // +build ci
 
-package postgres
+package common
 
 import (
 	"context"

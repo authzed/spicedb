@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
@@ -19,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -96,6 +98,16 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	pool, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	if config.enablePrometheusStats {
+		collector := pgxcommon.NewPgxpoolStatsCollector(pool, "spicedb")
+		if err := prometheus.Register(collector); err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		if err := common.RegisterGCMetrics(); err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
 	}
 
 	clusterTTLNanos, err := readClusterTTLNanos(pool)

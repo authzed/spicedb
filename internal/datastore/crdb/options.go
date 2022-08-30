@@ -22,6 +22,8 @@ type crdbOptions struct {
 	overlapStrategy             string
 	overlapKey                  string
 	disableStats                bool
+
+	enablePrometheusStats bool
 }
 
 const (
@@ -40,6 +42,8 @@ const (
 	defaultMaxRetries      = 5
 	defaultOverlapKey      = "defaultsynckey"
 	defaultOverlapStrategy = overlapStrategyStatic
+
+	defaultEnablePrometheusStats = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -58,6 +62,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		overlapKey:                  defaultOverlapKey,
 		overlapStrategy:             defaultOverlapStrategy,
 		disableStats:                false,
+		enablePrometheusStats:       defaultEnablePrometheusStats,
 	}
 
 	for _, option := range options {
@@ -223,5 +228,15 @@ func OverlapKey(key string) Option {
 func DisableStats(disable bool) Option {
 	return func(po *crdbOptions) {
 		po.disableStats = disable
+	}
+}
+
+// WithEnablePrometheusStats marks whether Prometheus metrics provided by the Postgres
+// clients being used by the datastore are enabled.
+//
+// Prometheus metrics are disabled by default.
+func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
+	return func(po *crdbOptions) {
+		po.enablePrometheusStats = enablePrometheusStats
 	}
 }

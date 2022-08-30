@@ -233,6 +233,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),
 		crdb.DisableStats(opts.DisableStats),
+		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 	)
 }
 

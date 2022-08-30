@@ -22,6 +22,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
@@ -124,7 +125,7 @@ func NewPostgresDatastore(
 	}
 
 	if config.enablePrometheusStats {
-		collector := NewPgxpoolStatsCollector(dbpool, "spicedb")
+		collector := pgxcommon.NewPgxpoolStatsCollector(dbpool, "spicedb")
 		if err := prometheus.Register(collector); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
