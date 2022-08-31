@@ -8,19 +8,13 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jackc/pgx/v4"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-)
-
-const (
-	errUnableToQueryTuples = "unable to query tuples: %w"
 )
 
 var (
@@ -327,59 +321,3 @@ type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) ([]*core
 // TxCleanupFunc is a function that should be executed when the caller of
 // TransactionFactory is done with the transaction.
 type TxCleanupFunc func(context.Context)
-
-// TxFactory returns a transaction, cleanup function, and any errors that may have
-// occurred when building the transaction.
-type TxFactory func(context.Context) (pgx.Tx, TxCleanupFunc, error)
-
-// NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(txSource TxFactory) ExecuteQueryFunc {
-	return func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error) {
-		ctx = datastore.SeparateContextWithTracing(ctx)
-
-		span := trace.SpanFromContext(ctx)
-
-		tx, txCleanup, err := txSource(ctx)
-		if err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
-		}
-		defer txCleanup(ctx)
-
-		span.AddEvent("DB transaction established")
-
-		rows, err := tx.Query(ctx, sql, args...)
-		if err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
-		}
-		defer rows.Close()
-
-		span.AddEvent("Query issued to database")
-
-		var tuples []*core.RelationTuple
-		for rows.Next() {
-			nextTuple := &core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{},
-				Subject:             &core.ObjectAndRelation{},
-			}
-			err := rows.Scan(
-				&nextTuple.ResourceAndRelation.Namespace,
-				&nextTuple.ResourceAndRelation.ObjectId,
-				&nextTuple.ResourceAndRelation.Relation,
-				&nextTuple.Subject.Namespace,
-				&nextTuple.Subject.ObjectId,
-				&nextTuple.Subject.Relation,
-			)
-			if err != nil {
-				return nil, fmt.Errorf(errUnableToQueryTuples, err)
-			}
-
-			tuples = append(tuples, nextTuple)
-		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
-		}
-
-		span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
-		return tuples, nil
-	}
-}

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
 	"go.opentelemetry.io/otel/attribute"
@@ -18,7 +20,7 @@ import (
 )
 
 type pgReader struct {
-	txSource      common.TxFactory
+	txSource      pgxcommon.TxFactory
 	querySplitter common.TupleQuerySplitter
 	filterer      queryFilterer
 }
