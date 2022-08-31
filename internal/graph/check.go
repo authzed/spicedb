@@ -81,13 +81,13 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 
 	// Build the results for the debug trace.
 	results := make(map[string]*v1.CheckDebugTrace_ResourceCheckResult, len(req.DispatchCheckRequest.ResourceIds))
-	for _, resourceId := range req.DispatchCheckRequest.ResourceIds {
+	for _, resourceID := range req.DispatchCheckRequest.ResourceIds {
 		hasPermission := false
-		if found, ok := resolved.Resp.ResultsByResourceId[resourceId]; ok && found.Membership == v1.DispatchCheckResponse_MEMBER {
+		if found, ok := resolved.Resp.ResultsByResourceId[resourceID]; ok && found.Membership == v1.DispatchCheckResponse_MEMBER {
 			hasPermission = true
 		}
 
-		results[resourceId] = &v1.CheckDebugTrace_ResourceCheckResult{
+		results[resourceID] = &v1.CheckDebugTrace_ResourceCheckResult{
 			HasPermission: hasPermission,
 		}
 	}
@@ -176,7 +176,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	// Find the subjects over which to dispatch.
 	foundResourceIds := []string{}
 	subjectsToDispatch := tuple.NewONRByTypeSet()
-	resourceIdsBySubjectId := util.NewMultiMap[string, string]()
+	resourceIDsBySubjectID := util.NewMultiMap[string, string]()
 
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
@@ -193,7 +193,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 		if tpl.Subject.Relation != Ellipsis {
 			subjectsToDispatch.Add(tpl.Subject)
-			resourceIdsBySubjectId.Add(tuple.StringONR(tpl.Subject), tpl.ResourceAndRelation.ObjectId)
+			resourceIDsBySubjectID.Add(tuple.StringONR(tpl.Subject), tpl.ResourceAndRelation.ObjectId)
 		}
 	}
 
@@ -226,24 +226,24 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			return childResult
 		}
 
-		return mapResourceIds(childResult, dd.resourceType, resourceIdsBySubjectId)
+		return mapResourceIds(childResult, dd.resourceType, resourceIDsBySubjectID)
 	}, cc.concurrencyLimit)
 
 	return combineResultWithFoundResourceIds(result, foundResourceIds)
 }
 
-func mapResourceIds(result CheckResult, resourceType *core.RelationReference, resourceIdsBySubjectId *util.MultiMap[string, string]) CheckResult {
+func mapResourceIds(result CheckResult, resourceType *core.RelationReference, resourceIDsBySubjectID *util.MultiMap[string, string]) CheckResult {
 	// Map any resources found to the parent resource IDs.
 	mappedResourceIds := []string{}
-	for foundResourceId, result := range result.Resp.ResultsByResourceId {
+	for foundResourceID, result := range result.Resp.ResultsByResourceId {
 		if result.Membership != v1.DispatchCheckResponse_MEMBER {
 			continue
 		}
 
 		mappedResourceIds = append(mappedResourceIds,
-			resourceIdsBySubjectId.Get(tuple.StringONR(&core.ObjectAndRelation{
+			resourceIDsBySubjectID.Get(tuple.StringONR(&core.ObjectAndRelation{
 				Namespace: resourceType.Namespace,
-				ObjectId:  foundResourceId,
+				ObjectId:  foundResourceID,
 				Relation:  resourceType.Relation,
 			}))...)
 	}
@@ -351,9 +351,9 @@ func filterForFoundMemberResource(resourceRelation *core.RelationReference, reso
 		return nil, resourceIds
 	}
 
-	for index, resourceId := range resourceIds {
-		if subject.ObjectId == resourceId {
-			return []string{resourceId}, append(resourceIds[:index], resourceIds[index+1:]...)
+	for index, resourceID := range resourceIds {
+		if subject.ObjectId == resourceID {
+			return []string{resourceID}, append(resourceIds[:index], resourceIds[index+1:]...)
 		}
 	}
 
@@ -374,14 +374,14 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	defer it.Close()
 
 	subjectsToDispatch := tuple.NewONRByTypeSet()
-	resourceIdsBySubjectId := util.NewMultiMap[string, string]()
+	resourceIDsBySubjectID := util.NewMultiMap[string, string]()
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
 			return checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
 		}
 
 		subjectsToDispatch.Add(tpl.Subject)
-		resourceIdsBySubjectId.Add(tuple.StringONR(tpl.Subject), tpl.ResourceAndRelation.ObjectId)
+		resourceIDsBySubjectID.Add(tuple.StringONR(tpl.Subject), tpl.ResourceAndRelation.ObjectId)
 	}
 
 	// Convert the subjects into batched requests.
@@ -409,7 +409,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 				return childResult
 			}
 
-			return mapResourceIds(childResult, dd.resourceType, resourceIdsBySubjectId)
+			return mapResourceIds(childResult, dd.resourceType, resourceIDsBySubjectID)
 		},
 		cc.concurrencyLimit,
 	)
@@ -450,8 +450,8 @@ func union[T any](
 				return checkResultError(result.Err, responseMetadata)
 			}
 
-			for resourceId, result := range result.Resp.ResultsByResourceId {
-				responseResults[resourceId] = result
+			for resourceID, result := range result.Resp.ResultsByResourceId {
+				responseResults[resourceID] = result
 				if crc.resultsSetting == v1.DispatchCheckRequest_SHORT_CIRCUIT && result.Membership == v1.DispatchCheckResponse_MEMBER {
 					return checkResults(responseResults, responseMetadata)
 				}
@@ -655,8 +655,8 @@ func noMembers() CheckResult {
 
 func checkResultsForResourceIds(resourceIds []string, subProblemMetadata *v1.ResponseMeta) CheckResult {
 	results := make(map[string]*v1.DispatchCheckResponse_ResourceCheckResult, len(resourceIds))
-	for _, resourceId := range resourceIds {
-		results[resourceId] = &v1.DispatchCheckResponse_ResourceCheckResult{
+	for _, resourceID := range resourceIds {
+		results[resourceID] = &v1.DispatchCheckResponse_ResourceCheckResult{
 			Membership: v1.DispatchCheckResponse_MEMBER,
 		}
 	}
@@ -690,9 +690,9 @@ func checkResultError(err error, subProblemMetadata *v1.ResponseMeta) CheckResul
 
 func filterToResourceIdsWithMembership(results map[string]*v1.DispatchCheckResponse_ResourceCheckResult) []string {
 	members := make([]string, 0, len(results))
-	for resourceId, result := range results {
+	for resourceID, result := range results {
 		if result.Membership == v1.DispatchCheckResponse_MEMBER {
-			members = append(members, resourceId)
+			members = append(members, resourceID)
 		}
 	}
 	return members
@@ -707,8 +707,8 @@ func combineResultWithFoundResourceIds(result CheckResult, foundResourceIds []st
 		return result
 	}
 
-	for _, resourceId := range foundResourceIds {
-		if len(resourceId) == 0 {
+	for _, resourceID := range foundResourceIds {
+		if len(resourceID) == 0 {
 			panic("given empty resource id")
 		}
 
@@ -716,7 +716,7 @@ func combineResultWithFoundResourceIds(result CheckResult, foundResourceIds []st
 			result.Resp.ResultsByResourceId = map[string]*v1.DispatchCheckResponse_ResourceCheckResult{}
 		}
 
-		result.Resp.ResultsByResourceId[resourceId] = &v1.DispatchCheckResponse_ResourceCheckResult{
+		result.Resp.ResultsByResourceId[resourceID] = &v1.DispatchCheckResponse_ResourceCheckResult{
 			Membership: v1.DispatchCheckResponse_MEMBER,
 		}
 	}

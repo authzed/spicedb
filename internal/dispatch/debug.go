@@ -41,7 +41,7 @@ func ConvertDispatchDebugInformation(ctx context.Context, metadata *dispatch.Res
 
 func convertCheckTrace(ct *dispatch.CheckDebugTrace) []*v1.CheckDebugTrace {
 	traces := make([]*v1.CheckDebugTrace, 0, len(ct.Request.ResourceIds))
-	for _, resourceId := range ct.Request.ResourceIds {
+	for _, resourceID := range ct.Request.ResourceIds {
 		permissionType := v1.CheckDebugTrace_PERMISSION_TYPE_UNSPECIFIED
 		if ct.ResourceRelationType == dispatch.CheckDebugTrace_PERMISSION {
 			permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_PERMISSION
@@ -55,7 +55,7 @@ func convertCheckTrace(ct *dispatch.CheckDebugTrace) []*v1.CheckDebugTrace {
 		}
 
 		result := v1.CheckDebugTrace_PERMISSIONSHIP_NO_PERMISSION
-		if found, ok := ct.Results[resourceId]; ok && found.HasPermission {
+		if found, ok := ct.Results[resourceID]; ok && found.HasPermission {
 			result = v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION
 		}
 
@@ -68,7 +68,7 @@ func convertCheckTrace(ct *dispatch.CheckDebugTrace) []*v1.CheckDebugTrace {
 			traces = append(traces, &v1.CheckDebugTrace{
 				Resource: &v1.ObjectReference{
 					ObjectType: ct.Request.ResourceRelation.Namespace,
-					ObjectId:   resourceId,
+					ObjectId:   resourceID,
 				},
 				Permission:     ct.Request.ResourceRelation.Relation,
 				PermissionType: permissionType,
@@ -91,7 +91,7 @@ func convertCheckTrace(ct *dispatch.CheckDebugTrace) []*v1.CheckDebugTrace {
 		traces = append(traces, &v1.CheckDebugTrace{
 			Resource: &v1.ObjectReference{
 				ObjectType: ct.Request.ResourceRelation.Namespace,
-				ObjectId:   resourceId,
+				ObjectId:   resourceID,
 			},
 			Permission:     ct.Request.ResourceRelation.Relation,
 			PermissionType: permissionType,

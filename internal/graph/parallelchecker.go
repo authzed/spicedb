@@ -119,11 +119,11 @@ func (pc *ParallelChecker) Start() {
 				func() {
 					pc.mu.Lock()
 					defer pc.mu.Unlock()
-					resourceId := req.ResourceIds[0]
-					if found, ok := res.ResultsByResourceId[resourceId]; ok && found.Membership == v1.DispatchCheckResponse_MEMBER {
+					resourceID := req.ResourceIds[0]
+					if found, ok := res.ResultsByResourceId[resourceID]; ok && found.Membership == v1.DispatchCheckResponse_MEMBER {
 						pc.addResultsUnsafe(&core.ObjectAndRelation{
 							Namespace: req.ResourceRelation.Namespace,
-							ObjectId:  resourceId,
+							ObjectId:  resourceID,
 							Relation:  req.ResourceRelation.Relation,
 						})
 					}

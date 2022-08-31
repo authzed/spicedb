@@ -264,8 +264,8 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 			// If debugging is requested, clone and add the req and the response to the trace.
 			clone := cachedResult.response.CloneVT()
 			results := make(map[string]*v1.CheckDebugTrace_ResourceCheckResult, len(cachedResult.response.ResultsByResourceId))
-			for resourceId, result := range cachedResult.response.ResultsByResourceId {
-				results[resourceId] = &v1.CheckDebugTrace_ResourceCheckResult{
+			for resourceID, result := range cachedResult.response.ResultsByResourceId {
+				results[resourceID] = &v1.CheckDebugTrace_ResourceCheckResult{
 					HasPermission: result.Membership == v1.DispatchCheckResponse_MEMBER,
 				}
 			}

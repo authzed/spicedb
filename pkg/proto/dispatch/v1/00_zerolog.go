@@ -23,8 +23,8 @@ func (cr *DispatchCheckResponse) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", cr.Metadata)
 
 	results := zerolog.Dict()
-	for resourceId, result := range cr.ResultsByResourceId {
-		results.Bool(resourceId, result.Membership == DispatchCheckResponse_MEMBER)
+	for resourceID, result := range cr.ResultsByResourceId {
+		results.Bool(resourceID, result.Membership == DispatchCheckResponse_MEMBER)
 	}
 	e.Dict("results", results)
 }
