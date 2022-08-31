@@ -353,11 +353,17 @@ func filterForFoundMemberResource(resourceRelation *core.RelationReference, reso
 
 	for index, resourceID := range resourceIds {
 		if subject.ObjectId == resourceID {
-			return []string{resourceID}, append(resourceIds[:index], resourceIds[index+1:]...)
+			return []string{resourceID}, removeIndexFromSlice(resourceIds, index)
 		}
 	}
 
 	return nil, resourceIds
+}
+
+func removeIndexFromSlice[T any](s []T, index int) []T {
+	cpy := make([]T, 0, len(s)-1)
+	cpy = append(cpy, s[:index]...)
+	return append(cpy, s[index+1:]...)
 }
 
 func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc currentRequestContext, ttu *core.TupleToUserset) CheckResult {
