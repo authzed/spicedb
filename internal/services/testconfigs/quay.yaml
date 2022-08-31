@@ -7,8 +7,8 @@ schema: |+
   	relation admin: quay/user
   	relation creator: quay/user
 
-      permission can_admin = admin + parent->can_admin
-      permission create = can_admin + parent->create
+    permission can_admin = admin + parent->can_admin
+    permission create = can_admin + parent->create
   }
 
   definition quay/organization {
@@ -16,9 +16,9 @@ schema: |+
   	relation creator: quay/user | quay/team#member
   	relation direct_member: quay/user
 
-      permission can_admin = admin
-      permission create = creator + can_admin
-      permission member = direct_member + create
+    permission can_admin = admin
+    permission create = creator + can_admin
+    permission member = direct_member + create
   }
 
   definition quay/repo {
@@ -27,15 +27,16 @@ schema: |+
   	relation writers: quay/user
   	relation readers: quay/user
 
-      permission can_admin = admin + parent->can_admin
-      permission write = writers + can_admin
-      permission view = readers + write
+    permission can_admin = admin + parent->can_admin
+    permission write = writers + can_admin
+    permission view = readers + write
   }
 
   definition quay/team {
   	relation parent_org: quay/organization
   	relation direct_member: quay/user
-      permission member = direct_member
+
+    permission member = direct_member
   }
 
 relationships: >-
@@ -74,5 +75,12 @@ relationships: >-
   quay/organization:villainorg#admin@quay/user:villain#...
 
 assertions:
-  assertTrue: []
-  assertFalse: []
+  assertTrue:
+    - "quay/repo:buynlarge/orgrepo#view@quay/user:test_engineer#..."
+    - "quay/repo:buynlarge/orgrepo#view@quay/user:engineer#..."
+    - "quay/repo:buynlarge/orgrepo#view@quay/user:eng_manager#..."
+    - "quay/repo:buynlarge/orgrepo#view@quay/user:ceo#..."
+    - "quay/repo:buynlarge/orgrepo#view@quay/user:cto#..."
+  assertFalse:
+    - "quay/repo:buynlarge/orgrepo#view@quay/user:villain#..."
+    - "quay/repo:buynlarge/orgrepo#view@quay/user:eng_director#..."
