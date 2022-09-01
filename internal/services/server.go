@@ -44,17 +44,17 @@ func RegisterGrpcServices(
 	srv *grpc.Server,
 	healthManager health.Manager,
 	dispatch dispatch.Dispatcher,
-	maxDepth uint32,
 	prefixRequired v1alpha1svc.PrefixRequiredOption,
 	schemaServiceOption SchemaServiceOption,
 	watchServiceOption WatchServiceOption,
+	permSysConfig v1svc.PermissionsServerConfig,
 ) {
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
 	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(prefixRequired))
 	healthManager.RegisterReportedService(v1alpha1.SchemaService_ServiceDesc.ServiceName)
 
-	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, maxDepth))
+	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig))
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
 	if watchServiceOption == WatchServiceEnabled {

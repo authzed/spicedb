@@ -195,6 +195,8 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 			server.WithDatastore(ds),
 			server.WithDispatcher(dispatcher),
 			server.WithDispatchMaxDepth(50),
+			server.WithMaximumPreconditionCount(1000),
+			server.WithMaximumUpdatesPerWrite(1000),
 			server.WithGRPCServer(util.GRPCServerConfig{
 				Network: util.BufferedNetwork,
 				Enabled: true,

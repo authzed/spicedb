@@ -805,6 +805,146 @@ func TestDeleteRelationships(t *testing.T) {
 	}
 }
 
+func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+		require,
+		testTimedeltas[0],
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxPreconditionsCount: 1,
+			MaxUpdatesPerWrite:    1,
+		},
+		tf.StandardDatastoreWithData,
+	)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	_, err := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType:       "folder",
+			OptionalResourceId: "auditors",
+			OptionalRelation:   "viewer",
+			OptionalSubjectFilter: &v1.SubjectFilter{
+				SubjectType:       "user",
+				OptionalSubjectId: "auditor",
+			},
+		},
+		OptionalPreconditions: []*v1.Precondition{
+			{
+				Operation: v1.Precondition_OPERATION_MUST_MATCH,
+				Filter: &v1.RelationshipFilter{
+					ResourceType:       "folder",
+					OptionalResourceId: "auditors",
+					OptionalRelation:   "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "user",
+						OptionalSubjectId: "jeshk",
+					},
+				},
+			},
+			{
+				Operation: v1.Precondition_OPERATION_MUST_MATCH,
+				Filter: &v1.RelationshipFilter{
+					ResourceType:       "folder",
+					OptionalResourceId: "auditors",
+					OptionalRelation:   "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "user",
+						OptionalSubjectId: "jeshk",
+					},
+				},
+			},
+		},
+	})
+
+	require.Error(err)
+	require.Contains(err.Error(), "precondition count of 2 is greater than maximum allowed of 1")
+}
+
+func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+		require,
+		testTimedeltas[0],
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxPreconditionsCount: 1,
+			MaxUpdatesPerWrite:    1,
+		},
+		tf.StandardDatastoreWithData,
+	)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		OptionalPreconditions: []*v1.Precondition{
+			{
+				Operation: v1.Precondition_OPERATION_MUST_MATCH,
+				Filter: &v1.RelationshipFilter{
+					ResourceType:       "folder",
+					OptionalResourceId: "auditors",
+					OptionalRelation:   "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "user",
+						OptionalSubjectId: "jeshk",
+					},
+				},
+			},
+			{
+				Operation: v1.Precondition_OPERATION_MUST_MATCH,
+				Filter: &v1.RelationshipFilter{
+					ResourceType:       "folder",
+					OptionalResourceId: "auditors",
+					OptionalRelation:   "viewer",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "user",
+						OptionalSubjectId: "jeshk",
+					},
+				},
+			},
+		},
+	})
+
+	require.Error(err)
+	require.Contains(err.Error(), "precondition count of 2 is greater than maximum allowed of 1")
+}
+
+func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+		require,
+		testTimedeltas[0],
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxPreconditionsCount: 1,
+			MaxUpdatesPerWrite:    1,
+		},
+		tf.StandardDatastoreWithData,
+	)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{
+			{
+				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+				Relationship: rel("document", "newdoc", "parent", "folder", "afolder", ""),
+			},
+			{
+				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+				Relationship: rel("document", "newdoc", "parent", "folder", "afolder", ""),
+			},
+		},
+	})
+
+	require.Error(err)
+	require.Contains(err.Error(), "update count of 2 is greater than maximum allowed of 1")
+}
+
 func readAll(require *require.Assertions, client v1.PermissionsServiceClient, token *v1.ZedToken) map[string]struct{} {
 	got := make(map[string]struct{})
 	namespaces := []string{"document", "folder"}
