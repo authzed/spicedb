@@ -70,11 +70,11 @@ func (m *WatchAccessibleResourcesRequest) validate(all bool) error {
 	// no validation rules for OptionalSubjectRelation
 
 	if all {
-		switch v := interface{}(m.GetOptionalStartCursor()).(type) {
+		switch v := interface{}(m.GetOptionalStartTimestamp()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, WatchAccessibleResourcesRequestValidationError{
-					field:  "OptionalStartCursor",
+					field:  "OptionalStartTimestamp",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -82,16 +82,16 @@ func (m *WatchAccessibleResourcesRequest) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, WatchAccessibleResourcesRequestValidationError{
-					field:  "OptionalStartCursor",
+					field:  "OptionalStartTimestamp",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetOptionalStartCursor()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetOptionalStartTimestamp()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return WatchAccessibleResourcesRequestValidationError{
-				field:  "OptionalStartCursor",
+				field:  "OptionalStartTimestamp",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}

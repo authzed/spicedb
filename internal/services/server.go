@@ -21,6 +21,8 @@ type SchemaServiceOption int
 // WatchServiceOption defines the options for enabling or disabling the V1 Watch service.
 type WatchServiceOption int
 
+type LookupWatchServiceOption int
+
 const (
 	// V1SchemaServiceDisabled indicates that the V1 schema service is disabled.
 	V1SchemaServiceDisabled SchemaServiceOption = 0
@@ -33,6 +35,12 @@ const (
 
 	// WatchServiceEnabled indicates that the V1 watch service is enabled.
 	WatchServiceEnabled WatchServiceOption = 1
+
+	// LookupWatchServiceDisabled indicates that the V1 lookupWatch service is disabled.
+	LookupWatchServiceDisabled LookupWatchServiceOption = 0
+
+	// LookupWatchServiceEnabled indicates that the V1 lookupWatch service is enabled.
+	LookupWatchServiceEnabled LookupWatchServiceOption = 1
 )
 
 const (
@@ -49,6 +57,7 @@ func RegisterGrpcServices(
 	prefixRequired v1alpha1svc.PrefixRequiredOption,
 	schemaServiceOption SchemaServiceOption,
 	watchServiceOption WatchServiceOption,
+	lookupWatchServiceOption LookupWatchServiceOption,
 ) {
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
@@ -58,8 +67,10 @@ func RegisterGrpcServices(
 	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, maxDepth)) //TODO Register lookupwatch
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
-	v1lookupwatch.RegisterLookupWatchServiceServer(srv, v1svc.NewLookupWatchServer(dispatch, maxDepth))
-	healthManager.RegisterReportedService(v1lookupwatch.LookupWatchService_ServiceDesc.ServiceName)
+	if lookupWatchServiceOption == LookupWatchServiceEnabled {
+		v1lookupwatch.RegisterLookupWatchServiceServer(srv, v1svc.NewLookupWatchServer(dispatch, maxDepth))
+		healthManager.RegisterReportedService(v1lookupwatch.LookupWatchService_ServiceDesc.ServiceName)
+	}
 
 	if watchServiceOption == WatchServiceEnabled {
 		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer())

@@ -18,7 +18,7 @@ message WatchAccessibleResourcesRequest {
   string subject_object_type = 3;
   string optional_subject_relation = 4;
 
-  authzed.api.v1.ZedToken optional_start_cursor = 5;
+  authzed.api.v1.ZedToken optional_start_timestamp = 5;
 }
 
 message PermissionUpdate {

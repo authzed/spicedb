@@ -44,6 +44,7 @@ func NewTestServer(require *require.Assertions,
 		server.WithDashboardAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
+		server.WithLookupWatchApiEnable(true),
 	).Complete()
 	require.NoError(err)
 	srv.SetMiddleware([]grpc.UnaryServerInterceptor{

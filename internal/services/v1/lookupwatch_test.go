@@ -46,19 +46,23 @@ func permissionUpdate(
 
 func TestLookupWatch(t *testing.T) {
 	testCases := []struct {
-		name               string
-		resourceObjectType string
-		permission         string
-		startCursor        *v1.ZedToken
-		mutations          []*v1.RelationshipUpdate
-		expectedCode       codes.Code
-		expectedUpdates    []*lookupwatchv1.PermissionUpdate
+		name                    string
+		resourceObjectType      string
+		permission              string
+		subjectObjectType       string
+		OptionalSubjectRelation string
+		startCursor             *v1.ZedToken
+		mutations               []*v1.RelationshipUpdate
+		expectedCode            codes.Code
+		expectedUpdates         []*lookupwatchv1.PermissionUpdate
 	}{
 		{
-			name:               "lookupWatch basic test relation CREATE",
-			expectedCode:       codes.OK,
-			resourceObjectType: "document",
-			permission:         "view",
+			name:                    "lookupWatch basic test relation CREATE",
+			expectedCode:            codes.OK,
+			resourceObjectType:      "document",
+			permission:              "view",
+			subjectObjectType:       "user",
+			OptionalSubjectRelation: "...",
 			mutations: []*v1.RelationshipUpdate{
 				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1", ""),
 			},
@@ -67,10 +71,12 @@ func TestLookupWatch(t *testing.T) {
 			},
 		},
 		{
-			name:               "lookupWatch basic test relation change on an intermediate relation",
-			expectedCode:       codes.OK,
-			resourceObjectType: "document",
-			permission:         "view",
+			name:                    "lookupWatch basic test relation change on an intermediate relation",
+			expectedCode:            codes.OK,
+			resourceObjectType:      "document",
+			permission:              "view",
+			subjectObjectType:       "user",
+			OptionalSubjectRelation: "...",
 			mutations: []*v1.RelationshipUpdate{
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "company", "viewer", "folder", "auditors", "viewer"),
 			},
@@ -80,20 +86,24 @@ func TestLookupWatch(t *testing.T) {
 			},
 		},
 		{
-			name:               "lookupWatch basic test with no change impact on the watched resourceType",
-			expectedCode:       codes.OK,
-			resourceObjectType: "document",
-			permission:         "view",
+			name:                    "lookupWatch basic test with no change impact on the watched resourceType",
+			expectedCode:            codes.OK,
+			resourceObjectType:      "document",
+			permission:              "view",
+			subjectObjectType:       "user",
+			OptionalSubjectRelation: "...",
 			mutations: []*v1.RelationshipUpdate{
 				update(v1.RelationshipUpdate_OPERATION_CREATE, "folder", "company", "parent", "folder", "aNewFolder", ""),
 			},
 			expectedUpdates: []*lookupwatchv1.PermissionUpdate{},
 		},
 		{
-			name:               "lookupWatch adding an intermediate relation",
-			expectedCode:       codes.OK,
-			resourceObjectType: "document",
-			permission:         "view",
+			name:                    "lookupWatch adding an intermediate relation",
+			expectedCode:            codes.OK,
+			resourceObjectType:      "document",
+			permission:              "view",
+			subjectObjectType:       "user",
+			OptionalSubjectRelation: "...",
 			mutations: []*v1.RelationshipUpdate{
 				update(v1.RelationshipUpdate_OPERATION_CREATE, "folder", "new_folder", "parent", "folder", "company", ""),
 				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "new_document", "parent", "folder", "new_folder", ""),
@@ -122,10 +132,11 @@ func TestLookupWatch(t *testing.T) {
 			stream, err := client.WatchAccessibleResources(
 				ctx,
 				&lookupwatchv1.WatchAccessibleResourcesRequest{
-					ResourceObjectType:  tc.resourceObjectType,
-					Permission:          tc.permission,
-					SubjectObjectType:   "user",
-					OptionalStartCursor: cursor,
+					ResourceObjectType:      tc.resourceObjectType,
+					Permission:              tc.permission,
+					SubjectObjectType:       tc.subjectObjectType,
+					OptionalStartTimestamp:  cursor,
+					OptionalSubjectRelation: tc.OptionalSubjectRelation,
 				},
 			)
 			requireInst.NoError(err)
@@ -171,7 +182,7 @@ func TestLookupWatch(t *testing.T) {
 				select {
 				case updates := <-updatesChan:
 					receivedUpdates = append(receivedUpdates, updates...)
-				case <-time.After(100 * time.Second):
+				case <-time.After(1 * time.Second):
 					if len(tc.expectedUpdates) == 0 {
 						requireInst.Equal(true, finishCode)
 						requireInst.Equal(0, len(receivedUpdates))

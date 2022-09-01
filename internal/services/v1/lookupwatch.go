@@ -65,8 +65,8 @@ func (lw *lookupWatchServer) WatchAccessibleResources(req *v1lookupwatch.WatchAc
 	}
 
 	var afterRevision decimal.Decimal
-	if req.OptionalStartCursor != nil && req.OptionalStartCursor.Token != "" {
-		decodedRevision, err := zedtoken.DecodeRevision(req.OptionalStartCursor)
+	if req.OptionalStartTimestamp != nil && req.OptionalStartTimestamp.Token != "" {
+		decodedRevision, err := zedtoken.DecodeRevision(req.OptionalStartTimestamp)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}
@@ -162,8 +162,8 @@ func (lw *lookupWatchServer) processUpdate(
 				},
 				SubjectRelation: &core.RelationReference{
 					Namespace: req.SubjectObjectType,
-					// TODO: What value to set ?
-					Relation: "...",
+					// TODO: Name tag as optional whereas dispatchLookupSubject require this parameter
+					Relation: req.OptionalSubjectRelation,
 				},
 			},
 			lsStream,

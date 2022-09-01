@@ -61,6 +61,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 			v1alpha1svc.PrefixNotRequired,
 			services.V1SchemaServiceEnabled,
 			services.WatchServiceEnabled,
+			services.LookupWatchServiceEnabled,
 		)
 	}
 	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,

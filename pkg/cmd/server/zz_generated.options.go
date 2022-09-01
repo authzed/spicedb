@@ -60,6 +60,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
 		to.TelemetryInterval = c.TelemetryInterval
+		to.LookupWatchApiEnable = c.LookupWatchApiEnable
 	}
 }
 
@@ -355,5 +356,12 @@ func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
 func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.TelemetryInterval = telemetryInterval
+	}
+}
+
+// WithLookupWatchApiEnable returns an option that can set LookupWatchApiEnable on a Config
+func WithLookupWatchApiEnable(lookupWatchApiEnable bool) ConfigOption {
+	return func(c *Config) {
+		c.LookupWatchApiEnable = lookupWatchApiEnable
 	}
 }

@@ -94,6 +94,9 @@ type Config struct {
 	TelemetryCAOverridePath  string
 	TelemetryEndpoint        string
 	TelemetryInterval        time.Duration
+
+	// LookupWatch Api enabler
+	LookupWatchApiEnable bool
 }
 
 // Complete validates the config and fills out defaults.
@@ -231,6 +234,13 @@ func (c *Config) Complete() (RunnableServer, error) {
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
+	var lookupWatchServiceOption services.LookupWatchServiceOption
+	if c.LookupWatchApiEnable {
+		lookupWatchServiceOption = services.LookupWatchServiceEnabled
+	} else {
+		lookupWatchServiceOption = services.LookupWatchServiceDisabled
+	}
+
 	if len(c.UnaryMiddleware) == 0 && len(c.StreamingMiddleware) == 0 {
 		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
 	}
@@ -246,6 +256,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 				prefixRequiredOption,
 				v1SchemaServiceOption,
 				watchServiceOption,
+				lookupWatchServiceOption,
 			)
 		},
 	)
