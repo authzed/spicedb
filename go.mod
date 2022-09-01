@@ -7,7 +7,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/authzed/authzed-go v0.6.1-0.20220829195957-23aec9014d2f
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
-	github.com/aws/aws-sdk-go v1.44.67
+	github.com/aws/aws-sdk-go v1.44.90
 	github.com/benbjohnson/clock v1.3.0
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/cespare/xxhash/v2 v2.1.2
