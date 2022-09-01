@@ -44,7 +44,7 @@ require (
 	github.com/lib/pq v1.10.6
 	github.com/ngrok/sqlmw v0.0.0-20211220175533-9d16fdc47b31
 	github.com/ory/dockertest/v3 v3.9.1
-	github.com/prometheus/client_golang v1.12.2
+	github.com/prometheus/client_golang v1.13.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.37.0
 	github.com/rs/cors v1.8.2
@@ -141,7 +141,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
