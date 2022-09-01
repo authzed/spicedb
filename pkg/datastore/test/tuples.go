@@ -481,6 +481,62 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 	})
 }
 
+// DeleteNotExistantTest tests the deletion of a non-existant relationship.
+func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteRelationships([]*core.RelationTupleUpdate{
+			tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom#...")),
+		})
+		require.NoError(err)
+
+		return nil
+	})
+	require.NoError(err)
+}
+
+// DeleteAlreadyDeletedTest tests the deletion of an already-deleted relationship.
+func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		// Write the relationship.
+		return rwt.WriteRelationships([]*core.RelationTupleUpdate{
+			tuple.Create(tuple.MustParse("document:foo#viewer@user:tom#...")),
+		})
+	})
+	require.NoError(err)
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		// Delete the relationship.
+		return rwt.WriteRelationships([]*core.RelationTupleUpdate{
+			tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom#...")),
+		})
+	})
+	require.NoError(err)
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		// Delete the relationship again.
+		return rwt.WriteRelationships([]*core.RelationTupleUpdate{
+			tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom#...")),
+		})
+	})
+	require.NoError(err)
+}
+
 // UsersetsTest tests whether or not the requirements for reading usersets hold
 // for a particular datastore.
 func UsersetsTest(t *testing.T, tester DatastoreTester) {

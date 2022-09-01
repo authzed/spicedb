@@ -40,6 +40,8 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
 	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })
 	t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })
+	t.Run("TestDeleteNonExistant", func(t *testing.T) { DeleteNotExistantTest(t, tester) })
+	t.Run("TestDeleteAlreadyDeleted", func(t *testing.T) { DeleteAlreadyDeletedTest(t, tester) })
 	t.Run("TestUsersets", func(t *testing.T) { UsersetsTest(t, tester) })
 	t.Run("TestMultipleReadsInRWT", func(t *testing.T) { MultipleReadsInRWTTest(t, tester) })
 	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })

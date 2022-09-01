@@ -8,6 +8,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
+	"github.com/authzed/spicedb/internal/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -129,9 +130,16 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(mutations []*core.
 	if err := validateUpdatesToWrite(mutations...); err != nil {
 		return err
 	}
+
+	// Ensure there are no duplicate mutations.
+	tupleSet := util.NewSet[string]()
 	for _, mutation := range mutations {
 		if err := mutation.Validate(); err != nil {
 			return err
+		}
+
+		if !tupleSet.Add(tuple.String(mutation.Tuple)) {
+			return fmt.Errorf("found duplicate update for relationship %s", tuple.String(mutation.Tuple))
 		}
 	}
 
