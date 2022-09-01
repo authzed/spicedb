@@ -462,6 +462,8 @@ func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.lookupFromCacheCounter)
 	prometheus.Unregister(cd.checkFromCacheCounter)
 	prometheus.Unregister(cd.reachableResourcesFromCacheCounter)
+	prometheus.Unregister(cd.lookupSubjectsFromCacheCounter)
+	prometheus.Unregister(cd.lookupSubjectsTotalCounter)
 	prometheus.Unregister(cd.cacheHits)
 	prometheus.Unregister(cd.cacheMisses)
 	prometheus.Unregister(cd.costAddedBytes)
