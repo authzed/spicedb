@@ -3,7 +3,7 @@ module github.com/authzed/spicedb
 go 1.19
 
 require (
-	cloud.google.com/go/spanner v1.36.0
+	cloud.google.com/go/spanner v1.37.0
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/authzed/authzed-go v0.6.1-0.20220829195957-23aec9014d2f
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
