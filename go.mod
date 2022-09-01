@@ -3,7 +3,7 @@ module github.com/authzed/spicedb
 go 1.19
 
 require (
-	cloud.google.com/go/spanner v1.36.0
+	cloud.google.com/go/spanner v1.37.0
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/authzed/authzed-go v0.6.1-0.20220829195957-23aec9014d2f
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
@@ -57,7 +57,7 @@ require (
 	github.com/stretchr/testify v1.8.0
 	go.buf.build/protocolbuffers/go/prometheus/prometheus v1.3.3
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.34.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.33.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.34.0
 	go.opentelemetry.io/otel v1.9.0
 	go.opentelemetry.io/otel/trace v1.9.0
 	go.uber.org/goleak v1.1.12
