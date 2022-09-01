@@ -48,7 +48,7 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.37.0
 	github.com/rs/cors v1.8.2
-	github.com/rs/zerolog v1.27.0
+	github.com/rs/zerolog v1.28.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/sercand/kuberesolver/v3 v3.1.0
 	github.com/shopspring/decimal v1.3.1
