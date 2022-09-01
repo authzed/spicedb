@@ -7,7 +7,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/authzed/authzed-go v0.6.1-0.20220829195957-23aec9014d2f
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
-	github.com/aws/aws-sdk-go v1.44.67
+	github.com/aws/aws-sdk-go v1.44.90
 	github.com/benbjohnson/clock v1.3.0
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/cespare/xxhash/v2 v2.1.2
@@ -19,7 +19,7 @@ require (
 	github.com/emirpasic/gods v1.18.1
 	github.com/envoyproxy/protoc-gen-validate v0.6.7
 	github.com/fatih/color v1.13.0
-	github.com/go-co-op/gocron v1.16.1
+	github.com/go-co-op/gocron v1.17.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v0.0.4
@@ -34,9 +34,9 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.3
 	github.com/hashicorp/go-memdb v1.3.3
 	github.com/influxdata/tdigest v0.0.1
-	github.com/jackc/pgconn v1.12.1
-	github.com/jackc/pgtype v1.11.0
-	github.com/jackc/pgx/v4 v4.16.1
+	github.com/jackc/pgconn v1.13.0
+	github.com/jackc/pgtype v1.12.0
+	github.com/jackc/pgx/v4 v4.17.1
 	github.com/johannesboyne/gofakes3 v0.0.0-20220314170512-33c13122505e
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
 	github.com/jzelinskie/cobrautil v0.0.12
@@ -56,10 +56,10 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
 	go.buf.build/protocolbuffers/go/prometheus/prometheus v1.3.3
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.33.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.34.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.33.0
-	go.opentelemetry.io/otel v1.8.0
-	go.opentelemetry.io/otel/trace v1.8.0
+	go.opentelemetry.io/otel v1.9.0
+	go.opentelemetry.io/otel/trace v1.9.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/exp v0.0.0-20220823124025-807a23277127
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
@@ -118,9 +118,9 @@ require (
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.3.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/puddle v1.2.1 // indirect
+	github.com/jackc/puddle v1.3.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
@@ -170,7 +170,7 @@ require (
 	go.opentelemetry.io/proto/otlp v0.16.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
-	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f // indirect
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/net v0.0.0-20220812174116-3211cb980234 // indirect
 	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094 // indirect
