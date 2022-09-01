@@ -453,6 +453,16 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 			codes.InvalidArgument,
 			"wildcard",
 		},
+		{
+			"duplicate relationship",
+			nil,
+			[]*v1.Relationship{
+				rel("document", "somedoc", "parent", "user", "tom", ""),
+				rel("document", "somedoc", "parent", "user", "tom", ""),
+			},
+			codes.InvalidArgument,
+			"duplicate",
+		},
 	}
 
 	for _, delta := range testTimedeltas {

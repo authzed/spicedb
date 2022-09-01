@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/authzed/spicedb/internal/util"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
@@ -162,6 +164,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
 	ds := datastoremw.MustFromContext(ctx)
 
+	// Ensure that the updates and preconditions are not over the configured limits.
 	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
 		return nil, rewritePermissionsError(
 			ctx,
@@ -186,6 +189,23 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		)
 	}
 
+	// Check for duplicate updates.
+	updateRelationshipSet := util.NewSet[string]()
+	for _, update := range req.Updates {
+		tupleStr := tuple.MustRelString(update.Relationship)
+		if !updateRelationshipSet.Add(tupleStr) {
+			return nil, rewritePermissionsError(
+				ctx,
+				status.Errorf(
+					codes.InvalidArgument,
+					"found duplicate update operation for relationship %s",
+					tupleStr,
+				),
+			)
+		}
+	}
+
+	// Execute the write operation(s).
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		for _, precond := range req.OptionalPreconditions {
 			if err := ps.checkFilterNamespaces(ctx, precond.Filter, rwt); err != nil {
