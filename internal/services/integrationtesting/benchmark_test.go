@@ -147,6 +147,23 @@ func BenchmarkServices(b *testing.B) {
 				return err
 			},
 		},
+		{
+			"wide direct relation check",
+			"benchconfigs/checkwidedirect.yaml",
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+				result, err := tester.Check(ctx, &core.ObjectAndRelation{
+					Namespace: "resource",
+					ObjectId:  "someresource",
+					Relation:  "view",
+				}, &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "tom",
+					Relation:  tuple.Ellipsis,
+				}, revision)
+				require.True(b, result)
+				return err
+			},
+		},
 	}
 
 	for _, bt := range bts {
