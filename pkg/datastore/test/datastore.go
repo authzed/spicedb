@@ -49,6 +49,7 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestUsersets", func(t *testing.T) { UsersetsTest(t, tester) })
 	t.Run("TestMultipleReadsInRWT", func(t *testing.T) { MultipleReadsInRWTTest(t, tester) })
 	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })
+	t.Run("TestDirectCheckRelationships", func(t *testing.T) { DirectCheckRelationshipsTest(t, tester) })
 
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
@@ -68,6 +69,11 @@ func All(t *testing.T, tester DatastoreTester) {
 var testResourceNS = namespace.Namespace(
 	testResourceNamespace,
 	namespace.MustRelation(testReaderRelation, nil),
+)
+
+var testGroupNS = namespace.Namespace(
+	testGroupNamespace,
+	namespace.Relation(testMemberRelation, nil),
 )
 
 var testUserNS = namespace.Namespace(testUserNamespace)
@@ -91,7 +97,7 @@ func setupDatastore(ds datastore.Datastore, require *require.Assertions) datasto
 	ctx := context.Background()
 
 	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, testResourceNS, testUserNS)
+		return rwt.WriteNamespaces(ctx, testGroupNS, testResourceNS, testUserNS)
 	})
 	require.NoError(err)
 

@@ -178,7 +178,7 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	}
 
 	if relation.UsersetRewrite == nil {
-		return combineResultWithFoundResources(cc.checkDirect(ctx, crc), membershipSet)
+		return combineResultWithFoundResources(cc.checkDirect(ctx, crc, relation), membershipSet)
 	}
 
 	return combineResultWithFoundResources(cc.checkUsersetRewrite(ctx, crc, relation.UsersetRewrite), membershipSet)
@@ -198,16 +198,46 @@ type directDispatch struct {
 	resourceIds  []string
 }
 
-func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequestContext) CheckResult {
+func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequestContext, relation *core.Relation) CheckResult {
 	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 
-	// TODO(jschorr): Use type information to further optimize this query.
-	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType:             crc.parentReq.ResourceRelation.Namespace,
-		OptionalResourceIds:      crc.filteredResourceIDs,
-		OptionalResourceRelation: crc.parentReq.ResourceRelation.Relation,
-	})
+	// Build a filter for finding the direct relationships for the check. This is a specialized
+	// filter that understands check semantics at a lower level, to optimize the queries that the
+	// datastore are performing.
+	filter := datastore.DirectCheckRelationshipsFilter{
+		ResourceType:     crc.parentReq.ResourceRelation.Namespace,
+		ResourceIds:      crc.filteredResourceIDs,
+		ResourceRelation: crc.parentReq.ResourceRelation.Relation,
+		ShortCircuited:   crc.resultsSetting == v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
+	}
+
+	// Add the target subject type and wildcard (if applicable), as well as whether nested relations
+	// are to be returned.
+	for _, allowedDirectRelation := range relation.GetTypeInformation().GetAllowedDirectRelations() {
+		// If the namespace of the allowed direct relation matches the subject type, there are two
+		// cases to optimize:
+		// 1) Finding the target subject itself, as a direct lookup
+		// 2) Finding a wildcard for the subject type+relation
+		if allowedDirectRelation.GetNamespace() == crc.parentReq.Subject.Namespace {
+			if allowedDirectRelation.GetPublicWildcard() != nil {
+				filter = filter.WithTargetSubjectWildcard(crc.parentReq.Subject)
+			} else if allowedDirectRelation.GetRelation() == crc.parentReq.Subject.Relation {
+				filter = filter.WithTargetSubject(crc.parentReq.Subject)
+			}
+		}
+
+		// If the relation found is not an ellipsis, then this is a nested relation that
+		// might need to be followed, so indicate that such relationships should be returned
+		//
+		// TODO(jschorr): Use type information to *further* optimize this query around which nested
+		// relations can reach the target subject type.
+		if allowedDirectRelation.GetRelation() != tuple.Ellipsis {
+			filter = filter.WithReturnNestedRelations()
+		}
+	}
+
+	it, err := ds.QueryRelationshipsForDirectCheck(ctx, filter)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
@@ -245,7 +275,8 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			continue
 		}
 
-		// If the subject of the relationship is a non-terminal, add to be dispatched.
+		// Otherwise, if the relation is non-terminal, add the subject as an object over which to
+		// dispatch.
 		if tpl.Subject.Relation != Ellipsis {
 			subjectsToDispatch.Add(tpl.Subject)
 			relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)

@@ -71,6 +71,23 @@ func mustHaveBeenClosed(iter *memdbTupleIterator) {
 	}
 }
 
+// QueryRelationshipsForDirectCheck reads relationships for a direct check operation.
+func (r *memdbReader) QueryRelationshipsForDirectCheck(
+	ctx context.Context,
+	filter datastore.DirectCheckRelationshipsFilter,
+	options ...options.QueryOptionsOption,
+) (datastore.RelationshipIterator, error) {
+	// NOTE: This does not do any form of optimized lookup for the direct check, but it is
+	// strictly always correct to return *more* of the relationships, so we do so here because
+	// memdb is not considered a datastore where highest performance is required.
+	// TODO(jschorr): Improve this if ever necessary.
+	return r.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		ResourceType:             filter.ResourceType,
+		OptionalResourceIds:      filter.ResourceIds,
+		OptionalResourceRelation: filter.ResourceRelation,
+	})
+}
+
 // ReverseQueryRelationships reads relationships starting from the subject.
 func (r *memdbReader) ReverseQueryRelationships(
 	ctx context.Context,

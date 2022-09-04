@@ -287,6 +287,120 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			"SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?, ?) AND subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)",
 			[]any{"someresourcetype", "somerelation", "someid", "anotherid", "somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
 		},
+		{
+			"direct check filter with target subject",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterWithDirectCheckFilter(datastore.DirectCheckRelationshipsFilter{
+					ResourceType:     "someresourcetype",
+					ResourceIds:      []string{"someid"},
+					ResourceRelation: "somerelation",
+				}.WithTargetSubject(&core.ObjectAndRelation{
+					Namespace: "subjecttype",
+					ObjectId:  "subjectid",
+					Relation:  "...",
+				}))
+			},
+			"SELECT * WHERE ns = ? AND object_id IN (?) AND relation = ? AND ((subject_ns = ? AND ((subject_object_id = ? AND subject_relation = ?))))",
+			[]any{"someresourcetype", "someid", "somerelation", "subjecttype", "subjectid", "..."},
+		},
+		{
+			"direct check filter with target subject and nested relations",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterWithDirectCheckFilter(datastore.DirectCheckRelationshipsFilter{
+					ResourceType:     "someresourcetype",
+					ResourceIds:      []string{"someid"},
+					ResourceRelation: "somerelation",
+				}.WithTargetSubject(&core.ObjectAndRelation{
+					Namespace: "subjecttype",
+					ObjectId:  "subjectid",
+					Relation:  "...",
+				}).WithReturnNestedRelations())
+			},
+			"SELECT * WHERE ns = ? AND object_id IN (?) AND relation = ? AND ((subject_ns = ? AND ((subject_object_id = ? AND subject_relation = ?))) OR subject_relation <> ?)",
+			[]any{"someresourcetype", "someid", "somerelation", "subjecttype", "subjectid", "...", "..."},
+		},
+		{
+			"direct check filter with only nested relations",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterWithDirectCheckFilter(datastore.DirectCheckRelationshipsFilter{
+					ResourceType:     "someresourcetype",
+					ResourceIds:      []string{"someid"},
+					ResourceRelation: "somerelation",
+				}.WithReturnNestedRelations())
+			},
+			"SELECT * WHERE ns = ? AND object_id IN (?) AND relation = ? AND (subject_relation <> ?)",
+			[]any{"someresourcetype", "someid", "somerelation", "..."},
+		},
+		{
+			"direct check filter with target subject wildcard",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterWithDirectCheckFilter(datastore.DirectCheckRelationshipsFilter{
+					ResourceType:     "someresourcetype",
+					ResourceIds:      []string{"someid"},
+					ResourceRelation: "somerelation",
+				}.WithTargetSubjectWildcard(&core.ObjectAndRelation{
+					Namespace: "subjecttype",
+					ObjectId:  "subjectid",
+					Relation:  "...",
+				}))
+			},
+			"SELECT * WHERE ns = ? AND object_id IN (?) AND relation = ? AND ((subject_ns = ? AND (subject_object_id = ?)))",
+			[]any{"someresourcetype", "someid", "somerelation", "subjecttype", "*"},
+		},
+		{
+			"direct check filter with target subject and its wildcard",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterWithDirectCheckFilter(datastore.DirectCheckRelationshipsFilter{
+					ResourceType:     "someresourcetype",
+					ResourceIds:      []string{"someid"},
+					ResourceRelation: "somerelation",
+				}.WithTargetSubjectWildcard(&core.ObjectAndRelation{
+					Namespace: "subjecttype",
+					ObjectId:  "subjectid",
+					Relation:  "...",
+				}).WithTargetSubject(&core.ObjectAndRelation{
+					Namespace: "subjecttype",
+					ObjectId:  "subjectid",
+					Relation:  "...",
+				}))
+			},
+			"SELECT * WHERE ns = ? AND object_id IN (?) AND relation = ? AND ((subject_ns = ? AND ((subject_object_id = ? AND subject_relation = ?) OR subject_object_id = ?)))",
+			[]any{"someresourcetype", "someid", "somerelation", "subjecttype", "subjectid", "...", "*"},
+		},
+		{
+			"direct check filter with target subject wildcard and short circuit",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterWithDirectCheckFilter(datastore.DirectCheckRelationshipsFilter{
+					ResourceType:     "someresourcetype",
+					ResourceIds:      []string{"someid"},
+					ResourceRelation: "somerelation",
+					ShortCircuited:   true,
+				}.WithTargetSubjectWildcard(&core.ObjectAndRelation{
+					Namespace: "subjecttype",
+					ObjectId:  "subjectid",
+					Relation:  "...",
+				}))
+			},
+			"SELECT * WHERE ns = ? AND object_id IN (?) AND relation = ? AND ((subject_ns = ? AND (subject_object_id = ?))) LIMIT 1",
+			[]any{"someresourcetype", "someid", "somerelation", "subjecttype", "*"},
+		},
+		{
+			"direct check filter with target subject and nested relations, short circuited",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterWithDirectCheckFilter(datastore.DirectCheckRelationshipsFilter{
+					ResourceType:     "someresourcetype",
+					ResourceIds:      []string{"someid"},
+					ResourceRelation: "somerelation",
+					ShortCircuited:   true,
+				}.WithTargetSubject(&core.ObjectAndRelation{
+					Namespace: "subjecttype",
+					ObjectId:  "subjectid",
+					Relation:  "...",
+				}).WithReturnNestedRelations())
+			},
+			"SELECT * WHERE ns = ? AND object_id IN (?) AND relation = ? AND ((subject_ns = ? AND ((subject_object_id = ? AND subject_relation = ?))) OR subject_relation <> ?)",
+			[]any{"someresourcetype", "someid", "somerelation", "subjecttype", "subjectid", "...", "..."},
+		},
 	}
 
 	for _, test := range tests {

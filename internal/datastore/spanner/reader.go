@@ -32,6 +32,15 @@ type spannerReader struct {
 	txSource      txFactory
 }
 
+func (sr spannerReader) QueryRelationshipsForDirectCheck(
+	ctx context.Context,
+	filter datastore.DirectCheckRelationshipsFilter,
+	opts ...options.QueryOptionsOption,
+) (iter datastore.RelationshipIterator, err error) {
+	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).FilterWithDirectCheckFilter(filter)
+	return sr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
+}
+
 func (sr spannerReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,

@@ -149,8 +149,89 @@ func (sf SubjectRelationFilter) IsEmpty() bool {
 	return !sf.IncludeEllipsisRelation && sf.NonEllipsisRelation == ""
 }
 
+// DirectCheckRelationshipsFilter is a filter specifically for direct lookup of
+// relationships under a relation in a check operation.
+type DirectCheckRelationshipsFilter struct {
+	// ResourceType is the namespace/type for the resources to be found.
+	ResourceType string
+
+	// ResourceIds are the IDs of the resources to find.
+	ResourceIds []string
+
+	// ResourceRelation is the relation of the resource to find.
+	ResourceRelation string
+
+	// ShortCircuited, if true, indicates that if a result is found for *any* resource ID, then
+	// it should be returned immediately without results for the others. Only applies if
+	// the target subject is found.
+	ShortCircuited bool
+
+	// TargetSubject is the target subject. If not specified, then the subject
+	// itself cannot be found for the resource and that check should be skipped.
+	TargetSubject *core.ObjectAndRelation
+
+	// IncludeDirectSubject, if true, indicates that the TargetSubject should
+	// directly be included in the filter.
+	IncludeDirectSubject bool
+
+	// IncludeSubjectWildcard, if true, indicates that wildcards of type TargetSubject should
+	// also be included in the filter.
+	IncludeSubjectWildcard bool
+
+	// IncludeNestedRelations, if true, indicates that any relationships with nested relations as
+	// subjects (e.g. non-ellipsis subjects relations) should be returned.
+	IncludeNestedRelations bool
+}
+
+// WithTargetSubjectWildcard indicates that the subject filter should include a wildcard
+// for the target subject type.
+func (dcrf DirectCheckRelationshipsFilter) WithTargetSubjectWildcard(subject *core.ObjectAndRelation) DirectCheckRelationshipsFilter {
+	return DirectCheckRelationshipsFilter{
+		ResourceType:           dcrf.ResourceType,
+		ResourceIds:            dcrf.ResourceIds,
+		ResourceRelation:       dcrf.ResourceRelation,
+		ShortCircuited:         dcrf.ShortCircuited,
+		TargetSubject:          subject,
+		IncludeSubjectWildcard: true,
+		IncludeDirectSubject:   dcrf.IncludeDirectSubject,
+		IncludeNestedRelations: dcrf.IncludeNestedRelations,
+	}
+}
+
+// WithTargetSubject indicates that the subject filter should include directly looking for the
+// specified target subject.
+func (dcrf DirectCheckRelationshipsFilter) WithTargetSubject(subject *core.ObjectAndRelation) DirectCheckRelationshipsFilter {
+	return DirectCheckRelationshipsFilter{
+		ResourceType:           dcrf.ResourceType,
+		ResourceIds:            dcrf.ResourceIds,
+		ResourceRelation:       dcrf.ResourceRelation,
+		ShortCircuited:         dcrf.ShortCircuited,
+		TargetSubject:          subject,
+		IncludeDirectSubject:   true,
+		IncludeSubjectWildcard: dcrf.IncludeSubjectWildcard,
+		IncludeNestedRelations: dcrf.IncludeNestedRelations,
+	}
+}
+
+// WithReturnNestedRelations indicates that the subject filter should include nested (non-`...`)
+// subject relations.
+func (dcrf DirectCheckRelationshipsFilter) WithReturnNestedRelations() DirectCheckRelationshipsFilter {
+	return DirectCheckRelationshipsFilter{
+		ResourceType:           dcrf.ResourceType,
+		ResourceIds:            dcrf.ResourceIds,
+		ResourceRelation:       dcrf.ResourceRelation,
+		ShortCircuited:         dcrf.ShortCircuited,
+		TargetSubject:          dcrf.TargetSubject,
+		IncludeDirectSubject:   dcrf.IncludeDirectSubject,
+		IncludeSubjectWildcard: dcrf.IncludeSubjectWildcard,
+		IncludeNestedRelations: true,
+	}
+}
+
+// Reader is an interface for reading relationships from the datastore.
 type Reader interface {
 	CaveatReader
+
 	// QueryRelationships reads relationships, starting from the resource side.
 	QueryRelationships(
 		ctx context.Context,

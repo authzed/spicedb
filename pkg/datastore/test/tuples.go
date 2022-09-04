@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -24,7 +25,9 @@ import (
 const (
 	testUserNamespace     = "test/user"
 	testResourceNamespace = "test/resource"
+	testGroupNamespace    = "test/group"
 	testReaderRelation    = "reader"
+	testMemberRelation    = "member"
 	ellipsis              = "..."
 )
 
@@ -729,6 +732,107 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.NoError(g.Wait())
 	require.Less(time.Since(startTime), 10*time.Second)
+}
+
+func DirectCheckRelationshipsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+	defer ds.Close()
+
+	ctx := context.Background()
+
+	ok, err := ds.IsReady(ctx)
+	require.NoError(err)
+	require.True(ok)
+
+	setupDatastore(ds, require)
+
+	var testTuples []*core.RelationTuple
+
+	// Add some test users.
+	numTuples := 100
+	for i := 0; i < numTuples; i++ {
+		testTuples = append(testTuples, &core.RelationTuple{
+			ResourceAndRelation: &core.ObjectAndRelation{
+				Namespace: testResourceNamespace,
+				ObjectId:  "resource1",
+				Relation:  testReaderRelation,
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: testUserNamespace,
+				ObjectId:  fmt.Sprintf("user-%d", i),
+				Relation:  ellipsis,
+			},
+		})
+	}
+
+	// Add some test nested resources.
+	for i := 0; i < numTuples; i++ {
+		testTuples = append(testTuples, &core.RelationTuple{
+			ResourceAndRelation: &core.ObjectAndRelation{
+				Namespace: testResourceNamespace,
+				ObjectId:  "resource1",
+				Relation:  testReaderRelation,
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: testGroupNamespace,
+				ObjectId:  fmt.Sprintf("group-%d", i),
+				Relation:  testMemberRelation,
+			},
+		})
+	}
+
+	lastRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, testTuples...)
+	require.NoError(err)
+
+	// Run a direct check query with a target subject.
+	dsReader := ds.SnapshotReader(lastRevision)
+	iter, err := dsReader.QueryRelationshipsForDirectCheck(ctx, datastore.DirectCheckRelationshipsFilter{
+		ResourceType:     testResourceNamespace,
+		ResourceIds:      []string{"resource1"},
+		ResourceRelation: testReaderRelation,
+	}.WithTargetSubject(&core.ObjectAndRelation{
+		Namespace: testUserNamespace,
+		ObjectId:  "user-5",
+		Relation:  ellipsis,
+	}))
+	require.NoError(err)
+
+	subjects := collectSubjects(t, iter, ellipsis)
+
+	// Ensure the expected subject was found.
+	require.True(subjects.Has(tuple.StringONR(&core.ObjectAndRelation{
+		Namespace: testUserNamespace,
+		ObjectId:  "user-5",
+		Relation:  ellipsis,
+	})))
+
+	// Run a direct check query with nested included.
+	iter, err = dsReader.QueryRelationshipsForDirectCheck(ctx, datastore.DirectCheckRelationshipsFilter{
+		ResourceType:     testResourceNamespace,
+		ResourceIds:      []string{"resource1"},
+		ResourceRelation: testReaderRelation,
+	}.WithReturnNestedRelations())
+	require.NoError(err)
+
+	subjects = collectSubjects(t, iter, testMemberRelation)
+
+	// Ensure the nested subjects were found.
+	require.False(subjects.IsEmpty())
+}
+
+func collectSubjects(t *testing.T, iter datastore.RelationshipIterator, relationName string) *util.Set[string] {
+	defer iter.Close()
+	subjects := util.NewSet[string]()
+	for found := iter.Next(); found != nil; found = iter.Next() {
+		require.NoError(t, iter.Err())
+		if found.Subject.Relation == relationName {
+			subjects.Add(tuple.StringONR(found.Subject))
+		}
+	}
+	return subjects
 }
 
 func onrToSubjectsFilter(onr *core.ObjectAndRelation) datastore.SubjectsFilter {

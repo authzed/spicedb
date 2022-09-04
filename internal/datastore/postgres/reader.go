@@ -53,6 +53,15 @@ const (
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
 
+func (r *pgReader) QueryRelationshipsForDirectCheck(
+	ctx context.Context,
+	filter datastore.DirectCheckRelationshipsFilter,
+	opts ...options.QueryOptionsOption,
+) (iter datastore.RelationshipIterator, err error) {
+	qBuilder := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).FilterWithDirectCheckFilter(filter)
+	return r.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
+}
+
 func (r *pgReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,

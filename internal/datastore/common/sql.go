@@ -6,8 +6,6 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
@@ -17,6 +15,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var (
@@ -77,6 +77,60 @@ func NewSchemaQueryFilterer(schema SchemaInformation, initialQuery sq.SelectBuil
 		schema:       schema,
 		queryBuilder: initialQuery,
 	}
+}
+
+// FilterWithDirectCheckFilter returns a new SchemaQueryFilterer that filters based on criteria
+// for directly checking a relation for a specific target subject. This is specialized logic to
+// allow for the more performant queries to be generated for this performance-critical operation.
+func (sqf SchemaQueryFilterer) FilterWithDirectCheckFilter(filter datastore.DirectCheckRelationshipsFilter) SchemaQueryFilterer {
+	// Setup resource filters.
+	sqf = sqf.FilterToResourceType(filter.ResourceType)
+	sqf = sqf.FilterToResourceIDs(filter.ResourceIds)
+	sqf = sqf.FilterToRelation(filter.ResourceRelation)
+
+	// If there is a target subject type, add it to the subject filter.
+	subjectsFilter := sq.Or{}
+	if filter.TargetSubject != nil {
+		directSubjectFilter := sq.Or{}
+
+		// If a direct subject is included, search for it by object ID and its relation.
+		if filter.IncludeDirectSubject {
+			directSubjectFilter = append(directSubjectFilter, sq.And{
+				sq.Eq{sqf.schema.ColUsersetObjectID: filter.TargetSubject.ObjectId},
+				sq.Eq{sqf.schema.ColUsersetRelation: filter.TargetSubject.Relation},
+			})
+		}
+
+		// If a wildcard for the subject type is included, search for it via the `*` as the
+		// object ID.
+		if filter.IncludeSubjectWildcard {
+			directSubjectFilter = append(directSubjectFilter,
+				sq.Eq{sqf.schema.ColUsersetObjectID: tuple.PublicWildcard},
+			)
+		}
+
+		subjectsFilter = append(subjectsFilter, sq.And{
+			sq.Eq{sqf.schema.ColUsersetNamespace: filter.TargetSubject.Namespace},
+			directSubjectFilter,
+		})
+	}
+
+	// If nested relations are requested, add it to the subject filter.
+	//
+	// TODO(jschorr): Find a way to use short circuiting even if there are nested relations, as
+	// nested relations are only ever needed if a direct subject is not found.
+	if filter.IncludeNestedRelations {
+		subjectsFilter = append(subjectsFilter, sq.NotEq{sqf.schema.ColUsersetRelation: tuple.Ellipsis})
+	} else if filter.ShortCircuited {
+		// If no nested relations are to be included, and short circuiting is requested, then
+		// add a limit 1 to further reduce down the query. This works because the query will only
+		// be looking for the direct subject (or a wildcard), and if it is found for *any* resource ID,
+		// the short circuit ensures the result works for all.
+		sqf.queryBuilder = sqf.queryBuilder.Limit(1)
+	}
+
+	sqf.queryBuilder = sqf.queryBuilder.Where(subjectsFilter)
+	return sqf
 }
 
 // FilterToResourceType returns a new SchemaQueryFilterer that is limited to resources of the
