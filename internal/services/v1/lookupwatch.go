@@ -14,6 +14,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
+	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -130,46 +131,62 @@ func (lw *lookupWatchServer) processUpdate(
 	stream *v1lookupwatch.LookupWatchService_WatchAccessibleResourcesServer,
 ) error {
 
+	ds := datastoremw.MustFromContext((*stream).Context())
 	//CALL LOOKUPSUBJECTS
 	var subjects []string
-	if req.SubjectObjectType == update.Tuple.Subject.Namespace {
-		// TODO: we'll revisit that once we have arrow resolution, we leave as it is meanwhile for our testcases
+	if req.SubjectObjectType == update.Tuple.Subject.Namespace && update.Tuple.Subject.Relation == graph.Ellipsis {
 		subjects = append(subjects, update.Tuple.Subject.ObjectId)
 	} else if update.Tuple.Subject.Relation == "" {
 		return status.Errorf(
 			codes.Internal,
-			"cannot handle the following relation, arrow resolution not implemented: %s:%s",
+			"TODO: empty subject relations not handled, should we handle them ? how ? %s:%s",
 			update.Tuple.Subject.Namespace, update.Tuple.Subject.ObjectId,
 		)
 	} else {
-		lsStream := dispatchpkg.NewHandlingDispatchStream(*ctx, func(result *dispatchv1.DispatchLookupSubjectsResponse) error {
-			for _, subject := range result.FoundSubjects {
-				subjects = append(subjects, subject.SubjectId)
+		var resourceRelations []string
+		if update.Tuple.Subject.Relation == graph.Ellipsis {
+			// Arrow resolution
+			reader := ds.SnapshotReader(*atRevision)
+			_, typeSystem, err := namespace.ReadNamespaceAndTypes((*stream).Context(), update.Tuple.ResourceAndRelation.Namespace, reader)
+			if err != nil {
+				return err
 			}
-			return nil
-		})
-		err := lw.dispatch.DispatchLookupSubjects(
-			&dispatchv1.DispatchLookupSubjectsRequest{
-				Metadata: &dispatchv1.ResolverMeta{
-					AtRevision:     atRevision.String(),
-					DepthRemaining: lw.defaultDepth,
+			resourceRelations, err = typeSystem.SearchComputedUsersetRelations(update.Tuple.ResourceAndRelation.Relation)
+			if err != nil {
+				return err
+			}
+		} else {
+			resourceRelations = append(resourceRelations, update.Tuple.Subject.Relation)
+		}
+		for _, resourceRelation := range resourceRelations {
+			lsStream := dispatchpkg.NewHandlingDispatchStream(*ctx, func(result *dispatchv1.DispatchLookupSubjectsResponse) error {
+				for _, subject := range result.FoundSubjects {
+					subjects = append(subjects, subject.SubjectId)
+				}
+				return nil
+			})
+			err := lw.dispatch.DispatchLookupSubjects(
+				&dispatchv1.DispatchLookupSubjectsRequest{
+					Metadata: &dispatchv1.ResolverMeta{
+						AtRevision:     atRevision.String(),
+						DepthRemaining: lw.defaultDepth,
+					},
+					ResourceIds: []string{update.Tuple.Subject.ObjectId},
+					ResourceRelation: &core.RelationReference{
+						Namespace: update.Tuple.Subject.Namespace,
+						Relation:  resourceRelation,
+					},
+					SubjectRelation: &core.RelationReference{
+						Namespace: req.SubjectObjectType,
+						// TODO: Name tag as optional whereas dispatchLookupSubject require this parameter
+						Relation: req.OptionalSubjectRelation,
+					},
 				},
-				ResourceIds: []string{update.Tuple.Subject.ObjectId},
-				ResourceRelation: &core.RelationReference{
-					Namespace: update.Tuple.Subject.Namespace,
-					// TODO: arrow resolution, get Permission from @joey's code
-					Relation: update.Tuple.ResourceAndRelation.Relation,
-				},
-				SubjectRelation: &core.RelationReference{
-					Namespace: req.SubjectObjectType,
-					// TODO: Name tag as optional whereas dispatchLookupSubject require this parameter
-					Relation: req.OptionalSubjectRelation,
-				},
-			},
-			lsStream,
-		)
-		if err != nil {
-			return err
+				lsStream,
+			)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -179,6 +196,26 @@ func (lw *lookupWatchServer) processUpdate(
 		resources = append(resources, result.Resource.ResourceIds...)
 		return nil
 	})
+	var subjectRelation = update.Tuple.ResourceAndRelation.Relation
+	if req.ResourceObjectType == update.Tuple.ResourceAndRelation.Namespace && req.Permission != update.Tuple.ResourceAndRelation.Relation {
+		// Arrow resolution
+		reader := ds.SnapshotReader(*atRevision)
+		_, typeSystem, err := namespace.ReadNamespaceAndTypes((*stream).Context(), update.Tuple.ResourceAndRelation.Namespace, reader)
+		if err != nil {
+			return err
+		}
+		subjectRelations, err := typeSystem.SearchComputedUsersetRelations(update.Tuple.ResourceAndRelation.Relation)
+		if err != nil {
+			return err
+		}
+		for _, relation := range subjectRelations {
+			if relation == req.Permission {
+				subjectRelation = relation
+				break
+			}
+		}
+
+	}
 	err := lw.dispatch.DispatchReachableResources(
 		&dispatchv1.DispatchReachableResourcesRequest{
 			Metadata: &dispatchv1.ResolverMeta{
@@ -192,8 +229,7 @@ func (lw *lookupWatchServer) processUpdate(
 			SubjectIds: []string{update.Tuple.ResourceAndRelation.ObjectId},
 			SubjectRelation: &core.RelationReference{
 				Namespace: update.Tuple.ResourceAndRelation.Namespace,
-				// TODO: what is the relation for the subject side ? Is the following line of code ok ?
-				Relation: update.Tuple.ResourceAndRelation.Relation,
+				Relation:  subjectRelation,
 			},
 		},
 		rrStream,

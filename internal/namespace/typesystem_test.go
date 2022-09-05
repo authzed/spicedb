@@ -237,3 +237,91 @@ func TestTypeSystem(t *testing.T) {
 		})
 	}
 }
+
+func TestTypeSystemSearchComputedUsersetRelations(t *testing.T) {
+	testCases := []struct {
+		name              string
+		toCheck           *core.NamespaceDefinition
+		otherNamespaces   []*core.NamespaceDefinition
+		ttuRelation       string
+		expectedError     string
+		expectedRelations []string
+	}{
+		{
+			"referencedRelation in TupleToUserset",
+			ns.Namespace(
+				"document",
+				ns.Relation("reader", nil, ns.AllowedRelation("user", "...")),
+				ns.Relation("writer", nil, ns.AllowedRelation("user", "...")),
+				ns.Relation("parent", nil,
+					ns.AllowedRelation("group", "..."),
+				),
+				ns.Relation("read", ns.Union(
+					ns.ComputedUserset("reader"),
+					ns.ComputedUserset("writer"),
+					ns.TupleToUserset("parent", "read"),
+				)),
+				ns.Relation("write", ns.Union(
+					ns.ComputedUserset("reader"),
+				)),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace(
+					"user",
+				),
+				ns.Namespace(
+					"group",
+					ns.Relation("reader", nil, ns.AllowedRelation("user", "...")),
+					ns.Relation("read", ns.Union(
+						ns.ComputedUserset("reader"),
+					)),
+				),
+			},
+			"parent",
+			"",
+			[]string{"read"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			require.NoError(err)
+
+			ctx := context.Background()
+
+			lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+				for _, otherNS := range tc.otherNamespaces {
+					if err := rwt.WriteNamespaces(otherNS); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			require.NoError(err)
+
+			ts, err := BuildNamespaceTypeSystemForDatastore(tc.toCheck, ds.SnapshotReader(lastRevision))
+			require.NoError(err)
+			_, terr := ts.Validate(ctx)
+			if tc.expectedError == "" {
+				require.NoError(terr)
+			} else {
+				require.Error(terr)
+				require.Equal(tc.expectedError, terr.Error())
+			}
+
+			referencedRelations, err := ts.SearchComputedUsersetRelations(tc.ttuRelation)
+
+			require.NoError(err)
+			if tc.expectedError == "" {
+				require.NoError(terr)
+				require.Equal(tc.expectedRelations, referencedRelations)
+			} else {
+				require.Error(terr)
+				require.Equal(tc.expectedError, terr.Error())
+			}
+		})
+	}
+}

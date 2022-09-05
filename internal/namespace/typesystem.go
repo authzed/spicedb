@@ -2,6 +2,7 @@ package namespace
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -472,6 +473,97 @@ func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName
 	}
 
 	return BuildNamespaceTypeSystem(nsDef, nts.lookupNamespace)
+}
+
+// Searches all computed user set relations given a tupleToUserSet relation
+//
+// Sample:
+//
+// ```
+// definition resource {
+//     relation reader: user
+//     relation writer: user
+//     relation parent: resource_group | resource
+
+//	    permission read = reader + writer + parent->read
+//	    permission write = reader
+//	}
+//
+// ```
+// Calling SearchComputedUsersetRelations('parent') returns ['read']
+func (nts *TypeSystem) SearchComputedUsersetRelations(ttuRelation string) ([]string, error) {
+	var referencedRelations []string
+	for _, relation := range nts.Namespace().Relation {
+		if nts.IsPermission(relation.Name) {
+			found, err := nts.searchReferencedRelationsInUsersetRewrite(ttuRelation, relation.UsersetRewrite)
+			if err != nil {
+				return nil, err
+			}
+			referencedRelations = append(referencedRelations, found...)
+		}
+	}
+	return referencedRelations, nil
+}
+
+func (nts *TypeSystem) searchReferencedRelationsInUsersetRewrite(ttuRelation string, usr *core.UsersetRewrite) ([]string, error) {
+	switch rw := usr.RewriteOperation.(type) {
+	case *core.UsersetRewrite_Union:
+		return nts.searchReferencedRelationsInSetOperation(ttuRelation, rw.Union)
+	case *core.UsersetRewrite_Intersection:
+		return nts.searchReferencedRelationsInSetOperation(ttuRelation, rw.Intersection)
+	case *core.UsersetRewrite_Exclusion:
+		return nts.searchReferencedRelationsInSetOperation(ttuRelation, rw.Exclusion)
+	default:
+		return nil, errors.New("userset rewrite operation not implemented")
+	}
+}
+
+func (nts *TypeSystem) searchReferencedRelationsInSetOperation(ttuRelation string, so *core.SetOperation) ([]string, error) {
+	var foundRelations []string
+	for _, childOneof := range so.Child {
+		switch child := childOneof.ChildType.(type) {
+		case *core.SetOperation_Child_XThis:
+			break
+		case *core.SetOperation_Child_ComputedUserset:
+			found, err := nts.searchReferencedRelationsInComputedUserset(ttuRelation, child.ComputedUserset)
+			if err != nil {
+				return nil, err
+			}
+			foundRelations = append(foundRelations, found...)
+		case *core.SetOperation_Child_UsersetRewrite:
+			found, err := nts.searchReferencedRelationsInUsersetRewrite(ttuRelation, child.UsersetRewrite)
+			if err != nil {
+				return nil, err
+			}
+			foundRelations = append(foundRelations, found...)
+		case *core.SetOperation_Child_TupleToUserset:
+			found, err := nts.searchReferencedRelationsInTupleToUserset(ttuRelation, child.TupleToUserset)
+			if err != nil {
+				return nil, err
+			}
+			foundRelations = append(foundRelations, found...)
+		case *core.SetOperation_Child_XNil:
+			break
+		default:
+			// TODO: raise error
+			break
+			// checkError(fmt.Errorf("unknown set operation child `%T` in check", child))
+		}
+	}
+	return foundRelations, nil
+}
+
+func (nts *TypeSystem) searchReferencedRelationsInComputedUserset(ttuRelation string, cu *core.ComputedUserset) ([]string, error) {
+	return []string{}, nil
+
+}
+
+func (nts *TypeSystem) searchReferencedRelationsInTupleToUserset(ttuRelation string, ttu *core.TupleToUserset) ([]string, error) {
+	if ttu.Tupleset.Relation == ttuRelation {
+		return []string{ttu.ComputedUserset.Relation}, nil
+	} else {
+		return []string{}, nil
+	}
 }
 
 // ValidatedNamespaceTypeSystem is validated type system for a namespace.
