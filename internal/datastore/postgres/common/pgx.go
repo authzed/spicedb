@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/log/zerologadapter"
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -67,6 +69,21 @@ func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 		span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 		return tuples, nil
 	}
+}
+
+// ConfigurePGXLogger sets zerolog global logger into the connection pool configuration, and maps
+// info level events to debug, as they are rather verbose for SpiceDB's info level
+func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
+	levelMappingFn := func(logger pgx.Logger) pgx.LoggerFunc {
+		return func(ctx context.Context, level pgx.LogLevel, msg string, data map[string]interface{}) {
+			if level == pgx.LogLevelInfo {
+				level = pgx.LogLevelDebug
+			}
+			logger.Log(ctx, level, msg, data)
+		}
+	}
+	l := zerologadapter.NewLogger(log.Logger)
+	connConfig.Logger = levelMappingFn(l)
 }
 
 // TxFactory returns a transaction, cleanup function, and any errors that may have

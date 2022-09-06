@@ -10,7 +10,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
@@ -73,27 +72,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if config.maxOpenConns != nil {
-		poolConfig.MaxConns = int32(*config.maxOpenConns)
-	}
-
-	if config.minOpenConns != nil {
-		poolConfig.MinConns = int32(*config.minOpenConns)
-	}
-
-	if config.connMaxIdleTime != nil {
-		poolConfig.MaxConnIdleTime = *config.connMaxIdleTime
-	}
-
-	if config.connMaxLifetime != nil {
-		poolConfig.MaxConnLifetime = *config.connMaxLifetime
-	}
-
-	if config.connHealthCheckInterval != nil {
-		poolConfig.HealthCheckPeriod = *config.connHealthCheckInterval
-	}
-
-	poolConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
+	configurePool(config, poolConfig)
 
 	pool, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
 	if err != nil {
@@ -166,6 +145,30 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
 
 	return ds, nil
+}
+
+func configurePool(config crdbOptions, pgxConfig *pgxpool.Config) {
+	if config.maxOpenConns != nil {
+		pgxConfig.MaxConns = int32(*config.maxOpenConns)
+	}
+
+	if config.minOpenConns != nil {
+		pgxConfig.MinConns = int32(*config.minOpenConns)
+	}
+
+	if config.connMaxIdleTime != nil {
+		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
+	}
+
+	if config.connMaxLifetime != nil {
+		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
+	}
+
+	if config.connHealthCheckInterval != nil {
+		pgxConfig.HealthCheckPeriod = *config.connHealthCheckInterval
+	}
+
+	pgxcommon.ConfigurePGXLogger(pgxConfig.ConnConfig)
 }
 
 type crdbDatastore struct {
