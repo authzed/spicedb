@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -11,11 +12,13 @@ import (
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 func init() {
@@ -47,6 +50,8 @@ const (
 var (
 	sql    = sq.StatementBuilder.PlaceholderFormat(sq.AtP)
 	tracer = otel.Tracer("spicedb/internal/datastore/spanner")
+
+	alreadyExistsRegex = regexp.MustCompile(`^Table relation_tuple: Row {String\("([^\"]+)"\), String\("([^\"]+)"\), String\("([^\"]+)"\), String\("([^\"]+)"\), String\("([^\"]+)"\), String\("([^\"]+)"\)} already exists.$`)
 )
 
 type spannerDatastore struct {
@@ -132,6 +137,9 @@ func (sd spannerDatastore) ReadWriteTx(
 		return fn(ctx, rwt)
 	})
 	if err != nil {
+		if cerr := convertToWriteConstraintError(err); cerr != nil {
+			return datastore.NoRevision, cerr
+		}
 		return datastore.NoRevision, err
 	}
 
@@ -179,4 +187,28 @@ func statementFromSQL(sql string, args []interface{}) spanner.Statement {
 		SQL:    sql,
 		Params: params,
 	}
+}
+
+func convertToWriteConstraintError(err error) error {
+	if spanner.ErrCode(err) == codes.AlreadyExists {
+		description := spanner.ErrDesc(err)
+		found := alreadyExistsRegex.FindStringSubmatch(description)
+		if found != nil {
+			return common.NewCreateRelationshipExistsError(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: found[1],
+					ObjectId:  found[2],
+					Relation:  found[3],
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: found[4],
+					ObjectId:  found[5],
+					Relation:  found[6],
+				},
+			})
+		}
+
+		return common.NewCreateRelationshipExistsError(nil)
+	}
+	return nil
 }

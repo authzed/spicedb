@@ -8,6 +8,7 @@ import (
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -65,7 +66,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 		switch mutation.Operation {
 		case core.RelationTupleUpdate_CREATE:
 			if existing != nil {
-				return fmt.Errorf("duplicate relationship found for create operation")
+				return common.NewCreateRelationshipExistsError(existing.RelationTuple())
 			}
 			fallthrough
 		case core.RelationTupleUpdate_TOUCH:

@@ -31,44 +31,47 @@ func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
 		defer txCleanup(ctx)
+		return queryTuples(ctx, sql, args, span, tx)
+	}
+}
 
-		span.AddEvent("DB transaction established")
+// queryTuples queries tuples for the given query and transaction.
+func queryTuples(ctx context.Context, sql string, args []any, span trace.Span, tx pgx.Tx) ([]*corev1.RelationTuple, error) {
+	span.AddEvent("DB transaction established")
+	rows, err := tx.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToQueryTuples, err)
+	}
+	defer rows.Close()
 
-		rows, err := tx.Query(ctx, sql, args...)
+	span.AddEvent("Query issued to database")
+
+	var tuples []*corev1.RelationTuple
+	for rows.Next() {
+		nextTuple := &corev1.RelationTuple{
+			ResourceAndRelation: &corev1.ObjectAndRelation{},
+			Subject:             &corev1.ObjectAndRelation{},
+		}
+		err := rows.Scan(
+			&nextTuple.ResourceAndRelation.Namespace,
+			&nextTuple.ResourceAndRelation.ObjectId,
+			&nextTuple.ResourceAndRelation.Relation,
+			&nextTuple.Subject.Namespace,
+			&nextTuple.Subject.ObjectId,
+			&nextTuple.Subject.Relation,
+		)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
-		defer rows.Close()
 
-		span.AddEvent("Query issued to database")
-
-		var tuples []*corev1.RelationTuple
-		for rows.Next() {
-			nextTuple := &corev1.RelationTuple{
-				ResourceAndRelation: &corev1.ObjectAndRelation{},
-				Subject:             &corev1.ObjectAndRelation{},
-			}
-			err := rows.Scan(
-				&nextTuple.ResourceAndRelation.Namespace,
-				&nextTuple.ResourceAndRelation.ObjectId,
-				&nextTuple.ResourceAndRelation.Relation,
-				&nextTuple.Subject.Namespace,
-				&nextTuple.Subject.ObjectId,
-				&nextTuple.Subject.Relation,
-			)
-			if err != nil {
-				return nil, fmt.Errorf(errUnableToQueryTuples, err)
-			}
-
-			tuples = append(tuples, nextTuple)
-		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
-		}
-
-		span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
-		return tuples, nil
+		tuples = append(tuples, nextTuple)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf(errUnableToQueryTuples, err)
+	}
+
+	span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
+	return tuples, nil
 }
 
 // ConfigurePGXLogger sets zerolog global logger into the connection pool configuration, and maps
