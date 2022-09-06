@@ -84,8 +84,11 @@ func String(tpl *core.RelationTuple) string {
 
 // MustRelString converts a relationship into a string.  Will panic if
 // the Relationship does not validate.
-func MustRelString(tpl *v1.Relationship) string {
-	return String(MustFromRelationship(tpl))
+func MustRelString(rel *v1.Relationship) string {
+	if err := rel.Validate(); err != nil {
+		panic(fmt.Sprintf("invalid relationship: %#v %s", rel, err))
+	}
+	return StringRelationship(rel)
 }
 
 // MustParse wraps Parse such that any failures panic rather than returning

@@ -192,7 +192,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	// Check for duplicate updates.
 	updateRelationshipSet := util.NewSet[string]()
 	for _, update := range req.Updates {
-		tupleStr := tuple.MustRelString(update.Relationship)
+		tupleStr := tuple.StringRelationship(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
 			return nil, rewritePermissionsError(
 				ctx,
