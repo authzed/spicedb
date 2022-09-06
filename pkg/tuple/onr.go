@@ -3,9 +3,7 @@ package tuple
 import (
 	"fmt"
 	"sort"
-	"strings"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -95,19 +93,4 @@ func StringsONRs(onrs []*core.ObjectAndRelation) []string {
 
 	sort.Strings(onrstrings)
 	return onrstrings
-}
-
-// StringObjectRef marshals a *v1.ObjectReference into a string.
-func StringObjectRef(ref *v1.ObjectReference) string {
-	return ref.ObjectType + ":" + ref.ObjectId
-}
-
-// StringSubjectRef marshals a *v1.SubjectReference into a string.
-func StringSubjectRef(ref *v1.SubjectReference) string {
-	var b strings.Builder
-	b.WriteString(ref.Object.ObjectType + ":" + ref.Object.ObjectId)
-	if ref.OptionalRelation != "" {
-		b.WriteString("#" + ref.OptionalRelation)
-	}
-	return b.String()
 }
