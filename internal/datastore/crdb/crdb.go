@@ -57,6 +57,8 @@ const (
 	querySelectNow          = "SELECT cluster_logical_timestamp()"
 	queryShowZoneConfig     = "SHOW ZONE CONFIGURATION FOR RANGE default;"
 	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
+
+	livingTupleConstraint = "pk_relation_tuple"
 )
 
 // NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB

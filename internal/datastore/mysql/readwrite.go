@@ -5,9 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/go-sql-driver/mysql"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -25,6 +28,8 @@ const (
 	errUnableToWriteConfig         = "unable to write namespace config: %w"
 	errUnableToDeleteConfig        = "unable to delete namespace config: %w"
 )
+
+var duplicateEntryRegx = regexp.MustCompile(`^Duplicate entry '(.+)' for key 'uq_relation_tuple_living'$`)
 
 type mysqlReadWriteTXN struct {
 	*mysqlReader
@@ -120,23 +125,15 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*core.RelationTuple
 
 		_, err = rwt.tx.ExecContext(ctx, query, args...)
 		if err != nil {
+			if cerr := convertToWriteConstraintError(err); cerr != nil {
+				return cerr
+			}
+
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
 
 	return nil
-}
-
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
-	return sq.Eq{
-		colNamespace:        r.ResourceAndRelation.Namespace,
-		colObjectID:         r.ResourceAndRelation.ObjectId,
-		colRelation:         r.ResourceAndRelation.Relation,
-		colUsersetNamespace: r.Subject.Namespace,
-		colUsersetObjectID:  r.Subject.ObjectId,
-		colUsersetRelation:  r.Subject.Relation,
-	}
 }
 
 func (rwt *mysqlReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) error {
@@ -284,6 +281,45 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespace(nsName string) error {
 	}
 
 	return nil
+}
+
+func convertToWriteConstraintError(err error) error {
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) && mysqlErr.Number == errMysqlDuplicateEntry {
+		found := duplicateEntryRegx.FindStringSubmatch(mysqlErr.Message)
+		if found != nil {
+			parts := strings.Split(found[1], "-")
+			if len(parts) == 7 {
+				return common.NewCreateRelationshipExistsError(&core.RelationTuple{
+					ResourceAndRelation: &core.ObjectAndRelation{
+						Namespace: parts[0],
+						ObjectId:  parts[1],
+						Relation:  parts[2],
+					},
+					Subject: &core.ObjectAndRelation{
+						Namespace: parts[3],
+						ObjectId:  parts[4],
+						Relation:  parts[5],
+					},
+				})
+			}
+		}
+
+		return common.NewCreateRelationshipExistsError(nil)
+	}
+	return nil
+}
+
+// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
+	return sq.Eq{
+		colNamespace:        r.ResourceAndRelation.Namespace,
+		colObjectID:         r.ResourceAndRelation.ObjectId,
+		colRelation:         r.ResourceAndRelation.Relation,
+		colUsersetNamespace: r.Subject.Namespace,
+		colUsersetObjectID:  r.Subject.ObjectId,
+		colUsersetRelation:  r.Subject.Relation,
+	}
 }
 
 var _ datastore.ReadWriteTransaction = &mysqlReadWriteTXN{}

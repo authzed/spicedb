@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -151,6 +152,12 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleU
 		}
 
 		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+			// If a unique constraint violation is returned, then its likely that the cause
+			// was an existing relationship given as a CREATE.
+			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
+				return cerr
+			}
+
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}

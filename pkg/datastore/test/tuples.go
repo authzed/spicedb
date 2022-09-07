@@ -537,6 +537,66 @@ func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 }
 
+// WriteDeleteWriteTest tests writing a relationship, deleting it, and then writing it again.
+func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl := makeTestTuple("foo", "tom")
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	require.NoError(err)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, tpl)
+	require.NoError(err)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	require.NoError(err)
+}
+
+// CreateAlreadyExistingTest tests creating a relationship twice.
+func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl1 := makeTestTuple("foo", "tom")
+	tpl2 := makeTestTuple("foo", "sarah")
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl1, tpl2)
+	require.NoError(err)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl1)
+	require.ErrorAs(err, &common.CreateRelationshipExistsError{})
+	require.Contains(err.Error(), "could not CREATE")
+}
+
+// TouchAlreadyExistingTest tests touching a relationship twice.
+func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl1 := makeTestTuple("foo", "tom")
+	tpl2 := makeTestTuple("foo", "sarah")
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1, tpl2)
+	require.NoError(err)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1)
+	require.NoError(err)
+}
+
 // UsersetsTest tests whether or not the requirements for reading usersets hold
 // for a particular datastore.
 func UsersetsTest(t *testing.T, tester DatastoreTester) {

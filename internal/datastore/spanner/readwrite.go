@@ -23,7 +23,7 @@ type spannerReadWriteTXN struct {
 }
 
 func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
-	ctx, span := tracer.Start(rwt.ctx, "WriteTuples")
+	ctx, span := tracer.Start(rwt.ctx, "WriteRelationships")
 	defer span.End()
 
 	changeUUID := uuid.New().String()

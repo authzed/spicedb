@@ -61,6 +61,8 @@ const (
 
 	pgSerializationFailure      = "40001"
 	pgUniqueConstraintViolation = "23505"
+
+	livingTupleConstraint = "uq_relation_tuple_living"
 )
 
 func init() {
