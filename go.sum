@@ -97,8 +97,6 @@ github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed h1:u
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
 github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a/go.mod h1:lB+ZfQJz7igIIfQNfa7Ml4HSf2uFQQRzpGGRXenZAgY=
-github.com/authzed/authzed-go v0.6.1-0.20220829195957-23aec9014d2f h1:hmtxtXGcUCxGuA3bJGTy0qK+18tUlVvVFMvyauebW34=
-github.com/authzed/authzed-go v0.6.1-0.20220829195957-23aec9014d2f/go.mod h1:m4JRMHkPM/pVqcvrON8wkYGIBILqkbMno1UNL62rXN0=
 github.com/authzed/authzed-go v0.6.1-0.20220907110811-dcd2429c6178 h1:TGfpZkJdpIZ7+9kLT/w+VDpnOpSlrM1mJ9SGCBYCbMs=
 github.com/authzed/authzed-go v0.6.1-0.20220907110811-dcd2429c6178/go.mod h1:bmjzzIQ34M0+z8NO9SLjf4oA0A9Ka9gUWVzeSbD0E7c=
 github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5 h1:sZM7XzdyuLyxj7pC/g7uX+XAqZ7m6NMxZzuQRovgBPw=
