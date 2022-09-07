@@ -12,7 +12,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/ngrok/sqlmw"
@@ -101,23 +100,7 @@ func NewPostgresDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if config.maxOpenConns != nil {
-		pgxConfig.MaxConns = int32(*config.maxOpenConns)
-	}
-	if config.minOpenConns != nil {
-		pgxConfig.MinConns = int32(*config.minOpenConns)
-	}
-	if config.connMaxIdleTime != nil {
-		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
-	}
-	if config.connMaxLifetime != nil {
-		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
-	}
-	if config.healthCheckPeriod != nil {
-		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
-	}
-
-	pgxConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
+	configurePool(config, pgxConfig)
 
 	dbpool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
 	if err != nil {
@@ -198,6 +181,26 @@ func NewPostgresDatastore(
 	}
 
 	return datastore, nil
+}
+
+func configurePool(config postgresOptions, pgxConfig *pgxpool.Config) {
+	if config.maxOpenConns != nil {
+		pgxConfig.MaxConns = int32(*config.maxOpenConns)
+	}
+	if config.minOpenConns != nil {
+		pgxConfig.MinConns = int32(*config.minOpenConns)
+	}
+	if config.connMaxIdleTime != nil {
+		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
+	}
+	if config.connMaxLifetime != nil {
+		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
+	}
+	if config.healthCheckPeriod != nil {
+		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
+	}
+
+	pgxcommon.ConfigurePGXLogger(pgxConfig.ConnConfig)
 }
 
 type pgDatastore struct {
