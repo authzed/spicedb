@@ -3,6 +3,8 @@ package namespace
 import (
 	"context"
 
+	"github.com/authzed/spicedb/internal/util"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -77,4 +79,23 @@ func ReadNamespaceAndTypes(
 
 	ts, terr := BuildNamespaceTypeSystemForDatastore(nsDef, ds)
 	return nsDef, ts, terr
+}
+
+// ListReferencedNamespaces returns the names of all namespaces referenced in the
+// given namespace definitions. This includes the namespaces themselves, as well as
+// any found in type information on relations.
+func ListReferencedNamespaces(nsdefs []*core.NamespaceDefinition) []string {
+	referencedNamespaceNamesSet := util.NewSet[string]()
+	for _, nsdef := range nsdefs {
+		referencedNamespaceNamesSet.Add(nsdef.Name)
+
+		for _, relation := range nsdef.Relation {
+			if relation.GetTypeInformation() != nil {
+				for _, allowedRel := range relation.GetTypeInformation().AllowedDirectRelations {
+					referencedNamespaceNamesSet.Add(allowedRel.GetNamespace())
+				}
+			}
+		}
+	}
+	return referencedNamespaceNamesSet.AsSlice()
 }
