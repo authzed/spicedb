@@ -12,6 +12,36 @@ message RelationTuple {
 
   /** subject is the subject for the tuple */
   ObjectAndRelation subject = 2 [ (validate.rules).message.required = true ];
+
+  /** referencing a caveat that must be enforced over the tuple **/
+  CaveatReference caveat = 3 [ (validate.rules).message.required = false ];
+}
+
+message CaveatReference {
+  /** caveat is a reference to a named caveat, or an anonymous caveat attached to the tuple **/
+  Caveat caveat = 1 [ (validate.rules).message.required = true ];
+  /** predefined are arguments used as input during caveat evaluation with a predefined value **/
+  map<string, google.protobuf.Any> predefined = 2 [(validate.rules).map = {max_pairs: 10}];
+}
+
+message Caveat {
+  enum Type {
+    UNKNOWN = 0;
+    NAMED = 1;
+    ANONYMOUS = 2;
+  }
+
+  /** the type of this caveat: either anonymous or named **/
+  Type type = 1 [ (validate.rules).enum.defined_only = true ];
+
+  /** digest represents the unique identifier of the caveat **/
+  string digest = 2 [ (validate.rules).string = {
+    pattern : "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$",
+    max_bytes : 128,
+  } ];
+
+  /** logic is the byte representation of a caveat's logic */
+  bytes logic = 3 [(validate.rules).bytes = {min_len: 0, max_len: 4096}];
 }
 
 message ObjectAndRelation {

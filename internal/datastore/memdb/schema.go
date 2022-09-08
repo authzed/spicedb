@@ -45,6 +45,19 @@ type relationship struct {
 	subjectNamespace string
 	subjectObjectID  string
 	subjectRelation  string
+	caveat           *caveatReference
+}
+
+type caveatReference struct {
+	predefined map[string]any
+	caveat     *caveat
+}
+
+func (cr *caveatReference) CaveatReference() *core.CaveatReference {
+	return &core.CaveatReference{
+		Caveat: cr.caveat.CoreCaveat(),
+		//Predefined: cr.predefined // TODO vroldanbet type mismatch
+	}
 }
 
 func (r relationship) MarshalZerologObject(e *zerolog.Event) {
@@ -88,6 +101,7 @@ func (r relationship) RelationTuple() *core.RelationTuple {
 			ObjectId:  r.subjectObjectID,
 			Relation:  r.subjectRelation,
 		},
+		Caveat: r.caveat.CaveatReference(),
 	}
 }
 
@@ -175,6 +189,16 @@ var schema = &memdb.DBSchema{
 					Name:    indexSubjectNamespace,
 					Unique:  false,
 					Indexer: &memdb.StringFieldIndex{Field: "subjectNamespace"},
+				},
+			},
+		},
+		tableCaveats: {
+			Name: tableCaveats,
+			Indexes: map[string]*memdb.IndexSchema{
+				indexID: {
+					Name:    indexID,
+					Unique:  true,
+					Indexer: &memdb.StringFieldIndex{Field: "digest"},
 				},
 			},
 		},

@@ -16,6 +16,13 @@ type CompiledCaveat struct {
 
 	// ast is the AST form of the CEL program.
 	ast *cel.Ast
+
+	name string
+}
+
+// Name
+func (cc CompiledCaveat) Name() string {
+	return cc.name
 }
 
 // ExprString returns the string-form of the caveat.
@@ -46,6 +53,15 @@ type CompilationErrors struct {
 	issues *cel.Issues
 }
 
+func CompileCaveatWithName(env *Environment, exprString, name string) (*CompiledCaveat, error) {
+	c, err := CompileCaveat(env, exprString)
+	if err != nil {
+		return nil, err
+	}
+	c.name = name
+	return c, nil
+}
+
 // CompileCaveat compiles a caveat string into a compiled caveat, or returns the compilation errors.
 func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error) {
 	celEnv, err := env.asCelEnvironment()
@@ -63,7 +79,7 @@ func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 		return nil, CompilationErrors{fmt.Errorf("caveat expression must result in a boolean value: found `%s`", ast.OutputType().String()), nil}
 	}
 
-	return &CompiledCaveat{celEnv, ast}, nil
+	return &CompiledCaveat{celEnv, ast, ""}, nil
 }
 
 // DeserializeCaveat deserializes a byte-serialized caveat back into a CompiledCaveat.
@@ -80,5 +96,5 @@ func DeserializeCaveat(env *Environment, serialized []byte) (*CompiledCaveat, er
 	}
 
 	ast := cel.CheckedExprToAst(caveat.GetCel())
-	return &CompiledCaveat{celEnv, ast}, nil
+	return &CompiledCaveat{celEnv, ast, ""}, nil
 }
