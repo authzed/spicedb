@@ -238,14 +238,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
 	}
 
-	if c.MaximumPreconditionCount == 0 {
-		return nil, fmt.Errorf("maximum preconditions allowed must be greater than zero")
-	}
-
-	if c.MaximumUpdatesPerWrite == 0 {
-		return nil, fmt.Errorf("maximum updates per write allowed must be greater than zero")
-	}
-
 	permSysConfig := v1svc.PermissionsServerConfig{
 		MaxPreconditionsCount: c.MaximumPreconditionCount,
 		MaxUpdatesPerWrite:    c.MaximumUpdatesPerWrite,
