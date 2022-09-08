@@ -35,6 +35,10 @@ func (rwt *memdbReadWriteTx) WriteRelationships(mutations []*core.RelationTupleU
 func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTupleUpdate) error {
 	// Apply the mutations
 	for _, mutation := range mutations {
+		cr, err := rwt.prepareCaveat(tx, mutation)
+		if err != nil {
+			return err
+		}
 		rel := &relationship{
 			mutation.Tuple.ResourceAndRelation.Namespace,
 			mutation.Tuple.ResourceAndRelation.ObjectId,
@@ -42,6 +46,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 			mutation.Tuple.Subject.Namespace,
 			mutation.Tuple.Subject.ObjectId,
 			mutation.Tuple.Subject.Relation,
+			cr,
 		}
 
 		found, err := tx.First(
@@ -85,6 +90,36 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 	}
 
 	return nil
+}
+
+func (rwt *memdbReadWriteTx) prepareCaveat(tx *memdb.Txn, mutation *core.RelationTupleUpdate) (*caveatReference, error) {
+	var cr *caveatReference
+	if mutation.Tuple.Caveat != nil {
+		cr = &caveatReference{
+			caveat: &caveat{
+				digest:     mutation.Tuple.Caveat.Caveat.Digest,
+				logic:      mutation.Tuple.Caveat.Caveat.Logic,
+				caveatType: mutation.Tuple.Caveat.Caveat.Type,
+			},
+		}
+		switch mutation.Tuple.Caveat.Caveat.Type {
+		case core.Caveat_ANONYMOUS:
+			if err := rwt.writeCaveat(tx, []*core.Caveat{mutation.Tuple.Caveat.Caveat}); err != nil {
+				return nil, err
+			}
+		case core.Caveat_NAMED:
+			it, err := rwt.readCaveat(tx, mutation.Tuple.Caveat.Caveat.Digest)
+			if err != nil {
+				return nil, err
+			}
+			if it.Next() == nil {
+				return nil, fmt.Errorf("tuple referenced a non-existing named caveat %s", mutation.Tuple.Caveat.Caveat.Digest)
+			}
+		default:
+			return nil, fmt.Errorf("unknown caveat type")
+		}
+	}
+	return cr, nil
 }
 
 func (rwt *memdbReadWriteTx) DeleteRelationships(filter *v1.RelationshipFilter) error {
