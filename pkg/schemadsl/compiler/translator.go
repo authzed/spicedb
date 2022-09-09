@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/authzed/spicedb/internal/util"
+
 	"github.com/jzelinskie/stringz"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -40,10 +42,16 @@ const Ellipsis = "..."
 
 func translate(tctx translationContext, root *dslNode) ([]*core.NamespaceDefinition, error) {
 	definitions := []*core.NamespaceDefinition{}
+	names := util.NewSet[string]()
+
 	for _, definitionNode := range root.GetChildren() {
 		definition, err := translateDefinition(tctx, definitionNode)
 		if err != nil {
 			return []*core.NamespaceDefinition{}, err
+		}
+
+		if !names.Add(definition.Name) {
+			return nil, definitionNode.Errorf("duplicate definition: %s", definition.Name)
 		}
 
 		definitions = append(definitions, definition)
