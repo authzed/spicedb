@@ -379,3 +379,17 @@ func TestSchemaEmpty(t *testing.T) {
 	_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 }
+
+func TestSchemaTypeRedefined(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+
+	// Write a schema that redefines the same type.
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition example/user {}
+	
+		definition example/user {}`,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+}
