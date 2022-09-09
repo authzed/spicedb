@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
+	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
@@ -18,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
@@ -110,7 +110,7 @@ func NewPostgresDatastore(
 	}
 
 	if config.enablePrometheusStats {
-		collector := pgxcommon.NewPgxpoolStatsCollector(dbpool, "spicedb")
+		collector := pgxpoolprometheus.NewCollector(dbpool, map[string]string{"db_name": "spicedb"})
 		if err := prometheus.Register(collector); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
