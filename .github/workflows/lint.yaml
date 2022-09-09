@@ -49,6 +49,7 @@ jobs:
           working_directory: "tools/analyzers"
       - name: "Run custom analyzers"
         run: './tools/analyzers/analyzers -skip-pkg "github.com/authzed/spicedb/pkg/proto/dispatch/v1" -disallowed-nil-return-type-paths "*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse" ./...'
+      - uses: "authzed/actions/govulncheck@main"
 
   extra-lint:
     name: "Lint YAML & Markdown"
