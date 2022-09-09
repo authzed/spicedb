@@ -204,7 +204,7 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	}
 
 	// Start a goroutine for garbage collection.
-	if store.gcInterval > 0*time.Minute {
+	if store.gcInterval > 0*time.Minute && config.gcEnabled {
 		store.gcGroup, store.gcCtx = errgroup.WithContext(store.gcCtx)
 		store.gcGroup.Go(func() error {
 			return common.StartGarbageCollector(

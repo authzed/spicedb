@@ -98,12 +98,16 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	if err := ds.runGC(ctx); err != nil {
-		cancel()
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	if config.gcInterval > 0*time.Minute && config.gcEnabled {
+		ctx, cancel := context.WithCancel(context.Background())
+		if err := ds.runGC(ctx); err != nil {
+			cancel()
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		ds.stopGC = cancel
+	} else {
+		log.Warn().Msg("datastore garbage collection disabled")
 	}
-	ds.stopGC = cancel
 
 	return ds, nil
 }

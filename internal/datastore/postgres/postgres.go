@@ -167,7 +167,7 @@ func NewPostgresDatastore(
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
 
 	// Start a goroutine for garbage collection.
-	if datastore.gcInterval > 0*time.Minute {
+	if datastore.gcInterval > 0*time.Minute && config.gcEnabled {
 		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
 		datastore.gcGroup.Go(func() error {
 			return common.StartGarbageCollector(

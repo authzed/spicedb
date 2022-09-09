@@ -240,6 +240,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 	pgOpts := []postgres.Option{
 		postgres.GCWindow(opts.GCWindow),
+		postgres.GCEnabled(!opts.ReadOnly),
 		postgres.RevisionQuantization(opts.RevisionQuantization),
 		postgres.ConnMaxIdleTime(opts.MaxIdleTime),
 		postgres.ConnMaxLifetime(opts.MaxLifetime),
@@ -263,6 +264,7 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.FollowerReadDelay(opts.FollowerReadDelay),
 		spanner.GCInterval(opts.GCInterval),
 		spanner.GCWindow(opts.GCWindow),
+		spanner.GCEnabled(!opts.ReadOnly),
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
@@ -274,6 +276,7 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCWindow(opts.GCWindow),
 		mysql.GCInterval(opts.GCInterval),
+		mysql.GCEnabled(!opts.ReadOnly),
 		mysql.ConnMaxIdleTime(opts.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.MaxLifetime),
 		mysql.MaxOpenConns(opts.MaxOpenConns),
