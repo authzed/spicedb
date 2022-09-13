@@ -195,15 +195,23 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			for _, change := range tx.Changes() {
 				if change.Table == tableRelationship {
 					if change.After != nil {
+						rt, err := change.After.(*relationship).RelationTuple()
+						if err != nil {
+							return datastore.NoRevision, err
+						}
 						newChanges.Changes = append(newChanges.Changes, &corev1.RelationTupleUpdate{
 							Operation: corev1.RelationTupleUpdate_TOUCH,
-							Tuple:     change.After.(*relationship).RelationTuple(),
+							Tuple:     rt,
 						})
 					}
 					if change.After == nil && change.Before != nil {
+						rt, err := change.Before.(*relationship).RelationTuple()
+						if err != nil {
+							return datastore.NoRevision, err
+						}
 						newChanges.Changes = append(newChanges.Changes, &corev1.RelationTupleUpdate{
 							Operation: corev1.RelationTupleUpdate_DELETE,
-							Tuple:     change.Before.(*relationship).RelationTuple(),
+							Tuple:     rt,
 						})
 					}
 				}

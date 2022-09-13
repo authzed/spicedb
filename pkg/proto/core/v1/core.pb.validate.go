@@ -306,60 +306,32 @@ func (m *CaveatReference) validate(all bool) error {
 		}
 	}
 
-	if len(m.GetPredefined()) > 10 {
-		err := CaveatReferenceValidationError{
-			field:  "Predefined",
-			reason: "value must contain no more than 10 pair(s)",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
-	{
-		sorted_keys := make([]string, len(m.GetPredefined()))
-		i := 0
-		for key := range m.GetPredefined() {
-			sorted_keys[i] = key
-			i++
-		}
-		sort.Slice(sorted_keys, func(i, j int) bool { return sorted_keys[i] < sorted_keys[j] })
-		for _, key := range sorted_keys {
-			val := m.GetPredefined()[key]
-			_ = val
-
-			// no validation rules for Predefined[key]
-
-			if all {
-				switch v := interface{}(val).(type) {
-				case interface{ ValidateAll() error }:
-					if err := v.ValidateAll(); err != nil {
-						errors = append(errors, CaveatReferenceValidationError{
-							field:  fmt.Sprintf("Predefined[%v]", key),
-							reason: "embedded message failed validation",
-							cause:  err,
-						})
-					}
-				case interface{ Validate() error }:
-					if err := v.Validate(); err != nil {
-						errors = append(errors, CaveatReferenceValidationError{
-							field:  fmt.Sprintf("Predefined[%v]", key),
-							reason: "embedded message failed validation",
-							cause:  err,
-						})
-					}
-				}
-			} else if v, ok := interface{}(val).(interface{ Validate() error }); ok {
-				if err := v.Validate(); err != nil {
-					return CaveatReferenceValidationError{
-						field:  fmt.Sprintf("Predefined[%v]", key),
-						reason: "embedded message failed validation",
-						cause:  err,
-					}
-				}
+	if all {
+		switch v := interface{}(m.GetContext()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CaveatReferenceValidationError{
+					field:  "Context",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
 			}
-
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CaveatReferenceValidationError{
+					field:  "Context",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetContext()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CaveatReferenceValidationError{
+				field:  "Context",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
 		}
 	}
 
@@ -473,9 +445,9 @@ func (m *Caveat) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if len(m.GetDigest()) > 128 {
+	if len(m.GetName()) > 128 {
 		err := CaveatValidationError{
-			field:  "Digest",
+			field:  "Name",
 			reason: "value length must be at most 128 bytes",
 		}
 		if !all {
@@ -484,9 +456,9 @@ func (m *Caveat) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if !_Caveat_Digest_Pattern.MatchString(m.GetDigest()) {
+	if !_Caveat_Name_Pattern.MatchString(m.GetName()) {
 		err := CaveatValidationError{
-			field:  "Digest",
+			field:  "Name",
 			reason: "value does not match regex pattern \"^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\\\*)$\"",
 		}
 		if !all {
@@ -495,9 +467,9 @@ func (m *Caveat) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if l := len(m.GetLogic()); l < 0 || l > 4096 {
+	if l := len(m.GetExpression()); l < 0 || l > 4096 {
 		err := CaveatValidationError{
-			field:  "Logic",
+			field:  "Expression",
 			reason: "value length must be between 0 and 4096 bytes, inclusive",
 		}
 		if !all {
@@ -583,7 +555,7 @@ var _ interface {
 	ErrorName() string
 } = CaveatValidationError{}
 
-var _Caveat_Digest_Pattern = regexp.MustCompile("^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$")
+var _Caveat_Name_Pattern = regexp.MustCompile("^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$")
 
 // Validate checks the field values on ObjectAndRelation with the rules defined
 // in the proto definition for this message. If any rules are violated, the

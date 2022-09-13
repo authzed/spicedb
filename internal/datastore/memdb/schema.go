@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -49,15 +50,22 @@ type relationship struct {
 }
 
 type caveatReference struct {
-	predefined map[string]any
-	caveat     *caveat
+	context map[string]any
+	caveat  *caveat
 }
 
-func (cr *caveatReference) CaveatReference() *core.CaveatReference {
-	return &core.CaveatReference{
-		Caveat: cr.caveat.CoreCaveat(),
-		//Predefined: cr.predefined // TODO vroldanbet type mismatch
+func (cr *caveatReference) CaveatReference() (*core.CaveatReference, error) {
+	if cr == nil {
+		return nil, nil
 	}
+	v, err := structpb.NewStruct(cr.context)
+	if err != nil {
+		return nil, err
+	}
+	return &core.CaveatReference{
+		Caveat:  cr.caveat.CoreCaveat(),
+		Context: v,
+	}, nil
 }
 
 func (r relationship) MarshalZerologObject(e *zerolog.Event) {
@@ -89,7 +97,11 @@ func (r relationship) Relationship() *v1.Relationship {
 	}
 }
 
-func (r relationship) RelationTuple() *core.RelationTuple {
+func (r relationship) RelationTuple() (*core.RelationTuple, error) {
+	cr, err := r.caveat.CaveatReference()
+	if err != nil {
+		return nil, err
+	}
 	return &core.RelationTuple{
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: r.namespace,
@@ -101,8 +113,8 @@ func (r relationship) RelationTuple() *core.RelationTuple {
 			ObjectId:  r.subjectObjectID,
 			Relation:  r.subjectRelation,
 		},
-		Caveat: r.caveat.CaveatReference(),
-	}
+		Caveat: cr,
+	}, nil
 }
 
 type changelog struct {
@@ -198,7 +210,7 @@ var schema = &memdb.DBSchema{
 				indexID: {
 					Name:    indexID,
 					Unique:  true,
-					Indexer: &memdb.StringFieldIndex{Field: "digest"},
+					Indexer: &memdb.StringFieldIndex{Field: "name"},
 				},
 			},
 		},

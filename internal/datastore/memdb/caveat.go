@@ -10,20 +10,20 @@ import (
 const tableCaveats = "caveats"
 
 type caveat struct {
-	digest     string
-	logic      []byte
+	name       string
+	expression []byte
 	caveatType core.Caveat_Type
 }
 
 func (c *caveat) CoreCaveat() *core.Caveat {
 	return &core.Caveat{
-		Digest: c.digest,
-		Logic:  c.logic,
-		Type:   c.caveatType,
+		Name:       c.name,
+		Expression: c.expression,
+		Type:       c.caveatType,
 	}
 }
 
-func (r *memdbReader) ReadCaveat(digest string) (datastore.CaveatIterator, error) {
+func (r *memdbReader) ReadCaveat(name string) (datastore.CaveatIterator, error) {
 	r.lockOrPanic()
 	defer r.Unlock()
 
@@ -31,11 +31,11 @@ func (r *memdbReader) ReadCaveat(digest string) (datastore.CaveatIterator, error
 	if err != nil {
 		return nil, err
 	}
-	return r.readCaveat(tx, digest)
+	return r.readCaveat(tx, name)
 }
 
-func (r *memdbReader) readCaveat(tx *memdb.Txn, digest string) (datastore.CaveatIterator, error) {
-	it, err := tx.Get(tableCaveats, indexID, digest)
+func (r *memdbReader) readCaveat(tx *memdb.Txn, name string) (datastore.CaveatIterator, error) {
+	it, err := tx.Get(tableCaveats, indexID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -55,8 +55,8 @@ func (rwt *memdbReadWriteTx) WriteCaveat(caveats []*core.Caveat) error {
 func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) error {
 	for _, coreCaveat := range caveats {
 		c := caveat{
-			digest:     coreCaveat.Digest,
-			logic:      coreCaveat.Logic,
+			name:       coreCaveat.Name,
+			expression: coreCaveat.Expression,
 			caveatType: coreCaveat.Type,
 		}
 		if err := tx.Insert(tableCaveats, &c); err != nil {

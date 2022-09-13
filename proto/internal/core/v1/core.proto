@@ -4,6 +4,7 @@ package core.v1;
 option go_package = "github.com/authzed/spicedb/pkg/proto/core/v1";
 
 import "google/protobuf/any.proto";
+import "google/protobuf/struct.proto";
 import "validate/validate.proto";
 
 message RelationTuple {
@@ -21,7 +22,7 @@ message CaveatReference {
   /** caveat is a reference to a named caveat, or an anonymous caveat attached to the tuple **/
   Caveat caveat = 1 [ (validate.rules).message.required = true ];
   /** predefined are arguments used as input during caveat evaluation with a predefined value **/
-  map<string, google.protobuf.Any> predefined = 2 [(validate.rules).map = {max_pairs: 10}];
+  google.protobuf.Struct context = 2 [ (validate.rules).message.required = false ];
 }
 
 message Caveat {
@@ -34,14 +35,14 @@ message Caveat {
   /** the type of this caveat: either anonymous or named **/
   Type type = 1 [ (validate.rules).enum.defined_only = true ];
 
-  /** digest represents the unique identifier of the caveat **/
-  string digest = 2 [ (validate.rules).string = {
+  /** name represents the globally-unique identifier of the caveat **/
+  string name = 2 [ (validate.rules).string = {
     pattern : "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$",
     max_bytes : 128,
   } ];
 
-  /** logic is the byte representation of a caveat's logic */
-  bytes logic = 3 [(validate.rules).bytes = {min_len: 0, max_len: 4096}];
+  /** expression is the byte representation of a caveat's logic */
+  bytes expression = 3 [(validate.rules).bytes = {min_len: 0, max_len: 4096}];
 }
 
 message ObjectAndRelation {
