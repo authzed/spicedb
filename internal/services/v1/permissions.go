@@ -70,7 +70,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			Relation:  req.Permission,
 		},
 		ResourceIds:    []string{req.Resource.ObjectId},
-		ResultsSetting: dispatch.DispatchCheckRequest_SHORT_CIRCUIT,
+		ResultsSetting: dispatch.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 		Subject: &core.ObjectAndRelation{
 			Namespace: req.Subject.Object.ObjectType,
 			ObjectId:  req.Subject.Object.ObjectId,

@@ -158,7 +158,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 				checkResult, err := dis.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 					ResourceRelation: RR(tc.resourceType, tc.permission),
 					ResourceIds:      []string{tc.resourceID},
-					ResultsSetting:   v1.DispatchCheckRequest_SHORT_CIRCUIT,
+					ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 					Subject:          ONR(tc.subjectType, subjectID, tc.subjectRelation),
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     revision.String(),

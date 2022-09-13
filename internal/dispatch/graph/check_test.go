@@ -125,7 +125,7 @@ func TestSimpleCheck(t *testing.T) {
 					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 						ResourceRelation: RR(tc.namespace, expected.relation),
 						ResourceIds:      []string{tc.objectID},
-						ResultsSetting:   v1.DispatchCheckRequest_SHORT_CIRCUIT,
+						ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 						Subject:          userset.userset,
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),
@@ -170,7 +170,7 @@ func TestMaxDepth(t *testing.T) {
 	_, err = dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: RR("folder", "owner"),
 		ResourceIds:      []string{"oops"},
-		ResultsSetting:   v1.DispatchCheckRequest_SHORT_CIRCUIT,
+		ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 		Subject:          ONR("user", "fake", graph.Ellipsis),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
@@ -259,7 +259,7 @@ func TestCheckMetadata(t *testing.T) {
 					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 						ResourceRelation: RR(tc.namespace, expected.relation),
 						ResourceIds:      []string{tc.objectID},
-						ResultsSetting:   v1.DispatchCheckRequest_SHORT_CIRCUIT,
+						ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 						Subject:          userset.userset,
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),

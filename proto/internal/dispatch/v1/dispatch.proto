@@ -22,7 +22,7 @@ message DispatchCheckRequest {
 
   enum ResultsSetting {
     REQUIRE_ALL_RESULTS = 0;
-    SHORT_CIRCUIT = 1;
+    ALLOW_SINGLE_RESULT = 1;
   }
 
   ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];

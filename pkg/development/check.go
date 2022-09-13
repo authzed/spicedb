@@ -18,7 +18,7 @@ func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject 
 			Relation:  resource.Relation,
 		},
 		ResourceIds:    []string{resource.ObjectId},
-		ResultsSetting: v1.DispatchCheckRequest_SHORT_CIRCUIT,
+		ResultsSetting: v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 		Subject:        subject,
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     devContext.Revision.String(),
