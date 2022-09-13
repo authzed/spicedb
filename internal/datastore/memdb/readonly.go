@@ -280,6 +280,7 @@ type memdbTupleIterator struct {
 	it     memdb.ResultIterator
 	limit  *uint64
 	count  uint64
+	err    error
 }
 
 func (mti *memdbTupleIterator) Next() *core.RelationTuple {
@@ -293,11 +294,16 @@ func (mti *memdbTupleIterator) Next() *core.RelationTuple {
 	}
 	mti.count++
 
-	return foundRaw.(*relationship).RelationTuple()
+	rt, err := foundRaw.(*relationship).RelationTuple()
+	if err != nil {
+		mti.err = err
+		return nil
+	}
+	return rt
 }
 
 func (mti *memdbTupleIterator) Err() error {
-	return nil
+	return mti.err
 }
 
 func (mti *memdbTupleIterator) Close() {

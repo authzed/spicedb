@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestWriteReadCaveat(t *testing.T) {
@@ -47,12 +48,7 @@ func TestWriteTupleWithNamedCaveat(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	req.NoError(err)
 	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
-	tpl := tuple.MustParse("document:companyplan#parent@folder:company#...")
-	c := createCompiledCaveat(t)
-	coreCaveat := createCoreCaveat(t, c, false)
-	tpl.Caveat = &core.CaveatReference{
-		Caveat: coreCaveat,
-	}
+	tpl, coreCaveat := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", false)
 	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	// should fail because the name caveat is not present in the datastore
 	req.Error(err)
@@ -77,12 +73,7 @@ func TestWriteTupleWithAnonymousCaveat(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	req.NoError(err)
 	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
-	tpl := tuple.MustParse("document:companyplan#parent@folder:company#...")
-	c := createCompiledCaveat(t)
-	coreCaveat := createCoreCaveat(t, c, true)
-	tpl.Caveat = &core.CaveatReference{
-		Caveat: coreCaveat,
-	}
+	tpl, _ := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", true)
 	rev, err := common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	// the caveat is anonymous and is created alongside the tuple
 	req.NoError(err)
@@ -93,6 +84,20 @@ func TestWriteTupleWithAnonymousCaveat(t *testing.T) {
 	defer iter.Close()
 	readTpl := iter.Next()
 	req.Equal(tpl, readTpl)
+}
+
+func createTestCaveatedTuple(t *testing.T, tplString string, anonymous bool) (*core.RelationTuple, *core.Caveat) {
+	tpl := tuple.MustParse(tplString)
+	c := createCompiledCaveat(t)
+	coreCaveat := createCoreCaveat(t, c, anonymous)
+
+	st, err := structpb.NewStruct(map[string]interface{}{"a": 1, "b": "test"})
+	require.NoError(t, err)
+	tpl.Caveat = &core.CaveatReference{
+		Caveat:  coreCaveat,
+		Context: st,
+	}
+	return tpl, coreCaveat
 }
 
 func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.Caveat) (datastore.Revision, error) {
@@ -114,9 +119,9 @@ func createCoreCaveat(t *testing.T, c *caveats.CompiledCaveat, anonymous bool) *
 		ty = core.Caveat_ANONYMOUS
 	}
 	coreCaveat := &core.Caveat{
-		Digest: c.Name(),
-		Logic:  cBytes,
-		Type:   ty,
+		Name:       c.Name(),
+		Expression: cBytes,
+		Type:       ty,
 	}
 	require.NoError(t, err)
 	return coreCaveat

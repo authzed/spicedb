@@ -71,7 +71,11 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 		switch mutation.Operation {
 		case core.RelationTupleUpdate_CREATE:
 			if existing != nil {
-				return common.NewCreateRelationshipExistsError(existing.RelationTuple())
+				rt, err := existing.RelationTuple()
+				if err != nil {
+					return err
+				}
+				return common.NewCreateRelationshipExistsError(rt)
 			}
 			fallthrough
 		case core.RelationTupleUpdate_TOUCH:
@@ -97,10 +101,11 @@ func (rwt *memdbReadWriteTx) prepareCaveat(tx *memdb.Txn, mutation *core.Relatio
 	if mutation.Tuple.Caveat != nil {
 		cr = &caveatReference{
 			caveat: &caveat{
-				digest:     mutation.Tuple.Caveat.Caveat.Digest,
-				logic:      mutation.Tuple.Caveat.Caveat.Logic,
+				name:       mutation.Tuple.Caveat.Caveat.Name,
+				expression: mutation.Tuple.Caveat.Caveat.Expression,
 				caveatType: mutation.Tuple.Caveat.Caveat.Type,
 			},
+			context: mutation.Tuple.Caveat.Context.AsMap(),
 		}
 		switch mutation.Tuple.Caveat.Caveat.Type {
 		case core.Caveat_ANONYMOUS:
@@ -108,12 +113,12 @@ func (rwt *memdbReadWriteTx) prepareCaveat(tx *memdb.Txn, mutation *core.Relatio
 				return nil, err
 			}
 		case core.Caveat_NAMED:
-			it, err := rwt.readCaveat(tx, mutation.Tuple.Caveat.Caveat.Digest)
+			it, err := rwt.readCaveat(tx, mutation.Tuple.Caveat.Caveat.Name)
 			if err != nil {
 				return nil, err
 			}
 			if it.Next() == nil {
-				return nil, fmt.Errorf("tuple referenced a non-existing named caveat %s", mutation.Tuple.Caveat.Caveat.Digest)
+				return nil, fmt.Errorf("tuple referenced a non-existing named caveat %s", mutation.Tuple.Caveat.Caveat.Name)
 			}
 		default:
 			return nil, fmt.Errorf("unknown caveat type")
@@ -146,7 +151,11 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 	// Collect the tuples into a slice of mutations for the changelog
 	var mutations []*core.RelationTupleUpdate
 	for row := filteredIter.Next(); row != nil; row = filteredIter.Next() {
-		mutations = append(mutations, tuple.Delete(row.(*relationship).RelationTuple()))
+		rt, err := row.(*relationship).RelationTuple()
+		if err != nil {
+			return err
+		}
+		mutations = append(mutations, tuple.Delete(rt))
 	}
 
 	return rwt.write(tx, mutations...)
