@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -82,7 +83,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	}
 
 	if config.enablePrometheusStats {
-		collector := pgxcommon.NewPgxpoolStatsCollector(pool, "spicedb")
+		collector := pgxpoolprometheus.NewCollector(pool, map[string]string{"db_name": "spicedb"})
 		if err := prometheus.Register(collector); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}

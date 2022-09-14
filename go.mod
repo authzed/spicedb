@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	cloud.google.com/go/spanner v1.37.0
+	github.com/IBM/pgxpoolprometheus v1.0.1
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/authzed/authzed-go v0.6.1-0.20220907110811-dcd2429c6178
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
@@ -172,7 +173,7 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/net v0.0.0-20220812174116-3211cb980234 // indirect
+	golang.org/x/net v0.0.0-20220906165146-f3363e06e74c // indirect
 	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094 // indirect
 	golang.org/x/sys v0.0.0-20220818161305-2296e01440c6 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
