@@ -13,9 +13,10 @@ plugins:
   - name: "go"
     out: "."
     opt: "paths=source_relative"
-  - name: "go-grpc"
+  - name: "go-vtproto"
     out: "."
-    opt: "paths=source_relative"
+    # To generate pooling methods, you must add an additional `pool=fully/qualified.ProtoMessageType`
+    opt: "paths=source_relative,features=marshal+unmarshal+size+clone+pool+grpc,pool=github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckRequest,pool=github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandRequest,pool=github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupRequest,pool=github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchReachableResourcesRequest,pool=github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupSubjects"
   - name: "validate"
     out: "."
     opt: "paths=source_relative,lang=go"

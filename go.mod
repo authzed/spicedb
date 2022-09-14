@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/spanner v1.37.0
 	github.com/IBM/pgxpoolprometheus v1.0.1
 	github.com/Masterminds/squirrel v1.5.3
-	github.com/authzed/authzed-go v0.6.1-0.20220907110811-dcd2429c6178
+	github.com/authzed/authzed-go v0.7.1-0.20220915201801-94eebb436d25
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/aws/aws-sdk-go v1.44.90
 	github.com/benbjohnson/clock v1.3.0
@@ -18,11 +18,12 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ecordell/optgen v0.0.6
 	github.com/emirpasic/gods v1.18.1
-	github.com/envoyproxy/protoc-gen-validate v0.6.7
+	github.com/envoyproxy/protoc-gen-validate v0.6.8
 	github.com/fatih/color v1.13.0
 	github.com/go-co-op/gocron v1.17.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gogo/protobuf v1.3.2
+	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.4
 	github.com/google/cel-go v0.12.5
 	github.com/google/go-cmp v0.5.8
@@ -46,6 +47,7 @@ require (
 	github.com/mostynb/go-grpc-compression v1.1.17
 	github.com/ngrok/sqlmw v0.0.0-20211220175533-9d16fdc47b31
 	github.com/ory/dockertest/v3 v3.9.1
+	github.com/planetscale/vtprotobuf v0.3.1-0.20220817155510-0ae748fd2007
 	github.com/prometheus/client_golang v1.13.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.37.0
@@ -68,7 +70,7 @@ require (
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	golang.org/x/tools v0.1.12
 	google.golang.org/api v0.94.0
-	google.golang.org/genproto v0.0.0-20220822174746-9e6da59bd2fc
+	google.golang.org/genproto v0.0.0-20220915135415-7fd63a7952de
 	google.golang.org/grpc v1.49.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
 	google.golang.org/protobuf v1.28.1
@@ -104,7 +106,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -175,13 +176,13 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/net v0.0.0-20220906165146-f3363e06e74c // indirect
+	golang.org/x/net v0.0.0-20220909164309-bea034e7d591 // indirect
 	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094 // indirect
-	golang.org/x/sys v0.0.0-20220818161305-2296e01440c6 // indirect
+	golang.org/x/sys v0.0.0-20220915200043-7b5979e65e41 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
-	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
