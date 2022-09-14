@@ -125,6 +125,8 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
 
+		opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("s2")))
+
 		conn, err := grpc.Dial(opts.upstreamAddr, opts.grpcDialOpts...)
 		if err != nil {
 			return nil, err

@@ -43,6 +43,7 @@ require (
 	github.com/jzelinskie/cobrautil v0.0.12
 	github.com/jzelinskie/stringz v0.0.1
 	github.com/lib/pq v1.10.6
+	github.com/mostynb/go-grpc-compression v1.1.17
 	github.com/ngrok/sqlmw v0.0.0-20211220175533-9d16fdc47b31
 	github.com/ory/dockertest/v3 v3.9.1
 	github.com/prometheus/client_golang v1.13.0
@@ -124,6 +125,7 @@ require (
 	github.com/jackc/puddle v1.3.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lyft/protoc-gen-star v0.6.1 // indirect
