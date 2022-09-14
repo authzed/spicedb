@@ -312,7 +312,7 @@ func TestTypeSystemSearchComputedUsersetRelations(t *testing.T) {
 				require.Equal(tc.expectedError, terr.Error())
 			}
 
-			referencedRelations, err := ts.SearchComputedUsersetRelations(tc.ttuRelation)
+			referencedRelations, err := ts.ResolveArrowRelations(tc.ttuRelation)
 
 			require.NoError(err)
 			if tc.expectedError == "" {

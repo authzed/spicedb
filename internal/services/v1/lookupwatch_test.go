@@ -27,6 +27,7 @@ func permissionUpdate(
 	resourceId string,
 	subjectType string,
 	subjectId string,
+	optionalSubjectRelation string,
 	permission v1.CheckPermissionResponse_Permissionship,
 ) *lookupwatchv1.PermissionUpdate {
 	return &lookupwatchv1.PermissionUpdate{
@@ -39,6 +40,7 @@ func permissionUpdate(
 				ObjectType: subjectType,
 				ObjectId:   subjectId,
 			},
+			OptionalRelation: optionalSubjectRelation,
 		},
 		UpdatedPermission: permission,
 	}
@@ -67,7 +69,7 @@ func TestLookupWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1", ""),
 			},
 			expectedUpdates: []*lookupwatchv1.PermissionUpdate{
-				permissionUpdate("document", "document1", "user", "user1", v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION),
+				permissionUpdate("document", "document1", "user", "user1", "...", v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION),
 			},
 		},
 		{
@@ -81,8 +83,8 @@ func TestLookupWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "company", "viewer", "folder", "auditors", "viewer"),
 			},
 			expectedUpdates: []*lookupwatchv1.PermissionUpdate{
-				permissionUpdate("document", "companyplan", "user", "auditor", v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION),
-				permissionUpdate("document", "masterplan", "user", "auditor", v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION),
+				permissionUpdate("document", "companyplan", "user", "auditor", "...", v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION),
+				permissionUpdate("document", "masterplan", "user", "auditor", "...", v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION),
 			},
 		},
 		{
@@ -109,9 +111,9 @@ func TestLookupWatch(t *testing.T) {
 				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "new_document", "parent", "folder", "new_folder", ""),
 			},
 			expectedUpdates: []*lookupwatchv1.PermissionUpdate{
-				permissionUpdate("document", "new_document", "user", "legal", v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION),
-				permissionUpdate("document", "new_document", "user", "owner", v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION),
-				permissionUpdate("document", "new_document", "user", "auditor", v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION),
+				permissionUpdate("document", "new_document", "user", "legal", "...", v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION),
+				permissionUpdate("document", "new_document", "user", "owner", "...", v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION),
+				permissionUpdate("document", "new_document", "user", "auditor", "...", v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION),
 			},
 		},
 	}

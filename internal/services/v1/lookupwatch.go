@@ -75,7 +75,7 @@ func (lw *lookupWatchServer) WatchAccessibleResources(req *v1lookupwatch.WatchAc
 		afterRevision = decodedRevision
 	} else {
 		var err error
-		afterRevision, err = ds.OptimizedRevision(ctx)
+		afterRevision, err = ds.HeadRevision(ctx)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "failed to start watch: %s", err)
 		}
@@ -91,7 +91,6 @@ func (lw *lookupWatchServer) WatchAccessibleResources(req *v1lookupwatch.WatchAc
 		select {
 		case update, ok := <-updates:
 			if ok {
-				//TODO When do we CLOSE STREAM ?
 				return lw.processWatchResponse(&ctx, req, update, &stream)
 			}
 		case err := <-errchan:
@@ -151,7 +150,7 @@ func (lw *lookupWatchServer) processUpdate(
 			if err != nil {
 				return err
 			}
-			resourceRelations, err = typeSystem.SearchComputedUsersetRelations(update.Tuple.ResourceAndRelation.Relation)
+			resourceRelations, err = typeSystem.ResolveArrowRelations(update.Tuple.ResourceAndRelation.Relation)
 			if err != nil {
 				return err
 			}
@@ -178,8 +177,7 @@ func (lw *lookupWatchServer) processUpdate(
 					},
 					SubjectRelation: &core.RelationReference{
 						Namespace: req.SubjectObjectType,
-						// TODO: Name tag as optional whereas dispatchLookupSubject require this parameter
-						Relation: req.OptionalSubjectRelation,
+						Relation:  req.OptionalSubjectRelation,
 					},
 				},
 				lsStream,
@@ -204,7 +202,7 @@ func (lw *lookupWatchServer) processUpdate(
 		if err != nil {
 			return err
 		}
-		subjectRelations, err := typeSystem.SearchComputedUsersetRelations(update.Tuple.ResourceAndRelation.Relation)
+		subjectRelations, err := typeSystem.ResolveArrowRelations(update.Tuple.ResourceAndRelation.Relation)
 		if err != nil {
 			return err
 		}
@@ -269,7 +267,7 @@ func (lw *lookupWatchServer) processUpdate(
 						ObjectType: req.SubjectObjectType,
 						ObjectId:   subject,
 					},
-					OptionalRelation: "", //TODO ?
+					OptionalRelation: req.OptionalSubjectRelation,
 				},
 				Resource: &v1.ObjectReference{
 					ObjectType: req.ResourceObjectType,

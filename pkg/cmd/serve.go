@@ -80,7 +80,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	cmd.Flags().DurationVar(&config.TelemetryInterval, "telemetry-interval", telemetry.DefaultInterval, "approximate period between telemetry reports, minimum 1 minute")
 
 	// Flag for lookupWatchApi enabler
-	cmd.Flags().BoolVar(&config.LookupWatchApiEnable, "lookup-watch-api-enable", false, "enable lookupWatchApi")
+	cmd.Flags().BoolVar(&config.LookupWatchApiEnable, "ALPHA.lookup-watch-api-enable", false, "enable lookupWatchApi")
 }
 
 func NewServeCommand(programName string, config *server.Config) *cobra.Command {

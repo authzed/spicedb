@@ -64,7 +64,7 @@ func RegisterGrpcServices(
 	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(prefixRequired))
 	healthManager.RegisterReportedService(v1alpha1.SchemaService_ServiceDesc.ServiceName)
 
-	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, maxDepth)) //TODO Register lookupwatch
+	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, maxDepth))
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
 	if lookupWatchServiceOption == LookupWatchServiceEnabled {

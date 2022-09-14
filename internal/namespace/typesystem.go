@@ -475,7 +475,7 @@ func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName
 	return BuildNamespaceTypeSystem(nsDef, nts.lookupNamespace)
 }
 
-// Searches all computed user set relations given a tupleToUserSet relation
+// Returns the relation names (right-hand side) of an arrow expression given its left hand-side value
 //
 // Sample:
 //
@@ -490,8 +490,8 @@ func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName
 //	}
 //
 // ```
-// Calling SearchComputedUsersetRelations('parent') returns ['read']
-func (nts *TypeSystem) SearchComputedUsersetRelations(ttuRelation string) ([]string, error) {
+// Calling ResolveArrowRelations('parent') returns ['read']
+func (nts *TypeSystem) ResolveArrowRelations(ttuRelation string) ([]string, error) {
 	var referencedRelations []string
 	for _, relation := range nts.Namespace().Relation {
 		if nts.IsPermission(relation.Name) {
