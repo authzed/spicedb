@@ -106,7 +106,7 @@ func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.C
 		if !ok {
 			panic("expected a CaveatStorer value")
 		}
-		return cs.WriteCaveat([]*core.Caveat{coreCaveat})
+		return cs.WriteCaveats([]*core.Caveat{coreCaveat})
 	})
 }
 

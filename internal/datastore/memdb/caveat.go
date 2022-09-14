@@ -42,7 +42,7 @@ func (r *memdbReader) readCaveat(tx *memdb.Txn, name string) (datastore.CaveatIt
 	return &memdbCaveatIterator{it: it}, nil
 }
 
-func (rwt *memdbReadWriteTx) WriteCaveat(caveats []*core.Caveat) error {
+func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
@@ -66,7 +66,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteCaveat(caveats []*core.Caveat) error {
+func (rwt *memdbReadWriteTx) DeleteCaveats(caveats []*core.Caveat) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()

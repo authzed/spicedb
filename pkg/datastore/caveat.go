@@ -10,8 +10,8 @@ type CaveatReader interface {
 
 type CaveatStorer interface {
 	CaveatReader
-	WriteCaveat([]*core.Caveat) error
-	DeleteCaveat([]*core.Caveat) error
+	WriteCaveats([]*core.Caveat) error
+	DeleteCaveats([]*core.Caveat) error
 }
 
 type CaveatIterator interface {
