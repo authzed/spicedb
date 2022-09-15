@@ -20,10 +20,7 @@ message RelationTuple {
 
 message ContextualizedCaveat {
   /** caveat_id is the reference to the internal id of a stored caveat **/
-  string caveat_id = 1 [ (validate.rules).string = {
-    pattern : "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$",
-    max_bytes : 128,
-  } ];
+  uint64 caveat_id = 1 [(validate.rules).uint64.gt = 0];
 
   /** predefined are arguments used as input during caveat evaluation with a predefined value **/
   google.protobuf.Struct context = 2 [ (validate.rules).message.required = false ];

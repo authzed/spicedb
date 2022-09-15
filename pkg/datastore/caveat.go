@@ -8,7 +8,7 @@ import (
 
 var ErrCaveatNotFound = errors.New("caveat not found")
 
-type CaveatID string
+type CaveatID uint64
 
 type CaveatReader interface {
 	ReadCaveatByName(name string) (*core.Caveat, error)
