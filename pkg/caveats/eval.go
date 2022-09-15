@@ -45,7 +45,7 @@ func (cr CaveatResult) PartialValue() (*CompiledCaveat, error) {
 	}
 
 	expr := interpreter.PruneAst(cr.parentCaveat.ast.Expr(), cr.details.State())
-	return &CompiledCaveat{cr.parentCaveat.celEnv, cel.ParsedExprToAst(&exprpb.ParsedExpr{Expr: expr}), ""}, nil
+	return &CompiledCaveat{cr.parentCaveat.celEnv, cel.ParsedExprToAst(&exprpb.ParsedExpr{Expr: expr}), cr.parentCaveat.name}, nil
 }
 
 // EvaluateCaveat evaluates the compiled caveat with the specified values, and returns

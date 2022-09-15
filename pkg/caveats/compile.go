@@ -9,6 +9,8 @@ import (
 	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
+const anonymousCaveat = ""
+
 // CompiledCaveat is a compiled form of a caveat.
 type CompiledCaveat struct {
 	// env is the environment under which the CEL program was compiled.
@@ -20,7 +22,7 @@ type CompiledCaveat struct {
 	name string
 }
 
-// Name
+// Name represents a user-friendly reference to a caveat
 func (cc CompiledCaveat) Name() string {
 	return cc.name
 }
@@ -41,6 +43,7 @@ func (cc CompiledCaveat) Serialize() ([]byte, error) {
 		KindOneof: &impl.DecodedCaveat_Cel{
 			Cel: cexpr,
 		},
+		Name: cc.name,
 	}
 
 	return caveat.MarshalVT()
@@ -79,7 +82,7 @@ func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 		return nil, CompilationErrors{fmt.Errorf("caveat expression must result in a boolean value: found `%s`", ast.OutputType().String()), nil}
 	}
 
-	return &CompiledCaveat{celEnv, ast, ""}, nil
+	return &CompiledCaveat{celEnv, ast, anonymousCaveat}, nil
 }
 
 // DeserializeCaveat deserializes a byte-serialized caveat back into a CompiledCaveat.
@@ -96,5 +99,5 @@ func DeserializeCaveat(env *Environment, serialized []byte) (*CompiledCaveat, er
 	}
 
 	ast := cel.CheckedExprToAst(caveat.GetCel())
-	return &CompiledCaveat{celEnv, ast, ""}, nil
+	return &CompiledCaveat{celEnv, ast, caveat.Name}, nil
 }

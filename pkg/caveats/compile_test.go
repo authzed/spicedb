@@ -230,3 +230,20 @@ func TestSerialization(t *testing.T) {
 		})
 	}
 }
+
+func TestSerializeName(t *testing.T) {
+	env := mustEnvForVariables(map[string]VariableType{
+		"a": IntType,
+		"b": IntType,
+	})
+	compiled, err := CompileCaveatWithName(env, "a == 1", "hi")
+	require.NoError(t, err)
+
+	serialized, err := compiled.Serialize()
+	require.NoError(t, err)
+
+	deserialized, err := DeserializeCaveat(env, serialized)
+	require.NoError(t, err)
+
+	require.Equal(t, "hi", deserialized.name)
+}
