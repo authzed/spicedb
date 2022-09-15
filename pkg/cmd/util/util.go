@@ -20,8 +20,11 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/test/bufconn"
 
+	// Register Snappy S2 compression
+	_ "github.com/mostynb/go-grpc-compression/experimental/s2"
+
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
-	// register cert watcher metrics
+	// Register cert watcher metrics
 	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics"
 
 	"github.com/authzed/spicedb/pkg/x509util"
