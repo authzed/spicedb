@@ -307,7 +307,7 @@ func (cd *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpand
 func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	cd.lookupTotalCounter.Inc()
 
-	requestKey := dispatch.LookupRequestToKey(req)
+	requestKey := keys.LookupRequestToKey(req)
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupResultEntry)
 		if req.Metadata.DepthRemaining >= cachedResult.response.Metadata.DepthRequired {
@@ -328,7 +328,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 		adjustedComputed.Metadata.DispatchCount = 0
 		adjustedComputed.Metadata.DebugInfo = nil
 
-		cd.c.Set(dispatch.LookupRequestToKey(req), lookupResultEntry{adjustedComputed}, int64(adjustedComputed.SizeVT()))
+		cd.c.Set(keys.LookupRequestToKey(req), lookupResultEntry{adjustedComputed}, int64(adjustedComputed.SizeVT()))
 	}
 
 	// Return both the computed and err in ALL cases: computed contains resolved metadata even
@@ -340,7 +340,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
 	cd.reachableResourcesTotalCounter.Inc()
 
-	requestKey := dispatch.ReachableResourcesRequestToKey(req)
+	requestKey := keys.ReachableResourcesRequestToKey(req)
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(reachableResourcesResultEntry)
 		cd.reachableResourcesFromCacheCounter.Inc()
@@ -391,7 +391,7 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
 	cd.lookupSubjectsTotalCounter.Inc()
 
-	requestKey := dispatch.LookupSubjectsRequestToKey(req)
+	requestKey := keys.LookupSubjectsRequestToKey(req)
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupSubjectsResultEntry)
 		cd.lookupSubjectsFromCacheCounter.Inc()

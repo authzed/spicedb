@@ -49,7 +49,7 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(requestKey))
+	ctx = context.WithValue(ctx, balancer.CtxKey, requestKey.StableSumAsBytes())
 	resp, err := cr.clusterClient.DispatchCheck(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
@@ -62,7 +62,7 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
-	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.ExpandRequestToKey(req)))
+	ctx = context.WithValue(ctx, balancer.CtxKey, keys.ExpandRequestToKey(req).StableSumAsBytes())
 	resp, err := cr.clusterClient.DispatchExpand(ctx, req)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: requestFailureMetadata}, err
@@ -75,7 +75,7 @@ func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
-	ctx = context.WithValue(ctx, balancer.CtxKey, []byte(dispatch.LookupRequestToKey(req)))
+	ctx = context.WithValue(ctx, balancer.CtxKey, keys.LookupRequestToKey(req).StableSumAsBytes())
 	resp, err := cr.clusterClient.DispatchLookup(ctx, req)
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: requestFailureMetadata}, err
@@ -88,7 +88,7 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 	req *v1.DispatchReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
-	ctx := context.WithValue(stream.Context(), balancer.CtxKey, []byte(dispatch.ReachableResourcesRequestToKey(req)))
+	ctx := context.WithValue(stream.Context(), balancer.CtxKey, keys.ReachableResourcesRequestToKey(req).StableSumAsBytes())
 	stream = dispatch.StreamWithContext(ctx, stream)
 
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
@@ -123,7 +123,7 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 	req *v1.DispatchLookupSubjectsRequest,
 	stream dispatch.LookupSubjectsStream,
 ) error {
-	ctx := context.WithValue(stream.Context(), balancer.CtxKey, []byte(dispatch.LookupSubjectsRequestToKey(req)))
+	ctx := context.WithValue(stream.Context(), balancer.CtxKey, keys.LookupSubjectsRequestToKey(req).StableSumAsBytes())
 	stream = dispatch.StreamWithContext(ctx, stream)
 
 	if err := dispatch.CheckDepth(ctx, req); err != nil {

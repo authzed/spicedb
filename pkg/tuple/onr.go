@@ -24,6 +24,14 @@ func ObjectAndRelation(ns, oid, rel string) *core.ObjectAndRelation {
 	}
 }
 
+// RelationReference creates a RelationReference from the string pieces.
+func RelationReference(namespaceName string, relationName string) *core.RelationReference {
+	return &core.RelationReference{
+		Namespace: namespaceName,
+		Relation:  relationName,
+	}
+}
+
 // ParseSubjectONR converts a string representation of a Subject ONR to a proto object. Unlike
 // ParseONR, this method allows for objects without relations. If an object without a relation
 // is given, the relation will be set to ellipsis.
