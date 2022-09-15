@@ -16,14 +16,12 @@ type caveat struct {
 	id         datastore.CaveatID
 	name       string
 	expression []byte
-	caveatType core.Caveat_Type
 }
 
 func (c *caveat) CoreCaveat() *core.Caveat {
 	return &core.Caveat{
 		Name:       c.name,
 		Expression: c.expression,
-		Type:       c.caveatType,
 	}
 }
 
@@ -91,7 +89,6 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 			id:         id,
 			name:       coreCaveat.Name,
 			expression: coreCaveat.Expression,
-			caveatType: coreCaveat.Type,
 		}
 		if err := tx.Insert(tableCaveats, &c); err != nil {
 			return nil, err

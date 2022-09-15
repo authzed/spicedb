@@ -244,32 +244,43 @@ var _ interface {
 	ErrorName() string
 } = RelationTupleValidationError{}
 
-// Validate checks the field values on CaveatReference with the rules defined
-// in the proto definition for this message. If any rules are violated, the
-// first error encountered is returned, or nil if there are no violations.
-func (m *CaveatReference) Validate() error {
+// Validate checks the field values on ContextualizedCaveat with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ContextualizedCaveat) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on CaveatReference with the rules
+// ValidateAll checks the field values on ContextualizedCaveat with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the result is a list of violation errors wrapped in
-// CaveatReferenceMultiError, or nil if none found.
-func (m *CaveatReference) ValidateAll() error {
+// ContextualizedCaveatMultiError, or nil if none found.
+func (m *ContextualizedCaveat) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *CaveatReference) validate(all bool) error {
+func (m *ContextualizedCaveat) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
 	var errors []error
 
-	if m.GetCaveat() == nil {
-		err := CaveatReferenceValidationError{
-			field:  "Caveat",
-			reason: "value is required",
+	if len(m.GetCaveatId()) > 128 {
+		err := ContextualizedCaveatValidationError{
+			field:  "CaveatId",
+			reason: "value length must be at most 128 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if !_ContextualizedCaveat_CaveatId_Pattern.MatchString(m.GetCaveatId()) {
+		err := ContextualizedCaveatValidationError{
+			field:  "CaveatId",
+			reason: "value does not match regex pattern \"^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\\\*)$\"",
 		}
 		if !all {
 			return err
@@ -278,39 +289,10 @@ func (m *CaveatReference) validate(all bool) error {
 	}
 
 	if all {
-		switch v := interface{}(m.GetCaveat()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, CaveatReferenceValidationError{
-					field:  "Caveat",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, CaveatReferenceValidationError{
-					field:  "Caveat",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetCaveat()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return CaveatReferenceValidationError{
-				field:  "Caveat",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
-
-	if all {
 		switch v := interface{}(m.GetContext()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, CaveatReferenceValidationError{
+				errors = append(errors, ContextualizedCaveatValidationError{
 					field:  "Context",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -318,7 +300,7 @@ func (m *CaveatReference) validate(all bool) error {
 			}
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
-				errors = append(errors, CaveatReferenceValidationError{
+				errors = append(errors, ContextualizedCaveatValidationError{
 					field:  "Context",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -327,7 +309,7 @@ func (m *CaveatReference) validate(all bool) error {
 		}
 	} else if v, ok := interface{}(m.GetContext()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
-			return CaveatReferenceValidationError{
+			return ContextualizedCaveatValidationError{
 				field:  "Context",
 				reason: "embedded message failed validation",
 				cause:  err,
@@ -336,19 +318,19 @@ func (m *CaveatReference) validate(all bool) error {
 	}
 
 	if len(errors) > 0 {
-		return CaveatReferenceMultiError(errors)
+		return ContextualizedCaveatMultiError(errors)
 	}
 
 	return nil
 }
 
-// CaveatReferenceMultiError is an error wrapping multiple validation errors
-// returned by CaveatReference.ValidateAll() if the designated constraints
-// aren't met.
-type CaveatReferenceMultiError []error
+// ContextualizedCaveatMultiError is an error wrapping multiple validation
+// errors returned by ContextualizedCaveat.ValidateAll() if the designated
+// constraints aren't met.
+type ContextualizedCaveatMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m CaveatReferenceMultiError) Error() string {
+func (m ContextualizedCaveatMultiError) Error() string {
 	var msgs []string
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -357,11 +339,11 @@ func (m CaveatReferenceMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m CaveatReferenceMultiError) AllErrors() []error { return m }
+func (m ContextualizedCaveatMultiError) AllErrors() []error { return m }
 
-// CaveatReferenceValidationError is the validation error returned by
-// CaveatReference.Validate if the designated constraints aren't met.
-type CaveatReferenceValidationError struct {
+// ContextualizedCaveatValidationError is the validation error returned by
+// ContextualizedCaveat.Validate if the designated constraints aren't met.
+type ContextualizedCaveatValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -369,22 +351,24 @@ type CaveatReferenceValidationError struct {
 }
 
 // Field function returns field value.
-func (e CaveatReferenceValidationError) Field() string { return e.field }
+func (e ContextualizedCaveatValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e CaveatReferenceValidationError) Reason() string { return e.reason }
+func (e ContextualizedCaveatValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e CaveatReferenceValidationError) Cause() error { return e.cause }
+func (e ContextualizedCaveatValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e CaveatReferenceValidationError) Key() bool { return e.key }
+func (e ContextualizedCaveatValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e CaveatReferenceValidationError) ErrorName() string { return "CaveatReferenceValidationError" }
+func (e ContextualizedCaveatValidationError) ErrorName() string {
+	return "ContextualizedCaveatValidationError"
+}
 
 // Error satisfies the builtin error interface
-func (e CaveatReferenceValidationError) Error() string {
+func (e ContextualizedCaveatValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -396,14 +380,14 @@ func (e CaveatReferenceValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sCaveatReference.%s: %s%s",
+		"invalid %sContextualizedCaveat.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = CaveatReferenceValidationError{}
+var _ error = ContextualizedCaveatValidationError{}
 
 var _ interface {
 	Field() string
@@ -411,7 +395,9 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = CaveatReferenceValidationError{}
+} = ContextualizedCaveatValidationError{}
+
+var _ContextualizedCaveat_CaveatId_Pattern = regexp.MustCompile("^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$")
 
 // Validate checks the field values on Caveat with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
@@ -433,17 +419,6 @@ func (m *Caveat) validate(all bool) error {
 	}
 
 	var errors []error
-
-	if _, ok := Caveat_Type_name[int32(m.GetType())]; !ok {
-		err := CaveatValidationError{
-			field:  "Type",
-			reason: "value must be one of the defined enum values",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
 
 	if len(m.GetName()) > 128 {
 		err := CaveatValidationError{

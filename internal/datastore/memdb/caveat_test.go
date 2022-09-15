@@ -21,44 +21,49 @@ func TestWriteReadCaveat(t *testing.T) {
 
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	req.NoError(err)
-	c := createCompiledCaveat(t)
-	coreCaveat := createCoreCaveat(t, c, false)
+	coreCaveat := createCoreCaveat(t)
 	ctx := context.Background()
 	rev, ID, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
 	cr, ok := ds.SnapshotReader(rev).(datastore.CaveatReader)
 	req.True(ok, "expected a CaveatStorer value")
-	cv, err := cr.ReadCaveatByName(c.Name())
+
+	// the caveat can be looked up by name
+	cv, err := cr.ReadCaveatByName(coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(coreCaveat, cv)
-	req.Equal(core.Caveat_NAMED, cv.Type)
 	req.NoError(err)
+
+	// the caveat can be looked up by ID
 	cv, err = cr.ReadCaveatByID(ID)
 	req.NoError(err)
 	req.Equal(coreCaveat, cv)
-	req.Equal(core.Caveat_NAMED, cv.Type)
 	req.NoError(err)
 
-	cv, err = cr.ReadCaveatByName("doesnotexist")
+	// returns an error if caveat name or ID does not exist
+	_, err = cr.ReadCaveatByName("doesnotexist")
 	req.ErrorIs(err, datastore.ErrCaveatNotFound)
-	cv, err = cr.ReadCaveatByID("doesnotexist")
+	_, err = cr.ReadCaveatByID("doesnotexist")
 	req.ErrorIs(err, datastore.ErrCaveatNotFound)
 }
 
-func TestWriteTupleWithNamedCaveat(t *testing.T) {
+func TestWriteTupleWithCaveat(t *testing.T) {
 	req := require.New(t)
 	ctx := context.Background()
 
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	req.NoError(err)
 	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
-	tpl, coreCaveat := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", false)
+	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", "doesnotexist")
+	// should fail because the caveat is not present in the datastore
 	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
-	// should fail because the name caveat is not present in the datastore
-	req.Error(err)
-	// let's write the named caveat and try again
-	_, _, err = writeCaveat(ctx, ds, coreCaveat)
+	req.ErrorIs(err, datastore.ErrCaveatNotFound)
+
+	// let's write the caveat and try again
+	coreCaveat := createCoreCaveat(t)
+	_, cavID, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
+	tpl = createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", cavID)
 	rev, err := common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -70,38 +75,15 @@ func TestWriteTupleWithNamedCaveat(t *testing.T) {
 	req.Equal(tpl, readTpl)
 }
 
-func TestWriteTupleWithAnonymousCaveat(t *testing.T) {
-	req := require.New(t)
-	ctx := context.Background()
-
-	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
-	req.NoError(err)
-	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
-	tpl, _ := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", true)
-	rev, err := common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
-	// the caveat is anonymous and is created alongside the tuple
-	req.NoError(err)
-	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType: tpl.ResourceAndRelation.Namespace,
-	})
-	req.NoError(err)
-	defer iter.Close()
-	readTpl := iter.Next()
-	req.Equal(tpl, readTpl)
-}
-
-func createTestCaveatedTuple(t *testing.T, tplString string, anonymous bool) (*core.RelationTuple, *core.Caveat) {
+func createTestCaveatedTuple(t *testing.T, tplString string, id datastore.CaveatID) *core.RelationTuple {
 	tpl := tuple.MustParse(tplString)
-	c := createCompiledCaveat(t)
-	coreCaveat := createCoreCaveat(t, c, anonymous)
-
 	st, err := structpb.NewStruct(map[string]interface{}{"a": 1, "b": "test"})
 	require.NoError(t, err)
-	tpl.Caveat = &core.CaveatReference{
-		Caveat:  coreCaveat,
-		Context: st,
+	tpl.Caveat = &core.ContextualizedCaveat{
+		CaveatId: string(id),
+		Context:  st,
 	}
-	return tpl, coreCaveat
+	return tpl
 }
 
 func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.Caveat) (datastore.Revision, datastore.CaveatID, error) {
@@ -121,18 +103,14 @@ func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.C
 	return rev, IDs[0], err
 }
 
-func createCoreCaveat(t *testing.T, c *caveats.CompiledCaveat, anonymous bool) *core.Caveat {
+func createCoreCaveat(t *testing.T) *core.Caveat {
 	t.Helper()
+	c := createCompiledCaveat(t)
 	cBytes, err := c.Serialize()
 	require.NoError(t, err)
-	ty := core.Caveat_NAMED
-	if anonymous {
-		ty = core.Caveat_ANONYMOUS
-	}
 	coreCaveat := &core.Caveat{
 		Name:       c.Name(),
 		Expression: cBytes,
-		Type:       ty,
 	}
 	require.NoError(t, err)
 	return coreCaveat
