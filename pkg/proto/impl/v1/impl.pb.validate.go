@@ -57,6 +57,8 @@ func (m *DecodedCaveat) validate(all bool) error {
 
 	var errors []error
 
+	// no validation rules for Name
+
 	switch m.KindOneof.(type) {
 
 	case *DecodedCaveat_Cel:
