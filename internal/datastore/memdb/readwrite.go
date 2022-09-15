@@ -1,6 +1,7 @@
 package memdb
 
 import (
+	"errors"
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -99,29 +100,17 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 func (rwt *memdbReadWriteTx) prepareCaveat(tx *memdb.Txn, mutation *core.RelationTupleUpdate) (*caveatReference, error) {
 	var cr *caveatReference
 	if mutation.Tuple.Caveat != nil {
+		id := datastore.CaveatID(mutation.Tuple.Caveat.CaveatId)
 		cr = &caveatReference{
-			caveat: &caveat{
-				name:       mutation.Tuple.Caveat.Caveat.Name,
-				expression: mutation.Tuple.Caveat.Caveat.Expression,
-				caveatType: mutation.Tuple.Caveat.Caveat.Type,
-			},
-			context: mutation.Tuple.Caveat.Context.AsMap(),
+			caveatID: id,
+			context:  mutation.Tuple.Caveat.Context.AsMap(),
 		}
-		switch mutation.Tuple.Caveat.Caveat.Type {
-		case core.Caveat_ANONYMOUS:
-			if _, err := rwt.writeCaveat(tx, []*core.Caveat{mutation.Tuple.Caveat.Caveat}); err != nil {
-				return nil, err
-			}
-		case core.Caveat_NAMED:
-			cv, err := rwt.readCaveatByName(tx, mutation.Tuple.Caveat.Caveat.Name)
-			if err != nil {
-				return nil, err
-			}
-			if cv == nil {
-				return nil, fmt.Errorf("tuple referenced a non-existing named caveat %s", mutation.Tuple.Caveat.Caveat.Name)
-			}
-		default:
-			return nil, fmt.Errorf("unknown caveat type")
+		_, err := rwt.readCaveatByID(tx, id)
+		if errors.Is(err, datastore.ErrCaveatNotFound) {
+			return nil, fmt.Errorf("unable to write tuple referencing non-existing caveat %w", err)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 	return cr, nil

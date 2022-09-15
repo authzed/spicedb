@@ -50,11 +50,11 @@ type relationship struct {
 }
 
 type caveatReference struct {
-	context map[string]any
-	caveat  *caveat
+	caveatID datastore.CaveatID
+	context  map[string]any
 }
 
-func (cr *caveatReference) CaveatReference() (*core.CaveatReference, error) {
+func (cr *caveatReference) CaveatReference() (*core.ContextualizedCaveat, error) {
 	if cr == nil {
 		return nil, nil
 	}
@@ -62,9 +62,9 @@ func (cr *caveatReference) CaveatReference() (*core.CaveatReference, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &core.CaveatReference{
-		Caveat:  cr.caveat.CoreCaveat(),
-		Context: v,
+	return &core.ContextualizedCaveat{
+		CaveatId: string(cr.caveatID),
+		Context:  v,
 	}, nil
 }
 
