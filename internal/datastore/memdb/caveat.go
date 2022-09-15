@@ -1,15 +1,19 @@
 package memdb
 
 import (
+	"fmt"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/hashicorp/go-memdb"
+	"github.com/rs/xid"
 )
 
 const tableCaveats = "caveats"
 
 type caveat struct {
+	id         datastore.CaveatID
 	name       string
 	expression []byte
 	caveatType core.Caveat_Type
@@ -23,7 +27,7 @@ func (c *caveat) CoreCaveat() *core.Caveat {
 	}
 }
 
-func (r *memdbReader) ReadCaveat(name string) (datastore.CaveatIterator, error) {
+func (r *memdbReader) ReadCaveatByName(name string) (*core.Caveat, error) {
 	r.lockOrPanic()
 	defer r.Unlock()
 
@@ -31,39 +35,70 @@ func (r *memdbReader) ReadCaveat(name string) (datastore.CaveatIterator, error) 
 	if err != nil {
 		return nil, err
 	}
-	return r.readCaveat(tx, name)
+	return r.readCaveatByName(tx, name)
 }
 
-func (r *memdbReader) readCaveat(tx *memdb.Txn, name string) (datastore.CaveatIterator, error) {
-	it, err := tx.Get(tableCaveats, indexID, name)
+func (r *memdbReader) ReadCaveatByID(ID datastore.CaveatID) (*core.Caveat, error) {
+	r.lockOrPanic()
+	defer r.Unlock()
+
+	tx, err := r.txSource()
 	if err != nil {
 		return nil, err
 	}
-	return &memdbCaveatIterator{it: it}, nil
+	return r.readCaveatByID(tx, ID)
 }
 
-func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) error {
+func (r *memdbReader) readCaveatByID(tx *memdb.Txn, ID datastore.CaveatID) (*core.Caveat, error) {
+	found, err := tx.First(tableCaveats, indexID, string(ID))
+	if err != nil {
+		return nil, err
+	}
+	if found == nil {
+		return nil, fmt.Errorf("caveat with id %s not found: %w", ID, datastore.ErrCaveatNotFound)
+	}
+	c := found.(*caveat)
+	return c.CoreCaveat(), nil
+}
+
+func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, error) {
+	found, err := tx.First(tableCaveats, "name", name)
+	if err != nil {
+		return nil, err
+	}
+	if found == nil {
+		return nil, fmt.Errorf("caveat with name %s not found: %w", name, datastore.ErrCaveatNotFound)
+	}
+	c := found.(*caveat)
+	return c.CoreCaveat(), nil
+}
+
+func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) ([]datastore.CaveatID, error) {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	return rwt.writeCaveat(tx, caveats)
 }
 
-func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) error {
+func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) ([]datastore.CaveatID, error) {
+	ids := make([]datastore.CaveatID, 0, len(caveats))
 	for _, coreCaveat := range caveats {
+		id := datastore.CaveatID(xid.New().String())
 		c := caveat{
+			id:         id,
 			name:       coreCaveat.Name,
 			expression: coreCaveat.Expression,
 			caveatType: coreCaveat.Type,
 		}
 		if err := tx.Insert(tableCaveats, &c); err != nil {
-			return err
+			return nil, err
 		}
+		ids = append(ids, id)
 	}
-	return nil
+	return ids, nil
 }
 
 func (rwt *memdbReadWriteTx) DeleteCaveats(caveats []*core.Caveat) error {
@@ -75,23 +110,3 @@ func (rwt *memdbReadWriteTx) DeleteCaveats(caveats []*core.Caveat) error {
 	}
 	return tx.Delete(tableCaveats, caveats)
 }
-
-type memdbCaveatIterator struct {
-	it memdb.ResultIterator
-}
-
-func (mci *memdbCaveatIterator) Next() *core.Caveat {
-	foundRaw := mci.it.Next()
-	if foundRaw == nil {
-		return nil
-	}
-
-	c := foundRaw.(*caveat)
-	return c.CoreCaveat()
-}
-
-func (mci *memdbCaveatIterator) Err() error {
-	return nil
-}
-
-func (mci *memdbCaveatIterator) Close() {}
