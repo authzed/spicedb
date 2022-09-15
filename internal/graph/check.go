@@ -556,6 +556,14 @@ func difference[T any](
 	handler func(ctx context.Context, crc currentRequestContext, child T) CheckResult,
 	concurrencyLimit uint16,
 ) CheckResult {
+	if len(children) == 0 {
+		return noMembers()
+	}
+
+	if len(children) == 1 {
+		return checkResultError(fmt.Errorf("difference requires more than a single child"), emptyMetadata)
+	}
+
 	childCtx, cancelFn := context.WithCancel(ctx)
 
 	baseChan := make(chan CheckResult, 1)
