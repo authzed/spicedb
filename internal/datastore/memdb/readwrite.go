@@ -109,15 +109,15 @@ func (rwt *memdbReadWriteTx) prepareCaveat(tx *memdb.Txn, mutation *core.Relatio
 		}
 		switch mutation.Tuple.Caveat.Caveat.Type {
 		case core.Caveat_ANONYMOUS:
-			if err := rwt.writeCaveat(tx, []*core.Caveat{mutation.Tuple.Caveat.Caveat}); err != nil {
+			if _, err := rwt.writeCaveat(tx, []*core.Caveat{mutation.Tuple.Caveat.Caveat}); err != nil {
 				return nil, err
 			}
 		case core.Caveat_NAMED:
-			it, err := rwt.readCaveat(tx, mutation.Tuple.Caveat.Caveat.Name)
+			cv, err := rwt.readCaveatByName(tx, mutation.Tuple.Caveat.Caveat.Name)
 			if err != nil {
 				return nil, err
 			}
-			if it.Next() == nil {
+			if cv == nil {
 				return nil, fmt.Errorf("tuple referenced a non-existing named caveat %s", mutation.Tuple.Caveat.Caveat.Name)
 			}
 		default:

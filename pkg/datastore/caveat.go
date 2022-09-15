@@ -1,26 +1,22 @@
 package datastore
 
 import (
+	"errors"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
+var ErrCaveatNotFound = errors.New("caveat not found")
+
+type CaveatID string
+
 type CaveatReader interface {
-	ReadCaveat(digest string) (CaveatIterator, error)
+	ReadCaveatByName(name string) (*core.Caveat, error)
+	ReadCaveatByID(ID CaveatID) (*core.Caveat, error)
 }
 
 type CaveatStorer interface {
 	CaveatReader
-	WriteCaveats([]*core.Caveat) error
+	WriteCaveats([]*core.Caveat) ([]CaveatID, error)
 	DeleteCaveats([]*core.Caveat) error
-}
-
-type CaveatIterator interface {
-	// Next returns the next caveat in the result set.
-	Next() *core.Caveat
-
-	// Err after receiving a nil response, the caller must check for an error.
-	Err() error
-
-	// Close cancels the query and closes any open connections.
-	Close()
 }
