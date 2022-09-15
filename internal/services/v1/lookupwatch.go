@@ -108,7 +108,7 @@ func (lw *lookupWatchServer) WatchAccessibleResources(req *v1lookupwatch.WatchAc
 	}
 }
 
-// Called at each notification of the Wattch API
+// Called at each notification of the Watch API
 func (lw *lookupWatchServer) processWatchResponse(
 	ctx *context.Context,
 	req *v1lookupwatch.WatchAccessibleResourcesRequest,
@@ -134,59 +134,59 @@ func (lw *lookupWatchServer) processUpdate(
 
 	ds := datastoremw.MustFromContext((*stream).Context())
 	//CALL LOOKUPSUBJECTS
-	var subjects []string
-	if req.SubjectObjectType == update.Tuple.Subject.Namespace && update.Tuple.Subject.Relation == graph.Ellipsis {
-		subjects = append(subjects, update.Tuple.Subject.ObjectId)
-	} else if update.Tuple.Subject.Relation == "" {
+	if update.Tuple.Subject.Relation == "" {
 		return status.Errorf(
 			codes.Internal,
 			"TODO: empty subject relations not handled, should we handle them ? how ? %s:%s",
 			update.Tuple.Subject.Namespace, update.Tuple.Subject.ObjectId,
 		)
-	} else {
-		var resourceRelations []string
-		if update.Tuple.Subject.Relation == graph.Ellipsis {
-			// Arrow resolution
-			reader := ds.SnapshotReader(*atRevision)
-			_, typeSystem, err := namespace.ReadNamespaceAndTypes((*stream).Context(), update.Tuple.ResourceAndRelation.Namespace, reader)
-			if err != nil {
-				return err
-			}
-			resourceRelations, err = typeSystem.ResolveArrowRelations(update.Tuple.ResourceAndRelation.Relation)
-			if err != nil {
-				return err
-			}
-		} else {
-			resourceRelations = append(resourceRelations, update.Tuple.Subject.Relation)
+	}
+	var subjects []string
+	if req.SubjectObjectType == update.Tuple.Subject.Namespace && update.Tuple.Subject.Relation == graph.Ellipsis {
+		subjects = append(subjects, update.Tuple.Subject.ObjectId)
+	}
+	var resourceRelations []string
+	if update.Tuple.Subject.Relation == graph.Ellipsis {
+		// Arrow resolution
+		reader := ds.SnapshotReader(*atRevision)
+		_, typeSystem, err := namespace.ReadNamespaceAndTypes((*stream).Context(), update.Tuple.ResourceAndRelation.Namespace, reader)
+		if err != nil {
+			return err
 		}
-		for _, resourceRelation := range resourceRelations {
-			lsStream := dispatchpkg.NewHandlingDispatchStream(*ctx, func(result *dispatchv1.DispatchLookupSubjectsResponse) error {
-				for _, subject := range result.FoundSubjects {
-					subjects = append(subjects, subject.SubjectId)
-				}
-				return nil
-			})
-			err := lw.dispatch.DispatchLookupSubjects(
-				&dispatchv1.DispatchLookupSubjectsRequest{
-					Metadata: &dispatchv1.ResolverMeta{
-						AtRevision:     atRevision.String(),
-						DepthRemaining: lw.defaultDepth,
-					},
-					ResourceIds: []string{update.Tuple.Subject.ObjectId},
-					ResourceRelation: &core.RelationReference{
-						Namespace: update.Tuple.Subject.Namespace,
-						Relation:  resourceRelation,
-					},
-					SubjectRelation: &core.RelationReference{
-						Namespace: req.SubjectObjectType,
-						Relation:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
-					},
-				},
-				lsStream,
-			)
-			if err != nil {
-				return err
+		resourceRelations, err = typeSystem.ResolveArrowRelations(update.Tuple.ResourceAndRelation.Relation)
+		if err != nil {
+			return err
+		}
+	} else {
+		resourceRelations = append(resourceRelations, update.Tuple.Subject.Relation)
+	}
+	for _, resourceRelation := range resourceRelations {
+		lsStream := dispatchpkg.NewHandlingDispatchStream(*ctx, func(result *dispatchv1.DispatchLookupSubjectsResponse) error {
+			for _, subject := range result.FoundSubjects {
+				subjects = append(subjects, subject.SubjectId)
 			}
+			return nil
+		})
+		err := lw.dispatch.DispatchLookupSubjects(
+			&dispatchv1.DispatchLookupSubjectsRequest{
+				Metadata: &dispatchv1.ResolverMeta{
+					AtRevision:     atRevision.String(),
+					DepthRemaining: lw.defaultDepth,
+				},
+				ResourceIds: []string{update.Tuple.Subject.ObjectId},
+				ResourceRelation: &core.RelationReference{
+					Namespace: update.Tuple.Subject.Namespace,
+					Relation:  resourceRelation,
+				},
+				SubjectRelation: &core.RelationReference{
+					Namespace: req.SubjectObjectType,
+					Relation:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
+				},
+			},
+			lsStream,
+		)
+		if err != nil {
+			return err
 		}
 	}
 
