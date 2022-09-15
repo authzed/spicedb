@@ -13,6 +13,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -24,12 +25,22 @@ func TestWriteReadCaveat(t *testing.T) {
 	req.NoError(err)
 	coreCaveat := createCoreCaveat(t)
 	ctx := context.Background()
+
+	// Fails to write dupes in the same transaction
+	_, _, err = writeCaveat(ctx, ds, coreCaveat, coreCaveat)
+	req.Error(err)
+
+	// Succeeds writing a caveat
 	rev, ID, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
-	cr, ok := ds.SnapshotReader(rev).(datastore.CaveatReader)
-	req.True(ok, "expected a CaveatStorer value")
+
+	// fails to write caveat with the same name in different tx
+	_, _, err = writeCaveat(ctx, ds, coreCaveat)
+	req.Error(err)
 
 	// the caveat can be looked up by name
+	cr, ok := ds.SnapshotReader(rev).(datastore.CaveatReader)
+	req.True(ok, "expected a CaveatStorer value")
 	cv, err := cr.ReadCaveatByName(coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(coreCaveat, cv)
@@ -87,7 +98,7 @@ func createTestCaveatedTuple(t *testing.T, tplString string, id datastore.Caveat
 	return tpl
 }
 
-func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.Caveat) (datastore.Revision, datastore.CaveatID, error) {
+func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat ...*core.Caveat) (datastore.Revision, datastore.CaveatID, error) {
 	var IDs []datastore.CaveatID
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		cs, ok := tx.(datastore.CaveatStorer)
@@ -95,7 +106,7 @@ func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.C
 			panic("expected a CaveatStorer value")
 		}
 		var err error
-		IDs, err = cs.WriteCaveats([]*core.Caveat{coreCaveat})
+		IDs, err = cs.WriteCaveats(coreCaveat)
 		return err
 	})
 	if err != nil {
@@ -124,7 +135,7 @@ func createCompiledCaveat(t *testing.T) *caveats.CompiledCaveat {
 		"b": caveats.IntType,
 	})
 	require.NoError(t, err)
-	c, err := caveats.CompileCaveatWithName(env, "a == b", "test")
+	c, err := caveats.CompileCaveatWithName(env, "a == b", uuid.New().String())
 	require.NoError(t, err)
 	return c
 }

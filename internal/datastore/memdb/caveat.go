@@ -1,6 +1,7 @@
 package memdb
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -89,6 +90,14 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 			id:         id,
 			name:       coreCaveat.Name,
 			expression: coreCaveat.Expression,
+		}
+		// TODO(vroldanbet) why does go-memdb not honor unique index name?
+		found, err := rwt.readCaveatByName(tx, coreCaveat.Name)
+		if err != nil && !errors.Is(err, datastore.ErrCaveatNotFound) {
+			return nil, err
+		}
+		if found != nil {
+			return nil, fmt.Errorf("duplicated caveat with name %s", coreCaveat.Name)
 		}
 		if err := tx.Insert(tableCaveats, &c); err != nil {
 			return nil, err
