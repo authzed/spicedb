@@ -2,12 +2,12 @@ package memdb
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/hashicorp/go-memdb"
-	"github.com/rs/xid"
 )
 
 const tableCaveats = "caveats"
@@ -48,19 +48,19 @@ func (r *memdbReader) ReadCaveatByID(ID datastore.CaveatID) (*core.Caveat, error
 }
 
 func (r *memdbReader) readCaveatByID(tx *memdb.Txn, ID datastore.CaveatID) (*core.Caveat, error) {
-	found, err := tx.First(tableCaveats, indexID, string(ID))
+	found, err := tx.First(tableCaveats, indexID, ID)
 	if err != nil {
 		return nil, err
 	}
 	if found == nil {
-		return nil, fmt.Errorf("caveat with id %s not found: %w", ID, datastore.ErrCaveatNotFound)
+		return nil, fmt.Errorf("caveat with id %d not found: %w", ID, datastore.ErrCaveatNotFound)
 	}
 	c := found.(*caveat)
 	return c.CoreCaveat(), nil
 }
 
 func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, error) {
-	found, err := tx.First(tableCaveats, "name", name)
+	found, err := tx.First(tableCaveats, indexName, name)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) ([]datastore.C
 func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) ([]datastore.CaveatID, error) {
 	ids := make([]datastore.CaveatID, 0, len(caveats))
 	for _, coreCaveat := range caveats {
-		id := datastore.CaveatID(xid.New().String())
+		id := datastore.CaveatID(time.Now().UnixNano())
 		c := caveat{
 			id:         id,
 			name:       coreCaveat.Name,

@@ -2,6 +2,7 @@ package memdb
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -43,7 +44,7 @@ func TestWriteReadCaveat(t *testing.T) {
 	// returns an error if caveat name or ID does not exist
 	_, err = cr.ReadCaveatByName("doesnotexist")
 	req.ErrorIs(err, datastore.ErrCaveatNotFound)
-	_, err = cr.ReadCaveatByID("doesnotexist")
+	_, err = cr.ReadCaveatByID(math.MaxUint64)
 	req.ErrorIs(err, datastore.ErrCaveatNotFound)
 }
 
@@ -54,7 +55,7 @@ func TestWriteTupleWithCaveat(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	req.NoError(err)
 	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
-	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", "doesnotexist")
+	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", math.MaxUint64)
 	// should fail because the caveat is not present in the datastore
 	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.ErrorIs(err, datastore.ErrCaveatNotFound)
@@ -80,7 +81,7 @@ func createTestCaveatedTuple(t *testing.T, tplString string, id datastore.Caveat
 	st, err := structpb.NewStruct(map[string]interface{}{"a": 1, "b": "test"})
 	require.NoError(t, err)
 	tpl.Caveat = &core.ContextualizedCaveat{
-		CaveatId: string(id),
+		CaveatId: uint64(id),
 		Context:  st,
 	}
 	return tpl
@@ -98,7 +99,7 @@ func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.C
 		return err
 	})
 	if err != nil {
-		return datastore.NoRevision, "", err
+		return datastore.NoRevision, 0, err
 	}
 	return rev, IDs[0], err
 }

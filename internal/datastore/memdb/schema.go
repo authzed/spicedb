@@ -15,7 +15,7 @@ import (
 
 const (
 	tableNamespace = "namespace"
-	indexName      = "id"
+	indexName      = "name"
 
 	tableRelationship           = "relationship"
 	indexID                     = "id"
@@ -63,7 +63,7 @@ func (cr *caveatReference) CaveatReference() (*core.ContextualizedCaveat, error)
 		return nil, err
 	}
 	return &core.ContextualizedCaveat{
-		CaveatId: string(cr.caveatID),
+		CaveatId: uint64(cr.caveatID),
 		Context:  v,
 	}, nil
 }
@@ -127,8 +127,8 @@ var schema = &memdb.DBSchema{
 		tableNamespace: {
 			Name: tableNamespace,
 			Indexes: map[string]*memdb.IndexSchema{
-				indexName: {
-					Name:    indexName,
+				indexID: {
+					Name:    indexID,
 					Unique:  true,
 					Indexer: &memdb.StringFieldIndex{Field: "name"},
 				},
@@ -210,10 +210,10 @@ var schema = &memdb.DBSchema{
 				indexID: {
 					Name:    indexID,
 					Unique:  true,
-					Indexer: &memdb.StringFieldIndex{Field: "id"},
+					Indexer: &memdb.UintFieldIndex{Field: "id"},
 				},
-				"name": {
-					Name:    "name",
+				indexName: {
+					Name:    indexName,
 					Unique:  true,
 					Indexer: &memdb.StringFieldIndex{Field: "name"},
 				},

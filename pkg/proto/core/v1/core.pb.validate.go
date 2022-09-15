@@ -266,21 +266,10 @@ func (m *ContextualizedCaveat) validate(all bool) error {
 
 	var errors []error
 
-	if len(m.GetCaveatId()) > 128 {
+	if m.GetCaveatId() <= 0 {
 		err := ContextualizedCaveatValidationError{
 			field:  "CaveatId",
-			reason: "value length must be at most 128 bytes",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
-	if !_ContextualizedCaveat_CaveatId_Pattern.MatchString(m.GetCaveatId()) {
-		err := ContextualizedCaveatValidationError{
-			field:  "CaveatId",
-			reason: "value does not match regex pattern \"^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\\\*)$\"",
+			reason: "value must be greater than 0",
 		}
 		if !all {
 			return err
@@ -396,8 +385,6 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ContextualizedCaveatValidationError{}
-
-var _ContextualizedCaveat_CaveatId_Pattern = regexp.MustCompile("^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$")
 
 // Validate checks the field values on Caveat with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
