@@ -5,21 +5,14 @@ package keys
 
 import (
 	"fmt"
-	"strings"
-
-	"github.com/dgraph-io/ristretto/z"
+	"unsafe"
 
 	"github.com/cespare/xxhash/v2"
 )
 
 // dispatchCacheKeyHash computres a DispatchCheckKey for the given prefix and any hashable values.
 func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, args ...hashableValue) DispatchCacheKey {
-	totalEstimatedLength := len(string(prefix)) + len(atRevision) + 1 // prefix, revision and `/`
-	for _, arg := range args {
-		totalEstimatedLength += arg.EstimatedLength() + 1 // +1 for the @
-	}
-
-	hasher := newDispatchCacheKeyHasher(prefix, totalEstimatedLength)
+	hasher := newDispatchCacheKeyHasher(prefix)
 
 	for _, arg := range args {
 		arg.AppendToHash(hasher)
@@ -31,18 +24,14 @@ func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, args ...hashabl
 }
 
 type dispatchCacheKeyHasher struct {
-	stableHasher    *xxhash.Digest
-	sb              strings.Builder
-	estimatedLength int
+	stableHasher       *xxhash.Digest
+	processSpecificSum uint64
 }
 
-func newDispatchCacheKeyHasher(prefix cachePrefix, estimatedLength int) *dispatchCacheKeyHasher {
+func newDispatchCacheKeyHasher(prefix cachePrefix) *dispatchCacheKeyHasher {
 	h := &dispatchCacheKeyHasher{
-		stableHasher:    xxhash.New(),
-		estimatedLength: estimatedLength,
+		stableHasher: xxhash.New(),
 	}
-
-	h.sb.Grow(estimatedLength)
 
 	prefixString := string(prefix)
 	h.WriteString(prefixString)
@@ -57,16 +46,28 @@ func (h *dispatchCacheKeyHasher) WriteString(value string) {
 		panic(fmt.Errorf("got an error from writing to the stable hasher: %w", err))
 	}
 
-	_, err = h.sb.WriteString(value)
-	if err != nil {
-		panic(fmt.Errorf("got an error from writing to the stringbuilder for hasher: %w", err))
-	}
+	h.processSpecificSum = runMemHash(h.processSpecificSum, []byte(value))
+}
+
+// From: https://github.com/dgraph-io/ristretto/blob/master/z/rtutil.go
+type stringStruct struct {
+	str unsafe.Pointer
+	len int
+}
+
+//go:noescape
+//go:linkname memhash runtime.memhash
+func memhash(p unsafe.Pointer, h, s uintptr) uintptr
+
+func runMemHash(seed uint64, data []byte) uint64 {
+	ss := (*stringStruct)(unsafe.Pointer(&data))
+	return uint64(memhash(ss.str, uintptr(seed), uintptr(ss.len)))
 }
 
 // BuildKey returns the constructed DispatchCheckKey.
 func (h *dispatchCacheKeyHasher) BuildKey() DispatchCacheKey {
 	return DispatchCacheKey{
 		stableSum:          h.stableHasher.Sum64(),
-		processSpecificSum: z.MemHashString(h.sb.String()),
+		processSpecificSum: h.processSpecificSum,
 	}
 }
