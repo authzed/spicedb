@@ -10,7 +10,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -176,8 +175,7 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*core.Namespa
 	}
 
 	loaded := &core.NamespaceDefinition{}
-	err = proto.Unmarshal(config, loaded)
-	if err != nil {
+	if err := loaded.UnmarshalVT(config); err != nil {
 		return nil, time.Time{}, err
 	}
 
@@ -206,12 +204,12 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]*core.NamespaceDefinit
 			return nil, err
 		}
 
-		var loaded core.NamespaceDefinition
-		if err := proto.Unmarshal(config, &loaded); err != nil {
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(config); err != nil {
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		nsDefs = append(nsDefs, &loaded)
+		nsDefs = append(nsDefs, loaded)
 	}
 
 	if rows.Err() != nil {

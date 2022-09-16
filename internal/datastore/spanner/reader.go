@@ -7,7 +7,6 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -130,7 +129,7 @@ func (sr spannerReader) ReadNamespace(ctx context.Context, nsName string) (*core
 	}
 
 	ns := &core.NamespaceDefinition{}
-	if err := proto.Unmarshal(serialized, ns); err != nil {
+	if err := ns.UnmarshalVT(serialized); err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
@@ -165,7 +164,7 @@ func readAllNamespaces(iter *spanner.RowIterator) ([]*core.NamespaceDefinition, 
 		}
 
 		ns := &core.NamespaceDefinition{}
-		if err := proto.Unmarshal(serialized, ns); err != nil {
+		if err := ns.UnmarshalVT(serialized); err != nil {
 			return err
 		}
 
