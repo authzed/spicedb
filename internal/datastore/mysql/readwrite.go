@@ -14,7 +14,6 @@ import (
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
@@ -195,7 +194,7 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(newNamespaces ...*core.NamespaceDe
 
 	writtenNamespaceNames := make([]string, 0, len(newNamespaces))
 	for _, newNamespace := range newNamespaces {
-		serialized, err := proto.Marshal(newNamespace)
+		serialized, err := newNamespace.MarshalVT()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}

@@ -8,7 +8,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
-	"google.golang.org/protobuf/proto"
 
 	zedtoken "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
@@ -42,7 +41,7 @@ func NewFromRevision(revision decimal.Decimal) *v1.ZedToken {
 
 // Encode converts a decoded zedtoken to its opaque version.
 func Encode(decoded *zedtoken.DecodedZedToken) (*v1.ZedToken, error) {
-	marshalled, err := proto.Marshal(decoded)
+	marshalled, err := decoded.MarshalVT()
 	if err != nil {
 		return nil, fmt.Errorf(errEncodeError, err)
 	}
@@ -62,7 +61,7 @@ func Decode(encoded *v1.ZedToken) (*zedtoken.DecodedZedToken, error) {
 		return nil, fmt.Errorf(errDecodeError, err)
 	}
 	decoded := &zedtoken.DecodedZedToken{}
-	if err := proto.Unmarshal(decodedBytes, decoded); err != nil {
+	if err := decoded.UnmarshalVT(decodedBytes); err != nil {
 		return nil, fmt.Errorf(errDecodeError, err)
 	}
 	return decoded, nil

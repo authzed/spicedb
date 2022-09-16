@@ -3,8 +3,6 @@ package caveats
 import (
 	"fmt"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common"
 
@@ -38,7 +36,7 @@ func (cc CompiledCaveat) Serialize() ([]byte, error) {
 		},
 	}
 
-	return proto.Marshal(caveat)
+	return caveat.MarshalVT()
 }
 
 // CompilationErrors is a wrapping error for containing compilation errors for a Caveat.
@@ -75,8 +73,8 @@ func DeserializeCaveat(env *Environment, serialized []byte) (*CompiledCaveat, er
 		return nil, err
 	}
 
-	caveat := impl.DecodedCaveat{}
-	err = proto.Unmarshal(serialized, &caveat)
+	caveat := &impl.DecodedCaveat{}
+	err = caveat.UnmarshalVT(serialized)
 	if err != nil {
 		return nil, err
 	}
