@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -128,8 +127,7 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, baseQuery s
 	}
 
 	loaded := &core.NamespaceDefinition{}
-	err = proto.Unmarshal(config, loaded)
-	if err != nil {
+	if err := loaded.UnmarshalVT(config); err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
@@ -173,12 +171,12 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx, query sq.SelectBuilder) (
 			return nil, err
 		}
 
-		var loaded core.NamespaceDefinition
-		if err := proto.Unmarshal(config, &loaded); err != nil {
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(config); err != nil {
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		nsDefs = append(nsDefs, &loaded)
+		nsDefs = append(nsDefs, loaded)
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()

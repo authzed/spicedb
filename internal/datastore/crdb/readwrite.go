@@ -11,7 +11,6 @@ import (
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -229,7 +228,7 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefini
 	for _, newConfig := range newConfigs {
 		rwt.addOverlapKey(newConfig.Name)
 
-		serialized, err := proto.Marshal(newConfig)
+		serialized, err := newConfig.MarshalVT()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}

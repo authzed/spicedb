@@ -6,7 +6,6 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -127,7 +126,7 @@ func (rwt *memdbReadWriteTx) WriteNamespaces(newConfigs ...*core.NamespaceDefini
 	}
 
 	for _, newConfig := range newConfigs {
-		serialized, err := proto.Marshal(newConfig)
+		serialized, err := newConfig.MarshalVT()
 		if err != nil {
 			return err
 		}

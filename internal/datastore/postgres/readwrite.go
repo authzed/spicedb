@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel/attribute"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -173,7 +172,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 
 	writtenNamespaceNames := make([]string, 0, len(newConfigs))
 	for _, newNamespace := range newConfigs {
-		serialized, err := proto.Marshal(newNamespace)
+		serialized, err := newNamespace.MarshalVT()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}

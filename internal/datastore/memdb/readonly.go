@@ -7,7 +7,6 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -155,12 +154,12 @@ func (r *memdbReader) ReadNamespace(ctx context.Context, nsName string) (ns *cor
 
 	found := foundRaw.(*namespace)
 
-	var loaded core.NamespaceDefinition
-	if err := proto.Unmarshal(found.configBytes, &loaded); err != nil {
+	loaded := &core.NamespaceDefinition{}
+	if err := loaded.UnmarshalVT(found.configBytes); err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
-	return &loaded, found.updated, nil
+	return loaded, found.updated, nil
 }
 
 // ListNamespaces lists all namespaces defined.
@@ -186,12 +185,13 @@ func (r *memdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 
 	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
 		found := foundRaw.(*namespace)
-		var loaded core.NamespaceDefinition
-		if err := proto.Unmarshal(found.configBytes, &loaded); err != nil {
+
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(found.configBytes); err != nil {
 			return nil, err
 		}
 
-		nsDefs = append(nsDefs, &loaded)
+		nsDefs = append(nsDefs, loaded)
 	}
 
 	return nsDefs, nil
