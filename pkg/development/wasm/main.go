@@ -62,12 +62,12 @@ func runDevelopmentOperations(this js.Value, args []js.Value) interface{} {
 	}
 
 	devContext, devErrors, err := newDevContextFromJSON(args[0].String())
-	if devErrors != nil {
-		return derr(devErrors)
-	}
-
 	if err != nil {
 		return rerr(err.Error())
+	}
+
+	if devErrors != nil && (len(devErrors.InputErrors) > 0 || len(devErrors.ValidationErrors) > 0) {
+		return derr(devErrors)
 	}
 
 	for index := 0; index < args[1].Length(); index++ {

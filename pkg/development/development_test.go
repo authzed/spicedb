@@ -41,3 +41,31 @@ definition document {
 	require.NoError(t, err)
 	require.Nil(t, adErrs)
 }
+
+func TestDevelopmentInvalidRelationship(t *testing.T) {
+	_, _, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+		Schema: `definition user {}
+
+definition document {
+	relation viewer: user
+}
+`,
+		Relationships: []*core.RelationTuple{
+			{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: "document",
+					ObjectId:  "*",
+					Relation:  "view",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "tom",
+					Relation:  "...",
+				},
+			},
+		},
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid resource id")
+}
