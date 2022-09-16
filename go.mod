@@ -54,7 +54,7 @@ require (
 	github.com/rs/cors v1.8.2
 	github.com/rs/zerolog v1.28.0
 	github.com/scylladb/go-set v1.0.2
-	github.com/sercand/kuberesolver/v3 v3.1.0
+	github.com/sercand/kuberesolver/v3 v3.1.1-0.20220712202623-ec4d85131742
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
