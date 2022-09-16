@@ -20,6 +20,7 @@ const (
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
 	defaultMaxRetries                        = 8
+	defaultGCEnabled                         = true
 )
 
 type mysqlOptions struct {
@@ -38,6 +39,7 @@ type mysqlOptions struct {
 	analyzeBeforeStats          bool
 	maxRetries                  uint8
 	lockWaitTimeoutSeconds      *uint8
+	gcEnabled                   bool
 }
 
 // Option provides the facility to configure how clients within the
@@ -58,6 +60,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		maxRetries:                  defaultMaxRetries,
+		gcEnabled:                   defaultGCEnabled,
 	}
 
 	for _, option := range options {
@@ -205,5 +208,14 @@ func DebugAnalyzeBeforeStatistics() Option {
 func OverrideLockWaitTimeout(seconds uint8) Option {
 	return func(po *mysqlOptions) {
 		po.lockWaitTimeoutSeconds = &seconds
+	}
+}
+
+// GCEnabled indicates whether garbage collection is enabled.
+//
+// GC is enabled by default.
+func GCEnabled(isGCEnabled bool) Option {
+	return func(po *mysqlOptions) {
+		po.gcEnabled = isGCEnabled
 	}
 }

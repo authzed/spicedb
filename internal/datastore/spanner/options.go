@@ -12,6 +12,7 @@ type spannerOptions struct {
 	maxRevisionStalenessPercent float64
 	gcWindow                    time.Duration
 	gcInterval                  time.Duration
+	gcEnabled                   bool
 	credentialsFilePath         string
 	emulatorHost                string
 }
@@ -25,6 +26,7 @@ const (
 	defaultWatchBufferLength           = 128
 	defaultGCWindow                    = 60 * time.Minute
 	defaultGCInterval                  = 3 * time.Minute
+	defaultGCEnabled                   = true
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -35,6 +37,7 @@ func generateConfig(options []Option) (spannerOptions, error) {
 	computed := spannerOptions{
 		gcWindow:                    defaultGCWindow,
 		gcInterval:                  defaultGCInterval,
+		gcEnabled:                   defaultGCEnabled,
 		watchBufferLength:           defaultWatchBufferLength,
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
@@ -129,5 +132,14 @@ func CredentialsFile(path string) Option {
 func EmulatorHost(uri string) Option {
 	return func(so *spannerOptions) {
 		so.emulatorHost = uri
+	}
+}
+
+// GCEnabled indicates whether garbage collection is enabled.
+//
+// GC is enabled by default.
+func GCEnabled(isGCEnabled bool) Option {
+	return func(so *spannerOptions) {
+		so.gcEnabled = isGCEnabled
 	}
 }
