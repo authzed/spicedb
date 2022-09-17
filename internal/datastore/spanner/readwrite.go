@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -207,7 +208,7 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefi
 
 	mutations := make([]*spanner.Mutation, 0, len(newConfigs))
 	for _, newConfig := range newConfigs {
-		serialized, err := newConfig.MarshalVT()
+		serialized, err := proto.Marshal(newConfig)
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}
