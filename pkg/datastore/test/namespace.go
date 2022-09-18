@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -12,6 +14,9 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -174,4 +179,50 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 
 	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespace(ctx, testfixtures.UserNS.Name)
 	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
+}
+
+// StableNamespaceReadWriteTest tests writing a namespace to the datastore and reading it back,
+// ensuring that it does not change in any way and that the deserialized data matches that stored.
+func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	schemaString := `definition document {
+	relation viewer: user | user:*
+	relation editor: user | group#member
+	relation parent: organization
+	permission edit = editor
+	permission view = viewer + edit + parent->view
+	permission other = viewer - edit
+	permission intersect = viewer & edit
+	permission with_nil = ((viewer - edit) & parent->view) & nil
+}`
+
+	// Compile namespace to write to the datastore.
+	empty := ""
+	defs, err := compiler.Compile([]compiler.InputSchema{
+		{Source: input.Source("schema"), SchemaString: schemaString},
+	}, &empty)
+	require.NoError(err)
+	require.Equal(1, len(defs))
+
+	// Write the namespace definition to the datastore.
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ctx := context.Background()
+	updatedRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(defs...)
+	})
+	require.NoError(err)
+
+	// Read the namespace definition back from the datastore and compare.
+	nsConfig := defs[0]
+	readDef, _, err := ds.SnapshotReader(updatedRevision).ReadNamespace(ctx, nsConfig.Name)
+	require.NoError(err)
+
+	require.True(proto.Equal(nsConfig, readDef), "found changed namespace definition")
+
+	// Ensure the read namespace's string form matches the input as an extra check.
+	generated, _ := generator.GenerateSource(readDef)
+	require.Equal(schemaString, generated)
 }
