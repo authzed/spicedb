@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
@@ -13,6 +14,8 @@ import (
 )
 
 func TestDevelopment(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
 	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
@@ -43,6 +46,8 @@ definition document {
 }
 
 func TestDevelopmentInvalidRelationship(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
 	_, _, err := NewDevContext(context.Background(), &devinterface.RequestContext{
 		Schema: `definition user {}
 

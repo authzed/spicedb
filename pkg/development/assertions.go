@@ -13,7 +13,7 @@ const maxDispatchDepth = 25
 
 // RunAllAssertions runs all assertions found in the given assertions block against the
 // developer context, returning whether any errors occurred.
-func RunAllAssertions(devContext *DevContext, assertions *blocks.Assertions) (*DeveloperErrors, error) {
+func RunAllAssertions(devContext *DevContext, assertions *blocks.Assertions) ([]*devinterface.DeveloperError, error) {
 	trueFailures, err := runAssertions(devContext, assertions.AssertTrue, true, "Expected relation or permission %s to exist")
 	if err != nil {
 		return nil, err
@@ -25,13 +25,7 @@ func RunAllAssertions(devContext *DevContext, assertions *blocks.Assertions) (*D
 	}
 
 	failures := append(trueFailures, falseFailures...)
-	if len(failures) > 0 {
-		return &DeveloperErrors{
-			ValidationErrors: failures,
-		}, nil
-	}
-
-	return nil, nil
+	return failures, nil
 }
 
 func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expected bool, fmtString string) ([]*devinterface.DeveloperError, error) {
