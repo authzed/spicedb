@@ -46,15 +46,15 @@ type relationship struct {
 	subjectNamespace string
 	subjectObjectID  string
 	subjectRelation  string
-	caveat           *caveatReference
+	caveat           *contextualizedCaveat
 }
 
-type caveatReference struct {
+type contextualizedCaveat struct {
 	caveatID datastore.CaveatID
 	context  map[string]any
 }
 
-func (cr *caveatReference) CaveatReference() (*core.ContextualizedCaveat, error) {
+func (cr *contextualizedCaveat) ContextualizedCaveat() (*core.ContextualizedCaveat, error) {
 	if cr == nil {
 		return nil, nil
 	}
@@ -98,7 +98,7 @@ func (r relationship) Relationship() *v1.Relationship {
 }
 
 func (r relationship) RelationTuple() (*core.RelationTuple, error) {
-	cr, err := r.caveat.CaveatReference()
+	cr, err := r.caveat.ContextualizedCaveat()
 	if err != nil {
 		return nil, err
 	}
