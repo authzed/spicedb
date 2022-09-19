@@ -53,9 +53,9 @@ func TestWriteReadCaveat(t *testing.T) {
 
 	// Returns an error if caveat name or ID does not exist
 	_, err = cr.ReadCaveatByName("doesnotexist")
-	req.ErrorIs(err, datastore.ErrCaveatNotFound)
+	req.ErrorAs(err, &datastore.ErrCaveatNameNotFound{})
 	_, err = cr.ReadCaveatByID(math.MaxUint64)
-	req.ErrorIs(err, datastore.ErrCaveatNotFound)
+	req.ErrorAs(err, &datastore.ErrCaveatIDNotFound{})
 }
 
 func TestWriteCaveatedTuple(t *testing.T) {
