@@ -2,7 +2,7 @@
 // +build wasm
 
 // To Run:
-// 1) Install wasmbrowsertst: `go install github.com/agnivade/wasmbrowsertest@latest`
+// 1) Install wasmbrowsertest: `go install github.com/agnivade/wasmbrowsertest@latest`
 // 2) Run: `GOOS=js GOARCH=wasm go test -exec wasmbrowsertest`
 
 package main

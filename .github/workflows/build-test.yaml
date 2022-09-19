@@ -121,6 +121,19 @@ jobs:
           name: "node-logs"
           path: "e2e/newenemy/*.log"
 
+  development:
+    name: "Development Package"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
+        with:
+          go-version: "~1.19.1"
+      - name: "Install wasmbrowsertest"
+        run: "go install github.com/agnivade/wasmbrowsertest@latest"
+      - name: "Run WASM Tests"
+        run: "GOOS=js GOARCH=wasm go test ./pkg/development/wasm/... -exec wasmbrowsertest"
+
   protobuf:
     name: "Generate Protobufs"
     runs-on: "ubuntu-latest"

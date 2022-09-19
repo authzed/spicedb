@@ -73,7 +73,7 @@ func TestCheckOperation(t *testing.T) {
 			[]*core.RelationTuple{},
 			tuple.MustParse("somenamespace:someobj#anotherrel@user:foo"),
 			&devinterface.DeveloperError{
-				Message: "found duplicate relation/permission name `writer`",
+				Message: "found duplicate relation/permission name `writer` under definition `resource`",
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 				Source:  devinterface.DeveloperError_SCHEMA,
 				Line:    5,
@@ -121,6 +121,24 @@ func TestCheckOperation(t *testing.T) {
 			&editCheckResult{
 				Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
 				IsMember:     true,
+			},
+		},
+		{
+			"valid negative check",
+			`
+				definition user {}
+				definition somenamespace {
+					relation somerel: user
+				}
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse("somenamespace:someobj#somerel@user:foo"),
+			},
+			tuple.MustParse("somenamespace:someobj#somerel@user:bar"),
+			nil,
+			&editCheckResult{
+				Relationship: tuple.MustParse("somenamespace:someobj#somerel@user:bar"),
+				IsMember:     false,
 			},
 		},
 		{
@@ -202,7 +220,7 @@ func TestCheckOperation(t *testing.T) {
 			if tc.expectedError != nil {
 				require.NotNil(t, response.GetDeveloperErrors())
 				require.Equal(t, 1, len(response.GetDeveloperErrors().InputErrors))
-				require.True(t, proto.Equal(tc.expectedError, response.GetDeveloperErrors().InputErrors[0]))
+				require.True(t, proto.Equal(tc.expectedError, response.GetDeveloperErrors().InputErrors[0]), "found mismatching error: %v", response.GetDeveloperErrors().InputErrors[0])
 			} else {
 				require.Equal(t, "", response.GetInternalError())
 				require.Nil(t, response.GetDeveloperErrors())
@@ -225,7 +243,7 @@ func TestFormatSchemaOperation(t *testing.T) {
 	require := require.New(t)
 	response := run(t, &devinterface.DeveloperRequest{
 		Context: &devinterface.RequestContext{
-			Schema: "definition foos {} definition bars{}",
+			Schema: "/** hi there */definition foos {} definition bars{}",
 		},
 		Operations: []*devinterface.Operation{
 			{
@@ -235,7 +253,7 @@ func TestFormatSchemaOperation(t *testing.T) {
 	})
 
 	formatResult := response.GetOperationsResults().Results[0].GetFormatSchemaResult()
-	require.Equal("definition foos {}\n\ndefinition bars {}", formatResult.FormattedSchema)
+	require.Equal("/** hi there */\ndefinition foos {}\n\ndefinition bars {}", formatResult.FormattedSchema)
 }
 
 func TestRunAssertionsAndValidationOperations(t *testing.T) {
@@ -572,7 +590,7 @@ assertFalse:
 `,
 		},
 		{
-			"muiltipath",
+			"multipath",
 			`
 			definition user {}
 			definition document {
@@ -596,7 +614,7 @@ assertFalse:
 `,
 		},
 		{
-			"muiltipath missing relationship",
+			"multipath missing relationship",
 			`
 			definition user {}
 			definition document {
