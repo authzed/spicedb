@@ -59,23 +59,19 @@ func TestWriteReadCaveat(t *testing.T) {
 	req.ErrorIs(err, datastore.ErrCaveatNotFound)
 }
 
-func TestWriteTupleWithCaveat(t *testing.T) {
+func TestWriteCaveatedTuple(t *testing.T) {
 	req := require.New(t)
 	ctx := context.Background()
 
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	req.NoError(err)
 	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
-	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", math.MaxUint64)
-	// should fail because the caveat is not present in the datastore
-	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
-	req.ErrorIs(err, datastore.ErrCaveatNotFound)
 
-	// let's write the caveat and try again
+	// store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)
 	_, cavID, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
-	tpl = createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", cavID)
+	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", cavID)
 	rev, err := common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -85,6 +81,11 @@ func TestWriteTupleWithCaveat(t *testing.T) {
 	defer iter.Close()
 	readTpl := iter.Next()
 	req.Equal(tpl, readTpl)
+
+	// caveated tuple can reference non-existing caveat - controller layer is responsible for validation
+	tpl = createTestCaveatedTuple(t, "document:rando#parent@folder:company#...", math.MaxUint64)
+	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
+	req.NoError(err)
 }
 
 func createTestCaveatedTuple(t *testing.T, tplString string, id datastore.CaveatID) *core.RelationTuple {

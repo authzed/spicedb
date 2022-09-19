@@ -1,7 +1,6 @@
 package memdb
 
 import (
-	"errors"
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -36,10 +35,6 @@ func (rwt *memdbReadWriteTx) WriteRelationships(mutations []*core.RelationTupleU
 func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTupleUpdate) error {
 	// Apply the mutations
 	for _, mutation := range mutations {
-		cr, err := rwt.prepareCaveat(tx, mutation)
-		if err != nil {
-			return err
-		}
 		rel := &relationship{
 			mutation.Tuple.ResourceAndRelation.Namespace,
 			mutation.Tuple.ResourceAndRelation.ObjectId,
@@ -47,7 +42,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 			mutation.Tuple.Subject.Namespace,
 			mutation.Tuple.Subject.ObjectId,
 			mutation.Tuple.Subject.Relation,
-			cr,
+			rwt.toCaveatReference(mutation),
 		}
 
 		found, err := tx.First(
@@ -97,23 +92,15 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) prepareCaveat(tx *memdb.Txn, mutation *core.RelationTupleUpdate) (*caveatReference, error) {
+func (rwt *memdbReadWriteTx) toCaveatReference(mutation *core.RelationTupleUpdate) *caveatReference {
 	var cr *caveatReference
 	if mutation.Tuple.Caveat != nil {
-		id := datastore.CaveatID(mutation.Tuple.Caveat.CaveatId)
 		cr = &caveatReference{
-			caveatID: id,
+			caveatID: datastore.CaveatID(mutation.Tuple.Caveat.CaveatId),
 			context:  mutation.Tuple.Caveat.Context.AsMap(),
 		}
-		_, err := rwt.readCaveatByID(tx, id)
-		if errors.Is(err, datastore.ErrCaveatNotFound) {
-			return nil, fmt.Errorf("unable to write tuple referencing non-existing caveat %w", err)
-		}
-		if err != nil {
-			return nil, err
-		}
 	}
-	return cr, nil
+	return cr
 }
 
 func (rwt *memdbReadWriteTx) DeleteRelationships(filter *v1.RelationshipFilter) error {
