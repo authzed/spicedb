@@ -23,10 +23,10 @@ func TestWriteReadCaveat(t *testing.T) {
 
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	req.NoError(err)
-	coreCaveat := createCoreCaveat(t)
-	ctx := context.Background()
 
 	// Fails to write dupes in the same transaction
+	coreCaveat := createCoreCaveat(t)
+	ctx := context.Background()
 	_, _, err = writeCaveat(ctx, ds, coreCaveat, coreCaveat)
 	req.Error(err)
 
@@ -34,25 +34,24 @@ func TestWriteReadCaveat(t *testing.T) {
 	rev, ID, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
 
-	// fails to write caveat with the same name in different tx
+	// Fails to write caveat with the same name in different tx
 	_, _, err = writeCaveat(ctx, ds, coreCaveat)
 	req.Error(err)
 
-	// the caveat can be looked up by name
+	// The caveat can be looked up by name
 	cr, ok := ds.SnapshotReader(rev).(datastore.CaveatReader)
 	req.True(ok, "expected a CaveatStorer value")
+
 	cv, err := cr.ReadCaveatByName(coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(coreCaveat, cv)
-	req.NoError(err)
 
-	// the caveat can be looked up by ID
+	// The caveat can be looked up by ID
 	cv, err = cr.ReadCaveatByID(ID)
 	req.NoError(err)
 	req.Equal(coreCaveat, cv)
-	req.NoError(err)
 
-	// returns an error if caveat name or ID does not exist
+	// Returns an error if caveat name or ID does not exist
 	_, err = cr.ReadCaveatByName("doesnotexist")
 	req.ErrorIs(err, datastore.ErrCaveatNotFound)
 	_, err = cr.ReadCaveatByID(math.MaxUint64)
@@ -67,10 +66,11 @@ func TestWriteCaveatedTuple(t *testing.T) {
 	req.NoError(err)
 	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
 
-	// store caveat, write caveated tuple and read back same value
+	// Store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)
 	_, cavID, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
+
 	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", cavID)
 	rev, err := common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
@@ -78,11 +78,12 @@ func TestWriteCaveatedTuple(t *testing.T) {
 		ResourceType: tpl.ResourceAndRelation.Namespace,
 	})
 	req.NoError(err)
+
 	defer iter.Close()
 	readTpl := iter.Next()
 	req.Equal(tpl, readTpl)
 
-	// caveated tuple can reference non-existing caveat - controller layer is responsible for validation
+	// Caveated tuple can reference non-existing caveat - controller layer is responsible for validation
 	tpl = createTestCaveatedTuple(t, "document:rando#parent@folder:company#...", math.MaxUint64)
 	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
@@ -92,6 +93,7 @@ func createTestCaveatedTuple(t *testing.T, tplString string, id datastore.Caveat
 	tpl := tuple.MustParse(tplString)
 	st, err := structpb.NewStruct(map[string]interface{}{"a": 1, "b": "test"})
 	require.NoError(t, err)
+
 	tpl.Caveat = &core.ContextualizedCaveat{
 		CaveatId: uint64(id),
 		Context:  st,
@@ -121,11 +123,13 @@ func createCoreCaveat(t *testing.T) *core.Caveat {
 	c := createCompiledCaveat(t)
 	cBytes, err := c.Serialize()
 	require.NoError(t, err)
+
 	coreCaveat := &core.Caveat{
 		Name:       c.Name(),
 		Expression: cBytes,
 	}
 	require.NoError(t, err)
+
 	return coreCaveat
 }
 
@@ -136,7 +140,9 @@ func createCompiledCaveat(t *testing.T) *caveats.CompiledCaveat {
 		"b": caveats.IntType,
 	})
 	require.NoError(t, err)
+
 	c, err := caveats.CompileCaveatWithName(env, "a == b", uuid.New().String())
 	require.NoError(t, err)
+
 	return c
 }

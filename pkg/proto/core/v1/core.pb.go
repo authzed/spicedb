@@ -288,7 +288,7 @@ type RelationTuple struct {
 	ResourceAndRelation *ObjectAndRelation `protobuf:"bytes,1,opt,name=resource_and_relation,json=resourceAndRelation,proto3" json:"resource_and_relation,omitempty"`
 	// subject is the subject for the tuple
 	Subject *ObjectAndRelation `protobuf:"bytes,2,opt,name=subject,proto3" json:"subject,omitempty"`
-	// referencing a caveat that must be enforced over the tuple *
+	// caveat is a reference to a the caveat that must be enforced over the tuple *
 	Caveat *ContextualizedCaveat `protobuf:"bytes,3,opt,name=caveat,proto3" json:"caveat,omitempty"`
 }
 
@@ -345,6 +345,8 @@ func (x *RelationTuple) GetCaveat() *ContextualizedCaveat {
 	return nil
 }
 
+// ContextualizedCaveat represents a reference to a caveat used to by caveated tuples.
+// The context are key-value pairs that will be injected at evaluation time.
 type ContextualizedCaveat struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -352,7 +354,7 @@ type ContextualizedCaveat struct {
 
 	// caveat_id is the reference to the internal id of a stored caveat *
 	CaveatId uint64 `protobuf:"varint,1,opt,name=caveat_id,json=caveatId,proto3" json:"caveat_id,omitempty"`
-	// predefined are arguments used as input during caveat evaluation with a predefined value *
+	// context are arguments used as input during caveat evaluation with a predefined value *
 	Context *structpb.Struct `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
 }
 

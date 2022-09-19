@@ -14,15 +14,19 @@ message RelationTuple {
   /** subject is the subject for the tuple */
   ObjectAndRelation subject = 2 [ (validate.rules).message.required = true ];
 
-  /** referencing a caveat that must be enforced over the tuple **/
+  /** caveat is a reference to a the caveat that must be enforced over the tuple **/
   ContextualizedCaveat caveat = 3 [ (validate.rules).message.required = false ];
 }
 
+/**
+* ContextualizedCaveat represents a reference to a caveat used to by caveated tuples.
+* The context are key-value pairs that will be injected at evaluation time.
+*/
 message ContextualizedCaveat {
   /** caveat_id is the reference to the internal id of a stored caveat **/
   uint64 caveat_id = 1 [(validate.rules).uint64.gt = 0];
 
-  /** predefined are arguments used as input during caveat evaluation with a predefined value **/
+  /** context are arguments used as input during caveat evaluation with a predefined value **/
   google.protobuf.Struct context = 2 [ (validate.rules).message.required = false ];
 }
 
