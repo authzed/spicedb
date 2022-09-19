@@ -54,7 +54,7 @@ func (r *memdbReader) readCaveatByID(tx *memdb.Txn, ID datastore.CaveatID) (*cor
 		return nil, err
 	}
 	if found == nil {
-		return nil, fmt.Errorf("caveat with id %d not found: %w", ID, datastore.ErrCaveatNotFound)
+		return nil, datastore.NewCaveatIDNotFoundErr(ID)
 	}
 	c := found.(*caveat)
 	return c.Unwrap(), nil
@@ -66,7 +66,7 @@ func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*core.Caveat
 		return nil, err
 	}
 	if found == nil {
-		return nil, fmt.Errorf("caveat with name %s not found: %w", name, datastore.ErrCaveatNotFound)
+		return nil, datastore.NewCaveatNameNotFoundErr(name)
 	}
 	c := found.(*caveat)
 	return c.Unwrap(), nil
@@ -93,7 +93,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 		}
 		// TODO(vroldanbet) why does go-memdb not honor unique index name?
 		found, err := rwt.readCaveatByName(tx, coreCaveat.Name)
-		if err != nil && !errors.Is(err, datastore.ErrCaveatNotFound) {
+		if err != nil && !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
 			return nil, err
 		}
 		if found != nil {
