@@ -68,6 +68,9 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 	// Process the actual updates
 	for _, mut := range mutations {
 		tpl := mut.Tuple
+		if tpl.Caveat != nil {
+			panic("caveats are not supported in Postgres datastore")
+		}
 
 		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {
 			deleteClauses = append(deleteClauses, exactRelationshipClause(tpl))

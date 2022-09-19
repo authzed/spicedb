@@ -31,6 +31,9 @@ func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupl
 	var rowCountChange int64
 
 	for _, mutation := range mutations {
+		if mutation.Tuple.Caveat != nil {
+			panic("caveats are not supported in Spanner datastore")
+		}
 		var txnMut *spanner.Mutation
 		var op int
 		switch mutation.Operation {
