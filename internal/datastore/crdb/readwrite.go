@@ -95,6 +95,10 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleU
 	// Process the actual updates
 	for _, mutation := range mutations {
 		rel := mutation.Tuple
+		if rel.Caveat != nil {
+			panic("caveats are not supported in CRDB datastore")
+		}
+
 		rwt.addOverlapKey(rel.ResourceAndRelation.Namespace)
 		rwt.addOverlapKey(rel.Subject.Namespace)
 
