@@ -99,7 +99,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 		if found != nil {
 			return nil, fmt.Errorf("duplicated caveat with name %s", coreCaveat.Name)
 		}
-		if err := tx.Insert(tableCaveats, &c); err != nil {
+		if err = tx.Insert(tableCaveats, &c); err != nil {
 			return nil, err
 		}
 		ids = append(ids, id)
