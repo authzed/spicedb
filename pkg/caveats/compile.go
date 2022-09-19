@@ -19,6 +19,7 @@ type CompiledCaveat struct {
 	// ast is the AST form of the CEL program.
 	ast *cel.Ast
 
+	// name of the caveat
 	name string
 }
 
@@ -56,6 +57,8 @@ type CompilationErrors struct {
 	issues *cel.Issues
 }
 
+// CompileCaveatWithName compiles a caveat string into a compiled caveat with a given name,
+// or returns the compilation errors.
 func CompileCaveatWithName(env *Environment, exprString, name string) (*CompiledCaveat, error) {
 	c, err := CompileCaveat(env, exprString)
 	if err != nil {

@@ -19,7 +19,7 @@ type caveat struct {
 	expression []byte
 }
 
-func (c *caveat) CoreCaveat() *core.Caveat {
+func (c *caveat) Unwrap() *core.Caveat {
 	return &core.Caveat{
 		Name:       c.name,
 		Expression: c.expression,
@@ -57,7 +57,7 @@ func (r *memdbReader) readCaveatByID(tx *memdb.Txn, ID datastore.CaveatID) (*cor
 		return nil, fmt.Errorf("caveat with id %d not found: %w", ID, datastore.ErrCaveatNotFound)
 	}
 	c := found.(*caveat)
-	return c.CoreCaveat(), nil
+	return c.Unwrap(), nil
 }
 
 func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, error) {
@@ -69,7 +69,7 @@ func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*core.Caveat
 		return nil, fmt.Errorf("caveat with name %s not found: %w", name, datastore.ErrCaveatNotFound)
 	}
 	c := found.(*caveat)
-	return c.CoreCaveat(), nil
+	return c.Unwrap(), nil
 }
 
 func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) ([]datastore.CaveatID, error) {
