@@ -5,8 +5,7 @@ import (
 )
 
 // DispatchCacheKey is a struct which holds the key representing a dispatch operation being
-// dispatched or cached. This key is guaranteed to be unique in byte or (uint64, uint64) form for
-// a particular request.
+// dispatched or cached.
 type DispatchCacheKey struct {
 	stableSum          uint64
 	processSpecificSum uint64
@@ -19,7 +18,9 @@ func (dck DispatchCacheKey) StableSumAsBytes() []byte {
 	return binary.AppendUvarint(make([]byte, 0, 8), dck.stableSum)
 }
 
-// AsUInt64s returns the cache key in the form of two uint64's.
+// AsUInt64s returns the cache key in the form of two uint64's. This method returns uint64s created
+// from two distinct hashing algorithms, which should make the risk of key overlap incredibly
+// unlikely.
 func (dck DispatchCacheKey) AsUInt64s() (uint64, uint64) {
 	return dck.processSpecificSum, dck.stableSum
 }
