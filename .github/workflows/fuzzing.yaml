@@ -1,0 +1,40 @@
+name: "Fuzzing Testing"
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - "!dependabot/*"
+      - "main"
+  pull_request:
+    branches: ["*"]
+jobs:
+  fuzz:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Build Fuzzers"
+        id: "build"
+        uses: "google/oss-fuzz/infra/cifuzz/actions/build_fuzzers@master"
+        with:
+          oss-fuzz-project-name: "spicedb"
+          language: "go"
+          dry-run: "true"
+      - name: "Run Fuzzers"
+        uses: "google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master"
+        with:
+          oss-fuzz-project-name: "spicedb"
+          language: "go"
+          fuzz-seconds: 300
+          dry-run: "true"
+      - name: "Upload Crash"
+        uses: "actions/upload-artifact@v3"
+        if: failure() && steps.build.outcome == 'success'
+        with:
+          name: "artifacts"
+          path: "./out/artifacts"
+
+  go-test-fuzz:
+    name : "go test -fuzz"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "jidicula/go-fuzz-action@v1.2.0"
+        with:
+          fuzz-time: 30s
