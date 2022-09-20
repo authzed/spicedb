@@ -135,21 +135,6 @@ func TestLookupWatch(t *testing.T) {
 			},
 		},
 		{
-			name:                    "lookupWatch arrow resolution for non-terminal relation (1)",
-			expectedCode:            codes.OK,
-			resourceObjectType:      "resource",
-			permission:              "view",
-			subjectObjectType:       "user",
-			OptionalSubjectRelation: "...",
-			dsInitFunc:              CustomDatastoreWithData,
-			mutations: []*v1.RelationshipUpdate{
-				update(v1.RelationshipUpdate_OPERATION_CREATE, "resource", "resource2", "parent", "resource", "resource2_p", ""),
-			},
-			expectedUpdates: []*lookupwatchv1.PermissionUpdate{
-				permissionUpdate("resource", "resource2", "user", "user2", "...", v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION),
-			},
-		},
-		{
 			name:                    "ensure LS is called on the right-hand-side even if RHS type=req.subjectType",
 			expectedCode:            codes.OK,
 			resourceObjectType:      "resource",

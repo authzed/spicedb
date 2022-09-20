@@ -133,7 +133,8 @@ func (lw *lookupWatchServer) processUpdate(
 ) error {
 
 	ds := datastoremw.MustFromContext((*stream).Context())
-	//CALL LOOKUPSUBJECTS
+
+	// STEP 1: CALL LOOKUPSUBJECTS
 	if update.Tuple.Subject.Relation == "" {
 		return status.Errorf(
 			codes.Internal,
@@ -146,18 +147,17 @@ func (lw *lookupWatchServer) processUpdate(
 		subjects = append(subjects, update.Tuple.Subject.ObjectId)
 	}
 	var resourceRelations []string
-	if update.Tuple.Subject.Relation == graph.Ellipsis {
-		// Arrow resolution
-		reader := ds.SnapshotReader(*atRevision)
-		_, typeSystem, err := namespace.ReadNamespaceAndTypes((*stream).Context(), update.Tuple.ResourceAndRelation.Namespace, reader)
-		if err != nil {
-			return err
-		}
-		resourceRelations, err = typeSystem.ResolveArrowRelations(update.Tuple.ResourceAndRelation.Relation)
-		if err != nil {
-			return err
-		}
-	} else {
+	// Arrow resolution
+	reader := ds.SnapshotReader(*atRevision)
+	_, typeSystem, err := namespace.ReadNamespaceAndTypes((*stream).Context(), update.Tuple.ResourceAndRelation.Namespace, reader)
+	if err != nil {
+		return err
+	}
+	resourceRelations, err = typeSystem.ResolveArrowRelations(update.Tuple.ResourceAndRelation.Relation)
+	if err != nil {
+		return err
+	}
+	if update.Tuple.Subject.Relation != graph.Ellipsis {
 		resourceRelations = append(resourceRelations, update.Tuple.Subject.Relation)
 	}
 	for _, resourceRelation := range resourceRelations {
@@ -190,7 +190,7 @@ func (lw *lookupWatchServer) processUpdate(
 		}
 	}
 
-	//CALL ReachableResources
+	// STEP 2: CALL ReachableResources
 	var resources []string
 	rrStream := dispatchpkg.NewHandlingDispatchStream(*ctx, func(result *dispatchv1.DispatchReachableResourcesResponse) error {
 		resources = append(resources, result.Resource.ResourceIds...)
@@ -216,7 +216,7 @@ func (lw *lookupWatchServer) processUpdate(
 		}
 
 	}
-	err := lw.dispatch.DispatchReachableResources(
+	err = lw.dispatch.DispatchReachableResources(
 		&dispatchv1.DispatchReachableResourcesRequest{
 			Metadata: &dispatchv1.ResolverMeta{
 				AtRevision:     atRevision.String(),
@@ -238,11 +238,11 @@ func (lw *lookupWatchServer) processUpdate(
 		return err
 	}
 
-	//CROSS JOIN
+	// STEP 3: CROSS JOIN
 	permissionUpdates := []*v1lookupwatch.PermissionUpdate{}
 	for _, subject := range subjects {
 		for _, resource := range resources {
-			//CALL CHECK PERMISSION
+			// CALL CHECK PERMISSION
 			permission, err := lw.dispatch.DispatchCheck(*ctx, &dispatchv1.DispatchCheckRequest{
 				Metadata: &dispatchv1.ResolverMeta{
 					AtRevision:     atRevision.String(),
