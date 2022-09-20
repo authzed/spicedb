@@ -247,7 +247,7 @@ func (cd *Dispatcher) SetDelegate(delegate dispatch.Dispatcher) {
 func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
 
-	requestKey, err := cd.keyHandler.ComputeCheckKey(ctx, req)
+	requestKey, err := cd.keyHandler.CheckCacheKey(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{}}, err
 	}
@@ -307,7 +307,11 @@ func (cd *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpand
 func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	cd.lookupTotalCounter.Inc()
 
-	requestKey := keys.LookupRequestToKey(req)
+	requestKey, err := cd.keyHandler.LookupResourcesCacheKey(ctx, req)
+	if err != nil {
+		return &v1.DispatchLookupResponse{Metadata: &v1.ResponseMeta{}}, err
+	}
+
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupResultEntry)
 		if req.Metadata.DepthRemaining >= cachedResult.response.Metadata.DepthRequired {
@@ -328,7 +332,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 		adjustedComputed.Metadata.DispatchCount = 0
 		adjustedComputed.Metadata.DebugInfo = nil
 
-		cd.c.Set(keys.LookupRequestToKey(req), lookupResultEntry{adjustedComputed}, int64(adjustedComputed.SizeVT()))
+		cd.c.Set(requestKey, lookupResultEntry{adjustedComputed}, int64(adjustedComputed.SizeVT()))
 	}
 
 	// Return both the computed and err in ALL cases: computed contains resolved metadata even
@@ -340,7 +344,11 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
 	cd.reachableResourcesTotalCounter.Inc()
 
-	requestKey := keys.ReachableResourcesRequestToKey(req)
+	requestKey, err := cd.keyHandler.ReachableResourcesCacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(reachableResourcesResultEntry)
 		cd.reachableResourcesFromCacheCounter.Inc()
@@ -391,7 +399,11 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
 	cd.lookupSubjectsTotalCounter.Inc()
 
-	requestKey := keys.LookupSubjectsRequestToKey(req)
+	requestKey, err := cd.keyHandler.LookupSubjectsCacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupSubjectsResultEntry)
 		cd.lookupSubjectsFromCacheCounter.Inc()

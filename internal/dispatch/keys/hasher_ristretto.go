@@ -10,9 +10,16 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
+type dispatchCacheKeyHashComputeOption int
+
+const (
+	computeOnlyStableHash dispatchCacheKeyHashComputeOption = 0
+	computeBothHashes     dispatchCacheKeyHashComputeOption = 1
+)
+
 // dispatchCacheKeyHash computres a DispatchCheckKey for the given prefix and any hashable values.
-func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, args ...hashableValue) DispatchCacheKey {
-	hasher := newDispatchCacheKeyHasher(prefix)
+func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, computeOption dispatchCacheKeyHashComputeOption, args ...hashableValue) DispatchCacheKey {
+	hasher := newDispatchCacheKeyHasher(prefix, computeOption)
 
 	for _, arg := range args {
 		arg.AppendToHash(hasher)
@@ -25,12 +32,14 @@ func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, args ...hashabl
 
 type dispatchCacheKeyHasher struct {
 	stableHasher       *xxhash.Digest
+	computeOption      dispatchCacheKeyHashComputeOption
 	processSpecificSum uint64
 }
 
-func newDispatchCacheKeyHasher(prefix cachePrefix) *dispatchCacheKeyHasher {
+func newDispatchCacheKeyHasher(prefix cachePrefix, computeOption dispatchCacheKeyHashComputeOption) *dispatchCacheKeyHasher {
 	h := &dispatchCacheKeyHasher{
-		stableHasher: xxhash.New(),
+		stableHasher:  xxhash.New(),
+		computeOption: computeOption,
 	}
 
 	prefixString := string(prefix)
@@ -46,7 +55,9 @@ func (h *dispatchCacheKeyHasher) WriteString(value string) {
 		panic(fmt.Errorf("got an error from writing to the stable hasher: %w", err))
 	}
 
-	h.processSpecificSum = runMemHash(h.processSpecificSum, []byte(value))
+	if h.computeOption == computeBothHashes {
+		h.processSpecificSum = runMemHash(h.processSpecificSum, []byte(value))
+	}
 }
 
 // From: https://github.com/dgraph-io/ristretto/blob/master/z/rtutil.go

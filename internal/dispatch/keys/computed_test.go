@@ -38,35 +38,35 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"basic check",
 			func() DispatchCacheKey {
-				return CheckRequestToKey(&v1.DispatchCheckRequest{
+				return checkRequestToKey(&v1.DispatchCheckRequest{
 					ResourceRelation: RR("document", "view"),
 					ResourceIds:      []string{"foo", "bar"},
 					Subject:          ONR("user", "tom", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
-				})
+				}, computeBothHashes)
 			},
 			"d6a999a7a0a4d39c9f01",
 		},
 		{
 			"different check",
 			func() DispatchCacheKey {
-				return CheckRequestToKey(&v1.DispatchCheckRequest{
+				return checkRequestToKey(&v1.DispatchCheckRequest{
 					ResourceRelation: RR("document", "edit"),
 					ResourceIds:      []string{"foo"},
 					Subject:          ONR("user", "sarah", "..."),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "123456",
 					},
-				})
+				}, computeBothHashes)
 			},
 			"d586cee091f9e591c301",
 		},
 		{
 			"canonical check",
 			func() DispatchCacheKey {
-				return CheckRequestToKeyWithCanonical(&v1.DispatchCheckRequest{
+				return checkRequestToKeyWithCanonical(&v1.DispatchCheckRequest{
 					ResourceRelation: RR("document", "view"),
 					ResourceIds:      []string{"foo", "bar"},
 					Subject:          ONR("user", "tom", "..."),
@@ -80,54 +80,54 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"expand",
 			func() DispatchCacheKey {
-				return ExpandRequestToKey(&v1.DispatchExpandRequest{
+				return expandRequestToKey(&v1.DispatchExpandRequest{
 					ResourceAndRelation: ONR("document", "foo", "view"),
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
-				})
+				}, computeBothHashes)
 			},
 			"8afff68e91a7cbb3ef01",
 		},
 		{
 			"lookup resources",
 			func() DispatchCacheKey {
-				return LookupRequestToKey(&v1.DispatchLookupRequest{
+				return lookupRequestToKey(&v1.DispatchLookupRequest{
 					ObjectRelation: RR("document", "view"),
 					Subject:        ONR("user", "mariah", "..."),
 					Limit:          10,
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
-				})
+				}, computeBothHashes)
 			},
 			"d4a1bda89c9790f50c",
 		},
 		{
 			"reachable resources",
 			func() DispatchCacheKey {
-				return ReachableResourcesRequestToKey(&v1.DispatchReachableResourcesRequest{
+				return reachableResourcesRequestToKey(&v1.DispatchReachableResourcesRequest{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					SubjectIds:       []string{"mariah", "tom"},
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
-				})
+				}, computeBothHashes)
 			},
 			"e8848b9dd68f93a6c801",
 		},
 		{
 			"lookup subjects",
 			func() DispatchCacheKey {
-				return LookupSubjectsRequestToKey(&v1.DispatchLookupSubjectsRequest{
+				return lookupSubjectsRequestToKey(&v1.DispatchLookupSubjectsRequest{
 					ResourceRelation: RR("document", "view"),
 					SubjectRelation:  RR("user", "..."),
 					ResourceIds:      []string{"mariah", "tom"},
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
-				})
+				}, computeBothHashes)
 			},
 			"d699c5b5d3a6dfade601",
 		},
@@ -158,12 +158,12 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return CheckRequestToKey(&v1.DispatchCheckRequest{
+		return checkRequestToKey(&v1.DispatchCheckRequest{
 				ResourceRelation: resourceRelation,
 				ResourceIds:      resourceIds,
 				Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
 				Metadata:         metadata,
-			}), []string{
+			}, computeBothHashes), []string{
 				resourceRelation.Namespace,
 				resourceRelation.Relation,
 				subjectRelation.Namespace,
@@ -180,7 +180,7 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return CheckRequestToKeyWithCanonical(&v1.DispatchCheckRequest{
+		return checkRequestToKeyWithCanonical(&v1.DispatchCheckRequest{
 				ResourceRelation: resourceRelation,
 				ResourceIds:      resourceIds,
 				Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
@@ -202,11 +202,11 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return LookupRequestToKey(&v1.DispatchLookupRequest{
+		return lookupRequestToKey(&v1.DispatchLookupRequest{
 				ObjectRelation: resourceRelation,
 				Subject:        ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
 				Metadata:       metadata,
-			}), []string{
+			}, computeBothHashes), []string{
 				resourceRelation.Namespace,
 				resourceRelation.Relation,
 				subjectRelation.Namespace,
@@ -223,10 +223,10 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return ExpandRequestToKey(&v1.DispatchExpandRequest{
+		return expandRequestToKey(&v1.DispatchExpandRequest{
 				ResourceAndRelation: ONR(resourceRelation.Namespace, resourceIds[0], resourceRelation.Relation),
 				Metadata:            metadata,
-			}), []string{
+			}, computeBothHashes), []string{
 				resourceRelation.Namespace,
 				resourceIds[0],
 				resourceRelation.Relation,
@@ -241,12 +241,12 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return ReachableResourcesRequestToKey(&v1.DispatchReachableResourcesRequest{
+		return reachableResourcesRequestToKey(&v1.DispatchReachableResourcesRequest{
 				ResourceRelation: resourceRelation,
 				SubjectRelation:  subjectRelation,
 				SubjectIds:       subjectIds,
 				Metadata:         metadata,
-			}), append([]string{
+			}, computeBothHashes), append([]string{
 				resourceRelation.Namespace,
 				resourceRelation.Relation,
 				subjectRelation.Namespace,
@@ -262,12 +262,12 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return LookupSubjectsRequestToKey(&v1.DispatchLookupSubjectsRequest{
+		return lookupSubjectsRequestToKey(&v1.DispatchLookupSubjectsRequest{
 				ResourceRelation: resourceRelation,
 				SubjectRelation:  subjectRelation,
 				ResourceIds:      resourceIds,
 				Metadata:         metadata,
-			}), append([]string{
+			}, computeBothHashes), append([]string{
 				resourceRelation.Namespace,
 				resourceRelation.Relation,
 				subjectRelation.Namespace,
@@ -347,4 +347,17 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestComputeOnlyStableHash(t *testing.T) {
+	result := checkRequestToKey(&v1.DispatchCheckRequest{
+		ResourceRelation: RR("document", "view"),
+		ResourceIds:      []string{"foo", "bar"},
+		Subject:          ONR("user", "tom", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision: "1234",
+		},
+	}, computeOnlyStableHash)
+
+	require.Equal(t, uint64(0), result.processSpecificSum)
 }
