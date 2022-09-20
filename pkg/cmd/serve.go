@@ -79,8 +79,8 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	cmd.Flags().StringVar(&config.TelemetryCAOverridePath, "telemetry-ca-override-path", "", "TODO")
 	cmd.Flags().DurationVar(&config.TelemetryInterval, "telemetry-interval", telemetry.DefaultInterval, "approximate period between telemetry reports, minimum 1 minute")
 
-	// Flag for lookupWatchApi enabler
-	cmd.Flags().BoolVar(&config.LookupWatchApiEnable, "ALPHA.lookup-watch-api-enable", false, "enable lookupWatchApi")
+	// Flag for lookupwatch API
+	cmd.Flags().BoolVar(&config.LookupWatchApiEnable, "enable-alpha-lookup-watch-api", false, "enable lookup-watch API (API is in Alpha and subject to breaking)")
 }
 
 func NewServeCommand(programName string, config *server.Config) *cobra.Command {
