@@ -19,9 +19,9 @@ message RelationTuple {
 }
 
 /**
-* ContextualizedCaveat represents a reference to a caveat used to by caveated tuples.
-* The context are key-value pairs that will be injected at evaluation time.
-*/
+ * ContextualizedCaveat represents a reference to a caveat used to by caveated tuples.
+ * The context are key-value pairs that will be injected at evaluation time.
+ */
 message ContextualizedCaveat {
   /** caveat_id is the reference to the internal id of a stored caveat **/
   uint64 caveat_id = 1 [(validate.rules).uint64.gt = 0];
