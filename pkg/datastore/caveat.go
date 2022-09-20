@@ -11,7 +11,6 @@ type CaveatID uint64
 
 // CaveatReader offers read operations for caveats
 type CaveatReader interface {
-
 	// ReadCaveatByName returns a caveat with the provided name
 	ReadCaveatByName(name string) (*core.Caveat, error)
 

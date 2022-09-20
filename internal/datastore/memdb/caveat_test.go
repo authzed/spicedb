@@ -24,19 +24,20 @@ func TestWriteReadCaveat(t *testing.T) {
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
 	req.NoError(err)
 
-	// Fails to write dupes in the same transaction
+	// Dupes in same transaction are treated as upserts
 	coreCaveat := createCoreCaveat(t)
 	ctx := context.Background()
-	_, _, err = writeCaveat(ctx, ds, coreCaveat, coreCaveat)
-	req.Error(err)
+	_, ids, err := writeCaveats(ctx, ds, coreCaveat, coreCaveat)
+	req.NoError(err)
+	req.Equal(ids[0], ids[1]) // dupe caveats generate same IDs
 
 	// Succeeds writing a caveat
 	rev, ID, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
 
-	// Fails to write caveat with the same name in different tx
+	// Writing same named caveat in different tx is treated as upsert
 	_, _, err = writeCaveat(ctx, ds, coreCaveat)
-	req.Error(err)
+	req.NoError(err)
 
 	// The caveat can be looked up by name
 	cr, ok := ds.SnapshotReader(rev).(datastore.CaveatReader)
@@ -89,6 +90,40 @@ func TestWriteCaveatedTuple(t *testing.T) {
 	req.NoError(err)
 }
 
+func TestCaveatSnapshotReads(t *testing.T) {
+	req := require.New(t)
+
+	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	req.NoError(err)
+
+	// Write an initial caveat
+	coreCaveat := createCoreCaveat(t)
+	ctx := context.Background()
+	oldRev, oldID, err := writeCaveat(ctx, ds, coreCaveat)
+	req.NoError(err)
+
+	// Modify caveat and update
+	oldExpression := coreCaveat.Expression
+	newExpression := []byte{0x0a}
+	coreCaveat.Expression = newExpression
+	newRev, newID, err := writeCaveat(ctx, ds, coreCaveat)
+	req.NoError(err)
+
+	// check most recent revision
+	cr, ok := ds.SnapshotReader(newRev).(datastore.CaveatReader)
+	req.True(ok, "expected a CaveatStorer value")
+	cv, err := cr.ReadCaveatByID(oldID)
+	req.NoError(err)
+	req.Equal(newExpression, cv.Expression)
+
+	// check previous revision
+	cr, ok = ds.SnapshotReader(oldRev).(datastore.CaveatReader)
+	req.True(ok, "expected a CaveatStorer value")
+	cv, err = cr.ReadCaveatByID(newID)
+	req.NoError(err)
+	req.Equal(oldExpression, cv.Expression)
+}
+
 func createTestCaveatedTuple(t *testing.T, tplString string, id datastore.CaveatID) *core.RelationTuple {
 	tpl := tuple.MustParse(tplString)
 	st, err := structpb.NewStruct(map[string]interface{}{"a": 1, "b": "test"})
@@ -101,7 +136,7 @@ func createTestCaveatedTuple(t *testing.T, tplString string, id datastore.Caveat
 	return tpl
 }
 
-func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat ...*core.Caveat) (datastore.Revision, datastore.CaveatID, error) {
+func writeCaveats(ctx context.Context, ds datastore.Datastore, coreCaveat ...*core.Caveat) (datastore.Revision, []datastore.CaveatID, error) {
 	var IDs []datastore.CaveatID
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		cs, ok := tx.(datastore.CaveatStorer)
@@ -113,9 +148,17 @@ func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat ...*cor
 		return err
 	})
 	if err != nil {
+		return datastore.NoRevision, nil, err
+	}
+	return rev, IDs, err
+}
+
+func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.Caveat) (datastore.Revision, datastore.CaveatID, error) {
+	rev, ids, err := writeCaveats(ctx, ds, coreCaveat)
+	if err != nil {
 		return datastore.NoRevision, 0, err
 	}
-	return rev, IDs[0], err
+	return rev, ids[0], nil
 }
 
 func createCoreCaveat(t *testing.T) *core.Caveat {
