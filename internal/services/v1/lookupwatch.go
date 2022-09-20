@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
+	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -177,7 +179,7 @@ func (lw *lookupWatchServer) processUpdate(
 					},
 					SubjectRelation: &core.RelationReference{
 						Namespace: req.SubjectObjectType,
-						Relation:  req.OptionalSubjectRelation,
+						Relation:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
 					},
 				},
 				lsStream,
