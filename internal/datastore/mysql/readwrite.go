@@ -57,8 +57,9 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*core.RelationTuple
 	// Process the actual updates
 	for _, mut := range mutations {
 		tpl := mut.Tuple
+
 		if tpl.Caveat != nil {
-			panic("caveats are not supported in MySQL datastore")
+			panic("caveats not currently supported in MySQL datastore")
 		}
 		// Implementation for TOUCH deviates from PostgreSQL datastore to prevent a deadlock in MySQL
 		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {
