@@ -2,7 +2,6 @@ package memdb
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -34,7 +33,7 @@ func (r *memdbReader) ReadCaveatByName(name string) (*core.Caveat, error) {
 	if err != nil {
 		return nil, err
 	}
-	return r.readCaveatByName(tx, name)
+	return r.readUnwrappedCaveatByName(tx, name)
 }
 
 func (r *memdbReader) ReadCaveatByID(ID datastore.CaveatID) (*core.Caveat, error) {
@@ -60,7 +59,7 @@ func (r *memdbReader) readCaveatByID(tx *memdb.Txn, ID datastore.CaveatID) (*cor
 	return c.Unwrap(), nil
 }
 
-func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, error) {
+func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*caveat, error) {
 	found, err := tx.First(tableCaveats, indexName, name)
 	if err != nil {
 		return nil, err
@@ -68,7 +67,14 @@ func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*core.Caveat
 	if found == nil {
 		return nil, datastore.NewCaveatNameNotFoundErr(name)
 	}
-	c := found.(*caveat)
+	return found.(*caveat), nil
+}
+
+func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, error) {
+	c, err := r.readCaveatByName(tx, name)
+	if err != nil {
+		return nil, err
+	}
 	return c.Unwrap(), nil
 }
 
@@ -91,14 +97,15 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 			name:       coreCaveat.Name,
 			expression: coreCaveat.Expression,
 		}
-		// MemDB does not enforce uniqueness on indices marked as unique
-		// https://github.com/hashicorp/go-memdb/issues/7
+		// in order to implement upserts we need to determine the ID of the previously
+		// stored caveat
 		found, err := rwt.readCaveatByName(tx, coreCaveat.Name)
 		if err != nil && !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
 			return nil, err
 		}
 		if found != nil {
-			return nil, fmt.Errorf("duplicated caveat with name %s", coreCaveat.Name)
+			id = found.id
+			c.id = id
 		}
 		if err = tx.Insert(tableCaveats, &c); err != nil {
 			return nil, err
