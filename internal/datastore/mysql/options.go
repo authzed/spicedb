@@ -131,6 +131,7 @@ func GCInterval(interval time.Duration) Option {
 
 // MaxRetries is the maximum number of times a retriable transaction will be
 // client-side retried.
+//
 // Default: 10
 func MaxRetries(maxRetries uint8) Option {
 	return func(mo *mysqlOptions) {
@@ -144,6 +145,16 @@ func MaxRetries(maxRetries uint8) Option {
 func TablePrefix(prefix string) Option {
 	return func(mo *mysqlOptions) {
 		mo.tablePrefix = prefix
+	}
+}
+
+// SplitAtUsersetCount is the batch size for which userset queries will be
+// split into smaller queries.
+//
+// This defaults to 1024.
+func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
+	return func(mo *mysqlOptions) {
+		mo.splitAtUsersetCount = splitAtUsersetCount
 	}
 }
 
@@ -163,8 +174,8 @@ func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 //
 // This value defaults to having no maximum.
 func ConnMaxIdleTime(idle time.Duration) Option {
-	return func(po *mysqlOptions) {
-		po.connMaxIdleTime = idle
+	return func(mo *mysqlOptions) {
+		mo.connMaxIdleTime = idle
 	}
 }
 
@@ -174,8 +185,8 @@ func ConnMaxIdleTime(idle time.Duration) Option {
 //
 // This value defaults to having no maximum.
 func ConnMaxLifetime(lifetime time.Duration) Option {
-	return func(po *mysqlOptions) {
-		po.connMaxLifetime = lifetime
+	return func(mo *mysqlOptions) {
+		mo.connMaxLifetime = lifetime
 	}
 }
 
@@ -184,8 +195,8 @@ func ConnMaxLifetime(lifetime time.Duration) Option {
 //
 // This value defaults to having no maximum.
 func MaxOpenConns(conns int) Option {
-	return func(po *mysqlOptions) {
-		po.maxOpenConns = conns
+	return func(mo *mysqlOptions) {
+		mo.maxOpenConns = conns
 	}
 }
 
@@ -195,8 +206,8 @@ func MaxOpenConns(conns int) Option {
 //
 // Disabled by default.
 func DebugAnalyzeBeforeStatistics() Option {
-	return func(po *mysqlOptions) {
-		po.analyzeBeforeStats = true
+	return func(mo *mysqlOptions) {
+		mo.analyzeBeforeStats = true
 	}
 }
 
@@ -206,8 +217,8 @@ func DebugAnalyzeBeforeStatistics() Option {
 //
 // Uses server default by default.
 func OverrideLockWaitTimeout(seconds uint8) Option {
-	return func(po *mysqlOptions) {
-		po.lockWaitTimeoutSeconds = &seconds
+	return func(mo *mysqlOptions) {
+		mo.lockWaitTimeoutSeconds = &seconds
 	}
 }
 
@@ -215,7 +226,17 @@ func OverrideLockWaitTimeout(seconds uint8) Option {
 //
 // GC is enabled by default.
 func GCEnabled(isGCEnabled bool) Option {
-	return func(po *mysqlOptions) {
-		po.gcEnabled = isGCEnabled
+	return func(mo *mysqlOptions) {
+		mo.gcEnabled = isGCEnabled
+	}
+}
+
+// GCMaxOperationTime is the maximum operation time of a garbage collection
+// pass before it times out.
+//
+// This value defaults to 1 minute.
+func GCMaxOperationTime(time time.Duration) Option {
+	return func(mo *mysqlOptions) {
+		mo.gcMaxOperationTime = time
 	}
 }

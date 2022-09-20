@@ -277,6 +277,7 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.GCWindow(opts.GCWindow),
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCEnabled(!opts.ReadOnly),
+		mysql.GCMaxOperationTime(opts.GCMaxOperationTime),
 		mysql.ConnMaxIdleTime(opts.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.MaxLifetime),
 		mysql.MaxOpenConns(opts.MaxOpenConns),
@@ -286,6 +287,7 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		mysql.MaxRetries(uint8(opts.MaxRetries)),
 		mysql.OverrideLockWaitTimeout(1),
+		mysql.SplitAtUsersetCount(opts.SplitQueryCount),
 	}
 	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
 }
