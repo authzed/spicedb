@@ -91,7 +91,8 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 			name:       coreCaveat.Name,
 			expression: coreCaveat.Expression,
 		}
-		// TODO(vroldanbet) why does go-memdb not honor unique index name?
+		// MemDB does not enforce uniqueness on indices marked as unique
+		// https://github.com/hashicorp/go-memdb/issues/7
 		found, err := rwt.readCaveatByName(tx, coreCaveat.Name)
 		if err != nil && !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
 			return nil, err
