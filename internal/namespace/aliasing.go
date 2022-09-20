@@ -1,7 +1,6 @@
 package namespace
 
 import (
-	"fmt"
 	"sort"
 )
 
@@ -73,7 +72,7 @@ func computePermissionAliases(typeSystem *ValidatedNamespaceTypeSystem) (map[str
 				keys = append(keys, key)
 			}
 			sort.Strings(keys)
-			return nil, fmt.Errorf("there exists a cycle in permissions: %v", keys)
+			return nil, NewPermissionsCycleErr(typeSystem.nsDef.Name, keys)
 		}
 	}
 
