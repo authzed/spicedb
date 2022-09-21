@@ -9,18 +9,14 @@ import (
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/scylladb/go-set/strset"
 	"github.com/shopspring/decimal"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -231,29 +227,4 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		ObjectDefinitionsNames:      names,
 		ComputedDefinitionsRevision: computedRevision,
 	}, nil
-}
-
-func rewriteError(ctx context.Context, err error) error {
-	var nsNotFoundError sharederrors.UnknownNamespaceError
-	var errWithContext compiler.ErrorWithContext
-	var errPreconditionFailure *writeSchemaPreconditionFailure
-
-	errWithSource, ok := commonerrors.AsErrorWithSource(err)
-	if ok {
-		return status.Errorf(codes.InvalidArgument, "%s", errWithSource.Error())
-	}
-
-	switch {
-	case errors.As(err, &nsNotFoundError):
-		return status.Errorf(codes.NotFound, "Object Definition `%s` not found", nsNotFoundError.NotFoundNamespaceName())
-	case errors.As(err, &errWithContext):
-		return status.Errorf(codes.InvalidArgument, "%s", err)
-	case errors.As(err, &datastore.ErrReadOnly{}):
-		return serviceerrors.ErrServiceReadOnly
-	case errors.As(err, &errPreconditionFailure):
-		return status.Errorf(codes.FailedPrecondition, "%s", err)
-	default:
-		log.Ctx(ctx).Err(err).Msg("received unexpected error")
-		return err
-	}
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -277,6 +278,15 @@ func TestWriteRelationships(t *testing.T) {
 	})
 	require.Nil(resp)
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
+	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_WRITE_OR_DELETE_PRECONDITION_FAILURE, err,
+		"precondition_operation",
+		"precondition_relation",
+		"precondition_resource_id",
+		"precondition_resource_type",
+		"precondition_subject_id",
+		"precondition_subject_relation",
+		"precondition_subject_type",
+	)
 
 	existing := tuple.Parse(tf.StandardTuples[0])
 	require.NotNil(existing)
@@ -363,10 +373,12 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 	ctx := context.Background()
 	_, err = client.WriteRelationships(ctx, writeReq)
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
-	errStatus, ok := status.FromError(err)
-	req.True(ok, "could not fetch status from grpc error")
+	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_UNKNOWN_CAVEAT, err,
+		"caveat_name",
+	)
+
 	errorMsg := fmt.Sprintf("the caveat `test` was not found for relationship `%s`", tuple.StringRelationship(relWritten))
-	req.Equal(errorMsg, errStatus.Message())
+	req.Contains(err.Error(), errorMsg)
 
 	// TODO(vroldanbet) temporarily use Datastore to write caveat until we expose it via Schema API
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error {
@@ -727,7 +739,7 @@ func TestDeleteRelationships(t *testing.T) {
 				},
 			},
 			expectedCode:  codes.FailedPrecondition,
-			errorContains: "failed precondition: relation/permission `spotter` not found under definition `folder`",
+			errorContains: "relation/permission `spotter` not found under definition `folder`",
 		},
 		{
 			name: "delete unknown subject type",
@@ -741,7 +753,7 @@ func TestDeleteRelationships(t *testing.T) {
 				},
 			},
 			expectedCode:  codes.FailedPrecondition,
-			errorContains: "failed precondition: object definition `patron` not found",
+			errorContains: "object definition `patron` not found",
 		},
 		{
 			name: "delete unknown subject",
@@ -772,7 +784,7 @@ func TestDeleteRelationships(t *testing.T) {
 				},
 			},
 			expectedCode:  codes.FailedPrecondition,
-			errorContains: "failed precondition: relation/permission `nonexistent` not found under definition `folder`",
+			errorContains: "relation/permission `nonexistent` not found under definition `folder`",
 		},
 		{
 			name: "delete no resource type",
@@ -792,7 +804,7 @@ func TestDeleteRelationships(t *testing.T) {
 				},
 			},
 			expectedCode:  codes.FailedPrecondition,
-			errorContains: "failed precondition: object definition `blah` not found",
+			errorContains: "object definition `blah` not found",
 		},
 		{
 			name: "preconditions met",

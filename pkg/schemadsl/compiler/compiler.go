@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/parser"
@@ -18,26 +17,6 @@ type InputSchema struct {
 
 	// Schema is the contents being compiled.
 	SchemaString string
-}
-
-// ErrorWithContext defines an error which contains contextual information.
-type ErrorWithContext struct {
-	BaseCompilerError
-	SourceRange     input.SourceRange
-	Source          input.Source
-	ErrorSourceCode string
-}
-
-// BaseCompilerError defines an error with contains the base message of the issue
-// that occurred.
-type BaseCompilerError struct {
-	error
-	BaseMessage string
-}
-
-type errorWithNode struct {
-	error
-	node *dslNode
 }
 
 // Compile compilers the input schema(s) into a set of namespace definition protos.
@@ -61,7 +40,7 @@ func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*core.Namespace
 		if err != nil {
 			var errorWithNode errorWithNode
 			if errors.As(err, &errorWithNode) {
-				err = toContextError(errorWithNode.error.Error(), "", errorWithNode.node, mapper)
+				err = toContextError(errorWithNode.error.Error(), errorWithNode.errorSourceCode, errorWithNode.node, mapper)
 			}
 
 			return []*core.NamespaceDefinition{}, err

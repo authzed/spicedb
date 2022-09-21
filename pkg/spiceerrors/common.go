@@ -1,4 +1,4 @@
-package commonerrors
+package spiceerrors
 
 import "errors"
 
@@ -27,9 +27,15 @@ type ErrorWithSource struct {
 	ColumnPosition uint64
 }
 
-// InnerError returns the inner, wrapped error.
-func (ews *ErrorWithSource) InnerError() error {
-	return ews.error
+// HasMetadata indicates that the error has metadata defined.
+type HasMetadata interface {
+	// DetailsMetadata returns the metadata for details for this error.
+	DetailsMetadata() map[string]string
+}
+
+// Unwrap returns the inner, wrapped error.
+func (err *ErrorWithSource) Unwrap() error {
+	return err.error
 }
 
 // NewErrorWithSource creates and returns a new ErrorWithSource.

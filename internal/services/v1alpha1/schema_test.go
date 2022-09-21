@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -297,4 +298,22 @@ func TestSchemaTypeRedefined(t *testing.T) {
 		definition example/user {}`,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_SCHEMA_PARSE_ERROR, err)
+}
+
+func TestSchemaTypeInvalid(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
+
+	// Write a schema that references an invalid type.
+	_, err := client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		Schema: `definition example/user {}
+	
+		definition example/document {
+			relation viewer: hiya
+		}`,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR, err)
 }

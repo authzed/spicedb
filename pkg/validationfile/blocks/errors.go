@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/commonerrors"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var (
@@ -35,7 +35,7 @@ func convertYamlError(err error) error {
 			message = fmt.Sprintf("unexpected value `%s`", source)
 		}
 
-		return commonerrors.NewErrorWithSource(
+		return spiceerrors.NewErrorWithSource(
 			errors.New(message),
 			source,
 			lineNumber,

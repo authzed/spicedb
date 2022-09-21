@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/commonerrors"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 func TestDecodeValidationFile(t *testing.T) {
@@ -110,7 +110,7 @@ relationships: >-
   document:firstdoc#reader#user:fred
 `))
 
-	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdocwriter@user:tom`")
@@ -127,7 +127,7 @@ relationships: >-
   document:firstdoc#readeruser:fred
 `))
 
-	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`")
@@ -150,7 +150,7 @@ relationships: >-
   document:firstdoc#readeruser:fred
 `))
 
-	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`")
@@ -174,7 +174,7 @@ assertions:
     - document:seconddoc#view@user:fred
 `))
 
-	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "unexpected value `asdkjha`")
@@ -198,7 +198,7 @@ assertions:
     - document:seconddoc#view@user:fred
 `))
 
-	errWithSource, ok := commonerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "unexpected value `asdk`")

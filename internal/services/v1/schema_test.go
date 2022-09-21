@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -37,6 +38,22 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 
 	_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
+}
+
+func TestSchemaWriteInvalidNamespace(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+		
+		definition document {
+			relation viewer: user | somemissingdef
+		}
+	`,
+	})
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 }
 
 func TestSchemaWriteAndReadBack(t *testing.T) {
@@ -392,4 +409,28 @@ func TestSchemaTypeRedefined(t *testing.T) {
 		definition example/user {}`,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_SCHEMA_PARSE_ERROR, err,
+		"source_code",
+		"start_line_number",
+		"start_column_position",
+		"end_line_number",
+		"end_column_position",
+	)
+}
+
+func TestSchemaTypeInvalid(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+
+	// Write a schema that references an invalid type.
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition example/user {}
+	
+		definition example/document {
+			relation viewer: hiya
+		}`,
+	})
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
+	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR, err, "definition_name")
 }

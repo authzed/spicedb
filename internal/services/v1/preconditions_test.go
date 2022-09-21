@@ -1,4 +1,4 @@
-package shared
+package v1
 
 import (
 	"context"
@@ -32,13 +32,13 @@ func TestPreconditions(t *testing.T) {
 
 	ctx := context.Background()
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		require.NoError(CheckPreconditions(ctx, rwt, []*v1.Precondition{
+		require.NoError(checkPreconditions(ctx, rwt, []*v1.Precondition{
 			{
 				Operation: v1.Precondition_OPERATION_MUST_MATCH,
 				Filter:    companyPlanFolder,
 			},
 		}))
-		require.Error(CheckPreconditions(ctx, rwt, []*v1.Precondition{
+		require.Error(checkPreconditions(ctx, rwt, []*v1.Precondition{
 			{
 				Operation: v1.Precondition_OPERATION_MUST_NOT_MATCH,
 				Filter:    companyPlanFolder,

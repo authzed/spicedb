@@ -68,17 +68,25 @@ type ErrRelationNotFound struct {
 }
 
 // NamespaceName returns the name of the namespace in which the relation was not found.
-func (erf ErrRelationNotFound) NamespaceName() string {
-	return erf.namespaceName
+func (err ErrRelationNotFound) NamespaceName() string {
+	return err.namespaceName
 }
 
 // NotFoundRelationName returns the name of the relation not found.
-func (erf ErrRelationNotFound) NotFoundRelationName() string {
-	return erf.relationName
+func (err ErrRelationNotFound) NotFoundRelationName() string {
+	return err.relationName
 }
 
-func (erf ErrRelationNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("error", erf.Error()).Str("namespace", erf.namespaceName).Str("relation", erf.relationName)
+func (err ErrRelationNotFound) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrRelationNotFound) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"definition_name":             err.namespaceName,
+		"relation_or_permission_name": err.relationName,
+	}
 }
 
 // NewRelationNotFoundErr constructs a new relation not found error.
@@ -101,17 +109,25 @@ type ErrRelationMissingTypeInfo struct {
 }
 
 // NamespaceName returns the name of the namespace in which the relation was found.
-func (erf ErrRelationMissingTypeInfo) NamespaceName() string {
-	return erf.namespaceName
+func (err ErrRelationMissingTypeInfo) NamespaceName() string {
+	return err.namespaceName
 }
 
 // RelationName returns the name of the relation missing type information.
-func (erf ErrRelationMissingTypeInfo) RelationName() string {
-	return erf.relationName
+func (err ErrRelationMissingTypeInfo) RelationName() string {
+	return err.relationName
 }
 
-func (erf ErrRelationMissingTypeInfo) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("error", erf.Error()).Str("namespace", erf.namespaceName).Str("relation", erf.relationName)
+func (err ErrRelationMissingTypeInfo) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrRelationMissingTypeInfo) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"definition_name": err.namespaceName,
+		"relation_name":   err.relationName,
+	}
 }
 
 // NewRelationMissingTypeInfoErr constructs a new relation not missing type information error.
