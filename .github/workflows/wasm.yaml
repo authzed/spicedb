@@ -1,0 +1,27 @@
+---
+name: "Build WASM"
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - "main"
+    paths:
+      - "pkg/development/wasm/**"
+      - ".github/workflows/wasm.yaml"
+jobs:
+  build:
+    name: "Build WASM"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
+        with:
+          go-version: "~1.19.1"
+      - run: |
+          echo "Building WASM..."
+          GOOS=js GOARCH=wasm go build  -o dist/main.wasm ./pkg/development/wasm/...
+          echo "Build complete"
+      - uses: "EndBug/add-and-commit@v9"
+        with:
+          add: "dist/*"
+          default_author: "github_actor"
+          message: "Automated WASM build"
