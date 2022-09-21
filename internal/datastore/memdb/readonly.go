@@ -197,6 +197,51 @@ func (r *memdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 	return nsDefs, nil
 }
 
+func (r *memdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	if r.initErr != nil {
+		return nil, r.initErr
+	}
+
+	if len(nsNames) == 0 {
+		return nil, nil
+	}
+
+	r.lockOrPanic()
+	defer r.Unlock()
+
+	tx, err := r.txSource()
+	if err != nil {
+		return nil, err
+	}
+
+	it, err := tx.LowerBound(tableNamespace, indexID)
+	if err != nil {
+		return nil, err
+	}
+
+	nsNameMap := make(map[string]struct{}, len(nsNames))
+	for _, nsName := range nsNames {
+		nsNameMap[nsName] = struct{}{}
+	}
+
+	nsDefs := make([]*core.NamespaceDefinition, 0, len(nsNames))
+
+	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
+		found := foundRaw.(*namespace)
+
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(found.configBytes); err != nil {
+			return nil, err
+		}
+
+		if _, ok := nsNameMap[loaded.Name]; ok {
+			nsDefs = append(nsDefs, loaded)
+		}
+	}
+
+	return nsDefs, nil
+}
+
 func (r *memdbReader) lockOrPanic() {
 	if !r.TryLock() {
 		panic("detected concurrent use of ReadWriteTransaction")

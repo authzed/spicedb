@@ -132,18 +132,14 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 
 	// Run the schema update.
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		existingDefs, err := rwt.LookupNamespaces(ctx, referencedNamespaceNames)
+		if err != nil {
+			return err
+		}
+
 		// Build a map of existing referenced definitions
 		existingDefMap := make(map[string]*core.NamespaceDefinition, len(referencedNamespaceNames))
-		for _, existingNamespaceName := range referencedNamespaceNames {
-			existingDef, _, err := rwt.ReadNamespace(ctx, existingNamespaceName)
-			if err != nil {
-				if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
-					continue
-				}
-
-				return err
-			}
-
+		for _, existingDef := range existingDefs {
 			existingDefMap[existingDef.Name] = existingDef
 			if !liveDefNames.Has(existingDef.Name) {
 				liveDefNames.Add(existingDef.Name)

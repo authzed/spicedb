@@ -64,6 +64,25 @@ func (vsr validatingSnapshotReader) ListNamespaces(
 	return read, err
 }
 
+func (vsr validatingSnapshotReader) LookupNamespaces(
+	ctx context.Context,
+	nsNames []string,
+) ([]*core.NamespaceDefinition, error) {
+	read, err := vsr.delegate.LookupNamespaces(ctx, nsNames)
+	if err != nil {
+		return read, err
+	}
+
+	for _, nsDef := range read {
+		err := nsDef.Validate()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return read, err
+}
+
 func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,

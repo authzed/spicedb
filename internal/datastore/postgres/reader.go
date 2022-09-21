@@ -151,6 +151,32 @@ func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinit
 	return nsDefs, err
 }
 
+func (r *pgReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	if len(nsNames) == 0 {
+		return nil, nil
+	}
+
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
+	tx, txCleanup, err := r.txSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer txCleanup(ctx)
+
+	clause := sq.Or{}
+	for _, nsName := range nsNames {
+		clause = append(clause, sq.Eq{colNamespace: nsName})
+	}
+
+	nsDefs, err := loadAllNamespaces(ctx, tx, r.filterer(readNamespace).Where(clause))
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	return nsDefs, err
+}
+
 func loadAllNamespaces(ctx context.Context, tx pgx.Tx, query sq.SelectBuilder) ([]*core.NamespaceDefinition, error) {
 	sql, args, err := query.ToSql()
 	if err != nil {

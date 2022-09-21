@@ -155,6 +155,35 @@ func (mr *mysqlReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDef
 	return nsDefs, err
 }
 
+func (mr *mysqlReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	if len(nsNames) == 0 {
+		return nil, nil
+	}
+
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
+	tx, txCleanup, err := mr.txSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer migrations.LogOnError(ctx, txCleanup)
+
+	clause := sq.Or{}
+	for _, nsName := range nsNames {
+		clause = append(clause, sq.Eq{colNamespace: nsName})
+	}
+
+	query := mr.filterer(mr.ReadNamespaceQuery.Where(clause))
+
+	nsDefs, err := loadAllNamespaces(ctx, tx, query)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	return nsDefs, err
+}
+
 func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBuilder) ([]*core.NamespaceDefinition, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	query, args, err := queryBuilder.ToSql()

@@ -107,6 +107,20 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.Equal(1, len(checkOldList))
 	require.Equal(testUserNS.Name, checkOldList[0].Name)
 	require.Empty(cmp.Diff(testUserNS, checkOldList[0], protocmp.Transform()))
+
+	checkLookup, err := ds.SnapshotReader(secondWritten).LookupNamespaces(ctx, []string{testNamespace.Name})
+	require.NoError(err)
+	require.Equal(1, len(checkLookup))
+	require.Equal(testNamespace.Name, checkLookup[0].Name)
+	require.Empty(cmp.Diff(testNamespace, checkLookup[0], protocmp.Transform()))
+
+	checkLookupMultiple, err := ds.SnapshotReader(secondWritten).LookupNamespaces(ctx, []string{testNamespace.Name, testUserNS.Name})
+	require.NoError(err)
+	require.Equal(2, len(checkLookupMultiple))
+
+	emptyLookup, err := ds.SnapshotReader(secondWritten).LookupNamespaces(ctx, []string{"anothername"})
+	require.NoError(err)
+	require.Equal(0, len(emptyLookup))
 }
 
 // NamespaceDeleteTest tests whether or not the requirements for deleting

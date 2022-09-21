@@ -112,6 +112,37 @@ func (cr *crdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 	return nsDefs, nil
 }
 
+func (cr *crdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	if len(nsNames) == 0 {
+		return nil, nil
+	}
+
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
+	var nsDefs []*core.NamespaceDefinition
+	if err := cr.execute(ctx, func(ctx context.Context) error {
+		tx, txCleanup, err := cr.txSource(ctx)
+		if err != nil {
+			return err
+		}
+		defer txCleanup(ctx)
+
+		nsDefs, err = lookupNamespaces(ctx, tx, nsNames)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	for _, nsDef := range nsDefs {
+		cr.addOverlapKey(nsDef.Name)
+	}
+	return nsDefs, nil
+}
+
 func (cr *crdbReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
@@ -180,6 +211,48 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*core.Namespa
 	}
 
 	return loaded, timestamp, nil
+}
+
+func lookupNamespaces(ctx context.Context, tx pgx.Tx, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	clause := sq.Or{}
+	for _, nsName := range nsNames {
+		clause = append(clause, sq.Eq{colNamespace: nsName})
+	}
+
+	query := queryReadNamespace.Where(clause)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var nsDefs []*core.NamespaceDefinition
+	rows, err := tx.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var config []byte
+		var timestamp time.Time
+		if err := rows.Scan(&config, &timestamp); err != nil {
+			return nil, err
+		}
+
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(config); err != nil {
+			return nil, fmt.Errorf(errUnableToReadConfig, err)
+		}
+
+		nsDefs = append(nsDefs, loaded)
+	}
+
+	if rows.Err() != nil {
+		return nil, fmt.Errorf(errUnableToReadConfig, rows.Err())
+	}
+
+	return nsDefs, nil
 }
 
 func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]*core.NamespaceDefinition, error) {
