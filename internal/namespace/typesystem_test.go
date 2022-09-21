@@ -36,7 +36,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*core.NamespaceDefinition{},
-			"under permission `viewer`: relation/permission `editors` was not found",
+			"relation/permission `editors` not found under definition `document`",
 		},
 		{
 			"invalid relation in tuple_to_userset",
@@ -54,7 +54,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*core.NamespaceDefinition{},
-			"under permission `viewer`: relation `parents` was not found",
+			"relation/permission `parents` not found under definition `document`",
 		},
 		{
 			"use of permission in tuple_to_userset",
@@ -71,7 +71,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*core.NamespaceDefinition{},
-			"under permission `viewer`: permissions cannot be used on the left hand side of an arrow (found `editor`)",
+			"under permission `viewer` under definition `document`: permissions cannot be used on the left hand side of an arrow (found `editor`)",
 		},
 		{
 			"rewrite without this and types",
@@ -123,7 +123,7 @@ func TestTypeSystem(t *testing.T) {
 					"anotherns",
 				),
 			},
-			"for relation `owner`: relation/permission `foobar` was not found under definition `anotherns`",
+			"relation/permission `foobar` not found under definition `anotherns`",
 		},
 		{
 			"full type check",
@@ -185,7 +185,7 @@ func TestTypeSystem(t *testing.T) {
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 			},
-			"for arrow under relation `viewer`: relation `folder#parent` includes wildcard type `folder` via relation `folder#parent`: wildcard relations cannot be used on the left side of arrows",
+			"for arrow under permission `viewer`: relation `folder#parent` includes wildcard type `folder` via relation `folder#parent`: wildcard relations cannot be used on the left side of arrows",
 		},
 		{
 			"recursive transitive wildcard type check",
