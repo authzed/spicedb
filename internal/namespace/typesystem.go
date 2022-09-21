@@ -486,16 +486,16 @@ func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName
 //     relation parent: resource_group | resource
 
 //	    permission read = reader + writer + parent->read
-//	    permission write = reader
+//	    permission write = writer + parent->write
 //	}
 //
 // ```
-// Calling ResolveArrowRelations('parent') returns ['read']
-func (nts *TypeSystem) ResolveArrowRelations(ttuRelation string) ([]string, error) {
+// Calling ResolveArrowRelations('parent') returns ['read', 'write']
+func (nts *TypeSystem) ResolveArrowRelations(relationName string) ([]string, error) {
 	var referencedRelations []string
 	for _, relation := range nts.Namespace().Relation {
 		if nts.IsPermission(relation.Name) {
-			found, err := nts.searchReferencedRelationsInUsersetRewrite(ttuRelation, relation.UsersetRewrite)
+			found, err := nts.resolveArrowRelationsInUsersetRewrite(relationName, relation.UsersetRewrite)
 			if err != nil {
 				return nil, err
 			}
@@ -505,61 +505,59 @@ func (nts *TypeSystem) ResolveArrowRelations(ttuRelation string) ([]string, erro
 	return referencedRelations, nil
 }
 
-func (nts *TypeSystem) searchReferencedRelationsInUsersetRewrite(ttuRelation string, usr *core.UsersetRewrite) ([]string, error) {
+func (nts *TypeSystem) resolveArrowRelationsInUsersetRewrite(relationName string, usr *core.UsersetRewrite) ([]string, error) {
 	switch rw := usr.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
-		return nts.searchReferencedRelationsInSetOperation(ttuRelation, rw.Union)
+		return nts.resolveArrowRelationsInSetOperation(relationName, rw.Union)
 	case *core.UsersetRewrite_Intersection:
-		return nts.searchReferencedRelationsInSetOperation(ttuRelation, rw.Intersection)
+		return nts.resolveArrowRelationsInSetOperation(relationName, rw.Intersection)
 	case *core.UsersetRewrite_Exclusion:
-		return nts.searchReferencedRelationsInSetOperation(ttuRelation, rw.Exclusion)
+		return nts.resolveArrowRelationsInSetOperation(relationName, rw.Exclusion)
 	default:
 		return nil, errors.New("userset rewrite operation not implemented")
 	}
 }
 
-func (nts *TypeSystem) searchReferencedRelationsInSetOperation(ttuRelation string, so *core.SetOperation) ([]string, error) {
+func (nts *TypeSystem) resolveArrowRelationsInSetOperation(relationName string, so *core.SetOperation) ([]string, error) {
 	var foundRelations []string
 	for _, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
-		case *core.SetOperation_Child_XThis:
-			break
 		case *core.SetOperation_Child_ComputedUserset:
-			found, err := nts.searchReferencedRelationsInComputedUserset(ttuRelation, child.ComputedUserset)
+			found, err := nts.resolveArrowRelationsInComputedUserset(relationName, child.ComputedUserset)
 			if err != nil {
 				return nil, err
 			}
 			foundRelations = append(foundRelations, found...)
 		case *core.SetOperation_Child_UsersetRewrite:
-			found, err := nts.searchReferencedRelationsInUsersetRewrite(ttuRelation, child.UsersetRewrite)
+			found, err := nts.resolveArrowRelationsInUsersetRewrite(relationName, child.UsersetRewrite)
 			if err != nil {
 				return nil, err
 			}
 			foundRelations = append(foundRelations, found...)
 		case *core.SetOperation_Child_TupleToUserset:
-			found, err := nts.searchReferencedRelationsInTupleToUserset(ttuRelation, child.TupleToUserset)
+			found, err := nts.resolveArrowRelationsInTupleToUserset(relationName, child.TupleToUserset)
 			if err != nil {
 				return nil, err
 			}
 			foundRelations = append(foundRelations, found...)
+		case *core.SetOperation_Child_XThis:
+			// ignore
 		case *core.SetOperation_Child_XNil:
-			break
+			// ignore
 		default:
-			// TODO: raise error
-			break
-			// checkError(fmt.Errorf("unknown set operation child `%T` in check", child))
+			return nil, fmt.Errorf("unknown set operation child `%T` in check", child)
 		}
 	}
 	return foundRelations, nil
 }
 
-func (nts *TypeSystem) searchReferencedRelationsInComputedUserset(ttuRelation string, cu *core.ComputedUserset) ([]string, error) {
+func (nts *TypeSystem) resolveArrowRelationsInComputedUserset(relationName string, cu *core.ComputedUserset) ([]string, error) {
 	return []string{}, nil
 
 }
 
-func (nts *TypeSystem) searchReferencedRelationsInTupleToUserset(ttuRelation string, ttu *core.TupleToUserset) ([]string, error) {
-	if ttu.Tupleset.Relation == ttuRelation {
+func (nts *TypeSystem) resolveArrowRelationsInTupleToUserset(relationName string, ttu *core.TupleToUserset) ([]string, error) {
+	if ttu.Tupleset.Relation == relationName {
 		return []string{ttu.ComputedUserset.Relation}, nil
 	} else {
 		return []string{}, nil

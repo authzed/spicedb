@@ -58,6 +58,12 @@ type lookupWatchServer struct {
 	defaultDepth uint32
 }
 
+// The Lookup Watch API service provides a single API, WatchAccessibleResources, for receiving a stream of updates
+// for resources of the requested kind, for the requested permission, for a specific subject type.
+//
+// Under the hood, the Lookup Watch API Service makes use of the Watch and the Reachability Resolution APIs.
+//
+// The main use case for the Lookup Watch API is to implement ACL filtering.
 func (lw *lookupWatchServer) WatchAccessibleResources(req *v1lookupwatch.WatchAccessibleResourcesRequest, stream v1lookupwatch.LookupWatchService_WatchAccessibleResourcesServer) error {
 	ctx := stream.Context()
 
@@ -87,6 +93,8 @@ func (lw *lookupWatchServer) WatchAccessibleResources(req *v1lookupwatch.WatchAc
 		DispatchCount: 1,
 	})
 
+	// The Lookup Watch Service invokes Watch on all object types registered in the system,
+	// starting from the optionally provided OptionalStartTimestamp revision.
 	updates, errchan := ds.Watch(ctx, afterRevision)
 
 	for {
@@ -124,6 +132,29 @@ func (lw *lookupWatchServer) processWatchResponse(
 }
 
 // Called every time a relation is changed in spicedb
+//
+// The processUpdate will:
+//
+//   - Invoke LookupSubjects for the subject of the changed relationship,
+//     with a target_subject_type of the monitored subject_type
+//     We'll get all the subjects impacted by the changed relation
+//
+//   - Invoke ReachableResources for the resource of the changed relationship,
+//     with a target_object_type of the monitored resource_type
+//     We'll get all the resources impacted by the changed relation
+//
+//   - Invoke CheckPermission for each combinatorial pair of {resource, subject}
+//     And send the resulting permission to the LookupWatch client
+//
+// Notes:
+//
+//   - the current implementation can be optimized, i.e. the CheckPermission
+//     could be sharded out amongst a cluster of watch service nodes,
+//     with each reporting its status back to the leader.
+//   - the current implementation does not keep track of the existing status
+//     of a permission for a resource and subject; this means the Lookup Watch API will
+//     likely report subjects gaining and removing permission, even if the relationship
+//     change didn't necessarily change that permission
 func (lw *lookupWatchServer) processUpdate(
 	ctx *context.Context,
 	req *v1lookupwatch.WatchAccessibleResourcesRequest,
@@ -134,32 +165,77 @@ func (lw *lookupWatchServer) processUpdate(
 
 	ds := datastoremw.MustFromContext((*stream).Context())
 
-	// STEP 1: CALL LOOKUPSUBJECTS
 	if update.Tuple.Subject.Relation == "" {
 		return status.Errorf(
 			codes.Internal,
-			"TODO: empty subject relations not handled, should we handle them ? how ? %s:%s",
+			"Empty subject relations not handled %s:%s",
 			update.Tuple.Subject.Namespace, update.Tuple.Subject.ObjectId,
 		)
 	}
+	reader := ds.SnapshotReader(*atRevision)
+
+	// STEP 1: CALL LOOKUPSUBJECTS
+	//
+	// LookupSubjects is invoked to compute the set of subjects impacted by the changed relation
 	var subjects []string
 	if req.SubjectObjectType == update.Tuple.Subject.Namespace && update.Tuple.Subject.Relation == graph.Ellipsis {
 		subjects = append(subjects, update.Tuple.Subject.ObjectId)
 	}
+
+	// Computing relations to follow when calling LookupSubject
 	var resourceRelations []string
-	// Arrow resolution
-	reader := ds.SnapshotReader(*atRevision)
-	_, typeSystem, err := namespace.ReadNamespaceAndTypes((*stream).Context(), update.Tuple.ResourceAndRelation.Namespace, reader)
+	// Computing relations with arrow resolution:
+	// We check if the update impacts any arrow expression
+	// If this is the case, we will add the arrow relation to the LookupSubject call
+	//
+	// For instance, if we have the following update:
+	// ```
+	// update {
+	//    relationship: "resource:F1"
+	//    relation: parent
+	//    subject: {
+	//      object: "resource_group:G1"
+	//      optionalRelation: ""
+	//    }
+	// }
+	// ```
+	// And the following schema:
+	//
+	// ```
+	// definition resource {
+	//    relation reader: user
+	//    relation parent: resource_group | resource
+	//
+	//    permission read = reader + parent->read
+	// ```
+	//
+	// Then we'll call ResolveArrowRelations("parent"), which returns read, and we'll call
+	// LookupSubject with:
+	//
+	// ```
+	// ResourceIds: ["G1"],
+	// ResourceRelation: {
+	//   Namespace: "resource_group",
+	//   Relation:  "read",
+	// }
+	// ```
+	//
+	resourceRelations, err := lw.resolveArrowRelations(
+		update.Tuple.ResourceAndRelation.Relation,
+		update.Tuple.ResourceAndRelation.Namespace,
+		reader,
+		(*stream).Context(),
+	)
 	if err != nil {
 		return err
 	}
-	resourceRelations, err = typeSystem.ResolveArrowRelations(update.Tuple.ResourceAndRelation.Relation)
-	if err != nil {
-		return err
-	}
+
+	// Computing relations: we also need to follow update.Tuple.Subject.Relation
 	if update.Tuple.Subject.Relation != graph.Ellipsis {
 		resourceRelations = append(resourceRelations, update.Tuple.Subject.Relation)
 	}
+
+	// LookupSubject call for each computed relation
 	for _, resourceRelation := range resourceRelations {
 		lsStream := dispatchpkg.NewHandlingDispatchStream(*ctx, func(result *dispatchv1.DispatchLookupSubjectsResponse) error {
 			for _, subject := range result.FoundSubjects {
@@ -191,6 +267,8 @@ func (lw *lookupWatchServer) processUpdate(
 	}
 
 	// STEP 2: CALL ReachableResources
+	//
+	// ReachableResources is invoked to compute the set of resources impacted by the changed relation
 	var resources []string
 	rrStream := dispatchpkg.NewHandlingDispatchStream(*ctx, func(result *dispatchv1.DispatchReachableResourcesResponse) error {
 		resources = append(resources, result.Resource.ResourceIds...)
@@ -198,13 +276,12 @@ func (lw *lookupWatchServer) processUpdate(
 	})
 	var subjectRelation = update.Tuple.ResourceAndRelation.Relation
 	if req.ResourceObjectType == update.Tuple.ResourceAndRelation.Namespace && req.Permission != update.Tuple.ResourceAndRelation.Relation {
-		// Arrow resolution
-		reader := ds.SnapshotReader(*atRevision)
-		_, typeSystem, err := namespace.ReadNamespaceAndTypes((*stream).Context(), update.Tuple.ResourceAndRelation.Namespace, reader)
-		if err != nil {
-			return err
-		}
-		subjectRelations, err := typeSystem.ResolveArrowRelations(update.Tuple.ResourceAndRelation.Relation)
+		subjectRelations, err := lw.resolveArrowRelations(
+			update.Tuple.ResourceAndRelation.Relation,
+			update.Tuple.ResourceAndRelation.Namespace,
+			reader,
+			(*stream).Context(),
+		)
 		if err != nil {
 			return err
 		}
@@ -239,10 +316,11 @@ func (lw *lookupWatchServer) processUpdate(
 	}
 
 	// STEP 3: CROSS JOIN
+	//
+	// Invoke CheckPermission for each combinatorial pair of {resource, subject}
 	permissionUpdates := []*v1lookupwatch.PermissionUpdate{}
 	for _, subject := range subjects {
 		for _, resource := range resources {
-			// CALL CHECK PERMISSION
 			permission, err := lw.dispatch.DispatchCheck(*ctx, &dispatchv1.DispatchCheckRequest{
 				Metadata: &dispatchv1.ResolverMeta{
 					AtRevision:     atRevision.String(),
@@ -281,6 +359,7 @@ func (lw *lookupWatchServer) processUpdate(
 		}
 	}
 
+	// Send the resulting permissions to the client
 	sendErr := (*stream).Send(&v1lookupwatch.WatchAccessibleResourcesResponse{
 		Updates:        permissionUpdates,
 		ChangesThrough: zedtoken.NewFromRevision(*atRevision),
@@ -289,6 +368,24 @@ func (lw *lookupWatchServer) processUpdate(
 		return sendErr
 	}
 	return nil
+}
+
+func (lw *lookupWatchServer) resolveArrowRelations(
+	relationName string,
+	namespaceName string,
+	reader datastore.Reader,
+	context context.Context,
+) ([]string, error) {
+
+	_, typeSystem, err := namespace.ReadNamespaceAndTypes(context, namespaceName, reader)
+	if err != nil {
+		return nil, err
+	}
+	resourceRelations, err := typeSystem.ResolveArrowRelations(relationName)
+	if err != nil {
+		return nil, err
+	}
+	return resourceRelations, nil
 }
 
 func convertPermission(permission *dispatchv1.DispatchCheckResponse) v1.CheckPermissionResponse_Permissionship {
