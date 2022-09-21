@@ -1,40 +1,39 @@
-name: "Fuzzing Testing"
-on: # yamllint disable-line rule:truthy
+---
+name: "ClusterFuzzLite PR fuzzing"
+on:
   push:
     branches:
       - "!dependabot/*"
       - "main"
   pull_request:
     branches: ["*"]
+permissions: "read-all"
 jobs:
   fuzz:
     runs-on: "ubuntu-latest"
+    concurrency:
+      group: "${{ github.workflow }}-${{ matrix.sanitizer }}-${{ github.ref }}"
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer:
+          - "address"
+          - "undefined"
+          - "memory"
     steps:
-      - name: "Build Fuzzers"
+      - name: "Build Fuzzers (${{ matrix.sanitizer }})"
         id: "build"
-        uses: "google/oss-fuzz/infra/cifuzz/actions/build_fuzzers@master"
+        uses: "google/clusterfuzzlite/actions/build_fuzzers@v1"
         with:
-          oss-fuzz-project-name: "spicedb"
           language: "go"
-          dry-run: "true"
-      - name: "Run Fuzzers"
-        uses: "google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master"
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          sanitizer: "${{ matrix.sanitizer }}"
+      - name: "Run Fuzzers (${{ matrix.sanitizer }})"
+        id: "run"
+        uses: "google/clusterfuzzlite/actions/run_fuzzers@v1"
         with:
-          oss-fuzz-project-name: "spicedb"
-          language: "go"
-          fuzz-seconds: 300
-          dry-run: "true"
-      - name: "Upload Crash"
-        uses: "actions/upload-artifact@v3"
-        if: failure() && steps.build.outcome == 'success'
-        with:
-          name: "artifacts"
-          path: "./out/artifacts"
-
-  go-test-fuzz:
-    name : "go test -fuzz"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "jidicula/go-fuzz-action@v1.2.0"
-        with:
-          fuzz-time: 30s
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          fuzz-seconds: 30
+          mode: "code-change"
+          sanitizer: "${{ matrix.sanitizer }}"

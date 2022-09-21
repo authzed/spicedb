@@ -170,3 +170,9 @@ func getParseTree(currentNode *testNode, indentation int) string {
 
 	return parseTree
 }
+
+func FuzzParser(f *testing.F) {
+	f.Fuzz(func(t *testing.T, path, in string) {
+		_ = Parse(createAstNode, input.Source(path), in)
+	})
+}
