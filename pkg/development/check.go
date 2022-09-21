@@ -13,8 +13,13 @@ import (
 func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation) (v1.DispatchCheckResponse_Membership, error) {
 	ctx := devContext.Ctx
 	cr, err := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		ResourceAndRelation: resource,
-		Subject:             subject,
+		ResourceRelation: &core.RelationReference{
+			Namespace: resource.Namespace,
+			Relation:  resource.Relation,
+		},
+		ResourceIds:    []string{resource.ObjectId},
+		ResultsSetting: v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
+		Subject:        subject,
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     devContext.Revision.String(),
 			DepthRemaining: maxDispatchDepth,
@@ -23,5 +28,10 @@ func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject 
 	if err != nil {
 		return v1.DispatchCheckResponse_NOT_MEMBER, err
 	}
-	return cr.Membership, nil
+
+	if found, ok := cr.ResultsByResourceId[resource.ObjectId]; ok {
+		return found.Membership, nil
+	}
+
+	return v1.DispatchCheckResponse_NOT_MEMBER, nil
 }

@@ -109,7 +109,8 @@ func (rr stringableRelRef) String() string {
 // DispatchCheck implements dispatch.Check interface
 func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
-		attribute.Stringer("start", stringableOnr{req.ResourceAndRelation}),
+		attribute.Stringer("resource-type", stringableRelRef{req.ResourceRelation}),
+		attribute.StringSlice("resource-ids", req.ResourceIds),
 		attribute.Stringer("subject", stringableOnr{req.Subject}),
 	))
 	defer span.End()
@@ -141,12 +142,12 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	ns, err := ld.loadNamespace(ctx, req.ResourceAndRelation.Namespace, revision)
+	ns, err := ld.loadNamespace(ctx, req.ResourceRelation.Namespace, revision)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	relation, err := ld.lookupRelation(ctx, ns, req.ResourceAndRelation.Relation, revision)
+	relation, err := ld.lookupRelation(ctx, ns, req.ResourceRelation.Relation, revision)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
@@ -155,7 +156,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	// resource, load the aliased relation and dispatch to it. We cannot use the alias if the
 	// resource and subject types are the same because a check on the *exact same* resource and
 	// subject must pass, and we don't know how many intermediate steps may hit that case.
-	if relation.AliasingRelation != "" && req.ResourceAndRelation.Namespace != req.Subject.Namespace {
+	if relation.AliasingRelation != "" && req.ResourceRelation.Namespace != req.Subject.Namespace {
 		relation, err := ld.lookupRelation(ctx, ns, relation.AliasingRelation, revision)
 		if err != nil {
 			return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
@@ -164,14 +165,14 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		// Rewrite the request over the aliased relation.
 		validatedReq := graph.ValidatedCheckRequest{
 			DispatchCheckRequest: &v1.DispatchCheckRequest{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: req.ResourceAndRelation.Namespace,
-					ObjectId:  req.ResourceAndRelation.ObjectId,
+				ResourceRelation: &core.RelationReference{
+					Namespace: req.ResourceRelation.Namespace,
 					Relation:  relation.Name,
 				},
-				Subject:  req.Subject,
-				Metadata: req.Metadata,
-				Debug:    req.Debug,
+				ResourceIds: req.ResourceIds,
+				Subject:     req.Subject,
+				Metadata:    req.Metadata,
+				Debug:       req.Debug,
 			},
 			Revision: revision,
 		}
