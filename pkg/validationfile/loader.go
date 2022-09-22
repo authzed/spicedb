@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/authzed/spicedb/pkg/util"
+
 	log "github.com/authzed/spicedb/internal/logging"
 	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -134,12 +136,27 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 			}
 		}
 
-		err = relationships.ValidateRelationshipUpdates(ctx, rwt, updates)
+		return err
+	})
+
+	util.ForEachChunk(updates, 500, func(updates []*core.RelationTupleUpdate) {
 		if err != nil {
-			return err
+			return
 		}
 
-		return rwt.WriteRelationships(ctx, updates)
+		revision, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			err = relationships.ValidateRelationshipUpdates(ctx, rwt, updates)
+			if err != nil {
+				return err
+			}
+
+			return rwt.WriteRelationships(ctx, updates)
+		})
 	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return &PopulatedValidationFile{schema, objectDefs, tuples, files}, revision, err
 }
