@@ -15,7 +15,6 @@ import (
 
 const (
 	tableNamespace = "namespace"
-	indexName      = "name"
 
 	tableRelationship           = "relationship"
 	indexID                     = "id"
@@ -50,8 +49,8 @@ type relationship struct {
 }
 
 type contextualizedCaveat struct {
-	caveatID datastore.CaveatID
-	context  map[string]any
+	caveatName string
+	context    map[string]any
 }
 
 func (cr *contextualizedCaveat) ContextualizedCaveat() (*core.ContextualizedCaveat, error) {
@@ -63,8 +62,8 @@ func (cr *contextualizedCaveat) ContextualizedCaveat() (*core.ContextualizedCave
 		return nil, err
 	}
 	return &core.ContextualizedCaveat{
-		CaveatId: uint64(cr.caveatID),
-		Context:  v,
+		CaveatName: cr.caveatName,
+		Context:    v,
 	}, nil
 }
 
@@ -209,11 +208,6 @@ var schema = &memdb.DBSchema{
 			Indexes: map[string]*memdb.IndexSchema{
 				indexID: {
 					Name:    indexID,
-					Unique:  true,
-					Indexer: &memdb.UintFieldIndex{Field: "id"},
-				},
-				indexName: {
-					Name:    indexName,
 					Unique:  true,
 					Indexer: &memdb.StringFieldIndex{Field: "name"},
 				},

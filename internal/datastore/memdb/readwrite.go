@@ -96,8 +96,8 @@ func (rwt *memdbReadWriteTx) toCaveatReference(mutation *core.RelationTupleUpdat
 	var cr *contextualizedCaveat
 	if mutation.Tuple.Caveat != nil {
 		cr = &contextualizedCaveat{
-			caveatID: datastore.CaveatID(mutation.Tuple.Caveat.CaveatId),
-			context:  mutation.Tuple.Caveat.Context.AsMap(),
+			caveatName: mutation.Tuple.Caveat.CaveatName,
+			context:    mutation.Tuple.Caveat.Context.AsMap(),
 		}
 	}
 	return cr

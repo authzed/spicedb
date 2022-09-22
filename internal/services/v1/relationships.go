@@ -125,30 +125,10 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 	defer tupleIterator.Close()
 
-	for tuple := tupleIterator.Next(); tuple != nil; tuple = tupleIterator.Next() {
-		subject := tuple.Subject
-
-		subjectRelation := ""
-		if subject.Relation != datastore.Ellipsis {
-			subjectRelation = subject.Relation
-		}
-
+	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {
 		err := resp.Send(&v1.ReadRelationshipsResponse{
-			ReadAt: revisionReadAt,
-			Relationship: &v1.Relationship{
-				Resource: &v1.ObjectReference{
-					ObjectType: tuple.ResourceAndRelation.Namespace,
-					ObjectId:   tuple.ResourceAndRelation.ObjectId,
-				},
-				Relation: tuple.ResourceAndRelation.Relation,
-				Subject: &v1.SubjectReference{
-					Object: &v1.ObjectReference{
-						ObjectType: subject.Namespace,
-						ObjectId:   subject.ObjectId,
-					},
-					OptionalRelation: subjectRelation,
-				},
-			},
+			ReadAt:       revisionReadAt,
+			Relationship: tuple.ToRelationship(tpl),
 		})
 		if err != nil {
 			return err
@@ -213,6 +193,20 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			}
 		}
 		for _, update := range req.Updates {
+			// TODO(vroldanbet) we type assert CaveatReader for now because not all datastores implement it
+			// eventually this type assertion should be removed
+			if caveatReader, ok := rwt.(datastore.CaveatReader); update.Relationship.OptionalCaveat != nil && ok {
+				_, err := caveatReader.ReadCaveatByName(update.Relationship.OptionalCaveat.CaveatName)
+				if errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
+					return status.Errorf(
+						codes.FailedPrecondition,
+						"the caveat `%s` was not found for relationship `%s`",
+						update.Relationship.OptionalCaveat.CaveatName,
+						tuple.StringRelationship(update.Relationship),
+					)
+				}
+			}
+
 			if err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId); err != nil {
 				return err
 			}
