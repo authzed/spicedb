@@ -177,6 +177,57 @@ func (lw *lookupWatchServer) processUpdate(
 	// STEP 1: CALL LOOKUPSUBJECTS
 	//
 	// LookupSubjects is invoked to compute the set of subjects impacted by the changed relation
+	subjects, err := lw.lookupSubjects(
+		ctx,
+		req,
+		update,
+		atRevision,
+		reader,
+	)
+	if err != nil {
+		return err
+	}
+
+	// STEP 2: CALL ReachableResources
+	//
+	// ReachableResources is invoked to compute the set of resources impacted by the changed relation
+	resources, err := lw.lookupResources(
+		ctx,
+		req,
+		update,
+		atRevision,
+		reader,
+	)
+	if err != nil {
+		return err
+	}
+
+	// STEP 3: CROSS JOIN
+	//
+	// Invoke CheckPermission for each combinatorial pair of {resource, subject}
+	err = lw.computePermissions(
+		resources,
+		subjects,
+		ctx,
+		req,
+		atRevision,
+		stream,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// LookupSubjects is invoked to compute the set of subjects impacted by the changed relation
+func (lw *lookupWatchServer) lookupSubjects(
+	ctx *context.Context,
+	req *v1lookupwatch.WatchAccessibleResourcesRequest,
+	update *core.RelationTupleUpdate,
+	atRevision *datastore.Revision,
+	reader datastore.Reader,
+) ([]string, error) {
+
 	var subjects []string
 	if req.SubjectObjectType == update.Tuple.Subject.Namespace && update.Tuple.Subject.Relation == graph.Ellipsis {
 		subjects = append(subjects, update.Tuple.Subject.ObjectId)
@@ -224,10 +275,10 @@ func (lw *lookupWatchServer) processUpdate(
 		update.Tuple.ResourceAndRelation.Relation,
 		update.Tuple.ResourceAndRelation.Namespace,
 		reader,
-		(*stream).Context(),
+		*ctx,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Computing relations: we also need to follow update.Tuple.Subject.Relation
@@ -262,13 +313,21 @@ func (lw *lookupWatchServer) processUpdate(
 			lsStream,
 		)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
+	return subjects, nil
+}
 
-	// STEP 2: CALL ReachableResources
-	//
-	// ReachableResources is invoked to compute the set of resources impacted by the changed relation
+// ReachableResources is invoked to compute the set of resources impacted by the changed relation
+func (lw *lookupWatchServer) lookupResources(
+	ctx *context.Context,
+	req *v1lookupwatch.WatchAccessibleResourcesRequest,
+	update *core.RelationTupleUpdate,
+	atRevision *datastore.Revision,
+	reader datastore.Reader,
+) ([]string, error) {
+
 	var resources []string
 	rrStream := dispatchpkg.NewHandlingDispatchStream(*ctx, func(result *dispatchv1.DispatchReachableResourcesResponse) error {
 		resources = append(resources, result.Resource.ResourceIds...)
@@ -280,10 +339,10 @@ func (lw *lookupWatchServer) processUpdate(
 			update.Tuple.ResourceAndRelation.Relation,
 			update.Tuple.ResourceAndRelation.Namespace,
 			reader,
-			(*stream).Context(),
+			*ctx,
 		)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for _, relation := range subjectRelations {
 			if relation == req.Permission {
@@ -293,7 +352,7 @@ func (lw *lookupWatchServer) processUpdate(
 		}
 
 	}
-	err = lw.dispatch.DispatchReachableResources(
+	err := lw.dispatch.DispatchReachableResources(
 		&dispatchv1.DispatchReachableResourcesRequest{
 			Metadata: &dispatchv1.ResolverMeta{
 				AtRevision:     atRevision.String(),
@@ -312,12 +371,21 @@ func (lw *lookupWatchServer) processUpdate(
 		rrStream,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	return resources, nil
+}
 
-	// STEP 3: CROSS JOIN
-	//
-	// Invoke CheckPermission for each combinatorial pair of {resource, subject}
+// Invoke CheckPermission for each combinatorial pair of {resource, subject}
+// and stream the computed result to the client
+func (lw *lookupWatchServer) computePermissions(
+	resources []string,
+	subjects []string,
+	ctx *context.Context,
+	req *v1lookupwatch.WatchAccessibleResourcesRequest,
+	atRevision *datastore.Revision,
+	stream *v1lookupwatch.LookupWatchService_WatchAccessibleResourcesServer,
+) error {
 	permissionUpdates := []*v1lookupwatch.PermissionUpdate{}
 	for _, subject := range subjects {
 		for _, resource := range resources {
