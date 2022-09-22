@@ -127,14 +127,18 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 
 	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
 
+	// Determine the list of all referenced namespaces in the schema.
+	referencedNamespaceNames := namespace.ListReferencedNamespaces(nsdefs)
+
+	// Run the schema update.
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		// Build a map of existing definitions
-		existingDefs, err := rwt.ListNamespaces(ctx)
+		existingDefs, err := rwt.LookupNamespaces(ctx, referencedNamespaceNames)
 		if err != nil {
 			return err
 		}
 
-		existingDefMap := make(map[string]*core.NamespaceDefinition, len(existingDefs))
+		// Build a map of existing referenced definitions
+		existingDefMap := make(map[string]*core.NamespaceDefinition, len(referencedNamespaceNames))
 		for _, existingDef := range existingDefs {
 			existingDefMap[existingDef.Name] = existingDef
 			if !liveDefNames.Has(existingDef.Name) {

@@ -10,7 +10,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"golang.org/x/sync/singleflight"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -77,13 +76,13 @@ func (r *nsCachingReader) ReadNamespace(
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
 	// Check the nsCache.
-	nsRevisionKey := fmt.Sprintf("%s@%s", nsName, r.rev)
+	nsRevisionKey := nsName + "@" + r.rev.String()
 
 	loadedRaw, found := r.p.c.Get(nsRevisionKey)
 	if !found {
 		// We couldn't use the cached entry, load one
 		var err error
-		loadedRaw, err, _ = r.p.readNsGroup.Do(nsRevisionKey, func() (interface{}, error) {
+		loadedRaw, err, _ = r.p.readNsGroup.Do(nsRevisionKey, func() (any, error) {
 			loaded, updatedRev, err := r.Reader.ReadNamespace(ctx, nsName)
 			if err != nil && !errors.Is(err, &datastore.ErrNamespaceNotFound{}) {
 				// Propagate this error to the caller
@@ -91,12 +90,10 @@ func (r *nsCachingReader) ReadNamespace(
 			}
 
 			entry := &cacheEntry{loaded, updatedRev, err}
+			r.p.c.Set(nsRevisionKey, entry, int64(loaded.SizeVT()))
 
-			// Save it to the nsCache
-			r.p.c.Set(nsRevisionKey, entry, int64(proto.Size(loaded)))
-
-			// We have to call wait here or else Ristretto may not have the key available to a
-			// subsequent caller.
+			// We have to call wait here or else Ristretto may not have the key
+			// available to a subsequent caller.
 			r.p.c.Wait()
 
 			return entry, nil
@@ -107,7 +104,6 @@ func (r *nsCachingReader) ReadNamespace(
 	}
 
 	loaded := loadedRaw.(*cacheEntry)
-
 	return loaded.def, loaded.updated, loaded.notFound
 }
 

@@ -73,7 +73,7 @@ func TestAliasing(t *testing.T) {
 					ns.ComputedUserset("edit"),
 				)),
 			),
-			"there exists a cycle in permissions: [edit owner]",
+			"under definition `document`, there exists a cycle in permissions: edit, owner",
 			map[string]string{},
 		},
 		{
@@ -90,7 +90,7 @@ func TestAliasing(t *testing.T) {
 					ns.ComputedUserset("edit"),
 				)),
 			),
-			"there exists a cycle in permissions: [edit foo owner]",
+			"under definition `document`, there exists a cycle in permissions: edit, foo, owner",
 			map[string]string{},
 		},
 		{

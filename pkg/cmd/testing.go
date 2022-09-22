@@ -18,6 +18,10 @@ func RegisterTestingFlags(cmd *cobra.Command, config *testserver.Config) {
 	util.RegisterHTTPServerFlags(cmd.Flags(), &config.ReadOnlyHTTPGateway, "readonly-http", "read-only HTTP", ":8082", false)
 
 	cmd.Flags().StringSliceVar(&config.LoadConfigs, "load-configs", []string{}, "configuration yaml files to load")
+
+	// Flags for API behavior
+	cmd.Flags().Uint16Var(&config.MaximumUpdatesPerWrite, "write-relationships-max-updates-per-call", 1000, "maximum number of updates allowed for WriteRelationships calls")
+	cmd.Flags().Uint16Var(&config.MaximumPreconditionCount, "update-relationships-max-preconditions-per-call", 1000, "maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls")
 }
 
 func NewTestingCommand(programName string, config *testserver.Config) *cobra.Command {

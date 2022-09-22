@@ -1,0 +1,67 @@
+---
+schema: |+
+  definition user {}
+
+  definition group {
+    relation member: user | group#member
+  }
+
+  definition document {
+    relation viewer: user | group#member
+    permission view = viewer
+  }
+
+relationships: |
+  document:firstdoc#viewer@user:tom#...
+  document:firstdoc#viewer@group:everyone#member
+  group:everyone#member@group:engineering#member
+  group:everyone#member@group:sales#member
+  group:everyone#member@group:marketing#member
+  group:everyone#member@group:management#member
+  group:engineering#member@user:sarah#...
+  group:engineering#member@user:fred#...
+  group:sales#member@user:james#...
+  group:sales#member@user:manny#...
+  group:marketing#member@user:rachel#...
+  group:marketing#member@user:josh#...
+  group:marketing#member@user:eric#...
+  group:management#member@user:sam
+  group:management#member@user:victor
+  group:management#member@group:cgroup#member
+  group:management#member@group:bgroup#member
+  group:cgroup#member@user:mary#...
+  group:cgroup#member@user:jake#...
+  group:bgroup#member@user:billy#...
+  group:bgroup#member@user:bernice#...
+  document:seconddoc#viewer@group:cgroup#member
+assertions:
+  assertTrue:
+    - "document:firstdoc#view@user:tom#..."
+    - "document:firstdoc#view@user:sarah#..."
+    - "document:firstdoc#view@user:fred#..."
+    - "document:firstdoc#view@user:james#..."
+    - "document:firstdoc#view@user:manny#..."
+    - "document:firstdoc#view@user:rachel#..."
+    - "document:firstdoc#view@user:josh#..."
+    - "document:firstdoc#view@user:eric#..."
+    - "document:firstdoc#view@user:sam#..."
+    - "document:firstdoc#view@user:victor#..."
+    - "document:firstdoc#view@user:mary#..."
+    - "document:firstdoc#view@user:jake#..."
+    - "document:firstdoc#view@user:billy#..."
+    - "document:firstdoc#view@user:bernice#..."
+    - "document:seconddoc#view@user:mary#..."
+    - "document:seconddoc#view@user:jake#..."
+  assertFalse:
+    - "document:seconddoc#view@user:tom#..."
+    - "document:seconddoc#view@user:sarah#..."
+    - "document:seconddoc#view@user:fred#..."
+    - "document:seconddoc#view@user:james#..."
+    - "document:seconddoc#view@user:manny#..."
+    - "document:seconddoc#view@user:rachel#..."
+    - "document:seconddoc#view@user:josh#..."
+    - "document:seconddoc#view@user:eric#..."
+    - "document:seconddoc#view@user:sam#..."
+    - "document:seconddoc#view@user:victor#..."
+    - "document:seconddoc#view@user:billy#..."
+    - "document:seconddoc#view@user:bernice#..."

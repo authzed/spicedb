@@ -7,7 +7,6 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -155,12 +154,12 @@ func (r *memdbReader) ReadNamespace(ctx context.Context, nsName string) (ns *cor
 
 	found := foundRaw.(*namespace)
 
-	var loaded core.NamespaceDefinition
-	if err := proto.Unmarshal(found.configBytes, &loaded); err != nil {
+	loaded := &core.NamespaceDefinition{}
+	if err := loaded.UnmarshalVT(found.configBytes); err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
-	return &loaded, found.updated, nil
+	return loaded, found.updated, nil
 }
 
 // ListNamespaces lists all namespaces defined.
@@ -186,12 +185,58 @@ func (r *memdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 
 	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
 		found := foundRaw.(*namespace)
-		var loaded core.NamespaceDefinition
-		if err := proto.Unmarshal(found.configBytes, &loaded); err != nil {
+
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(found.configBytes); err != nil {
 			return nil, err
 		}
 
-		nsDefs = append(nsDefs, &loaded)
+		nsDefs = append(nsDefs, loaded)
+	}
+
+	return nsDefs, nil
+}
+
+func (r *memdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	if r.initErr != nil {
+		return nil, r.initErr
+	}
+
+	if len(nsNames) == 0 {
+		return nil, nil
+	}
+
+	r.lockOrPanic()
+	defer r.Unlock()
+
+	tx, err := r.txSource()
+	if err != nil {
+		return nil, err
+	}
+
+	it, err := tx.LowerBound(tableNamespace, indexID)
+	if err != nil {
+		return nil, err
+	}
+
+	nsNameMap := make(map[string]struct{}, len(nsNames))
+	for _, nsName := range nsNames {
+		nsNameMap[nsName] = struct{}{}
+	}
+
+	nsDefs := make([]*core.NamespaceDefinition, 0, len(nsNames))
+
+	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
+		found := foundRaw.(*namespace)
+
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(found.configBytes); err != nil {
+			return nil, err
+		}
+
+		if _, ok := nsNameMap[loaded.Name]; ok {
+			nsDefs = append(nsDefs, loaded)
+		}
 	}
 
 	return nsDefs, nil
@@ -280,6 +325,7 @@ type memdbTupleIterator struct {
 	it     memdb.ResultIterator
 	limit  *uint64
 	count  uint64
+	err    error
 }
 
 func (mti *memdbTupleIterator) Next() *core.RelationTuple {
@@ -293,11 +339,16 @@ func (mti *memdbTupleIterator) Next() *core.RelationTuple {
 	}
 	mti.count++
 
-	return foundRaw.(*relationship).RelationTuple()
+	rt, err := foundRaw.(*relationship).RelationTuple()
+	if err != nil {
+		mti.err = err
+		return nil
+	}
+	return rt
 }
 
 func (mti *memdbTupleIterator) Err() error {
-	return nil
+	return mti.err
 }
 
 func (mti *memdbTupleIterator) Close() {

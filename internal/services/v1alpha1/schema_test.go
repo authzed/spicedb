@@ -284,3 +284,17 @@ func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
 	})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 }
+
+func TestSchemaTypeRedefined(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1alpha1.NewSchemaServiceClient(conn)
+
+	// Write a schema that redefines the same type.
+	_, err := client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		Schema: `definition example/user {}
+	
+		definition example/user {}`,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+}

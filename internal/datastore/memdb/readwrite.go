@@ -8,6 +8,7 @@ import (
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -41,6 +42,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 			mutation.Tuple.Subject.Namespace,
 			mutation.Tuple.Subject.ObjectId,
 			mutation.Tuple.Subject.Relation,
+			rwt.toCaveatReference(mutation),
 		}
 
 		found, err := tx.First(
@@ -65,7 +67,11 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 		switch mutation.Operation {
 		case core.RelationTupleUpdate_CREATE:
 			if existing != nil {
-				return fmt.Errorf("duplicate relationship found for create operation")
+				rt, err := existing.RelationTuple()
+				if err != nil {
+					return err
+				}
+				return common.NewCreateRelationshipExistsError(rt)
 			}
 			fallthrough
 		case core.RelationTupleUpdate_TOUCH:
@@ -84,6 +90,17 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 	}
 
 	return nil
+}
+
+func (rwt *memdbReadWriteTx) toCaveatReference(mutation *core.RelationTupleUpdate) *contextualizedCaveat {
+	var cr *contextualizedCaveat
+	if mutation.Tuple.Caveat != nil {
+		cr = &contextualizedCaveat{
+			caveatID: datastore.CaveatID(mutation.Tuple.Caveat.CaveatId),
+			context:  mutation.Tuple.Caveat.Context.AsMap(),
+		}
+	}
+	return cr
 }
 
 func (rwt *memdbReadWriteTx) DeleteRelationships(filter *v1.RelationshipFilter) error {
@@ -110,7 +127,11 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 	// Collect the tuples into a slice of mutations for the changelog
 	var mutations []*core.RelationTupleUpdate
 	for row := filteredIter.Next(); row != nil; row = filteredIter.Next() {
-		mutations = append(mutations, tuple.Delete(row.(*relationship).RelationTuple()))
+		rt, err := row.(*relationship).RelationTuple()
+		if err != nil {
+			return err
+		}
+		mutations = append(mutations, tuple.Delete(rt))
 	}
 
 	return rwt.write(tx, mutations...)

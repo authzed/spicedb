@@ -85,9 +85,13 @@ func (pc *ParallelChecker) QueueCheck(resource *core.ObjectAndRelation, meta *v1
 	}
 
 	pc.toCheck <- &v1.DispatchCheckRequest{
-		Metadata:            meta,
-		ResourceAndRelation: resource,
-		Subject:             pc.subject,
+		Metadata: meta,
+		ResourceRelation: &core.RelationReference{
+			Namespace: resource.Namespace,
+			Relation:  resource.Relation,
+		},
+		ResourceIds: []string{resource.ObjectId},
+		Subject:     pc.subject,
 	}
 }
 
@@ -115,8 +119,13 @@ func (pc *ParallelChecker) Start() {
 				func() {
 					pc.mu.Lock()
 					defer pc.mu.Unlock()
-					if res.Membership == v1.DispatchCheckResponse_MEMBER {
-						pc.addResultsUnsafe(req.ResourceAndRelation)
+					resourceID := req.ResourceIds[0]
+					if found, ok := res.ResultsByResourceId[resourceID]; ok && found.Membership == v1.DispatchCheckResponse_MEMBER {
+						pc.addResultsUnsafe(&core.ObjectAndRelation{
+							Namespace: req.ResourceRelation.Namespace,
+							ObjectId:  resourceID,
+							Relation:  req.ResourceRelation.Relation,
+						})
 					}
 					pc.updateStatsUnsafe(res.Metadata)
 				}()

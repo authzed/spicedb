@@ -135,7 +135,7 @@ func TestEditCheck(t *testing.T) {
 			[]*core.RelationTuple{},
 			[]*core.RelationTuple{},
 			&v0.DeveloperError{
-				Message: "found duplicate relation/permission name `writer`",
+				Message: "found duplicate relation/permission name `writer` under definition `resource`",
 				Kind:    v0.DeveloperError_SCHEMA_ISSUE,
 				Source:  v0.DeveloperError_SCHEMA,
 				Line:    5,

@@ -55,7 +55,6 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 		if err != nil {
 			return datastore.Stats{}, err
 		}
-		var count uint64
 		err = mds.db.QueryRowContext(ctx, query, args...).Scan(&count)
 		if err != nil {
 			return datastore.Stats{}, err

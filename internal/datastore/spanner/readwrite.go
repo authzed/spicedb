@@ -23,7 +23,7 @@ type spannerReadWriteTXN struct {
 }
 
 func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
-	ctx, span := tracer.Start(rwt.ctx, "WriteTuples")
+	ctx, span := tracer.Start(rwt.ctx, "WriteRelationships")
 	defer span.End()
 
 	changeUUID := uuid.New().String()
@@ -31,6 +31,9 @@ func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupl
 	var rowCountChange int64
 
 	for _, mutation := range mutations {
+		if mutation.Tuple.Caveat != nil {
+			panic("caveats not currently supported in Spanner datastore")
+		}
 		var txnMut *spanner.Mutation
 		var op int
 		switch mutation.Operation {

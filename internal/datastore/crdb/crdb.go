@@ -8,10 +8,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
@@ -19,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -56,6 +58,8 @@ const (
 	querySelectNow          = "SELECT cluster_logical_timestamp()"
 	queryShowZoneConfig     = "SHOW ZONE CONFIGURATION FOR RANGE default;"
 	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
+
+	livingTupleConstraint = "pk_relation_tuple"
 )
 
 // NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB
@@ -71,31 +75,21 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if config.maxOpenConns != nil {
-		poolConfig.MaxConns = int32(*config.maxOpenConns)
-	}
-
-	if config.minOpenConns != nil {
-		poolConfig.MinConns = int32(*config.minOpenConns)
-	}
-
-	if config.connMaxIdleTime != nil {
-		poolConfig.MaxConnIdleTime = *config.connMaxIdleTime
-	}
-
-	if config.connMaxLifetime != nil {
-		poolConfig.MaxConnLifetime = *config.connMaxLifetime
-	}
-
-	if config.connHealthCheckInterval != nil {
-		poolConfig.HealthCheckPeriod = *config.connHealthCheckInterval
-	}
-
-	poolConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
+	configurePool(config, poolConfig)
 
 	pool, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	if config.enablePrometheusStats {
+		collector := pgxpoolprometheus.NewCollector(pool, map[string]string{"db_name": "spicedb"})
+		if err := prometheus.Register(collector); err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		if err := common.RegisterGCMetrics(); err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
 	}
 
 	clusterTTLNanos, err := readClusterTTLNanos(pool)
@@ -156,6 +150,30 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	return ds, nil
 }
 
+func configurePool(config crdbOptions, pgxConfig *pgxpool.Config) {
+	if config.maxOpenConns != nil {
+		pgxConfig.MaxConns = int32(*config.maxOpenConns)
+	}
+
+	if config.minOpenConns != nil {
+		pgxConfig.MinConns = int32(*config.minOpenConns)
+	}
+
+	if config.connMaxIdleTime != nil {
+		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
+	}
+
+	if config.connMaxLifetime != nil {
+		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
+	}
+
+	if config.connHealthCheckInterval != nil {
+		pgxConfig.HealthCheckPeriod = *config.connHealthCheckInterval
+	}
+
+	pgxcommon.ConfigurePGXLogger(pgxConfig.ConnConfig)
+}
+
 type crdbDatastore struct {
 	*revisions.RemoteClockRevisions
 
@@ -195,7 +213,7 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         common.NewPGXExecutor(createTxFunc),
+		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
 		UsersetBatchSize: cds.usersetBatchSize,
 	}
 
@@ -216,7 +234,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 			}
 
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         common.NewPGXExecutor(longLivedTx),
+				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
 				UsersetBatchSize: cds.usersetBatchSize,
 			}
 

@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -14,7 +15,7 @@ import (
 
 const (
 	tableNamespace = "namespace"
-	indexName      = "id"
+	indexName      = "name"
 
 	tableRelationship           = "relationship"
 	indexID                     = "id"
@@ -45,6 +46,26 @@ type relationship struct {
 	subjectNamespace string
 	subjectObjectID  string
 	subjectRelation  string
+	caveat           *contextualizedCaveat
+}
+
+type contextualizedCaveat struct {
+	caveatID datastore.CaveatID
+	context  map[string]any
+}
+
+func (cr *contextualizedCaveat) ContextualizedCaveat() (*core.ContextualizedCaveat, error) {
+	if cr == nil {
+		return nil, nil
+	}
+	v, err := structpb.NewStruct(cr.context)
+	if err != nil {
+		return nil, err
+	}
+	return &core.ContextualizedCaveat{
+		CaveatId: uint64(cr.caveatID),
+		Context:  v,
+	}, nil
 }
 
 func (r relationship) MarshalZerologObject(e *zerolog.Event) {
@@ -76,7 +97,11 @@ func (r relationship) Relationship() *v1.Relationship {
 	}
 }
 
-func (r relationship) RelationTuple() *core.RelationTuple {
+func (r relationship) RelationTuple() (*core.RelationTuple, error) {
+	cr, err := r.caveat.ContextualizedCaveat()
+	if err != nil {
+		return nil, err
+	}
 	return &core.RelationTuple{
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: r.namespace,
@@ -88,7 +113,8 @@ func (r relationship) RelationTuple() *core.RelationTuple {
 			ObjectId:  r.subjectObjectID,
 			Relation:  r.subjectRelation,
 		},
-	}
+		Caveat: cr,
+	}, nil
 }
 
 type changelog struct {
@@ -101,8 +127,8 @@ var schema = &memdb.DBSchema{
 		tableNamespace: {
 			Name: tableNamespace,
 			Indexes: map[string]*memdb.IndexSchema{
-				indexName: {
-					Name:    indexName,
+				indexID: {
+					Name:    indexID,
 					Unique:  true,
 					Indexer: &memdb.StringFieldIndex{Field: "name"},
 				},
@@ -175,6 +201,21 @@ var schema = &memdb.DBSchema{
 					Name:    indexSubjectNamespace,
 					Unique:  false,
 					Indexer: &memdb.StringFieldIndex{Field: "subjectNamespace"},
+				},
+			},
+		},
+		tableCaveats: {
+			Name: tableCaveats,
+			Indexes: map[string]*memdb.IndexSchema{
+				indexID: {
+					Name:    indexID,
+					Unique:  true,
+					Indexer: &memdb.UintFieldIndex{Field: "id"},
+				},
+				indexName: {
+					Name:    indexName,
+					Unique:  true,
+					Indexer: &memdb.StringFieldIndex{Field: "name"},
 				},
 			},
 		},

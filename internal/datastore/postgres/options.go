@@ -23,6 +23,7 @@ type postgresOptions struct {
 
 	enablePrometheusStats   bool
 	analyzeBeforeStatistics bool
+	gcEnabled               bool
 
 	logger *tracingLogger
 }
@@ -39,6 +40,7 @@ const (
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
 	defaultMaxRetries                        = 10
+	defaultGCEnabled                         = true
 )
 
 // Option provides the facility to configure how clients within the
@@ -56,6 +58,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		maxRetries:                  defaultMaxRetries,
+		gcEnabled:                   defaultGCEnabled,
 	}
 
 	for _, option := range options {
@@ -218,6 +221,15 @@ func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 func EnableTracing() Option {
 	return func(po *postgresOptions) {
 		po.logger = &tracingLogger{}
+	}
+}
+
+// GCEnabled indicates whether garbage collection is enabled.
+//
+// GC is enabled by default.
+func GCEnabled(isGCEnabled bool) Option {
+	return func(po *postgresOptions) {
+		po.gcEnabled = isGCEnabled
 	}
 }
 

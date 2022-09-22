@@ -8,6 +8,7 @@ managed:
     except:
       - "buf.build/envoyproxy/protoc-gen-validate"
       - "buf.build/authzed/api"
+      - "buf.build/googleapis/googleapis"
 plugins:
   - name: "go"
     out: "."
@@ -15,6 +16,10 @@ plugins:
   - name: "go-grpc"
     out: "."
     opt: "paths=source_relative"
+  - name: "go-vtproto"
+    out: "."
+    # To generate pooling methods, you must add an additional `pool=fully/qualified.ProtoMessageType`
+    opt: "paths=source_relative,features=marshal+unmarshal+size+clone+pool"
   - name: "validate"
     out: "."
     opt: "paths=source_relative,lang=go"

@@ -165,6 +165,9 @@ type Reader interface {
 
 	// ListNamespaces lists all namespaces defined.
 	ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error)
+
+	// LookupNamespaces finds all namespaces with the matching names.
+	LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error)
 }
 
 type ReadWriteTransaction interface {

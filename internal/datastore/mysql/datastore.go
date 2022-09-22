@@ -52,6 +52,9 @@ const (
 
 	// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_lock_deadlock
 	errMysqlDeadlock = 1213
+
+	// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_dup_entry
+	errMysqlDuplicateEntry = 1062
 )
 
 var (
@@ -201,7 +204,7 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	}
 
 	// Start a goroutine for garbage collection.
-	if store.gcInterval > 0*time.Minute {
+	if store.gcInterval > 0*time.Minute && config.gcEnabled {
 		store.gcGroup, store.gcCtx = errgroup.WithContext(store.gcCtx)
 		store.gcGroup.Go(func() error {
 			return common.StartGarbageCollector(

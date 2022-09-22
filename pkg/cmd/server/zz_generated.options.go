@@ -50,6 +50,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
+		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
+		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 		to.DashboardAPI = c.DashboardAPI
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddleware = c.UnaryMiddleware
@@ -258,6 +260,20 @@ func WithClusterDispatchCacheConfig(clusterDispatchCacheConfig CacheConfig) Conf
 func WithDisableV1SchemaAPI(disableV1SchemaAPI bool) ConfigOption {
 	return func(c *Config) {
 		c.DisableV1SchemaAPI = disableV1SchemaAPI
+	}
+}
+
+// WithMaximumUpdatesPerWrite returns an option that can set MaximumUpdatesPerWrite on a Config
+func WithMaximumUpdatesPerWrite(maximumUpdatesPerWrite uint16) ConfigOption {
+	return func(c *Config) {
+		c.MaximumUpdatesPerWrite = maximumUpdatesPerWrite
+	}
+}
+
+// WithMaximumPreconditionCount returns an option that can set MaximumPreconditionCount on a Config
+func WithMaximumPreconditionCount(maximumPreconditionCount uint16) ConfigOption {
+	return func(c *Config) {
+		c.MaximumPreconditionCount = maximumPreconditionCount
 	}
 }
 

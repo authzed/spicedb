@@ -20,14 +20,23 @@ message DispatchCheckRequest {
     ENABLE_DEBUGGING = 1;
   }
 
+  enum ResultsSetting {
+    REQUIRE_ALL_RESULTS = 0;
+    ALLOW_SINGLE_RESULT = 1;
+  }
+
   ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
 
-  core.v1.ObjectAndRelation resource_and_relation = 2
+  core.v1.RelationReference resource_relation = 2
       [ (validate.rules).message.required = true ];
-  core.v1.ObjectAndRelation subject = 3
+  repeated string resource_ids = 3;
+
+  core.v1.ObjectAndRelation subject = 4
       [ (validate.rules).message.required = true ];
 
-  DebugSetting debug = 4;
+  ResultsSetting results_setting = 5;
+
+  DebugSetting debug = 6;
 }
 
 message DispatchCheckResponse {
@@ -37,8 +46,12 @@ message DispatchCheckResponse {
     MEMBER = 2;
   }
 
+  message ResourceCheckResult {
+    Membership membership = 1;
+  }
+
   ResponseMeta metadata = 1;
-  Membership membership = 2;
+  map<string, ResourceCheckResult> results_by_resource_id = 2;
 }
 
 message DispatchExpandRequest {
@@ -161,9 +174,13 @@ message CheckDebugTrace {
     PERMISSION = 2;
   }
 
+  message ResourceCheckResult {
+    bool has_permission = 2;
+  }
+
   DispatchCheckRequest request = 1;
   RelationType resource_relation_type = 2;
-  bool has_permission = 3;
+  map<string, ResourceCheckResult> results = 3;
   bool is_cached_result = 4;
   repeated CheckDebugTrace sub_problems = 5;
 }

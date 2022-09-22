@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/authzed/spicedb/internal/util"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
@@ -28,14 +30,35 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
+// PermissionsServerConfig is configuration for the permissions server.
+type PermissionsServerConfig struct {
+	// MaxUpdatesPerWrite holds the maximum number of updates allowed per
+	// WriteRelationships call.
+	MaxUpdatesPerWrite uint16
+
+	// MaxPreconditionsCount holds the maximum number of preconditions allowed
+	// on a WriteRelationships or DeleteRelationships call.
+	MaxPreconditionsCount uint16
+
+	// MaximumAPIDepth is the default/starting depth remaining for API calls made
+	// to the permissions server.
+	MaximumAPIDepth uint32
+}
+
 // NewPermissionsServer creates a PermissionsServiceServer instance.
 func NewPermissionsServer(
 	dispatch dispatch.Dispatcher,
-	defaultDepth uint32,
+	config PermissionsServerConfig,
 ) v1.PermissionsServiceServer {
+	configWithDefaults := PermissionsServerConfig{
+		MaxPreconditionsCount: defaultIfZero(config.MaxPreconditionsCount, 1000),
+		MaxUpdatesPerWrite:    defaultIfZero(config.MaxUpdatesPerWrite, 1000),
+		MaximumAPIDepth:       defaultIfZero(config.MaximumAPIDepth, 50),
+	}
+
 	return &permissionServer{
-		dispatch:     dispatch,
-		defaultDepth: defaultDepth,
+		dispatch: dispatch,
+		config:   configWithDefaults,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: grpcmw.ChainUnaryServer(
 				grpcvalidate.UnaryServerInterceptor(),
@@ -55,8 +78,8 @@ type permissionServer struct {
 	v1.UnimplementedPermissionsServiceServer
 	shared.WithServiceSpecificInterceptors
 
-	dispatch     dispatch.Dispatcher
-	defaultDepth uint32
+	dispatch dispatch.Dispatcher
+	config   PermissionsServerConfig
 }
 
 func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string, ds datastore.Reader) error {
@@ -141,6 +164,48 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
 	ds := datastoremw.MustFromContext(ctx)
 
+	// Ensure that the updates and preconditions are not over the configured limits.
+	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
+		return nil, rewritePermissionsError(
+			ctx,
+			status.Errorf(
+				codes.InvalidArgument,
+				"update count of %d is greater than maximum allowed of %d",
+				len(req.Updates),
+				ps.config.MaxUpdatesPerWrite,
+			),
+		)
+	}
+
+	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
+		return nil, rewritePermissionsError(
+			ctx,
+			status.Errorf(
+				codes.InvalidArgument,
+				"precondition count of %d is greater than maximum allowed of %d",
+				len(req.OptionalPreconditions),
+				ps.config.MaxPreconditionsCount,
+			),
+		)
+	}
+
+	// Check for duplicate updates.
+	updateRelationshipSet := util.NewSet[string]()
+	for _, update := range req.Updates {
+		tupleStr := tuple.StringRelationship(update.Relationship)
+		if !updateRelationshipSet.Add(tupleStr) {
+			return nil, rewritePermissionsError(
+				ctx,
+				status.Errorf(
+					codes.InvalidArgument,
+					"found duplicate update operation for relationship %s",
+					tupleStr,
+				),
+			)
+		}
+	}
+
+	// Execute the write operation(s).
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		for _, precond := range req.OptionalPreconditions {
 			if err := ps.checkFilterNamespaces(ctx, precond.Filter, rwt); err != nil {
@@ -251,6 +316,18 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 }
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
+	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
+		return nil, rewritePermissionsError(
+			ctx,
+			status.Errorf(
+				codes.InvalidArgument,
+				"precondition count of %d is greater than maximum allowed of %d",
+				len(req.OptionalPreconditions),
+				ps.config.MaxPreconditionsCount,
+			),
+		)
+	}
+
 	ds := datastoremw.MustFromContext(ctx)
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -313,4 +390,15 @@ func rewritePermissionsError(ctx context.Context, err error) error {
 		log.Ctx(ctx).Err(err).Msg("received unexpected error")
 		return err
 	}
+}
+
+type uinteger interface {
+	uint32 | uint16
+}
+
+func defaultIfZero[T uinteger](value T, defaultValue T) T {
+	if value == 0 {
+		return defaultValue
+	}
+	return value
 }

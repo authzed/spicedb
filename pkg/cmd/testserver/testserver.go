@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/services"
 	"github.com/authzed/spicedb/internal/services/health"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
@@ -26,11 +27,13 @@ const maxDepth = 50
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
-	GRPCServer          util.GRPCServerConfig
-	ReadOnlyGRPCServer  util.GRPCServerConfig
-	HTTPGateway         util.HTTPServerConfig
-	ReadOnlyHTTPGateway util.HTTPServerConfig
-	LoadConfigs         []string
+	GRPCServer               util.GRPCServerConfig
+	ReadOnlyGRPCServer       util.GRPCServerConfig
+	HTTPGateway              util.HTTPServerConfig
+	ReadOnlyHTTPGateway      util.HTTPServerConfig
+	LoadConfigs              []string
+	MaximumUpdatesPerWrite   uint16
+	MaximumPreconditionCount uint16
 }
 
 type RunnableTestServer interface {
@@ -57,10 +60,14 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 			srv,
 			healthManager,
 			dispatcher,
-			maxDepth,
 			v1alpha1svc.PrefixNotRequired,
 			services.V1SchemaServiceEnabled,
 			services.WatchServiceEnabled,
+			v1svc.PermissionsServerConfig{
+				MaxPreconditionsCount: c.MaximumPreconditionCount,
+				MaxUpdatesPerWrite:    c.MaximumUpdatesPerWrite,
+				MaximumAPIDepth:       maxDepth,
+			},
 			services.LookupWatchServiceEnabled,
 		)
 	}

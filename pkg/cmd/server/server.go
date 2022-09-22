@@ -27,6 +27,7 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/balancer"
@@ -75,7 +76,9 @@ type Config struct {
 	ClusterDispatchCacheConfig CacheConfig
 
 	// API Behavior
-	DisableV1SchemaAPI bool
+	DisableV1SchemaAPI       bool
+	MaximumUpdatesPerWrite   uint16
+	MaximumPreconditionCount uint16
 
 	// Additional Services
 	DashboardAPI util.HTTPServerConfig
@@ -245,6 +248,12 @@ func (c *Config) Complete() (RunnableServer, error) {
 		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
 	}
 
+	permSysConfig := v1svc.PermissionsServerConfig{
+		MaxPreconditionsCount: c.MaximumPreconditionCount,
+		MaxUpdatesPerWrite:    c.MaximumUpdatesPerWrite,
+		MaximumAPIDepth:       c.DispatchMaxDepth,
+	}
+
 	healthManager := health.NewHealthManager(dispatcher, ds)
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
@@ -252,10 +261,10 @@ func (c *Config) Complete() (RunnableServer, error) {
 				server,
 				healthManager,
 				dispatcher,
-				c.DispatchMaxDepth,
 				prefixRequiredOption,
 				v1SchemaServiceOption,
 				watchServiceOption,
+				permSysConfig,
 				lookupWatchServiceOption,
 			)
 		},

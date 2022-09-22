@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -18,7 +19,7 @@ import (
 )
 
 type pgReader struct {
-	txSource      common.TxFactory
+	txSource      pgxcommon.TxFactory
 	querySplitter common.TupleQuerySplitter
 	filterer      queryFilterer
 }
@@ -126,8 +127,7 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, baseQuery s
 	}
 
 	loaded := &core.NamespaceDefinition{}
-	err = proto.Unmarshal(config, loaded)
-	if err != nil {
+	if err := loaded.UnmarshalVT(config); err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
@@ -144,6 +144,32 @@ func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinit
 	defer txCleanup(ctx)
 
 	nsDefs, err := loadAllNamespaces(ctx, tx, r.filterer(readNamespace))
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	return nsDefs, err
+}
+
+func (r *pgReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	if len(nsNames) == 0 {
+		return nil, nil
+	}
+
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
+	tx, txCleanup, err := r.txSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer txCleanup(ctx)
+
+	clause := sq.Or{}
+	for _, nsName := range nsNames {
+		clause = append(clause, sq.Eq{colNamespace: nsName})
+	}
+
+	nsDefs, err := loadAllNamespaces(ctx, tx, r.filterer(readNamespace).Where(clause))
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -171,12 +197,12 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx, query sq.SelectBuilder) (
 			return nil, err
 		}
 
-		var loaded core.NamespaceDefinition
-		if err := proto.Unmarshal(config, &loaded); err != nil {
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(config); err != nil {
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		nsDefs = append(nsDefs, &loaded)
+		nsDefs = append(nsDefs, loaded)
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()

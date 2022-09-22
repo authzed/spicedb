@@ -7,21 +7,21 @@ import (
 	"fmt"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
+	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/ngrok/sqlmw"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
@@ -61,6 +61,8 @@ const (
 
 	pgSerializationFailure      = "40001"
 	pgUniqueConstraintViolation = "23505"
+
+	livingTupleConstraint = "uq_relation_tuple_living"
 )
 
 func init() {
@@ -100,23 +102,7 @@ func NewPostgresDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if config.maxOpenConns != nil {
-		pgxConfig.MaxConns = int32(*config.maxOpenConns)
-	}
-	if config.minOpenConns != nil {
-		pgxConfig.MinConns = int32(*config.minOpenConns)
-	}
-	if config.connMaxIdleTime != nil {
-		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
-	}
-	if config.connMaxLifetime != nil {
-		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
-	}
-	if config.healthCheckPeriod != nil {
-		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
-	}
-
-	pgxConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
+	configurePool(config, pgxConfig)
 
 	dbpool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
 	if err != nil {
@@ -124,7 +110,7 @@ func NewPostgresDatastore(
 	}
 
 	if config.enablePrometheusStats {
-		collector := NewPgxpoolStatsCollector(dbpool, "spicedb")
+		collector := pgxpoolprometheus.NewCollector(dbpool, map[string]string{"db_name": "spicedb"})
 		if err := prometheus.Register(collector); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
@@ -181,7 +167,7 @@ func NewPostgresDatastore(
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
 
 	// Start a goroutine for garbage collection.
-	if datastore.gcInterval > 0*time.Minute {
+	if datastore.gcInterval > 0*time.Minute && config.gcEnabled {
 		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
 		datastore.gcGroup.Go(func() error {
 			return common.StartGarbageCollector(
@@ -197,6 +183,26 @@ func NewPostgresDatastore(
 	}
 
 	return datastore, nil
+}
+
+func configurePool(config postgresOptions, pgxConfig *pgxpool.Config) {
+	if config.maxOpenConns != nil {
+		pgxConfig.MaxConns = int32(*config.maxOpenConns)
+	}
+	if config.minOpenConns != nil {
+		pgxConfig.MinConns = int32(*config.minOpenConns)
+	}
+	if config.connMaxIdleTime != nil {
+		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
+	}
+	if config.connMaxLifetime != nil {
+		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
+	}
+	if config.healthCheckPeriod != nil {
+		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
+	}
+
+	pgxcommon.ConfigurePGXLogger(pgxConfig.ConnConfig)
 }
 
 type pgDatastore struct {
@@ -237,7 +243,7 @@ func (pgd *pgDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader 
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         common.NewPGXExecutor(createTxFunc),
+		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
 		UsersetBatchSize: pgd.usersetBatchSize,
 	}
 
@@ -271,7 +277,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         common.NewPGXExecutor(longLivedTx),
+				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
 				UsersetBatchSize: pgd.usersetBatchSize,
 			}
 

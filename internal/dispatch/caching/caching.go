@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"unsafe"
 
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
@@ -59,13 +57,6 @@ type reachableResourcesResultEntry struct {
 type lookupSubjectsResultEntry struct {
 	responses []*v1.DispatchLookupSubjectsResponse
 }
-
-var (
-	checkResultEntryCost            = int64(unsafe.Sizeof(checkResultEntry{}))
-	lookupResultEntryEmptyCost      = int64(unsafe.Sizeof(lookupResultEntry{}))
-	reachbleResourcesEntryEmptyCost = int64(unsafe.Sizeof(reachableResourcesResultEntry{}))
-	lookupSubjectsEntryEmptyCost    = int64(unsafe.Sizeof(lookupSubjectsResultEntry{}))
-)
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
 // and caches the responses when possible and desirable.
@@ -256,7 +247,7 @@ func (cd *Dispatcher) SetDelegate(delegate dispatch.Dispatcher) {
 func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	cd.checkTotalCounter.Inc()
 
-	requestKey, err := cd.keyHandler.ComputeCheckKey(ctx, req)
+	requestKey, err := cd.keyHandler.CheckCacheKey(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{}}, err
 	}
@@ -271,11 +262,18 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 			}
 
 			// If debugging is requested, clone and add the req and the response to the trace.
-			clone := proto.Clone(cachedResult.response).(*v1.DispatchCheckResponse)
+			clone := cachedResult.response.CloneVT()
+			results := make(map[string]*v1.CheckDebugTrace_ResourceCheckResult, len(cachedResult.response.ResultsByResourceId))
+			for resourceID, result := range cachedResult.response.ResultsByResourceId {
+				results[resourceID] = &v1.CheckDebugTrace_ResourceCheckResult{
+					HasPermission: result.Membership == v1.DispatchCheckResponse_MEMBER,
+				}
+			}
+
 			clone.Metadata.DebugInfo = &v1.DebugInformation{
 				Check: &v1.CheckDebugTrace{
 					Request:        req,
-					HasPermission:  clone.Membership == v1.DispatchCheckResponse_MEMBER,
+					Results:        results,
 					IsCachedResult: true,
 				},
 			}
@@ -286,13 +284,12 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 
 	// We only want to cache the result if there was no error
 	if err == nil {
-		adjustedComputed := proto.Clone(computed).(*v1.DispatchCheckResponse)
+		adjustedComputed := computed.CloneVT()
 		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
 		adjustedComputed.Metadata.DispatchCount = 0
 		adjustedComputed.Metadata.DebugInfo = nil
 
-		toCache := checkResultEntry{adjustedComputed}
-		cd.c.Set(requestKey, toCache, checkResultEntryCost)
+		cd.c.Set(requestKey, checkResultEntry{adjustedComputed}, int64(adjustedComputed.SizeVT()))
 	}
 
 	// Return both the computed and err in ALL cases: computed contains resolved metadata even
@@ -310,7 +307,11 @@ func (cd *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpand
 func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	cd.lookupTotalCounter.Inc()
 
-	requestKey := dispatch.LookupRequestToKey(req)
+	requestKey, err := cd.keyHandler.LookupResourcesCacheKey(ctx, req)
+	if err != nil {
+		return &v1.DispatchLookupResponse{Metadata: &v1.ResponseMeta{}}, err
+	}
+
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupResultEntry)
 		if req.Metadata.DepthRemaining >= cachedResult.response.Metadata.DepthRequired {
@@ -326,20 +327,12 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 	if err == nil {
 		log.Trace().Object("cachingLookup", req).Int("resultCount", len(computed.ResolvedOnrs)).Send()
 
-		adjustedComputed := proto.Clone(computed).(*v1.DispatchLookupResponse)
+		adjustedComputed := computed.CloneVT()
 		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
 		adjustedComputed.Metadata.DispatchCount = 0
 		adjustedComputed.Metadata.DebugInfo = nil
 
-		requestKey := dispatch.LookupRequestToKey(req)
-		toCache := lookupResultEntry{adjustedComputed}
-
-		estimatedSize := lookupResultEntryEmptyCost
-		for _, onr := range toCache.response.ResolvedOnrs {
-			estimatedSize += int64(len(onr.Namespace) + len(onr.ObjectId) + len(onr.Relation))
-		}
-
-		cd.c.Set(requestKey, toCache, estimatedSize)
+		cd.c.Set(requestKey, lookupResultEntry{adjustedComputed}, int64(adjustedComputed.SizeVT()))
 	}
 
 	// Return both the computed and err in ALL cases: computed contains resolved metadata even
@@ -351,7 +344,11 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
 	cd.reachableResourcesTotalCounter.Inc()
 
-	requestKey := dispatch.ReachableResourcesRequestToKey(req)
+	requestKey, err := cd.keyHandler.ReachableResourcesCacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(reachableResourcesResultEntry)
 		cd.reachableResourcesFromCacheCounter.Inc()
@@ -365,37 +362,36 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 		return nil
 	}
 
-	var mu sync.Mutex
-	estimatedSize := reachbleResourcesEntryEmptyCost
-	toCacheResults := []*v1.DispatchReachableResourcesResponse{}
+	var (
+		mu             sync.Mutex
+		estimatedSize  int64
+		toCacheResults = []*v1.DispatchReachableResourcesResponse{}
+	)
 	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
 		Stream: stream,
 		Ctx:    stream.Context(),
 		Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
-			adjustedResult := proto.Clone(result).(*v1.DispatchReachableResourcesResponse)
+			adjustedResult := result.CloneVT()
 			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
 			adjustedResult.Metadata.DispatchCount = 0
 			adjustedResult.Metadata.DebugInfo = nil
 
+			resultSize := int64(adjustedResult.SizeVT())
+
 			mu.Lock()
-			defer mu.Unlock()
-
-			for _, id := range result.Resource.ResourceIds {
-				estimatedSize += int64(len(id))
-			}
-
+			estimatedSize += resultSize
 			toCacheResults = append(toCacheResults, adjustedResult)
+			mu.Unlock()
+
 			return result, true, nil
 		},
 	}
 
-	err := cd.d.DispatchReachableResources(req, wrapped)
-	if err != nil {
+	if err := cd.d.DispatchReachableResources(req, wrapped); err != nil {
 		return err
 	}
 
-	toCache := reachableResourcesResultEntry{toCacheResults}
-	cd.c.Set(requestKey, toCache, estimatedSize)
+	cd.c.Set(requestKey, reachableResourcesResultEntry{toCacheResults}, estimatedSize)
 	return nil
 }
 
@@ -403,7 +399,11 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
 	cd.lookupSubjectsTotalCounter.Inc()
 
-	requestKey := dispatch.LookupSubjectsRequestToKey(req)
+	requestKey, err := cd.keyHandler.LookupSubjectsCacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cachedResult := cachedResultRaw.(lookupSubjectsResultEntry)
 		cd.lookupSubjectsFromCacheCounter.Inc()
@@ -417,41 +417,36 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 		return nil
 	}
 
-	var mu sync.Mutex
-	estimatedSize := lookupSubjectsEntryEmptyCost
-	toCacheResults := []*v1.DispatchLookupSubjectsResponse{}
+	var (
+		mu             sync.Mutex
+		estimatedSize  int64
+		toCacheResults = []*v1.DispatchLookupSubjectsResponse{}
+	)
 	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
 		Stream: stream,
 		Ctx:    stream.Context(),
 		Processor: func(result *v1.DispatchLookupSubjectsResponse) (*v1.DispatchLookupSubjectsResponse, bool, error) {
-			adjustedResult := proto.Clone(result).(*v1.DispatchLookupSubjectsResponse)
+			adjustedResult := result.CloneVT()
 			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
 			adjustedResult.Metadata.DispatchCount = 0
 			adjustedResult.Metadata.DebugInfo = nil
 
+			resultSize := int64(adjustedResult.SizeVT())
+
 			mu.Lock()
-			defer mu.Unlock()
-
-			for _, found := range result.FoundSubjects {
-				estimatedSize += int64(len(found.SubjectId))
-				for _, excludedID := range found.ExcludedSubjectIds {
-					estimatedSize += int64(len(excludedID))
-				}
-			}
-
+			estimatedSize += resultSize
 			toCacheResults = append(toCacheResults, adjustedResult)
+			mu.Unlock()
+
 			return result, true, nil
 		},
 	}
 
-	err := cd.d.DispatchLookupSubjects(req, wrapped)
-	if err != nil {
+	if err := cd.d.DispatchLookupSubjects(req, wrapped); err != nil {
 		return err
 	}
 
-	// We only want to cache the result if there was no error
-	toCache := lookupSubjectsResultEntry{toCacheResults}
-	cd.c.Set(requestKey, toCache, estimatedSize)
+	cd.c.Set(requestKey, lookupSubjectsResultEntry{toCacheResults}, estimatedSize)
 	return nil
 }
 
@@ -462,6 +457,8 @@ func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.lookupFromCacheCounter)
 	prometheus.Unregister(cd.checkFromCacheCounter)
 	prometheus.Unregister(cd.reachableResourcesFromCacheCounter)
+	prometheus.Unregister(cd.lookupSubjectsFromCacheCounter)
+	prometheus.Unregister(cd.lookupSubjectsTotalCounter)
 	prometheus.Unregister(cd.cacheHits)
 	prometheus.Unregister(cd.cacheMisses)
 	prometheus.Unregister(cd.costAddedBytes)

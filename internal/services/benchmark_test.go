@@ -78,6 +78,57 @@ func BenchmarkServices(b *testing.B) {
 				return err
 			},
 		},
+		{
+			"basic check for a user",
+			"testconfigs/basicrbac.yaml",
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+				result, err := tester.Check(ctx, &core.ObjectAndRelation{
+					Namespace: "example/document",
+					ObjectId:  "firstdoc",
+					Relation:  "view",
+				}, &core.ObjectAndRelation{
+					Namespace: "example/user",
+					ObjectId:  "tom",
+					Relation:  tuple.Ellipsis,
+				}, revision)
+				require.True(b, result)
+				return err
+			},
+		},
+		{
+			"recursive check for a user",
+			"testconfigs/quay.yaml",
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+				result, err := tester.Check(ctx, &core.ObjectAndRelation{
+					Namespace: "quay/repo",
+					ObjectId:  "buynlarge/orgrepo",
+					Relation:  "view",
+				}, &core.ObjectAndRelation{
+					Namespace: "quay/user",
+					ObjectId:  "cto",
+					Relation:  tuple.Ellipsis,
+				}, revision)
+				require.True(b, result)
+				return err
+			},
+		},
+		{
+			"wide groups check for a user",
+			"benchconfigs/checkwidegroups.yaml",
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+				result, err := tester.Check(ctx, &core.ObjectAndRelation{
+					Namespace: "resource",
+					ObjectId:  "someresource",
+					Relation:  "view",
+				}, &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "tom",
+					Relation:  tuple.Ellipsis,
+				}, revision)
+				require.True(b, result)
+				return err
+			},
+		},
 	}
 
 	for _, bt := range bts {

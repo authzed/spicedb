@@ -30,11 +30,11 @@ import (
 // NewLookupWatchServer creates a LookupWatchServiceServer instance.
 func NewLookupWatchServer(
 	dispatch dispatchpkg.Dispatcher,
-	defaultDepth uint32,
+	config PermissionsServerConfig,
 ) v1lookupwatch.LookupWatchServiceServer {
 	return &lookupWatchServer{
 		dispatch:     dispatch,
-		defaultDepth: defaultDepth,
+		defaultDepth: defaultIfZero(config.MaximumAPIDepth, 50),
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: grpcmw.ChainUnaryServer(
 				grpcvalidate.UnaryServerInterceptor(),
@@ -394,11 +394,11 @@ func (lw *lookupWatchServer) computePermissions(
 					AtRevision:     atRevision.String(),
 					DepthRemaining: lw.defaultDepth,
 				},
-				ResourceAndRelation: &core.ObjectAndRelation{
+				ResourceRelation: &core.RelationReference{
 					Namespace: req.ResourceObjectType,
-					ObjectId:  resource,
 					Relation:  req.Permission,
 				},
+				ResourceIds: []string{resource},
 				Subject: &core.ObjectAndRelation{
 					Namespace: req.SubjectObjectType,
 					ObjectId:  subject,
@@ -421,7 +421,7 @@ func (lw *lookupWatchServer) computePermissions(
 					ObjectType: req.ResourceObjectType,
 					ObjectId:   resource,
 				},
-				UpdatedPermission: convertPermission(permission),
+				UpdatedPermission: convertPermission(permission.ResultsByResourceId[resource]),
 			})
 
 		}
@@ -456,7 +456,10 @@ func (lw *lookupWatchServer) resolveArrowRelations(
 	return resourceRelations, nil
 }
 
-func convertPermission(permission *dispatchv1.DispatchCheckResponse) v1.CheckPermissionResponse_Permissionship {
+func convertPermission(permission *dispatchv1.DispatchCheckResponse_ResourceCheckResult) v1.CheckPermissionResponse_Permissionship {
+	if permission == nil {
+		return v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
+	}
 	switch permission.Membership {
 	case dispatchv1.DispatchCheckResponse_MEMBER:
 		return v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION

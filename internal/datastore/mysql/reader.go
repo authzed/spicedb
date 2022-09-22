@@ -9,7 +9,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
@@ -129,8 +128,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 	}
 
 	loaded := &core.NamespaceDefinition{}
-	err = proto.Unmarshal(config, loaded)
-	if err != nil {
+	if err := loaded.UnmarshalVT(config); err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
@@ -148,6 +146,35 @@ func (mr *mysqlReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDef
 	defer migrations.LogOnError(ctx, txCleanup)
 
 	query := mr.filterer(mr.ReadNamespaceQuery)
+
+	nsDefs, err := loadAllNamespaces(ctx, tx, query)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	return nsDefs, err
+}
+
+func (mr *mysqlReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	if len(nsNames) == 0 {
+		return nil, nil
+	}
+
+	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+	ctx = datastore.SeparateContextWithTracing(ctx)
+
+	tx, txCleanup, err := mr.txSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer migrations.LogOnError(ctx, txCleanup)
+
+	clause := sq.Or{}
+	for _, nsName := range nsNames {
+		clause = append(clause, sq.Eq{colNamespace: nsName})
+	}
+
+	query := mr.filterer(mr.ReadNamespaceQuery.Where(clause))
 
 	nsDefs, err := loadAllNamespaces(ctx, tx, query)
 	if err != nil {
@@ -179,12 +206,12 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 			return nil, err
 		}
 
-		var loaded core.NamespaceDefinition
-		if err := proto.Unmarshal(config, &loaded); err != nil {
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(config); err != nil {
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		nsDefs = append(nsDefs, &loaded)
+		nsDefs = append(nsDefs, loaded)
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()

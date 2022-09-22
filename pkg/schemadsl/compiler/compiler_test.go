@@ -505,6 +505,14 @@ func TestCompile(t *testing.T) {
 				),
 			},
 		},
+		{
+			"duplicate definition",
+			&someTenant,
+			`definition foo {}
+			definition foo {}`,
+			"parse error in `duplicate definition`, line 2, column 4: duplicate definition: sometenant/foo",
+			[]*core.NamespaceDefinition{},
+		},
 	}
 
 	for _, test := range tests {
