@@ -11,6 +11,9 @@ func ForEachChunk[T any](data []T, chunkSize uint64, handler func(items []T)) {
 			chunkEnd = dataLength
 		}
 
-		handler(data[chunkStart:chunkEnd])
+		chunk := data[chunkStart:chunkEnd]
+		if len(chunk) > 0 {
+			handler(chunk)
+		}
 	}
 }

@@ -20,6 +20,7 @@ func TestForEachChunk(t *testing.T) {
 				ForEachChunk(data, chunksize, func(items []int) {
 					found = append(found, items...)
 					require.True(t, len(items) <= int(chunksize))
+					require.True(t, len(items) > 0)
 				})
 				require.Equal(t, data, found)
 			})
