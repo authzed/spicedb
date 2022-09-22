@@ -155,6 +155,34 @@ func (sr spannerReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDe
 	return allNamespaces, nil
 }
 
+func (sr spannerReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	if len(nsNames) == 0 {
+		return nil, nil
+	}
+
+	ctx, span := tracer.Start(ctx, "LookupNamespaces")
+	defer span.End()
+
+	keys := make([]spanner.Key, 0, len(nsNames))
+	for _, nsName := range nsNames {
+		keys = append(keys, spanner.Key{nsName})
+	}
+
+	iter := sr.txSource().Read(
+		ctx,
+		tableNamespace,
+		spanner.KeySetFromKeys(keys...),
+		[]string{colNamespaceConfig},
+	)
+
+	foundNamespaces, err := readAllNamespaces(iter)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	return foundNamespaces, nil
+}
+
 func readAllNamespaces(iter *spanner.RowIterator) ([]*core.NamespaceDefinition, error) {
 	var allNamespaces []*core.NamespaceDefinition
 	if err := iter.Do(func(row *spanner.Row) error {
