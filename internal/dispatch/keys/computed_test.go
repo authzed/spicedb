@@ -47,7 +47,21 @@ func TestStableCacheKeys(t *testing.T) {
 					},
 				}, computeBothHashes)
 			},
-			"d6a999a7a0a4d39c9f01",
+			"e09cbca18290f7afae01",
+		},
+		{
+			"basic check with canonical ordering",
+			func() DispatchCacheKey {
+				return checkRequestToKey(&v1.DispatchCheckRequest{
+					ResourceRelation: RR("document", "view"),
+					ResourceIds:      []string{"bar", "foo"},
+					Subject:          ONR("user", "tom", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+				}, computeBothHashes)
+			},
+			"e09cbca18290f7afae01",
 		},
 		{
 			"different check",
@@ -75,7 +89,7 @@ func TestStableCacheKeys(t *testing.T) {
 					},
 				}, "view")
 			},
-			"be9fff86aa9aebdba801",
+			"a1ebd1d6a7a8b18fff01",
 		},
 		{
 			"expand",

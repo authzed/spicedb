@@ -1,6 +1,8 @@
 package keys
 
 import (
+	"sort"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -32,7 +34,13 @@ func (hrs hashableResultSetting) AppendToHash(hasher hasherInterface) {
 type hashableIds []string
 
 func (hid hashableIds) AppendToHash(hasher hasherInterface) {
-	for _, id := range hid {
+	// Sort the IDs to canonicalize them. We have to clone to ensure that this does cause issues
+	// with others accessing the slice.
+	c := make([]string, len(hid))
+	copy(c, hid)
+	sort.Strings(c)
+
+	for _, id := range c {
 		hasher.WriteString(id)
 		hasher.WriteString(",")
 	}
