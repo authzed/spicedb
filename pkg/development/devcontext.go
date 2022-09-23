@@ -25,17 +25,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// DeveloperErrors is a struct holding the various kinds of errors for a DevContext operation.
-type DeveloperErrors struct {
-	// InputErrors hold any errors found in the input to the development tooling,
-	// e.g. invalid schema, invalid relationship, etc.
-	InputErrors []*devinterface.DeveloperError
-
-	// ValidationErrors holds any validation errors/inconsistencies found,
-	// e.g. assertion failure, incorrect expection relations, etc.
-	ValidationErrors []*devinterface.DeveloperError
-}
-
 // DevContext holds the various helper types for running the developer calls.
 type DevContext struct {
 	Ctx        context.Context
@@ -47,7 +36,7 @@ type DevContext struct {
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
 // the datastore as needed.
-func NewDevContext(ctx context.Context, requestContext *devinterface.RequestContext) (*DevContext, *DeveloperErrors, error) {
+func NewDevContext(ctx context.Context, requestContext *devinterface.RequestContext) (*DevContext, *devinterface.DeveloperErrors, error) {
 	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, memdb.DisableGC)
 	if err != nil {
 		return nil, nil, err
@@ -68,7 +57,7 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 	return dctx, nil, nil
 }
 
-func newDevContextWithDatastore(ctx context.Context, requestContext *devinterface.RequestContext, ds datastore.Datastore) (*DevContext, *DeveloperErrors, error) {
+func newDevContextWithDatastore(ctx context.Context, requestContext *devinterface.RequestContext, ds datastore.Datastore) (*DevContext, *devinterface.DeveloperErrors, error) {
 	// Compile the schema and load its namespaces into the datastore.
 	namespaces, devError, err := CompileSchema(requestContext.Schema)
 	if err != nil {
@@ -76,7 +65,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 	}
 
 	if devError != nil {
-		return nil, &DeveloperErrors{InputErrors: []*devinterface.DeveloperError{devError}}, nil
+		return nil, &devinterface.DeveloperErrors{InputErrors: []*devinterface.DeveloperError{devError}}, nil
 	}
 
 	var inputErrors []*devinterface.DeveloperError
@@ -95,7 +84,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		return nil
 	})
 	if err != nil || len(inputErrors) > 0 {
-		return nil, &DeveloperErrors{InputErrors: inputErrors}, err
+		return nil, &devinterface.DeveloperErrors{InputErrors: inputErrors}, err
 	}
 
 	// Sanity check: Make sure the request context for the developer is fully valid. We do this after

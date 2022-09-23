@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/jwangsadinata/go-multimap/slicemultimap"
@@ -28,10 +27,11 @@ import (
 	"github.com/authzed/spicedb/internal/membership"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/development"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -350,10 +350,7 @@ func runConsistencyTests(t *testing.T,
 	validateLookupSubject(t, vctx)
 
 	// Run the developer APIs over the full set of context and ensure they also return the expected information.
-	store := v0svc.NewInMemoryShareStore("flavored")
-	dev := v0svc.NewDeveloperServer(store)
-
-	validateDeveloper(t, dev, vctx)
+	validateDeveloper(t, vctx)
 }
 
 func accessibleViaWildcardOnly(t *testing.T, ds datastore.Datastore, dispatch dispatch.Dispatcher, onr *core.ObjectAndRelation, subject *core.ObjectAndRelation, revision decimal.Decimal) bool {
@@ -389,21 +386,24 @@ type validationContext struct {
 	revision decimal.Decimal
 }
 
-func validateDeveloper(t *testing.T, dev v0.DeveloperServiceServer, vctx *validationContext) {
+func validateDeveloper(t *testing.T, vctx *validationContext) {
 	schema := vctx.fullyResolved.Schema
-	reqContext := &v0.RequestContext{
+	reqContext := &devinterface.RequestContext{
 		Schema:        schema,
-		Relationships: core.ToV0RelationTuples(vctx.fullyResolved.Tuples),
+		Relationships: vctx.fullyResolved.Tuples,
 	}
 
+	devContext, _, err := development.NewDevContext(context.Background(), reqContext)
+	require.NoError(t, err)
+
 	// Validate edit checks (check watches).
-	validateEditChecks(t, dev, reqContext, vctx)
+	validateEditChecks(t, devContext, vctx)
 
 	// Validate assertions and expected relations.
-	validateValidation(t, dev, reqContext, vctx)
+	validateValidation(t, devContext, vctx)
 }
 
-func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext *v0.RequestContext, vctx *validationContext) {
+func validateValidation(t *testing.T, devContext *development.DevContext, vctx *validationContext) {
 	// Build the Expected Relations (inputs only).
 	expectedMap := map[string]interface{}{}
 	for _, result := range vctx.accessibilitySet.results {
@@ -415,17 +415,17 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 	expectedRelations, err := yamlv2.Marshal(expectedMap)
 	require.NoError(t, err, "Could not marshal expected relations map")
 
-	// Run validation with the expected map, to generate the full expected relations YAML string.
-	resp, err := dev.Validate(context.Background(), &v0.ValidateRequest{
-		Context:              reqContext,
-		ValidationYaml:       string(expectedRelations),
-		UpdateValidationYaml: true,
-	})
+	expectedRelationsMap, devErr := development.ParseExpectedRelationsYAML(string(expectedRelations))
+	require.Nil(t, devErr)
+
+	// NOTE: We are using this to generate, so we ignore any errors.
+	membershipSet, _, err := development.RunValidation(devContext, expectedRelationsMap)
 	require.NoError(t, err, "Got unexpected error from validation")
-	require.Equal(t, 0, len(resp.RequestErrors), "Got unexpected request error from validation: %s", resp.RequestErrors)
 
 	// Parse the full validation YAML, and ensure every referenced subject is, in fact, allowed.
-	updatedValidationYaml := resp.UpdatedValidationYaml
+	updatedValidationYaml, gerr := development.GenerateValidation(membershipSet)
+	require.NoError(t, gerr)
+
 	validationMap, err := validationfile.ParseExpectedRelationsBlock([]byte(updatedValidationYaml))
 	require.NoError(t, err)
 
@@ -465,21 +465,20 @@ func validateValidation(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 	require.NoError(t, err, "Could not marshal assertions map")
 
 	// Run validation with the assertions and the updated YAML.
-	resp, err = dev.Validate(context.Background(), &v0.ValidateRequest{
-		Context:        reqContext,
-		AssertionsYaml: string(assertions),
-		ValidationYaml: updatedValidationYaml,
-	})
-	require.NoError(t, err, "Got unexpected error from validation")
-	require.Equal(t, 0, len(resp.RequestErrors), "Got unexpected request error from validation: %s", resp.RequestErrors)
-	require.Equal(t, 0, len(resp.ValidationErrors), "Got unexpected validation error from validation: %s", resp.ValidationErrors)
+	parsedAssertions, devErr := development.ParseAssertionsYAML(string(assertions))
+	require.NoError(t, err, "Got unexpected error from assertions")
+	require.Nil(t, devErr, "Got unexpected request error from assertions: %v", devErr)
+
+	devErrs, err := development.RunAllAssertions(devContext, parsedAssertions)
+	require.NoError(t, err, "Got unexpected error from assertions")
+	require.Equal(t, 0, len(devErrs), "Got unexpected errors from validation: %v", devErrs)
 }
 
-func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext *v0.RequestContext, vctx *validationContext) {
+func validateEditChecks(t *testing.T, devContext *development.DevContext, vctx *validationContext) {
 	for _, nsDef := range vctx.fullyResolved.NamespaceDefinitions {
 		for _, relation := range nsDef.Relation {
 			for _, subject := range vctx.subjectsNoWildcard.AsSlice() {
-				objectRelation := &v0.RelationReference{
+				objectRelation := &core.RelationReference{
 					Namespace: nsDef.Name,
 					Relation:  relation.Name,
 				}
@@ -493,33 +492,24 @@ func validateEditChecks(t *testing.T, dev v0.DeveloperServiceServer, reqContext 
 						return
 					}
 
-					// Add a check relationship for each object ID.
-					var checkRelationships []*core.RelationTuple
 					for _, objectID := range allObjectIds {
 						objectIDStr := objectID.(string)
-						checkRelationships = append(checkRelationships, &core.RelationTuple{
-							ResourceAndRelation: &core.ObjectAndRelation{
-								Namespace: nsDef.Name,
-								Relation:  relation.Name,
-								ObjectId:  objectIDStr,
-							},
-							Subject: subject,
-						})
-					}
+						resource := &core.ObjectAndRelation{
+							Namespace: objectRelation.Namespace,
+							ObjectId:  objectIDStr,
+							Relation:  objectRelation.Relation,
+						}
+						membership, err := development.RunCheck(devContext, resource, subject)
+						vrequire.NoError(err, "Got unexpected error from edit check")
 
-					// Ensure that all Checks assert true via the developer API.
-					req := &v0.EditCheckRequest{
-						Context:            reqContext,
-						CheckRelationships: core.ToV0RelationTuples(checkRelationships),
-					}
-
-					resp, err := dev.EditCheck(context.Background(), req)
-					vrequire.NoError(err, "Got unexpected error from edit check")
-					vrequire.Equal(len(checkRelationships), len(resp.CheckResults))
-					vrequire.Equal(0, len(resp.RequestErrors), "Got unexpected request error from edit check")
-					for _, result := range resp.CheckResults {
-						expectedMember := vctx.accessibilitySet.GetIsMember(core.ToCoreObjectAndRelation(result.Relationship.ObjectAndRelation), subject)
-						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard, result.IsMember, "Found unexpected membership difference for %s. Expected %v, Found: %v", tuple.String(core.ToCoreRelationTuple(result.Relationship)), expectedMember, result.IsMember)
+						expectedMember := vctx.accessibilitySet.GetIsMember(resource, subject)
+						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard,
+							membership == dispatchv1.DispatchCheckResponse_MEMBER,
+							"Found unexpected membership difference for %s@%s. Expected %v, Found: %v",
+							tuple.StringONR(resource),
+							tuple.StringONR(subject),
+							expectedMember,
+							membership)
 					}
 				})
 			}

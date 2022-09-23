@@ -25,77 +25,66 @@
     </script>
     <script>
         function test() {
-            const [devErrs, err] = runSpiceDBDevelopmentOperations(
+            const response = runSpiceDBDeveloperRequest(
                 JSON.stringify({
-                    'schema': `definition user {}
-                    
-                        definition document {
-                            relation viewer: user
-                            permission view = viewer
-                        }`
-                    ,
-                    'relationships': [
+                    'context': {
+                        'schema': `definition user {}
+                        
+                            definition document {
+                                relation viewer: user
+                                permission view = viewer
+                            }`
+                        ,
+                        'relationships': [
+                            {
+                                resource_and_relation: {
+                                    namespace: 'document',
+                                    object_id: 'somedoc',
+                                    relation: 'viewer',
+                                },
+                                subject: {
+                                        namespace: 'user',
+                                        object_id: 'foo',
+                                        relation: '...'
+                                }
+                            }
+                        ],
+                    },
+                    'operations': [
                         {
-                            resource_and_relation: {
-                                namespace: 'document',
-                                object_id: 'somedoc',
-                                relation: 'viewer',
-                            },
-                            subject: {
+                            'checkParameters': {
+                                resource: {
+                                    namespace: 'document',
+                                    object_id: 'somedoc',
+                                    relation: 'view',
+                                },
+                                subject: {
                                     namespace: 'user',
                                     object_id: 'foo',
-                                    relation: '...'
+                                    relation: '...',
+                                }
                             }
-                        }
-                    ],
-                }),
-                [
-                    {
-                        operation: 'check',
-                        parameters: JSON.stringify({
-                            resource: {
-                                namespace: 'document',
-                                object_id: 'somedoc',
-                                relation: 'view',
-                            },
-                            subject: {
-                                namespace: 'user',
-                                object_id: 'foo',
-                                relation: '...',
+                        },
+                        {
+                            'assertionsParameters': {
+                                assertions_yaml: `
+                                assertTrue:
+                                - document:somedoc#view@user:foo
+                                assertFalse: []
+                                `
                             }
-                        }),
-                        callback: (result, err) => {
-                            console.log(result, err)
-                        }
-                    },
-                    {
-                        operation: 'runAssertions',
-                        parameters: JSON.stringify({
-                            assertions_yaml: `
-                            assertTrue:
-                            - document:somedoc#view@user:foo
-                            assertFalse: []
-                            `
-                        }),
-                        callback: (result, err) => {
-                            console.log(result, err)
-                        }
-                    },
-                    {
-                        operation: 'runValidation',
-                        parameters: JSON.stringify({
-                            validation_yaml: `
+                        },
+                        {
+                            'validationParameters': {
+                                validation_yaml: `
                                 document:somedoc#view:
-                                - "[user:foo] is <documents:somedoc#viewer>"
-                            `
-                        }),
-                        callback: (deverrs, err) => {
-                            console.log(deverrs ? JSON.parse(deverrs) : '', err)
+                                - "[user:foo] is <document:somedoc#viewer>"
+                                `
+                            }
                         }
-                    },
-                ]
-            )
-            console.log(devErrs, err)
+                    ]
+                }))
+            console.log(JSON.parse(response))
         }
     </script>
 </head>

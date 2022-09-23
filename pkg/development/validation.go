@@ -16,7 +16,7 @@ import (
 )
 
 // RunValidation runs the parsed validation block against the data in the dev context.
-func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRelations) (*membership.Set, *DeveloperErrors, error) {
+func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRelations) (*membership.Set, []*devinterface.DeveloperError, error) {
 	var failures []*devinterface.DeveloperError
 	membershipSet := membership.NewMembershipSet()
 	ctx := devContext.Ctx
@@ -63,7 +63,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 	}
 
 	if len(failures) > 0 {
-		return membershipSet, &DeveloperErrors{ValidationErrors: failures}, nil
+		return membershipSet, failures, nil
 	}
 
 	return membershipSet, nil, nil
