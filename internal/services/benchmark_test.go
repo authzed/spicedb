@@ -93,7 +93,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
 				}, revision)
-				require.GreaterOrEqual(b, len(results), 100)
+				require.Equal(b, len(results), 499)
 				return err
 			},
 		},
