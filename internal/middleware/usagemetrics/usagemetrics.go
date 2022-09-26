@@ -9,9 +9,9 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 

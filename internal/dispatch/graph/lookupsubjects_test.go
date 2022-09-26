@@ -6,7 +6,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/rs/zerolog/log"
+	"github.com/authzed/spicedb/internal/logging"
+
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
@@ -181,7 +182,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := logging.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	tpl := tuple.Parse("folder:oops#owner@folder:oops#owner")

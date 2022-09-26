@@ -15,7 +15,6 @@ import (
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/ngrok/sqlmw"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 

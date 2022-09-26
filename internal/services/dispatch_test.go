@@ -10,7 +10,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/spanner"
@@ -330,8 +329,6 @@ func TestDispatchIntegration(t *testing.T) {
 
 					conns, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
 					t.Cleanup(cleanup)
-
-					zerolog.SetGlobalLevel(zerolog.Disabled)
 
 					schemaClient := v1.NewSchemaServiceClient(conns[0])
 					_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{

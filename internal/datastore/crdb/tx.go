@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/authzed/spicedb/internal/logging"
+
 	"github.com/jackc/pgconn"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog/log"
 )
 
 const (

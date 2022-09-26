@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"testing"
 	"time"
@@ -14,8 +13,6 @@ import (
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
@@ -36,13 +33,6 @@ import (
 )
 
 var testTimedeltas = []time.Duration{0, 1 * time.Second}
-
-func init() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
-
-	// Set this to Trace to dump log statements in tests.
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-}
 
 func obj(objType, objID string) *v1.ObjectReference {
 	return &v1.ObjectReference{

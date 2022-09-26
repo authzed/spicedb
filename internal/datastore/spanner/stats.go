@@ -6,9 +6,9 @@ import (
 	"math/rand"
 
 	"cloud.google.com/go/spanner"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 

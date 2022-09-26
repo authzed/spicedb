@@ -8,10 +8,10 @@ import (
 
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/validationfile"

@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/singleflight"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 

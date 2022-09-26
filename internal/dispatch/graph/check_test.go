@@ -3,11 +3,10 @@ package graph
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"github.com/authzed/spicedb/internal/logging"
+
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
@@ -23,13 +22,6 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
-
-func init() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
-
-	// Set this to Trace to dump log statements in tests.
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-}
 
 var ONR = tuple.ObjectAndRelation
 
@@ -158,7 +150,7 @@ func TestMaxDepth(t *testing.T) {
 
 	mutation := tuple.Create(tuple.Parse("folder:oops#owner@folder:oops#owner"))
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := logging.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	revision, err := common.UpdateTuplesInDatastore(ctx, ds, mutation)
@@ -295,7 +287,7 @@ func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, dec
 	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(t, err)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	ctx := logging.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	return ctx, cachingDispatcher, revision

@@ -6,10 +6,10 @@ import (
 
 	"cloud.google.com/go/spanner"
 	admin "cloud.google.com/go/spanner/admin/database/apiv1"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 

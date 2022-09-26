@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/gateway"
+	log "github.com/authzed/spicedb/internal/logging"
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"

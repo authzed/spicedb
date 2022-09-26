@@ -12,7 +12,6 @@ import (
 
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -27,6 +26,7 @@ import (
 	// Register cert watcher metrics
 	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
 

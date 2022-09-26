@@ -3,13 +3,10 @@ package graph
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -26,13 +23,6 @@ func RR(namespaceName string, relationName string) *core.RelationReference {
 		Namespace: namespaceName,
 		Relation:  relationName,
 	}
-}
-
-func init() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
-
-	// Set this to Trace to dump log statements in tests.
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 }
 
 func TestSimpleLookup(t *testing.T) {

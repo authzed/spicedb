@@ -3,22 +3,18 @@ package v0
 import (
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
+
 	"gopkg.in/yaml.v3"
 )
 
 const downloadPath = "/download/"
 
-func NewHTTPDownloadServer(addr string, shareStore ShareStore) *http.Server {
+func DownloadHandler(shareStore ShareStore) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(downloadPath, downloadHandler(shareStore))
-	return &http.Server{
-		Addr:              addr,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	return mux
 }
 
 func downloadHandler(shareStore ShareStore) func(w http.ResponseWriter, r *http.Request) {

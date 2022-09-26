@@ -110,6 +110,7 @@ func TestCertRotation(t *testing.T) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, 10, time.Duration(90_000_000_000_000))
 	require.NoError(t, err)
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require.New(t))
+
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
 		server.WithDispatcher(graph.NewLocalOnlyDispatcher(1)),

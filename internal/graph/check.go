@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/util"

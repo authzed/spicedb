@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 

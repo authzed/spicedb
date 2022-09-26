@@ -4,9 +4,10 @@ import (
 	"context"
 	"math/rand"
 
+	log "github.com/authzed/spicedb/internal/logging"
+
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )

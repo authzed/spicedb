@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/jzelinskie/cobrautil"
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
+
+	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 )

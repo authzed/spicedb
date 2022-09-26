@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/jzelinskie/cobrautil"
+	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/spf13/cobra"
 )
 

@@ -8,12 +8,12 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/jzelinskie/cobrautil"
+	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/pkg/datastore"
 )

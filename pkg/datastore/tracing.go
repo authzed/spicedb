@@ -3,7 +3,8 @@ package datastore
 import (
 	"context"
 
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
+
 	"go.opentelemetry.io/otel/trace"
 )
 
