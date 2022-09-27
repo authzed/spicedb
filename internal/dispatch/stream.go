@@ -147,5 +147,7 @@ func (s *HandlingDispatchStream[T]) Context() context.Context {
 }
 
 // Ensure the streams implement the interface.
-var _ Stream[any] = &CollectingDispatchStream[any]{}
-var _ Stream[any] = &WrappedDispatchStream[any]{}
+var (
+	_ Stream[any] = &CollectingDispatchStream[any]{}
+	_ Stream[any] = &WrappedDispatchStream[any]{}
+)
