@@ -84,7 +84,7 @@ func (g DeletionCounts) MarshalZerologObject(e *zerolog.Event) {
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
 func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, window, timeout time.Duration) error {
-	log.Ctx(ctx).Info().
+	log.Info().
 		Dur("interval", interval).
 		Msg("datastore garbage collection worker started")
 
