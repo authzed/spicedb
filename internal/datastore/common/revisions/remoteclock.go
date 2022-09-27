@@ -85,10 +85,10 @@ func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, revision dat
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
-	isFuture := revisionNanos > nowNanos
-	if isFuture {
-		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("future revision")
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
+	isUnknown := revisionNanos > nowNanos
+	if isUnknown {
+		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("unknown revision")
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 
 	return nil

@@ -47,7 +47,7 @@ const (
 		SELECT MIN(%[1]s) FROM %[2]s WHERE %[3]s >= NOW() - INTERVAL '%[4]f seconds'
 	) as fresh, $1 > (
 		SELECT MAX(%[1]s) FROM %[2]s
-	) as future;`
+	) as unknown;`
 )
 
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
@@ -80,18 +80,18 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 
 	revisionTx := transactionFromRevision(revision)
 
-	var freshEnough, future bool
+	var freshEnough, unknown bool
 	if err := pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), pgd.validTransactionQuery, revisionTx,
-	).Scan(&freshEnough, &future); err != nil {
+	).Scan(&freshEnough, &unknown); err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
+	if unknown {
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
+	}
 	if !freshEnough {
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
-	}
-	if future {
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
 	}
 
 	return nil
