@@ -24,9 +24,9 @@ func NewCachingDatastoreProxy(
 ) (datastore.Datastore, error) {
 	if cacheConfig == nil {
 		cacheConfig = &cache.Config{
-			NumCounters: 1e4,     // number of keys to track frequency of (10k).
-			MaxCost:     1 << 24, // maximum cost of cache (16MB).
-			BufferItems: 64,      // number of keys per Get buffer.
+			NumCounters: 10_000,               // number of samples to track frequency
+			MaxCost:     16 * humanize.MiByte, // upper bound for the cache size
+			BufferItems: 64,                   // constant recommended by ristretto
 		}
 	} else {
 		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching namespace manager")
