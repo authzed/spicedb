@@ -2,13 +2,23 @@ package server
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/jzelinskie/stringz"
+	"github.com/pbnjay/memory"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/pkg/cache"
 )
+
+// At startup, measure 75% of available free memory.
+var freeMemory uint64
+
+func init() {
+	freeMemory = memory.FreeMemory() / 100 * 75
+}
 
 // CacheConfig defines configuration for a ristretto cache.
 // See: https://github.com/dgraph-io/ristretto#Config
@@ -41,9 +51,18 @@ func (cc *CacheConfig) Complete() (*cache.Config, error) {
 		return nil, nil
 	}
 
-	maxCost, err := humanize.ParseBytes(cc.MaxCost)
+	var (
+		maxCost uint64
+		err     error
+	)
+
+	if strings.HasSuffix(cc.MaxCost, "%") {
+		maxCost, err = parsePercent(cc.MaxCost)
+	} else {
+		maxCost, err = humanize.ParseBytes(cc.MaxCost)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("error parsing cache max cost `%s`: %w", cc.MaxCost, err)
+		return nil, fmt.Errorf("error parsing cache max memory: `%s`: %w", cc.MaxCost, err)
 	}
 
 	return &cache.Config{
@@ -53,6 +72,20 @@ func (cc *CacheConfig) Complete() (*cache.Config, error) {
 		BufferItems: defaultBufferItems,
 		Disabled:    false,
 	}, nil
+}
+
+func parsePercent(str string) (uint64, error) {
+	percent := strings.TrimSuffix(str, "%")
+	parsedPercent, err := strconv.ParseUint(percent, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse percentage: %w", err)
+	}
+
+	if parsedPercent > 100 {
+		return 0, fmt.Errorf("percentage greater than 100")
+	}
+
+	return parsedPercent, nil
 }
 
 // RegisterCacheConfigFlags registers flags for a ristretto-based cache.
