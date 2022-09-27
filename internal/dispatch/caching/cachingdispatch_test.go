@@ -116,7 +116,7 @@ func TestMaxDepthCaching(t *testing.T) {
 				}
 			}
 
-			dispatch, err := NewCachingDispatcher(nil, "", nil)
+			dispatch, err := NewCachingDispatcher(DispatchTestCache(t), "", nil)
 			dispatch.SetDelegate(delegate)
 			require.NoError(err)
 			defer dispatch.Close()

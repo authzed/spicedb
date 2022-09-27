@@ -5,13 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
-	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -43,13 +41,7 @@ func TestSnapshotNamespaceCaching(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
 
-	cache, err := cache.NewCache(&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     1 * humanize.MiByte,
-	})
-	require.Nil(err)
-
-	ds := NewCachingDatastoreProxy(dsMock, cache)
+	ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t))
 
 	_, updatedOneA, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsA)
 	require.NoError(err)

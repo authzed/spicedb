@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"testing"
 
+	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
+	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
@@ -55,6 +58,16 @@ type reachableResourcesResultEntry struct {
 
 type lookupSubjectsResultEntry struct {
 	responses []*v1.DispatchLookupSubjectsResponse
+}
+
+func DispatchTestCache(t testing.TB) cache.Cache {
+	cache, err := cache.NewCache(&cache.Config{
+		NumCounters: 1000,
+		MaxCost:     1 * humanize.MiByte,
+		Metrics:     true,
+	})
+	require.Nil(t, err)
+	return cache
 }
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates

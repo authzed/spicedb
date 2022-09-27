@@ -123,7 +123,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 		t.Run(fmt.Sprintf("simple-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
 			require := require.New(t)
 
-			ctx, dis, revision := newLocalDispatcher(require)
+			ctx, dis, revision := newLocalDispatcher(t)
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 			err := dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
@@ -235,7 +235,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 		t.Run(fmt.Sprintf("dispatch-count-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
 			require := require.New(t)
 
-			ctx, dis, revision := newLocalDispatcher(require)
+			ctx, dis, revision := newLocalDispatcher(t)
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 			err := dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{

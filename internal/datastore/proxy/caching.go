@@ -4,14 +4,27 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"testing"
 
+	"github.com/dustin/go-humanize"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
+
+// DatastoreProxyTestCache returns a cache used for testing.
+func DatastoreProxyTestCache(t testing.TB) cache.Cache {
+	cache, err := cache.NewCache(&cache.Config{
+		NumCounters: 1000,
+		MaxCost:     1 * humanize.MiByte,
+	})
+	require.Nil(t, err)
+	return cache
+}
 
 // NewCachingDatastoreProxy creates a new datastore proxy which caches namespace definitions that
 // are loaded at specific datastore revisions.

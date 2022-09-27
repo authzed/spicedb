@@ -120,7 +120,7 @@ func TestSimpleCheck(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
-					ctx, dispatch, revision := newLocalDispatcher(require)
+					ctx, dispatch, revision := newLocalDispatcher(t)
 
 					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 						ResourceRelation: RR(tc.namespace, expected.relation),
@@ -254,7 +254,7 @@ func TestCheckMetadata(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
-					ctx, dispatch, revision := newLocalDispatcher(require)
+					ctx, dispatch, revision := newLocalDispatcher(t)
 
 					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 						ResourceRelation: RR(tc.namespace, expected.relation),
@@ -283,20 +283,20 @@ func TestCheckMetadata(t *testing.T) {
 	}
 }
 
-func newLocalDispatcher(require *require.Assertions) (context.Context, dispatch.Dispatcher, decimal.Decimal) {
+func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, decimal.Decimal) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-	require.NoError(err)
+	require.NoError(t, err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 
 	dispatch := NewLocalOnlyDispatcher(10)
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(nil, "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
-	require.NoError(datastoremw.SetInContext(ctx, ds))
+	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	return ctx, cachingDispatcher, revision
 }

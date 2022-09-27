@@ -156,7 +156,7 @@ func TestExpand(t *testing.T) {
 		t.Run(fmt.Sprintf("%s-%s", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
 			require := require.New(t)
 
-			ctx, dispatch, revision := newLocalDispatcher(require)
+			ctx, dispatch, revision := newLocalDispatcher(t)
 
 			expandResult, err := dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 				ResourceAndRelation: tc.start,

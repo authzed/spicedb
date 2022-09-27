@@ -141,7 +141,7 @@ func TestSimpleReachableResources(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
 
-			ctx, dispatcher, revision := newLocalDispatcher(require)
+			ctx, dispatcher, revision := newLocalDispatcher(t)
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
@@ -182,7 +182,7 @@ func TestSimpleReachableResources(t *testing.T) {
 func TestMaxDepthreachableResources(t *testing.T) {
 	require := require.New(t)
 
-	ctx, dispatcher, revision := newLocalDispatcher(require)
+	ctx, dispatcher, revision := newLocalDispatcher(t)
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 	err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
