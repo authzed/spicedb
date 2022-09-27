@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	cobraotel "github.com/jzelinskie/cobrautil/v2/otel"
-	cobralog "github.com/jzelinskie/cobrautil/v2/zerolog"
+	"github.com/jzelinskie/cobrautil/v2/cobraotel"
+	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/pkg/cmd/server"
@@ -10,8 +10,8 @@ import (
 )
 
 func RegisterRootFlags(cmd *cobra.Command) {
-	cobralog.RegisterZeroLogFlags(cmd.PersistentFlags(), "log")
-	cobraotel.RegisterOpenTelemetryFlags(cmd.PersistentFlags(), "otel", cmd.Use)
+	cobrazerolog.New().RegisterFlags(cmd.PersistentFlags())
+	cobraotel.New(cmd.Use).RegisterFlags(cmd.PersistentFlags())
 	releases.RegisterFlags(cmd.PersistentFlags())
 }
 

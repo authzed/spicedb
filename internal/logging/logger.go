@@ -10,53 +10,35 @@ import (
 var Logger zerolog.Logger
 
 func init() {
-	nop := zerolog.Nop()
-	SetGlobalLogger(nop)
+	SetGlobalLogger(zerolog.Nop())
 }
 
 func SetGlobalLogger(logger zerolog.Logger) {
 	Logger = logger
+	zerolog.DefaultContextLogger = &Logger
 }
 
-func With() zerolog.Context {
-	return Logger.With()
-}
+func With() zerolog.Context { return Logger.With() }
 
-func Err(err error) *zerolog.Event {
-	return Logger.Err(err)
-}
+func Err(err error) *zerolog.Event { return Logger.Err(err) }
 
-func Trace() *zerolog.Event {
-	return Logger.Trace()
-}
+func Trace() *zerolog.Event { return Logger.Trace() }
 
-func Debug() *zerolog.Event {
-	return Logger.Debug()
-}
+func Debug() *zerolog.Event { return Logger.Debug() }
 
-func Info() *zerolog.Event {
-	return Logger.Info()
-}
+func Info() *zerolog.Event { return Logger.Info() }
 
-func Warn() *zerolog.Event {
-	return Logger.Warn()
-}
+func Warn() *zerolog.Event { return Logger.Warn() }
 
-func Error() *zerolog.Event {
-	return Logger.Error()
-}
+func Error() *zerolog.Event { return Logger.Error() }
 
-func Fatal() *zerolog.Event {
-	return Logger.Fatal()
-}
+func Fatal() *zerolog.Event { return Logger.Fatal() }
 
-func WithLevel(level zerolog.Level) *zerolog.Event {
-	return Logger.WithLevel(level)
-}
+func WithLevel(level zerolog.Level) *zerolog.Event { return Logger.WithLevel(level) }
 
-func Log() *zerolog.Event {
-	return Logger.Log()
-}
+func Log() *zerolog.Event { return Logger.Log() }
+
+func Ctx(ctx context.Context) *zerolog.Logger { return zerolog.Ctx(ctx) }
 
 func Print(v ...interface{}) {
 	Logger.Debug().CallerSkipFrame(1).Msg(fmt.Sprint(v...))
@@ -64,8 +46,4 @@ func Print(v ...interface{}) {
 
 func Printf(format string, v ...interface{}) {
 	Logger.Debug().CallerSkipFrame(1).Msgf(format, v...)
-}
-
-func Ctx(ctx context.Context) *zerolog.Logger {
-	return zerolog.Ctx(ctx)
 }

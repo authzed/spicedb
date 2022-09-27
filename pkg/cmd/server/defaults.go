@@ -12,8 +12,8 @@ import (
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil/v2"
-	cobraotel "github.com/jzelinskie/cobrautil/v2/otel"
-	cobralog "github.com/jzelinskie/cobrautil/v2/zerolog"
+	"github.com/jzelinskie/cobrautil/v2/cobraotel"
+	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
@@ -56,9 +56,9 @@ func ServeExample(programName string) string {
 func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 	return cobrautil.CommandStack(
 		cobrautil.SyncViperPreRunE(programName),
-		cobralog.New(
-			cobralog.WithAsync(1000, 10*time.Millisecond),
-			cobralog.WithTarget(func(logger zerolog.Logger) {
+		cobrazerolog.New(
+			cobrazerolog.WithAsync(1000, 10*time.Millisecond),
+			cobrazerolog.WithTarget(func(logger zerolog.Logger) {
 				logging.SetGlobalLogger(logger)
 			}),
 		).RunE(),
