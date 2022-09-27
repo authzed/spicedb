@@ -17,7 +17,6 @@ import (
 
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	hashbalancer "github.com/authzed/spicedb/pkg/balancer"
-	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -180,15 +179,8 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 				}),
 			),
 		}
-		if !cacheEnabled {
-			dispatcherOptions = append(dispatcherOptions, combineddispatch.CacheConfig(&cache.Config{
-				Disabled: true,
-			}))
-		}
 
-		dispatcher, err := combineddispatch.NewDispatcher(
-			dispatcherOptions...,
-		)
+		dispatcher, err := combineddispatch.NewDispatcher(dispatcherOptions...)
 		require.NoError(t, err)
 
 		serverOptions := []server.ConfigOption{
@@ -214,19 +206,8 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 			}),
 			server.WithDispatchClusterMetricsPrefix(fmt.Sprintf("%s_%d_dispatch", prefix, i)),
 		}
-		if !cacheEnabled {
-			serverOptions = append(serverOptions, server.WithDispatchCacheConfig(server.CacheConfig{
-				Disabled: true,
-			}))
 
-			serverOptions = append(serverOptions, server.WithClusterDispatchCacheConfig(server.CacheConfig{
-				Disabled: true,
-			}))
-		}
-
-		srv, err := server.NewConfigWithOptions(
-			serverOptions...,
-		).Complete()
+		srv, err := server.NewConfigWithOptions(serverOptions...).Complete()
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())

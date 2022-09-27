@@ -3,11 +3,8 @@ package proxy
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 
-	"github.com/dustin/go-humanize"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"golang.org/x/sync/singleflight"
 
@@ -18,29 +15,14 @@ import (
 
 // NewCachingDatastoreProxy creates a new datastore proxy which caches namespace definitions that
 // are loaded at specific datastore revisions.
-func NewCachingDatastoreProxy(
-	delegate datastore.Datastore,
-	cacheConfig *cache.Config,
-) (datastore.Datastore, error) {
-	if cacheConfig == nil {
-		cacheConfig = &cache.Config{
-			NumCounters: 10_000,               // number of samples to track frequency
-			MaxCost:     16 * humanize.MiByte, // upper bound for the cache size
-			BufferItems: 64,                   // constant recommended by ristretto
-		}
-	} else {
-		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching namespace manager")
+func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache) datastore.Datastore {
+	if c == nil {
+		c = cache.NoopCache()
 	}
-
-	cache, err := cache.NewCache(cacheConfig)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create cache: %w", err)
-	}
-
 	return &nsCachingProxy{
 		Datastore: delegate,
-		c:         cache,
-	}, nil
+		c:         c,
+	}
 }
 
 type nsCachingProxy struct {

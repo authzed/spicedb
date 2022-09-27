@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 
@@ -58,33 +57,11 @@ type lookupSubjectsResultEntry struct {
 	responses []*v1.DispatchLookupSubjectsResponse
 }
 
-// NewCachingDispatcher creates a new dispatch.Dispatcher which delegates dispatch requests
-// and caches the responses when possible and desirable.
-func NewCachingDispatcher(
-	cacheConfig *cache.Config,
-	prometheusSubsystem string,
-	keyHandler keys.Handler,
-) (*Dispatcher, error) {
-	if cacheConfig == nil {
-		cacheConfig = &cache.Config{
-			NumCounters: 1e4,     // number of keys to track frequency of (10k).
-			MaxCost:     1 << 24, // maximum cost of cache (16MB).
-			BufferItems: 64,      // number of keys per Get buffer.
-			Metrics:     true,    // collect metrics.
-		}
-	} else {
-		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching dispatcher")
-	}
-
-	var cacheInst cache.Cache
-	if cacheConfig.Disabled {
+// NewCachingDispatcher creates a new dispatch.Dispatcher which delegates
+// dispatch requests and caches the responses when possible and desirable.
+func NewCachingDispatcher(cacheInst cache.Cache, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
+	if cacheInst == nil {
 		cacheInst = cache.NoopCache()
-	} else {
-		c, err := cache.NewCache(cacheConfig)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		cacheInst = c
 	}
 
 	checkTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{

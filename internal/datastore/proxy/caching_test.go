@@ -5,11 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -41,8 +43,13 @@ func TestSnapshotNamespaceCaching(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
 
-	ds, err := NewCachingDatastoreProxy(dsMock, nil)
-	require.NoError(err)
+	cache, err := cache.NewCache(&cache.Config{
+		NumCounters: 1000,
+		MaxCost:     1 * humanize.MiByte,
+	})
+	require.Nil(err)
+
+	ds := NewCachingDatastoreProxy(dsMock, cache)
 
 	_, updatedOneA, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsA)
 	require.NoError(err)
@@ -92,8 +99,7 @@ func TestRWTNamespaceCaching(t *testing.T) {
 
 	ctx := context.Background()
 
-	ds, err := NewCachingDatastoreProxy(dsMock, nil)
-	require.NoError(err)
+	ds := NewCachingDatastoreProxy(dsMock, nil)
 
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		_, updatedA, err := rwt.ReadNamespace(ctx, nsA)
@@ -128,8 +134,7 @@ func TestSingleFlight(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
 
-	ds, err := NewCachingDatastoreProxy(dsMock, nil)
-	require.NoError(err)
+	ds := NewCachingDatastoreProxy(dsMock, nil)
 
 	readNamespace := func() error {
 		_, updatedAt, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsA)

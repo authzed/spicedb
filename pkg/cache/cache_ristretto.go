@@ -6,6 +6,7 @@ package cache
 import (
 	"github.com/dgraph-io/ristretto"
 	"github.com/dgraph-io/ristretto/z"
+	"github.com/rs/zerolog"
 
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 )
@@ -15,7 +16,7 @@ func NewCache(config *Config) (Cache, error) {
 	cache, err := ristretto.NewCache(&ristretto.Config{
 		NumCounters: config.NumCounters,
 		MaxCost:     config.MaxCost,
-		BufferItems: config.BufferItems,
+		BufferItems: 64, // Recommended constant by Ristretto authors.
 		Metrics:     config.Metrics,
 		KeyToHash: func(key interface{}) (uint64, uint64) {
 			dispatchCacheKey, ok := key.(keys.DispatchCacheKey)
@@ -28,15 +29,15 @@ func NewCache(config *Config) (Cache, error) {
 	if err != nil {
 		return nil, err
 	}
-	return wrapped{cache}, nil
+	return wrapped{config, cache}, nil
 }
 
 type wrapped struct {
+	config *Config
 	*ristretto.Cache
 }
 
-func (w wrapped) GetMetrics() Metrics {
-	return w.Cache.Metrics
-}
+var _ Cache = (*wrapped)(nil)
 
-var _ Cache = &wrapped{}
+func (w wrapped) GetMetrics() Metrics                   { return w.Cache.Metrics }
+func (w wrapped) MarshalZerologObject(e *zerolog.Event) { e.EmbedObject(w.config) }

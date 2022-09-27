@@ -26,12 +26,17 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	// Flags for the datastore
 	datastore.RegisterDatastoreFlags(cmd, &config.DatastoreConfig)
 
-	// Flags for the namespace manager
+	// Flags for the namespace cache
 	cmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 	if err := cmd.Flags().MarkHidden("ns-cache-expiration"); err != nil {
 		panic("failed to mark flag hidden: " + err.Error())
 	}
-	server.RegisterCacheConfigFlags(cmd.Flags(), &config.NamespaceCacheConfig, "ns-cache")
+	server.RegisterCacheFlags(cmd.Flags(), "ns-cache", &config.NamespaceCacheConfig, &server.CacheConfig{
+		Enabled:     true,
+		Metrics:     false,
+		NumCounters: 1_000,
+		MaxCost:     "16MiB",
+	})
 
 	// Flags for parsing and validating schemas.
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
@@ -57,8 +62,18 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 
 	// Flags for configuring the dispatch server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
-	server.RegisterCacheConfigFlags(cmd.Flags(), &config.DispatchCacheConfig, "dispatch-cache")
-	server.RegisterCacheConfigFlags(cmd.Flags(), &config.ClusterDispatchCacheConfig, "dispatch-cluster-cache")
+	server.RegisterCacheFlags(cmd.Flags(), "dispatch-cache", &config.DispatchCacheConfig, &server.CacheConfig{
+		Enabled:     true,
+		Metrics:     false,
+		NumCounters: 10_000,
+		MaxCost:     "30%",
+	})
+	server.RegisterCacheFlags(cmd.Flags(), "dispatch-cluster-cache", &config.ClusterDispatchCacheConfig, &server.CacheConfig{
+		Enabled:     true,
+		Metrics:     false,
+		NumCounters: 100_000,
+		MaxCost:     "70%",
+	})
 
 	// Flags for configuring dispatch requests
 	cmd.Flags().Uint32Var(&config.DispatchMaxDepth, "dispatch-max-depth", 50, "maximum recursion depth for nested calls")
