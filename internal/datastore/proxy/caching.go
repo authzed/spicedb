@@ -3,12 +3,12 @@ package proxy
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
+	"testing"
 
 	"github.com/dustin/go-humanize"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/authzed/spicedb/pkg/cache"
@@ -16,31 +16,26 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
+// DatastoreProxyTestCache returns a cache used for testing.
+func DatastoreProxyTestCache(t testing.TB) cache.Cache {
+	cache, err := cache.NewCache(&cache.Config{
+		NumCounters: 1000,
+		MaxCost:     1 * humanize.MiByte,
+	})
+	require.Nil(t, err)
+	return cache
+}
+
 // NewCachingDatastoreProxy creates a new datastore proxy which caches namespace definitions that
 // are loaded at specific datastore revisions.
-func NewCachingDatastoreProxy(
-	delegate datastore.Datastore,
-	cacheConfig *cache.Config,
-) (datastore.Datastore, error) {
-	if cacheConfig == nil {
-		cacheConfig = &cache.Config{
-			NumCounters: 1e4,     // number of keys to track frequency of (10k).
-			MaxCost:     1 << 24, // maximum cost of cache (16MB).
-			BufferItems: 64,      // number of keys per Get buffer.
-		}
-	} else {
-		log.Info().Int64("numCounters", cacheConfig.NumCounters).Str("maxCost", humanize.Bytes(uint64(cacheConfig.MaxCost))).Msg("configured caching namespace manager")
+func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache) datastore.Datastore {
+	if c == nil {
+		c = cache.NoopCache()
 	}
-
-	cache, err := cache.NewCache(cacheConfig)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create cache: %w", err)
-	}
-
 	return &nsCachingProxy{
 		Datastore: delegate,
-		c:         cache,
-	}, nil
+		c:         c,
+	}
 }
 
 type nsCachingProxy struct {

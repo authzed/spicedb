@@ -110,7 +110,7 @@ func TestSimpleLookup(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
 
-			ctx, dispatch, revision := newLocalDispatcher(require)
+			ctx, dispatch, revision := newLocalDispatcher(t)
 
 			lookupResult, err := dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
 				ObjectRelation: tc.start,

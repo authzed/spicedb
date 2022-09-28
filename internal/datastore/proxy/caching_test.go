@@ -41,8 +41,7 @@ func TestSnapshotNamespaceCaching(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
 
-	ds, err := NewCachingDatastoreProxy(dsMock, nil)
-	require.NoError(err)
+	ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t))
 
 	_, updatedOneA, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsA)
 	require.NoError(err)
@@ -92,8 +91,7 @@ func TestRWTNamespaceCaching(t *testing.T) {
 
 	ctx := context.Background()
 
-	ds, err := NewCachingDatastoreProxy(dsMock, nil)
-	require.NoError(err)
+	ds := NewCachingDatastoreProxy(dsMock, nil)
 
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		_, updatedA, err := rwt.ReadNamespace(ctx, nsA)
@@ -128,8 +126,7 @@ func TestSingleFlight(t *testing.T) {
 	require := require.New(t)
 	ctx := context.Background()
 
-	ds, err := NewCachingDatastoreProxy(dsMock, nil)
-	require.NoError(err)
+	ds := NewCachingDatastoreProxy(dsMock, nil)
 
 	readNamespace := func() error {
 		_, updatedAt, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsA)

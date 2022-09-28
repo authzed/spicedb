@@ -15,7 +15,7 @@ type Option func(*optionState)
 
 type optionState struct {
 	prometheusSubsystem string
-	cacheConfig         *cache.Config
+	cache               cache.Cache
 	concurrencyLimit    uint16
 }
 
@@ -26,10 +26,10 @@ func PrometheusSubsystem(name string) Option {
 	}
 }
 
-// CacheConfig sets the configuration for the local dispatcher's cache.
-func CacheConfig(config *cache.Config) Option {
+// Cache sets the cache for the remote dispatcher.
+func Cache(c cache.Cache) Option {
 	return func(state *optionState) {
-		state.cacheConfig = config
+		state.cache = c
 	}
 }
 
@@ -60,7 +60,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		opts.prometheusSubsystem = "dispatch"
 	}
 
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}

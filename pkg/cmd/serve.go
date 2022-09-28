@@ -14,6 +14,29 @@ import (
 
 const PresharedKeyFlag = "grpc-preshared-key"
 
+var (
+	namespaceCacheDefaults = &server.CacheConfig{
+		Enabled:     true,
+		Metrics:     false,
+		NumCounters: 1_000,
+		MaxCost:     "16MiB",
+	}
+
+	dispatchCacheDefaults = &server.CacheConfig{
+		Enabled:     true,
+		Metrics:     false,
+		NumCounters: 10_000,
+		MaxCost:     "30%",
+	}
+
+	dispatchClusterCacheDefaults = &server.CacheConfig{
+		Enabled:     true,
+		Metrics:     false,
+		NumCounters: 100_000,
+		MaxCost:     "70%",
+	}
+)
+
 func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	// Flags for the gRPC API server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
@@ -26,12 +49,12 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	// Flags for the datastore
 	datastore.RegisterDatastoreFlags(cmd, &config.DatastoreConfig)
 
-	// Flags for the namespace manager
+	// Flags for the namespace cache
 	cmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 	if err := cmd.Flags().MarkHidden("ns-cache-expiration"); err != nil {
 		panic("failed to mark flag hidden: " + err.Error())
 	}
-	server.RegisterCacheConfigFlags(cmd.Flags(), &config.NamespaceCacheConfig, "ns-cache")
+	server.RegisterCacheFlags(cmd.Flags(), "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
 
 	// Flags for parsing and validating schemas.
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
@@ -57,8 +80,8 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 
 	// Flags for configuring the dispatch server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
-	server.RegisterCacheConfigFlags(cmd.Flags(), &config.DispatchCacheConfig, "dispatch-cache")
-	server.RegisterCacheConfigFlags(cmd.Flags(), &config.ClusterDispatchCacheConfig, "dispatch-cluster-cache")
+	server.RegisterCacheFlags(cmd.Flags(), "dispatch-cache", &config.DispatchCacheConfig, dispatchCacheDefaults)
+	server.RegisterCacheFlags(cmd.Flags(), "dispatch-cluster-cache", &config.ClusterDispatchCacheConfig, dispatchClusterCacheDefaults)
 
 	// Flags for configuring dispatch requests
 	cmd.Flags().Uint32Var(&config.DispatchMaxDepth, "dispatch-max-depth", 50, "maximum recursion depth for nested calls")

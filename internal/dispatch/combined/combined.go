@@ -30,7 +30,7 @@ type optionState struct {
 	upstreamCAPath      string
 	grpcPresharedKey    string
 	grpcDialOpts        []grpc.DialOption
-	cacheConfig         *cache.Config
+	cache               cache.Cache
 	concurrencyLimit    uint16
 }
 
@@ -72,10 +72,10 @@ func GrpcDialOpts(opts ...grpc.DialOption) Option {
 	}
 }
 
-// CacheConfig sets the configuration for the local dispatcher's cache.
-func CacheConfig(config *cache.Config) Option {
+// Cache sets the cache for the dispatcher.
+func Cache(c cache.Cache) Option {
 	return func(state *optionState) {
-		state.cacheConfig = config
+		state.cache = c
 	}
 }
 
@@ -99,7 +99,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}

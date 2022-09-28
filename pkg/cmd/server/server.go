@@ -135,11 +135,9 @@ func (c *Config) Complete() (RunnableServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}
+	log.Info().EmbedObject(nscc).Msg("configured namespace cache")
 
-	ds, err = proxy.NewCachingDatastoreProxy(ds, nscc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create namespace caching datastore proxy: %w", err)
-	}
+	ds = proxy.NewCachingDatastoreProxy(ds, nscc)
 
 	enableGRPCHistogram()
 
@@ -150,6 +148,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 		if cerr != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", cerr)
 		}
+		log.Info().EmbedObject(cc).Msg("configured dispatch cache")
 
 		dispatchPresharedKey := ""
 		if len(c.PresharedKey) > 0 {
@@ -165,7 +164,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 				grpc.WithDefaultServiceConfig(balancer.BalancerServiceConfig),
 			),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
-			combineddispatch.CacheConfig(cc),
+			combineddispatch.Cache(cc),
 			combineddispatch.ConcurrencyLimit(c.DispatchConcurrencyLimit),
 		)
 		if err != nil {
@@ -187,12 +186,13 @@ func (c *Config) Complete() (RunnableServer, error) {
 		if cerr != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", cerr)
 		}
+		log.Info().EmbedObject(cdcc).Msg("configured cluster dispatch cache")
 
 		var err error
 		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
 			dispatcher,
 			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
-			clusterdispatch.CacheConfig(cdcc),
+			clusterdispatch.Cache(cdcc),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
