@@ -5,6 +5,7 @@ option go_package = "github.com/authzed/spicedb/pkg/proto/dispatch/v1";
 
 import "validate/validate.proto";
 import "core/v1/core.proto";
+import "google/protobuf/struct.proto";
 
 service DispatchService {
   rpc DispatchCheck(DispatchCheckRequest) returns (DispatchCheckResponse) {}
@@ -44,14 +45,35 @@ message DispatchCheckResponse {
     UNKNOWN = 0;
     NOT_MEMBER = 1;
     MEMBER = 2;
+    CAVEATED_MEMBER = 3;
   }
 
   message ResourceCheckResult {
     Membership membership = 1;
+    CaveatExpression expression = 2;    
   }
 
   ResponseMeta metadata = 1;
   map<string, ResourceCheckResult> results_by_resource_id = 2;
+}
+
+message CaveatExpression {  
+  oneof operation_or_caveat {
+    CaveatOperation operation = 1;
+    core.v1.ContextualizedCaveat caveat = 2;
+  }
+}
+
+message CaveatOperation {
+  enum Operation {
+    UNKNOWN = 0;
+    OR = 1;
+    AND = 2;
+    NOT = 3;
+  }
+
+  Operation op = 1;
+  repeated CaveatExpression children = 2;
 }
 
 message DispatchExpandRequest {

@@ -438,6 +438,308 @@ var _ interface {
 	ErrorName() string
 } = DispatchCheckResponseValidationError{}
 
+// Validate checks the field values on CaveatExpression with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *CaveatExpression) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CaveatExpression with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CaveatExpressionMultiError, or nil if none found.
+func (m *CaveatExpression) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CaveatExpression) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch m.OperationOrCaveat.(type) {
+
+	case *CaveatExpression_Operation:
+
+		if all {
+			switch v := interface{}(m.GetOperation()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, CaveatExpressionValidationError{
+						field:  "Operation",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, CaveatExpressionValidationError{
+						field:  "Operation",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetOperation()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return CaveatExpressionValidationError{
+					field:  "Operation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *CaveatExpression_Caveat:
+
+		if all {
+			switch v := interface{}(m.GetCaveat()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, CaveatExpressionValidationError{
+						field:  "Caveat",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, CaveatExpressionValidationError{
+						field:  "Caveat",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetCaveat()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return CaveatExpressionValidationError{
+					field:  "Caveat",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return CaveatExpressionMultiError(errors)
+	}
+
+	return nil
+}
+
+// CaveatExpressionMultiError is an error wrapping multiple validation errors
+// returned by CaveatExpression.ValidateAll() if the designated constraints
+// aren't met.
+type CaveatExpressionMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CaveatExpressionMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CaveatExpressionMultiError) AllErrors() []error { return m }
+
+// CaveatExpressionValidationError is the validation error returned by
+// CaveatExpression.Validate if the designated constraints aren't met.
+type CaveatExpressionValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CaveatExpressionValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CaveatExpressionValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CaveatExpressionValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CaveatExpressionValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CaveatExpressionValidationError) ErrorName() string { return "CaveatExpressionValidationError" }
+
+// Error satisfies the builtin error interface
+func (e CaveatExpressionValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCaveatExpression.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CaveatExpressionValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CaveatExpressionValidationError{}
+
+// Validate checks the field values on CaveatOperation with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *CaveatOperation) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CaveatOperation with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CaveatOperationMultiError, or nil if none found.
+func (m *CaveatOperation) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CaveatOperation) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Op
+
+	for idx, item := range m.GetChildren() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, CaveatOperationValidationError{
+						field:  fmt.Sprintf("Children[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, CaveatOperationValidationError{
+						field:  fmt.Sprintf("Children[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return CaveatOperationValidationError{
+					field:  fmt.Sprintf("Children[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return CaveatOperationMultiError(errors)
+	}
+
+	return nil
+}
+
+// CaveatOperationMultiError is an error wrapping multiple validation errors
+// returned by CaveatOperation.ValidateAll() if the designated constraints
+// aren't met.
+type CaveatOperationMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CaveatOperationMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CaveatOperationMultiError) AllErrors() []error { return m }
+
+// CaveatOperationValidationError is the validation error returned by
+// CaveatOperation.Validate if the designated constraints aren't met.
+type CaveatOperationValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CaveatOperationValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CaveatOperationValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CaveatOperationValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CaveatOperationValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CaveatOperationValidationError) ErrorName() string { return "CaveatOperationValidationError" }
+
+// Error satisfies the builtin error interface
+func (e CaveatOperationValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCaveatOperation.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CaveatOperationValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CaveatOperationValidationError{}
+
 // Validate checks the field values on DispatchExpandRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
@@ -2847,6 +3149,35 @@ func (m *DispatchCheckResponse_ResourceCheckResult) validate(all bool) error {
 	var errors []error
 
 	// no validation rules for Membership
+
+	if all {
+		switch v := interface{}(m.GetExpression()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchCheckResponse_ResourceCheckResultValidationError{
+					field:  "Expression",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchCheckResponse_ResourceCheckResultValidationError{
+					field:  "Expression",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExpression()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DispatchCheckResponse_ResourceCheckResultValidationError{
+				field:  "Expression",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return DispatchCheckResponse_ResourceCheckResultMultiError(errors)
