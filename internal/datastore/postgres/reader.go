@@ -45,7 +45,7 @@ var (
 		ColUsersetRelation:  colUsersetRelation,
 	}
 
-	readNamespace = psql.Select(colConfig, colCreatedTxn).From(tableNamespace)
+	readNamespace = psql.Select(colConfig, colCreatedXid).From(tableNamespace)
 )
 
 const (
@@ -117,7 +117,7 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, baseQuery s
 	}
 
 	var config []byte
-	var version datastore.Revision
+	var version XID8
 	err = tx.QueryRow(ctx, sql, args...).Scan(&config, &version)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -131,7 +131,7 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, baseQuery s
 		return nil, datastore.NoRevision, err
 	}
 
-	return loaded, version, nil
+	return loaded, revisionFromTransaction(version), nil
 }
 
 func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {

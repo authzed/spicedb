@@ -264,14 +264,14 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	tx, err := pgd.dbpool.Begin(ctx)
 	require.NoError(err)
 
-	txID, _, err := createNewTransaction(ctx, tx)
+	_, txXID, err := createNewTransaction(ctx, tx)
 	require.NoError(err)
 
 	err = tx.Commit(ctx)
 	require.NoError(err)
 
 	var ts time.Time
-	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"id": txID}).ToSql()
+	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"xid": txXID}).ToSql()
 	require.NoError(err)
 	err = pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
@@ -433,40 +433,41 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	testCases := []struct {
-		testName         string
-		quantization     time.Duration
-		relativeTimes    []time.Duration
-		expectedRevision uint64
+		testName      string
+		quantization  time.Duration
+		relativeTimes []time.Duration
+		numLower      uint64
+		numHigher     uint64
 	}{
 		{
 			"DefaultRevision",
 			1 * time.Second,
 			[]time.Duration{},
-			1,
+			0, 0,
 		},
 		{
 			"OnlyPastRevisions",
 			1 * time.Second,
 			[]time.Duration{-2 * time.Second},
-			2,
+			1, 0,
 		},
 		{
 			"OnlyFutureRevisions",
 			1 * time.Second,
 			[]time.Duration{2 * time.Second},
-			2,
+			1, 0,
 		},
 		{
 			"QuantizedLower",
 			1 * time.Second,
 			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
-			3,
+			2, 1,
 		},
 		{
 			"QuantizationDisabled",
 			1 * time.Nanosecond,
 			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
-			4,
+			3, 0,
 		},
 	}
 
@@ -494,47 +495,50 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			})
 			defer ds.Close()
 
-			tx, err := conn.Begin(ctx)
-			require.NoError(err)
-
 			// set a random time zone to ensure the queries are unaffect by tz
-			_, err = tx.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
 			require.NoError(err)
 
 			var dbNow time.Time
-			err = tx.QueryRow(ctx, "SELECT (NOW() AT TIME ZONE 'utc')").Scan(&dbNow)
+			err = conn.QueryRow(ctx, "SELECT (NOW() AT TIME ZONE 'utc')").Scan(&dbNow)
 			require.NoError(err)
 
 			if len(tc.relativeTimes) > 0 {
 				psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-				bulkWrite := psql.Insert(tableTransaction).Columns(colTimestamp)
+				insertTxn := psql.Insert(tableTransaction).Columns(colTimestamp)
 
 				for _, offset := range tc.relativeTimes {
-					bulkWrite = bulkWrite.Values(dbNow.Add(offset))
+					sql, args, err := insertTxn.Values(dbNow.Add(offset)).ToSql()
+					require.NoError(err)
+
+					_, err = conn.Exec(ctx, sql, args...)
+					require.NoError(err)
 				}
-
-				sql, args, err := bulkWrite.ToSql()
-				require.NoError(err)
-
-				_, err = tx.Exec(ctx, sql, args...)
-				require.NoError(err)
 			}
 
 			queryRevision := fmt.Sprintf(
 				querySelectRevision,
-				colID,
+				colXID,
 				tableTransaction,
 				colTimestamp,
 				tc.quantization.Nanoseconds(),
 			)
 
-			var revision uint64
+			var revision XID8
 			var validFor time.Duration
-			err = tx.QueryRow(ctx, queryRevision).Scan(&revision, &validFor)
+			err = conn.QueryRow(ctx, queryRevision).Scan(&revision, &validFor)
 			require.NoError(err)
-			require.Greater(validFor, time.Duration(0))
 
-			require.Equal(tc.expectedRevision, revision)
+			queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE %[1]s %[3]s $1;"
+			numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "<")
+			numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, ">")
+
+			var numLower, numHigher uint64
+			require.NoError(conn.QueryRow(ctx, numLowerQuery, revision).Scan(&numLower))
+			require.NoError(conn.QueryRow(ctx, numHigherQuery, revision).Scan(&numHigher))
+
+			require.Equal(tc.numLower, numLower)
+			require.Equal(tc.numHigher, numHigher)
 		})
 	}
 }

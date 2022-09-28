@@ -32,9 +32,9 @@ var (
 		colCreatedTxn,
 	)
 
-	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 
-	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 
 	writeTuple = psql.Insert(tableTuple).Columns(
 		colNamespace,
@@ -46,7 +46,7 @@ var (
 		colCreatedTxn,
 	)
 
-	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 )
 
 type pgReadWriteTXN struct {
@@ -117,6 +117,10 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 			// If a unique constraint violation is returned, then its likely that the cause
 			// was an existing relationship given as a CREATE.
 			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
+				return cerr
+			}
+
+			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraintOld, err); cerr != nil {
 				return cerr
 			}
 
@@ -196,7 +200,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 	delSQL, delArgs, err := deleteNamespace.
 		Set(colDeletedTxn, rwt.newTxnID).
 		Set(colDeletedXid, rwt.newXID).
-		Where(sq.And{sq.Eq{colDeletedTxn: liveDeletedTxnID}, deletedNamespaceClause}).
+		Where(sq.And{sq.Eq{colDeletedXid: liveDeletedTxnID}, deletedNamespaceClause}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToWriteConfig, err)
@@ -225,7 +229,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteNamespace")
 	defer span.End()
 
-	baseQuery := readNamespace.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	baseQuery := readNamespace.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 	_, createdAt, err := loadNamespace(ctx, nsName, rwt.tx, baseQuery)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
@@ -239,7 +243,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	delSQL, delArgs, err := deleteNamespace.
 		Set(colDeletedTxn, rwt.newTxnID).
 		Set(colDeletedXid, rwt.newXID).
-		Where(sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt}).
+		Where(sq.Eq{colNamespace: nsName, colCreatedXid: createdAt}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)

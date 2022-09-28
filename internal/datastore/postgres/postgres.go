@@ -36,7 +36,7 @@ const (
 	tableTransaction = "relation_tuple_transaction"
 	tableTuple       = "relation_tuple"
 
-	colID               = "id"
+	colXID              = "xid"
 	colTimestamp        = "timestamp"
 	colNamespace        = "namespace"
 	colConfig           = "serialized_config"
@@ -44,6 +44,7 @@ const (
 	colDeletedTxn       = "deleted_transaction"
 	colCreatedXid       = "created_xid"
 	colDeletedXid       = "deleted_xid"
+	colSnapshot         = "snapshot"
 	colObjectID         = "object_id"
 	colRelation         = "relation"
 	colUsersetNamespace = "userset_namespace"
@@ -53,6 +54,14 @@ const (
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 
 	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES RETURNING id, xid"
+
+	// The parameters to this format string are:
+	// 1: the created_xid or deleted_xid column name
+	// 2: the transaction table's snapshot column name
+	// 3: the transaction table name
+	// 4: the transaction table's xid column name
+	// 5: a squirrel library placeholder string, i.e. `?`
+	snapshotAlive = "pg_visible_in_snapshot(%[1]s, (SELECT %[2]s FROM %[3]s WHERE %[4]s = %[5]s)) = %[5]s"
 
 	// This is the largest positive integer possible in postgresql
 	liveDeletedTxnID = uint64(9223372036854775807)
@@ -64,7 +73,8 @@ const (
 	pgSerializationFailure      = "40001"
 	pgUniqueConstraintViolation = "23505"
 
-	livingTupleConstraint = "uq_relation_tuple_living"
+	livingTupleConstraintOld = "uq_relation_tuple_living"
+	livingTupleConstraint    = "uq_relation_tuple_living_xid"
 )
 
 func init() {
@@ -74,7 +84,7 @@ func init() {
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	getRevision = psql.Select("MAX(id)").From(tableTransaction)
+	getRevision = psql.Select(fmt.Sprintf("MAX(%s::text::bigint)", colXID)).From(tableTransaction)
 
 	getNow = psql.Select("NOW()")
 
@@ -145,7 +155,7 @@ func NewPostgresDatastore(
 	}
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,
-		colID,
+		colXID,
 		tableTransaction,
 		colTimestamp,
 		quantizationPeriodNanos,
@@ -153,7 +163,7 @@ func NewPostgresDatastore(
 
 	validTransactionQuery := fmt.Sprintf(
 		queryValidTransaction,
-		colID,
+		colXID,
 		tableTransaction,
 		colTimestamp,
 		config.gcWindow.Seconds(),
@@ -322,7 +332,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 			return datastore.NoRevision, err
 		}
-		return revisionFromTransaction(newTxnID), nil
+		return revisionFromTransaction(newXID), nil
 	}
 	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
 }
@@ -378,16 +388,41 @@ func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, erro
 
 func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
-		return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
-			Where(sq.Or{
-				sq.Eq{colDeletedTxn: liveDeletedTxnID},
-				sq.Gt{colDeletedTxn: revision},
-			})
+		txID := transactionFromRevision(revision)
+
+		createdBeforeTXN := sq.Expr(fmt.Sprintf(
+			snapshotAlive,
+			colCreatedXid,
+			colSnapshot,
+			tableTransaction,
+			colXID,
+			sq.Placeholders(1),
+		), txID, true)
+
+		alreadyAlive := sq.Or{
+			createdBeforeTXN,
+			sq.Expr(colCreatedXid+" = "+sq.Placeholders(1), txID),
+		}
+
+		deletedAfterTXN := sq.Expr(fmt.Sprintf(
+			snapshotAlive,
+			colDeletedXid,
+			colSnapshot,
+			tableTransaction,
+			colXID,
+			sq.Placeholders(1),
+		), txID, false)
+		notYetDead := sq.And{
+			deletedAfterTXN,
+			sq.Expr(colDeletedXid+" <> "+sq.Placeholders(1), txID),
+		}
+
+		return original.Where(alreadyAlive).Where(notYetDead)
 	}
 }
 
 func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
-	return original.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 }
 
 var _ datastore.Datastore = &pgDatastore{}

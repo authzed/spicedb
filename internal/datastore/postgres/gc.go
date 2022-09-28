@@ -3,18 +3,35 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/rs/zerolog/log"
-	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-var _ common.GarbageCollector = (*pgDatastore)(nil)
+var (
+	_ common.GarbageCollector = (*pgDatastore)(nil)
+
+	relationTuplePKCols = []string{
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCreatedXid,
+		colDeletedXid,
+	}
+
+	namespacePKCols = []string{colNamespace, colCreatedXid, colDeletedXid}
+
+	transactionPKCols = []string{colXID}
+)
 
 func (pgd *pgDatastore) Now(ctx context.Context) (time.Time, error) {
 	// Retrieve the `now` time from the database.
@@ -41,7 +58,7 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
-	value := pgtype.Int8{}
+	value := XID8{}
 	err = pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
 	).Scan(&value)
@@ -54,18 +71,17 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
-	var highest int64
-	err = value.AssignTo(&highest)
-	if err != nil {
-		return datastore.NoRevision, err
-	}
-
-	return decimal.NewFromInt(highest), nil
+	return revisionFromTransaction(value), nil
 }
 
 func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (removed common.DeletionCounts, err error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	removed.Relationships, err = pgd.batchDelete(ctx, tableTuple, sq.LtOrEq{colDeletedTxn: txID})
+	removed.Relationships, err = pgd.batchDelete(
+		ctx,
+		tableTuple,
+		relationTuplePKCols,
+		sq.LtOrEq{colDeletedXid: transactionFromRevision(txID)},
+	)
 	if err != nil {
 		return
 	}
@@ -74,13 +90,23 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 	//
 	// We don't delete the transaction itself to ensure there is always at least
 	// one transaction present.
-	removed.Transactions, err = pgd.batchDelete(ctx, tableTransaction, sq.Lt{colID: txID})
+	removed.Transactions, err = pgd.batchDelete(
+		ctx,
+		tableTransaction,
+		transactionPKCols,
+		sq.Lt{colXID: txID},
+	)
 	if err != nil {
 		return
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
-	removed.Namespaces, err = pgd.batchDelete(ctx, tableNamespace, sq.LtOrEq{colDeletedXid: txID})
+	removed.Namespaces, err = pgd.batchDelete(
+		ctx,
+		tableNamespace,
+		namespacePKCols,
+		sq.LtOrEq{colDeletedXid: txID},
+	)
 	if err != nil {
 		return
 	}
@@ -88,16 +114,23 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 	return
 }
 
-func (pgd *pgDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
-	sql, args, err := psql.Select("id").From(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
+func (pgd *pgDatastore) batchDelete(
+	ctx context.Context,
+	tableName string,
+	pkCols []string,
+	filter sqlFilter,
+) (int64, error) {
+	sql, args, err := psql.Select(pkCols...).From(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
 	}
 
-	query := fmt.Sprintf(`WITH rows AS (%s)
-		  DELETE FROM %s
-		  WHERE id IN (SELECT id FROM rows);
-	`, sql, tableName)
+	pkColsExpression := strings.Join(pkCols, ", ")
+
+	query := fmt.Sprintf(`WITH rows AS (%[1]s)
+		  DELETE FROM %[2]s
+		  WHERE (%[3]s) IN (SELECT %[3]s FROM rows);
+	`, sql, tableName, pkColsExpression)
 
 	var deletedCount int64
 	for {
