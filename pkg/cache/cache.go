@@ -87,11 +87,22 @@ func NoopCache() Cache {
 
 type noopCache struct{}
 
+var _ Cache = (*noopCache)(nil)
+
 func (no *noopCache) Get(key interface{}) (interface{}, bool)                 { return nil, false }
 func (no *noopCache) Set(key interface{}, entry interface{}, cost int64) bool { return false }
 func (no *noopCache) Wait()                                                   {}
 func (no *noopCache) Close()                                                  {}
-func (no *noopCache) GetMetrics() Metrics                                     { return nil }
+func (no *noopCache) GetMetrics() Metrics                                     { return &noopMetrics{} }
 func (no *noopCache) MarshalZerologObject(e *zerolog.Event) {
 	e.Bool("enabled", false)
 }
+
+type noopMetrics struct{}
+
+var _ Metrics = (*noopMetrics)(nil)
+
+func (no *noopMetrics) Hits() uint64        { return 0 }
+func (no *noopMetrics) Misses() uint64      { return 0 }
+func (no *noopMetrics) CostAdded() uint64   { return 0 }
+func (no *noopMetrics) CostEvicted() uint64 { return 0 }
