@@ -42,6 +42,8 @@ const (
 	colConfig           = "serialized_config"
 	colCreatedTxn       = "created_transaction"
 	colDeletedTxn       = "deleted_transaction"
+	colCreatedXid       = "created_xid"
+	colDeletedXid       = "deleted_xid"
 	colObjectID         = "object_id"
 	colRelation         = "relation"
 	colUsersetNamespace = "userset_namespace"
@@ -50,7 +52,7 @@ const (
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 
-	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES RETURNING id"
+	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES RETURNING id, xid"
 
 	// This is the largest positive integer possible in postgresql
 	liveDeletedTxnID = uint64(9223372036854775807)
@@ -265,9 +267,10 @@ func (pgd *pgDatastore) ReadWriteTx(
 	var err error
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
 		var newTxnID uint64
+		var newXID XID8
 		err = pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
-			newTxnID, err = createNewTransaction(ctx, tx)
+			newTxnID, newXID, err = createNewTransaction(ctx, tx)
 			if err != nil {
 				return err
 			}
@@ -290,6 +293,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 				ctx,
 				tx,
 				newTxnID,
+				newXID,
 			}
 
 			return fn(ctx, rwt)

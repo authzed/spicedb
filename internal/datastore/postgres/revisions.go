@@ -126,10 +126,10 @@ func transactionFromRevision(revision datastore.Revision) uint64 {
 	return uint64(revision.IntPart())
 }
 
-func createNewTransaction(ctx context.Context, tx pgx.Tx) (newTxnID uint64, err error) {
+func createNewTransaction(ctx context.Context, tx pgx.Tx) (newTxnID uint64, newXID XID8, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	err = tx.QueryRow(ctx, createTxn).Scan(&newTxnID)
+	err = tx.QueryRow(ctx, createTxn).Scan(&newTxnID, &newXID)
 	return
 }

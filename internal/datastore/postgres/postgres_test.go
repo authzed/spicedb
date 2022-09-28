@@ -264,7 +264,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	tx, err := pgd.dbpool.Begin(ctx)
 	require.NoError(err)
 
-	txID, err := createNewTransaction(ctx, tx)
+	txID, _, err := createNewTransaction(ctx, tx)
 	require.NoError(err)
 
 	err = tx.Commit(ctx)

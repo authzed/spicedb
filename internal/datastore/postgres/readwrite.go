@@ -54,6 +54,7 @@ type pgReadWriteTXN struct {
 	ctx      context.Context
 	tx       pgx.Tx
 	newTxnID uint64
+	newXID   XID8
 }
 
 func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
@@ -92,7 +93,11 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 	}
 
 	if len(deleteClauses) > 0 {
-		sql, args, err := deleteTuple.Where(deleteClauses).Set(colDeletedTxn, rwt.newTxnID).ToSql()
+		sql, args, err := deleteTuple.
+			Where(deleteClauses).
+			Set(colDeletedTxn, rwt.newTxnID).
+			Set(colDeletedXid, rwt.newXID).
+			ToSql()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
@@ -154,9 +159,7 @@ func (rwt *pgReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) er
 
 	span.SetAttributes(tracerAttributes...)
 
-	query = query.Set(colDeletedTxn, rwt.newTxnID)
-
-	sql, args, err := query.ToSql()
+	sql, args, err := query.Set(colDeletedTxn, rwt.newTxnID).Set(colDeletedXid, rwt.newXID).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
@@ -192,6 +195,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 
 	delSQL, delArgs, err := deleteNamespace.
 		Set(colDeletedTxn, rwt.newTxnID).
+		Set(colDeletedXid, rwt.newXID).
 		Where(sq.And{sq.Eq{colDeletedTxn: liveDeletedTxnID}, deletedNamespaceClause}).
 		ToSql()
 	if err != nil {
@@ -234,6 +238,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 
 	delSQL, delArgs, err := deleteNamespace.
 		Set(colDeletedTxn, rwt.newTxnID).
+		Set(colDeletedXid, rwt.newXID).
 		Where(sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt}).
 		ToSql()
 	if err != nil {
@@ -247,6 +252,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 
 	deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
 		Set(colDeletedTxn, rwt.newTxnID).
+		Set(colDeletedXid, rwt.newXID).
 		Where(sq.Eq{colNamespace: nsName}).
 		ToSql()
 	if err != nil {

@@ -37,6 +37,7 @@ require (
 	github.com/hashicorp/go-memdb v1.3.3
 	github.com/influxdata/tdigest v0.0.1
 	github.com/jackc/pgconn v1.13.0
+	github.com/jackc/pgio v1.0.0
 	github.com/jackc/pgtype v1.12.0
 	github.com/jackc/pgx/v4 v4.17.2
 	github.com/johannesboyne/gofakes3 v0.0.0-20220314170512-33c13122505e
@@ -119,7 +120,6 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
