@@ -8,6 +8,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -33,11 +34,11 @@ func (pgd *pgDatastore) Now(ctx context.Context) (time.Time, error) {
 	return now.UTC(), nil
 }
 
-func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (uint64, error) {
+func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datastore.Revision, error) {
 	// Find the highest transaction ID before the GC window.
 	sql, args, err := getRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
 	if err != nil {
-		return 0, err
+		return datastore.NoRevision, err
 	}
 
 	value := pgtype.Int8{}
@@ -45,24 +46,24 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (uint6
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
 	).Scan(&value)
 	if err != nil {
-		return 0, err
+		return datastore.NoRevision, err
 	}
 
 	if value.Status != pgtype.Present {
 		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
-		return 0, err
+		return datastore.NoRevision, err
 	}
 
-	var highest uint64
+	var highest int64
 	err = value.AssignTo(&highest)
 	if err != nil {
-		return 0, err
+		return datastore.NoRevision, err
 	}
 
-	return highest, nil
+	return decimal.NewFromInt(highest), nil
 }
 
-func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID uint64) (removed common.DeletionCounts, err error) {
+func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (removed common.DeletionCounts, err error) {
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	removed.Relationships, err = pgd.batchDelete(ctx, tableTuple, sq.LtOrEq{colDeletedTxn: txID})
 	if err != nil {
@@ -79,7 +80,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID uint64) (remove
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
-	removed.Namespaces, err = pgd.batchDelete(ctx, tableNamespace, sq.LtOrEq{colDeletedTxn: txID})
+	removed.Namespaces, err = pgd.batchDelete(ctx, tableNamespace, sq.LtOrEq{colDeletedXid: txID})
 	if err != nil {
 		return
 	}

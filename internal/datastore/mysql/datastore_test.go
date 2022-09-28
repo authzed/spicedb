@@ -166,7 +166,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Run GC at the transaction and ensure no relationships are removed.
 	mds := ds.(*Datastore)
 
-	removed, err := mds.DeleteBeforeTx(ctx, uint64(writtenAt.IntPart()))
+	removed, err := mds.DeleteBeforeTx(ctx, writtenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Zero(removed.Namespaces)
@@ -185,7 +185,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Run GC to remove the old namespace
-	removed, err = mds.DeleteBeforeTx(ctx, uint64(writtenAt.IntPart()))
+	removed, err = mds.DeleteBeforeTx(ctx, writtenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
@@ -198,14 +198,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
-	removed, err = mds.DeleteBeforeTx(ctx, uint64(relWrittenAt.IntPart()))
+	removed, err = mds.DeleteBeforeTx(ctx, relWrittenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
 	req.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = mds.DeleteBeforeTx(ctx, uint64(relWrittenAt.IntPart()))
+	removed, err = mds.DeleteBeforeTx(ctx, relWrittenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Zero(removed.Transactions)
@@ -220,14 +220,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure the (older copy of the) relationship is removed, as well as 1 transaction (the write).
-	removed, err = mds.DeleteBeforeTx(ctx, uint64(relOverwrittenAt.IntPart()))
+	removed, err = mds.DeleteBeforeTx(ctx, relOverwrittenAt)
 	req.NoError(err)
 	req.Equal(int64(1), removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
 	req.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = mds.DeleteBeforeTx(ctx, uint64(relOverwrittenAt.IntPart()))
+	removed, err = mds.DeleteBeforeTx(ctx, relOverwrittenAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Zero(removed.Transactions)
@@ -244,14 +244,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
 
 	// Run GC at the transaction and ensure the relationship is removed, as well as 1 transaction (the overwrite).
-	removed, err = mds.DeleteBeforeTx(ctx, uint64(relDeletedAt.IntPart()))
+	removed, err = mds.DeleteBeforeTx(ctx, relDeletedAt)
 	req.NoError(err)
 	req.Equal(int64(1), removed.Relationships)
 	req.Equal(int64(1), removed.Transactions)
 	req.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = mds.DeleteBeforeTx(ctx, uint64(relDeletedAt.IntPart()))
+	removed, err = mds.DeleteBeforeTx(ctx, relDeletedAt)
 	req.NoError(err)
 	req.Zero(removed.Relationships)
 	req.Zero(removed.Transactions)
@@ -269,7 +269,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
 	// as well as the 2 older write transactions and the older delete transaction.
-	removed, err = mds.DeleteBeforeTx(ctx, uint64(relLastWriteAt.IntPart()))
+	removed, err = mds.DeleteBeforeTx(ctx, relLastWriteAt)
 	req.NoError(err)
 	req.Equal(int64(2), removed.Relationships)
 	req.Equal(int64(3), removed.Transactions)
