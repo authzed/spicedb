@@ -29,7 +29,6 @@ var (
 	writeNamespace = psql.Insert(tableNamespace).Columns(
 		colNamespace,
 		colConfig,
-		colCreatedTxn,
 	)
 
 	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
@@ -43,7 +42,6 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
-		colCreatedTxn,
 	)
 
 	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
@@ -51,10 +49,9 @@ var (
 
 type pgReadWriteTXN struct {
 	*pgReader
-	ctx      context.Context
-	tx       pgx.Tx
-	newTxnID uint64
-	newXID   XID8
+	ctx    context.Context
+	tx     pgx.Tx
+	newXID XID8
 }
 
 func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
@@ -86,7 +83,6 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 				tpl.Subject.Namespace,
 				tpl.Subject.ObjectId,
 				tpl.Subject.Relation,
-				rwt.newTxnID,
 			)
 			bulkWriteHasValues = true
 		}
@@ -95,7 +91,6 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 	if len(deleteClauses) > 0 {
 		sql, args, err := deleteTuple.
 			Where(deleteClauses).
-			Set(colDeletedTxn, rwt.newTxnID).
 			Set(colDeletedXid, rwt.newXID).
 			ToSql()
 		if err != nil {
@@ -117,10 +112,6 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 			// If a unique constraint violation is returned, then its likely that the cause
 			// was an existing relationship given as a CREATE.
 			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
-				return cerr
-			}
-
-			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraintOld, err); cerr != nil {
 				return cerr
 			}
 
@@ -163,7 +154,7 @@ func (rwt *pgReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) er
 
 	span.SetAttributes(tracerAttributes...)
 
-	sql, args, err := query.Set(colDeletedTxn, rwt.newTxnID).Set(colDeletedXid, rwt.newXID).ToSql()
+	sql, args, err := query.Set(colDeletedXid, rwt.newXID).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
@@ -191,14 +182,13 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 		span.AddEvent("Serialized namespace config")
 
 		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{colNamespace: newNamespace.Name})
-		writeQuery = writeQuery.Values(newNamespace.Name, serialized, rwt.newTxnID)
+		writeQuery = writeQuery.Values(newNamespace.Name, serialized)
 		writtenNamespaceNames = append(writtenNamespaceNames, newNamespace.Name)
 	}
 
 	span.SetAttributes(common.ObjNamespaceNameKey.StringSlice(writtenNamespaceNames))
 
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedTxn, rwt.newTxnID).
 		Set(colDeletedXid, rwt.newXID).
 		Where(sq.And{sq.Eq{colDeletedXid: liveDeletedTxnID}, deletedNamespaceClause}).
 		ToSql()
@@ -241,7 +231,6 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	}
 
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedTxn, rwt.newTxnID).
 		Set(colDeletedXid, rwt.newXID).
 		Where(sq.Eq{colNamespace: nsName, colCreatedXid: createdAt}).
 		ToSql()
@@ -255,7 +244,6 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	}
 
 	deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
-		Set(colDeletedTxn, rwt.newTxnID).
 		Set(colDeletedXid, rwt.newXID).
 		Where(sq.Eq{colNamespace: nsName}).
 		ToSql()

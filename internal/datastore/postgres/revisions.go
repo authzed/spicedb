@@ -130,10 +130,10 @@ func transactionFromRevision(revision datastore.Revision) XID8 {
 	}
 }
 
-func createNewTransaction(ctx context.Context, tx pgx.Tx) (newTxnID uint64, newXID XID8, err error) {
+func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID XID8, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	err = tx.QueryRow(ctx, createTxn).Scan(&newTxnID, &newXID)
+	err = tx.QueryRow(ctx, createTxn).Scan(&newXID)
 	return
 }

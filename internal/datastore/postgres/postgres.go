@@ -40,8 +40,6 @@ const (
 	colTimestamp        = "timestamp"
 	colNamespace        = "namespace"
 	colConfig           = "serialized_config"
-	colCreatedTxn       = "created_transaction"
-	colDeletedTxn       = "deleted_transaction"
 	colCreatedXid       = "created_xid"
 	colDeletedXid       = "deleted_xid"
 	colSnapshot         = "snapshot"
@@ -53,7 +51,7 @@ const (
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 
-	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES RETURNING id, xid"
+	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES RETURNING xid"
 
 	// The parameters to this format string are:
 	// 1: the created_xid or deleted_xid column name
@@ -73,8 +71,7 @@ const (
 	pgSerializationFailure      = "40001"
 	pgUniqueConstraintViolation = "23505"
 
-	livingTupleConstraintOld = "uq_relation_tuple_living"
-	livingTupleConstraint    = "uq_relation_tuple_living_xid"
+	livingTupleConstraint = "uq_relation_tuple_living_xid"
 )
 
 func init() {
@@ -294,11 +291,10 @@ func (pgd *pgDatastore) ReadWriteTx(
 ) (datastore.Revision, error) {
 	var err error
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
-		var newTxnID uint64
 		var newXID XID8
 		err = pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
-			newTxnID, newXID, err = createNewTransaction(ctx, tx)
+			newXID, err = createNewTransaction(ctx, tx)
 			if err != nil {
 				return err
 			}
@@ -320,7 +316,6 @@ func (pgd *pgDatastore) ReadWriteTx(
 				},
 				ctx,
 				tx,
-				newTxnID,
 				newXID,
 			}
 
