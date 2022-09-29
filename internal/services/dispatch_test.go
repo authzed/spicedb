@@ -1,5 +1,5 @@
-//go:build ci
-// +build ci
+//go:build ci && docker
+// +build ci,docker
 
 package services_test
 
