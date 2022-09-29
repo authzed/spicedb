@@ -77,7 +77,6 @@ func TestAsyncDispatch(t *testing.T) {
 				defer l.Unlock()
 
 				letFinish.Broadcast()
-				fmt.Println(tc.numRequests, dispatchedCount, completedCount)
 				return tc.numRequests == dispatchedCount && tc.numRequests == completedCount
 			}, 1*time.Second, 1*time.Millisecond)
 		})
