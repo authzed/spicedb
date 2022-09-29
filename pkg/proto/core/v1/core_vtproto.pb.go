@@ -46,7 +46,7 @@ func (m *ContextualizedCaveat) CloneVT() *ContextualizedCaveat {
 		return (*ContextualizedCaveat)(nil)
 	}
 	r := &ContextualizedCaveat{
-		CaveatId: m.CaveatId,
+		CaveatName: m.CaveatName,
 	}
 	if rhs := m.Context; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *structpb.Struct }); ok {
@@ -872,10 +872,12 @@ func (m *ContextualizedCaveat) MarshalToSizedBufferVT(dAtA []byte) (int, error) 
 		i--
 		dAtA[i] = 0x12
 	}
-	if m.CaveatId != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.CaveatId))
+	if len(m.CaveatName) > 0 {
+		i -= len(m.CaveatName)
+		copy(dAtA[i:], m.CaveatName)
+		i = encodeVarint(dAtA, i, uint64(len(m.CaveatName)))
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -2520,8 +2522,9 @@ func (m *ContextualizedCaveat) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if m.CaveatId != 0 {
-		n += 1 + sov(uint64(m.CaveatId))
+	l = len(m.CaveatName)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
 	}
 	if m.Context != nil {
 		if size, ok := interface{}(m.Context).(interface {
@@ -3384,10 +3387,10 @@ func (m *ContextualizedCaveat) UnmarshalVT(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CaveatId", wireType)
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CaveatName", wireType)
 			}
-			m.CaveatId = 0
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -3397,11 +3400,24 @@ func (m *ContextualizedCaveat) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.CaveatId |= uint64(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CaveatName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Context", wireType)

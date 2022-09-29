@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/spanner v1.37.0
 	github.com/IBM/pgxpoolprometheus v1.0.1
 	github.com/Masterminds/squirrel v1.5.3
-	github.com/authzed/authzed-go v0.7.1-0.20220915201801-94eebb436d25
+	github.com/authzed/authzed-go v0.7.1-0.20220928193058-a55432766d58
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/aws/aws-sdk-go v1.44.90
 	github.com/benbjohnson/clock v1.3.0

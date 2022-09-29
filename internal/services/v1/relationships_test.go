@@ -14,10 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -329,6 +333,59 @@ func TestWriteRelationships(t *testing.T) {
 	require.NoError(err)
 	_, err = stream.Recv()
 	require.ErrorIs(err, io.EOF)
+}
+
+func TestWriteCaveatedRelationships(t *testing.T) {
+	req := require.New(t)
+
+	conn, cleanup, ds, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	toWrite := tuple.MustParse("document:totallynew#parent@folder:plans")
+	caveatCtx, err := structpb.NewStruct(map[string]any{"a": 1, "b": 2})
+	req.NoError(err)
+	toWrite.Caveat = &core.ContextualizedCaveat{
+		CaveatName: "test",
+		Context:    caveatCtx,
+	}
+
+	toWrite.Caveat.Context = caveatCtx
+	relWritten := tuple.MustToRelationship(toWrite)
+	writeReq := &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+			Relationship: relWritten,
+		}},
+	}
+
+	// Should fail due to non-existing caveat
+	ctx := context.Background()
+	_, err = client.WriteRelationships(ctx, writeReq)
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
+	errStatus, ok := status.FromError(err)
+	req.True(ok, "could not fetch status from grpc error")
+	errorMsg := fmt.Sprintf("the caveat `test` was not found for relationship `%s`", tuple.StringRelationship(relWritten))
+	req.Equal(errorMsg, errStatus.Message())
+
+	// TODO(vroldanbet) temporarily use Datastore to write caveat until we expose it via Schema API
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error {
+		caveatStorer, ok := transaction.(datastore.CaveatStorer)
+		req.True(ok, "expected datastore to implement datastore.CaveatStorer")
+		return caveatStorer.WriteCaveats([]*core.Caveat{{
+			Name:       "test",
+			Expression: []byte{},
+		}})
+	})
+	req.NoError(err)
+
+	// should succeed
+	resp, err := client.WriteRelationships(context.Background(), writeReq)
+	req.NoError(err)
+
+	// read relationship back
+	relRead := readFirst(req, client, resp.WrittenAt, relWritten)
+	req.True(proto.Equal(relWritten, relRead))
 }
 
 func precondFilter(resType, resID, relation, subType, subID string, subRel *string) *v1.RelationshipFilter {
@@ -994,4 +1051,20 @@ func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
 		out[t] = struct{}{}
 	}
 	return out
+}
+
+func readFirst(require *require.Assertions, client v1.PermissionsServiceClient, token *v1.ZedToken, rel *v1.Relationship) *v1.Relationship {
+	stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtExactSnapshot{
+				AtExactSnapshot: token,
+			},
+		},
+		RelationshipFilter: tuple.RelToFilter(rel),
+	})
+	require.NoError(err)
+
+	result, err := stream.Recv()
+	require.NoError(err)
+	return result.Relationship
 }

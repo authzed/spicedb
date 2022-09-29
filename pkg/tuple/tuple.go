@@ -171,6 +171,13 @@ func MustToRelationship(tpl *core.RelationTuple) *v1.Relationship {
 
 // ToRelationship converts a RelationTuple into a Relationship.
 func ToRelationship(tpl *core.RelationTuple) *v1.Relationship {
+	var caveat *v1.ContextualizedCaveat
+	if tpl.Caveat != nil {
+		caveat = &v1.ContextualizedCaveat{
+			CaveatName: tpl.Caveat.CaveatName,
+			Context:    tpl.Caveat.Context,
+		}
+	}
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
 			ObjectType: tpl.ResourceAndRelation.Namespace,
@@ -184,6 +191,7 @@ func ToRelationship(tpl *core.RelationTuple) *v1.Relationship {
 			},
 			OptionalRelation: stringz.Default(tpl.Subject.Relation, "", Ellipsis),
 		},
+		OptionalCaveat: caveat,
 	}
 }
 
@@ -287,6 +295,13 @@ func MustFromRelationship(r *v1.Relationship) *core.RelationTuple {
 
 // FromRelationship converts a Relationship into a RelationTuple.
 func FromRelationship(r *v1.Relationship) *core.RelationTuple {
+	var caveat *core.ContextualizedCaveat
+	if r.OptionalCaveat != nil {
+		caveat = &core.ContextualizedCaveat{
+			CaveatName: r.OptionalCaveat.CaveatName,
+			Context:    r.OptionalCaveat.Context,
+		}
+	}
 	return &core.RelationTuple{
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: r.Resource.ObjectType,
@@ -298,6 +313,7 @@ func FromRelationship(r *v1.Relationship) *core.RelationTuple {
 			ObjectId:  r.Subject.Object.ObjectId,
 			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, Ellipsis),
 		},
+		Caveat: caveat,
 	}
 }
 
