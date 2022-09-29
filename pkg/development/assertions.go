@@ -30,6 +30,8 @@ func RunAllAssertions(devContext *DevContext, assertions *blocks.Assertions) ([]
 
 func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expected bool, fmtString string) ([]*devinterface.DeveloperError, error) {
 	var failures []*devinterface.DeveloperError
+
+	// TODO(jschorr): Support caveats via some sort of `assertMaybe`?
 	for _, assertion := range assertions {
 		tpl := tuple.MustFromRelationship(assertion.Relationship)
 		cr, err := RunCheck(devContext, tpl.ResourceAndRelation, tpl.Subject)
@@ -48,7 +50,7 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 			if devErr != nil {
 				failures = append(failures, devErr)
 			}
-		} else if (cr == v1.DispatchCheckResponse_MEMBER) != expected {
+		} else if (cr == v1.ResourceCheckResult_MEMBER) != expected {
 			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf(fmtString, tuple.String(tpl)),
 				Source:  devinterface.DeveloperError_ASSERTION,

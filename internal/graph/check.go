@@ -88,15 +88,10 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 	}
 
 	// Build the results for the debug trace.
-	results := make(map[string]*v1.CheckDebugTrace_ResourceCheckResult, len(req.DispatchCheckRequest.ResourceIds))
+	results := make(map[string]*v1.ResourceCheckResult, len(req.DispatchCheckRequest.ResourceIds))
 	for _, resourceID := range req.DispatchCheckRequest.ResourceIds {
-		hasPermission := false
-		if found, ok := resolved.Resp.ResultsByResourceId[resourceID]; ok && found.Membership == v1.DispatchCheckResponse_MEMBER {
-			hasPermission = true
-		}
-
-		results[resourceID] = &v1.CheckDebugTrace_ResourceCheckResult{
-			HasPermission: hasPermission,
+		if found, ok := resolved.Resp.ResultsByResourceId[resourceID]; ok {
+			results[resourceID] = found
 		}
 	}
 
@@ -255,7 +250,7 @@ func mapResourceIds(result CheckResult, resourceType *core.RelationReference, re
 	// Map any resources found to the parent resource IDs.
 	mappedResourceIds := []string{}
 	for foundResourceID, result := range result.Resp.ResultsByResourceId {
-		if result.Membership != v1.DispatchCheckResponse_MEMBER {
+		if result.Membership != v1.ResourceCheckResult_MEMBER {
 			continue
 		}
 
@@ -464,7 +459,7 @@ func union[T any](
 	}()
 
 	responseMetadata := emptyMetadata
-	responseResults := make(map[string]*v1.DispatchCheckResponse_ResourceCheckResult, len(crc.filteredResourceIDs))
+	responseResults := make(map[string]*v1.ResourceCheckResult, len(crc.filteredResourceIDs))
 
 	for i := 0; i < len(children); i++ {
 		select {
@@ -477,7 +472,7 @@ func union[T any](
 
 			for resourceID, result := range result.Resp.ResultsByResourceId {
 				responseResults[resourceID] = result
-				if crc.resultsSetting == v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT && result.Membership == v1.DispatchCheckResponse_MEMBER {
+				if crc.resultsSetting == v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT && result.Membership == v1.ResourceCheckResult_MEMBER {
 					return checkResults(responseResults, responseMetadata)
 				}
 			}
@@ -687,10 +682,10 @@ func noMembers() CheckResult {
 }
 
 func checkResultsForResourceIds(resourceIds []string, subProblemMetadata *v1.ResponseMeta) CheckResult {
-	results := make(map[string]*v1.DispatchCheckResponse_ResourceCheckResult, len(resourceIds))
+	results := make(map[string]*v1.ResourceCheckResult, len(resourceIds))
 	for _, resourceID := range resourceIds {
-		results[resourceID] = &v1.DispatchCheckResponse_ResourceCheckResult{
-			Membership: v1.DispatchCheckResponse_MEMBER,
+		results[resourceID] = &v1.ResourceCheckResult{
+			Membership: v1.ResourceCheckResult_MEMBER,
 		}
 	}
 	return CheckResult{
@@ -702,7 +697,7 @@ func checkResultsForResourceIds(resourceIds []string, subProblemMetadata *v1.Res
 	}
 }
 
-func checkResults(results map[string]*v1.DispatchCheckResponse_ResourceCheckResult, subProblemMetadata *v1.ResponseMeta) CheckResult {
+func checkResults(results map[string]*v1.ResourceCheckResult, subProblemMetadata *v1.ResponseMeta) CheckResult {
 	return CheckResult{
 		&v1.DispatchCheckResponse{
 			Metadata:            ensureMetadata(subProblemMetadata),
@@ -721,10 +716,10 @@ func checkResultError(err error, subProblemMetadata *v1.ResponseMeta) CheckResul
 	}
 }
 
-func filterToResourceIdsWithMembership(results map[string]*v1.DispatchCheckResponse_ResourceCheckResult) []string {
+func filterToResourceIdsWithMembership(results map[string]*v1.ResourceCheckResult) []string {
 	members := []string{}
 	for resourceID, result := range results {
-		if result.Membership == v1.DispatchCheckResponse_MEMBER {
+		if result.Membership == v1.ResourceCheckResult_MEMBER {
 			members = append(members, resourceID)
 		}
 	}
@@ -746,11 +741,11 @@ func combineResultWithFoundResourceIds(result CheckResult, foundResourceIds []st
 		}
 
 		if result.Resp.ResultsByResourceId == nil {
-			result.Resp.ResultsByResourceId = map[string]*v1.DispatchCheckResponse_ResourceCheckResult{}
+			result.Resp.ResultsByResourceId = map[string]*v1.ResourceCheckResult{}
 		}
 
-		result.Resp.ResultsByResourceId[resourceID] = &v1.DispatchCheckResponse_ResourceCheckResult{
-			Membership: v1.DispatchCheckResponse_MEMBER,
+		result.Resp.ResultsByResourceId[resourceID] = &v1.ResourceCheckResult{
+			Membership: v1.ResourceCheckResult_MEMBER,
 		}
 	}
 

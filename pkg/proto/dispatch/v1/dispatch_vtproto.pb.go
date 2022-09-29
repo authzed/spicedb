@@ -59,25 +59,6 @@ func (m *DispatchCheckRequest) CloneGenericVT() proto.Message {
 	return m.CloneVT()
 }
 
-func (m *DispatchCheckResponse_ResourceCheckResult) CloneVT() *DispatchCheckResponse_ResourceCheckResult {
-	if m == nil {
-		return (*DispatchCheckResponse_ResourceCheckResult)(nil)
-	}
-	r := &DispatchCheckResponse_ResourceCheckResult{
-		Membership: m.Membership,
-		Expression: m.Expression.CloneVT(),
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *DispatchCheckResponse_ResourceCheckResult) CloneGenericVT() proto.Message {
-	return m.CloneVT()
-}
-
 func (m *DispatchCheckResponse) CloneVT() *DispatchCheckResponse {
 	if m == nil {
 		return (*DispatchCheckResponse)(nil)
@@ -86,7 +67,7 @@ func (m *DispatchCheckResponse) CloneVT() *DispatchCheckResponse {
 		Metadata: m.Metadata.CloneVT(),
 	}
 	if rhs := m.ResultsByResourceId; rhs != nil {
-		tmpContainer := make(map[string]*DispatchCheckResponse_ResourceCheckResult, len(rhs))
+		tmpContainer := make(map[string]*ResourceCheckResult, len(rhs))
 		for k, v := range rhs {
 			tmpContainer[k] = v.CloneVT()
 		}
@@ -100,6 +81,25 @@ func (m *DispatchCheckResponse) CloneVT() *DispatchCheckResponse {
 }
 
 func (m *DispatchCheckResponse) CloneGenericVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *ResourceCheckResult) CloneVT() *ResourceCheckResult {
+	if m == nil {
+		return (*ResourceCheckResult)(nil)
+	}
+	r := &ResourceCheckResult{
+		Membership: m.Membership,
+		Expression: m.Expression.CloneVT(),
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *ResourceCheckResult) CloneGenericVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -536,24 +536,6 @@ func (m *DebugInformation) CloneGenericVT() proto.Message {
 	return m.CloneVT()
 }
 
-func (m *CheckDebugTrace_ResourceCheckResult) CloneVT() *CheckDebugTrace_ResourceCheckResult {
-	if m == nil {
-		return (*CheckDebugTrace_ResourceCheckResult)(nil)
-	}
-	r := &CheckDebugTrace_ResourceCheckResult{
-		HasPermission: m.HasPermission,
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *CheckDebugTrace_ResourceCheckResult) CloneGenericVT() proto.Message {
-	return m.CloneVT()
-}
-
 func (m *CheckDebugTrace) CloneVT() *CheckDebugTrace {
 	if m == nil {
 		return (*CheckDebugTrace)(nil)
@@ -564,7 +546,7 @@ func (m *CheckDebugTrace) CloneVT() *CheckDebugTrace {
 		IsCachedResult:       m.IsCachedResult,
 	}
 	if rhs := m.Results; rhs != nil {
-		tmpContainer := make(map[string]*CheckDebugTrace_ResourceCheckResult, len(rhs))
+		tmpContainer := make(map[string]*ResourceCheckResult, len(rhs))
 		for k, v := range rhs {
 			tmpContainer[k] = v.CloneVT()
 		}
@@ -694,54 +676,6 @@ func (m *DispatchCheckRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) 
 	return len(dAtA) - i, nil
 }
 
-func (m *DispatchCheckResponse_ResourceCheckResult) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *DispatchCheckResponse_ResourceCheckResult) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *DispatchCheckResponse_ResourceCheckResult) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if m.Expression != nil {
-		size, err := m.Expression.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.Membership != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.Membership))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *DispatchCheckResponse) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -803,6 +737,54 @@ func (m *DispatchCheckResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error)
 		i = encodeVarint(dAtA, i, uint64(size))
 		i--
 		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ResourceCheckResult) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ResourceCheckResult) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *ResourceCheckResult) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.Expression != nil {
+		size, err := m.Expression.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Membership != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Membership))
+		i--
+		dAtA[i] = 0x8
 	}
 	return len(dAtA) - i, nil
 }
@@ -1840,49 +1822,6 @@ func (m *DebugInformation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *CheckDebugTrace_ResourceCheckResult) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *CheckDebugTrace_ResourceCheckResult) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *CheckDebugTrace_ResourceCheckResult) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if m.HasPermission {
-		i--
-		if m.HasPermission {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0x10
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *CheckDebugTrace) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -2032,23 +1971,6 @@ func (m *DispatchCheckRequest) SizeVT() (n int) {
 	return n
 }
 
-func (m *DispatchCheckResponse_ResourceCheckResult) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Membership != 0 {
-		n += 1 + sov(uint64(m.Membership))
-	}
-	if m.Expression != nil {
-		l = m.Expression.SizeVT()
-		n += 1 + l + sov(uint64(l))
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
 func (m *DispatchCheckResponse) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -2071,6 +1993,23 @@ func (m *DispatchCheckResponse) SizeVT() (n int) {
 			mapEntrySize := 1 + len(k) + sov(uint64(len(k))) + l
 			n += mapEntrySize + 1 + sov(uint64(mapEntrySize))
 		}
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *ResourceCheckResult) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Membership != 0 {
+		n += 1 + sov(uint64(m.Membership))
+	}
+	if m.Expression != nil {
+		l = m.Expression.SizeVT()
+		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2491,19 +2430,6 @@ func (m *DebugInformation) SizeVT() (n int) {
 	return n
 }
 
-func (m *CheckDebugTrace_ResourceCheckResult) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.HasPermission {
-		n += 2
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
 func (m *CheckDebugTrace) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -2794,112 +2720,6 @@ func (m *DispatchCheckRequest) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *DispatchCheckResponse_ResourceCheckResult) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: DispatchCheckResponse_ResourceCheckResult: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DispatchCheckResponse_ResourceCheckResult: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Membership", wireType)
-			}
-			m.Membership = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Membership |= DispatchCheckResponse_Membership(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Expression", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Expression == nil {
-				m.Expression = &CaveatExpression{}
-			}
-			if err := m.Expression.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *DispatchCheckResponse) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2995,10 +2815,10 @@ func (m *DispatchCheckResponse) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.ResultsByResourceId == nil {
-				m.ResultsByResourceId = make(map[string]*DispatchCheckResponse_ResourceCheckResult)
+				m.ResultsByResourceId = make(map[string]*ResourceCheckResult)
 			}
 			var mapkey string
-			var mapvalue *DispatchCheckResponse_ResourceCheckResult
+			var mapvalue *ResourceCheckResult
 			for iNdEx < postIndex {
 				entryPreIndex := iNdEx
 				var wire uint64
@@ -3072,7 +2892,7 @@ func (m *DispatchCheckResponse) UnmarshalVT(dAtA []byte) error {
 					if postmsgIndex > l {
 						return io.ErrUnexpectedEOF
 					}
-					mapvalue = &DispatchCheckResponse_ResourceCheckResult{}
+					mapvalue = &ResourceCheckResult{}
 					if err := mapvalue.UnmarshalVT(dAtA[iNdEx:postmsgIndex]); err != nil {
 						return err
 					}
@@ -3093,6 +2913,112 @@ func (m *DispatchCheckResponse) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.ResultsByResourceId[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ResourceCheckResult) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ResourceCheckResult: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ResourceCheckResult: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Membership", wireType)
+			}
+			m.Membership = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Membership |= ResourceCheckResult_Membership(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Expression", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Expression == nil {
+				m.Expression = &CaveatExpression{}
+			}
+			if err := m.Expression.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -5297,77 +5223,6 @@ func (m *DebugInformation) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *CheckDebugTrace_ResourceCheckResult) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: CheckDebugTrace_ResourceCheckResult: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: CheckDebugTrace_ResourceCheckResult: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field HasPermission", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.HasPermission = bool(v != 0)
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *CheckDebugTrace) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -5482,10 +5337,10 @@ func (m *CheckDebugTrace) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Results == nil {
-				m.Results = make(map[string]*CheckDebugTrace_ResourceCheckResult)
+				m.Results = make(map[string]*ResourceCheckResult)
 			}
 			var mapkey string
-			var mapvalue *CheckDebugTrace_ResourceCheckResult
+			var mapvalue *ResourceCheckResult
 			for iNdEx < postIndex {
 				entryPreIndex := iNdEx
 				var wire uint64
@@ -5559,7 +5414,7 @@ func (m *CheckDebugTrace) UnmarshalVT(dAtA []byte) error {
 					if postmsgIndex > l {
 						return io.ErrUnexpectedEOF
 					}
-					mapvalue = &CheckDebugTrace_ResourceCheckResult{}
+					mapvalue = &ResourceCheckResult{}
 					if err := mapvalue.UnmarshalVT(dAtA[iNdEx:postmsgIndex]); err != nil {
 						return err
 					}

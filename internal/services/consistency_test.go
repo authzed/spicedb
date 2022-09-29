@@ -504,7 +504,7 @@ func validateEditChecks(t *testing.T, devContext *development.DevContext, vctx *
 
 						expectedMember := vctx.accessibilitySet.GetIsMember(resource, subject)
 						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard,
-							membership == dispatchv1.DispatchCheckResponse_MEMBER,
+							membership == dispatchv1.ResourceCheckResult_MEMBER,
 							"Found unexpected membership difference for %s@%s. Expected %v, Found: %v",
 							tuple.StringONR(resource),
 							tuple.StringONR(subject),

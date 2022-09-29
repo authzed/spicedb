@@ -137,7 +137,7 @@ func TestSimpleCheck(t *testing.T) {
 
 					isMember := false
 					if found, ok := checkResult.ResultsByResourceId[tc.objectID]; ok {
-						isMember = found.Membership == v1.DispatchCheckResponse_MEMBER
+						isMember = found.Membership == v1.ResourceCheckResult_MEMBER
 					}
 
 					require.Equal(expected.isMember, isMember, "For object %s in %v: ", tc.objectID, checkResult.ResultsByResourceId)
@@ -271,7 +271,7 @@ func TestCheckMetadata(t *testing.T) {
 
 					isMember := false
 					if found, ok := checkResult.ResultsByResourceId[tc.objectID]; ok {
-						isMember = found.Membership == v1.DispatchCheckResponse_MEMBER
+						isMember = found.Membership == v1.ResourceCheckResult_MEMBER
 					}
 
 					require.Equal(expected.isMember, isMember)

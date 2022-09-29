@@ -56,8 +56,9 @@ func runOperation(devContext *development.DevContext, operation *devinterface.Op
 			}, nil
 		}
 
+		// TODO(jschorr): Support caveats here.
 		membership := devinterface.CheckOperationsResult_NOT_MEMBER
-		if result == v1.DispatchCheckResponse_MEMBER {
+		if result == v1.ResourceCheckResult_MEMBER {
 			membership = devinterface.CheckOperationsResult_MEMBER
 		}
 

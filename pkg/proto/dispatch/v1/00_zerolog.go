@@ -24,7 +24,7 @@ func (cr *DispatchCheckResponse) MarshalZerologObject(e *zerolog.Event) {
 
 	results := zerolog.Dict()
 	for resourceID, result := range cr.ResultsByResourceId {
-		results.Bool(resourceID, result.Membership == DispatchCheckResponse_MEMBER)
+		results.Str(resourceID, ResourceCheckResult_Membership_name[int32(result.Membership)])
 	}
 	e.Dict("results", results)
 }
