@@ -136,11 +136,19 @@ func (ms *MembershipSet) Subtract(resultsMap CheckResultsMap) {
 
 // IsEmpty returns true if the set is empty.
 func (ms *MembershipSet) IsEmpty() bool {
+	if ms == nil {
+		return true
+	}
+
 	return len(ms.membersByID) == 0
 }
 
 // HasDeterminedMember returns whether there exists at least one non-caveated member of the set.
 func (ms *MembershipSet) HasDeterminedMember() bool {
+	if ms == nil {
+		return false
+	}
+
 	return ms.hasDeterminedMember
 }
 
