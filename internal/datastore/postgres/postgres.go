@@ -106,9 +106,25 @@ func NewPostgresDatastore(
 
 	configurePool(config, pgxConfig)
 
-	dbpool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
+	initializationContext, cancelInit := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelInit()
+
+	dbpool, err := pgxpool.ConnectConfig(initializationContext, pgxConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	// Verify that the server supports commit timestamps
+	var trackTSOn string
+	if err := dbpool.
+		QueryRow(initializationContext, "SHOW track_commit_timestamp;").
+		Scan(&trackTSOn); err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	watchEnabled := trackTSOn == "on"
+	if !watchEnabled {
+		log.Warn().Msg("watch API disabled, postgres must be run with track_commit_timestamp=on")
 	}
 
 	if config.enablePrometheusStats {
@@ -160,6 +176,7 @@ func NewPostgresDatastore(
 		gcTimeout:               config.gcMaxOperationTime,
 		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
 		usersetBatchSize:        config.splitAtUsersetCount,
+		watchEnabled:            watchEnabled,
 		gcCtx:                   gcCtx,
 		cancelGc:                cancelGc,
 		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
@@ -222,6 +239,7 @@ type pgDatastore struct {
 	analyzeBeforeStatistics bool
 	readTxOptions           pgx.TxOptions
 	maxRetries              uint8
+	watchEnabled            bool
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
@@ -355,7 +373,7 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 }
 
 func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, error) {
-	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+	return &datastore.Features{Watch: datastore.Feature{Enabled: pgd.watchEnabled}}, nil
 }
 
 func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {

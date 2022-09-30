@@ -39,6 +39,7 @@ func RunPostgresForTesting(t testing.TB, bridgeNetworkName string) RunningEngine
 		Env:          []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},
 		ExposedPorts: []string{"5432/tcp"},
 		NetworkID:    bridgeNetworkName,
+		Cmd:          []string{"-c", "track_commit_timestamp=1"},
 	})
 	require.NoError(t, err)
 
