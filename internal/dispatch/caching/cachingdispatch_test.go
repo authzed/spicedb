@@ -103,9 +103,9 @@ func TestMaxDepthCaching(t *testing.T) {
 							DepthRemaining: step.depthRemaining,
 						},
 					}).Return(&v1.DispatchCheckResponse{
-						ResultsByResourceId: map[string]*v1.DispatchCheckResponse_ResourceCheckResult{
+						ResultsByResourceId: map[string]*v1.ResourceCheckResult{
 							parsed.ObjectId: {
-								Membership: v1.DispatchCheckResponse_MEMBER,
+								Membership: v1.ResourceCheckResult_MEMBER,
 							},
 						},
 						Metadata: &v1.ResponseMeta{
@@ -133,7 +133,7 @@ func TestMaxDepthCaching(t *testing.T) {
 					},
 				})
 				require.NoError(err)
-				require.Equal(v1.DispatchCheckResponse_MEMBER, resp.ResultsByResourceId[parsed.ObjectId].Membership)
+				require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId[parsed.ObjectId].Membership)
 
 				// We have to sleep a while to let the cache converge:
 				// https://github.com/dgraph-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17

@@ -167,7 +167,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 				})
 
 				require.NoError(err)
-				require.Equal(v1.DispatchCheckResponse_MEMBER, checkResult.ResultsByResourceId[tc.resourceID].Membership)
+				require.Equal(v1.ResourceCheckResult_MEMBER, checkResult.ResultsByResourceId[tc.resourceID].Membership)
 			}
 		})
 	}

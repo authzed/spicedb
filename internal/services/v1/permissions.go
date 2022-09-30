@@ -105,9 +105,14 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, rewritePermissionsError(ctx, err)
 	}
 
+	// TODO(jschorr): Support caveats here
 	permissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
-	if found, ok := cr.ResultsByResourceId[req.Resource.ObjectId]; ok && found.Membership == dispatch.DispatchCheckResponse_MEMBER {
-		permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
+	if found, ok := cr.ResultsByResourceId[req.Resource.ObjectId]; ok {
+		if found.Membership == dispatch.ResourceCheckResult_MEMBER {
+			permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
+		} else {
+			panic("caveats are not yet supported")
+		}
 	}
 
 	return &v1.CheckPermissionResponse{

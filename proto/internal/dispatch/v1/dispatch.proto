@@ -41,6 +41,11 @@ message DispatchCheckRequest {
 }
 
 message DispatchCheckResponse {
+  ResponseMeta metadata = 1;
+  map<string, ResourceCheckResult> results_by_resource_id = 2;
+}
+
+message ResourceCheckResult {
   enum Membership {
     UNKNOWN = 0;
     NOT_MEMBER = 1;
@@ -48,13 +53,8 @@ message DispatchCheckResponse {
     CAVEATED_MEMBER = 3;
   }
 
-  message ResourceCheckResult {
-    Membership membership = 1;
-    CaveatExpression expression = 2;    
-  }
-
-  ResponseMeta metadata = 1;
-  map<string, ResourceCheckResult> results_by_resource_id = 2;
+  Membership membership = 1;
+  CaveatExpression expression = 2;    
 }
 
 message CaveatExpression {  
@@ -194,10 +194,6 @@ message CheckDebugTrace {
     UNKNOWN = 0;
     RELATION = 1;
     PERMISSION = 2;
-  }
-
-  message ResourceCheckResult {
-    bool has_permission = 2;
   }
 
   DispatchCheckRequest request = 1;

@@ -54,8 +54,9 @@ func convertCheckTrace(ct *dispatch.CheckDebugTrace) []*v1.CheckDebugTrace {
 			subRelation = ""
 		}
 
+		// TODO(jschorr): Support caveats here
 		result := v1.CheckDebugTrace_PERMISSIONSHIP_NO_PERMISSION
-		if found, ok := ct.Results[resourceID]; ok && found.HasPermission {
+		if found, ok := ct.Results[resourceID]; ok && found.Membership == dispatch.ResourceCheckResult_MEMBER {
 			result = v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION
 		}
 

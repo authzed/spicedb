@@ -8,7 +8,7 @@ import (
 // CheckResultsMap defines a type that is a map from resource ID to ResourceCheckResult.
 // This must match that defined in the DispatchCheckResponse for the `results_by_resource_id`
 // field.
-type CheckResultsMap map[string]*v1.DispatchCheckResponse_ResourceCheckResult
+type CheckResultsMap map[string]*v1.ResourceCheckResult
 
 // NewMembershipSet constructs a new helper set for tracking the membership found for a dispatched
 // check request.
@@ -136,11 +136,19 @@ func (ms *MembershipSet) Subtract(resultsMap CheckResultsMap) {
 
 // IsEmpty returns true if the set is empty.
 func (ms *MembershipSet) IsEmpty() bool {
+	if ms == nil {
+		return true
+	}
+
 	return len(ms.membersByID) == 0
 }
 
 // HasDeterminedMember returns whether there exists at least one non-caveated member of the set.
 func (ms *MembershipSet) HasDeterminedMember() bool {
+	if ms == nil {
+		return false
+	}
+
 	return ms.hasDeterminedMember
 }
 
@@ -149,12 +157,12 @@ func (ms *MembershipSet) HasDeterminedMember() bool {
 func (ms *MembershipSet) AsCheckResultsMap() CheckResultsMap {
 	resultsMap := make(CheckResultsMap, len(ms.membersByID))
 	for resourceID, caveat := range ms.membersByID {
-		membership := v1.DispatchCheckResponse_MEMBER
+		membership := v1.ResourceCheckResult_MEMBER
 		if caveat != nil {
-			membership = v1.DispatchCheckResponse_CAVEATED_MEMBER
+			membership = v1.ResourceCheckResult_CAVEATED_MEMBER
 		}
 
-		resultsMap[resourceID] = &v1.DispatchCheckResponse_ResourceCheckResult{
+		resultsMap[resourceID] = &v1.ResourceCheckResult{
 			Membership: membership,
 			Expression: caveat,
 		}

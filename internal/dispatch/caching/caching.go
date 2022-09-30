@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
@@ -253,12 +255,7 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 
 			// If debugging is requested, clone and add the req and the response to the trace.
 			clone := cachedResult.response.CloneVT()
-			results := make(map[string]*v1.CheckDebugTrace_ResourceCheckResult, len(cachedResult.response.ResultsByResourceId))
-			for resourceID, result := range cachedResult.response.ResultsByResourceId {
-				results[resourceID] = &v1.CheckDebugTrace_ResourceCheckResult{
-					HasPermission: result.Membership == v1.DispatchCheckResponse_MEMBER,
-				}
-			}
+			results := maps.Clone(cachedResult.response.ResultsByResourceId)
 
 			clone.Metadata.DebugInfo = &v1.DebugInformation{
 				Check: &v1.CheckDebugTrace{
