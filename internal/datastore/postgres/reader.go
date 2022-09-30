@@ -117,7 +117,7 @@ func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, baseQuery s
 	}
 
 	var config []byte
-	var version XID8
+	var version xid8
 	err = tx.QueryRow(ctx, sql, args...).Scan(&config, &version)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

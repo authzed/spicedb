@@ -51,7 +51,7 @@ type pgReadWriteTXN struct {
 	*pgReader
 	ctx    context.Context
 	tx     pgx.Tx
-	newXID XID8
+	newXID xid8
 }
 
 func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {

@@ -23,41 +23,41 @@ var errUndefined = errors.New("cannot encode status undefined")
 // xid8 represents the xid8 postgres type, which is a 64-bit transaction ID that is *NOT*
 // subject to transaction wraparound limitations.
 // https://www.postgresql.org/docs/current/datatype-oid.html
-type XID8 pguint64
+type xid8 pguint64
 
-func (txid *XID8) Set(src interface{}) error {
+func (txid *xid8) Set(src interface{}) error {
 	return (*pguint64)(txid).Set(src)
 }
 
-func (txid XID8) Get() interface{} {
+func (txid xid8) Get() interface{} {
 	return (pguint64)(txid).Get()
 }
 
-func (txid *XID8) AssignTo(dst interface{}) error {
+func (txid *xid8) AssignTo(dst interface{}) error {
 	return (*pguint64)(txid).AssignTo(dst)
 }
 
-func (txid *XID8) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
+func (txid *xid8) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
 	return (*pguint64)(txid).DecodeText(ci, src)
 }
 
-func (txid *XID8) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+func (txid *xid8) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 	return (*pguint64)(txid).DecodeBinary(ci, src)
 }
 
-func (txid XID8) EncodeText(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
+func (txid xid8) EncodeText(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
 	return (pguint64)(txid).EncodeText(ci, buf)
 }
 
-func (txid XID8) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
+func (txid xid8) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
 	return (pguint64)(txid).EncodeBinary(ci, buf)
 }
 
-func (txid *XID8) Scan(src interface{}) error {
+func (txid *xid8) Scan(src interface{}) error {
 	return (*pguint64)(txid).Scan(src)
 }
 
-func (txid XID8) Value() (driver.Value, error) {
+func (txid xid8) Value() (driver.Value, error) {
 	return (pguint64)(txid).Value()
 }
 

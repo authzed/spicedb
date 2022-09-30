@@ -531,7 +531,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				tc.quantization.Nanoseconds(),
 			)
 
-			var revision XID8
+			var revision xid8
 			var validFor time.Duration
 			err = conn.QueryRow(ctx, queryRevision).Scan(&revision, &validFor)
 			require.NoError(err)

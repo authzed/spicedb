@@ -52,7 +52,7 @@ const (
 )
 
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
-	var revision XID8
+	var revision xid8
 	var validForNanos time.Duration
 	if err := pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), pgd.optimizedRevisionQuery,
@@ -98,39 +98,39 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 	return nil
 }
 
-func (pgd *pgDatastore) loadRevision(ctx context.Context) (XID8, error) {
+func (pgd *pgDatastore) loadRevision(ctx context.Context) (xid8, error) {
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
 	sql, args, err := getRevision.ToSql()
 	if err != nil {
-		return XID8{}, fmt.Errorf(errRevision, err)
+		return xid8{}, fmt.Errorf(errRevision, err)
 	}
 
-	var revision XID8
+	var revision xid8
 	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), sql, args...).Scan(&revision)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return XID8{}, nil
+			return xid8{}, nil
 		}
-		return XID8{}, fmt.Errorf(errRevision, err)
+		return xid8{}, fmt.Errorf(errRevision, err)
 	}
 
 	return revision, nil
 }
 
-func revisionFromTransaction(txID XID8) datastore.Revision {
+func revisionFromTransaction(txID xid8) datastore.Revision {
 	return decimal.NewFromInt(int64(txID.Uint))
 }
 
-func transactionFromRevision(revision datastore.Revision) XID8 {
-	return XID8{
+func transactionFromRevision(revision datastore.Revision) xid8 {
+	return xid8{
 		Uint:   uint64(revision.IntPart()),
 		Status: pgtype.Present,
 	}
 }
 
-func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID XID8, err error) {
+func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID xid8, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 

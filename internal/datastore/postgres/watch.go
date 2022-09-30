@@ -105,17 +105,17 @@ func (pgd *pgDatastore) Watch(
 
 func (pgd *pgDatastore) getNewRevisions(
 	ctx context.Context,
-	afterTX XID8,
-) ([]XID8, error) {
+	afterTX xid8,
+) ([]xid8, error) {
 	rows, err := pgd.dbpool.Query(context.Background(), newRevisionsQuery, afterTX)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load new revisions: %w", err)
 	}
 	defer rows.Close()
 
-	var ids []XID8
+	var ids []xid8
 	for rows.Next() {
-		var nextXID XID8
+		var nextXID xid8
 		if err := rows.Scan(&nextXID); err != nil {
 			return nil, fmt.Errorf("unable to decode new revision: %w", err)
 		}
@@ -129,7 +129,7 @@ func (pgd *pgDatastore) getNewRevisions(
 	return ids, nil
 }
 
-func (pgd *pgDatastore) loadChanges(ctx context.Context, revision XID8) (*datastore.RevisionChanges, error) {
+func (pgd *pgDatastore) loadChanges(ctx context.Context, revision xid8) (*datastore.RevisionChanges, error) {
 	sql, args, err := queryChanged.Where(sq.Or{
 		sq.Eq{colCreatedXid: revision},
 		sq.Eq{colDeletedXid: revision},
@@ -150,7 +150,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revision XID8) (*datast
 			Subject:             &core.ObjectAndRelation{},
 		}
 
-		var createdXID, deletedXID XID8
+		var createdXID, deletedXID xid8
 		if err := changes.Scan(
 			&nextTuple.ResourceAndRelation.Namespace,
 			&nextTuple.ResourceAndRelation.ObjectId,
