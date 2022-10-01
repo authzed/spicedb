@@ -68,7 +68,7 @@ require (
 	go.uber.org/goleak v1.1.12
 	golang.org/x/exp v0.0.0-20220823124025-807a23277127
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde
 	golang.org/x/tools v0.1.12
 	google.golang.org/api v0.94.0
 	google.golang.org/genproto v0.0.0-20220915135415-7fd63a7952de
@@ -77,7 +77,7 @@ require (
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	mvdan.cc/gofumpt v0.3.1
+	mvdan.cc/gofumpt v0.4.0
 	sigs.k8s.io/controller-runtime v0.12.3
 )
 
