@@ -70,7 +70,7 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
 	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde
 	golang.org/x/tools v0.1.12
-	google.golang.org/api v0.96.0
+	google.golang.org/api v0.98.0
 	google.golang.org/genproto v0.0.0-20220916134934-764224ccc2d1
 	google.golang.org/grpc v1.49.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
