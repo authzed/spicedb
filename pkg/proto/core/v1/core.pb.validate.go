@@ -1728,6 +1728,11 @@ var _ interface {
 	ErrorName() string
 } = MetadataValidationError{}
 
+var _Metadata_MetadataMessage_InLookup = map[string]struct{}{
+	"type.googleapis.com/impl.v1.DocComment":       {},
+	"type.googleapis.com/impl.v1.RelationMetadata": {},
+}
+
 // Validate checks the field values on NamespaceDefinition with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
