@@ -92,6 +92,11 @@ func (m *ResourceCheckResult) CloneVT() *ResourceCheckResult {
 		Membership: m.Membership,
 		Expression: m.Expression.CloneVT(),
 	}
+	if rhs := m.MissingExprFields; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.MissingExprFields = tmpContainer
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -770,6 +775,15 @@ func (m *ResourceCheckResult) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.MissingExprFields) > 0 {
+		for iNdEx := len(m.MissingExprFields) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.MissingExprFields[iNdEx])
+			copy(dAtA[i:], m.MissingExprFields[iNdEx])
+			i = encodeVarint(dAtA, i, uint64(len(m.MissingExprFields[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
 	}
 	if m.Expression != nil {
 		size, err := m.Expression.MarshalToSizedBufferVT(dAtA[:i])
@@ -2011,6 +2025,12 @@ func (m *ResourceCheckResult) SizeVT() (n int) {
 		l = m.Expression.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
+	if len(m.MissingExprFields) > 0 {
+		for _, s := range m.MissingExprFields {
+			l = len(s)
+			n += 1 + l + sov(uint64(l))
+		}
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -3019,6 +3039,38 @@ func (m *ResourceCheckResult) UnmarshalVT(dAtA []byte) error {
 			if err := m.Expression.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MissingExprFields", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.MissingExprFields = append(m.MissingExprFields, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

@@ -54,7 +54,8 @@ message ResourceCheckResult {
   }
 
   Membership membership = 1;
-  CaveatExpression expression = 2;    
+  CaveatExpression expression = 2;
+  repeated string missing_expr_fields = 3;
 }
 
 message CaveatExpression {  

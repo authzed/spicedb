@@ -221,7 +221,7 @@ func TestSerialization(t *testing.T) {
 			serialized, err := compiled.Serialize()
 			require.NoError(t, err)
 
-			deserialized, err := DeserializeCaveat(env, serialized)
+			deserialized, err := DeserializeCaveat(serialized)
 			require.NoError(t, err)
 
 			astExpr, err := deserialized.ExprString()
@@ -242,7 +242,7 @@ func TestSerializeName(t *testing.T) {
 	serialized, err := compiled.Serialize()
 	require.NoError(t, err)
 
-	deserialized, err := DeserializeCaveat(env, serialized)
+	deserialized, err := DeserializeCaveat(serialized)
 	require.NoError(t, err)
 
 	require.Equal(t, "hi", deserialized.name)

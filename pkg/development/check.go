@@ -3,6 +3,7 @@ package development
 import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	dispatchgraph "github.com/authzed/spicedb/internal/dispatch/graph"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -12,26 +13,23 @@ import (
 // if they want to distinguish between user errors and internal errors.
 func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation) (v1.ResourceCheckResult_Membership, error) {
 	ctx := devContext.Ctx
-	cr, err := devContext.Dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		ResourceRelation: &core.RelationReference{
-			Namespace: resource.Namespace,
-			Relation:  resource.Relation,
+	cr, _, err := dispatchgraph.ComputeCheck(ctx, devContext.Dispatcher,
+		dispatchgraph.CheckParameters{
+			ResourceType: &core.RelationReference{
+				Namespace: resource.Namespace,
+				Relation:  resource.Relation,
+			},
+			ResourceID:         resource.ObjectId,
+			Subject:            subject,
+			CaveatContext:      nil, // TODO(jschorr): get from the dev context?
+			AtRevision:         devContext.Revision,
+			MaximumDepth:       maxDispatchDepth,
+			IsDebuggingEnabled: false,
 		},
-		ResourceIds:    []string{resource.ObjectId},
-		ResultsSetting: v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
-		Subject:        subject,
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     devContext.Revision.String(),
-			DepthRemaining: maxDispatchDepth,
-		},
-	})
+	)
 	if err != nil {
 		return v1.ResourceCheckResult_NOT_MEMBER, err
 	}
 
-	if found, ok := cr.ResultsByResourceId[resource.ObjectId]; ok {
-		return found.Membership, nil
-	}
-
-	return v1.ResourceCheckResult_NOT_MEMBER, nil
+	return cr.Membership, nil
 }
