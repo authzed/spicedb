@@ -17,9 +17,10 @@ type txFactory func() (*memdb.Txn, error)
 
 type memdbReader struct {
 	TryLocker
-	txSource txFactory
-	revision datastore.Revision
-	initErr  error
+	txSource      txFactory
+	revision      datastore.Revision
+	initErr       error
+	enableCaveats bool
 }
 
 // QueryRelationships reads relationships starting from the resource side.
