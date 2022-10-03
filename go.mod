@@ -3,7 +3,7 @@ module github.com/authzed/spicedb
 go 1.19
 
 require (
-	cloud.google.com/go/spanner v1.37.0
+	cloud.google.com/go/spanner v1.39.0
 	github.com/IBM/pgxpoolprometheus v1.0.1
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/authzed/authzed-go v0.7.1-0.20220928193058-a55432766d58
@@ -70,8 +70,8 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
 	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde
 	golang.org/x/tools v0.1.12
-	google.golang.org/api v0.94.0
-	google.golang.org/genproto v0.0.0-20220915135415-7fd63a7952de
+	google.golang.org/api v0.96.0
+	google.golang.org/genproto v0.0.0-20220916134934-764224ccc2d1
 	google.golang.org/grpc v1.49.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
 	google.golang.org/protobuf v1.28.1
@@ -179,7 +179,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/net v0.0.0-20220909164309-bea034e7d591 // indirect
-	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094 // indirect
+	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1 // indirect
 	golang.org/x/sys v0.0.0-20220915200043-7b5979e65e41 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
