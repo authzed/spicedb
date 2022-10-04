@@ -1,6 +1,8 @@
 package memdb
 
 import (
+	"fmt"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
@@ -22,6 +24,10 @@ func (c *caveat) Unwrap() *core.Caveat {
 }
 
 func (r *memdbReader) ReadCaveatByName(name string) (*core.Caveat, error) {
+	if !r.enableCaveats {
+		return nil, fmt.Errorf("caveats are not enabled")
+	}
+
 	r.lockOrPanic()
 	defer r.Unlock()
 
