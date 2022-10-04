@@ -453,6 +453,97 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				},
 			},
 		},
+		{
+			"App attributes example",
+			`definition application {}
+					definition group {
+						relation member: application
+						permission allowed = member
+					}`,
+			map[string]caveatDefinition{
+				"attributes_match": {
+					"expected.all(x, expected[x] == provided[x])",
+					map[string]caveats.VariableType{
+						"expected": caveats.MapType(caveats.StringType, caveats.AnyType),
+						"provided": caveats.MapType(caveats.StringType, caveats.AnyType),
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"group:ui_apps#member@application:frontend_app",
+					"attributes_match",
+					map[string]any{
+						"expected": map[string]any{"type": "frontend", "region": "eu"},
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"group:backend_apps#member@application:backend_app",
+					"attributes_match",
+					map[string]any{
+						"expected": map[string]any{
+							"type": "backend", "region": "us",
+							"additional_attrs": map[string]any{
+								"tag1": 100,
+								"tag2": false,
+							},
+						},
+					},
+				},
+			},
+			[]check{
+				{
+					"group:ui_apps#allowed@application:frontend_app",
+					map[string]any{
+						"provided": map[string]any{"type": "frontend", "region": "eu", "team": "shop"},
+					},
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"group:ui_apps#allowed@application:frontend_app",
+					map[string]any{
+						"provided": map[string]any{"type": "frontend", "region": "us"},
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"group:backend_apps#allowed@application:backend_app",
+					map[string]any{
+						"provided": map[string]any{
+							"type": "backend", "region": "us", "team": "shop",
+							"additional_attrs": map[string]any{
+								"tag1": 100,
+								"tag2": false,
+							},
+						},
+					},
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"group:backend_apps#allowed@application:backend_app",
+					map[string]any{
+						"provided": map[string]any{
+							"type": "backend", "region": "us", "team": "shop",
+							"additional_attrs": map[string]any{
+								"tag1": 200,
+								"tag2": false,
+							},
+						},
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -577,7 +668,7 @@ func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema str
 }
 
 func caveatedRelationTuple(relationTuple string, caveatName string, context map[string]any) *core.RelationTuple {
-	c := tuple.Parse(relationTuple)
+	c := tuple.MustParse(relationTuple)
 	strct, err := structpb.NewStruct(context)
 	if err != nil {
 		panic(err)
