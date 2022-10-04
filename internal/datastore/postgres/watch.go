@@ -3,32 +3,48 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
 	watchSleep = 100 * time.Millisecond
 )
 
-var queryChanged = psql.Select(
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCreatedTxn,
-	colDeletedTxn,
-).From(tableTuple)
+var (
+	// This query must cast an xid8 to xid, which is a safe operation as long as the
+	// xid8 is one of the last ~2 billion transaction IDs generated. We should be garbage
+	// collecting these transactions long before we get to that point.
+	newRevisionsQuery = fmt.Sprintf(`
+	SELECT %[1]s from %[2]s
+	WHERE pg_xact_commit_timestamp(%[1]s::xid) > (
+		SELECT pg_xact_commit_timestamp(%[1]s::xid) FROM relation_tuple_transaction where %[1]s = $1
+	) AND %[1]s < pg_snapshot_xmin(pg_current_snapshot())
+	ORDER BY pg_xact_commit_timestamp(%[1]s::xid);
+`, colXID, tableTransaction)
 
-func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+	queryChanged = psql.Select(
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCreatedXid,
+		colDeletedXid,
+	).From(tableTuple)
+)
+
+func (pgd *pgDatastore) Watch(
+	ctx context.Context,
+	afterRevision datastore.Revision,
+) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, pgd.watchBufferLength)
 	errs := make(chan error, 1)
 
@@ -39,9 +55,7 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 		currentTxn := transactionFromRevision(afterRevision)
 
 		for {
-			var stagedUpdates []*datastore.RevisionChanges
-			var err error
-			stagedUpdates, currentTxn, err = pgd.loadChanges(ctx, currentTxn)
+			newTxns, err := pgd.getNewRevisions(ctx, currentTxn)
 			if err != nil {
 				if errors.Is(ctx.Err(), context.Canceled) {
 					errs <- datastore.NewWatchCanceledErr()
@@ -51,18 +65,28 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 				return
 			}
 
-			// Write the staged updates to the channel
-			for _, changeToWrite := range stagedUpdates {
+			for _, revision := range newTxns {
+				changeToWrite, err := pgd.loadChanges(ctx, revision)
+				if err != nil {
+					if errors.Is(ctx.Err(), context.Canceled) {
+						errs <- datastore.NewWatchCanceledErr()
+					} else {
+						errs <- err
+					}
+					return
+				}
+
 				select {
 				case updates <- changeToWrite:
 				default:
 					errs <- datastore.NewWatchDisconnectedErr()
 					return
 				}
+
+				currentTxn = revision
 			}
 
-			// If there were no changes, sleep a bit
-			if len(stagedUpdates) == 0 {
+			if len(newTxns) == 0 {
 				sleep := time.NewTimer(watchSleep)
 
 				select {
@@ -79,79 +103,82 @@ func (pgd *pgDatastore) Watch(ctx context.Context, afterRevision datastore.Revis
 	return updates, errs
 }
 
-func (pgd *pgDatastore) loadChanges(
+func (pgd *pgDatastore) getNewRevisions(
 	ctx context.Context,
-	afterRevision uint64,
-) (changes []*datastore.RevisionChanges, newRevision uint64, err error) {
-	newRevision, err = pgd.loadRevision(ctx)
+	afterTX xid8,
+) ([]xid8, error) {
+	rows, err := pgd.dbpool.Query(context.Background(), newRevisionsQuery, afterTX)
 	if err != nil {
-		return
-	}
-
-	if newRevision == afterRevision {
-		return
-	}
-
-	sql, args, err := queryChanged.Where(sq.Or{
-		sq.And{
-			sq.Gt{colCreatedTxn: afterRevision},
-			sq.LtOrEq{colCreatedTxn: newRevision},
-		},
-		sq.And{
-			sq.Gt{colDeletedTxn: afterRevision},
-			sq.LtOrEq{colDeletedTxn: newRevision},
-		},
-	}).ToSql()
-	if err != nil {
-		return
-	}
-
-	rows, err := pgd.dbpool.Query(ctx, sql, args...)
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			err = datastore.NewWatchCanceledErr()
-		}
-		return
+		return nil, fmt.Errorf("unable to load new revisions: %w", err)
 	}
 	defer rows.Close()
 
-	stagedChanges := common.NewChanges()
-
+	var ids []xid8
 	for rows.Next() {
+		var nextXID xid8
+		if err := rows.Scan(&nextXID); err != nil {
+			return nil, fmt.Errorf("unable to decode new revision: %w", err)
+		}
+
+		ids = append(ids, nextXID)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("unable to load new revisions: %w", err)
+	}
+
+	return ids, nil
+}
+
+func (pgd *pgDatastore) loadChanges(ctx context.Context, revision xid8) (*datastore.RevisionChanges, error) {
+	sql, args, err := queryChanged.Where(sq.Or{
+		sq.Eq{colCreatedXid: revision},
+		sq.Eq{colDeletedXid: revision},
+	}).ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("unable to prepare changes SQL: %w", err)
+	}
+
+	changes, err := pgd.dbpool.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load changes for XID: %w", err)
+	}
+
+	tracked := common.NewChanges()
+	for changes.Next() {
 		nextTuple := &core.RelationTuple{
 			ResourceAndRelation: &core.ObjectAndRelation{},
 			Subject:             &core.ObjectAndRelation{},
 		}
 
-		var createdTxn uint64
-		var deletedTxn uint64
-		err = rows.Scan(
+		var createdXID, deletedXID xid8
+		if err := changes.Scan(
 			&nextTuple.ResourceAndRelation.Namespace,
 			&nextTuple.ResourceAndRelation.ObjectId,
 			&nextTuple.ResourceAndRelation.Relation,
 			&nextTuple.Subject.Namespace,
 			&nextTuple.Subject.ObjectId,
 			&nextTuple.Subject.Relation,
-			&createdTxn,
-			&deletedTxn,
-		)
-		if err != nil {
-			return
+			&createdXID,
+			&deletedXID,
+		); err != nil {
+			return nil, fmt.Errorf("unable to parse changed tuple: %w", err)
 		}
 
-		if createdTxn > afterRevision && createdTxn <= newRevision {
-			stagedChanges.AddChange(ctx, revisionFromTransaction(createdTxn), nextTuple, core.RelationTupleUpdate_TOUCH)
-		}
-
-		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			stagedChanges.AddChange(ctx, revisionFromTransaction(deletedTxn), nextTuple, core.RelationTupleUpdate_DELETE)
+		if createdXID.Uint == revision.Uint {
+			tracked.AddChange(ctx, revisionFromTransaction(revision), nextTuple, core.RelationTupleUpdate_TOUCH)
+		} else if deletedXID.Uint == revision.Uint {
+			tracked.AddChange(ctx, revisionFromTransaction(revision), nextTuple, core.RelationTupleUpdate_DELETE)
 		}
 	}
-	if err = rows.Err(); err != nil {
-		return
+	if changes.Err() != nil {
+		return nil, fmt.Errorf("unable to load changes for XID: %w", err)
 	}
 
-	changes = stagedChanges.AsRevisionChanges()
-
-	return
+	reconciledChanges := tracked.AsRevisionChanges()
+	if len(reconciledChanges) == 0 {
+		return &datastore.RevisionChanges{
+			Revision: revisionFromTransaction(revision),
+		}, nil
+	}
+	return reconciledChanges[0], nil
 }

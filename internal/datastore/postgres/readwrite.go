@@ -29,12 +29,11 @@ var (
 	writeNamespace = psql.Insert(tableNamespace).Columns(
 		colNamespace,
 		colConfig,
-		colCreatedTxn,
 	)
 
-	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 
-	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 
 	writeTuple = psql.Insert(tableTuple).Columns(
 		colNamespace,
@@ -43,17 +42,16 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
-		colCreatedTxn,
 	)
 
-	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 )
 
 type pgReadWriteTXN struct {
 	*pgReader
-	ctx      context.Context
-	tx       pgx.Tx
-	newTxnID uint64
+	ctx    context.Context
+	tx     pgx.Tx
+	newXID xid8
 }
 
 func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
@@ -85,14 +83,16 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 				tpl.Subject.Namespace,
 				tpl.Subject.ObjectId,
 				tpl.Subject.Relation,
-				rwt.newTxnID,
 			)
 			bulkWriteHasValues = true
 		}
 	}
 
 	if len(deleteClauses) > 0 {
-		sql, args, err := deleteTuple.Where(deleteClauses).Set(colDeletedTxn, rwt.newTxnID).ToSql()
+		sql, args, err := deleteTuple.
+			Where(deleteClauses).
+			Set(colDeletedXid, rwt.newXID).
+			ToSql()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
@@ -154,9 +154,7 @@ func (rwt *pgReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) er
 
 	span.SetAttributes(tracerAttributes...)
 
-	query = query.Set(colDeletedTxn, rwt.newTxnID)
-
-	sql, args, err := query.ToSql()
+	sql, args, err := query.Set(colDeletedXid, rwt.newXID).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
@@ -184,15 +182,15 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 		span.AddEvent("Serialized namespace config")
 
 		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{colNamespace: newNamespace.Name})
-		writeQuery = writeQuery.Values(newNamespace.Name, serialized, rwt.newTxnID)
+		writeQuery = writeQuery.Values(newNamespace.Name, serialized)
 		writtenNamespaceNames = append(writtenNamespaceNames, newNamespace.Name)
 	}
 
 	span.SetAttributes(common.ObjNamespaceNameKey.StringSlice(writtenNamespaceNames))
 
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedTxn, rwt.newTxnID).
-		Where(sq.And{sq.Eq{colDeletedTxn: liveDeletedTxnID}, deletedNamespaceClause}).
+		Set(colDeletedXid, rwt.newXID).
+		Where(sq.And{sq.Eq{colDeletedXid: liveDeletedTxnID}, deletedNamespaceClause}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToWriteConfig, err)
@@ -221,7 +219,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteNamespace")
 	defer span.End()
 
-	baseQuery := readNamespace.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	baseQuery := readNamespace.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 	_, createdAt, err := loadNamespace(ctx, nsName, rwt.tx, baseQuery)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
@@ -233,8 +231,8 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	}
 
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedTxn, rwt.newTxnID).
-		Where(sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt}).
+		Set(colDeletedXid, rwt.newXID).
+		Where(sq.Eq{colNamespace: nsName, colCreatedXid: createdAt}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -246,7 +244,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	}
 
 	deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
-		Set(colDeletedTxn, rwt.newTxnID).
+		Set(colDeletedXid, rwt.newXID).
 		Where(sq.Eq{colNamespace: nsName}).
 		ToSql()
 	if err != nil {

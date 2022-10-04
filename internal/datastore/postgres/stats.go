@@ -39,7 +39,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 		return datastore.Stats{}, fmt.Errorf("unable to prepare row count sql: %w", err)
 	}
 
-	nsQuery := readNamespace.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	nsQuery := readNamespace.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 
 	var uniqueID string
 	var nsDefs []*corev1.NamespaceDefinition

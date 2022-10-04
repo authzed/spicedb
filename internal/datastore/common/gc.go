@@ -7,6 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var (
@@ -62,8 +64,8 @@ func RegisterGCMetrics() error {
 type GarbageCollector interface {
 	IsReady(context.Context) (bool, error)
 	Now(context.Context) (time.Time, error)
-	TxIDBefore(context.Context, time.Time) (uint64, error)
-	DeleteBeforeTx(ctx context.Context, txID uint64) (DeletionCounts, error)
+	TxIDBefore(context.Context, time.Time) (datastore.Revision, error)
+	DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (DeletionCounts, error)
 }
 
 // DeletionCounts tracks the amount of deletions that occurred when calling
@@ -84,7 +86,7 @@ func (g DeletionCounts) MarshalZerologObject(e *zerolog.Event) {
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
 func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, window, timeout time.Duration) error {
-	log.Ctx(ctx).Info().
+	log.Info().
 		Dur("interval", interval).
 		Msg("datastore garbage collection worker started")
 
@@ -123,7 +125,7 @@ func collect(gc GarbageCollector, window, timeout time.Duration) error {
 	var (
 		startTime = time.Now()
 		collected DeletionCounts
-		watermark uint64
+		watermark datastore.Revision
 	)
 
 	defer func() {
@@ -131,7 +133,7 @@ func collect(gc GarbageCollector, window, timeout time.Duration) error {
 		gcDurationHistogram.Observe(collectionDuration.Seconds())
 
 		log.Ctx(ctx).Debug().
-			Uint64("highestTxID", watermark).
+			Stringer("highestTxID", watermark).
 			Dur("duration", collectionDuration).
 			Interface("collected", collected).
 			Msg("datastore garbage collection completed")

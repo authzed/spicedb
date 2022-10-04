@@ -41,10 +41,6 @@ const (
 	// validity by being too old.
 	RevisionStale InvalidRevisionReason = iota
 
-	// RevisionInFuture is the reason returned when a revision is outside the window of
-	// validity by being too new.
-	RevisionInFuture
-
 	// CouldNotDetermineRevision is the reason returned when a revision for a
 	// request could not be determined.
 	CouldNotDetermineRevision
@@ -72,8 +68,6 @@ func (eri ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
 	switch eri.reason {
 	case RevisionStale:
 		e.Str("error", eri.Error()).Str("reason", "stale")
-	case RevisionInFuture:
-		e.Str("error", eri.Error()).Str("reason", "future")
 	case CouldNotDetermineRevision:
 		e.Str("error", eri.Error()).Str("reason", "indeterminate")
 	default:
@@ -117,13 +111,6 @@ func NewInvalidRevisionErr(revision Revision, reason InvalidRevisionReason) erro
 	case RevisionStale:
 		return ErrInvalidRevision{
 			error:    fmt.Errorf("revision has expired"),
-			revision: revision,
-			reason:   reason,
-		}
-
-	case RevisionInFuture:
-		return ErrInvalidRevision{
-			error:    fmt.Errorf("revision is for a future time"),
 			revision: revision,
 			reason:   reason,
 		}

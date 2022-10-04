@@ -34,7 +34,7 @@ func (mdb *memdbDatastore) checkRevisionLocal(revision datastore.Revision) error
 	now := revisionFromTimestamp(time.Now().UTC())
 
 	if revision.GreaterThan(now) {
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 
 	oldest := now.Add(mdb.negativeGCWindow)

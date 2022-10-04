@@ -12,13 +12,16 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/test"
+	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -95,6 +98,10 @@ func TestPostgresDatastore(t *testing.T) {
 	t.Run("QuantizedRevisions", func(t *testing.T) {
 		QuantizedRevisionTest(t, b)
 	})
+
+	t.Run("XIDMigrationAssumptionsTest", func(t *testing.T) {
+		XIDMigrationAssumptionsTest(t, b)
+	})
 }
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
@@ -132,7 +139,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Run GC at the transaction and ensure no relationships are removed.
 	pds := ds.(*pgDatastore)
 
-	removed, err := pds.DeleteBeforeTx(ctx, uint64(writtenAt.IntPart()))
+	removed, err := pds.DeleteBeforeTx(ctx, writtenAt)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Zero(removed.Namespaces)
@@ -151,7 +158,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC to remove the old namespace
-	removed, err = pds.DeleteBeforeTx(ctx, uint64(writtenAt.IntPart()))
+	removed, err = pds.DeleteBeforeTx(ctx, writtenAt)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Equal(int64(1), removed.Transactions)
@@ -164,14 +171,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
-	removed, err = pds.DeleteBeforeTx(ctx, uint64(relWrittenAt.IntPart()))
+	removed, err = pds.DeleteBeforeTx(ctx, relWrittenAt)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Equal(int64(1), removed.Transactions)
 	require.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = pds.DeleteBeforeTx(ctx, uint64(relWrittenAt.IntPart()))
+	removed, err = pds.DeleteBeforeTx(ctx, relWrittenAt)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Zero(removed.Transactions)
@@ -186,14 +193,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run GC at the transaction and ensure the (older copy of the) relationship is removed, as well as 1 transaction (the write).
-	removed, err = pds.DeleteBeforeTx(ctx, uint64(relOverwrittenAt.IntPart()))
+	removed, err = pds.DeleteBeforeTx(ctx, relOverwrittenAt)
 	require.NoError(err)
 	require.Equal(int64(1), removed.Relationships)
 	require.Equal(int64(1), removed.Transactions)
 	require.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = pds.DeleteBeforeTx(ctx, uint64(relOverwrittenAt.IntPart()))
+	removed, err = pds.DeleteBeforeTx(ctx, relOverwrittenAt)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Zero(removed.Transactions)
@@ -210,14 +217,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
 
 	// Run GC at the transaction and ensure the relationship is removed, as well as 1 transaction (the overwrite).
-	removed, err = pds.DeleteBeforeTx(ctx, uint64(relDeletedAt.IntPart()))
+	removed, err = pds.DeleteBeforeTx(ctx, relDeletedAt)
 	require.NoError(err)
 	require.Equal(int64(1), removed.Relationships)
 	require.Equal(int64(1), removed.Transactions)
 	require.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	removed, err = pds.DeleteBeforeTx(ctx, uint64(relDeletedAt.IntPart()))
+	removed, err = pds.DeleteBeforeTx(ctx, relDeletedAt)
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Zero(removed.Transactions)
@@ -233,7 +240,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
 	// as well as the 2 older write transactions and the older delete transaction.
-	removed, err = pds.DeleteBeforeTx(ctx, uint64(relLastWriteAt.IntPart()))
+	removed, err = pds.DeleteBeforeTx(ctx, relLastWriteAt)
 	require.NoError(err)
 	require.Equal(int64(2), removed.Relationships)
 	require.Equal(int64(3), removed.Transactions)
@@ -264,14 +271,14 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	tx, err := pgd.dbpool.Begin(ctx)
 	require.NoError(err)
 
-	txID, err := createNewTransaction(ctx, tx)
+	txXID, err := createNewTransaction(ctx, tx)
 	require.NoError(err)
 
 	err = tx.Commit(ctx)
 	require.NoError(err)
 
 	var ts time.Time
-	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"id": txID}).ToSql()
+	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"xid": txXID}).ToSql()
 	require.NoError(err)
 	err = pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
@@ -433,40 +440,41 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	testCases := []struct {
-		testName         string
-		quantization     time.Duration
-		relativeTimes    []time.Duration
-		expectedRevision uint64
+		testName      string
+		quantization  time.Duration
+		relativeTimes []time.Duration
+		numLower      uint64
+		numHigher     uint64
 	}{
 		{
 			"DefaultRevision",
 			1 * time.Second,
 			[]time.Duration{},
-			1,
+			0, 0,
 		},
 		{
 			"OnlyPastRevisions",
 			1 * time.Second,
 			[]time.Duration{-2 * time.Second},
-			2,
+			1, 0,
 		},
 		{
 			"OnlyFutureRevisions",
 			1 * time.Second,
 			[]time.Duration{2 * time.Second},
-			2,
+			1, 0,
 		},
 		{
 			"QuantizedLower",
 			1 * time.Second,
 			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
-			3,
+			2, 1,
 		},
 		{
 			"QuantizationDisabled",
 			1 * time.Nanosecond,
 			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
-			4,
+			3, 0,
 		},
 	}
 
@@ -494,49 +502,287 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			})
 			defer ds.Close()
 
-			tx, err := conn.Begin(ctx)
-			require.NoError(err)
-
 			// set a random time zone to ensure the queries are unaffect by tz
-			_, err = tx.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
 			require.NoError(err)
 
 			var dbNow time.Time
-			err = tx.QueryRow(ctx, "SELECT (NOW() AT TIME ZONE 'utc')").Scan(&dbNow)
+			err = conn.QueryRow(ctx, "SELECT (NOW() AT TIME ZONE 'utc')").Scan(&dbNow)
 			require.NoError(err)
 
 			if len(tc.relativeTimes) > 0 {
 				psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-				bulkWrite := psql.Insert(tableTransaction).Columns(colTimestamp)
+				insertTxn := psql.Insert(tableTransaction).Columns(colTimestamp)
 
 				for _, offset := range tc.relativeTimes {
-					bulkWrite = bulkWrite.Values(dbNow.Add(offset))
+					sql, args, err := insertTxn.Values(dbNow.Add(offset)).ToSql()
+					require.NoError(err)
+
+					_, err = conn.Exec(ctx, sql, args...)
+					require.NoError(err)
 				}
-
-				sql, args, err := bulkWrite.ToSql()
-				require.NoError(err)
-
-				_, err = tx.Exec(ctx, sql, args...)
-				require.NoError(err)
 			}
 
 			queryRevision := fmt.Sprintf(
 				querySelectRevision,
-				colID,
+				colXID,
 				tableTransaction,
 				colTimestamp,
 				tc.quantization.Nanoseconds(),
 			)
 
-			var revision uint64
+			var revision xid8
 			var validFor time.Duration
-			err = tx.QueryRow(ctx, queryRevision).Scan(&revision, &validFor)
+			err = conn.QueryRow(ctx, queryRevision).Scan(&revision, &validFor)
 			require.NoError(err)
-			require.Greater(validFor, time.Duration(0))
 
-			require.Equal(tc.expectedRevision, revision)
+			queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE %[1]s %[3]s $1;"
+			numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "<")
+			numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, ">")
+
+			var numLower, numHigher uint64
+			require.NoError(conn.QueryRow(ctx, numLowerQuery, revision).Scan(&numLower))
+			require.NoError(conn.QueryRow(ctx, numHigherQuery, revision).Scan(&numHigher))
+
+			require.Equal(tc.numLower, numLower)
+			require.Equal(tc.numHigher, numHigher)
 		})
 	}
+}
+
+func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	require := require.New(t)
+
+	uri := b.NewDatabase(t)
+
+	migrationDriver, err := migrations.NewAlembicPostgresDriver(uri)
+	require.NoError(err)
+	require.NoError(migrations.DatabaseMigrations.Run(
+		context.Background(),
+		migrationDriver,
+		"add-ns-config-id",
+		migrate.LiveRun,
+	))
+
+	conn, err := pgx.Connect(ctx, uri)
+	require.NoError(err)
+
+	// Insert some rows using the old format
+	var oldTxIDs []uint64
+	for i := 0; i < 20; i++ {
+		sql := fmt.Sprintf("INSERT INTO %s DEFAULT VALUES RETURNING id", tableTransaction)
+
+		var newTx uint64
+		require.NoError(conn.QueryRow(ctx, sql).Scan(&newTx))
+
+		oldTxIDs = append(oldTxIDs, newTx)
+	}
+
+	insertNSSQL, insertNSArgs, err := psql.
+		Insert(tableNamespace).
+		Columns(colNamespace, colConfig, "created_transaction", "deleted_transaction").
+		Values("oneNamespace", "", oldTxIDs[0], oldTxIDs[1]).
+		Values("oneNamespace", "", oldTxIDs[1], liveDeletedTxnID).ToSql()
+
+	require.NoError(err)
+
+	_, err = conn.Exec(ctx, insertNSSQL, insertNSArgs...)
+	require.NoError(err)
+
+	insertRelsSQL, insertRelsArgs, err := psql.
+		Insert(tableTuple).
+		Columns(
+			colNamespace,
+			colObjectID,
+			colRelation,
+			colUsersetNamespace,
+			colUsersetObjectID,
+			colUsersetRelation,
+			"created_transaction",
+			"deleted_transaction",
+		).
+		Values("oneNamespace", "1", "parent", "oneNamespace", "2", datastore.Ellipsis, oldTxIDs[0], oldTxIDs[1]).
+		Values("oneNamespace", "1", "parent", "oneNamespace", "2", datastore.Ellipsis, oldTxIDs[1], liveDeletedTxnID).
+		ToSql()
+	require.NoError(err)
+
+	_, err = conn.Exec(ctx, insertRelsSQL, insertRelsArgs...)
+	require.NoError(err)
+
+	// Migrate to the version containing both old and new
+	require.NoError(migrations.DatabaseMigrations.Run(
+		context.Background(),
+		migrationDriver,
+		"add-xid-constraints",
+		migrate.LiveRun,
+	))
+
+	createTx := fmt.Sprintf("INSERT INTO %s DEFAULT VALUES RETURNING id, xid", tableTransaction)
+	insertNSQ := psql.
+		Insert(tableNamespace).
+		Columns(colNamespace, colConfig, "created_transaction", "deleted_transaction")
+	insertRelsQ := psql.
+		Insert(tableTuple).
+		Columns(
+			colNamespace,
+			colObjectID,
+			colRelation,
+			colUsersetNamespace,
+			colUsersetObjectID,
+			colUsersetRelation,
+			"created_transaction",
+			"deleted_transaction",
+		)
+
+	// Write a namespace and a row
+	var firstRowXid xid8
+	require.NoError(conn.BeginFunc(ctx, func(tx pgx.Tx) error {
+		var newTx uint64
+		require.NoError(tx.QueryRow(ctx, createTx).Scan(&newTx, &firstRowXid))
+
+		insertNSSQL, insertNSArgs, err := insertNSQ.
+			Values("twoNamespace", "", newTx, liveDeletedTxnID).
+			ToSql()
+		require.NoError(err)
+
+		_, err = tx.Exec(ctx, insertNSSQL, insertNSArgs...)
+		require.NoError(err)
+
+		insertRelsSQL, insertRelsArgs, err := insertRelsQ.
+			Values(
+				"twoNamespace",
+				"1",
+				"parent",
+				"twoNamespace",
+				"2",
+				datastore.Ellipsis,
+				newTx,
+				liveDeletedTxnID,
+			).ToSql()
+		require.NoError(err)
+
+		_, err = tx.Exec(ctx, insertRelsSQL, insertRelsArgs...)
+		require.NoError(err)
+
+		return nil
+	}))
+
+	// Kill the last tuple and namespace, insert a new one
+	require.NoError(conn.BeginFunc(ctx, func(tx pgx.Tx) error {
+		var newTx uint64
+		var newXid xid8
+		require.NoError(tx.QueryRow(ctx, createTx).Scan(&newTx, &newXid))
+
+		sql, args, err := psql.Update(tableNamespace).Set(colDeletedXid, newXid).
+			Set("deleted_transaction", newTx).Where(sq.Eq{colCreatedXid: firstRowXid}).ToSql()
+		require.NoError(err)
+
+		_, err = tx.Exec(ctx, sql, args...)
+		require.NoError(err)
+
+		sql, args, err = psql.Update(tableTuple).Set(colDeletedXid, newXid).
+			Set("deleted_transaction", newTx).Where(sq.Eq{colCreatedXid: firstRowXid}).ToSql()
+		require.NoError(err)
+
+		_, err = tx.Exec(ctx, sql, args...)
+		require.NoError(err)
+
+		insertNSSQL, insertNSArgs, err := insertNSQ.
+			Values("twoNamespace", "", newTx, liveDeletedTxnID).
+			ToSql()
+		require.NoError(err)
+
+		_, err = tx.Exec(ctx, insertNSSQL, insertNSArgs...)
+		require.NoError(err)
+
+		insertRelsSQL, insertRelsArgs, err := insertRelsQ.
+			Values(
+				"twoNamespace",
+				"1",
+				"parent",
+				"twoNamespace",
+				"2",
+				datastore.Ellipsis,
+				newTx,
+				newXid,
+			).ToSql()
+		require.NoError(err)
+
+		_, err = tx.Exec(ctx, insertRelsSQL, insertRelsArgs...)
+		require.NoError(err)
+
+		return nil
+	}))
+
+	var finalTx uint64
+	var finalXid xid8
+	require.NoError(conn.QueryRow(ctx, createTx).Scan(&finalTx, &finalXid))
+
+	// Verify that the proper data is visible to the datastore
+	gcWindow := 5 * time.Second
+	gcInterval := 1 * time.Second
+	ds, err := NewPostgresDatastore(uri, RevisionQuantization(0), GCWindow(gcWindow), GCInterval(gcInterval))
+	require.NoError(err)
+
+	rows, err := conn.Query(ctx, "select namespace, created_xid, deleted_xid from relation_tuple")
+	require.NoError(err)
+
+	for rows.Next() {
+		var namespace string
+		var created, deleted xid8
+		require.NoError(rows.Scan(&namespace, &created, &deleted))
+		fmt.Printf("%s, %d, %d\n", namespace, created, deleted)
+	}
+	require.NoError(err)
+
+	verifyProperAlive(ctx, require, ds, decimal.NewFromInt(int64(oldTxIDs[1])), 1, 0)
+	verifyProperAlive(ctx, require, ds, revisionFromTransaction(finalXid), 1, 1)
+
+	// Migrate to the last phase
+	require.NoError(migrations.DatabaseMigrations.Run(
+		context.Background(),
+		migrationDriver,
+		"drop-bigserial-ids",
+		migrate.LiveRun,
+	))
+
+	verifyProperAlive(ctx, require, ds, decimal.NewFromInt(int64(oldTxIDs[1])), 1, 0)
+	verifyProperAlive(ctx, require, ds, revisionFromTransaction(finalXid), 1, 1)
+}
+
+func countIterator(require *require.Assertions, iter datastore.RelationshipIterator) int {
+	defer iter.Close()
+	var count int
+	for found := iter.Next(); found != nil; found = iter.Next() {
+		count++
+	}
+	require.NoError(iter.Err())
+	return count
+}
+
+func verifyProperAlive(
+	ctx context.Context,
+	require *require.Assertions,
+	ds datastore.Datastore,
+	revision datastore.Revision,
+	expectedOne int,
+	expectedTwo int,
+) {
+	reader := ds.SnapshotReader(revision)
+	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		ResourceType: "oneNamespace",
+	})
+	require.NoError(err)
+	require.Equal(expectedOne, countIterator(require, iter))
+
+	iter, err = reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		ResourceType: "twoNamespace",
+	})
+	require.NoError(err)
+	require.Equal(expectedTwo, countIterator(require, iter))
 }
 
 func BenchmarkPostgresQuery(b *testing.B) {

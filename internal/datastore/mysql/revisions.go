@@ -54,7 +54,7 @@ const (
 		) as fresh, ? > (
 			SELECT MAX(%[1]s)
 			FROM   %[2]s
-		) as future;`
+		) as unknown;`
 )
 
 func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
@@ -92,7 +92,7 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revi
 
 	revisionTx := transactionFromRevision(revision)
 
-	freshEnough, future, err := mds.checkValidTransaction(ctx, revisionTx)
+	freshEnough, unknown, err := mds.checkValidTransaction(ctx, revisionTx)
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -100,8 +100,8 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revi
 	if !freshEnough {
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
-	if future {
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
+	if unknown {
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 
 	return nil
@@ -138,18 +138,18 @@ func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint
 	ctx, span := tracer.Start(ctx, "checkValidTransaction")
 	defer span.End()
 
-	var freshEnough, future sql.NullBool
+	var freshEnough, unknown sql.NullBool
 
 	err := mds.db.QueryRowContext(
 		datastore.SeparateContextWithTracing(ctx), mds.validTransactionQuery, revisionTx, revisionTx,
-	).Scan(&freshEnough, &future)
+	).Scan(&freshEnough, &unknown)
 	if err != nil {
 		return false, false, fmt.Errorf(errCheckRevision, err)
 	}
 
 	span.AddEvent("DB returned validTransaction checks")
 
-	return freshEnough.Bool, future.Bool, nil
+	return freshEnough.Bool, unknown.Bool, nil
 }
 
 func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {

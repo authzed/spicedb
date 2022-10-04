@@ -126,7 +126,7 @@ func verifyUpdates(
 		select {
 		case change, ok := <-changes:
 			if !ok {
-				require.True(expectDisconnect)
+				require.True(expectDisconnect, "unexpected disconnect")
 				errWait := time.NewTimer(2 * time.Second)
 				select {
 				case err := <-errchan:
@@ -146,12 +146,14 @@ func verifyUpdates(
 
 			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
 			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
+
+			time.Sleep(1 * time.Millisecond)
 		case <-changeWait.C:
 			require.Fail("Timed out", "waiting for changes: %s", expected)
 		}
 	}
 
-	require.False(expectDisconnect)
+	require.False(expectDisconnect, "all changes verified without expected disconnect")
 }
 
 func setOfChanges(changes []*core.RelationTupleUpdate) *strset.Set {

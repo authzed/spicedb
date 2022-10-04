@@ -477,7 +477,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		// Check that we can't read a revision that's ahead of the latest
 		err = ds.CheckRevision(ctx, nextWrite.Add(decimal.NewFromInt(1_000_000_000)))
 		require.True(errors.As(err, &revisionErr))
-		require.Equal(datastore.RevisionInFuture, revisionErr.Reason())
+		require.Equal(datastore.CouldNotDetermineRevision, revisionErr.Reason())
 	})
 }
 
