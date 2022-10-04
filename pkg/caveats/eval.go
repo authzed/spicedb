@@ -2,6 +2,7 @@ package caveats
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/google/cel-go/cel"
@@ -9,6 +10,8 @@ import (
 	"github.com/google/cel-go/interpreter"
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
+
+var noSuchAttributeErrMessage = regexp.MustCompile(`^no such attribute: id: (.+), names: \[(.+)\]$`)
 
 // EvaluationConfig is configuration given to an EvaluateCaveatWithConfig call.
 type EvaluationConfig struct {
@@ -18,10 +21,11 @@ type EvaluationConfig struct {
 
 // CaveatResult holds the result of evaluating a caveat.
 type CaveatResult struct {
-	val          ref.Val
-	details      *cel.EvalDetails
-	parentCaveat *CompiledCaveat
-	isPartial    bool
+	val             ref.Val
+	details         *cel.EvalDetails
+	parentCaveat    *CompiledCaveat
+	missingVarNames []string
+	isPartial       bool
 }
 
 // Value returns the computed value for the result.
@@ -46,6 +50,15 @@ func (cr CaveatResult) PartialValue() (*CompiledCaveat, error) {
 
 	expr := interpreter.PruneAst(cr.parentCaveat.ast.Expr(), cr.details.State())
 	return &CompiledCaveat{cr.parentCaveat.celEnv, cel.ParsedExprToAst(&exprpb.ParsedExpr{Expr: expr}), cr.parentCaveat.name}, nil
+}
+
+// MissingVarNames returns the name(s) of the missing variables.
+func (cr CaveatResult) MissingVarNames() ([]string, error) {
+	if !cr.isPartial {
+		return nil, fmt.Errorf("result is fully evaluated")
+	}
+
+	return cr.missingVarNames, nil
 }
 
 // EvaluateCaveat evaluates the compiled caveat with the specified values, and returns
@@ -86,13 +99,19 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 		// *  `val`, `details`, `nil` - Successful evaluation of a non-error result.
 		// *  `val`, `details`, `err` - Successful evaluation to an error result.
 		// *  `nil`, `details`, `err` - Unsuccessful evaluation.
-		// TODO(jschorr): See if there is a better way to detect partial eval.
+		// TODO(jschorr): Change to a better way to detect partial eval if/when CEL adds properly
+		// wrapped errors.
 		if val != nil && strings.Contains(err.Error(), "no such attribute") {
-			return &CaveatResult{val, details, caveat, true}, nil
+			found := noSuchAttributeErrMessage.FindStringSubmatch(err.Error())
+			if found != nil {
+				return &CaveatResult{val, details, caveat, strings.Split(found[2], " "), true}, nil
+			}
+
+			return &CaveatResult{val, details, caveat, nil, true}, nil
 		}
 
 		return nil, err
 	}
 
-	return &CaveatResult{val, details, caveat, false}, nil
+	return &CaveatResult{val, details, caveat, nil, false}, nil
 }

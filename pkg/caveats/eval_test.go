@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var noMissingVars []string
+
 func TestEvaluateCaveat(t *testing.T) {
 	wetTz, err := time.LoadLocation("WET")
 	require.NoError(t, err)
@@ -22,6 +24,7 @@ func TestEvaluateCaveat(t *testing.T) {
 
 		expectedValue       bool
 		expectedPartialExpr string
+		missingVars         []string
 	}{
 		{
 			"static expression",
@@ -31,6 +34,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
+			noMissingVars,
 		},
 		{
 			"static false expression",
@@ -40,6 +44,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			"",
+			noMissingVars,
 		},
 		{
 			"static numeric expression",
@@ -49,6 +54,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
+			noMissingVars,
 		},
 		{
 			"static false numeric expression",
@@ -58,6 +64,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			"",
+			noMissingVars,
 		},
 		{
 			"computed expression",
@@ -71,6 +78,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
+			noMissingVars,
 		},
 		{
 			"missing variables for expression",
@@ -82,6 +90,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			"a + 2 == 4",
+			[]string{"a"},
 		},
 		{
 			"missing variables for right side of boolean expression",
@@ -96,6 +105,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
+			[]string{"b"},
 		},
 		{
 			"missing variables for left side of boolean expression",
@@ -110,6 +120,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
+			[]string{"a"},
 		},
 		{
 			"missing variables for both sides of boolean expression",
@@ -122,6 +133,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			"a == 2 || b == 6",
+			[]string{"a"}, // second part of OR expression is not evaluated
 		},
 		{
 			"missing variable for left side of and boolean expression",
@@ -136,6 +148,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			"a == 2 && true",
+			[]string{"a"},
 		},
 		{
 			"missing variable for right side of and boolean expression",
@@ -150,6 +163,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			"true && b == 6",
+			[]string{"b"},
 		},
 		{
 			"map evaluation",
@@ -167,6 +181,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
+			noMissingVars,
 		},
 		{
 			"map evaluation, wrong map kind",
@@ -184,6 +199,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"no such key: 1",
 			false,
 			"",
+			noMissingVars,
 		},
 		{
 			"map dot evaluation",
@@ -199,6 +215,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
+			noMissingVars,
 		},
 		{
 			"nested evaluation",
@@ -214,6 +231,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
+			noMissingVars,
 		},
 		{
 			"nested evaluation with missing value",
@@ -228,6 +246,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			`metadata.l[metadata.idx] == "hello"`,
+			[]string{"metadata.idx"},
 		},
 		{
 			"nested evaluation with missing list",
@@ -242,6 +261,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			`metadata.l[metadata.idx] == "hello"`,
+			[]string{"metadata.l"},
 		},
 		{
 			"timestamp operations default to UTC",
@@ -255,6 +275,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
+			noMissingVars,
 		},
 	}
 
@@ -283,6 +304,10 @@ func TestEvaluateCaveat(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Equal(t, tc.expectedPartialExpr, astExpr)
+
+					vars, err := result.MissingVarNames()
+					require.NoError(t, err)
+					require.EqualValues(t, tc.missingVars, vars)
 				} else {
 					require.False(t, result.IsPartial())
 					_, partialErr := result.PartialValue()

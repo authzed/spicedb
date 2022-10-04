@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
+	dispatchgraph "github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -53,37 +54,35 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, rewritePermissionsError(ctx, err)
 	}
 
-	debugging := dispatch.DispatchCheckRequest_NO_DEBUG
+	isDebuggingEnabled := false
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if _, isDebuggingEnabled := md[string(requestmeta.RequestDebugInformation)]; isDebuggingEnabled {
-			debugging = dispatch.DispatchCheckRequest_ENABLE_DEBUGGING
-		}
+		_, isDebuggingEnabled = md[string(requestmeta.RequestDebugInformation)]
 	}
 
-	cr, err := ps.dispatch.DispatchCheck(ctx, &dispatch.DispatchCheckRequest{
-		Metadata: &dispatch.ResolverMeta{
-			AtRevision:     atRevision.String(),
-			DepthRemaining: ps.config.MaximumAPIDepth,
+	cr, metadata, err := dispatchgraph.ComputeCheck(ctx, ps.dispatch,
+		dispatchgraph.CheckParameters{
+			ResourceType: &core.RelationReference{
+				Namespace: req.Resource.ObjectType,
+				Relation:  req.Permission,
+			},
+			ResourceID: req.Resource.ObjectId,
+			Subject: &core.ObjectAndRelation{
+				Namespace: req.Subject.Object.ObjectType,
+				ObjectId:  req.Subject.Object.ObjectId,
+				Relation:  normalizeSubjectRelation(req.Subject),
+			},
+			CaveatContext:      nil, // TODO(jschorr): get from the request
+			AtRevision:         atRevision,
+			MaximumDepth:       ps.config.MaximumAPIDepth,
+			IsDebuggingEnabled: isDebuggingEnabled,
 		},
-		ResourceRelation: &core.RelationReference{
-			Namespace: req.Resource.ObjectType,
-			Relation:  req.Permission,
-		},
-		ResourceIds:    []string{req.Resource.ObjectId},
-		ResultsSetting: dispatch.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
-		Subject: &core.ObjectAndRelation{
-			Namespace: req.Subject.Object.ObjectType,
-			ObjectId:  req.Subject.Object.ObjectId,
-			Relation:  normalizeSubjectRelation(req.Subject),
-		},
-		Debug: debugging,
-	})
-	usagemetrics.SetInContext(ctx, cr.Metadata)
+	)
+	usagemetrics.SetInContext(ctx, metadata)
 
-	if debugging == dispatch.DispatchCheckRequest_ENABLE_DEBUGGING && cr.Metadata.DebugInfo != nil {
+	if isDebuggingEnabled && metadata.DebugInfo != nil {
 		// Convert the dispatch debug information into API debug information and marshal into
 		// the footer.
-		converted, cerr := dispatchpkg.ConvertDispatchDebugInformation(ctx, cr.Metadata, ds)
+		converted, cerr := dispatchpkg.ConvertDispatchDebugInformation(ctx, metadata, ds)
 		if cerr != nil {
 			return nil, rewritePermissionsError(ctx, cerr)
 		}
@@ -105,14 +104,12 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, rewritePermissionsError(ctx, err)
 	}
 
-	// TODO(jschorr): Support caveats here
+	// TODO(jschorr): Support caveated response here
 	permissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
-	if found, ok := cr.ResultsByResourceId[req.Resource.ObjectId]; ok {
-		if found.Membership == dispatch.ResourceCheckResult_MEMBER {
-			permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
-		} else {
-			panic("caveats are not yet supported")
-		}
+	if cr.Membership == dispatch.ResourceCheckResult_MEMBER {
+		permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
+	} else if cr.Membership == dispatch.ResourceCheckResult_CAVEATED_MEMBER {
+		panic("caveats are not yet supported")
 	}
 
 	return &v1.CheckPermissionResponse{

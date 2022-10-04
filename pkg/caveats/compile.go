@@ -89,8 +89,8 @@ func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 }
 
 // DeserializeCaveat deserializes a byte-serialized caveat back into a CompiledCaveat.
-func DeserializeCaveat(env *Environment, serialized []byte) (*CompiledCaveat, error) {
-	celEnv, err := env.asCelEnvironment()
+func DeserializeCaveat(serialized []byte) (*CompiledCaveat, error) {
+	celEnv, err := NewEnvironment().asCelEnvironment()
 	if err != nil {
 		return nil, err
 	}
