@@ -544,6 +544,63 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				},
 			},
 		},
+		{
+			"authorize if resource was created before subject",
+			`definition root {
+						relation actors: actor
+					}
+                    definition resource {
+						relation creation_policy: root#actors
+						permission tag = creation_policy
+					}
+					
+					definition actor {}`,
+			map[string]caveatDefinition{
+				"created_before": {
+					"timestamp(actor_created_at) > timestamp(created_at)",
+					map[string]caveats.VariableType{
+						"created_at":       caveats.StringType,
+						"actor_created_at": caveats.StringType,
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"resource:foo#creation_policy@root:root#actors",
+					"created_before",
+					map[string]any{
+						"created_at": "2022-01-01T10:00:00.021Z",
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"root:root#actors@actor:johndoe",
+					"",
+					nil,
+				},
+			},
+			[]check{
+				{
+					"resource:foo#tag@actor:johndoe",
+					map[string]any{
+						"actor_created_at": "2022-01-01T11:00:00.021Z",
+					},
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"resource:foo#tag@actor:johndoe",
+					map[string]any{
+						"actor_created_at": "2022-01-01T09:00:00.021Z",
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
 	}
 
 	for _, tt := range testCases {
