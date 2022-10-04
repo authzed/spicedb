@@ -18,6 +18,15 @@ func ParseIPAddress(ip string) (IPAddress, error) {
 	return IPAddress{parsed}, err
 }
 
+// MustParseIPAddress parses the string form of an IP Address into an IPAddress object type.
+func MustParseIPAddress(ip string) IPAddress {
+	ipAddress, err := ParseIPAddress(ip)
+	if err != nil {
+		panic(err)
+	}
+	return ipAddress
+}
+
 var ipaddressCelType = types.NewTypeValue("IPAddress", traits.ReceiverType)
 
 // IPAddress defines a custom type for representing an IP Address in caveats.

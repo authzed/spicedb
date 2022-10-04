@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/authzed/spicedb/pkg/caveats/customtypes"
+
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -369,6 +371,88 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				},
 			},
 		},
+		{
+			"IP Allowlists example",
+			`definition user {}
+
+					definition organization {
+						relation members: user
+						relation ip_allowlist_policy: organization#members
+					
+						permission policy = ip_allowlist_policy
+					}
+					
+					definition repository {
+						relation owner: organization
+						relation reader: user
+					
+						permission read = reader & owner->policy
+					}`,
+			map[string]caveatDefinition{
+				"ip_allowlist": {
+					"user_ip.in_cidr(cidr)",
+					map[string]caveats.VariableType{
+						"user_ip": caveats.IPAddressType,
+						"cidr":    caveats.StringType,
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"repository:foobar#owner@organization:myorg",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"organization:myorg#members@user:johndoe",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"repository:foobar#reader@user:johndoe",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"organization:myorg#ip_allowlist_policy@organization:myorg#members",
+					"ip_allowlist",
+					map[string]any{
+						"cidr": "192.168.0.0/16",
+					},
+				},
+			},
+			[]check{
+				{
+					"repository:foobar#read@user:johndoe",
+					nil,
+					v1.ResourceCheckResult_CAVEATED_MEMBER,
+					[]string{"user_ip"},
+					"",
+				},
+				{
+					"repository:foobar#read@user:johndoe",
+					map[string]any{
+						"user_ip": customtypes.MustParseIPAddress("192.168.0.1"),
+					},
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"repository:foobar#read@user:johndoe",
+					map[string]any{
+						"user_ip": customtypes.MustParseIPAddress("9.2.3.1"),
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -384,32 +468,34 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, r := range tt.checks {
-				rel := tuple.MustParse(r.check)
+				t.Run(r.check, func(t *testing.T) {
+					rel := tuple.MustParse(r.check)
 
-				result, _, err := ComputeCheck(ctx, dispatch,
-					CheckParameters{
-						ResourceType: &core.RelationReference{
-							Namespace: rel.ResourceAndRelation.Namespace,
-							Relation:  rel.ResourceAndRelation.Relation,
-						},
-						ResourceID:         rel.ResourceAndRelation.ObjectId,
-						Subject:            rel.Subject,
-						CaveatContext:      r.context,
-						AtRevision:         revision,
-						MaximumDepth:       50,
-						IsDebuggingEnabled: true,
-					})
+					result, _, err := ComputeCheck(ctx, dispatch,
+						CheckParameters{
+							ResourceType: &core.RelationReference{
+								Namespace: rel.ResourceAndRelation.Namespace,
+								Relation:  rel.ResourceAndRelation.Relation,
+							},
+							ResourceID:         rel.ResourceAndRelation.ObjectId,
+							Subject:            rel.Subject,
+							CaveatContext:      r.context,
+							AtRevision:         revision,
+							MaximumDepth:       50,
+							IsDebuggingEnabled: true,
+						})
 
-				if r.error != "" {
-					require.Equal(t, err.Error(), r.error)
-				} else {
-					require.NoError(t, err)
-					require.Equal(t, v1.ResourceCheckResult_Membership_name[int32(r.member)], v1.ResourceCheckResult_Membership_name[int32(result.Membership)], "mismatch for %s with context %v", r.check, r.context)
+					if r.error != "" {
+						require.Equal(t, err.Error(), r.error)
+					} else {
+						require.NoError(t, err)
+						require.Equal(t, v1.ResourceCheckResult_Membership_name[int32(r.member)], v1.ResourceCheckResult_Membership_name[int32(result.Membership)], "mismatch for %s with context %v", r.check, r.context)
 
-					if result.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER {
-						require.Equal(t, r.expectedMissingFields, result.MissingExprFields)
+						if result.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER {
+							require.Equal(t, r.expectedMissingFields, result.MissingExprFields)
+						}
 					}
-				}
+				})
 			}
 		})
 	}
