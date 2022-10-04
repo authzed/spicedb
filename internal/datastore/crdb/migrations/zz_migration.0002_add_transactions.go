@@ -14,7 +14,7 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("add-transactions-table", "initial", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
+	if err := CRDBMigrations.Register("add-transactions-table", "initial", "initial", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, createTransactions)
 		return err
 	}); err != nil {

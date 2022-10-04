@@ -49,10 +49,11 @@ type MigrationFunc[C any] func(ctx context.Context, conn C) error
 type TxMigrationFunc[T any] func(ctx context.Context, tx T) error
 
 type migration[C any, T any] struct {
-	version  string
-	replaces string
-	up       MigrationFunc[C]
-	upTx     TxMigrationFunc[T]
+	version         string
+	replaces        string
+	expectedVersion string
+	up              MigrationFunc[C]
+	upTx            TxMigrationFunc[T]
 }
 
 // Manager is used to manage a self-contained set of migrations. Standard usage
@@ -77,7 +78,7 @@ func NewManager[D Driver[C, T], C any, T any]() *Manager[D, C, T] {
 // interface as its only parameters, which will be passed directly from the Run
 // method into the upgrade function. If not extra fields or data are required
 // the function can alternatively take a Driver interface param.
-func (m *Manager[D, C, T]) Register(version, replaces string, up MigrationFunc[C], upTx TxMigrationFunc[T]) error {
+func (m *Manager[D, C, T]) Register(version, replaces, expectedVersion string, up MigrationFunc[C], upTx TxMigrationFunc[T]) error {
 	if strings.ToLower(version) == Head {
 		return fmt.Errorf("unable to register version called head")
 	}
@@ -87,10 +88,11 @@ func (m *Manager[D, C, T]) Register(version, replaces string, up MigrationFunc[C
 	}
 
 	m.migrations[version] = migration[C, T]{
-		version:  version,
-		replaces: replaces,
-		up:       up,
-		upTx:     upTx,
+		version:         version,
+		replaces:        replaces,
+		expectedVersion: expectedVersion,
+		up:              up,
+		upTx:            upTx,
 	}
 
 	return nil
@@ -124,8 +126,8 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 				return fmt.Errorf("unable to load version from driver: %w", err)
 			}
 
-			if migrationToRun.replaces != currentVersion {
-				return fmt.Errorf("migration attempting to run out of order: %s != %s", currentVersion, migrationToRun.replaces)
+			if migrationToRun.expectedVersion != currentVersion {
+				return fmt.Errorf("migration attempting to run out of order: %s != %s", currentVersion, migrationToRun.expectedVersion)
 			}
 
 			log.Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
@@ -149,14 +151,6 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 				return nil
 			}); err != nil {
 				return fmt.Errorf("error executing migration transaction function: %w", err)
-			}
-
-			currentVersion, err = driver.Version(ctx)
-			if err != nil {
-				return fmt.Errorf("unable to load version from driver: %w", err)
-			}
-			if migrationToRun.version != currentVersion {
-				return fmt.Errorf("the migration function succeeded, but the driver did not report the expected version: %s", migrationToRun.version)
 			}
 		}
 	}

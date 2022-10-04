@@ -1,9 +1,7 @@
 package migrations
 
 import (
-	"context"
-
-	"github.com/jackc/pgx/v4"
+	"fmt"
 )
 
 var addXIDIndices = []string{
@@ -26,18 +24,28 @@ var addXIDIndices = []string{
 }
 
 func init() {
-	if err := DatabaseMigrations.Register("add-xid-indices", "add-xid-columns",
-		func(ctx context.Context, conn *pgx.Conn) error {
-			for _, stmt := range addXIDIndices {
-				if _, err := conn.Exec(ctx, stmt); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		},
-		noTxMigration,
-	); err != nil {
-		panic("failed to register migration: " + err.Error())
+	previous := "add-xid-columns"
+	for i, stmt := range addXIDIndices {
+		m := &PostgresMigration{
+			version:         fmt.Sprintf("add-xid-indices-%d", i),
+			replaces:        previous,
+			expected:        "add-xid-columns",
+			migrationType:   DDL,
+			migrationSafety: contract,
+		}
+		m.Statement(stmt)
+		RegisterPGMigration(m)
+		previous = m.version
 	}
+
+	m2 := &PostgresMigration{
+		version:         "add-xid-indices",
+		replaces:        previous,
+		expected:        "add-xid-columns",
+		migrationType:   DML,
+		migrationSafety: expand,
+	}
+	// the previous migrations don't write the version, so check n-1
+	m2.WriteVersionOverride("add-xid-columns")
+	RegisterPGMigration(m2)
 }

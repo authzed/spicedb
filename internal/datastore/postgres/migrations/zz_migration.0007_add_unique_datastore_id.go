@@ -1,30 +1,32 @@
 package migrations
 
 import (
-	"context"
+	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
 )
 
 const (
 	createUniqueIDTable = `CREATE TABLE metadata (
 		unique_id VARCHAR PRIMARY KEY
-	);`
-	insertUniqueID = `INSERT INTO metadata (unique_id) VALUES ($1);`
+	);
+`
+	insertUniqueID = `INSERT INTO metadata (unique_id) VALUES ('%s');
+`
 )
 
 func init() {
-	if err := DatabaseMigrations.Register("add-unique-datastore-id", "add-gc-index", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, createUniqueIDTable); err != nil {
-			return err
-		}
-
-		if _, err := tx.Exec(ctx, insertUniqueID, uuid.NewString()); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		panic("failed to register migration: " + err.Error())
+	m := &PostgresMigration{
+		version:         "add-unique-datastore-id",
+		replaces:        "add-gc-index",
+		expected:        "add-gc-index",
+		migrationType:   DDL,
+		migrationSafety: expand,
 	}
+	m.Begin()
+	m.Statement(createUniqueIDTable)
+	m.Statement(fmt.Sprintf(insertUniqueID, uuid.New()))
+	m.WriteVersion()
+	m.Commit()
+	RegisterPGMigration(m)
 }

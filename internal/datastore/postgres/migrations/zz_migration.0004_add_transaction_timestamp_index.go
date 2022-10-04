@@ -1,20 +1,19 @@
 package migrations
 
-import (
-	"context"
-
-	"github.com/jackc/pgx/v4"
-)
-
-const createIndexOnTupleTransactionTimestamp = `
-	CREATE INDEX ix_relation_tuple_transaction_by_timestamp on relation_tuple_transaction(timestamp);
+const createIndexOnTupleTransactionTimestamp = `CREATE INDEX ix_relation_tuple_transaction_by_timestamp on relation_tuple_transaction(timestamp);
 `
 
 func init() {
-	if err := DatabaseMigrations.Register("add-transaction-timestamp-index", "add-unique-living-ns", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, createIndexOnTupleTransactionTimestamp)
-		return err
-	}); err != nil {
-		panic("failed to register migration: " + err.Error())
+	m := &PostgresMigration{
+		version:         "add-transaction-timestamp-index",
+		replaces:        "add-unique-living-ns",
+		expected:        "add-unique-living-ns",
+		migrationType:   DDL,
+		migrationSafety: expand,
 	}
+	m.Begin()
+	m.Statement(createIndexOnTupleTransactionTimestamp)
+	m.WriteVersion()
+	m.Commit()
+	RegisterPGMigration(m)
 }

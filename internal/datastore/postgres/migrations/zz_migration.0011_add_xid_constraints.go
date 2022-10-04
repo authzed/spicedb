@@ -1,21 +1,9 @@
 package migrations
 
-import (
-	"context"
-	"fmt"
+import "fmt"
 
-	"github.com/jackc/pgx/v4"
-)
-
-const (
-	getNSConfigPkeyName = `
-	SELECT constraint_name FROM information_schema.table_constraints
-		WHERE table_schema = 'public'
-      	AND table_name = 'namespace_config'
-      	AND constraint_type = 'PRIMARY KEY';`
-
-	dropNSConfigIDPkey = "ALTER TABLE namespace_config DROP CONSTRAINT %s;"
-)
+const dropNSConfigIDPkey = `ALTER TABLE namespace_config DROP CONSTRAINT namespace_config_pkey;
+`
 
 var addXIDConstraints = []string{
 	`ALTER TABLE relation_tuple_transaction
@@ -31,26 +19,40 @@ var addXIDConstraints = []string{
 }
 
 func init() {
-	if err := DatabaseMigrations.Register("add-xid-constraints", "add-xid-indices",
-		noNonatomicMigration,
-		func(ctx context.Context, tx pgx.Tx) error {
-			var constraintName string
-			if err := tx.QueryRow(ctx, getNSConfigPkeyName).Scan(&constraintName); err != nil {
-				return err
-			}
-
-			if _, err := tx.Exec(ctx, fmt.Sprintf(dropNSConfigIDPkey, constraintName)); err != nil {
-				return err
-			}
-
-			for _, stmt := range addXIDConstraints {
-				if _, err := tx.Exec(ctx, stmt); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		}); err != nil {
-		panic("failed to register migration: " + err.Error())
+	m := &PostgresMigration{
+		version:         "drop-ns-config-pk-2",
+		replaces:        "add-xid-indices",
+		expected:        "add-xid-indices",
+		migrationType:   DDL,
+		migrationSafety: contract,
 	}
+	m.Begin()
+	m.Statement(dropNSConfigIDPkey)
+	m.WriteVersion()
+	m.Commit()
+	RegisterPGMigration(m)
+
+	previous := m.version
+	for i, stmt := range addXIDConstraints {
+		m := &PostgresMigration{
+			version:         fmt.Sprintf("add-xid-constraints-%d", i),
+			replaces:        previous,
+			expected:        m.version,
+			migrationType:   DDL,
+			migrationSafety: contract,
+		}
+		m.Statement(stmt)
+		RegisterPGMigration(m)
+		previous = m.version
+	}
+	m2 := &PostgresMigration{
+		version:         "add-xid-constraints",
+		replaces:        previous,
+		expected:        m.version,
+		migrationType:   DML,
+		migrationSafety: expand,
+	}
+	// the previous migrations don't write the version, so check n-1
+	m2.WriteVersionOverride(m.version)
+	RegisterPGMigration(m2)
 }

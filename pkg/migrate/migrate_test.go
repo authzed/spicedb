@@ -49,13 +49,13 @@ func TestContextError(t *testing.T) {
 	ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(1*time.Millisecond))
 	m := NewManager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]()
 
-	err := m.Register("1", "", func(ctx context.Context, conn fakeConnPool) error {
+	err := m.Register("1", "", "", func(ctx context.Context, conn fakeConnPool) error {
 		cancelFunc()
 		return nil
 	}, noTxMigration)
 	req.NoError(err)
 
-	err = m.Register("2", "1", func(ctx context.Context, conn fakeConnPool) error {
+	err = m.Register("2", "1", "1", func(ctx context.Context, conn fakeConnPool) error {
 		panic("the second migration should never be executed")
 	}, noTxMigration)
 	req.NoError(err)
@@ -179,41 +179,27 @@ func TestIsHeadCompatible(t *testing.T) {
 	}
 }
 
-func TestManagerEnsureVersionIsWritten(t *testing.T) {
-	req := require.New(t)
-	m := NewManager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]()
-	err := m.Register("0", "", noNonatomicMigration, noTxMigration)
-	req.NoError(err)
-	drv := &fakeDriver{}
-	err = m.Run(context.Background(), drv, "0", LiveRun)
-	req.Error(err)
-
-	writtenVer, err := drv.Version(context.Background())
-	req.NoError(err)
-	req.Equal("", writtenVer)
-}
-
 var noMigrations = map[string]migration[fakeConnPool, fakeTx]{}
 
 var simpleMigrations = map[string]migration[fakeConnPool, fakeTx]{
-	"123": {"123", "", noNonatomicMigration, noTxMigration},
+	"123": {"123", "", "", noNonatomicMigration, noTxMigration},
 }
 
 var singleHeadedChain = map[string]migration[fakeConnPool, fakeTx]{
-	"123": {"123", "", noNonatomicMigration, noTxMigration},
-	"456": {"456", "123", noNonatomicMigration, noTxMigration},
-	"789": {"789", "456", noNonatomicMigration, noTxMigration},
+	"123": {"123", "", "", noNonatomicMigration, noTxMigration},
+	"456": {"456", "123", "123", noNonatomicMigration, noTxMigration},
+	"789": {"789", "456", "456", noNonatomicMigration, noTxMigration},
 }
 
 var multiHeadedChain = map[string]migration[fakeConnPool, fakeTx]{
-	"123":  {"123", "", noNonatomicMigration, noTxMigration},
-	"456":  {"456", "123", noNonatomicMigration, noTxMigration},
-	"789a": {"789a", "456", noNonatomicMigration, noTxMigration},
-	"789b": {"789b", "456", noNonatomicMigration, noTxMigration},
+	"123":  {"123", "", "", noNonatomicMigration, noTxMigration},
+	"456":  {"456", "123", "123", noNonatomicMigration, noTxMigration},
+	"789a": {"789a", "456", "456", noNonatomicMigration, noTxMigration},
+	"789b": {"789b", "456", "456", noNonatomicMigration, noTxMigration},
 }
 
 var missingEarlyMigrations = map[string]migration[fakeConnPool, fakeTx]{
-	"456": {"456", "123", noNonatomicMigration, noTxMigration},
-	"789": {"789", "456", noNonatomicMigration, noTxMigration},
-	"10":  {"10", "789", noNonatomicMigration, noTxMigration},
+	"456": {"456", "123", "123", noNonatomicMigration, noTxMigration},
+	"789": {"789", "456", "456", noNonatomicMigration, noTxMigration},
+	"10":  {"10", "789", "789", noNonatomicMigration, noTxMigration},
 }

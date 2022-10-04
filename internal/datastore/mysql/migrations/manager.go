@@ -49,5 +49,5 @@ func registerMigration(version, replaces string, up migrate.MigrationFunc[Wrappe
 	}
 
 	// register the migration
-	return Manager.Register(version, replaces, up, upTx)
+	return Manager.Register(version, replaces, replaces, up, upTx)
 }

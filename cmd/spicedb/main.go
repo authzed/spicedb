@@ -63,6 +63,10 @@ func main() {
 	cmd.RegisterHeadFlags(headCmd)
 	rootCmd.AddCommand(headCmd)
 
+	migrationExportCmd := cmd.NewMigrationCommand(rootCmd.Use)
+	cmd.RegisterMigrationFlags(migrationExportCmd)
+	rootCmd.AddCommand(migrationExportCmd)
+
 	// Add server commands
 	var serverConfig cmdutil.Config
 	serveCmd := cmd.NewServeCommand(rootCmd.Use, &serverConfig)

@@ -48,7 +48,7 @@ const (
 )
 
 func init() {
-	if err := SpannerMigrations.Register("initial", "", func(ctx context.Context, w Wrapper) error {
+	if err := SpannerMigrations.Register("initial", "", "", func(ctx context.Context, w Wrapper) error {
 		updateOp, err := w.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
 			Database: w.client.DatabaseName(),
 			Statements: []string{

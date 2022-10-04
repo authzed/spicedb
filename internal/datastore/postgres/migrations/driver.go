@@ -72,21 +72,6 @@ func (apd *AlembicPostgresDriver) Close(ctx context.Context) error {
 }
 
 func (apd *AlembicPostgresDriver) WriteVersion(ctx context.Context, tx pgx.Tx, version, replaced string) error {
-	result, err := tx.Exec(
-		ctx,
-		"UPDATE alembic_version SET version_num=$1 WHERE version_num=$2",
-		version,
-		replaced,
-	)
-	if err != nil {
-		return fmt.Errorf("unable to update version row: %w", err)
-	}
-
-	updatedCount := result.RowsAffected()
-	if updatedCount != 1 {
-		return fmt.Errorf("writing version update affected %d rows, should be 1", updatedCount)
-	}
-
 	return nil
 }
 

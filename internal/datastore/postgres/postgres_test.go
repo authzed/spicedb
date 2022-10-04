@@ -12,6 +12,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
+	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
@@ -101,6 +102,34 @@ func TestPostgresDatastore(t *testing.T) {
 
 	t.Run("XIDMigrationAssumptionsTest", func(t *testing.T) {
 		XIDMigrationAssumptionsTest(t, b)
+	})
+
+	t.Run("ValidExternalMigrations", func(t *testing.T) {
+		connString := b.NewDatabase(t)
+
+		connectStr, err := pq.ParseURL(connString)
+		require.NoError(t, err)
+		db, err := pgx.Connect(context.Background(), connectStr)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// run through the exported migrations as sql
+		migs := migrations.PostgresMigrations
+		migs.Sort()
+		for _, m := range migs {
+			_, err := db.Exec(ctx, string(m.Bytes()))
+			require.NoError(t, err)
+		}
+		ds, err := NewPostgresDatastore(connString,
+			RevisionQuantization(0),
+			GCWindow(1*time.Millisecond),
+			WatchBufferLength(1))
+		require.NoError(t, err)
+
+		// run a test to sanity check the state of the datastore
+		ChunkedGarbageCollectionTest(t, ds)
 	})
 }
 
