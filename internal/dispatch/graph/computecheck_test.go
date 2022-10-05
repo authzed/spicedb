@@ -601,6 +601,57 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				},
 			},
 		},
+		{
+			"time-bound permission",
+			`definition resource {
+						relation reader: user
+						permission view = reader
+					}
+					
+					definition user {}`,
+			map[string]caveatDefinition{
+				"expired": {
+					"now() < timestamp(expiration)",
+					map[string]caveats.VariableType{
+						"expiration": caveats.StringType,
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"resource:foo#reader@user:sarah",
+					"expired",
+					map[string]any{
+						"expiration": "2030-01-01T10:00:00.021Z",
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"resource:foo#reader@user:john",
+					"expired",
+					map[string]any{
+						"expiration": "2020-01-01T10:00:00.021Z",
+					},
+				},
+			},
+			[]check{
+				{
+					"resource:foo#view@user:sarah",
+					nil,
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"resource:foo#view@user:john",
+					nil,
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
 	}
 
 	for _, tt := range testCases {

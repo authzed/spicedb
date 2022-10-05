@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/google/cel-go/cel"
-
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
