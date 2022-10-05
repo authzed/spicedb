@@ -5,12 +5,12 @@ import (
 	"errors"
 	"io"
 
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/balancer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )

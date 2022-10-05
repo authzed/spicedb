@@ -2,7 +2,7 @@
 // Licensed under the Apache License 2.0.
 
 // Package logging is a copy of https://github.com/grpc-ecosystem/go-grpc-middleware/tree/v2/providers/zerolog
-// with race conditions removed
+// with race conditions removed (see grpc-ecosystem/go-grpc-middleware#487)
 package logging
 
 import (
@@ -14,20 +14,20 @@ import (
 )
 
 // Compatibility check.
-var _ logging.Logger = &Logger{}
+var _ logging.Logger = &interceptor{}
 
-// Logger is a zerolog logging adapter compatible with logging middlewares.
-type Logger struct {
+// interceptor is a zerolog logging adapter compatible with logging middlewares.
+type interceptor struct {
 	zerolog.Logger
 }
 
-// InterceptorLogger is a zerolog.Logger to Logger adapter.
-func InterceptorLogger(logger zerolog.Logger) *Logger {
-	return &Logger{logger}
+// InterceptorLogger is a zerolog.interceptor to interceptor adapter.
+func InterceptorLogger(logger zerolog.Logger) logging.Logger {
+	return &interceptor{logger}
 }
 
-// Log implements the logging.Logger interface.
-func (l *Logger) Log(lvl logging.Level, msg string) {
+// Log implements the logging.interceptor interface.
+func (l *interceptor) Log(lvl logging.Level, msg string) {
 	switch lvl {
 	case logging.DEBUG:
 		l.Debug().Msg(msg)
@@ -44,8 +44,8 @@ func (l *Logger) Log(lvl logging.Level, msg string) {
 	}
 }
 
-// With implements the logging.Logger interface.
-func (l Logger) With(fields ...string) logging.Logger {
+// With implements the logging.interceptor interface.
+func (l interceptor) With(fields ...string) logging.Logger {
 	vals := make(map[string]interface{}, len(fields)/2)
 	for i := 0; i < len(fields); i += 2 {
 		vals[fields[i]] = fields[i+1]

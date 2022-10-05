@@ -9,7 +9,6 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -38,8 +37,6 @@ func TestHealthCheck(t *testing.T) {
 
 			dispatchConns, cleanup := testserver.TestClusterWithDispatch(t, 2, ds)
 			t.Cleanup(cleanup)
-
-			zerolog.SetGlobalLevel(zerolog.Disabled)
 
 			runHealthChecks(require, dispatchConns[0])
 		})

@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/rs/zerolog/log"
 	"github.com/sercand/kuberesolver/v3"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/balancer"
 	_ "google.golang.org/grpc/xds"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	consistentbalancer "github.com/authzed/spicedb/pkg/balancer"
 	"github.com/authzed/spicedb/pkg/cmd"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"

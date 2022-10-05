@@ -8,7 +8,8 @@ import (
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/go-co-op/gocron"
-	"github.com/rs/zerolog/log"
+
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 // runGC runs the gc cron job, returning an error if it can't start properly.

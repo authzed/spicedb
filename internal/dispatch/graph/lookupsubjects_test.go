@@ -6,7 +6,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
+
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 

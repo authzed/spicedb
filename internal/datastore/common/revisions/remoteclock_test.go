@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 

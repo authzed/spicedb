@@ -6,32 +6,35 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/go-logr/zerologr"
 	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jzelinskie/cobrautil"
+	"github.com/jzelinskie/cobrautil/v2"
+	"github.com/jzelinskie/cobrautil/v2/cobragrpc"
+	"github.com/jzelinskie/cobrautil/v2/cobrahttp"
 	"github.com/jzelinskie/stringz"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 )
 
 func RegisterDevtoolsFlags(cmd *cobra.Command) {
-	cobrautil.RegisterGrpcServerFlags(cmd.Flags(), "grpc", "gRPC", ":50051", true)
-	cobrautil.RegisterHTTPServerFlags(cmd.Flags(), "metrics", "metrics", ":9090", true)
-	cobrautil.RegisterHTTPServerFlags(cmd.Flags(), "http", "download", ":8443", false)
+	grpcServiceBuilder().RegisterFlags(cmd.Flags())
+	httpMetricsServiceBuilder().RegisterFlags(cmd.Flags())
+	httpDownloadServiceBuilder().RegisterFlags(cmd.Flags())
 
 	cmd.Flags().String("share-store", "inmemory", "kind of share store to use")
 	cmd.Flags().String("share-store-salt", "", "salt for share store hashing")
@@ -53,12 +56,14 @@ func NewDevtoolsCommand(programName string) *cobra.Command {
 	}
 }
 
-func runfunc(cmd *cobra.Command, args []string) error {
-	grpcServer, err := cobrautil.GrpcServerFromFlags(cmd, "grpc", grpc.ChainUnaryInterceptor(
-		grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
-		otelgrpc.UnaryServerInterceptor(),
-		grpcprom.UnaryServerInterceptor,
-	))
+func runfunc(cmd *cobra.Command, _ []string) error {
+	grpcBuilder := grpcServiceBuilder()
+	grpcServer, err := grpcBuilder.ServerFromFlags(cmd,
+		grpc.ChainUnaryInterceptor(
+			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
+			otelgrpc.UnaryServerInterceptor(),
+			grpcprom.UnaryServerInterceptor,
+		))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create gRPC server")
 	}
@@ -71,25 +76,26 @@ func runfunc(cmd *cobra.Command, args []string) error {
 	registerDeveloperGrpcServices(grpcServer, shareStore)
 
 	go func() {
-		if err := cobrautil.GrpcListenFromFlags(cmd, "grpc", grpcServer, zerolog.InfoLevel); err != nil {
+		if err := grpcBuilder.ListenFromFlags(cmd, grpcServer); err != nil {
 			log.Warn().Err(err).Msg("gRPC service did not shutdown cleanly")
 		}
 	}()
 
 	// Start the metrics endpoint.
-	metricsSrv := cobrautil.HTTPServerFromFlags(cmd, "metrics")
-	metricsSrv.Handler = server.MetricsHandler(server.DisableTelemetryHandler)
+	metricsHTTP := httpMetricsServiceBuilder()
+	metricsSrv := metricsHTTP.ServerFromFlags(cmd)
 	go func() {
-		if err := cobrautil.HTTPListenFromFlags(cmd, "metrics", metricsSrv, zerolog.InfoLevel); err != nil {
+		if err := metricsHTTP.ListenFromFlags(cmd, metricsSrv); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
 
 	// start the http download api
-	downloadSrv := cobrautil.HTTPServerFromFlags(cmd, "http")
-	downloadSrv.Handler = v0svc.NewHTTPDownloadServer(cobrautil.MustGetString(cmd, "http-addr"), shareStore).Handler
+	downloadHTTP := httpDownloadServiceBuilder(cobrahttp.WithHandler(v0svc.DownloadHandler(shareStore)))
+	downloadSrv := downloadHTTP.ServerFromFlags(cmd)
+	downloadSrv.ReadHeaderTimeout = 5 * time.Second
 	go func() {
-		if err := cobrautil.HTTPListenFromFlags(cmd, "http", downloadSrv, zerolog.InfoLevel); err != nil {
+		if err := downloadHTTP.ListenFromFlags(cmd, downloadSrv); err != nil {
 			log.Fatal().Err(err).Msg("failed while serving download http api")
 		}
 	}()
@@ -98,10 +104,37 @@ func runfunc(cmd *cobra.Command, args []string) error {
 	log.Info().Msg("received interrupt")
 	grpcServer.GracefulStop()
 	if err := metricsSrv.Close(); err != nil {
-		log.Fatal().Err(err).Msg("failed while shutting down metrics server")
+		log.Err(err).Msg("failed while shutting down metrics server")
+		return err
+	}
+	if err := downloadSrv.Close(); err != nil {
+		log.Err(err).Msg("failed while shutting down download server")
+		return err
 	}
 
 	return nil
+}
+
+func httpDownloadServiceBuilder(option ...cobrahttp.Option) *cobrahttp.Builder {
+	option = append(option,
+		cobrahttp.WithLogger(zerologr.New(&log.Logger)),
+		cobrahttp.WithFlagPrefix("http"))
+	return cobrahttp.New("download", option...)
+}
+
+func httpMetricsServiceBuilder() *cobrahttp.Builder {
+	return cobrahttp.New("metrics",
+		cobrahttp.WithLogger(zerologr.New(&log.Logger)),
+		cobrahttp.WithFlagPrefix("metrics"),
+		cobrahttp.WithHandler(server.MetricsHandler(server.DisableTelemetryHandler)),
+	)
+}
+
+func grpcServiceBuilder() *cobragrpc.Builder {
+	return cobragrpc.New("grpc",
+		cobragrpc.WithLogger(zerologr.New(&log.Logger)),
+		cobragrpc.WithFlagPrefix("grpc"),
+	)
 }
 
 func shareStoreFromCmd(cmd *cobra.Command) (v0svc.ShareStore, error) {

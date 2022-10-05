@@ -11,7 +11,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/spanner"
@@ -45,7 +44,6 @@ func TestBurst(t *testing.T) {
 			conns, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
 			t.Cleanup(cleanup)
 
-			zerolog.SetGlobalLevel(zerolog.Disabled)
 			client := v1.NewPermissionsServiceClient(conns[0])
 			var wg sync.WaitGroup
 			for i := 0; i < 100; i++ {

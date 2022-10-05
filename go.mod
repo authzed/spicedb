@@ -21,6 +21,7 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v0.6.13
 	github.com/fatih/color v1.13.0
 	github.com/go-co-op/gocron v1.17.0
+	github.com/go-logr/zerologr v1.2.2
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
@@ -42,7 +43,7 @@ require (
 	github.com/jackc/pgx/v4 v4.17.2
 	github.com/johannesboyne/gofakes3 v0.0.0-20220314170512-33c13122505e
 	github.com/jwangsadinata/go-multimap v0.0.0-20190620162914-c29f3d7f33b6
-	github.com/jzelinskie/cobrautil v0.0.13-0.20220923164429-6dcc9495477a
+	github.com/jzelinskie/cobrautil/v2 v2.0.0-20221003230316-3022721fa8f0
 	github.com/jzelinskie/stringz v0.0.1
 	github.com/lib/pq v1.10.7
 	github.com/mostynb/go-grpc-compression v1.1.17

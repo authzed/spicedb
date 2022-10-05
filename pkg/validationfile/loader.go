@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"os"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/encoding/prototext"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

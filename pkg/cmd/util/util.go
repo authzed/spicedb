@@ -12,7 +12,6 @@ import (
 
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -27,6 +26,7 @@ import (
 	// Register cert watcher metrics
 	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
 
@@ -99,8 +99,13 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on addr for gRPC server: %w", err)
 	}
-	log.WithLevel(level).Str("addr", c.Address).Str("network", c.Network).
-		Str("prefix", c.flagPrefix).Uint32("workers", c.MaxWorkers).Msg("grpc server started listening")
+	log.WithLevel(level).
+		Str("addr", c.Address).
+		Str("network", c.Network).
+		Str("service", c.flagPrefix).
+		Uint32("workers", c.MaxWorkers).
+		Bool("insecure", c.TLSCertPath == "" && c.TLSKeyPath == "").
+		Msg("grpc server started serving")
 
 	srv := grpc.NewServer(opts...)
 	svcRegistrationFn(srv)
@@ -114,8 +119,11 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		dial:    dial,
 		netDial: netDial,
 		prestopFunc: func() {
-			log.WithLevel(level).Str("addr", c.Address).Str("network", c.Network).
-				Str("prefix", c.flagPrefix).Msg("grpc server stopped listening")
+			log.WithLevel(level).
+				Str("addr", c.Address).
+				Str("network", c.Network).
+				Str("service", c.flagPrefix).
+				Msg("grpc server stopped serving")
 		},
 		stopFunc:    srv.GracefulStop,
 		creds:       clientCreds,
@@ -148,7 +156,6 @@ func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialF
 func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *certwatcher.CertWatcher, error) {
 	switch {
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
-		log.Warn().Str("prefix", c.flagPrefix).Msg("grpc server serving plaintext")
 		return nil, nil, nil
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
 		watcher, err := certwatcher.New(c.TLSCertPath, c.TLSKeyPath)
@@ -309,7 +316,11 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 	switch {
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
 		serveFunc = func() error {
-			log.Warn().Str("addr", srv.Addr).Str("prefix", c.flagPrefix).Msg("http server serving plaintext")
+			log.WithLevel(level).
+				Str("addr", srv.Addr).
+				Str("service", c.flagPrefix).
+				Bool("insecure", c.TLSCertPath == "" && c.TLSKeyPath == "").
+				Msg("http server started serving")
 			return srv.ListenAndServe()
 		}
 
@@ -327,7 +338,11 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 			return nil, err
 		}
 		serveFunc = func() error {
-			log.WithLevel(level).Str("addr", srv.Addr).Str("prefix", c.flagPrefix).Msg("https server started serving")
+			log.WithLevel(level).
+				Str("addr", srv.Addr).
+				Str("prefix", c.flagPrefix).
+				Bool("insecure", c.TLSCertPath == "" && c.TLSKeyPath == "").
+				Msg("http server started serving")
 			return srv.Serve(listener)
 		}
 	default:
@@ -340,15 +355,15 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 	return &completedHTTPServer{
 		srvFunc: func() error {
 			if err := serveFunc(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				return fmt.Errorf("failed while serving https: %w", err)
+				return fmt.Errorf("failed while serving http: %w", err)
 			}
 			return nil
 		},
 		closeFunc: func() {
 			if err := srv.Close(); err != nil {
-				log.Warn().Str("addr", srv.Addr).Str("prefix", c.flagPrefix).Err(err).Msg("error stopping http server")
+				log.Error().Str("addr", srv.Addr).Str("service", c.flagPrefix).Err(err).Msg("error stopping http server")
 			}
-			log.WithLevel(level).Str("addr", srv.Addr).Str("prefix", c.flagPrefix).Msg("http server stopped serving")
+			log.WithLevel(level).Str("addr", srv.Addr).Str("service", c.flagPrefix).Msg("http server stopped serving")
 		},
 		enabled: c.Enabled,
 	}, nil

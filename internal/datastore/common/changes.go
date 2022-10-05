@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 

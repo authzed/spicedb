@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 // SignalContextWithGracePeriod creates a new context that will be cancelled

@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/jzelinskie/cobrautil"
-	"github.com/rs/zerolog/log"
+	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/spf13/cobra"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	mysqlmigrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
 	spannermigrations "github.com/authzed/spicedb/internal/datastore/spanner/migrations"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"

@@ -3,11 +3,10 @@ package graph
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
+
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
@@ -23,13 +22,6 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
-
-func init() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
-
-	// Set this to Trace to dump log statements in tests.
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-}
 
 var ONR = tuple.ObjectAndRelation
 
