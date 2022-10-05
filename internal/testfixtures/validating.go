@@ -199,10 +199,6 @@ func (vrwt validatingReadWriteTransaction) DeleteRelationships(filter *v1.Relati
 	return vrwt.delegate.DeleteRelationships(filter)
 }
 
-func (vrwt validatingReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	return vrwt.delegate.ReadCaveatByName(ctx, name)
-}
-
 func (vrwt validatingReadWriteTransaction) WriteCaveats(caveats []*core.CaveatDefinition) error {
 	return vrwt.delegate.WriteCaveats(caveats)
 }

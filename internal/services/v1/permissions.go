@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/tuple"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
-
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
@@ -24,11 +26,19 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+const maxCaveatContextBytes = 4096
 
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	atRevision, checkedAt := consistency.MustRevisionFromContext(ctx)
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+	caveatContext, err := getCaveatContext(ctx, req.Context)
+	if err != nil {
+		return nil, err
+	}
 
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
@@ -71,7 +81,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			CaveatContext:      nil, // TODO(jschorr): get from the request
+			CaveatContext:      caveatContext,
 			AtRevision:         atRevision,
 			MaximumDepth:       ps.config.MaximumAPIDepth,
 			IsDebuggingEnabled: isDebuggingEnabled,
@@ -104,17 +114,21 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, rewriteError(ctx, err)
 	}
 
-	// TODO(jschorr): Support caveated response here
+	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
 	if cr.Membership == dispatch.ResourceCheckResult_MEMBER {
 		permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
 	} else if cr.Membership == dispatch.ResourceCheckResult_CAVEATED_MEMBER {
-		panic("caveats are not yet supported")
+		permissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+		partialCaveat = &v1.PartialCaveatInfo{
+			MissingRequiredContext: cr.MissingExprFields,
+		}
 	}
 
 	return &v1.CheckPermissionResponse{
-		CheckedAt:      checkedAt,
-		Permissionship: permissionship,
+		CheckedAt:         checkedAt,
+		Permissionship:    permissionship,
+		PartialCaveatInfo: partialCaveat,
 	}, nil
 }
 
@@ -301,6 +315,10 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
+	if req.Context != nil {
+		return rewriteError(ctx, status.Error(codes.Unimplemented, "caveats not yet supported"))
+	}
+
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
 	errG.Go(func() error {
@@ -373,6 +391,10 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+	if req.Context != nil {
+		return rewriteError(ctx, status.Error(codes.Unimplemented, "caveats not yet supported"))
+	}
 
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
@@ -458,4 +480,23 @@ func denormalizeSubjectRelation(relation string) string {
 		return ""
 	}
 	return relation
+}
+
+func getCaveatContext(ctx context.Context, caveatCtx *structpb.Struct) (map[string]any, error) {
+	var caveatContext map[string]any
+	if caveatCtx != nil {
+		if size := proto.Size(caveatCtx); size > maxCaveatContextBytes {
+			return nil, rewriteError(
+				ctx,
+				status.Errorf(
+					codes.InvalidArgument,
+					"request caveat context should have less than %d bytes but had %d",
+					maxCaveatContextBytes,
+					size,
+				),
+			)
+		}
+		caveatContext = caveatCtx.AsMap()
+	}
+	return caveatContext, nil
 }

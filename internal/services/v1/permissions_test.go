@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"sort"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
@@ -803,4 +805,152 @@ func TestLookupSubjects(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheckWithCaveats(t *testing.T) {
+	req := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+
+	request := &v1.CheckPermissionRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		Resource:   obj("document", "companyplan"),
+		Permission: "view",
+		Subject:    sub("user", "owner", ""),
+	}
+
+	// caveat evaluated and returned false
+	var err error
+	request.Context, err = structpb.NewStruct(map[string]any{"secret": "incorrect_value"})
+	req.NoError(err)
+
+	checkResp, err := client.CheckPermission(ctx, request)
+	req.NoError(err)
+	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION, checkResp.Permissionship)
+
+	// caveat evaluated and returned true
+	request.Context, err = structpb.NewStruct(map[string]any{"secret": "1234"})
+	req.NoError(err)
+
+	checkResp, err = client.CheckPermission(ctx, request)
+	req.NoError(err)
+	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, checkResp.Permissionship)
+
+	// caveat evaluated but context variable was missing
+	request.Context = nil
+	checkResp, err = client.CheckPermission(ctx, request)
+	req.NoError(err)
+	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION, checkResp.Permissionship)
+	req.EqualValues([]string{"secret"}, checkResp.PartialCaveatInfo.MissingRequiredContext)
+
+	// context exceeds length limit
+	request.Context, err = structpb.NewStruct(generateMap(64))
+	req.NoError(err)
+
+	_, err = client.CheckPermission(ctx, request)
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+}
+
+func TestLookupResourcesWithCaveats(t *testing.T) {
+	req := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+
+	request := &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		ResourceObjectType: "document",
+		Permission:         "view",
+		Subject:            sub("user", "owner", ""),
+	}
+
+	// caveat support is not implemented yet - forwarding a context returns gRPC error unimplemented
+	var err error
+	request.Context, err = structpb.NewStruct(map[string]any{"secret": "incorrect_value"})
+	req.NoError(err)
+
+	cli, err := client.LookupResources(ctx, request)
+	req.NoError(err)
+
+	_, err = cli.Recv()
+	grpcutil.RequireStatus(t, codes.Unimplemented, err)
+
+	// without caveat context the operation fails if caveated relationships are evaluated in the graph
+	request.Context = nil
+	cli, err = client.LookupResources(ctx, request)
+	req.NoError(err)
+
+	_, err = cli.Recv()
+	grpcutil.RequireStatus(t, codes.Unimplemented, err)
+}
+
+func TestLookupSubjectsWithCaveats(t *testing.T) {
+	req := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+
+	request := &v1.LookupSubjectsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		Resource:          obj("document", "companyplan"),
+		Permission:        "view",
+		SubjectObjectType: "user",
+	}
+
+	// caveat support is not implemented yet - forwarding a context returns gRPC error unimplemented
+	var err error
+	request.Context, err = structpb.NewStruct(map[string]any{"secret": "incorrect_value"})
+	req.NoError(err)
+
+	cli, err := client.LookupSubjects(ctx, request)
+	req.NoError(err)
+
+	_, err = cli.Recv()
+	grpcutil.RequireStatus(t, codes.Unimplemented, err)
+
+	// without caveat context the operation fails if caveated relationships are evaluated in the graph
+	request.Context = nil
+	cli, err = client.LookupSubjects(ctx, request)
+	req.NoError(err)
+
+	_, err = cli.Recv()
+	grpcutil.RequireStatus(t, codes.Unimplemented, err)
+}
+
+func generateMap(length int) map[string]any {
+	output := make(map[string]any, length)
+	for i := 0; i < length; i++ {
+		random := randString(32)
+		output[random] = random
+	}
+	return output
+}
+
+var randInput = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randString(length int) string {
+	b := make([]rune, length)
+	for i := range b {
+		b[i] = randInput[rand.Intn(len(randInput))] //nolint:gosec
+	}
+	return string(b)
 }

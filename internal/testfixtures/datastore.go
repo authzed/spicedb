@@ -4,9 +4,11 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -156,6 +158,49 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 	return ds, revision
 }
 
+func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+	ds, _ = StandardDatastoreWithSchema(ds, require)
+	ctx := context.Background()
+
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		cs, ok := tx.(datastore.CaveatStorer)
+		require.True(ok, "expected ReadWriteTransaction to implement CaveatStorer")
+		return cs.WriteCaveats(createTestCaveat(require))
+	})
+	require.NoError(err)
+
+	caveatedTpls := make([]*core.RelationTuple, 0, len(StandardTuples))
+	for _, tupleStr := range StandardTuples {
+		tpl := tuple.Parse(tupleStr)
+		require.NotNil(tpl)
+		tpl.Caveat = &core.ContextualizedCaveat{
+			CaveatName: "test",
+			Context:    mustProtoStruct(map[string]any{"expectedSecret": "1234"}),
+		}
+		caveatedTpls = append(caveatedTpls, tpl)
+	}
+	revision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, caveatedTpls...)
+	require.NoError(err)
+
+	return ds, revision
+}
+
+func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
+	env, err := caveats.EnvForVariables(map[string]caveats.VariableType{
+		"secret":         caveats.StringType,
+		"expectedSecret": caveats.StringType,
+	})
+	require.NoError(err)
+
+	c, err := caveats.CompileCaveatWithName(env, "secret == expectedSecret", "test")
+	require.NoError(err)
+
+	cBytes, err := c.Serialize()
+	require.NoError(err)
+
+	return []*core.CaveatDefinition{{Name: "test", SerializedExpression: cBytes}}
+}
+
 type TupleChecker struct {
 	Require *require.Assertions
 	DS      datastore.Datastore
@@ -208,4 +253,12 @@ func (tc TupleChecker) TupleExists(ctx context.Context, tpl *core.RelationTuple,
 func (tc TupleChecker) NoTupleExists(ctx context.Context, tpl *core.RelationTuple, rev datastore.Revision) {
 	iter := tc.ExactRelationshipIterator(ctx, tpl, rev)
 	tc.VerifyIteratorResults(iter)
+}
+
+func mustProtoStruct(in map[string]any) *structpb.Struct {
+	out, err := structpb.NewStruct(in)
+	if err != nil {
+		panic(err)
+	}
+	return out
 }

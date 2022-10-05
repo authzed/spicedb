@@ -228,6 +228,9 @@ func (crr *ConcurrentReachableResources) chunkedRedispatch(it datastore.Relation
 				break
 			}
 
+			if tpl.Caveat != nil {
+				return NewUnimplementedErr(fmt.Errorf("cannot evaluate caveated relationships"))
+			}
 			resourceIdsFound = append(resourceIdsFound, tpl.ResourceAndRelation.ObjectId)
 		}
 
