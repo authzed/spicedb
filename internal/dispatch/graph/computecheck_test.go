@@ -375,19 +375,19 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			"IP Allowlists example",
 			`definition user {}
 
-					definition organization {
-						relation members: user
-						relation ip_allowlist_policy: organization#members
-					
-						permission policy = ip_allowlist_policy
-					}
-					
-					definition repository {
-						relation owner: organization
-						relation reader: user
-					
-						permission read = reader & owner->policy
-					}`,
+			definition organization {
+				relation members: user
+				relation ip_allowlist_policy: organization#members
+			
+				permission policy = ip_allowlist_policy
+			}
+			
+			definition repository {
+				relation owner: organization
+				relation reader: user
+			
+				permission read = reader & owner->policy
+			}`,
 			map[string]caveatDefinition{
 				"ip_allowlist": {
 					"user_ip.in_cidr(cidr)",
@@ -456,10 +456,10 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 		{
 			"App attributes example",
 			`definition application {}
-					definition group {
-						relation member: application
-						permission allowed = member
-					}`,
+			definition group {
+				relation member: application
+				permission allowed = member
+			}`,
 			map[string]caveatDefinition{
 				"attributes_match": {
 					"expected.all(x, expected[x] == provided[x])",
@@ -547,14 +547,14 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 		{
 			"authorize if resource was created before subject",
 			`definition root {
-						relation actors: actor
-					}
-                    definition resource {
-						relation creation_policy: root#actors
-						permission tag = creation_policy
-					}
-					
-					definition actor {}`,
+				relation actors: actor
+			}
+			definition resource {
+				relation creation_policy: root#actors
+				permission tag = creation_policy
+			}
+			
+			definition actor {}`,
 			map[string]caveatDefinition{
 				"created_before": {
 					"timestamp(actor_created_at) > timestamp(created_at)",
@@ -604,11 +604,11 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 		{
 			"time-bound permission",
 			`definition resource {
-						relation reader: user
-						permission view = reader
-					}
-					
-					definition user {}`,
+				relation reader: user
+				permission view = reader
+			}
+			
+			definition user {}`,
 			map[string]caveatDefinition{
 				"expired": {
 					"now() < timestamp(expiration)",
@@ -645,6 +645,92 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				},
 				{
 					"resource:foo#view@user:john",
+					nil,
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
+		{
+			"legal-guardian example",
+			`definition claim {
+				relation claimer: user
+				relation dependent_of: user#dependent_of
+			  
+				permission view = claimer + dependent_of
+			}
+			
+			definition user {
+				relation dependent_of: user
+			}`,
+			map[string]caveatDefinition{
+				"legal_guardian": {
+					`age < 12 || (class != "sensitive" && age > 12 && age < 18)`,
+					map[string]caveats.VariableType{
+						"age":   caveats.IntType,
+						"class": caveats.StringType,
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"user:son#dependent_of@user:father",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"claim:broken_leg#dependent_of@user:son#dependent_of",
+					"legal_guardian",
+					map[string]any{
+						"age":   10,
+						"class": "non-sensitive",
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"user:daughter#dependent_of@user:father",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"claim:broken_arm#dependent_of@user:daughter#dependent_of",
+					"legal_guardian",
+					map[string]any{
+						"age":   14,
+						"class": "non-sensitive",
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"claim:sensitive_matter#dependent_of@user:daughter#dependent_of",
+					"legal_guardian",
+					map[string]any{
+						"age":   14,
+						"class": "sensitive",
+					},
+				},
+			},
+			[]check{
+				{
+					"claim:broken_leg#view@user:father",
+					nil,
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"claim:broken_arm#view@user:father",
+					nil,
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"claim:sensitive_matter#view@user:father",
 					nil,
 					v1.ResourceCheckResult_NOT_MEMBER,
 					nil,
