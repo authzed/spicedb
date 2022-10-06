@@ -126,6 +126,22 @@ var lexerTests = []lexerTest{
 		tEOF,
 	}},
 
+	{"relation with caveat", "/* foo */relation viewer: user with somecaveat\n", []Lexeme{
+		{TokenTypeMultilineComment, 0, "/* foo */", ""},
+		{TokenTypeKeyword, 0, "relation", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "viewer", ""},
+		{TokenTypeColon, 0, ":", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "user", ""},
+		tWhitespace,
+		{TokenTypeKeyword, 0, "with", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "somecaveat", ""},
+		{TokenTypeSyntheticSemicolon, 0, "\n", ""},
+		tEOF,
+	}},
+
 	{"expression with parens", "(foo->bar)\n", []Lexeme{
 		{TokenTypeLeftParen, 0, "(", ""},
 		{TokenTypeIdentifier, 0, "foo", ""},

@@ -58,6 +58,7 @@ var keywords = map[string]struct{}{
 	"relation":   {},
 	"permission": {},
 	"nil":        {},
+	"with":       {},
 }
 
 // IsKeyword returns whether the specified input string is a reserved keyword.
