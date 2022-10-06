@@ -73,6 +73,17 @@ func AllowedRelation(namespaceName string, relationName string) *core.AllowedRel
 	}
 }
 
+// AllowedRelationWithCaveat creates a relation reference to an allowed relation.
+func AllowedRelationWithCaveat(namespaceName string, relationName string, withCaveat *core.AllowedCaveat) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_Relation{
+			Relation: relationName,
+		},
+		RequiredCaveat: withCaveat,
+	}
+}
+
 // AllowedPublicNamespace creates a relation reference to an allowed public namespace.
 func AllowedPublicNamespace(namespaceName string) *core.AllowedRelation {
 	return &core.AllowedRelation{
@@ -80,6 +91,24 @@ func AllowedPublicNamespace(namespaceName string) *core.AllowedRelation {
 		RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
 			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
 		},
+	}
+}
+
+// Caveat creates a caveat reference.
+func Caveat(name string) *core.AllowedCaveat {
+	return &core.AllowedCaveat{
+		CaveatName: name,
+	}
+}
+
+// AllowedPublicNamespaceWithCaveats creates a relation reference to an allowed public namespace.
+func AllowedPublicNamespaceWithCaveat(namespaceName string, withCaveat *core.AllowedCaveat) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
+			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
+		},
+		RequiredCaveat: withCaveat,
 	}
 }
 

@@ -388,6 +388,14 @@ func translateAllowedRelations(tctx translationContext, typeRefNode *dslNode) ([
 	}
 }
 
+func relationKey(ar *core.AllowedRelation) string {
+	if ar.GetPublicWildcard() != nil {
+		return fmt.Sprintf("%s:*", ar.Namespace)
+	}
+
+	return fmt.Sprintf("%s#%s", ar.Namespace, ar.GetRelation())
+}
+
 func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNode) (*core.AllowedRelation, error) {
 	typePath, err := typeRefNode.GetString(dslshape.NodeSpecificReferencePredicateType)
 	if err != nil {
@@ -405,6 +413,11 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 			RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
 				PublicWildcard: &core.AllowedRelation_PublicWildcard{},
 			},
+		}
+
+		err = addWithCaveats(tctx, typeRefNode, ref)
+		if err != nil {
+			return nil, typeRefNode.Errorf("invalid caveat: %w", err)
 		}
 
 		err = ref.Validate()
@@ -431,6 +444,11 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		},
 	}
 
+	err = addWithCaveats(tctx, typeRefNode, ref)
+	if err != nil {
+		return nil, typeRefNode.Errorf("invalid caveat: %w", err)
+	}
+
 	err = ref.Validate()
 	if err != nil {
 		return nil, typeRefNode.Errorf("invalid type relation: %w", err)
@@ -438,4 +456,25 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 
 	ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
 	return ref, nil
+}
+
+func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
+	caveats := typeRefNode.List(dslshape.NodeSpecificReferencePredicateCaveat)
+	if len(caveats) == 0 {
+		return nil
+	}
+
+	if len(caveats) != 1 {
+		return fmt.Errorf("only one caveat is currently allowed per type reference")
+	}
+
+	name, err := caveats[0].GetString(dslshape.NodeCaveatPredicateCaveat)
+	if err != nil {
+		return err
+	}
+
+	ref.RequiredCaveat = &core.AllowedCaveat{
+		CaveatName: name,
+	}
+	return nil
 }

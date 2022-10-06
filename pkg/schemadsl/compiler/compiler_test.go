@@ -138,6 +138,58 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
+			"relation with required caveat",
+			&someTenant,
+			`definition simple {
+				relation viewer: user with somecaveat
+			}`,
+			"",
+			[]*core.NamespaceDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.Relation("viewer", nil,
+						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
+							namespace.Caveat("somecaveat")),
+					),
+				),
+			},
+		},
+		{
+			"relation with optional caveat",
+			&someTenant,
+			`definition simple {
+				relation viewer: user with somecaveat | user
+			}`,
+			"",
+			[]*core.NamespaceDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.Relation("viewer", nil,
+						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
+							namespace.Caveat("somecaveat")),
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"relation with multiple caveats",
+			&someTenant,
+			`definition simple {
+				relation viewer: user with somecaveat | user | team#member with anothercaveat
+			}`,
+			"",
+			[]*core.NamespaceDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.Relation("viewer", nil,
+						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
+							namespace.Caveat("somecaveat")),
+						namespace.AllowedRelation("sometenant/user", "..."),
+						namespace.AllowedRelationWithCaveat("sometenant/team", "member",
+							namespace.Caveat("anothercaveat")),
+					),
+				),
+			},
+		},
+		{
 			"simple permission",
 			&someTenant,
 			`definition simple {
@@ -530,7 +582,7 @@ func TestCompile(t *testing.T) {
 				require.Equal(len(test.expectedProto), len(defs))
 				for index, def := range defs {
 					filterSourcePositions(def.ProtoReflect())
-					require.True(proto.Equal(test.expectedProto[index], def))
+					require.True(proto.Equal(test.expectedProto[index], def), "proto mismatch. expected: %v, found: %v", test.expectedProto[index], def)
 				}
 			}
 		})

@@ -357,6 +357,21 @@ message AllowedRelation {
 
   /** source_position contains the position of the type in the source schema, if any */
   SourcePosition source_position = 5;
+
+  /** 
+   * required_caveat defines the required caveat on this relation. 
+   */
+  AllowedCaveat required_caveat = 6;
+}
+
+/**
+ * AllowedCaveat is an allowed caveat of a relation.
+ */
+message AllowedCaveat {
+  /**
+   * caveat_name is the name of the allowed caveat.
+   */
+  string caveat_name = 1;
 }
 
 message UsersetRewrite {

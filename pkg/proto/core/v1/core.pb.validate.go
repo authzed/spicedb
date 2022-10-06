@@ -2901,6 +2901,35 @@ func (m *AllowedRelation) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetRequiredCaveat()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, AllowedRelationValidationError{
+					field:  "RequiredCaveat",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, AllowedRelationValidationError{
+					field:  "RequiredCaveat",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRequiredCaveat()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return AllowedRelationValidationError{
+				field:  "RequiredCaveat",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	switch m.RelationOrWildcard.(type) {
 
 	case *AllowedRelation_Relation:
@@ -3041,6 +3070,108 @@ var _ interface {
 var _AllowedRelation_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$")
 
 var _AllowedRelation_Relation_Pattern = regexp.MustCompile("^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$")
+
+// Validate checks the field values on AllowedCaveat with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *AllowedCaveat) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on AllowedCaveat with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in AllowedCaveatMultiError, or
+// nil if none found.
+func (m *AllowedCaveat) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AllowedCaveat) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for CaveatName
+
+	if len(errors) > 0 {
+		return AllowedCaveatMultiError(errors)
+	}
+
+	return nil
+}
+
+// AllowedCaveatMultiError is an error wrapping multiple validation errors
+// returned by AllowedCaveat.ValidateAll() if the designated constraints
+// aren't met.
+type AllowedCaveatMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AllowedCaveatMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AllowedCaveatMultiError) AllErrors() []error { return m }
+
+// AllowedCaveatValidationError is the validation error returned by
+// AllowedCaveat.Validate if the designated constraints aren't met.
+type AllowedCaveatValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AllowedCaveatValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AllowedCaveatValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AllowedCaveatValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AllowedCaveatValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AllowedCaveatValidationError) ErrorName() string { return "AllowedCaveatValidationError" }
+
+// Error satisfies the builtin error interface
+func (e AllowedCaveatValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAllowedCaveat.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AllowedCaveatValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AllowedCaveatValidationError{}
 
 // Validate checks the field values on UsersetRewrite with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
