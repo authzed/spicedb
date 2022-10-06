@@ -13,13 +13,20 @@ type ErrNamespaceNotFound struct {
 }
 
 // NotFoundNamespaceName is the name of the namespace not found.
-func (enf ErrNamespaceNotFound) NotFoundNamespaceName() string {
-	return enf.namespaceName
+func (err ErrNamespaceNotFound) NotFoundNamespaceName() string {
+	return err.namespaceName
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (enf ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("error", enf.Error()).Str("namespace", enf.namespaceName)
+func (err ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err).Str("namespace", err.namespaceName)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrNamespaceNotFound) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"definition_name": err.namespaceName,
+	}
 }
 
 // ErrWatchDisconnected occurs when a watch has fallen too far behind and was forcibly disconnected
@@ -54,24 +61,24 @@ type ErrInvalidRevision struct {
 }
 
 // InvalidRevision is the revision that failed.
-func (eri ErrInvalidRevision) InvalidRevision() Revision {
-	return eri.revision
+func (err ErrInvalidRevision) InvalidRevision() Revision {
+	return err.revision
 }
 
 // Reason is the reason the revision failed.
-func (eri ErrInvalidRevision) Reason() InvalidRevisionReason {
-	return eri.reason
+func (err ErrInvalidRevision) Reason() InvalidRevisionReason {
+	return err.reason
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (eri ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
-	switch eri.reason {
+func (err ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
+	switch err.reason {
 	case RevisionStale:
-		e.Str("error", eri.Error()).Str("reason", "stale")
+		e.Err(err).Str("reason", "stale")
 	case CouldNotDetermineRevision:
-		e.Str("error", eri.Error()).Str("reason", "indeterminate")
+		e.Err(err).Str("reason", "indeterminate")
 	default:
-		e.Str("error", eri.Error()).Str("reason", "unknown")
+		e.Err(err).Str("reason", "unknown")
 	}
 }
 
@@ -121,5 +128,31 @@ func NewInvalidRevisionErr(revision Revision, reason InvalidRevisionReason) erro
 			revision: revision,
 			reason:   reason,
 		}
+	}
+}
+
+// ErrCaveatNameNotFound is the error returned when a caveat is not found by its name
+type ErrCaveatNameNotFound struct {
+	error
+	name string
+}
+
+// CaveatName returns the name of the caveat that couldn't be found
+func (err ErrCaveatNameNotFound) CaveatName() string {
+	return err.name
+}
+
+// NewCaveatNameNotFoundErr constructs a new caveat name not found error.
+func NewCaveatNameNotFoundErr(name string) error {
+	return ErrCaveatNameNotFound{
+		error: fmt.Errorf("caveat with name `%s` not found", name),
+		name:  name,
+	}
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrCaveatNameNotFound) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"caveat_name": err.name,
 	}
 }

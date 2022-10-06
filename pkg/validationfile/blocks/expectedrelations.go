@@ -9,7 +9,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/pkg/commonerrors"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -20,7 +20,7 @@ type ParsedExpectedRelations struct {
 	ValidationMap ValidationMap
 
 	// SourcePosition is the position of the expected relations in the file.
-	SourcePosition commonerrors.SourcePosition
+	SourcePosition spiceerrors.SourcePosition
 }
 
 // UnmarshalYAML is a custom unmarshaller.
@@ -30,7 +30,7 @@ func (per *ParsedExpectedRelations) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
-	per.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
+	per.SourcePosition = spiceerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }
 
@@ -48,7 +48,7 @@ type ObjectRelation struct {
 	ObjectAndRelation *core.ObjectAndRelation
 
 	// SourcePosition is the position of the expected relations in the file.
-	SourcePosition commonerrors.SourcePosition
+	SourcePosition spiceerrors.SourcePosition
 }
 
 // UnmarshalYAML is a custom unmarshaller.
@@ -60,7 +60,7 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 
 	parsed := tuple.ParseONR(ors.ObjectRelationString)
 	if parsed == nil {
-		return commonerrors.NewErrorWithSource(
+		return spiceerrors.NewErrorWithSource(
 			fmt.Errorf("could not parse %s", ors.ObjectRelationString),
 			ors.ObjectRelationString,
 			uint64(node.Line),
@@ -69,7 +69,7 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	ors.ObjectAndRelation = parsed
-	ors.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
+	ors.SourcePosition = spiceerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }
 
@@ -93,7 +93,7 @@ type ExpectedSubject struct {
 	Resources []*core.ObjectAndRelation
 
 	// SourcePosition is the position of the expected subject in the file.
-	SourcePosition commonerrors.SourcePosition
+	SourcePosition spiceerrors.SourcePosition
 }
 
 // SubjectWithExceptions returns the subject found in a validation string, along with any exceptions.
@@ -114,7 +114,7 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 
 	subjectWithExceptions, subErr := es.ValidationString.Subject()
 	if subErr != nil {
-		return commonerrors.NewErrorWithSource(
+		return spiceerrors.NewErrorWithSource(
 			subErr,
 			subErr.SourceCodeString,
 			uint64(node.Line)+subErr.LineNumber,
@@ -124,7 +124,7 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 
 	onrs, onrErr := es.ValidationString.ONRS()
 	if onrErr != nil {
-		return commonerrors.NewErrorWithSource(
+		return spiceerrors.NewErrorWithSource(
 			onrErr,
 			onrErr.SourceCodeString,
 			uint64(node.Line)+onrErr.LineNumber,
@@ -133,7 +133,7 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	es.SubjectWithExceptions = subjectWithExceptions
-	es.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
+	es.SourcePosition = spiceerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	es.Resources = onrs
 	return nil
 }
@@ -155,7 +155,7 @@ func (vs ValidationString) SubjectString() (string, bool) {
 
 // Subject returns the subject contained in the ValidationString, if any. If
 // none, returns nil.
-func (vs ValidationString) Subject() (*SubjectWithExceptions, *commonerrors.ErrorWithSource) {
+func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.ErrorWithSource) {
 	subjectStr, ok := vs.SubjectString()
 	if !ok {
 		return nil, nil
@@ -167,12 +167,12 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *commonerrors.Erro
 	if strings.HasSuffix(subjectStr, "}") {
 		result := vsSubjectWithExceptionsRegex.FindStringSubmatch(subjectStr)
 		if len(result) != 3 {
-			return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
+			return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
 		}
 
 		subjectONR := tuple.ParseSubjectONR(strings.TrimSpace(result[1]))
 		if subjectONR == nil {
-			return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", result[1]), result[1], 0, 0)
+			return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", result[1]), result[1], 0, 0)
 		}
 
 		exceptionsString := strings.TrimSpace(result[2])
@@ -181,7 +181,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *commonerrors.Erro
 		for _, exceptionString := range exceptionsStringsSlice {
 			exceptionONR := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
 			if exceptionONR == nil {
-				return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", exceptionString), exceptionString, 0, 0)
+				return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", exceptionString), exceptionString, 0, 0)
 			}
 
 			exceptions = append(exceptions, exceptionONR)
@@ -192,7 +192,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *commonerrors.Erro
 
 	found := tuple.ParseSubjectONR(subjectStr)
 	if found == nil {
-		return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
+		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
 	}
 	return &SubjectWithExceptions{found, nil}, nil
 }
@@ -208,13 +208,13 @@ func (vs ValidationString) ONRStrings() []string {
 }
 
 // ONRS returns the subject ONRs in the ValidationString, if any.
-func (vs ValidationString) ONRS() ([]*core.ObjectAndRelation, *commonerrors.ErrorWithSource) {
+func (vs ValidationString) ONRS() ([]*core.ObjectAndRelation, *spiceerrors.ErrorWithSource) {
 	onrStrings := vs.ONRStrings()
 	onrs := []*core.ObjectAndRelation{}
 	for _, onrString := range onrStrings {
 		found := tuple.ParseONR(onrString)
 		if found == nil {
-			return nil, commonerrors.NewErrorWithSource(fmt.Errorf("invalid resource and relation: `%s`", onrString), onrString, 0, 0)
+			return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid resource and relation: `%s`", onrString), onrString, 0, 0)
 		}
 
 		onrs = append(onrs, found)

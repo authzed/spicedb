@@ -51,7 +51,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		)
 	})
 	if err := errG.Wait(); err != nil {
-		return nil, rewritePermissionsError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	isDebuggingEnabled := false
@@ -84,24 +84,24 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		// the footer.
 		converted, cerr := dispatchpkg.ConvertDispatchDebugInformation(ctx, metadata, ds)
 		if cerr != nil {
-			return nil, rewritePermissionsError(ctx, cerr)
+			return nil, rewriteError(ctx, cerr)
 		}
 
 		marshaled, merr := protojson.Marshal(converted)
 		if merr != nil {
-			return nil, rewritePermissionsError(ctx, merr)
+			return nil, rewriteError(ctx, merr)
 		}
 
 		serr := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
 			responsemeta.DebugInformation: string(marshaled),
 		})
 		if serr != nil {
-			return nil, rewritePermissionsError(ctx, serr)
+			return nil, rewriteError(ctx, serr)
 		}
 	}
 
 	if err != nil {
-		return nil, rewritePermissionsError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	// TODO(jschorr): Support caveated response here
@@ -124,7 +124,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 
 	err := namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, ds)
 	if err != nil {
-		return nil, rewritePermissionsError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	resp, err := ps.dispatch.DispatchExpand(ctx, &dispatch.DispatchExpandRequest{
@@ -141,7 +141,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 	})
 	usagemetrics.SetInContext(ctx, resp.Metadata)
 	if err != nil {
-		return nil, rewritePermissionsError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	// TODO(jschorr): Change to either using shared interfaces for nodes, or switch the internal
@@ -322,7 +322,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		)
 	})
 	if err := errG.Wait(); err != nil {
-		return rewritePermissionsError(ctx, err)
+		return rewriteError(ctx, err)
 	}
 
 	// TODO(jschorr): Change the internal dispatched lookup to also be streamed.
@@ -346,12 +346,12 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	})
 	usagemetrics.SetInContext(ctx, lookupResp.Metadata)
 	if err != nil {
-		return rewritePermissionsError(ctx, err)
+		return rewriteError(ctx, err)
 	}
 
 	for _, found := range lookupResp.ResolvedOnrs {
 		if found.Namespace != req.ResourceObjectType {
-			return rewritePermissionsError(
+			return rewriteError(
 				ctx,
 				fmt.Errorf("got invalid resolved object %v (expected %v)", found.Namespace, req.ResourceObjectType),
 			)
@@ -395,7 +395,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		)
 	})
 	if err := errG.Wait(); err != nil {
-		return rewritePermissionsError(ctx, err)
+		return rewriteError(ctx, err)
 	}
 
 	respMetadata := &dispatch.ResponseMeta{
@@ -440,7 +440,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		},
 		stream)
 	if err != nil {
-		return rewritePermissionsError(ctx, err)
+		return rewriteError(ctx, err)
 	}
 
 	return nil

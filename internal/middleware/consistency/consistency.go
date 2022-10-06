@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/authzed/spicedb/internal/services/shared"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc"
@@ -14,7 +16,6 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -228,12 +229,17 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 }
 
 func rewriteDatastoreError(ctx context.Context, err error) error {
+	// Check if the error can be directly used.
+	if _, ok := status.FromError(err); ok {
+		return err
+	}
+
 	switch {
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
 		return status.Errorf(codes.OutOfRange, "invalid revision: %s", err)
 
 	case errors.As(err, &datastore.ErrReadOnly{}):
-		return serviceerrors.ErrServiceReadOnly
+		return shared.ErrServiceReadOnly
 
 	default:
 		log.Ctx(ctx).Err(err)

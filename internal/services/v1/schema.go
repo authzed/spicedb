@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -16,10 +15,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
-	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -49,7 +45,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 
 	nsDefs, err := ds.ListNamespaces(ctx)
 	if err != nil {
-		return nil, rewriteSchemaError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	if len(nsDefs) == 0 {
@@ -85,7 +81,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	emptyDefaultPrefix := ""
 	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
 	if err != nil {
-		return nil, rewriteSchemaError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
 
@@ -94,16 +90,16 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	for _, nsdef := range nsdefs {
 		ts, err := namespace.BuildNamespaceTypeSystemForDefs(nsdef, nsdefs)
 		if err != nil {
-			return nil, rewriteSchemaError(ctx, err)
+			return nil, rewriteError(ctx, err)
 		}
 
 		vts, err := ts.Validate(ctx)
 		if err != nil {
-			return nil, rewriteSchemaError(ctx, err)
+			return nil, rewriteError(ctx, err)
 		}
 
 		if err := namespace.AnnotateNamespace(vts); err != nil {
-			return nil, rewriteSchemaError(ctx, err)
+			return nil, rewriteError(ctx, err)
 		}
 
 		newDefs.Add(nsdef.Name)
@@ -176,30 +172,8 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil
 	})
 	if err != nil {
-		return nil, rewriteSchemaError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	return &v1.WriteSchemaResponse{}, nil
-}
-
-func rewriteSchemaError(ctx context.Context, err error) error {
-	var nsNotFoundError sharederrors.UnknownNamespaceError
-	var errWithContext compiler.ErrorWithContext
-
-	errWithSource, ok := commonerrors.AsErrorWithSource(err)
-	if ok {
-		return status.Errorf(codes.InvalidArgument, "%s", errWithSource.Error())
-	}
-
-	switch {
-	case errors.As(err, &nsNotFoundError):
-		return status.Errorf(codes.NotFound, "Object Definition `%s` not found", nsNotFoundError.NotFoundNamespaceName())
-	case errors.As(err, &errWithContext):
-		return status.Errorf(codes.InvalidArgument, "%s", err)
-	case errors.As(err, &datastore.ErrReadOnly{}):
-		return serviceerrors.ErrServiceReadOnly
-	default:
-		log.Ctx(ctx).Err(err).Msg("received unexpected error")
-		return err
-	}
 }

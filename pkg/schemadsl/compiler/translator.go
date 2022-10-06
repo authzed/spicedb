@@ -51,7 +51,7 @@ func translate(tctx translationContext, root *dslNode) ([]*core.NamespaceDefinit
 		}
 
 		if !names.Add(definition.Name) {
-			return nil, definitionNode.Errorf("duplicate definition: %s", definition.Name)
+			return nil, definitionNode.ErrorWithSourcef(definition.Name, "duplicate definition: %s", definition.Name)
 		}
 
 		definitions = append(definitions, definition)
@@ -63,7 +63,7 @@ func translate(tctx translationContext, root *dslNode) ([]*core.NamespaceDefinit
 func translateDefinition(tctx translationContext, defNode *dslNode) (*core.NamespaceDefinition, error) {
 	definitionName, err := defNode.GetString(dslshape.NodeDefinitionPredicateName)
 	if err != nil {
-		return nil, defNode.Errorf("invalid definition name: %w", err)
+		return nil, defNode.ErrorWithSourcef(definitionName, "invalid definition name: %w", err)
 	}
 
 	relationsAndPermissions := []*core.Relation{}

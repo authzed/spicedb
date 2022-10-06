@@ -1,11 +1,10 @@
-package shared
+package v1
 
 import (
 	"context"
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/rs/zerolog"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -13,9 +12,9 @@ import (
 
 var limitOne uint64 = 1
 
-// CheckPreconditions checks whether the preconditions are met in the context of a datastore
+// checkPreconditions checks whether the preconditions are met in the context of a datastore
 // read-write transaction, and returns an error if they are not met.
-func CheckPreconditions(
+func checkPreconditions(
 	ctx context.Context,
 	rwt datastore.ReadWriteTransaction,
 	preconditions []*v1.Precondition,
@@ -48,23 +47,4 @@ func CheckPreconditions(
 	}
 
 	return nil
-}
-
-// ErrPreconditionFailed occurs when the precondition to a write tuple call does not match.
-type ErrPreconditionFailed struct {
-	error
-	precondition *v1.Precondition
-}
-
-// MarshalZerologObject implements zerolog object marshalling.
-func (epf ErrPreconditionFailed) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("error", epf.Error()).Interface("precondition", epf.precondition)
-}
-
-// NewPreconditionFailedErr constructs a new precondition failed error.
-func NewPreconditionFailedErr(precondition *v1.Precondition) error {
-	return ErrPreconditionFailed{
-		error:        fmt.Errorf("unable to satisfy write precondition `%s`", precondition),
-		precondition: precondition,
-	}
 }

@@ -16,12 +16,11 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -165,7 +164,7 @@ func loadNamespaces(
 	for _, nsDef := range namespaces {
 		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(nsDef, namespaces)
 		if terr != nil {
-			errWithSource, ok := commonerrors.AsErrorWithSource(terr)
+			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)
 			if ok {
 				errors = append(errors, &devinterface.DeveloperError{
 					Message: terr.Error(),
@@ -195,7 +194,7 @@ func loadNamespaces(
 			continue
 		}
 
-		errWithSource, ok := commonerrors.AsErrorWithSource(tverr)
+		errWithSource, ok := spiceerrors.AsErrorWithSource(tverr)
 		if ok {
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: tverr.Error(),
@@ -285,8 +284,6 @@ func rewriteACLError(ctx context.Context, err error) error {
 		fallthrough
 	case errors.As(err, &relNotFoundError):
 		fallthrough
-	case errors.As(err, &shared.ErrPreconditionFailed{}):
-		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &maingraph.ErrRequestCanceled{}):
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)

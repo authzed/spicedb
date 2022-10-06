@@ -7,7 +7,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	yamlv3 "gopkg.in/yaml.v3"
 
-	"github.com/authzed/spicedb/pkg/commonerrors"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -17,7 +17,7 @@ type ParsedRelationships struct {
 	RelationshipsString string
 
 	// SourcePosition is the position of the schema in the file.
-	SourcePosition commonerrors.SourcePosition
+	SourcePosition spiceerrors.SourcePosition
 
 	// Relationships are the fully parsed relationships.
 	Relationships []*v1.Relationship
@@ -46,7 +46,7 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 
 		tpl := tuple.Parse(trimmed)
 		if tpl == nil {
-			return commonerrors.NewErrorWithSource(
+			return spiceerrors.NewErrorWithSource(
 				fmt.Errorf("error parsing relationship `%s`", trimmed),
 				trimmed,
 				uint64(node.Line+1+(index*2)), // +1 for the key, and *2 for newlines in YAML
@@ -63,6 +63,6 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	pr.Relationships = relationships
-	pr.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
+	pr.SourcePosition = spiceerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }

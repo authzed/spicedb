@@ -7,7 +7,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	yamlv3 "gopkg.in/yaml.v3"
 
-	"github.com/authzed/spicedb/pkg/commonerrors"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -20,7 +20,7 @@ type Assertions struct {
 	AssertFalse []Assertion `yaml:"assertFalse"`
 
 	// SourcePosition is the position of the assertions in the file.
-	SourcePosition commonerrors.SourcePosition
+	SourcePosition spiceerrors.SourcePosition
 }
 
 // Assertion is a parsed assertion.
@@ -33,7 +33,7 @@ type Assertion struct {
 	Relationship *v1.Relationship
 
 	// SourcePosition is the position of the assertion in the file.
-	SourcePosition commonerrors.SourcePosition
+	SourcePosition spiceerrors.SourcePosition
 }
 
 type internalAssertions struct {
@@ -53,7 +53,7 @@ func (a *Assertions) UnmarshalYAML(node *yamlv3.Node) error {
 
 	a.AssertTrue = ia.AssertTrue
 	a.AssertFalse = ia.AssertFalse
-	a.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
+	a.SourcePosition = spiceerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }
 
@@ -66,7 +66,7 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 	trimmed := strings.TrimSpace(a.RelationshipString)
 	tpl := tuple.Parse(trimmed)
 	if tpl == nil {
-		return commonerrors.NewErrorWithSource(
+		return spiceerrors.NewErrorWithSource(
 			fmt.Errorf("error parsing relationship `%s`", trimmed),
 			trimmed,
 			uint64(node.Line),
@@ -75,7 +75,7 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	a.Relationship = tuple.MustToRelationship(tpl)
-	a.SourcePosition = commonerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
+	a.SourcePosition = spiceerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }
 

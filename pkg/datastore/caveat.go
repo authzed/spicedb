@@ -1,8 +1,6 @@
 package datastore
 
 import (
-	"fmt"
-
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -22,23 +20,4 @@ type CaveatStorer interface {
 
 	// DeleteCaveats deletes the provided caveats
 	DeleteCaveats([]*core.Caveat) error
-}
-
-// ErrCaveatNameNotFound is the error returned when a caveat is not found by its name
-type ErrCaveatNameNotFound struct {
-	error
-	name string
-}
-
-// CaveatName returns the name of the caveat that couldn't be found
-func (e ErrCaveatNameNotFound) CaveatName() string {
-	return e.name
-}
-
-// NewCaveatNameNotFoundErr constructs a new caveat name not found error.
-func NewCaveatNameNotFoundErr(name string) error {
-	return ErrCaveatNameNotFound{
-		error: fmt.Errorf("caveat with name `%s` not found", name),
-		name:  name,
-	}
 }

@@ -14,15 +14,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/internal/graph"
-	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
-	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -112,7 +108,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, ds); err != nil {
-		return rewritePermissionsError(ctx, err)
+		return rewriteError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -121,7 +117,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	tupleIterator, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter))
 	if err != nil {
-		return rewritePermissionsError(ctx, err)
+		return rewriteError(ctx, err)
 	}
 	defer tupleIterator.Close()
 
@@ -146,26 +142,16 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	// Ensure that the updates and preconditions are not over the configured limits.
 	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
-		return nil, rewritePermissionsError(
+		return nil, rewriteError(
 			ctx,
-			status.Errorf(
-				codes.InvalidArgument,
-				"update count of %d is greater than maximum allowed of %d",
-				len(req.Updates),
-				ps.config.MaxUpdatesPerWrite,
-			),
+			NewExceedsMaximumUpdatesErr(uint16(len(req.Updates)), ps.config.MaxUpdatesPerWrite),
 		)
 	}
 
 	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
-		return nil, rewritePermissionsError(
+		return nil, rewriteError(
 			ctx,
-			status.Errorf(
-				codes.InvalidArgument,
-				"precondition count of %d is greater than maximum allowed of %d",
-				len(req.OptionalPreconditions),
-				ps.config.MaxPreconditionsCount,
-			),
+			NewExceedsMaximumPreconditionsErr(uint16(len(req.OptionalPreconditions)), ps.config.MaxPreconditionsCount),
 		)
 	}
 
@@ -174,7 +160,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	for _, update := range req.Updates {
 		tupleStr := tuple.StringRelationship(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
-			return nil, rewritePermissionsError(
+			return nil, rewriteError(
 				ctx,
 				status.Errorf(
 					codes.InvalidArgument,
@@ -199,16 +185,11 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				if caveatReader, ok := rwt.(datastore.CaveatReader); ok {
 					_, err := caveatReader.ReadCaveatByName(update.Relationship.OptionalCaveat.CaveatName)
 					if errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
-						return status.Errorf(
-							codes.FailedPrecondition,
-							"the caveat `%s` was not found for relationship `%s`",
-							update.Relationship.OptionalCaveat.CaveatName,
-							tuple.StringRelationship(update.Relationship),
-						)
+						return rewriteError(ctx, NewCaveatNotFoundError(update))
 					}
 
 					if err != nil {
-						return rewritePermissionsError(ctx, err)
+						return rewriteError(ctx, err)
 					}
 				} else {
 					return status.Errorf(
@@ -306,14 +287,14 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
 		})
 
-		if err := shared.CheckPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
+		if err := checkPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
 			return err
 		}
 
 		return rwt.WriteRelationships(tuple.UpdateFromRelationshipUpdates(req.Updates))
 	})
 	if err != nil {
-		return nil, rewritePermissionsError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	return &v1.WriteRelationshipsResponse{
@@ -323,14 +304,9 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
 	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
-		return nil, rewritePermissionsError(
+		return nil, rewriteError(
 			ctx,
-			status.Errorf(
-				codes.InvalidArgument,
-				"precondition count of %d is greater than maximum allowed of %d",
-				len(req.OptionalPreconditions),
-				ps.config.MaxPreconditionsCount,
-			),
+			NewExceedsMaximumPreconditionsErr(uint16(len(req.OptionalPreconditions)), ps.config.MaxPreconditionsCount),
 		)
 	}
 
@@ -346,65 +322,17 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
 		})
 
-		if err := shared.CheckPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
+		if err := checkPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
 			return err
 		}
 
 		return rwt.DeleteRelationships(req.RelationshipFilter)
 	})
 	if err != nil {
-		return nil, rewritePermissionsError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	return &v1.DeleteRelationshipsResponse{
 		DeletedAt: zedtoken.NewFromRevision(revision),
 	}, nil
-}
-
-func rewritePermissionsError(ctx context.Context, err error) error {
-	var nsNotFoundError sharederrors.UnknownNamespaceError
-	var relNotFoundError sharederrors.UnknownRelationError
-
-	switch {
-	case errors.As(err, &nsNotFoundError):
-		fallthrough
-	case errors.As(err, &relNotFoundError):
-		fallthrough
-	case errors.As(err, &shared.ErrPreconditionFailed{}):
-		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
-
-	case errors.As(err, &graph.ErrInvalidArgument{}):
-		return status.Errorf(codes.InvalidArgument, "%s", err)
-
-	case errors.As(err, &graph.ErrRequestCanceled{}):
-		return status.Errorf(codes.Canceled, "request canceled: %s", err)
-
-	case errors.As(err, &datastore.ErrInvalidRevision{}):
-		return status.Errorf(codes.OutOfRange, "invalid zedtoken: %s", err)
-
-	case errors.As(err, &datastore.ErrReadOnly{}):
-		return serviceerrors.ErrServiceReadOnly
-
-	case errors.As(err, &graph.ErrRelationMissingTypeInfo{}):
-		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
-
-	case errors.As(err, &graph.ErrAlwaysFail{}):
-		log.Ctx(ctx).Err(err)
-		return status.Errorf(codes.Internal, "internal error: %s", err)
-
-	default:
-		log.Ctx(ctx).Err(err).Msg("received unexpected error")
-		return err
-	}
-}
-
-type uinteger interface {
-	uint32 | uint16
-}
-
-func defaultIfZero[T uinteger](value T, defaultValue T) T {
-	if value == 0 {
-		return defaultValue
-	}
-	return value
 }
