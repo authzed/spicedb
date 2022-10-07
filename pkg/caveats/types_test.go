@@ -1,7 +1,11 @@
 package caveats
 
 import (
+	"math"
 	"testing"
+	"time"
+
+	"github.com/google/cel-go/common/types"
 
 	"github.com/stretchr/testify/require"
 
@@ -41,4 +45,23 @@ func TestIPAddressInvalidCIDR(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Equal(t, "invalid CIDR string: `invalidcidr`", err.Error())
+}
+
+func TestNowFunction(t *testing.T) {
+	compiled, err := CompileCaveat(mustEnvForVariables(map[string]VariableType{
+		"a_timestamp": TimestampType,
+	}), "now() > a_timestamp")
+	require.NoError(t, err)
+
+	val, err := EvaluateCaveat(compiled, map[string]any{
+		"a_timestamp": types.Timestamp{Time: time.UnixMilli(100)},
+	})
+	require.NoError(t, err)
+	require.True(t, val.Value())
+
+	val, err = EvaluateCaveat(compiled, map[string]any{
+		"a_timestamp": types.Timestamp{Time: time.UnixMilli(math.MaxInt)},
+	})
+	require.NoError(t, err)
+	require.False(t, val.Value())
 }

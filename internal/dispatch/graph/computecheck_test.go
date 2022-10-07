@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/authzed/spicedb/pkg/caveats/customtypes"
+
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -369,6 +371,373 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				},
 			},
 		},
+		{
+			"IP Allowlists example",
+			`definition user {}
+
+			definition organization {
+				relation members: user
+				relation ip_allowlist_policy: organization#members
+			
+				permission policy = ip_allowlist_policy
+			}
+			
+			definition repository {
+				relation owner: organization
+				relation reader: user
+			
+				permission read = reader & owner->policy
+			}`,
+			map[string]caveatDefinition{
+				"ip_allowlist": {
+					"user_ip.in_cidr(cidr)",
+					map[string]caveats.VariableType{
+						"user_ip": caveats.IPAddressType,
+						"cidr":    caveats.StringType,
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"repository:foobar#owner@organization:myorg",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"organization:myorg#members@user:johndoe",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"repository:foobar#reader@user:johndoe",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"organization:myorg#ip_allowlist_policy@organization:myorg#members",
+					"ip_allowlist",
+					map[string]any{
+						"cidr": "192.168.0.0/16",
+					},
+				},
+			},
+			[]check{
+				{
+					"repository:foobar#read@user:johndoe",
+					nil,
+					v1.ResourceCheckResult_CAVEATED_MEMBER,
+					[]string{"user_ip"},
+					"",
+				},
+				{
+					"repository:foobar#read@user:johndoe",
+					map[string]any{
+						"user_ip": customtypes.MustParseIPAddress("192.168.0.1"),
+					},
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"repository:foobar#read@user:johndoe",
+					map[string]any{
+						"user_ip": customtypes.MustParseIPAddress("9.2.3.1"),
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
+		{
+			"App attributes example",
+			`definition application {}
+			definition group {
+				relation member: application
+				permission allowed = member
+			}`,
+			map[string]caveatDefinition{
+				"attributes_match": {
+					"expected.all(x, expected[x] == provided[x])",
+					map[string]caveats.VariableType{
+						"expected": caveats.MapType(caveats.StringType, caveats.AnyType),
+						"provided": caveats.MapType(caveats.StringType, caveats.AnyType),
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"group:ui_apps#member@application:frontend_app",
+					"attributes_match",
+					map[string]any{
+						"expected": map[string]any{"type": "frontend", "region": "eu"},
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"group:backend_apps#member@application:backend_app",
+					"attributes_match",
+					map[string]any{
+						"expected": map[string]any{
+							"type": "backend", "region": "us",
+							"additional_attrs": map[string]any{
+								"tag1": 100,
+								"tag2": false,
+							},
+						},
+					},
+				},
+			},
+			[]check{
+				{
+					"group:ui_apps#allowed@application:frontend_app",
+					map[string]any{
+						"provided": map[string]any{"type": "frontend", "region": "eu", "team": "shop"},
+					},
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"group:ui_apps#allowed@application:frontend_app",
+					map[string]any{
+						"provided": map[string]any{"type": "frontend", "region": "us"},
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"group:backend_apps#allowed@application:backend_app",
+					map[string]any{
+						"provided": map[string]any{
+							"type": "backend", "region": "us", "team": "shop",
+							"additional_attrs": map[string]any{
+								"tag1": 100,
+								"tag2": false,
+							},
+						},
+					},
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"group:backend_apps#allowed@application:backend_app",
+					map[string]any{
+						"provided": map[string]any{
+							"type": "backend", "region": "us", "team": "shop",
+							"additional_attrs": map[string]any{
+								"tag1": 200,
+								"tag2": false,
+							},
+						},
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
+		{
+			"authorize if resource was created before subject",
+			`definition root {
+				relation actors: actor
+			}
+			definition resource {
+				relation creation_policy: root#actors
+				permission tag = creation_policy
+			}
+			
+			definition actor {}`,
+			map[string]caveatDefinition{
+				"created_before": {
+					"timestamp(actor_created_at) > timestamp(created_at)",
+					map[string]caveats.VariableType{
+						"created_at":       caveats.StringType,
+						"actor_created_at": caveats.StringType,
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"resource:foo#creation_policy@root:root#actors",
+					"created_before",
+					map[string]any{
+						"created_at": "2022-01-01T10:00:00.021Z",
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"root:root#actors@actor:johndoe",
+					"",
+					nil,
+				},
+			},
+			[]check{
+				{
+					"resource:foo#tag@actor:johndoe",
+					map[string]any{
+						"actor_created_at": "2022-01-01T11:00:00.021Z",
+					},
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"resource:foo#tag@actor:johndoe",
+					map[string]any{
+						"actor_created_at": "2022-01-01T09:00:00.021Z",
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
+		{
+			"time-bound permission",
+			`definition resource {
+				relation reader: user
+				permission view = reader
+			}
+			
+			definition user {}`,
+			map[string]caveatDefinition{
+				"expired": {
+					"now() < timestamp(expiration)",
+					map[string]caveats.VariableType{
+						"expiration": caveats.StringType,
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"resource:foo#reader@user:sarah",
+					"expired",
+					map[string]any{
+						"expiration": "2030-01-01T10:00:00.021Z",
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"resource:foo#reader@user:john",
+					"expired",
+					map[string]any{
+						"expiration": "2020-01-01T10:00:00.021Z",
+					},
+				},
+			},
+			[]check{
+				{
+					"resource:foo#view@user:sarah",
+					nil,
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"resource:foo#view@user:john",
+					nil,
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
+		{
+			"legal-guardian example",
+			`definition claim {
+				relation claimer: user
+				relation dependent_of: user#dependent_of
+			  
+				permission view = claimer + dependent_of
+			}
+			
+			definition user {
+				relation dependent_of: user
+			}`,
+			map[string]caveatDefinition{
+				"legal_guardian": {
+					`age < 12 || (class != "sensitive" && age > 12 && age < 18)`,
+					map[string]caveats.VariableType{
+						"age":   caveats.IntType,
+						"class": caveats.StringType,
+					},
+				},
+			},
+			[]caveatedUpdate{
+				{
+					core.RelationTupleUpdate_CREATE,
+					"user:son#dependent_of@user:father",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"claim:broken_leg#dependent_of@user:son#dependent_of",
+					"legal_guardian",
+					map[string]any{
+						"age":   10,
+						"class": "non-sensitive",
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"user:daughter#dependent_of@user:father",
+					"",
+					nil,
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"claim:broken_arm#dependent_of@user:daughter#dependent_of",
+					"legal_guardian",
+					map[string]any{
+						"age":   14,
+						"class": "non-sensitive",
+					},
+				},
+				{
+					core.RelationTupleUpdate_CREATE,
+					"claim:sensitive_matter#dependent_of@user:daughter#dependent_of",
+					"legal_guardian",
+					map[string]any{
+						"age":   14,
+						"class": "sensitive",
+					},
+				},
+			},
+			[]check{
+				{
+					"claim:broken_leg#view@user:father",
+					nil,
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"claim:broken_arm#view@user:father",
+					nil,
+					v1.ResourceCheckResult_MEMBER,
+					nil,
+					"",
+				},
+				{
+					"claim:sensitive_matter#view@user:father",
+					nil,
+					v1.ResourceCheckResult_NOT_MEMBER,
+					nil,
+					"",
+				},
+			},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -384,32 +753,34 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, r := range tt.checks {
-				rel := tuple.MustParse(r.check)
+				t.Run(r.check, func(t *testing.T) {
+					rel := tuple.MustParse(r.check)
 
-				result, _, err := ComputeCheck(ctx, dispatch,
-					CheckParameters{
-						ResourceType: &core.RelationReference{
-							Namespace: rel.ResourceAndRelation.Namespace,
-							Relation:  rel.ResourceAndRelation.Relation,
-						},
-						ResourceID:         rel.ResourceAndRelation.ObjectId,
-						Subject:            rel.Subject,
-						CaveatContext:      r.context,
-						AtRevision:         revision,
-						MaximumDepth:       50,
-						IsDebuggingEnabled: true,
-					})
+					result, _, err := ComputeCheck(ctx, dispatch,
+						CheckParameters{
+							ResourceType: &core.RelationReference{
+								Namespace: rel.ResourceAndRelation.Namespace,
+								Relation:  rel.ResourceAndRelation.Relation,
+							},
+							ResourceID:         rel.ResourceAndRelation.ObjectId,
+							Subject:            rel.Subject,
+							CaveatContext:      r.context,
+							AtRevision:         revision,
+							MaximumDepth:       50,
+							IsDebuggingEnabled: true,
+						})
 
-				if r.error != "" {
-					require.Equal(t, err.Error(), r.error)
-				} else {
-					require.NoError(t, err)
-					require.Equal(t, v1.ResourceCheckResult_Membership_name[int32(r.member)], v1.ResourceCheckResult_Membership_name[int32(result.Membership)], "mismatch for %s with context %v", r.check, r.context)
+					if r.error != "" {
+						require.Equal(t, err.Error(), r.error)
+					} else {
+						require.NoError(t, err)
+						require.Equal(t, v1.ResourceCheckResult_Membership_name[int32(r.member)], v1.ResourceCheckResult_Membership_name[int32(result.Membership)], "mismatch for %s with context %v", r.check, r.context)
 
-					if result.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER {
-						require.Equal(t, r.expectedMissingFields, result.MissingExprFields)
+						if result.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER {
+							require.Equal(t, r.expectedMissingFields, result.MissingExprFields)
+						}
 					}
-				}
+				})
 			}
 		})
 	}
@@ -491,7 +862,7 @@ func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema str
 }
 
 func caveatedRelationTuple(relationTuple string, caveatName string, context map[string]any) *core.RelationTuple {
-	c := tuple.Parse(relationTuple)
+	c := tuple.MustParse(relationTuple)
 	strct, err := structpb.NewStruct(context)
 	if err != nil {
 		panic(err)
