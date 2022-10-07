@@ -30,6 +30,12 @@ var (
 		colNamespace,
 		colConfig,
 	)
+	// TODO remove once the ID->XID migrations are all complete
+	writeNamespaceDeprecated = psql.Insert(tableNamespace).Columns(
+		colNamespace,
+		colConfig,
+		colCreatedTxnDeprecated,
+	)
 
 	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 
@@ -44,7 +50,21 @@ var (
 		colUsersetRelation,
 	)
 
+	// TODO remove once the ID->XID migrations are all complete
+	writeTupleDeprecated = psql.Insert(tableTuple).Columns(
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCreatedTxnDeprecated,
+	)
+
 	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+
+	// TODO remove once the ID->XID migrations are all complete
+	deleteTupleDeprecated = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID})
 )
 
 type pgReadWriteTXN struct {
@@ -60,6 +80,12 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 	defer span.End()
 
 	bulkWrite := writeTuple
+
+	// TODO remove once the ID->XID migrations are all complete
+	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
+		bulkWrite = writeTupleDeprecated
+	}
+
 	bulkWriteHasValues := false
 
 	deleteClauses := sq.Or{}
@@ -77,14 +103,21 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 		}
 
 		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_CREATE {
-			bulkWrite = bulkWrite.Values(
+			valuesToWrite := []interface{}{
 				tpl.ResourceAndRelation.Namespace,
 				tpl.ResourceAndRelation.ObjectId,
 				tpl.ResourceAndRelation.Relation,
 				tpl.Subject.Namespace,
 				tpl.Subject.ObjectId,
 				tpl.Subject.Relation,
-			)
+			}
+
+			// TODO remove once the ID->XID migrations are all complete
+			if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
+				valuesToWrite = append(valuesToWrite, rwt.newXID.Uint)
+			}
+
+			bulkWrite = bulkWrite.Values(valuesToWrite...)
 			bulkWriteHasValues = true
 		}
 	}
@@ -96,6 +129,23 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 			ToSql()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
+
+		// TODO remove once the ID->XID migrations are all complete
+		if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
+			baseQuery := deleteTuple
+			if rwt.migrationPhase == writeBothReadOld {
+				baseQuery = deleteTupleDeprecated
+			}
+
+			sql, args, err = baseQuery.
+				Where(deleteClauses).
+				Set(colDeletedTxnDeprecated, rwt.newXID.Uint).
+				Set(colDeletedXid, rwt.newXID).
+				ToSql()
+			if err != nil {
+				return fmt.Errorf(errUnableToWriteRelationships, err)
+			}
 		}
 
 		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
@@ -113,6 +163,11 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 			// If a unique constraint violation is returned, then its likely that the cause
 			// was an existing relationship given as a CREATE.
 			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
+				return cerr
+			}
+
+			// TODO remove once the ID->XID migrations are all complete
+			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraintOld, err); cerr != nil {
 				return cerr
 			}
 
@@ -160,6 +215,14 @@ func (rwt *pgReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) er
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
+	// TODO remove once the ID->XID migrations are all complete
+	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
+		sql, args, err = query.Set(colDeletedTxnDeprecated, rwt.newXID.Uint).Set(colDeletedXid, rwt.newXID).ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToDeleteRelationships, err)
+		}
+	}
+
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
@@ -174,6 +237,11 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 	deletedNamespaceClause := sq.Or{}
 	writeQuery := writeNamespace
 
+	// TODO remove once the ID->XID migrations are all complete
+	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
+		writeQuery = writeNamespaceDeprecated
+	}
+
 	writtenNamespaceNames := make([]string, 0, len(newConfigs))
 	for _, newNamespace := range newConfigs {
 		serialized, err := proto.Marshal(newNamespace)
@@ -183,7 +251,15 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 		span.AddEvent("Serialized namespace config")
 
 		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{colNamespace: newNamespace.Name})
-		writeQuery = writeQuery.Values(newNamespace.Name, serialized)
+
+		valuesToWrite := []interface{}{newNamespace.Name, serialized}
+
+		// TODO remove once the ID->XID migrations are all complete
+		if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
+			valuesToWrite = append(valuesToWrite, rwt.newXID.Uint)
+		}
+
+		writeQuery = writeQuery.Values(valuesToWrite...)
 		writtenNamespaceNames = append(writtenNamespaceNames, newNamespace.Name)
 	}
 
@@ -195,6 +271,23 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToWriteConfig, err)
+	}
+
+	// TODO remove once the ID->XID migrations are all complete
+	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
+		whereClause := sq.Eq{colDeletedXid: liveDeletedTxnID}
+		if rwt.migrationPhase == writeBothReadOld {
+			whereClause = sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID}
+		}
+
+		delSQL, delArgs, err = deleteNamespace.
+			Set(colDeletedTxnDeprecated, rwt.newXID.Uint).
+			Set(colDeletedXid, rwt.newXID).
+			Where(sq.And{whereClause, deletedNamespaceClause}).
+			ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToWriteConfig, err)
+		}
 	}
 
 	_, err = rwt.tx.Exec(ctx, delSQL, delArgs...)
@@ -220,8 +313,18 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteNamespace")
 	defer span.End()
 
-	baseQuery := readNamespace.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
-	_, createdAt, err := loadNamespace(ctx, nsName, rwt.tx, baseQuery)
+	filterer := func(original sq.SelectBuilder) sq.SelectBuilder {
+		return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	}
+
+	// TODO remove once the ID->XID migrations are all complete
+	if rwt.migrationPhase == writeBothReadOld {
+		filterer = func(original sq.SelectBuilder) sq.SelectBuilder {
+			return original.Where(sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID})
+		}
+	}
+
+	_, createdAt, err := rwt.loadNamespace(ctx, nsName, rwt.tx, filterer)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return err
@@ -239,6 +342,23 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
+	// TODO remove once the ID->XID migrations are all complete
+	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
+		whereClause := sq.Eq{colNamespace: nsName, colCreatedXid: createdAt}
+		if rwt.migrationPhase == writeBothReadOld {
+			whereClause = sq.Eq{colNamespace: nsName, colCreatedTxnDeprecated: createdAt}
+		}
+
+		delSQL, delArgs, err = deleteNamespace.
+			Set(colDeletedTxnDeprecated, rwt.newXID.Uint).
+			Set(colDeletedXid, rwt.newXID).
+			Where(whereClause).
+			ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
+	}
+
 	_, err = rwt.tx.Exec(ctx, delSQL, delArgs...)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -250,6 +370,18 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	// TODO remove once the ID->XID migrations are all complete
+	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
+		deleteTupleSQL, deleteTupleArgs, err = deleteNamespaceTuples.
+			Set(colDeletedTxnDeprecated, rwt.newXID.Uint).
+			Set(colDeletedXid, rwt.newXID).
+			Where(sq.Eq{colNamespace: nsName}).
+			ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
 	}
 
 	_, err = rwt.tx.Exec(ctx, deleteTupleSQL, deleteTupleArgs...)

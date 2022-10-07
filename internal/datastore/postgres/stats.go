@@ -39,7 +39,16 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 		return datastore.Stats{}, fmt.Errorf("unable to prepare row count sql: %w", err)
 	}
 
-	nsQuery := readNamespace.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	filterer := func(original sq.SelectBuilder) sq.SelectBuilder {
+		return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	}
+
+	// TODO remove once the ID->XID migrations are all complete
+	if pgd.migrationPhase == writeBothReadOld {
+		filterer = func(original sq.SelectBuilder) sq.SelectBuilder {
+			return original.Where(sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID})
+		}
+	}
 
 	var uniqueID string
 	var nsDefs []*corev1.NamespaceDefinition
@@ -55,10 +64,12 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 			return fmt.Errorf("unable to query unique ID: %w", err)
 		}
 
-		nsDefs, err = loadAllNamespaces(ctx, tx, nsQuery)
+		nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, filterer, pgd.migrationPhase)
 		if err != nil {
 			return fmt.Errorf("unable to load namespaces: %w", err)
 		}
+
+		nsDefs = stripRevisions(nsDefsWithRevisions)
 
 		if err := tx.QueryRow(ctx, rowCountSQL, rowCountArgs...).Scan(&relCount); err != nil {
 			return fmt.Errorf("unable to read relationship count: %w", err)

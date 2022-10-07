@@ -36,6 +36,9 @@ const (
 	tableTransaction = "relation_tuple_transaction"
 	tableTuple       = "relation_tuple"
 
+	colCreatedTxnDeprecated = "created_transaction"
+	colDeletedTxnDeprecated = "deleted_transaction"
+
 	colXID              = "xid"
 	colTimestamp        = "timestamp"
 	colNamespace        = "namespace"
@@ -50,8 +53,6 @@ const (
 	colUsersetRelation  = "userset_relation"
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
-
-	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES RETURNING xid"
 
 	// The parameters to this format string are:
 	// 1: the created_xid or deleted_xid column name
@@ -71,7 +72,8 @@ const (
 	pgSerializationFailure      = "40001"
 	pgUniqueConstraintViolation = "23505"
 
-	livingTupleConstraint = "uq_relation_tuple_living_xid"
+	livingTupleConstraintOld = "uq_relation_tuple_living"
+	livingTupleConstraint    = "uq_relation_tuple_living_xid"
 )
 
 func init() {
@@ -82,6 +84,8 @@ var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	getRevision = psql.Select(fmt.Sprintf("MAX(%s::text::bigint)", colXID)).From(tableTransaction)
+
+	createTxn = fmt.Sprintf("INSERT INTO %s DEFAULT VALUES RETURNING %s", tableTransaction, colXID)
 
 	getNow = psql.Select("NOW()")
 
@@ -282,10 +286,21 @@ func (pgd *pgDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader 
 		UsersetBatchSize: pgd.usersetBatchSize,
 	}
 
+	// TODO remove once the ID->XID migrations are all complete
+	if pgd.migrationPhase == writeBothReadOld {
+		return &pgReader{
+			createTxFunc,
+			querySplitter,
+			buildLivingObjectFilterForRevisionDeprecated(rev),
+			pgd.migrationPhase,
+		}
+	}
+
 	return &pgReader{
 		createTxFunc,
 		querySplitter,
 		buildLivingObjectFilterForRevision(rev),
+		pgd.migrationPhase,
 	}
 }
 
@@ -321,6 +336,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 					longLivedTx,
 					querySplitter,
 					currentlyLivingObjects,
+					pgd.migrationPhase,
 				},
 				ctx,
 				tx,
@@ -336,6 +352,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 			return datastore.NoRevision, err
 		}
+
 		return revisionFromTransaction(newXID), nil
 	}
 	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
@@ -383,6 +400,16 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
+	// TODO remove once the ID->XID migrations are all complete
+	switch pgd.migrationPhase {
+	case writeBothReadOld:
+		return version == "add-xid-columns" || version == "add-xid-constraints", nil
+	case writeBothReadNew:
+		return version == "add-xid-constraints" || version == "drop-id-constraints", nil
+	case complete:
+		return version == "drop-id-constraints" || version == headMigration, nil
+	}
+
 	return version == headMigration, nil
 }
 
@@ -391,37 +418,49 @@ func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, erro
 }
 
 func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
+	txID := transactionFromRevision(revision)
+
+	createdBeforeTXN := sq.Expr(fmt.Sprintf(
+		snapshotAlive,
+		colCreatedXid,
+		colSnapshot,
+		tableTransaction,
+		colXID,
+		sq.Placeholders(1),
+	), txID, true)
+
+	alreadyAlive := sq.Or{
+		createdBeforeTXN,
+		sq.Expr(colCreatedXid+" = "+sq.Placeholders(1), txID),
+	}
+
+	deletedAfterTXN := sq.Expr(fmt.Sprintf(
+		snapshotAlive,
+		colDeletedXid,
+		colSnapshot,
+		tableTransaction,
+		colXID,
+		sq.Placeholders(1),
+	), txID, false)
+	notYetDead := sq.And{
+		deletedAfterTXN,
+		sq.Expr(colDeletedXid+" <> "+sq.Placeholders(1), txID),
+	}
+
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
-		txID := transactionFromRevision(revision)
-
-		createdBeforeTXN := sq.Expr(fmt.Sprintf(
-			snapshotAlive,
-			colCreatedXid,
-			colSnapshot,
-			tableTransaction,
-			colXID,
-			sq.Placeholders(1),
-		), txID, true)
-
-		alreadyAlive := sq.Or{
-			createdBeforeTXN,
-			sq.Expr(colCreatedXid+" = "+sq.Placeholders(1), txID),
-		}
-
-		deletedAfterTXN := sq.Expr(fmt.Sprintf(
-			snapshotAlive,
-			colDeletedXid,
-			colSnapshot,
-			tableTransaction,
-			colXID,
-			sq.Placeholders(1),
-		), txID, false)
-		notYetDead := sq.And{
-			deletedAfterTXN,
-			sq.Expr(colDeletedXid+" <> "+sq.Placeholders(1), txID),
-		}
-
 		return original.Where(alreadyAlive).Where(notYetDead)
+	}
+}
+
+// TODO remove once the ID->XID migrations are all complete
+func buildLivingObjectFilterForRevisionDeprecated(revision datastore.Revision) queryFilterer {
+	txID := transactionFromRevision(revision)
+	return func(original sq.SelectBuilder) sq.SelectBuilder {
+		return original.Where(sq.LtOrEq{colCreatedTxnDeprecated: txID.Uint}).
+			Where(sq.Or{
+				sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID},
+				sq.Gt{colDeletedTxnDeprecated: revision},
+			})
 	}
 }
 
