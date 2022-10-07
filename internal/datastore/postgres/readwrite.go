@@ -49,9 +49,10 @@ var (
 
 type pgReadWriteTXN struct {
 	*pgReader
-	ctx    context.Context
-	tx     pgx.Tx
-	newXID xid8
+	ctx            context.Context
+	tx             pgx.Tx
+	newXID         xid8
+	migrationPhase migrationPhase
 }
 
 func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {

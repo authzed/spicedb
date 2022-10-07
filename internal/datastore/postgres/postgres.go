@@ -105,6 +105,12 @@ func NewPostgresDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
+	if config.migrationPhase != "" {
+		log.Info().
+			Str("phase", config.migrationPhase).
+			Msg("postgres configured to use intermediate migration phase")
+	}
+
 	// config must be initialized by ParseConfig
 	pgxConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
@@ -188,6 +194,7 @@ func NewPostgresDatastore(
 		cancelGc:                cancelGc,
 		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
 		maxRetries:              config.maxRetries,
+		migrationPhase:          migrationPhases[config.migrationPhase],
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
@@ -247,6 +254,7 @@ type pgDatastore struct {
 	readTxOptions           pgx.TxOptions
 	maxRetries              uint8
 	watchEnabled            bool
+	migrationPhase          migrationPhase
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
@@ -317,6 +325,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 				ctx,
 				tx,
 				newXID,
+				pgd.migrationPhase,
 			}
 
 			return fn(ctx, rwt)

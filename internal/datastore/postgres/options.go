@@ -25,7 +25,23 @@ type postgresOptions struct {
 	analyzeBeforeStatistics bool
 	gcEnabled               bool
 
+	migrationPhase string
+
 	logger *tracingLogger
+}
+
+type migrationPhase uint8
+
+const (
+	writeBothReadOld migrationPhase = iota
+	writeBothReadNew
+	complete
+)
+
+var migrationPhases = map[string]migrationPhase{
+	"write-both-read-old": writeBothReadOld,
+	"write-both-read-new": writeBothReadNew,
+	"":                    complete,
 }
 
 const (
@@ -72,6 +88,10 @@ func generateConfig(options []Option) (postgresOptions, error) {
 			computed.revisionQuantization,
 			computed.gcWindow,
 		)
+	}
+
+	if _, ok := migrationPhases[computed.migrationPhase]; !ok {
+		return computed, fmt.Errorf("unknown migration phase: %s", computed.migrationPhase)
 	}
 
 	return computed, nil
@@ -241,5 +261,15 @@ func GCEnabled(isGCEnabled bool) Option {
 func DebugAnalyzeBeforeStatistics() Option {
 	return func(po *postgresOptions) {
 		po.analyzeBeforeStatistics = true
+	}
+}
+
+// MigrationPhase configures the postgres driver to the proper state of a
+// multi-phase migration.
+//
+// Steady-state configuration (e.g. fully migrated) by default
+func MigrationPhase(phase string) Option {
+	return func(po *postgresOptions) {
+		po.migrationPhase = phase
 	}
 }

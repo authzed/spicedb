@@ -48,6 +48,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
 		to.ExperimentEnableCaveats = c.ExperimentEnableCaveats
+		to.MigrationPhase = c.MigrationPhase
 	}
 }
 
@@ -280,5 +281,12 @@ func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 func WithExperimentEnableCaveats(experimentEnableCaveats bool) ConfigOption {
 	return func(c *Config) {
 		c.ExperimentEnableCaveats = experimentEnableCaveats
+	}
+}
+
+// WithMigrationPhase returns an option that can set MigrationPhase on a Config
+func WithMigrationPhase(migrationPhase string) ConfigOption {
+	return func(c *Config) {
+		c.MigrationPhase = migrationPhase
 	}
 }
