@@ -99,19 +99,7 @@ func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*
 	return caveats, nil
 }
 
-<<<<<<< HEAD
 func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.CaveatDefinition) error {
-=======
-func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, error) {
-	c, err := r.readCaveatByName(tx, name)
-	if err != nil {
-		return nil, err
-	}
-	return c.Unwrap(), nil
-}
-
-func (rwt *memdbReadWriteTx) WriteCaveats(ctx context.Context, caveats []*core.Caveat) error {
->>>>>>> 5786ed8d (Change type system to use a Resolver interface for clearer instantiation)
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
@@ -143,11 +131,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDe
 	return nil
 }
 
-<<<<<<< HEAD
 func (rwt *memdbReadWriteTx) DeleteCaveats(names []string) error {
-=======
-func (rwt *memdbReadWriteTx) DeleteCaveats(ctx context.Context, caveats []*core.Caveat) error {
->>>>>>> 5786ed8d (Change type system to use a Resolver interface for clearer instantiation)
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()

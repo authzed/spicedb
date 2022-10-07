@@ -113,8 +113,9 @@ func CaveatDefinition(env *caveats.Environment, name string, expr string) (*core
 		return nil, err
 	}
 	return &core.Caveat{
-		Name:       name,
-		Expression: serialized,
+		Name:           name,
+		Expression:     serialized,
+		ParameterTypes: env.EncodedParametersTypes(),
 	}, nil
 }
 

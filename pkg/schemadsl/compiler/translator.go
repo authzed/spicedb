@@ -388,14 +388,6 @@ func translateAllowedRelations(tctx translationContext, typeRefNode *dslNode) ([
 	}
 }
 
-func relationKey(ar *core.AllowedRelation) string {
-	if ar.GetPublicWildcard() != nil {
-		return fmt.Sprintf("%s:*", ar.Namespace)
-	}
-
-	return fmt.Sprintf("%s#%s", ar.Namespace, ar.GetRelation())
-}
-
 func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNode) (*core.AllowedRelation, error) {
 	typePath, err := typeRefNode.GetString(dslshape.NodeSpecificReferencePredicateType)
 	if err != nil {

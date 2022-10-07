@@ -130,15 +130,21 @@ func runExpression(
 		}
 
 		// Create a combined context, with the written context taking precedence over that specified.
-		fullContext := maps.Clone(context)
-		if fullContext == nil {
-			fullContext = map[string]any{}
+		untypedFullContext := maps.Clone(context)
+		if untypedFullContext == nil {
+			untypedFullContext = map[string]any{}
 		}
 
 		relationshipContext := expr.GetCaveat().GetContext().AsMap()
-		maps.Copy(fullContext, relationshipContext)
+		maps.Copy(untypedFullContext, relationshipContext)
 
-		result, err := caveats.EvaluateCaveat(compiled, fullContext)
+		// Perform type checking and conversion on the context map.
+		typedParameters, err := caveats.ConvertContextToParameters(untypedFullContext, caveat.ParameterTypes)
+		if err != nil {
+			return nil, fmt.Errorf("type error for parameters for caveat `%s`: %w", caveat.Name, err)
+		}
+
+		result, err := caveats.EvaluateCaveat(compiled, typedParameters)
 		if err != nil {
 			return nil, err
 		}

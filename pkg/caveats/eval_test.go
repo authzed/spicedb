@@ -6,6 +6,8 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/caveats/types"
 )
 
 var noMissingVars []string
@@ -28,7 +30,7 @@ func TestEvaluateCaveat(t *testing.T) {
 	}{
 		{
 			"static expression",
-			mustEnvForVariables(map[string]VariableType{}),
+			mustEnvForVariables(map[string]types.VariableType{}),
 			"true",
 			map[string]any{},
 			"",
@@ -38,7 +40,7 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"static false expression",
-			mustEnvForVariables(map[string]VariableType{}),
+			mustEnvForVariables(map[string]types.VariableType{}),
 			"false",
 			map[string]any{},
 			"",
@@ -48,7 +50,7 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"static numeric expression",
-			mustEnvForVariables(map[string]VariableType{}),
+			mustEnvForVariables(map[string]types.VariableType{}),
 			"1 + 2 == 3",
 			map[string]any{},
 			"",
@@ -58,7 +60,7 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"static false numeric expression",
-			mustEnvForVariables(map[string]VariableType{}),
+			mustEnvForVariables(map[string]types.VariableType{}),
 			"2 - 2 == 1",
 			map[string]any{},
 			"",
@@ -68,8 +70,8 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"computed expression",
-			mustEnvForVariables(map[string]VariableType{
-				"a": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"a": types.IntType,
 			}),
 			"a + 2 == 4",
 			map[string]any{
@@ -82,8 +84,8 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"missing variables for expression",
-			mustEnvForVariables(map[string]VariableType{
-				"a": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"a": types.IntType,
 			}),
 			"a + 2 == 4",
 			map[string]any{},
@@ -94,9 +96,9 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"missing variables for right side of boolean expression",
-			mustEnvForVariables(map[string]VariableType{
-				"a": IntType,
-				"b": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"a": types.IntType,
+				"b": types.IntType,
 			}),
 			"(a == 2) || (b == 6)",
 			map[string]any{
@@ -109,9 +111,9 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"missing variables for left side of boolean expression",
-			mustEnvForVariables(map[string]VariableType{
-				"a": IntType,
-				"b": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"a": types.IntType,
+				"b": types.IntType,
 			}),
 			"(a == 2) || (b == 6)",
 			map[string]any{
@@ -124,9 +126,9 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"missing variables for both sides of boolean expression",
-			mustEnvForVariables(map[string]VariableType{
-				"a": IntType,
-				"b": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"a": types.IntType,
+				"b": types.IntType,
 			}),
 			"(a == 2) || (b == 6)",
 			map[string]any{},
@@ -137,9 +139,9 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"missing variable for left side of and boolean expression",
-			mustEnvForVariables(map[string]VariableType{
-				"a": IntType,
-				"b": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"a": types.IntType,
+				"b": types.IntType,
 			}),
 			"(a == 2) && (b == 6)",
 			map[string]any{
@@ -152,9 +154,9 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"missing variable for right side of and boolean expression",
-			mustEnvForVariables(map[string]VariableType{
-				"a": IntType,
-				"b": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"a": types.IntType,
+				"b": types.IntType,
 			}),
 			"(a == 2) && (b == 6)",
 			map[string]any{
@@ -167,16 +169,16 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"map evaluation",
-			mustEnvForVariables(map[string]VariableType{
-				"m":   MapType(IntType, BooleanType),
-				"idx": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"m":   types.MapType(types.BooleanType),
+				"idx": types.StringType,
 			}),
 			"m[idx]",
 			map[string]any{
-				"m": map[int]bool{
-					1: true,
+				"m": map[string]bool{
+					"1": true,
 				},
-				"idx": 1,
+				"idx": "1",
 			},
 			"",
 			true,
@@ -184,27 +186,9 @@ func TestEvaluateCaveat(t *testing.T) {
 			noMissingVars,
 		},
 		{
-			"map evaluation, wrong map kind",
-			mustEnvForVariables(map[string]VariableType{
-				"m":   MapType(IntType, BooleanType),
-				"idx": IntType,
-			}),
-			"m[idx]",
-			map[string]any{
-				"m": map[string]bool{
-					"1": true,
-				},
-				"idx": 1,
-			},
-			"no such key: 1",
-			false,
-			"",
-			noMissingVars,
-		},
-		{
 			"map dot evaluation",
-			mustEnvForVariables(map[string]VariableType{
-				"m": MapType(StringType, BooleanType),
+			mustEnvForVariables(map[string]types.VariableType{
+				"m": types.MapType(types.BooleanType),
 			}),
 			"m.foo",
 			map[string]any{
@@ -219,9 +203,9 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"nested evaluation",
-			mustEnvForVariables(map[string]VariableType{
-				"metadata.l":   ListType(StringType),
-				"metadata.idx": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"metadata.l":   types.ListType(types.StringType),
+				"metadata.idx": types.IntType,
 			}),
 			"metadata.l[metadata.idx] == 'hello'",
 			map[string]any{
@@ -235,9 +219,9 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"nested evaluation with missing value",
-			mustEnvForVariables(map[string]VariableType{
-				"metadata.l":   ListType(StringType),
-				"metadata.idx": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"metadata.l":   types.ListType(types.StringType),
+				"metadata.idx": types.IntType,
 			}),
 			"metadata.l[metadata.idx] == 'hello'",
 			map[string]any{
@@ -250,9 +234,9 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"nested evaluation with missing list",
-			mustEnvForVariables(map[string]VariableType{
-				"metadata.l":   ListType(StringType),
-				"metadata.idx": IntType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"metadata.l":   types.ListType(types.StringType),
+				"metadata.idx": types.IntType,
 			}),
 			"metadata.l[metadata.idx] == 'hello'",
 			map[string]any{
@@ -265,8 +249,8 @@ func TestEvaluateCaveat(t *testing.T) {
 		},
 		{
 			"timestamp operations default to UTC",
-			mustEnvForVariables(map[string]VariableType{
-				"a": TimestampType,
+			mustEnvForVariables(map[string]types.VariableType{
+				"a": types.TimestampType,
 			}),
 			"a.getHours() == 9",
 			map[string]any{
@@ -319,9 +303,9 @@ func TestEvaluateCaveat(t *testing.T) {
 }
 
 func TestPartialEvaluation(t *testing.T) {
-	compiled, err := CompileCaveat(mustEnvForVariables(map[string]VariableType{
-		"a": IntType,
-		"b": IntType,
+	compiled, err := CompileCaveat(mustEnvForVariables(map[string]types.VariableType{
+		"a": types.IntType,
+		"b": types.IntType,
 	}), "a + b > 47")
 	require.NoError(t, err)
 
@@ -355,9 +339,9 @@ func TestPartialEvaluation(t *testing.T) {
 }
 
 func TestEvalWithMaxCost(t *testing.T) {
-	compiled, err := CompileCaveat(mustEnvForVariables(map[string]VariableType{
-		"a": IntType,
-		"b": IntType,
+	compiled, err := CompileCaveat(mustEnvForVariables(map[string]types.VariableType{
+		"a": types.IntType,
+		"b": types.IntType,
 	}), "a + b > 47")
 	require.NoError(t, err)
 
@@ -372,9 +356,9 @@ func TestEvalWithMaxCost(t *testing.T) {
 }
 
 func TestEvalWithNesting(t *testing.T) {
-	compiled, err := CompileCaveat(mustEnvForVariables(map[string]VariableType{
-		"foo.a": IntType,
-		"foo.b": IntType,
+	compiled, err := CompileCaveat(mustEnvForVariables(map[string]types.VariableType{
+		"foo.a": types.IntType,
+		"foo.b": types.IntType,
 	}), "foo.a + foo.b > 47")
 	require.NoError(t, err)
 

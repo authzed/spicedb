@@ -42,6 +42,14 @@ message CaveatDefinition {
 
   /** serialized_expression is the byte representation of a caveat's logic */
   bytes serialized_expression = 2 [(validate.rules).bytes = {min_len: 0, max_len: 4096}];
+
+  /** parameters_and_types is a map from parameter name to its type */
+  map<string, CaveatTypeReference> parameter_types = 3;
+}
+
+message CaveatTypeReference {
+  string type_name = 1;
+  repeated CaveatTypeReference child_types = 2;
 }
 
 message ObjectAndRelation {
