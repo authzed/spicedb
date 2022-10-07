@@ -16,6 +16,10 @@ var dropIDConstraints = []string{
 		DROP CONSTRAINT uq_namespace_living,
 		ALTER COLUMN created_transaction DROP NOT NULL,
 		ALTER COLUMN deleted_transaction DROP NOT NULL`,
+	`ALTER TABLE caveat
+		DROP CONSTRAINT uq_caveat_v1,
+		ALTER COLUMN created_transaction DROP NOT NULL,
+		ALTER COLUMN deleted_transaction DROP NOT NULL`,
 }
 
 func init() {

@@ -1,8 +1,10 @@
 package memdb
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
@@ -23,7 +25,7 @@ func (c *caveat) Unwrap() *core.Caveat {
 	}
 }
 
-func (r *memdbReader) ReadCaveatByName(name string) (*core.Caveat, error) {
+func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.Caveat, error) {
 	if !r.enableCaveats {
 		return nil, fmt.Errorf("caveats are not enabled")
 	}
@@ -68,7 +70,11 @@ func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) error {
 }
 
 func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) error {
+	caveatNames := util.NewSet[string]()
 	for _, coreCaveat := range caveats {
+		if !caveatNames.Add(coreCaveat.Name) {
+			return fmt.Errorf("duplicate caveat %s", coreCaveat.Name)
+		}
 		c := caveat{
 			name:       coreCaveat.Name,
 			expression: coreCaveat.Expression,
@@ -87,5 +93,14 @@ func (rwt *memdbReadWriteTx) DeleteCaveats(caveats []*core.Caveat) error {
 	if err != nil {
 		return err
 	}
-	return tx.Delete(tableCaveats, caveats)
+	for _, coreCaveat := range caveats {
+		c := caveat{
+			name:       coreCaveat.Name,
+			expression: coreCaveat.Expression,
+		}
+		if err := tx.Delete(tableCaveats, c); err != nil {
+			return err
+		}
+	}
+	return nil
 }

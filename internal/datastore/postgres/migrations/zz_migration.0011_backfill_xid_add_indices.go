@@ -18,6 +18,8 @@ var addBackfillIndices = []string{
 		ON namespace_config ( (created_xid IS NULL) )`,
 	`CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_backfill_tuple_temp
 		ON relation_tuple ( (created_xid IS NULL) )`,
+	`CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_backfill_caveat_temp
+		ON caveat ( (created_xid IS NULL) )`,
 }
 
 var backfills = []string{
@@ -52,6 +54,16 @@ var backfills = []string{
 			LIMIT %d
 			FOR UPDATE
 		);`,
+	`UPDATE caveat 
+		SET deleted_xid = deleted_transaction::text::xid8,
+		created_xid = created_transaction::text::xid8
+		WHERE (name, created_transaction, deleted_transaction) IN (
+			SELECT name, created_transaction, deleted_transaction
+			FROM caveat
+			WHERE created_xid IS NULL
+			LIMIT %d
+			FOR UPDATE
+		);`,
 }
 
 var addXIDIndices = []string{
@@ -74,12 +86,17 @@ var addXIDIndices = []string{
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_relation_tuple_living
 		ON relation_tuple (namespace, object_id, relation, userset_namespace, userset_object_id,
 						   userset_relation, deleted_xid);`,
+	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_caveat_unique
+		ON caveat (name, created_xid, deleted_xid);`,
+	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_caveat_living
+		ON caveat (name, deleted_xid);`,
 }
 
 var dropBackfillIndices = []string{
 	"DROP INDEX ix_backfill_rtt_temp",
 	"DROP INDEX ix_backfill_ns_temp",
 	"DROP INDEX ix_backfill_tuple_temp",
+	"DROP INDEX ix_backfill_caveat_temp",
 }
 
 func init() {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -36,6 +37,8 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
 		colCreatedXid,
 		colDeletedXid,
 	).From(tableTuple)
@@ -151,6 +154,8 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revision xid8) (*datast
 		}
 
 		var createdXID, deletedXID xid8
+		var caveatName string
+		var caveatContext map[string]any
 		if err := changes.Scan(
 			&nextTuple.ResourceAndRelation.Namespace,
 			&nextTuple.ResourceAndRelation.ObjectId,
@@ -158,10 +163,23 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revision xid8) (*datast
 			&nextTuple.Subject.Namespace,
 			&nextTuple.Subject.ObjectId,
 			&nextTuple.Subject.Relation,
+			&caveatName,
+			&caveatContext,
 			&createdXID,
 			&deletedXID,
 		); err != nil {
 			return nil, fmt.Errorf("unable to parse changed tuple: %w", err)
+		}
+
+		if caveatName != "" {
+			contextStruct, err := structpb.NewStruct(caveatContext)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read caveat context from update: %w", err)
+			}
+			nextTuple.Caveat = &core.ContextualizedCaveat{
+				CaveatName: caveatName,
+				Context:    contextStruct,
+			}
 		}
 
 		if createdXID.Uint == revision.Uint {

@@ -56,6 +56,11 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
 
 	t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
+
+	t.Run("TestWriteReadDeleteCaveat", func(t *testing.T) { WriteReadDeleteCaveatTest(t, tester) })
+	t.Run("TestWriteCaveatedRelationship", func(t *testing.T) { WriteCaveatedRelationshipTest(t, tester) })
+	t.Run("TestCaveatSnapshotReads", func(t *testing.T) { CaveatSnapshotReadsTest(t, tester) })
+	t.Run("TestCaveatedRelationshipWatch", func(t *testing.T) { CaveatedRelationshipWatchTest(t, tester) })
 }
 
 var testResourceNS = namespace.Namespace(

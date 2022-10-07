@@ -183,7 +183,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			// eventually this type assertion should be removed
 			if update.Relationship.OptionalCaveat != nil && update.Relationship.OptionalCaveat.CaveatName != "" {
 				if caveatReader, ok := rwt.(datastore.CaveatReader); ok {
-					_, err := caveatReader.ReadCaveatByName(update.Relationship.OptionalCaveat.CaveatName)
+					_, err := caveatReader.ReadCaveatByName(ctx, update.Relationship.OptionalCaveat.CaveatName)
 					if errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
 						return rewriteError(ctx, NewCaveatNotFoundError(update))
 					}
