@@ -18,6 +18,9 @@ const (
 )
 
 var addXIDConstraints = []string{
+	`ALTER TABLE relation_tuple_transaction ALTER COLUMN snapshot SET NOT NULL;`,
+	`ALTER TABLE relation_tuple ALTER COLUMN created_xid SET NOT NULL;`,
+	`ALTER TABLE namespace_config ALTER COLUMN created_xid SET NOT NULL;`,
 	`ALTER TABLE relation_tuple_transaction
 		DROP CONSTRAINT pk_rttx,
 		ADD CONSTRAINT pk_rttx PRIMARY KEY USING INDEX ix_rttx_pk;`,
@@ -31,7 +34,7 @@ var addXIDConstraints = []string{
 }
 
 func init() {
-	if err := DatabaseMigrations.Register("add-xid-constraints", "add-xid-indices",
+	if err := DatabaseMigrations.Register("add-xid-constraints", "backfill-xid-add-indices",
 		noNonatomicMigration,
 		func(ctx context.Context, tx pgx.Tx) error {
 			var constraintName string
