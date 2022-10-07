@@ -88,7 +88,10 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	// Do as much validation as we can before talking to the datastore
 	newDefs := strset.NewWithSize(len(nsdefs))
 	for _, nsdef := range nsdefs {
-		ts, err := namespace.BuildNamespaceTypeSystemForDefs(nsdef, nsdefs)
+		ts, err := namespace.NewNamespaceTypeSystem(nsdef,
+			namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
+				Namespaces: nsdefs,
+			}))
 		if err != nil {
 			return nil, rewriteError(ctx, err)
 		}

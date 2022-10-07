@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/graph"
@@ -48,73 +47,9 @@ const (
 	PublicSubjectNotAllowed
 )
 
-// LookupNamespace is a function used to lookup a namespace.
-type LookupNamespace func(ctx context.Context, name string) (*core.NamespaceDefinition, error)
-
-// BuildNamespaceTypeSystemWithFallback constructs a type system view of a namespace definition, with automatic lookup
-// via the additional defs first, and then the namespace manager as a fallback.
-func BuildNamespaceTypeSystemWithFallback(nsDef *core.NamespaceDefinition, ds datastore.Reader, additionalDefs []*core.NamespaceDefinition) (*TypeSystem, error) {
-	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, namespaceName string) (*core.NamespaceDefinition, error) {
-		// NOTE: Order is important here: We always check the new definitions before the existing
-		// ones.
-
-		// Check the additional namespace definitions for the namespace.
-		for _, additionalDef := range additionalDefs {
-			if additionalDef.Name == namespaceName {
-				return additionalDef, nil
-			}
-		}
-
-		// Otherwise, check already defined namespaces.
-		otherNamespaceDef, _, err := ds.ReadNamespace(ctx, namespaceName)
-		return otherNamespaceDef, asTypeError(err)
-	})
-}
-
-// BuildNamespaceTypeSystemForDatastore constructs a type system view of a namespace definition, with automatic lookup
-// via the datastore reader.
-func BuildNamespaceTypeSystemForDatastore(nsDef *core.NamespaceDefinition, ds datastore.Reader) (*TypeSystem, error) {
-	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*core.NamespaceDefinition, error) {
-		nsDef, _, err := ds.ReadNamespace(ctx, nsName)
-		return nsDef, asTypeError(err)
-	})
-}
-
-// BuildNamespaceTypeSystemForDefs constructs a type system view of a namespace definition, with lookup in the
-// list of definitions given.
-func BuildNamespaceTypeSystemForDefs(nsDef *core.NamespaceDefinition, allDefs []*core.NamespaceDefinition) (*TypeSystem, error) {
-	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*core.NamespaceDefinition, error) {
-		for _, def := range allDefs {
-			if def.Name == nsName {
-				return def, nil
-			}
-		}
-
-		return nil, asTypeError(NewNamespaceNotFoundErr(nsName))
-	})
-}
-
-func newTypeErrorWithSource(wrapped error, withSource nspkg.WithSourcePosition, sourceCodeString string) error {
-	sourcePosition := withSource.GetSourcePosition()
-	if sourcePosition != nil {
-		return asTypeError(spiceerrors.NewErrorWithSource(
-			wrapped,
-			sourceCodeString,
-			sourcePosition.ZeroIndexedLineNumber+1, // +1 to make 1-indexed
-			sourcePosition.ZeroIndexedColumnPosition+1, // +1 to make 1-indexed
-		))
-	}
-
-	return asTypeError(spiceerrors.NewErrorWithSource(
-		wrapped,
-		sourceCodeString,
-		0,
-		0,
-	))
-}
-
-// BuildNamespaceTypeSystem constructs a type system view of a namespace definition.
-func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace LookupNamespace) (*TypeSystem, error) {
+// NewNamespaceTypeSystem returns a new type system for the given namespace. Note that the type
+// system is not validated until Validate is called.
+func NewNamespaceTypeSystem(nsDef *core.NamespaceDefinition, resolver Resolver) (*TypeSystem, error) {
 	relationMap := map[string]*core.Relation{}
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
@@ -130,7 +65,7 @@ func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace L
 	}
 
 	return &TypeSystem{
-		lookupNamespace:    lookupNamespace,
+		resolver:           resolver,
 		nsDef:              nsDef,
 		relationMap:        relationMap,
 		wildcardCheckCache: map[string]*WildcardTypeReference{},
@@ -139,7 +74,7 @@ func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace L
 
 // TypeSystem represents typing information found in a namespace.
 type TypeSystem struct {
-	lookupNamespace    LookupNamespace
+	resolver           Resolver
 	nsDef              *core.NamespaceDefinition
 	relationMap        map[string]*core.Relation
 	wildcardCheckCache map[string]*WildcardTypeReference
@@ -518,15 +453,34 @@ func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName
 		return nts, nil
 	}
 
-	nsDef, err := nts.lookupNamespace(ctx, namespaceName)
+	nsDef, err := nts.resolver.LookupNamespace(ctx, namespaceName)
 	if err != nil {
 		return nil, err
 	}
 
-	return BuildNamespaceTypeSystem(nsDef, nts.lookupNamespace)
+	return NewNamespaceTypeSystem(nsDef, nts.resolver)
 }
 
 // ValidatedNamespaceTypeSystem is validated type system for a namespace.
 type ValidatedNamespaceTypeSystem struct {
 	*TypeSystem
+}
+
+func newTypeErrorWithSource(wrapped error, withSource nspkg.WithSourcePosition, sourceCodeString string) error {
+	sourcePosition := withSource.GetSourcePosition()
+	if sourcePosition != nil {
+		return asTypeError(spiceerrors.NewErrorWithSource(
+			wrapped,
+			sourceCodeString,
+			sourcePosition.ZeroIndexedLineNumber+1, // +1 to make 1-indexed
+			sourcePosition.ZeroIndexedColumnPosition+1, // +1 to make 1-indexed
+		))
+	}
+
+	return asTypeError(spiceerrors.NewErrorWithSource(
+		wrapped,
+		sourceCodeString,
+		0,
+		0,
+	))
 }

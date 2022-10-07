@@ -224,7 +224,7 @@ func TestTypeSystem(t *testing.T) {
 			})
 			require.NoError(err)
 
-			ts, err := BuildNamespaceTypeSystemForDatastore(tc.toCheck, ds.SnapshotReader(lastRevision))
+			ts, err := NewNamespaceTypeSystem(tc.toCheck, ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			_, terr := ts.Validate(ctx)

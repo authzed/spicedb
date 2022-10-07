@@ -122,7 +122,10 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 
 	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		for _, nsDef := range allDefs {
-			ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsDef, rwt, allDefs)
+			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
+				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+					Namespaces: allDefs,
+				}))
 			require.NoError(err)
 
 			vts, err := ts.Validate(ctx)

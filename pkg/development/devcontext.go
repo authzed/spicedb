@@ -161,8 +161,12 @@ func loadNamespaces(
 	rwt datastore.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
 	errors := make([]*devinterface.DeveloperError, 0, len(namespaces))
+	resolver := namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
+		Namespaces: namespaces,
+	})
+
 	for _, nsDef := range namespaces {
-		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(nsDef, namespaces)
+		ts, terr := namespace.NewNamespaceTypeSystem(nsDef, resolver)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)
 			if ok {

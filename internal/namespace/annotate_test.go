@@ -33,7 +33,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	require.NoError(err)
 
 	var lastRevision decimal.Decimal
-	ts, err := BuildNamespaceTypeSystemForDatastore(defs[0], ds.SnapshotReader(lastRevision))
+	ts, err := NewNamespaceTypeSystem(defs[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 	require.NoError(err)
 
 	ctx := context.Background()

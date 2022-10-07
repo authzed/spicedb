@@ -62,6 +62,28 @@ func (err ErrRelationNotFound) DetailsMetadata() map[string]string {
 	}
 }
 
+// ErrCaveatNotFound occurs when a caveat was not found.
+type ErrCaveatNotFound struct {
+	error
+	caveatName string
+}
+
+// CaveatName returns the name of the caveat not found.
+func (err ErrCaveatNotFound) CaveatName() string {
+	return err.caveatName
+}
+
+func (err ErrCaveatNotFound) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err).Str("caveat", err.caveatName)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrCaveatNotFound) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"caveat_name": err.caveatName,
+	}
+}
+
 // ErrDuplicateRelation occurs when a duplicate relation was found inside a namespace.
 type ErrDuplicateRelation struct {
 	error
@@ -202,6 +224,14 @@ func NewRelationNotFoundErr(nsName string, relationName string) error {
 		error:         fmt.Errorf("relation/permission `%s` not found under definition `%s`", relationName, nsName),
 		namespaceName: nsName,
 		relationName:  relationName,
+	}
+}
+
+// NewCaveatNotFoundErr constructs a new caveat not found error.
+func NewCaveatNotFoundErr(caveatName string) error {
+	return ErrCaveatNotFound{
+		error:      fmt.Errorf("caveat `%s` not found", caveatName),
+		caveatName: caveatName,
 	}
 }
 
