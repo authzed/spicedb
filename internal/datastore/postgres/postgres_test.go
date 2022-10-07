@@ -11,6 +11,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -28,78 +29,101 @@ import (
 )
 
 func TestPostgresDatastore(t *testing.T) {
-	b := testdatastore.RunPostgresForTesting(t, "")
+	// TODO remove this compatibility loop once the ID->XID migrations are all complete
+	for _, config := range []struct {
+		targetMigration string
+		migrationPhase  string
+	}{
+		{"add-xid-columns", "write-both-read-old"},
+		{"add-xid-constraints", "write-both-read-old"},
+		{"add-xid-constraints", "write-both-read-new"},
+		{"drop-id-constraints", "write-both-read-new"},
+		{"drop-id-constraints", ""},
+		{"drop-bigserial-ids", ""},
+	} {
+		t.Run(fmt.Sprintf("%s-%s", config.targetMigration, config.migrationPhase), func(t *testing.T) {
+			b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration)
 
-	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewPostgresDatastore(uri,
-				RevisionQuantization(revisionQuantization),
-				GCWindow(gcWindow),
-				WatchBufferLength(watchBufferLength),
-				DebugAnalyzeBeforeStatistics(),
-			)
-			require.NoError(t, err)
-			return ds
-		})
-		return ds, nil
-	}))
+			test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+				ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+					ds, err := NewPostgresDatastore(uri,
+						RevisionQuantization(revisionQuantization),
+						GCWindow(gcWindow),
+						WatchBufferLength(watchBufferLength),
+						DebugAnalyzeBeforeStatistics(),
+						MigrationPhase(config.migrationPhase),
+					)
+					require.NoError(t, err)
+					return ds
+				})
+				return ds, nil
+			}))
 
-	t.Run("WithSplit", func(t *testing.T) {
-		// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
-		test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-				ds, err := NewPostgresDatastore(uri,
-					RevisionQuantization(revisionQuantization),
-					GCWindow(gcWindow),
-					WatchBufferLength(watchBufferLength),
-					DebugAnalyzeBeforeStatistics(),
-					SplitAtUsersetCount(1), // 1 userset
-				)
-				require.NoError(t, err)
-				return ds
+			t.Run("WithSplit", func(t *testing.T) {
+				// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
+				test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+					ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+						ds, err := NewPostgresDatastore(uri,
+							RevisionQuantization(revisionQuantization),
+							GCWindow(gcWindow),
+							WatchBufferLength(watchBufferLength),
+							DebugAnalyzeBeforeStatistics(),
+							SplitAtUsersetCount(1), // 1 userset
+							MigrationPhase(config.migrationPhase),
+						)
+						require.NoError(t, err)
+						return ds
+					})
+
+					return ds, nil
+				}))
 			})
 
-			return ds, nil
-		}))
-	})
+			t.Run("GarbageCollection", createDatastoreTest(
+				b,
+				GarbageCollectionTest,
+				RevisionQuantization(0),
+				GCWindow(1*time.Millisecond),
+				WatchBufferLength(1),
+				MigrationPhase(config.migrationPhase),
+			))
 
-	t.Run("GarbageCollection", createDatastoreTest(
-		b,
-		GarbageCollectionTest,
-		RevisionQuantization(0),
-		GCWindow(1*time.Millisecond),
-		WatchBufferLength(1),
-	))
+			t.Run("TransactionTimestamps", createDatastoreTest(
+				b,
+				TransactionTimestampsTest,
+				RevisionQuantization(0),
+				GCWindow(1*time.Millisecond),
+				WatchBufferLength(1),
+				MigrationPhase(config.migrationPhase),
+			))
 
-	t.Run("TransactionTimestamps", createDatastoreTest(
-		b,
-		TransactionTimestampsTest,
-		RevisionQuantization(0),
-		GCWindow(1*time.Millisecond),
-		WatchBufferLength(1),
-	))
+			t.Run("GarbageCollectionByTime", createDatastoreTest(
+				b,
+				GarbageCollectionByTimeTest,
+				RevisionQuantization(0),
+				GCWindow(1*time.Millisecond),
+				WatchBufferLength(1),
+				MigrationPhase(config.migrationPhase),
+			))
 
-	t.Run("GarbageCollectionByTime", createDatastoreTest(
-		b,
-		GarbageCollectionByTimeTest,
-		RevisionQuantization(0),
-		GCWindow(1*time.Millisecond),
-		WatchBufferLength(1),
-	))
+			t.Run("ChunkedGarbageCollection", createDatastoreTest(
+				b,
+				ChunkedGarbageCollectionTest,
+				RevisionQuantization(0),
+				GCWindow(1*time.Millisecond),
+				WatchBufferLength(1),
+				MigrationPhase(config.migrationPhase),
+			))
 
-	t.Run("ChunkedGarbageCollection", createDatastoreTest(
-		b,
-		ChunkedGarbageCollectionTest,
-		RevisionQuantization(0),
-		GCWindow(1*time.Millisecond),
-		WatchBufferLength(1),
-	))
+			t.Run("QuantizedRevisions", func(t *testing.T) {
+				QuantizedRevisionTest(t, b)
+			})
+		})
+	}
 
-	t.Run("QuantizedRevisions", func(t *testing.T) {
-		QuantizedRevisionTest(t, b)
-	})
-
+	// TODO remove this test once the ID->XID migrations are all complete
 	t.Run("XIDMigrationAssumptionsTest", func(t *testing.T) {
+		b := testdatastore.RunPostgresForTesting(t, "", "")
 		XIDMigrationAssumptionsTest(t, b)
 	})
 }
@@ -584,8 +608,8 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	insertNSSQL, insertNSArgs, err := psql.
 		Insert(tableNamespace).
 		Columns(colNamespace, colConfig, "created_transaction", "deleted_transaction").
-		Values("oneNamespace", "", oldTxIDs[0], oldTxIDs[1]).
-		Values("oneNamespace", "", oldTxIDs[1], liveDeletedTxnID).ToSql()
+		Values("one_namespace", "", oldTxIDs[0], oldTxIDs[1]).
+		Values("one_namespace", "", oldTxIDs[1], liveDeletedTxnID).ToSql()
 
 	require.NoError(err)
 
@@ -604,8 +628,8 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			"created_transaction",
 			"deleted_transaction",
 		).
-		Values("oneNamespace", "1", "parent", "oneNamespace", "2", datastore.Ellipsis, oldTxIDs[0], oldTxIDs[1]).
-		Values("oneNamespace", "1", "parent", "oneNamespace", "2", datastore.Ellipsis, oldTxIDs[1], liveDeletedTxnID).
+		Values("one_namespace", "1", "parent", "one_namespace", "2", datastore.Ellipsis, oldTxIDs[0], oldTxIDs[1]).
+		Values("one_namespace", "1", "parent", "one_namespace", "2", datastore.Ellipsis, oldTxIDs[1], liveDeletedTxnID).
 		ToSql()
 	require.NoError(err)
 
@@ -616,132 +640,160 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	require.NoError(migrations.DatabaseMigrations.Run(
 		context.Background(),
 		migrationDriver,
-		"add-xid-constraints",
+		"add-xid-columns",
 		migrate.LiveRun,
 	))
 
-	createTx := fmt.Sprintf("INSERT INTO %s DEFAULT VALUES RETURNING id, xid", tableTransaction)
-	insertNSQ := psql.
-		Insert(tableNamespace).
-		Columns(colNamespace, colConfig, "created_transaction", "deleted_transaction")
-	insertRelsQ := psql.
-		Insert(tableTuple).
-		Columns(
-			colNamespace,
-			colObjectID,
-			colRelation,
-			colUsersetNamespace,
-			colUsersetObjectID,
-			colUsersetRelation,
-			"created_transaction",
-			"deleted_transaction",
-		)
-
-	// Write a namespace and a row
-	var firstRowXid xid8
-	require.NoError(conn.BeginFunc(ctx, func(tx pgx.Tx) error {
-		var newTx uint64
-		require.NoError(tx.QueryRow(ctx, createTx).Scan(&newTx, &firstRowXid))
-
-		insertNSSQL, insertNSArgs, err := insertNSQ.
-			Values("twoNamespace", "", newTx, liveDeletedTxnID).
-			ToSql()
-		require.NoError(err)
-
-		_, err = tx.Exec(ctx, insertNSSQL, insertNSArgs...)
-		require.NoError(err)
-
-		insertRelsSQL, insertRelsArgs, err := insertRelsQ.
-			Values(
-				"twoNamespace",
-				"1",
-				"parent",
-				"twoNamespace",
-				"2",
-				datastore.Ellipsis,
-				newTx,
-				liveDeletedTxnID,
-			).ToSql()
-		require.NoError(err)
-
-		_, err = tx.Exec(ctx, insertRelsSQL, insertRelsArgs...)
-		require.NoError(err)
-
-		return nil
-	}))
-
-	// Kill the last tuple and namespace, insert a new one
-	require.NoError(conn.BeginFunc(ctx, func(tx pgx.Tx) error {
-		var newTx uint64
-		var newXid xid8
-		require.NoError(tx.QueryRow(ctx, createTx).Scan(&newTx, &newXid))
-
-		sql, args, err := psql.Update(tableNamespace).Set(colDeletedXid, newXid).
-			Set("deleted_transaction", newTx).Where(sq.Eq{colCreatedXid: firstRowXid}).ToSql()
-		require.NoError(err)
-
-		_, err = tx.Exec(ctx, sql, args...)
-		require.NoError(err)
-
-		sql, args, err = psql.Update(tableTuple).Set(colDeletedXid, newXid).
-			Set("deleted_transaction", newTx).Where(sq.Eq{colCreatedXid: firstRowXid}).ToSql()
-		require.NoError(err)
-
-		_, err = tx.Exec(ctx, sql, args...)
-		require.NoError(err)
-
-		insertNSSQL, insertNSArgs, err := insertNSQ.
-			Values("twoNamespace", "", newTx, liveDeletedTxnID).
-			ToSql()
-		require.NoError(err)
-
-		_, err = tx.Exec(ctx, insertNSSQL, insertNSArgs...)
-		require.NoError(err)
-
-		insertRelsSQL, insertRelsArgs, err := insertRelsQ.
-			Values(
-				"twoNamespace",
-				"1",
-				"parent",
-				"twoNamespace",
-				"2",
-				datastore.Ellipsis,
-				newTx,
-				newXid,
-			).ToSql()
-		require.NoError(err)
-
-		_, err = tx.Exec(ctx, insertRelsSQL, insertRelsArgs...)
-		require.NoError(err)
-
-		return nil
-	}))
-
-	var finalTx uint64
-	var finalXid xid8
-	require.NoError(conn.QueryRow(ctx, createTx).Scan(&finalTx, &finalXid))
-
-	// Verify that the proper data is visible to the datastore
-	gcWindow := 5 * time.Second
-	gcInterval := 1 * time.Second
-	ds, err := NewPostgresDatastore(uri, RevisionQuantization(0), GCWindow(gcWindow), GCInterval(gcInterval))
+	dsWriteBothReadOld, err := NewPostgresDatastore(
+		uri,
+		RevisionQuantization(0),
+		MigrationPhase("write-both-read-old"),
+	)
 	require.NoError(err)
 
-	rows, err := conn.Query(ctx, "select namespace, created_xid, deleted_xid from relation_tuple")
-	require.NoError(err)
+	writtenAtTwo, err := dsWriteBothReadOld.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+			"two_namespace", namespace.Relation("parent", nil, nil))))
 
-	for rows.Next() {
-		var namespace string
-		var created, deleted xid8
-		require.NoError(rows.Scan(&namespace, &created, &deleted))
-		fmt.Printf("%s, %d, %d\n", namespace, created, deleted)
+		require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+			{
+				Operation: core.RelationTupleUpdate_TOUCH,
+				Tuple:     tuple.MustParse("one_namespace:1#parent@one_namespace:2#..."),
+			},
+			{
+				Operation: core.RelationTupleUpdate_TOUCH,
+				Tuple:     tuple.MustParse("two_namespace:1#parent@two_namespace:2#..."),
+			},
+		}))
+
+		return nil
+	})
+	require.NoError(err)
+	writtenAtOne := decimal.NewFromInt(int64(oldTxIDs[len(oldTxIDs)-1]))
+	require.True(writtenAtTwo.GreaterThan(writtenAtOne))
+
+	verifyProperAlive(ctx, require, dsWriteBothReadOld, writtenAtTwo, map[string]int{
+		"one_namespace": 1,
+		"two_namespace": 1,
+	})
+
+	// Backfill
+	for _, migrationName := range []string{"backfill-xid-add-indices", "add-xid-constraints"} {
+		require.NoError(migrations.DatabaseMigrations.Run(
+			context.Background(),
+			migrationDriver,
+			migrationName,
+			migrate.LiveRun,
+		))
+
+		lastWritten, err := dsWriteBothReadOld.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+				"two_namespace", namespace.Relation("parent", nil, nil))))
+
+			require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+				{
+					Operation: core.RelationTupleUpdate_TOUCH,
+					Tuple:     tuple.MustParse("two_namespace:1#parent@two_namespace:2#..."),
+				},
+			}))
+
+			return nil
+		})
+		require.NoError(err)
+
+		// Use the existing datastore to check data again
+		verifyProperAlive(ctx, require, dsWriteBothReadOld, lastWritten, map[string]int{
+			"one_namespace": 1,
+			"two_namespace": 1,
+		})
 	}
+
+	dsWriteBothReadNew, err := NewPostgresDatastore(
+		uri,
+		RevisionQuantization(0),
+		MigrationPhase("write-both-read-new"),
+	)
 	require.NoError(err)
 
-	verifyProperAlive(ctx, require, ds, decimal.NewFromInt(int64(oldTxIDs[1])), 1, 0)
-	verifyProperAlive(ctx, require, ds, revisionFromTransaction(finalXid), 1, 1)
+	writtenAtThree, err := dsWriteBothReadNew.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		require.NoError(rwt.DeleteRelationships(&v1.RelationshipFilter{
+			ResourceType: "one_namespace",
+		}))
 
-	// Migrate to the last phase
+		require.NoError(rwt.DeleteNamespace("one_namespace"))
+
+		require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+			"three_namespace", namespace.Relation("parent", nil, nil))))
+
+		require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+			{
+				Operation: core.RelationTupleUpdate_TOUCH,
+				Tuple:     tuple.MustParse("three_namespace:1#parent@three_namespace:2#..."),
+			},
+		}))
+
+		return nil
+	})
+	require.NoError(err)
+	require.True(writtenAtThree.GreaterThan(writtenAtTwo))
+
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtThree, map[string]int{
+		"one_namespace":   0,
+		"two_namespace":   1,
+		"three_namespace": 1,
+	})
+
+	// Drop the requirement to write old
+	require.NoError(migrations.DatabaseMigrations.Run(
+		context.Background(),
+		migrationDriver,
+		"drop-id-constraints",
+		migrate.LiveRun,
+	))
+
+	// Use the old datastore to verify again
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtThree, map[string]int{
+		"one_namespace":   0,
+		"two_namespace":   1,
+		"three_namespace": 1,
+	})
+
+	dsWriteOnlyNew, err := NewPostgresDatastore(
+		uri,
+		RevisionQuantization(0),
+	)
+	require.NoError(err)
+
+	writtenAtFour, err := dsWriteOnlyNew.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		require.NoError(rwt.DeleteRelationships(&v1.RelationshipFilter{
+			ResourceType: "two_namespace",
+		}))
+
+		require.NoError(rwt.DeleteNamespace("two_namespace"))
+
+		require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+			"four_namespace", namespace.Relation("parent", nil, nil))))
+
+		require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+			{
+				Operation: core.RelationTupleUpdate_TOUCH,
+				Tuple:     tuple.MustParse("four_namespace:1#parent@four_namespace:2#..."),
+			},
+		}))
+
+		return nil
+	})
+	require.NoError(err)
+	require.True(writtenAtFour.GreaterThan(writtenAtThree))
+
+	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFour, map[string]int{
+		"one_namespace":   0,
+		"two_namespace":   0,
+		"three_namespace": 1,
+		"four_namespace":  1,
+	})
+
+	// Drop the old columns entirely
 	require.NoError(migrations.DatabaseMigrations.Run(
 		context.Background(),
 		migrationDriver,
@@ -749,8 +801,67 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 		migrate.LiveRun,
 	))
 
-	verifyProperAlive(ctx, require, ds, decimal.NewFromInt(int64(oldTxIDs[1])), 1, 0)
-	verifyProperAlive(ctx, require, ds, revisionFromTransaction(finalXid), 1, 1)
+	// Use the existing datastore to verify
+	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFour, map[string]int{
+		"one_namespace":   0,
+		"two_namespace":   0,
+		"three_namespace": 1,
+		"four_namespace":  1,
+	})
+
+	// Attempt a write with the columns dropped
+	writtenAtFive, err := dsWriteOnlyNew.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		require.NoError(rwt.DeleteRelationships(&v1.RelationshipFilter{
+			ResourceType: "three_namespace",
+		}))
+
+		require.NoError(rwt.DeleteNamespace("three_namespace"))
+
+		require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+			"five_namespace", namespace.Relation("parent", nil, nil))))
+
+		require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+			{
+				Operation: core.RelationTupleUpdate_TOUCH,
+				Tuple:     tuple.MustParse("five_namespace:1#parent@five_namespace:2#..."),
+			},
+		}))
+
+		return nil
+	})
+	require.NoError(err)
+	require.True(writtenAtFive.GreaterThan(writtenAtFour))
+
+	// Check everything at the end state
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtOne, map[string]int{
+		"one_namespace": 1,
+	})
+
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtTwo, map[string]int{
+		"one_namespace": 1,
+		"two_namespace": 1,
+	})
+
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtThree, map[string]int{
+		"one_namespace":   0,
+		"two_namespace":   1,
+		"three_namespace": 1,
+	})
+
+	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFour, map[string]int{
+		"one_namespace":   0,
+		"two_namespace":   0,
+		"three_namespace": 1,
+		"four_namespace":  1,
+	})
+
+	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFive, map[string]int{
+		"one_namespace":   0,
+		"two_namespace":   0,
+		"three_namespace": 0,
+		"four_namespace":  1,
+		"five_namespace":  1,
+	})
 }
 
 func countIterator(require *require.Assertions, iter datastore.RelationshipIterator) int {
@@ -768,27 +879,34 @@ func verifyProperAlive(
 	require *require.Assertions,
 	ds datastore.Datastore,
 	revision datastore.Revision,
-	expectedOne int,
-	expectedTwo int,
+	expected map[string]int,
 ) {
 	reader := ds.SnapshotReader(revision)
-	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType: "oneNamespace",
-	})
-	require.NoError(err)
-	require.Equal(expectedOne, countIterator(require, iter))
 
-	iter, err = reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType: "twoNamespace",
-	})
-	require.NoError(err)
-	require.Equal(expectedTwo, countIterator(require, iter))
+	for nsName, expectedCount := range expected {
+		_, _, err := reader.ReadNamespace(ctx, nsName)
+		if expectedCount == 0 {
+			require.Error(err)
+		} else {
+			require.NoError(err)
+		}
+
+		found, err := reader.LookupNamespaces(ctx, []string{nsName})
+		require.NoError(err)
+		require.Equal(expectedCount, len(found))
+
+		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			ResourceType: nsName,
+		})
+		require.NoError(err)
+		require.Equal(expectedCount, countIterator(require, iter), "expected tuple count not equal for namespace: %s", nsName)
+	}
 }
 
 func BenchmarkPostgresQuery(b *testing.B) {
 	req := require.New(b)
 
-	ds := testdatastore.RunPostgresForTesting(b, "").NewDatastore(b, func(engine, uri string) datastore.Datastore {
+	ds := testdatastore.RunPostgresForTesting(b, "", migrate.Head).NewDatastore(b, func(engine, uri string) datastore.Datastore {
 		ds, err := NewPostgresDatastore(uri,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
