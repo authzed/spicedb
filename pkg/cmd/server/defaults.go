@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/go-logr/zerologr"
@@ -57,7 +56,6 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 	return cobrautil.CommandStack(
 		cobrautil.SyncViperPreRunE(programName),
 		cobrazerolog.New(
-			cobrazerolog.WithAsync(1000, 10*time.Millisecond),
 			cobrazerolog.WithTarget(func(logger zerolog.Logger) {
 				logging.SetGlobalLogger(logger)
 			}),
