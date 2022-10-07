@@ -52,18 +52,18 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		var err error
 		migrationDriver, err := crdbmigrations.NewCRDBDriver(dbURL)
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to create migration driver")
+			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}
-		runMigration(cmd.Context(), migrationDriver, crdbmigrations.CRDBMigrations, args[0], timeout, migrationBatachSize)
+		return runMigration(cmd.Context(), migrationDriver, crdbmigrations.CRDBMigrations, args[0], timeout, migrationBatachSize)
 	} else if datastoreEngine == "postgres" {
 		log.Info().Msg("migrating postgres datastore")
 
 		var err error
 		migrationDriver, err := migrations.NewAlembicPostgresDriver(dbURL)
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to create migration driver")
+			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}
-		runMigration(cmd.Context(), migrationDriver, migrations.DatabaseMigrations, args[0], timeout, migrationBatachSize)
+		return runMigration(cmd.Context(), migrationDriver, migrations.DatabaseMigrations, args[0], timeout, migrationBatachSize)
 	} else if datastoreEngine == "spanner" {
 		log.Info().Msg("migrating spanner datastore")
 
@@ -75,9 +75,9 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		}
 		migrationDriver, err := spannermigrations.NewSpannerDriver(dbURL, credFile, emulatorHost)
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to create migration driver")
+			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}
-		runMigration(cmd.Context(), migrationDriver, spannermigrations.SpannerMigrations, args[0], timeout, migrationBatachSize)
+		return runMigration(cmd.Context(), migrationDriver, spannermigrations.SpannerMigrations, args[0], timeout, migrationBatachSize)
 	} else if datastoreEngine == "mysql" {
 		log.Info().Msg("migrating mysql datastore")
 
@@ -89,14 +89,12 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 
 		migrationDriver, err := mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix)
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to create migration driver")
+			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}
-		runMigration(cmd.Context(), migrationDriver, mysqlmigrations.Manager, args[0], timeout, migrationBatachSize)
-	} else {
-		return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
+		return runMigration(cmd.Context(), migrationDriver, mysqlmigrations.Manager, args[0], timeout, migrationBatachSize)
 	}
 
-	return nil
+	return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 }
 
 func runMigration[D migrate.Driver[C, T], C any, T any](
@@ -106,18 +104,19 @@ func runMigration[D migrate.Driver[C, T], C any, T any](
 	targetRevision string,
 	timeout time.Duration,
 	backfillBatchSize uint64,
-) {
+) error {
 	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
 	ctxWithBatch := context.WithValue(ctx, migrate.BackfillBatchSize, backfillBatchSize)
 	ctx, cancel := context.WithTimeout(ctxWithBatch, timeout)
 	defer cancel()
 	if err := manager.Run(ctx, driver, targetRevision, migrate.LiveRun); err != nil {
-		log.Fatal().Err(err).Msg("unable to complete requested migrations")
+		return fmt.Errorf("unable to migrate to `%s` revision: %w", targetRevision, err)
 	}
 
 	if err := driver.Close(ctx); err != nil {
-		log.Fatal().Err(err).Msg("unable to close migration driver")
+		return fmt.Errorf("unable to close migration driver: %w", err)
 	}
+	return nil
 }
 
 func RegisterHeadFlags(cmd *cobra.Command) {
@@ -132,7 +131,7 @@ func NewHeadCommand(programName string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			headRevision, err := HeadRevision(cobrautil.MustGetStringExpanded(cmd, "datastore-engine"))
 			if err != nil {
-				log.Fatal().Err(err).Msg("unable to compute head revision")
+				return fmt.Errorf("unable to compute head revision: %w", err)
 			}
 			fmt.Println(headRevision)
 			return nil

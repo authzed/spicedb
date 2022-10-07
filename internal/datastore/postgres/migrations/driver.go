@@ -12,8 +12,6 @@ import (
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
-const errUnableToInstantiate = "unable to instantiate AlembicPostgresDriver: %w"
-
 const postgresMissingTableErrorCode = "42P01"
 
 // AlembicPostgresDriver implements a schema migration facility for use in
@@ -28,12 +26,12 @@ type AlembicPostgresDriver struct {
 func NewAlembicPostgresDriver(url string) (*AlembicPostgresDriver, error) {
 	connectStr, err := pq.ParseURL(url)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, err
 	}
 
 	db, err := pgx.Connect(context.Background(), connectStr)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, err
 	}
 
 	return &AlembicPostgresDriver{db}, nil

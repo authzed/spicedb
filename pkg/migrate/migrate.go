@@ -99,6 +99,7 @@ func (m *Manager[D, C, T]) Register(version, replaces string, up MigrationFunc[C
 // Run will actually perform the necessary migrations to bring the backing datastore
 // from its current revision to the specified revision.
 func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision string, dryRun RunType) error {
+	requestedRevision := throughRevision
 	starting, err := driver.Version(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to compute target revision: %w", err)
@@ -114,6 +115,9 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 	toRun, err := collectMigrationsInRange(starting, throughRevision, m.migrations)
 	if err != nil {
 		return fmt.Errorf("unable to compute migration list: %w", err)
+	}
+	if len(toRun) == 0 {
+		log.Info().Str("targetRevision", requestedRevision).Msg("server already at requested revision")
 	}
 
 	if !dryRun {
@@ -148,7 +152,7 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 
 				return nil
 			}); err != nil {
-				return fmt.Errorf("error executing migration transaction function: %w", err)
+				return fmt.Errorf("error executing migration `%s`: %w", migrationToRun.version, err)
 			}
 
 			currentVersion, err = driver.Version(ctx)
