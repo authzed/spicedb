@@ -15,7 +15,7 @@ jobs:
           ref: "${{ env.GITHUB_SHA }}"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.19.1"
+          go-version: "~1.19.2"
       - run: |
           echo "Building WASM..."
           GOOS=js GOARCH=wasm go build  -o dist/development.wasm ./pkg/development/wasm/...
