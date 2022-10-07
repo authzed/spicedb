@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/util"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/graph"
@@ -385,9 +387,24 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 			}
 		}
 
-		// Verify that all allowed relations are not this very relation, and that
-		// they exist within the namespace.
+		// Allowed relations verification:
+		// 1) that all allowed relations are not this very relation
+		// 2) that they exist within the referenced namespace
+		// 3) that they are not duplicated in any way
+		// 4) that if they have a caveat reference, the caveat is valid
+		encountered := util.NewSet[string]()
+
 		for _, allowedRelation := range allowedDirectRelations {
+			source := sourceForAllowedRelation(allowedRelation)
+			if !encountered.Add(source) {
+				return nil, newTypeErrorWithSource(
+					NewDuplicateAllowedRelationErr(nts.nsDef.Name, relation.Name, source),
+					allowedRelation,
+					source,
+				)
+			}
+
+			// Check the namespace.
 			if allowedRelation.GetNamespace() == nts.nsDef.Name {
 				if allowedRelation.GetPublicWildcard() == nil && allowedRelation.GetRelation() != tuple.Ellipsis {
 					_, ok := nts.relationMap[allowedRelation.GetRelation()]
@@ -409,6 +426,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 					)
 				}
 
+				// Check for relations.
 				if allowedRelation.GetPublicWildcard() == nil && allowedRelation.GetRelation() != tuple.Ellipsis {
 					// Ensure the relation exists.
 					ok := subjectTS.HasRelation(allowedRelation.GetRelation())
@@ -442,10 +460,40 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 					}
 				}
 			}
+
+			// Check the caveat, if any.
+			if allowedRelation.GetRequiredCaveat() != nil {
+				_, err := nts.resolver.LookupCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
+				if err != nil {
+					return nil, newTypeErrorWithSource(
+						fmt.Errorf("could not lookup caveat `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err),
+						allowedRelation,
+						source,
+					)
+				}
+			}
 		}
 	}
 
 	return &ValidatedNamespaceTypeSystem{nts}, nil
+}
+
+func sourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
+	caveatStr := ""
+
+	if allowedRelation.GetRequiredCaveat() != nil {
+		caveatStr = fmt.Sprintf(" with %s", allowedRelation.GetRequiredCaveat().CaveatName)
+	}
+
+	if allowedRelation.GetRelation() != "" {
+		return fmt.Sprintf("%s#%s%s", allowedRelation.GetNamespace(), allowedRelation.GetRelation(), caveatStr)
+	}
+
+	if allowedRelation.GetPublicWildcard() != nil {
+		return fmt.Sprintf("%s:*%s", allowedRelation.GetNamespace(), caveatStr)
+	}
+
+	return fmt.Sprintf("%s%s", allowedRelation.GetNamespace(), caveatStr)
 }
 
 func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName string) (*TypeSystem, error) {

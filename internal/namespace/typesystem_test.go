@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/authzed/spicedb/pkg/caveats"
+
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -14,10 +16,13 @@ import (
 )
 
 func TestTypeSystem(t *testing.T) {
+	emptyEnv := caveats.NewEnvironment()
+
 	testCases := []struct {
 		name            string
 		toCheck         *core.NamespaceDefinition
 		otherNamespaces []*core.NamespaceDefinition
+		caveats         []*core.Caveat
 		expectedError   string
 	}{
 		{
@@ -36,6 +41,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*core.NamespaceDefinition{},
+			nil,
 			"relation/permission `editors` not found under definition `document`",
 		},
 		{
@@ -54,6 +60,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*core.NamespaceDefinition{},
+			nil,
 			"relation/permission `parents` not found under definition `document`",
 		},
 		{
@@ -71,6 +78,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*core.NamespaceDefinition{},
+			nil,
 			"under permission `viewer` under definition `document`: permissions cannot be used on the left hand side of an arrow (found `editor`)",
 		},
 		{
@@ -83,6 +91,7 @@ func TestTypeSystem(t *testing.T) {
 				), ns.AllowedRelation("document", "owner")),
 			),
 			[]*core.NamespaceDefinition{},
+			nil,
 			"direct relations are not allowed under relation `editor`",
 		},
 		{
@@ -101,6 +110,7 @@ func TestTypeSystem(t *testing.T) {
 				)),
 			),
 			[]*core.NamespaceDefinition{},
+			nil,
 			"could not lookup definition `someinvalidns` for relation `owner`: object definition `someinvalidns` not found",
 		},
 		{
@@ -123,6 +133,7 @@ func TestTypeSystem(t *testing.T) {
 					"anotherns",
 				),
 			},
+			nil,
 			"relation/permission `foobar` not found under definition `anotherns`",
 		},
 		{
@@ -156,6 +167,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
 				),
 			},
+			nil,
 			"",
 		},
 		{
@@ -171,6 +183,7 @@ func TestTypeSystem(t *testing.T) {
 					ns.Relation("member", nil, ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespace("user")),
 				),
 			},
+			nil,
 			"for relation `viewer`: relation/permission `group#member` includes wildcard type `user` via relation `group#member`: wildcard relations cannot be transitively included",
 		},
 		{
@@ -185,6 +198,7 @@ func TestTypeSystem(t *testing.T) {
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 			},
+			nil,
 			"for arrow under permission `viewer`: relation `folder#parent` includes wildcard type `folder` via relation `folder#parent`: wildcard relations cannot be used on the left side of arrows",
 		},
 		{
@@ -201,7 +215,98 @@ func TestTypeSystem(t *testing.T) {
 					ns.Relation("manager", nil, ns.AllowedRelation("group", "member"), ns.AllowedPublicNamespace("user")),
 				),
 			},
+			nil,
 			"for relation `viewer`: relation/permission `group#member` includes wildcard type `user` via relation `group#manager`: wildcard relations cannot be transitively included",
+		},
+		{
+			"redefinition of allowed relation",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelation("user", "...")),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			nil,
+			"found duplicate allowed relation `user#...` on relation `viewer` under definition `document`",
+		},
+		{
+			"redefinition of allowed public relation",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil, ns.AllowedPublicNamespace("user"), ns.AllowedPublicNamespace("user")),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			nil,
+			"found duplicate allowed relation `user:*` on relation `viewer` under definition `document`",
+		},
+		{
+			"no redefinition of allowed relation",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil, ns.AllowedPublicNamespace("user"), ns.AllowedRelation("user", "..."), ns.AllowedRelation("user", "viewer")),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user", ns.Relation("viewer", nil)),
+			},
+			nil,
+			"",
+		},
+		{
+			"unknown caveat",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("unknown"))),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			nil,
+			"could not lookup caveat `user` for relation `viewer`: caveat with name `unknown` not found",
+		},
+		{
+			"valid caveat",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("definedcaveat"))),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			[]*core.Caveat{
+				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
+			},
+			"",
+		},
+		{
+			"valid optional caveat",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("definedcaveat"))),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			[]*core.Caveat{
+				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
+			},
+			"",
+		},
+		{
+			"duplicate caveat",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("definedcaveat")), ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("definedcaveat"))),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			[]*core.Caveat{
+				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
+			},
+			"found duplicate allowed relation `user#... with definedcaveat` on relation `viewer` under definition `document`",
 		},
 	}
 
@@ -219,6 +324,10 @@ func TestTypeSystem(t *testing.T) {
 					if err := rwt.WriteNamespaces(otherNS); err != nil {
 						return err
 					}
+				}
+				cw := rwt.(datastore.CaveatStorer)
+				if err := cw.WriteCaveats(ctx, tc.caveats); err != nil {
+					return err
 				}
 				return nil
 			})

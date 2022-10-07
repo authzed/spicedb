@@ -1,6 +1,7 @@
 package namespace
 
 import (
+	"github.com/authzed/spicedb/pkg/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
@@ -99,6 +100,31 @@ func Caveat(name string) *core.AllowedCaveat {
 	return &core.AllowedCaveat{
 		CaveatName: name,
 	}
+}
+
+// CaveatDefinition returns a new caveat definition.
+func CaveatDefinition(env *caveats.Environment, name string, expr string) (*core.Caveat, error) {
+	compiled, err := caveats.CompileCaveatWithName(env, expr, name)
+	if err != nil {
+		return nil, err
+	}
+	serialized, err := compiled.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return &core.Caveat{
+		Name:       name,
+		Expression: serialized,
+	}, nil
+}
+
+// MustCaveatDefinition returns a new caveat definition.
+func MustCaveatDefinition(env *caveats.Environment, name string, expr string) *core.Caveat {
+	cd, err := CaveatDefinition(env, name, expr)
+	if err != nil {
+		panic(err)
+	}
+	return cd
 }
 
 // AllowedPublicNamespaceWithCaveats creates a relation reference to an allowed public namespace.

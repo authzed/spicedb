@@ -210,6 +210,28 @@ func (err ErrPermissionsCycle) DetailsMetadata() map[string]string {
 	}
 }
 
+// ErrDuplicateAllowedRelation indicates that an allowed relation was redefined on a relation.
+type ErrDuplicateAllowedRelation struct {
+	error
+	namespaceName         string
+	relationName          string
+	allowedRelationSource string
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (err ErrDuplicateAllowedRelation) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName).Str("allowed-relation", err.allowedRelationSource)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrDuplicateAllowedRelation) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"definition_name":  err.namespaceName,
+		"relation_name":    err.relationName,
+		"allowed_relation": err.allowedRelationSource,
+	}
+}
+
 // NewNamespaceNotFoundErr constructs a new namespace not found error.
 func NewNamespaceNotFoundErr(nsName string) error {
 	return ErrNamespaceNotFound{
@@ -241,6 +263,16 @@ func NewDuplicateRelationError(nsName string, relationName string) error {
 		error:         fmt.Errorf("found duplicate relation/permission name `%s` under definition `%s`", relationName, nsName),
 		namespaceName: nsName,
 		relationName:  relationName,
+	}
+}
+
+// NewDuplicateAllowedRelationErr constructs an error indicating that an allowed relation was defined more than once for a relation.
+func NewDuplicateAllowedRelationErr(nsName string, relationName string, allowedRelationSource string) error {
+	return ErrDuplicateAllowedRelation{
+		error:                 fmt.Errorf("found duplicate allowed relation `%s` on relation `%s` under definition `%s`", allowedRelationSource, relationName, nsName),
+		namespaceName:         nsName,
+		relationName:          relationName,
+		allowedRelationSource: allowedRelationSource,
 	}
 }
 
