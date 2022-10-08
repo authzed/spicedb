@@ -14,6 +14,14 @@ const (
       	AND table_name = 'namespace_config'
       	AND constraint_type = 'PRIMARY KEY';`
 
+	getNSConfigPkeyNameAlternate = `
+	SELECT relname from pg_index, pg_class
+		WHERE pg_index.indisprimary
+		AND pg_index.indrelid = 'namespace_config'::regclass
+		AND pg_class.oid = pg_index.indexrelid;`
+
+	defaultNSConfigPkeyName = "namespace_config_pkey"
+
 	dropNSConfigIDPkey = "ALTER TABLE namespace_config DROP CONSTRAINT %s;"
 )
 
@@ -39,7 +47,11 @@ func init() {
 		func(ctx context.Context, tx pgx.Tx) error {
 			var constraintName string
 			if err := tx.QueryRow(ctx, getNSConfigPkeyName).Scan(&constraintName); err != nil {
-				return err
+				// Try the backup query
+				if err := tx.QueryRow(ctx, getNSConfigPkeyNameAlternate).Scan(&constraintName); err != nil {
+					// Just use the default, if it's wrong we will fail to drop it below
+					constraintName = defaultNSConfigPkeyName
+				}
 			}
 
 			if _, err := tx.Exec(ctx, fmt.Sprintf(dropNSConfigIDPkey, constraintName)); err != nil {
