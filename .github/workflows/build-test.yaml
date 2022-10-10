@@ -59,7 +59,7 @@ jobs:
       - uses: "authzed/actions/go-test@main"
         with:
           working_directory: "cmd/spicedb"
-          tags: "docker"
+          tags: "docker,image"
 
   unit:
     name: "Unit"
@@ -71,7 +71,7 @@ jobs:
           go-version: "~1.19.2"
       - uses: "authzed/actions/go-test@main"
         with:
-          tags: "ci"
+          tags: "ci,docker"
           timeout: "30m"
   e2e:
     name: "E2E"
