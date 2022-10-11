@@ -25,6 +25,7 @@ func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
 	cmd.Flags().String("datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().String("datastore-mysql-table-prefix", "", "prefix to add to the name of all mysql database tables")
+	cmd.Flags().Uint64("migration-backfill-batch-size", 1000, "number of items to migrate per iteration of a datastore backfill")
 	cmd.Flags().Duration("migration-timeout", 1*time.Hour, "defines a timeout for the execution of the migration, set to 1 hour by default")
 }
 
@@ -43,6 +44,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	datastoreEngine := cobrautil.MustGetStringExpanded(cmd, "datastore-engine")
 	dbURL := cobrautil.MustGetStringExpanded(cmd, "datastore-conn-uri")
 	timeout := cobrautil.MustGetDuration(cmd, "migration-timeout")
+	migrationBatachSize := cobrautil.MustGetUint64(cmd, "migration-backfill-batch-size")
 
 	if datastoreEngine == "cockroachdb" {
 		log.Info().Msg("migrating cockroachdb datastore")
@@ -52,7 +54,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
-		runMigration(cmd.Context(), migrationDriver, crdbmigrations.CRDBMigrations, args[0], timeout)
+		runMigration(cmd.Context(), migrationDriver, crdbmigrations.CRDBMigrations, args[0], timeout, migrationBatachSize)
 	} else if datastoreEngine == "postgres" {
 		log.Info().Msg("migrating postgres datastore")
 
@@ -61,7 +63,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
-		runMigration(cmd.Context(), migrationDriver, migrations.DatabaseMigrations, args[0], timeout)
+		runMigration(cmd.Context(), migrationDriver, migrations.DatabaseMigrations, args[0], timeout, migrationBatachSize)
 	} else if datastoreEngine == "spanner" {
 		log.Info().Msg("migrating spanner datastore")
 
@@ -75,7 +77,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
-		runMigration(cmd.Context(), migrationDriver, spannermigrations.SpannerMigrations, args[0], timeout)
+		runMigration(cmd.Context(), migrationDriver, spannermigrations.SpannerMigrations, args[0], timeout, migrationBatachSize)
 	} else if datastoreEngine == "mysql" {
 		log.Info().Msg("migrating mysql datastore")
 
@@ -89,7 +91,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to create migration driver")
 		}
-		runMigration(cmd.Context(), migrationDriver, mysqlmigrations.Manager, args[0], timeout)
+		runMigration(cmd.Context(), migrationDriver, mysqlmigrations.Manager, args[0], timeout, migrationBatachSize)
 	} else {
 		return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 	}
@@ -103,9 +105,11 @@ func runMigration[D migrate.Driver[C, T], C any, T any](
 	manager *migrate.Manager[D, C, T],
 	targetRevision string,
 	timeout time.Duration,
+	backfillBatchSize uint64,
 ) {
 	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctxWithBatch := context.WithValue(ctx, migrate.BackfillBatchSize, backfillBatchSize)
+	ctx, cancel := context.WithTimeout(ctxWithBatch, timeout)
 	defer cancel()
 	if err := manager.Run(ctx, driver, targetRevision, migrate.LiveRun); err != nil {
 		log.Fatal().Err(err).Msg("unable to complete requested migrations")

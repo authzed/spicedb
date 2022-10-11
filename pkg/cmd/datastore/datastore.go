@@ -88,6 +88,9 @@ type Config struct {
 
 	// Experiments
 	ExperimentEnableCaveats bool
+
+	// Migrations
+	MigrationPhase string
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
@@ -120,6 +123,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
 	cmd.Flags().StringVar(&opts.SpannerEmulatorHost, "datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-mysql-table-prefix", "", "prefix to add to the name of all SpiceDB database tables")
+	cmd.Flags().StringVar(&opts.MigrationPhase, "datastore-migration-phase", "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 
 	cmd.Flags().BoolVar(&opts.ExperimentEnableCaveats, "experiment-enable-caveats", false, "if true, experimental support for caveats is enabled; note that these are not fully implemented and may break")
 	if err := cmd.Flags().MarkDeprecated("experiment-enable-caveats", "this is an experiment"); err != nil {
@@ -262,6 +266,7 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.WatchBufferLength(opts.WatchBufferLength),
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		postgres.MaxRetries(uint8(opts.MaxRetries)),
+		postgres.MigrationPhase(opts.MigrationPhase),
 	}
 	return postgres.NewPostgresDatastore(opts.URI, pgOpts...)
 }

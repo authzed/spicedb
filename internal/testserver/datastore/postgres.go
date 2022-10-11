@@ -20,14 +20,15 @@ import (
 )
 
 type postgresTester struct {
-	conn     *pgx.Conn
-	hostname string
-	port     string
-	creds    string
+	conn            *pgx.Conn
+	hostname        string
+	port            string
+	creds           string
+	targetMigration string
 }
 
 // RunPostgresForTesting returns a RunningEngineForTest for postgres
-func RunPostgresForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForTest {
+func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigration string) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
@@ -44,8 +45,9 @@ func RunPostgresForTesting(t testing.TB, bridgeNetworkName string) RunningEngine
 	require.NoError(t, err)
 
 	builder := &postgresTester{
-		hostname: "localhost",
-		creds:    "postgres:secret",
+		hostname:        "localhost",
+		creds:           "postgres:secret",
+		targetMigration: targetMigration,
 	}
 	t.Cleanup(func() {
 		require.NoError(t, pool.Purge(resource))
@@ -94,7 +96,8 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 
 	migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(connectStr)
 	require.NoError(t, err)
-	require.NoError(t, pgmigrations.DatabaseMigrations.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun))
+	ctx := context.WithValue(context.Background(), migrate.BackfillBatchSize, uint64(1000))
+	require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))
 
 	return initFunc("postgres", connectStr)
 }

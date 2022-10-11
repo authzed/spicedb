@@ -5,23 +5,24 @@ import (
 	"errors"
 	"fmt"
 
-	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 type pgReader struct {
-	txSource      pgxcommon.TxFactory
-	querySplitter common.TupleQuerySplitter
-	filterer      queryFilterer
+	txSource       pgxcommon.TxFactory
+	querySplitter  common.TupleQuerySplitter
+	filterer       queryFilterer
+	migrationPhase migrationPhase
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -46,6 +47,8 @@ var (
 	}
 
 	readNamespace = psql.Select(colConfig, colCreatedXid).From(tableNamespace)
+
+	readNamespaceDeprecated = psql.Select(colConfig, colCreatedTxnDeprecated).From(tableNamespace)
 )
 
 const (
@@ -96,7 +99,7 @@ func (r *pgReader) ReadNamespace(ctx context.Context, nsName string) (*core.Name
 	}
 	defer txCleanup(ctx)
 
-	loaded, version, err := loadNamespace(ctx, nsName, tx, r.filterer(readNamespace))
+	loaded, version, err := r.loadNamespace(ctx, nsName, tx, r.filterer)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
@@ -107,31 +110,22 @@ func (r *pgReader) ReadNamespace(ctx context.Context, nsName string) (*core.Name
 	}
 }
 
-func loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, baseQuery sq.SelectBuilder) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, filterer queryFilterer) (*core.NamespaceDefinition, datastore.Revision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "loadNamespace")
 	defer span.End()
 
-	sql, args, err := baseQuery.Where(sq.Eq{colNamespace: namespace}).ToSql()
+	defs, err := loadAllNamespaces(ctx, tx, func(original sq.SelectBuilder) sq.SelectBuilder {
+		return filterer(original).Where(sq.Eq{colNamespace: namespace})
+	}, r.migrationPhase)
 	if err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
-	var config []byte
-	var version xid8
-	err = tx.QueryRow(ctx, sql, args...).Scan(&config, &version)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			err = datastore.NewNamespaceNotFoundErr(namespace)
-		}
-		return nil, datastore.NoRevision, err
+	if len(defs) < 1 {
+		return nil, datastore.NoRevision, datastore.NewNamespaceNotFoundErr(namespace)
 	}
 
-	loaded := &core.NamespaceDefinition{}
-	if err := loaded.UnmarshalVT(config); err != nil {
-		return nil, datastore.NoRevision, err
-	}
-
-	return loaded, revisionFromTransaction(version), nil
+	return defs[0].nsDef, defs[0].revision, nil
 }
 
 func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
@@ -143,12 +137,12 @@ func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinit
 	}
 	defer txCleanup(ctx)
 
-	nsDefs, err := loadAllNamespaces(ctx, tx, r.filterer(readNamespace))
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, r.filterer, r.migrationPhase)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 
-	return nsDefs, err
+	return stripRevisions(nsDefsWithRevisions), err
 }
 
 func (r *pgReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
@@ -169,16 +163,43 @@ func (r *pgReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*c
 		clause = append(clause, sq.Eq{colNamespace: nsName})
 	}
 
-	nsDefs, err := loadAllNamespaces(ctx, tx, r.filterer(readNamespace).Where(clause))
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, func(original sq.SelectBuilder) sq.SelectBuilder {
+		return r.filterer(original).Where(clause)
+	}, r.migrationPhase)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 
-	return nsDefs, err
+	return stripRevisions(nsDefsWithRevisions), err
 }
 
-func loadAllNamespaces(ctx context.Context, tx pgx.Tx, query sq.SelectBuilder) ([]*core.NamespaceDefinition, error) {
-	sql, args, err := query.ToSql()
+func stripRevisions(defsWithRevisions []nsAndVersion) []*core.NamespaceDefinition {
+	nsDefs := make([]*core.NamespaceDefinition, 0, len(defsWithRevisions))
+	for _, defWithRevision := range defsWithRevisions {
+		nsDefs = append(nsDefs, defWithRevision.nsDef)
+	}
+	return nsDefs
+}
+
+type nsAndVersion struct {
+	nsDef    *core.NamespaceDefinition
+	revision datastore.Revision
+}
+
+func loadAllNamespaces(
+	ctx context.Context,
+	tx pgx.Tx,
+	filterer queryFilterer,
+	migrationPhase migrationPhase,
+) ([]nsAndVersion, error) {
+	baseQuery := readNamespace
+
+	// TODO remove once the ID->XID migrations are all complete
+	if migrationPhase == writeBothReadOld {
+		baseQuery = readNamespaceDeprecated
+	}
+
+	sql, args, err := filterer(baseQuery).ToSql()
 	if err != nil {
 		return nil, err
 	}
@@ -189,11 +210,20 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx, query sq.SelectBuilder) (
 	}
 	defer rows.Close()
 
-	var nsDefs []*core.NamespaceDefinition
+	var nsDefs []nsAndVersion
 	for rows.Next() {
 		var config []byte
-		var version datastore.Revision
-		if err := rows.Scan(&config, &version); err != nil {
+		var version xid8
+
+		var versionDest interface{} = &version
+
+		// TODO remove once the ID->XID migrations are all complete
+		var versionTxDeprecated uint64
+		if migrationPhase == writeBothReadOld {
+			versionDest = &versionTxDeprecated
+		}
+
+		if err := rows.Scan(&config, versionDest); err != nil {
 			return nil, err
 		}
 
@@ -202,7 +232,14 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx, query sq.SelectBuilder) (
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		nsDefs = append(nsDefs, loaded)
+		revision := revisionFromTransaction(version)
+
+		// TODO remove once the ID->XID migrations are all complete
+		if migrationPhase == writeBothReadOld {
+			revision = decimal.NewFromInt(int64(versionTxDeprecated))
+		}
+
+		nsDefs = append(nsDefs, nsAndVersion{loaded, revision})
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()

@@ -20,7 +20,7 @@ var dropIDStmts = []string{
 }
 
 func init() {
-	if err := DatabaseMigrations.Register("drop-bigserial-ids", "add-xid-constraints",
+	if err := DatabaseMigrations.Register("drop-bigserial-ids", "drop-id-constraints",
 		noNonatomicMigration,
 		func(ctx context.Context, tx pgx.Tx) error {
 			for _, stmt := range dropIDStmts {
