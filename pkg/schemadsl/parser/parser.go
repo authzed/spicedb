@@ -178,8 +178,7 @@ func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
 	caveatNode := p.startNode(dslshape.NodeTypeCaveatReference)
 	defer p.finishNode()
 
-	ok := p.consumeKeyword("with")
-	if !ok {
+	if ok := p.consumeKeyword("with"); !ok {
 		return nil, ok
 	}
 
