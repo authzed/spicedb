@@ -3,6 +3,8 @@ package namespace
 import (
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/util"
+
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/scylladb/go-set/strset"
 
@@ -10,7 +12,6 @@ import (
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // DeltaType defines the type of namespace deltas.
@@ -44,21 +45,13 @@ const (
 	// via schema.
 	LegacyChangedRelationImpl DeltaType = "legacy-changed-relation-implementation"
 
-	// RelationDirectTypeAdded indicates that an allowed direct relation type has been added to
+	// RelationAllowedTypeAdded indicates that an allowed relation type has been added to
 	// the relation.
-	RelationDirectTypeAdded DeltaType = "relation-direct-type-added"
+	RelationAllowedTypeAdded DeltaType = "relation-allowed-type-added"
 
-	// RelationDirectTypeRemoved indicates that an allowed direct relation type has been removed from
+	// RelationAllowedTypeRemoved indicates that an allowed relation type has been removed from
 	// the relation.
-	RelationDirectTypeRemoved DeltaType = "relation-direct-type-removed"
-
-	// RelationDirectWildcardTypeAdded indicates that an allowed relation wildcard type has been added to
-	// the relation.
-	RelationDirectWildcardTypeAdded DeltaType = "relation-wildcard-type-added"
-
-	// RelationDirectWildcardTypeRemoved indicates that an allowed relation wildcard type has been removed from
-	// the relation.
-	RelationDirectWildcardTypeRemoved DeltaType = "relation-wildcard-type-removed"
+	RelationAllowedTypeRemoved DeltaType = "relation-allowed-type-removed"
 )
 
 // Diff holds the diff between two namespaces.
@@ -80,11 +73,8 @@ type Delta struct {
 	// RelationName is the name of the relation to which this delta applies, if any.
 	RelationName string
 
-	// DirectType is the direct relation type added or removed, if any.
-	DirectType *core.RelationReference
-
-	// WildcardType is the wildcard type added or removed, if any.
-	WildcardType string
+	// AllowedType is the allowed relation type added or removed, if any.
+	AllowedType *core.AllowedRelation
 }
 
 // DiffNamespaces performs a diff between two namespace definitions. One or both of the definitions
@@ -228,81 +218,36 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 			updatedTypeInfo = &core.TypeInformation{}
 		}
 
-		existingAllowedRels := tuple.NewONRSet()
-		updatedAllowedRels := tuple.NewONRSet()
+		existingAllowedRels := util.NewSet[string]()
+		updatedAllowedRels := util.NewSet[string]()
+		allowedRelsBySource := map[string]*core.AllowedRelation{}
 
 		for _, existingAllowed := range existingTypeInfo.AllowedDirectRelations {
-			if existingAllowed.GetRelation() != "" {
-				existingAllowedRels.Add(&core.ObjectAndRelation{
-					Namespace: existingAllowed.Namespace,
-					Relation:  existingAllowed.GetRelation(),
-					ObjectId:  "",
-				})
-			}
-
-			if existingAllowed.GetPublicWildcard() != nil {
-				existingAllowedRels.Add(&core.ObjectAndRelation{
-					Namespace: existingAllowed.Namespace,
-					Relation:  "-",
-					ObjectId:  tuple.PublicWildcard,
-				})
-			}
+			source := SourceForAllowedRelation(existingAllowed)
+			allowedRelsBySource[source] = existingAllowed
+			existingAllowedRels.Add(source)
 		}
 
 		for _, updatedAllowed := range updatedTypeInfo.AllowedDirectRelations {
-			if updatedAllowed.GetRelation() != "" {
-				updatedAllowedRels.Add(&core.ObjectAndRelation{
-					Namespace: updatedAllowed.Namespace,
-					Relation:  updatedAllowed.GetRelation(),
-					ObjectId:  "",
-				})
-			}
-
-			if updatedAllowed.GetPublicWildcard() != nil {
-				updatedAllowedRels.Add(&core.ObjectAndRelation{
-					Namespace: updatedAllowed.Namespace,
-					Relation:  "-",
-					ObjectId:  tuple.PublicWildcard,
-				})
-			}
+			source := SourceForAllowedRelation(updatedAllowed)
+			allowedRelsBySource[source] = updatedAllowed
+			updatedAllowedRels.Add(source)
 		}
 
 		for _, removed := range existingAllowedRels.Subtract(updatedAllowedRels).AsSlice() {
-			if removed.ObjectId == tuple.PublicWildcard {
-				deltas = append(deltas, Delta{
-					Type:         RelationDirectWildcardTypeRemoved,
-					RelationName: shared,
-					WildcardType: removed.Namespace,
-				})
-			} else {
-				deltas = append(deltas, Delta{
-					Type:         RelationDirectTypeRemoved,
-					RelationName: shared,
-					DirectType: &core.RelationReference{
-						Namespace: removed.Namespace,
-						Relation:  removed.Relation,
-					},
-				})
-			}
+			deltas = append(deltas, Delta{
+				Type:         RelationAllowedTypeRemoved,
+				RelationName: shared,
+				AllowedType:  allowedRelsBySource[removed],
+			})
 		}
 
 		for _, added := range updatedAllowedRels.Subtract(existingAllowedRels).AsSlice() {
-			if added.ObjectId == tuple.PublicWildcard {
-				deltas = append(deltas, Delta{
-					Type:         RelationDirectWildcardTypeAdded,
-					RelationName: shared,
-					WildcardType: added.Namespace,
-				})
-			} else {
-				deltas = append(deltas, Delta{
-					Type:         RelationDirectTypeAdded,
-					RelationName: shared,
-					DirectType: &core.RelationReference{
-						Namespace: added.Namespace,
-						Relation:  added.Relation,
-					},
-				})
-			}
+			deltas = append(deltas, Delta{
+				Type:         RelationAllowedTypeAdded,
+				RelationName: shared,
+				AllowedType:  allowedRelsBySource[added],
+			})
 		}
 	}
 

@@ -325,7 +325,7 @@ definition example/user {}`
 		Schema: newSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
-	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed wildcard type `example/user:*` from Relation `somerelation` in Object Definition `example/document`, as a Relationship exists with it", err.Error())
+	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `example/user:*` from relation `somerelation` in object definition `example/document`, as a relationship exists with it", err.Error())
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
@@ -434,3 +434,74 @@ func TestSchemaTypeInvalid(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR, err, "definition_name")
 }
+
+/*
+TODO(jschorr): Uncomment once we can write caveats as part of the schema
+func TestSchemaRemoveCaveat(t *testing.T) {
+	conn, cleanup, ds, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+	v1client := v1.NewPermissionsServiceClient(conn)
+
+	// Write a basic schema.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+
+		caveat somecaveat ...
+
+		definition document {
+			relation somerelation: user with somecaveat
+		}`,
+	})
+	require.NoError(t, err)
+
+	// Write the relationship referencing the caveat.
+	caveatCtx, err := structpb.NewStruct(map[string]any{"a": 1, "b": 2})
+	require.NoError(t, err)
+
+	toWrite := tuple.MustParse("document:somedoc#somerelation@user:tom")
+	toWrite.Caveat = &core.ContextualizedCaveat{
+		CaveatName: "somecaveat",
+		Context:    caveatCtx,
+	}
+
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
+			toWrite,
+		))},
+	})
+	require.Nil(t, err)
+
+	newSchema := `definition user {}
+
+	definition document {
+		relation somerelation: user
+	}`
+
+	// Attempt to change the relation type, which should fail.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: newSchema,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with somecaveat` from relation `somerelation` in object definition `example/document`, as a relationship exists with it", err.Error())
+
+	// Delete the relationship.
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
+			tuple.MustParse("document:somedoc#somerelation@user:tom"),
+		))},
+	})
+	require.Nil(t, err)
+
+	// Attempt to delete the wildcard type, which should work now.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: newSchema,
+	})
+	require.Nil(t, err)
+
+	// Ensure it was deleted.
+	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	require.NoError(t, err)
+	require.Equal(t, newSchema, readback.SchemaText)
+}
+*/

@@ -395,7 +395,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 		encountered := util.NewSet[string]()
 
 		for _, allowedRelation := range allowedDirectRelations {
-			source := sourceForAllowedRelation(allowedRelation)
+			source := SourceForAllowedRelation(allowedRelation)
 			if !encountered.Add(source) {
 				return nil, newTypeErrorWithSource(
 					NewDuplicateAllowedRelationErr(nts.nsDef.Name, relation.Name, source),
@@ -466,7 +466,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 				_, err := nts.resolver.LookupCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
 				if err != nil {
 					return nil, newTypeErrorWithSource(
-						fmt.Errorf("could not lookup caveat `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err),
+						fmt.Errorf("could not lookup caveat `%s` for relation `%s`: %w", allowedRelation.GetRequiredCaveat().CaveatName, relation.Name, err),
 						allowedRelation,
 						source,
 					)
@@ -478,7 +478,8 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 	return &ValidatedNamespaceTypeSystem{nts}, nil
 }
 
-func sourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
+// SourceForAllowedRelation returns the source code representation of an allowed relation.
+func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
 	caveatStr := ""
 
 	if allowedRelation.GetRequiredCaveat() != nil {

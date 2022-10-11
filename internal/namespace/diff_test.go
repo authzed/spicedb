@@ -187,10 +187,11 @@ func TestNamespaceDiff(t *testing.T) {
 				ns.Relation("somerel", nil, ns.AllowedRelation("foo", "bar")),
 			),
 			[]Delta{
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &core.RelationReference{
-					Namespace: "foo",
-					Relation:  "bar",
-				}},
+				{
+					Type:         RelationAllowedTypeAdded,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelation("foo", "bar"),
+				},
 			},
 		},
 		{
@@ -204,10 +205,11 @@ func TestNamespaceDiff(t *testing.T) {
 				ns.Relation("somerel", nil),
 			),
 			[]Delta{
-				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &core.RelationReference{
-					Namespace: "foo",
-					Relation:  "bar",
-				}},
+				{
+					Type:         RelationAllowedTypeRemoved,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelation("foo", "bar"),
+				},
 			},
 		},
 		{
@@ -241,14 +243,16 @@ func TestNamespaceDiff(t *testing.T) {
 				), ns.AllowedRelation("foo2", "bar")),
 			),
 			[]Delta{
-				{Type: RelationDirectTypeRemoved, RelationName: "somerel", DirectType: &core.RelationReference{
-					Namespace: "foo",
-					Relation:  "bar",
-				}},
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &core.RelationReference{
-					Namespace: "foo2",
-					Relation:  "bar",
-				}},
+				{
+					Type:         RelationAllowedTypeRemoved,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelation("foo", "bar"),
+				},
+				{
+					Type:         RelationAllowedTypeAdded,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelation("foo2", "bar"),
+				},
 			},
 		},
 		{
@@ -266,8 +270,16 @@ func TestNamespaceDiff(t *testing.T) {
 				), ns.AllowedPublicNamespace("foo2")),
 			),
 			[]Delta{
-				{Type: RelationDirectWildcardTypeRemoved, RelationName: "somerel", WildcardType: "foo"},
-				{Type: RelationDirectWildcardTypeAdded, RelationName: "somerel", WildcardType: "foo2"},
+				{
+					Type:         RelationAllowedTypeRemoved,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedPublicNamespace("foo"),
+				},
+				{
+					Type:         RelationAllowedTypeAdded,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedPublicNamespace("foo2"),
+				},
 			},
 		},
 		{
@@ -285,11 +297,16 @@ func TestNamespaceDiff(t *testing.T) {
 				), ns.AllowedRelation("foo", "something")),
 			),
 			[]Delta{
-				{Type: RelationDirectWildcardTypeRemoved, RelationName: "somerel", WildcardType: "foo"},
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &core.RelationReference{
-					Namespace: "foo",
-					Relation:  "something",
-				}},
+				{
+					Type:         RelationAllowedTypeRemoved,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedPublicNamespace("foo"),
+				},
+				{
+					Type:         RelationAllowedTypeAdded,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelation("foo", "something"),
+				},
 			},
 		},
 		{
@@ -303,11 +320,16 @@ func TestNamespaceDiff(t *testing.T) {
 				ns.Relation("somerel", nil, ns.AllowedRelation("organization", "user")),
 			),
 			[]Delta{
-				{Type: RelationDirectWildcardTypeRemoved, RelationName: "somerel", WildcardType: "user"},
-				{Type: RelationDirectTypeAdded, RelationName: "somerel", DirectType: &core.RelationReference{
-					Namespace: "organization",
-					Relation:  "user",
-				}},
+				{
+					Type:         RelationAllowedTypeRemoved,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedPublicNamespace("user"),
+				},
+				{
+					Type:         RelationAllowedTypeAdded,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelation("organization", "user"),
+				},
 			},
 		},
 		{
@@ -338,6 +360,70 @@ func TestNamespaceDiff(t *testing.T) {
 			[]Delta{
 				{Type: RemovedRelation, RelationName: "somerel"},
 				{Type: AddedPermission, RelationName: "somerel"},
+			},
+		},
+		{
+			"added required caveat type",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelation("user", "...")),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat"))),
+			),
+			[]Delta{
+				{
+					Type:         RelationAllowedTypeRemoved,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelation("user", "..."),
+				},
+				{
+					Type:         RelationAllowedTypeAdded,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat")),
+				},
+			},
+		},
+		{
+			"added optional caveat type",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelation("user", "...")),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat"))),
+			),
+			[]Delta{
+				{
+					Type:         RelationAllowedTypeAdded,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat")),
+				},
+			},
+		},
+		{
+			"changed required caveat type",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat"))),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("anothercaveat"))),
+			),
+			[]Delta{
+				{
+					Type:         RelationAllowedTypeRemoved,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat")),
+				},
+				{
+					Type:         RelationAllowedTypeAdded,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("anothercaveat")),
+				},
 			},
 		},
 	}

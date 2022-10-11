@@ -116,6 +116,9 @@ type SubjectsFilter struct {
 	// RelationFilter is the filter to use for the relation(s) of the subjects. If neither field
 	// is set, any relation is allowed.
 	RelationFilter SubjectRelationFilter
+
+	// OptionalCaveatName, if specified, indicates the caveat name to use as a filter.
+	OptionalCaveatName string
 }
 
 // SubjectRelationFilter is the filter to use for relation(s) of subjects being queried.
