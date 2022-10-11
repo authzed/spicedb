@@ -7,9 +7,9 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/rs/zerolog/log"
-)
 
-const batchSize = 1000
+	"github.com/authzed/spicedb/pkg/migrate"
+)
 
 var addBackfillIndices = []string{
 	`CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_backfill_rtt_temp
@@ -21,15 +21,15 @@ var addBackfillIndices = []string{
 }
 
 var backfills = []string{
-	fmt.Sprintf(`UPDATE relation_tuple_transaction 
+	`UPDATE relation_tuple_transaction 
 		SET xid = id::text::xid8, snapshot = CONCAT(id, ':', id, ':')::pg_snapshot
 		WHERE id IN (
 			SELECT id FROM relation_tuple_transaction
 			WHERE snapshot IS NULL
 			LIMIT %d
 			FOR UPDATE
-		);`, batchSize),
-	fmt.Sprintf(`UPDATE relation_tuple 
+		);`,
+	`UPDATE relation_tuple 
 		SET deleted_xid = deleted_transaction::text::xid8,
 		created_xid = created_transaction::text::xid8
 		WHERE (namespace, object_id, relation, userset_namespace, userset_object_id,
@@ -41,8 +41,8 @@ var backfills = []string{
 			WHERE created_xid IS NULL
 			LIMIT %d
 			FOR UPDATE
-		);`, batchSize),
-	fmt.Sprintf(`UPDATE namespace_config 
+		);`,
+	`UPDATE namespace_config 
 		SET deleted_xid = deleted_transaction::text::xid8,
 		created_xid = created_transaction::text::xid8
 		WHERE (namespace, created_transaction, deleted_transaction) IN (
@@ -51,7 +51,7 @@ var backfills = []string{
 			WHERE created_xid IS NULL
 			LIMIT %d
 			FOR UPDATE
-		);`, batchSize),
+		);`,
 }
 
 var addXIDIndices = []string{
@@ -91,13 +91,16 @@ func init() {
 				}
 			}
 
+			batchSize := ctx.Value(migrate.BackfillBatchSize).(uint64)
 			for _, stmt := range backfills {
-				log.Info().Str("statement", stmt).Msg("starting backfill")
+				concreteStmt := fmt.Sprintf(stmt, batchSize)
+
+				log.Info().Str("statement", concreteStmt).Msg("starting backfill")
 
 				var r pgconn.CommandTag
 				var err error
 
-				for r, err = conn.Exec(ctx, stmt); err == nil && r.RowsAffected() > 0; r, err = conn.Exec(ctx, stmt) {
+				for r, err = conn.Exec(ctx, concreteStmt); err == nil && r.RowsAffected() > 0; r, err = conn.Exec(ctx, concreteStmt) {
 					log.Debug().Int64("count", r.RowsAffected()).Msg("updated rows")
 				}
 				if err != nil {

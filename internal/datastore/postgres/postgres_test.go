@@ -575,7 +575,10 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 }
 
 func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForTest) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(
+		context.WithValue(context.Background(), migrate.BackfillBatchSize, uint64(1000)),
+		30*time.Second,
+	)
 	defer cancel()
 
 	require := require.New(t)
@@ -585,7 +588,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	migrationDriver, err := migrations.NewAlembicPostgresDriver(uri)
 	require.NoError(err)
 	require.NoError(migrations.DatabaseMigrations.Run(
-		context.Background(),
+		ctx,
 		migrationDriver,
 		"add-ns-config-id",
 		migrate.LiveRun,
@@ -638,7 +641,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 
 	// Migrate to the version containing both old and new
 	require.NoError(migrations.DatabaseMigrations.Run(
-		context.Background(),
+		ctx,
 		migrationDriver,
 		"add-xid-columns",
 		migrate.LiveRun,
@@ -680,7 +683,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	// Backfill
 	for _, migrationName := range []string{"backfill-xid-add-indices", "add-xid-constraints"} {
 		require.NoError(migrations.DatabaseMigrations.Run(
-			context.Background(),
+			ctx,
 			migrationDriver,
 			migrationName,
 			migrate.LiveRun,
@@ -745,7 +748,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 
 	// Drop the requirement to write old
 	require.NoError(migrations.DatabaseMigrations.Run(
-		context.Background(),
+		ctx,
 		migrationDriver,
 		"drop-id-constraints",
 		migrate.LiveRun,
@@ -795,7 +798,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 
 	// Drop the old columns entirely
 	require.NoError(migrations.DatabaseMigrations.Run(
-		context.Background(),
+		ctx,
 		migrationDriver,
 		"drop-bigserial-ids",
 		migrate.LiveRun,
