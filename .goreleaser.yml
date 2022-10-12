@@ -20,11 +20,15 @@ nfpms:
     maintainer: "authzed <support@authzed.com>"
     description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
     license: "Apache 2.0"
-    epoch: 0
+    epoch: "0"
     formats:
       - "apk"
       - "deb"
       - "rpm"
+furies:
+  - account: "authzed"
+    secret_name: "GEMFURY_PUSH_TOKEN"
+
 brews:
   - tap:
       owner: "authzed"
