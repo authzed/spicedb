@@ -4,9 +4,10 @@ import (
 	"context"
 	"strings"
 
+	"github.com/authzed/spicedb/internal/util"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
-	"github.com/scylladb/go-set/strset"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -79,18 +80,30 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 	// Compile the schema into the namespace definitions.
 	emptyDefaultPrefix := ""
-	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
+	compiled, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
-	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
+	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
 
-	// Do as much validation as we can before talking to the datastore
-	newDefs := strset.NewWithSize(len(nsdefs))
-	for _, nsdef := range nsdefs {
+	// Do as much validation as we can before talking to the datastore:
+	// 1) Validate the caveats defined.
+	newCaveatDefNames := util.NewSet[string]()
+	for _, caveatDef := range compiled.CaveatDefinitions {
+		if err := namespace.ValidateCaveatDefinition(caveatDef); err != nil {
+			return nil, rewriteError(ctx, err)
+		}
+
+		newCaveatDefNames.Add(caveatDef.Name)
+	}
+
+	// 2) Validate the namespaces defined.
+	newObjectDefNames := util.NewSet[string]()
+	for _, nsdef := range compiled.ObjectDefinitions {
 		ts, err := namespace.NewNamespaceTypeSystem(nsdef,
 			namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
-				Namespaces: nsdefs,
+				Namespaces: compiled.ObjectDefinitions,
+				Caveats:    compiled.CaveatDefinitions,
 			}))
 		if err != nil {
 			return nil, rewriteError(ctx, err)
@@ -105,72 +118,104 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 			return nil, rewriteError(ctx, err)
 		}
 
-		newDefs.Add(nsdef.Name)
+		newObjectDefNames.Add(nsdef.Name)
 	}
 
+	// Start the transaction to update the schema.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		// Build a map of existing definitions to determine those being removed, if any.
-		existingDefs, err := rwt.ListNamespaces(ctx)
+		// Build a map of existing caveats to determine those being removed, if any.
+		existingCaveats, err := rwt.ListCaveats(ctx)
+		existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(existingCaveats))
+		existingCaveatDefNames := util.NewSet[string]()
 		if err != nil {
 			return err
 		}
 
-		existingDefMap := make(map[string]*core.NamespaceDefinition, len(existingDefs))
-		existing := strset.NewWithSize(len(existingDefs))
-		for _, existingDef := range existingDefs {
-			existingDefMap[existingDef.Name] = existingDef
-			existing.Add(existingDef.Name)
+		for _, existingCaveat := range existingCaveats {
+			existingCaveatDefMap[existingCaveat.Name] = existingCaveat
+			existingCaveatDefNames.Add(existingCaveat.Name)
+		}
+
+		// For each caveat definition, perform a diff and ensure the changes will not result in type errors.
+		for _, caveatDef := range compiled.CaveatDefinitions {
+			if err := shared.SanityCheckCaveatChanges(ctx, rwt, caveatDef, existingCaveatDefMap); err != nil {
+				return err
+			}
+		}
+
+		removedCaveatDefNames := existingCaveatDefNames.Subtract(newCaveatDefNames)
+
+		// Build a map of existing definitions to determine those being removed, if any.
+		existingObjectDefs, err := rwt.ListNamespaces(ctx)
+		if err != nil {
+			return err
+		}
+
+		existingObjectDefMap := make(map[string]*core.NamespaceDefinition, len(existingObjectDefs))
+		existingObjectDefNames := util.NewSet[string]()
+		for _, existingDef := range existingObjectDefs {
+			existingObjectDefMap[existingDef.Name] = existingDef
+			existingObjectDefNames.Add(existingDef.Name)
 		}
 
 		// For each definition, perform a diff and ensure the changes will not result in any
 		// relationships left without associated schema.
-		for _, nsdef := range nsdefs {
-			if err := shared.SanityCheckExistingRelationships(ctx, rwt, nsdef, existingDefMap); err != nil {
+		for _, nsdef := range compiled.ObjectDefinitions {
+			if err := shared.SanityCheckExistingRelationships(ctx, rwt, nsdef, existingObjectDefMap); err != nil {
 				return err
 			}
 		}
-		log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("validated namespace definitions")
+		log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("validated namespace definitions")
 
 		// Ensure that deleting namespaces will not result in any relationships left without associated
 		// schema.
-		removed := strset.Difference(existing, newDefs)
-		var checkRelErr error
-		removed.Each(func(nsdefName string) bool {
-			checkRelErr = shared.EnsureNoRelationshipsExist(ctx, rwt, nsdefName)
-			return checkRelErr == nil
-		})
-		if checkRelErr != nil {
-			return checkRelErr
+		removedObjectDefNames := existingObjectDefNames.Subtract(newObjectDefNames)
+		if err := removedObjectDefNames.ForEach(func(nsdefName string) error {
+			return shared.EnsureNoRelationshipsExist(ctx, rwt, nsdefName)
+		}); err != nil {
+			return err
+		}
+
+		// Write the new caveats.
+		if len(compiled.CaveatDefinitions) > 0 {
+			if err := rwt.WriteCaveats(compiled.CaveatDefinitions); err != nil {
+				return err
+			}
 		}
 
 		// Write the new namespaces.
-		if err := rwt.WriteNamespaces(nsdefs...); err != nil {
+		if err := rwt.WriteNamespaces(compiled.ObjectDefinitions...); err != nil {
 			return err
 		}
 
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-			DispatchCount: uint32(len(nsdefs)),
+			DispatchCount: uint32(len(compiled.ObjectDefinitions) + len(compiled.CaveatDefinitions)),
 		})
 
 		// Delete the removed namespaces.
-		var removeErr error
-		removed.Each(func(nsdefName string) bool {
-			removeErr = rwt.DeleteNamespace(nsdefName)
-			return removeErr == nil
-		})
-		if removeErr != nil {
-			return removeErr
+		if err := removedObjectDefNames.ForEach(rwt.DeleteNamespace); err != nil {
+			return err
+		}
+
+		// Delete the removed caveats.
+		if !removedCaveatDefNames.IsEmpty() {
+			if err := rwt.DeleteCaveats(removedCaveatDefNames.AsSlice()); err != nil {
+				return err
+			}
 		}
 
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-			DispatchCount: uint32(len(nsdefs) + removed.Size()),
+			DispatchCount: uint32(len(compiled.ObjectDefinitions) + len(compiled.CaveatDefinitions) + removedObjectDefNames.Len() + removedCaveatDefNames.Len()),
 		})
 
 		log.Ctx(ctx).Trace().
-			Interface("namespaceDefinitions", nsdefs).
-			Strs("addedOrChanged", newDefs.List()).
-			Strs("removed", removed.List()).
-			Msg("wrote namespace definitions")
+			Interface("objectDefinitions", compiled.ObjectDefinitions).
+			Interface("caveatDefinitions", compiled.CaveatDefinitions).
+			Object("addedOrChangedObjectDefinitions", util.StringSet(newObjectDefNames)).
+			Object("removedObjectDefinitions", util.StringSet(removedObjectDefNames)).
+			Object("addedOrChangedCaveatDefinitions", util.StringSet(newCaveatDefNames)).
+			Object("removedCaveatDefinitions", util.StringSet(removedCaveatDefNames)).
+			Msg("completed schema update")
 
 		return nil
 	})

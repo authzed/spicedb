@@ -336,9 +336,9 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 
 	// Compile the schema into the namespace definitions.
 	emptyDefaultPrefix := ""
-	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
+	compiled, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
 	require.NoError(err, "Invalid schema: %s", debugInfo.SchemaUsed)
-	require.Equal(3, len(nsdefs))
+	require.Equal(3, len(compiled.OrderedDefinitions))
 }
 
 func TestLookupResources(t *testing.T) {

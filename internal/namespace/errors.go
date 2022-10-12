@@ -232,6 +232,26 @@ func (err ErrDuplicateAllowedRelation) DetailsMetadata() map[string]string {
 	}
 }
 
+// ErrUnusedCaveatParameter indicates that a caveat parameter is unused in the caveat expression.
+type ErrUnusedCaveatParameter struct {
+	error
+	caveatName string
+	paramName  string
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (err ErrUnusedCaveatParameter) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err).Str("caveat", err.caveatName).Str("param", err.paramName)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrUnusedCaveatParameter) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"caveat_name":    err.caveatName,
+		"parameter_name": err.paramName,
+	}
+}
+
 // NewNamespaceNotFoundErr constructs a new namespace not found error.
 func NewNamespaceNotFoundErr(nsName string) error {
 	return ErrNamespaceNotFound{
@@ -320,6 +340,15 @@ func NewPermissionsCycleErr(nsName string, permissionNames []string) error {
 		error:           fmt.Errorf("under definition `%s`, there exists a cycle in permissions: %s", nsName, strings.Join(permissionNames, ", ")),
 		namespaceName:   nsName,
 		permissionNames: permissionNames,
+	}
+}
+
+// NewUnusedCaveatParameterErr constructs indicating that a parameter was unused in a caveat expression.
+func NewUnusedCaveatParameterErr(caveatName string, paramName string) error {
+	return ErrUnusedCaveatParameter{
+		error:      fmt.Errorf("parameter `%s` for caveat `%s` is unused", paramName, caveatName),
+		caveatName: caveatName,
+		paramName:  paramName,
 	}
 }
 

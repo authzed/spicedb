@@ -67,7 +67,7 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 		files = append(files, *parsed)
 
 		// Add schema-based namespace definitions.
-		defs := parsed.Schema.Definitions
+		defs := parsed.Schema.CompiledSchema.ObjectDefinitions
 		if len(defs) > 0 {
 			schema += parsed.Schema.Schema + "\n\n"
 		}
@@ -109,6 +109,9 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 					return aerr
 				}
 
+				// Write the caveats.
+
+				// Write the namespaces.
 				log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
 				if err := rwt.WriteNamespaces(nsDef); err != nil {
 					return fmt.Errorf("error when loading namespace %s: %w", nsDef.Name, err)

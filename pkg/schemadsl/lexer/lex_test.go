@@ -185,6 +185,55 @@ var lexerTests = []lexerTest{
 		{TokenTypeSyntheticSemicolon, 0, "\n", ""},
 		tEOF,
 	}},
+	{
+		"cel lexemes", "[a<=b]",
+		[]Lexeme{
+			{TokenTypeLeftBracket, 0, "[", ""},
+			{TokenTypeIdentifier, 0, "a", ""},
+			{TokenTypeLessThanOrEqual, 0, "<=", ""},
+			{TokenTypeIdentifier, 0, "b", ""},
+			{TokenTypeRightBracket, 0, "]", ""},
+			tEOF,
+		},
+	},
+	{
+		"more cel lexemes", "[a>=b.?]",
+		[]Lexeme{
+			{TokenTypeLeftBracket, 0, "[", ""},
+			{TokenTypeIdentifier, 0, "a", ""},
+			{TokenTypeGreaterThanOrEqual, 0, ">=", ""},
+			{TokenTypeIdentifier, 0, "b", ""},
+			{TokenTypePeriod, 0, ".", ""},
+			{TokenTypeQuestionMark, 0, "?", ""},
+			{TokenTypeRightBracket, 0, "]", ""},
+			tEOF,
+		},
+	},
+	{
+		"cel string literal", `"hi there"`,
+		[]Lexeme{
+			{TokenTypeString, 0, `"hi there"`, ""},
+			tEOF,
+		},
+	},
+	{
+		"cel string literal with terminators", `"""hi "there" """`,
+		[]Lexeme{
+			{TokenTypeString, 0, `"""hi "there" """`, ""},
+			tEOF,
+		},
+	},
+	{
+		"unterminated cel string literal", "\"hi\nthere\"",
+		[]Lexeme{
+			{
+				Kind:     TokenTypeError,
+				Position: 0,
+				Value:    "\n",
+				Error:    "Unterminated string",
+			},
+		},
+	},
 }
 
 func TestLexer(t *testing.T) {

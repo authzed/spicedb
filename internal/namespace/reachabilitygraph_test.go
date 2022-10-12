@@ -485,7 +485,7 @@ func TestReachabilityGraph(t *testing.T) {
 			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
 
 			empty := ""
-			defs, err := compiler.Compile([]compiler.InputSchema{
+			compiled, err := compiler.Compile([]compiler.InputSchema{
 				{Source: input.Source("schema"), SchemaString: tc.schema},
 			}, &empty)
 			require.NoError(err)
@@ -494,11 +494,12 @@ func TestReachabilityGraph(t *testing.T) {
 			require.NoError(err)
 
 			var rts *ValidatedNamespaceTypeSystem
-			for _, nsDef := range defs {
+			for _, nsDef := range compiled.ObjectDefinitions {
 				reader := ds.SnapshotReader(lastRevision)
 				ts, err := NewNamespaceTypeSystem(nsDef,
 					ResolverForDatastoreReader(reader).WithPredefinedElements(PredefinedElements{
-						Namespaces: defs,
+						Namespaces: compiled.ObjectDefinitions,
+						Caveats:    compiled.CaveatDefinitions,
 					}))
 				require.NoError(err)
 

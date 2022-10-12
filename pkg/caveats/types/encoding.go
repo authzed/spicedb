@@ -54,6 +54,5 @@ func DecodeParameterType(parameterType *core.CaveatTypeReference) (*VariableType
 		childTypes = append(childTypes, *childType)
 	}
 
-	c := typeDef.asVariableType(childTypes)
-	return &c, nil
+	return typeDef.asVariableType(childTypes)
 }

@@ -73,11 +73,6 @@ func (r *pgReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	if subjectsFilter.OptionalCaveatName != "" {
-		// TODO(vroldanbet): remove once OptionalCaveatName is supported in the subjects filter
-		return nil, fmt.Errorf("caveats are unsupported on this datastore")
-	}
-
 	qBuilder := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).
 		FilterWithSubjectsFilter(subjectsFilter)
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
@@ -12,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -435,19 +438,19 @@ func TestSchemaTypeInvalid(t *testing.T) {
 	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR, err, "definition_name")
 }
 
-/*
-TODO(jschorr): Uncomment once we can write caveats as part of the schema
 func TestSchemaRemoveCaveat(t *testing.T) {
-	conn, cleanup, ds, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}
 
-		caveat somecaveat ...
+		caveat somecaveat(a int, b int) {
+			a + b == 42
+		}
 
 		definition document {
 			relation somerelation: user with somecaveat
@@ -472,28 +475,28 @@ func TestSchemaRemoveCaveat(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	newSchema := `definition user {}
+	newSchema := `definition document {
+	relation somerelation: user
+}
 
-	definition document {
-		relation somerelation: user
-	}`
+definition user {}`
 
 	// Attempt to change the relation type, which should fail.
 	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
-	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with somecaveat` from relation `somerelation` in object definition `example/document`, as a relationship exists with it", err.Error())
+	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with somecaveat` from relation `somerelation` in object definition `document`, as a relationship exists with it", err.Error())
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
-			tuple.MustParse("document:somedoc#somerelation@user:tom"),
+			toWrite,
 		))},
 	})
 	require.Nil(t, err)
 
-	// Attempt to delete the wildcard type, which should work now.
+	// Attempt to delete the caveated type, which should work now.
 	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: newSchema,
 	})
@@ -504,4 +507,3 @@ func TestSchemaRemoveCaveat(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, newSchema, readback.SchemaText)
 }
-*/

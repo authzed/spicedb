@@ -213,11 +213,11 @@ func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {
 
 	// Compile namespace to write to the datastore.
 	empty := ""
-	defs, err := compiler.Compile([]compiler.InputSchema{
+	compiled, err := compiler.Compile([]compiler.InputSchema{
 		{Source: input.Source("schema"), SchemaString: schemaString},
 	}, &empty)
 	require.NoError(err)
-	require.Equal(1, len(defs))
+	require.Equal(1, len(compiled.OrderedDefinitions))
 
 	// Write the namespace definition to the datastore.
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
@@ -225,12 +225,20 @@ func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {
 
 	ctx := context.Background()
 	updatedRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(defs...)
+		/*
+			 * TODO(jschorr): Uncomment once caveats are supported on all datastores and add at least
+			 * one above
+			err := rwt.WriteCaveats(compiled.CaveatDefinitions)
+			if err != nil {
+				return err
+			}*/
+
+		return rwt.WriteNamespaces(compiled.ObjectDefinitions...)
 	})
 	require.NoError(err)
 
 	// Read the namespace definition back from the datastore and compare.
-	nsConfig := defs[0]
+	nsConfig := compiled.ObjectDefinitions[0]
 	readDef, _, err := ds.SnapshotReader(updatedRevision).ReadNamespace(ctx, nsConfig.Name)
 	require.NoError(err)
 

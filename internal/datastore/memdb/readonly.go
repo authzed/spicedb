@@ -305,8 +305,6 @@ func filterFuncForFilters(
 				return true
 			case len(relations) > 0 && !stringz.SliceContains(relations, tuple.subjectRelation):
 				return true
-			case optionalSubjectsFilter.OptionalCaveatName != "" && (tuple.caveat == nil || tuple.caveat.caveatName != optionalSubjectsFilter.OptionalCaveatName):
-				return true
 			}
 		}
 

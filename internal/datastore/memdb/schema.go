@@ -67,16 +67,26 @@ func (cr *contextualizedCaveat) ContextualizedCaveat() (*core.ContextualizedCave
 	}, nil
 }
 
-func (r relationship) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("rel", fmt.Sprintf(
-		"%s:%s#%s@%s:%s#%s",
+func (r relationship) String() string {
+	caveat := ""
+	if r.caveat != nil {
+		caveat = fmt.Sprintf("[%s]", r.caveat.caveatName)
+	}
+
+	return fmt.Sprintf(
+		"%s:%s#%s@%s:%s#%s%s",
 		r.namespace,
 		r.resourceID,
 		r.relation,
 		r.subjectNamespace,
 		r.subjectObjectID,
 		r.subjectRelation,
-	))
+		caveat,
+	)
+}
+
+func (r relationship) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("rel", r.String())
 }
 
 func (r relationship) Relationship() *v1.Relationship {

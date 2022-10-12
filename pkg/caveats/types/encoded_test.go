@@ -36,8 +36,10 @@ func TestEncodeDecodeTypes(t *testing.T) {
 
 	for _, def := range definitions {
 		if def.childTypeCount == 0 {
+			v, err := def.asVariableType(nil)
+			require.NoError(t, err)
 			tcs = append(tcs, testCase{
-				vtype: def.asVariableType(nil),
+				vtype: *v,
 			})
 		}
 	}

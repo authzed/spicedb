@@ -3,10 +3,10 @@ package v1alpha1
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
-	"github.com/scylladb/go-set/strset"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
@@ -59,6 +59,8 @@ func NewSchemaServer(prefixRequired PrefixRequiredOption) v1alpha1.SchemaService
 	}
 }
 
+const caveatKeyPrefix = "caveat:"
+
 func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.ReadSchemaRequest) (*v1alpha1.ReadSchemaResponse, error) {
 	headRevision, _ := consistency.MustRevisionFromContext(ctx)
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(headRevision)
@@ -109,44 +111,68 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		prefix = &empty
 	}
 
-	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, prefix)
+	compiled, err := compiler.Compile([]compiler.InputSchema{inputSchema}, prefix)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
 
-	liveDefs := append([]*core.NamespaceDefinition{}, nsdefs...)
-	liveDefNames := strset.New()
-	for _, nsdef := range nsdefs {
-		liveDefNames.Add(nsdef.Name)
+	log.Ctx(ctx).Trace().Interface("caveatDefinitions", compiled.CaveatDefinitions).Interface("objectDefinitions", compiled.ObjectDefinitions).Msg("compiled schema")
+
+	objectDefMap := make(map[string]*core.NamespaceDefinition, len(compiled.ObjectDefinitions))
+	for _, nsDef := range compiled.ObjectDefinitions {
+		objectDefMap[nsDef.Name] = nsDef
 	}
 
-	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
+	caveatNames := make([]string, 0, len(compiled.CaveatDefinitions))
+	for _, caveatDef := range compiled.CaveatDefinitions {
+		if err := namespace.ValidateCaveatDefinition(caveatDef); err != nil {
+			return nil, rewriteError(ctx, err)
+		}
+		caveatNames = append(caveatNames, caveatDef.Name)
+	}
 
-	// Determine the list of all referenced namespaces in the schema.
-	referencedNamespaceNames := namespace.ListReferencedNamespaces(nsdefs)
+	// Determine the list of all referenced namespaces and caveats in the schema.
+	referencedNamespaceNames := namespace.ListReferencedNamespaces(compiled.ObjectDefinitions)
 
 	// Run the schema update.
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		existingDefs, err := rwt.LookupNamespaces(ctx, referencedNamespaceNames)
+		var existingCaveatDefs []*core.CaveatDefinition
+		if len(caveatNames) > 0 {
+			found, err := rwt.ListCaveats(ctx, caveatNames...)
+			if err != nil {
+				return err
+			}
+			existingCaveatDefs = found
+		}
+
+		existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(compiled.CaveatDefinitions))
+		for _, existingCaveatDef := range existingCaveatDefs {
+			existingCaveatDefMap[existingCaveatDef.Name] = existingCaveatDef
+		}
+
+		for _, caveatDef := range compiled.CaveatDefinitions {
+			if err := shared.SanityCheckCaveatChanges(ctx, rwt, caveatDef, existingCaveatDefMap); err != nil {
+				return err
+			}
+		}
+
+		// Check for changes to namespaces.
+		existingObjectDefs, err := rwt.LookupNamespaces(ctx, referencedNamespaceNames)
 		if err != nil {
 			return err
 		}
 
-		// Build a map of existing referenced definitions
-		existingDefMap := make(map[string]*core.NamespaceDefinition, len(referencedNamespaceNames))
-		for _, existingDef := range existingDefs {
-			existingDefMap[existingDef.Name] = existingDef
-			if !liveDefNames.Has(existingDef.Name) {
-				liveDefNames.Add(existingDef.Name)
-				liveDefs = append(liveDefs, existingDef)
-			}
+		existingObjectDefMap := make(map[string]*core.NamespaceDefinition, len(referencedNamespaceNames))
+		for _, existingObjectDef := range existingObjectDefs {
+			existingObjectDefMap[existingObjectDef.Name] = existingObjectDef
 		}
 
-		for _, nsdef := range nsdefs {
+		for _, nsdef := range compiled.ObjectDefinitions {
 			ts, err := namespace.NewNamespaceTypeSystem(
 				nsdef,
-				namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
-					Namespaces: liveDefs,
+				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+					Namespaces: compiled.ObjectDefinitions,
+					Caveats:    compiled.CaveatDefinitions,
 				}))
 			if err != nil {
 				return err
@@ -161,11 +187,11 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 				return err
 			}
 
-			if err := shared.SanityCheckExistingRelationships(ctx, rwt, nsdef, existingDefMap); err != nil {
+			if err := shared.SanityCheckExistingRelationships(ctx, rwt, nsdef, existingObjectDefMap); err != nil {
 				return err
 			}
 		}
-		log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("validated namespace definitions")
+		log.Ctx(ctx).Trace().Interface("caveatDefinitions", compiled.CaveatDefinitions).Interface("objectDefinitions", compiled.ObjectDefinitions).Msg("validated schema")
 
 		// If a precondition was given, decode it, and verify that none of the namespaces specified
 		// have changed in any way.
@@ -175,30 +201,49 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 				return err
 			}
 
-			for nsName, existingRevision := range decoded {
-				_, createdAt, err := rwt.ReadNamespace(ctx, nsName)
-				if err != nil {
-					var nsNotFoundError sharederrors.UnknownNamespaceError
-					if errors.As(err, &nsNotFoundError) {
-						return &writeSchemaPreconditionFailure{
-							errors.New("specified revision references a type that no longer exists"),
-						}
+			for key, existingRevision := range decoded {
+				if strings.HasPrefix(key, "caveat:") {
+					_, createdAt, err := rwt.ReadCaveatByName(ctx, key[len(caveatKeyPrefix):])
+					if err != nil {
+						return &writeSchemaPreconditionFailure{err}
 					}
 
-					return err
-				}
+					if !createdAt.Equal(existingRevision) {
+						return &writeSchemaPreconditionFailure{
+							errors.New("current schema differs from the revision specified"),
+						}
+					}
+				} else {
+					_, createdAt, err := rwt.ReadNamespace(ctx, key)
+					if err != nil {
+						var nsNotFoundError sharederrors.UnknownNamespaceError
+						if errors.As(err, &nsNotFoundError) {
+							return &writeSchemaPreconditionFailure{
+								errors.New("specified revision references a type that no longer exists"),
+							}
+						}
 
-				if !createdAt.Equal(existingRevision) {
-					return &writeSchemaPreconditionFailure{
-						errors.New("current schema differs from the revision specified"),
+						return err
+					}
+
+					if !createdAt.Equal(existingRevision) {
+						return &writeSchemaPreconditionFailure{
+							errors.New("current schema differs from the revision specified"),
+						}
 					}
 				}
 			}
 
-			log.Trace().Interface("namespaceDefinitions", nsdefs).Msg("checked schema revision")
+			log.Ctx(ctx).Trace().Interface("caveatDefinitions", compiled.CaveatDefinitions).Interface("objectDefinitions", compiled.ObjectDefinitions).Msg("checked schema revision")
 		}
 
-		if err := rwt.WriteNamespaces(nsdefs...); err != nil {
+		if len(compiled.CaveatDefinitions) > 0 {
+			if err := rwt.WriteCaveats(compiled.CaveatDefinitions); err != nil {
+				return err
+			}
+		}
+
+		if err := rwt.WriteNamespaces(compiled.ObjectDefinitions...); err != nil {
 			return err
 		}
 
@@ -208,11 +253,17 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		return nil, rewriteError(ctx, err)
 	}
 
-	revs := make(map[string]datastore.Revision, len(nsdefs))
-	names := make([]string, 0, len(nsdefs))
-	for _, nsdef := range nsdefs {
+	updatedCount := len(compiled.ObjectDefinitions) + len(compiled.CaveatDefinitions)
+	revs := make(map[string]datastore.Revision, updatedCount)
+	names := make([]string, 0, updatedCount)
+	for _, nsdef := range compiled.ObjectDefinitions {
 		names = append(names, nsdef.Name)
 		revs[nsdef.Name] = revision
+	}
+	for _, caveat := range compiled.CaveatDefinitions {
+		key := caveatKeyPrefix + caveat.Name
+		names = append(names, key)
+		revs[key] = revision
 	}
 
 	computedRevision, err := revisions.ComputeV1Alpha1Revision(revs)
@@ -221,10 +272,10 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		DispatchCount: uint32(len(nsdefs)),
+		DispatchCount: uint32(updatedCount),
 	})
 
-	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Stringer("computedRevision", revision).Msg("wrote namespace definitions")
+	log.Ctx(ctx).Trace().Interface("caveatDefinitions", compiled.CaveatDefinitions).Interface("objectDefinitions", compiled.ObjectDefinitions).Msg("completed v1alpha1 schema update")
 
 	return &v1alpha1.WriteSchemaResponse{
 		ObjectDefinitionsNames:      names,

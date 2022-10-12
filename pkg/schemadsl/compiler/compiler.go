@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"google.golang.org/protobuf/proto"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -19,23 +21,45 @@ type InputSchema struct {
 	SchemaString string
 }
 
+// SchemaDefinition represents an object or caveat definition in a schema.
+type SchemaDefinition interface {
+	proto.Message
+
+	GetName() string
+}
+
+// CompiledSchema is the result of compiling a schema when there are no errors.
+type CompiledSchema struct {
+	// ObjectDefinitions holds the object definitions in the schema.
+	ObjectDefinitions []*core.NamespaceDefinition
+
+	// CaveatDefinitions holds the caveat definitions in the schema.
+	CaveatDefinitions []*core.CaveatDefinition
+
+	// OrderedDefinitions holds the object and caveat definitions in the schema, in the
+	// order in which they were found.
+	OrderedDefinitions []SchemaDefinition
+}
+
 // Compile compilers the input schema(s) into a set of namespace definition protos.
-func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*core.NamespaceDefinition, error) {
+func Compile(schemas []InputSchema, objectTypePrefix *string) (*CompiledSchema, error) {
 	mapper := newPositionMapper(schemas)
 
 	// Parse and translate the various schemas.
-	definitions := []*core.NamespaceDefinition{}
+	orderedDefinitions := []SchemaDefinition{}
+
 	for _, schema := range schemas {
 		root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
 		errs := root.FindAll(dslshape.NodeTypeError)
 		if len(errs) > 0 {
 			err := errorNodeToError(errs[0], mapper)
-			return []*core.NamespaceDefinition{}, err
+			return nil, err
 		}
 
 		translatedDefs, err := translate(translationContext{
 			objectTypePrefix: objectTypePrefix,
 			mapper:           mapper,
+			schemaString:     schema.SchemaString,
 		}, root)
 		if err != nil {
 			var errorWithNode errorWithNode
@@ -43,13 +67,27 @@ func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*core.Namespace
 				err = toContextError(errorWithNode.error.Error(), errorWithNode.errorSourceCode, errorWithNode.node, mapper)
 			}
 
-			return []*core.NamespaceDefinition{}, err
+			return nil, err
 		}
 
-		definitions = append(definitions, translatedDefs...)
+		orderedDefinitions = append(orderedDefinitions, translatedDefs...)
 	}
 
-	return definitions, nil
+	return &CompiledSchema{
+		CaveatDefinitions:  filterTo[*core.CaveatDefinition](orderedDefinitions),
+		ObjectDefinitions:  filterTo[*core.NamespaceDefinition](orderedDefinitions),
+		OrderedDefinitions: orderedDefinitions,
+	}, nil
+}
+
+func filterTo[T SchemaDefinition](orderedDefinitions []SchemaDefinition) []T {
+	filtered := make([]T, 0, len(orderedDefinitions))
+	for _, def := range orderedDefinitions {
+		if casted, ok := def.(T); ok {
+			filtered = append(filtered, casted)
+		}
+	}
+	return filtered
 }
 
 func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {

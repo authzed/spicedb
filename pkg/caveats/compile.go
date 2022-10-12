@@ -3,6 +3,8 @@ package caveats
 import (
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/util"
+
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common"
 
@@ -50,17 +52,20 @@ func (cc CompiledCaveat) Serialize() ([]byte, error) {
 	return caveat.MarshalVT()
 }
 
-// CompilationErrors is a wrapping error for containing compilation errors for a Caveat.
-type CompilationErrors struct {
-	error
+// ReferencedParameters returns the names of the parameters referenced in the expression.
+func (cc CompiledCaveat) ReferencedParameters(parameters []string) *util.Set[string] {
+	referencedParams := util.NewSet[string]()
+	definedParameters := util.NewSet[string]()
+	definedParameters.Extend(parameters)
 
-	issues *cel.Issues
+	referencedParameters(definedParameters, cc.ast.Expr(), referencedParams)
+	return referencedParams
 }
 
 // CompileCaveatWithName compiles a caveat string into a compiled caveat with a given name,
 // or returns the compilation errors.
 func CompileCaveatWithName(env *Environment, exprString, name string) (*CompiledCaveat, error) {
-	c, err := CompileCaveat(env, exprString)
+	c, err := CompileCaveatWithSource(env, name, common.NewStringSource(exprString, name))
 	if err != nil {
 		return nil, err
 	}
@@ -70,13 +75,18 @@ func CompileCaveatWithName(env *Environment, exprString, name string) (*Compiled
 
 // CompileCaveat compiles a caveat string into a compiled caveat, or returns the compilation errors.
 func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error) {
+	s := common.NewStringSource(exprString, "caveat")
+	return CompileCaveatWithSource(env, "caveat", s)
+}
+
+// CompileCaveatWithSource compiles a caveat sourceinto a compiled caveat, or returns the compilation errors.
+func CompileCaveatWithSource(env *Environment, name string, source common.Source) (*CompiledCaveat, error) {
 	celEnv, err := env.asCelEnvironment()
 	if err != nil {
 		return nil, err
 	}
 
-	s := common.NewStringSource(exprString, "caveat")
-	ast, issues := celEnv.CompileSource(s)
+	ast, issues := celEnv.CompileSource(source)
 	if issues != nil && issues.Err() != nil {
 		return nil, CompilationErrors{issues.Err(), issues}
 	}
@@ -85,7 +95,9 @@ func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 		return nil, CompilationErrors{fmt.Errorf("caveat expression must result in a boolean value: found `%s`", ast.OutputType().String()), nil}
 	}
 
-	return &CompiledCaveat{celEnv, ast, anonymousCaveat}, nil
+	compiled := &CompiledCaveat{celEnv, ast, anonymousCaveat}
+	compiled.name = name
+	return compiled, nil
 }
 
 // DeserializeCaveat deserializes a byte-serialized caveat back into a CompiledCaveat.

@@ -2,10 +2,19 @@ package generator
 
 import (
 	"bufio"
+	"fmt"
+	"sort"
 	"strings"
+
+	"github.com/authzed/spicedb/pkg/caveats"
+
+	"golang.org/x/exp/maps"
+
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
@@ -15,6 +24,43 @@ const Ellipsis = "..."
 
 // MaxSingleLineCommentLength sets the maximum length for a comment to made single line.
 const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
+
+// GenerateSchema generates a DSL view of the given schema.
+func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool) {
+	generated := make([]string, 0, len(definitions))
+	result := true
+	for _, definition := range definitions {
+		switch def := definition.(type) {
+		case *core.CaveatDefinition:
+			generatedCaveat, ok := GenerateCaveatSource(def)
+			result = result && ok
+			generated = append(generated, generatedCaveat)
+
+		case *core.NamespaceDefinition:
+			generatedSchema, ok := GenerateSource(def)
+			result = result && ok
+			generated = append(generated, generatedSchema)
+
+		default:
+			panic(fmt.Sprintf("unknown type of definition %T in GenerateSchema", def))
+		}
+	}
+
+	return strings.Join(generated, "\n\n"), result
+}
+
+// GenerateCaveatSource generates a DSL view of the given caveat definition.
+func GenerateCaveatSource(caveat *core.CaveatDefinition) (string, bool) {
+	generator := &sourceGenerator{
+		indentationLevel: 0,
+		hasNewline:       true,
+		hasBlankline:     true,
+		hasNewScope:      true,
+	}
+
+	generator.emitCaveat(caveat)
+	return generator.buf.String(), !generator.hasIssue
+}
 
 // GenerateSource generates a DSL view of the given namespace definition.
 func GenerateSource(namespace *core.NamespaceDefinition) (string, bool) {
@@ -27,6 +73,54 @@ func GenerateSource(namespace *core.NamespaceDefinition) (string, bool) {
 
 	generator.emitNamespace(namespace)
 	return generator.buf.String(), !generator.hasIssue
+}
+
+func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) {
+	sg.emitComments(caveat.Metadata)
+	sg.append("caveat ")
+	sg.append(caveat.Name)
+	sg.append("(")
+
+	parameterNames := maps.Keys(caveat.ParameterTypes)
+	sort.Strings(parameterNames)
+
+	for index, paramName := range parameterNames {
+		if index > 0 {
+			sg.append(", ")
+		}
+
+		decoded, err := caveattypes.DecodeParameterType(caveat.ParameterTypes[paramName])
+		if err != nil {
+			panic("invalid parameter type on caveat")
+		}
+
+		sg.append(paramName)
+		sg.append(" ")
+		sg.append(decoded.String())
+	}
+
+	sg.append(")")
+
+	sg.append(" {")
+	sg.appendLine()
+	sg.indent()
+	sg.markNewScope()
+
+	deserializedExpression, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
+	if err != nil {
+		panic("invalid caveat expression bytes")
+	}
+
+	exprString, err := deserializedExpression.ExprString()
+	if err != nil {
+		panic("invalid caveat expression")
+	}
+
+	sg.append(strings.TrimSpace(exprString))
+	sg.appendLine()
+
+	sg.dedent()
+	sg.append("}")
 }
 
 func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) {

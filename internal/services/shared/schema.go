@@ -8,11 +8,40 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// SanityCheckCaveatChanges ensures that a caveat definition being written does not break
+// the types of the parameters that may already exist on relationships.
+func SanityCheckCaveatChanges(
+	ctx context.Context,
+	rwt datastore.ReadWriteTransaction,
+	caveatDef *core.CaveatDefinition,
+	existingDefs map[string]*core.CaveatDefinition,
+) error {
+	// Ensure that the updated namespace does not break the existing tuple data.
+	existing := existingDefs[caveatDef.Name]
+	diff, err := caveats.DiffCaveats(existing, caveatDef)
+	if err != nil {
+		return err
+	}
+
+	for _, delta := range diff.Deltas() {
+		switch delta.Type {
+		case caveats.RemovedParameter:
+			return status.Errorf(codes.InvalidArgument, "cannot remove parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
+
+		case caveats.ParameterTypeChanged:
+			return status.Errorf(codes.InvalidArgument, "cannot change the type of parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
+		}
+	}
+
+	return nil
+}
 
 // EnsureNoRelationshipsExist ensures that no relationships exist within the namespace with the given name.
 func EnsureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTransaction, namespaceName string) error {
@@ -25,7 +54,7 @@ func EnsureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 		ctx,
 		qy,
 		qyErr,
-		"cannot delete Object Definition `%s`, as a Relationship exists under it",
+		"cannot delete object definition `%s`, as a relationship exists under it",
 		namespaceName,
 	); err != nil {
 		return err
@@ -38,7 +67,7 @@ func EnsureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 		ctx,
 		qy,
 		qyErr,
-		"cannot delete Object Definition `%s`, as a Relationship references it",
+		"cannot delete object definition `%s`, as a relationship references it",
 		namespaceName,
 	); err != nil {
 		return err
@@ -104,7 +133,7 @@ func SanityCheckExistingRelationships(
 				optionalSubjectIds = []string{tuple.PublicWildcard}
 			} else {
 				relationFilter = datastore.SubjectRelationFilter{
-					NonEllipsisRelation: delta.RelationName,
+					NonEllipsisRelation: delta.AllowedType.GetRelation(),
 				}
 			}
 
@@ -112,19 +141,19 @@ func SanityCheckExistingRelationships(
 				optionalCaveatName = delta.AllowedType.GetRequiredCaveat().CaveatName
 			}
 
-			qy, qyErr := rwt.ReverseQueryRelationships(
+			qy, qyErr := rwt.QueryRelationships(
 				ctx,
-				datastore.SubjectsFilter{
-					SubjectType:        delta.AllowedType.Namespace,
-					OptionalSubjectIds: optionalSubjectIds,
-					RelationFilter:     relationFilter,
+				datastore.RelationshipsFilter{
+					ResourceType:             nsdef.Name,
+					OptionalResourceRelation: delta.RelationName,
+					OptionalSubjectsFilter: &datastore.SubjectsFilter{
+						SubjectType:        delta.AllowedType.Namespace,
+						OptionalSubjectIds: optionalSubjectIds,
+						RelationFilter:     relationFilter,
+					},
 					OptionalCaveatName: optionalCaveatName,
 				},
-				options.WithResRelation(&options.ResourceRelation{
-					Namespace: nsdef.Name,
-					Relation:  delta.RelationName,
-				}),
-				options.WithReverseLimit(options.LimitOne),
+				options.WithLimit(options.LimitOne),
 			)
 			err = ErrorIfTupleIteratorReturnsTuples(
 				ctx,

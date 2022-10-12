@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"errors"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
@@ -157,8 +156,9 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		)
 	}
 
-	// Check for duplicate updates.
+	// Check for duplicate updates and create the set of caveat names to load.
 	updateRelationshipSet := util.NewSet[string]()
+	referencedCaveatNamesWithContext := util.NewSet[string]()
 	for _, update := range req.Updates {
 		tupleStr := tuple.StringRelationship(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
@@ -171,16 +171,41 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				),
 			)
 		}
+
+		// Only load the caveat if we need its type information for context checking.
+		if update.Relationship.OptionalCaveat != nil &&
+			update.Relationship.OptionalCaveat.CaveatName != "" &&
+			update.Relationship.OptionalCaveat.Context != nil &&
+			len(update.Relationship.OptionalCaveat.Context.AsMap()) > 0 {
+			referencedCaveatNamesWithContext.Add(update.Relationship.OptionalCaveat.CaveatName)
+		}
 	}
 
 	// Execute the write operation(s).
 	// TODO(jschorr): look into loading the type system once per type, rather than once per relationship
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		// Validate the preconditions.
 		for _, precond := range req.OptionalPreconditions {
 			if err := ps.checkFilterNamespaces(ctx, precond.Filter, rwt); err != nil {
 				return err
 			}
 		}
+
+		// Load caveats, if any.
+		var referencedCaveatMap map[string]*core.CaveatDefinition
+		if !referencedCaveatNamesWithContext.IsEmpty() {
+			foundCaveats, err := rwt.ListCaveats(ctx, referencedCaveatNamesWithContext.AsSlice()...)
+			if err != nil {
+				return err
+			}
+
+			referencedCaveatMap = make(map[string]*core.CaveatDefinition, len(foundCaveats))
+			for _, caveatDef := range foundCaveats {
+				referencedCaveatMap[caveatDef.Name] = caveatDef
+			}
+		}
+
+		// Validate the updates.
 		for _, update := range req.Updates {
 			if err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId); err != nil {
 				return err
@@ -266,25 +291,26 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			}
 
 			// Validate caveat and its context, if applicable.
-			// TODO(vroldanbet) load the list of caveats in bulk if possible.
 			// TODO(jschorr): once caveats are supported on all datastores, we should elide this check if the
 			// provided context is empty, as the allowed relation check above will ensure the caveat exists.
-			if update.Relationship.OptionalCaveat != nil && update.Relationship.OptionalCaveat.CaveatName != "" {
-				caveat, _, err := rwt.ReadCaveatByName(ctx, update.Relationship.OptionalCaveat.CaveatName)
-				if errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
+			if update.Relationship.OptionalCaveat != nil &&
+				update.Relationship.OptionalCaveat.CaveatName != "" &&
+				update.Relationship.OptionalCaveat.Context != nil &&
+				len(update.Relationship.OptionalCaveat.Context.AsMap()) > 0 {
+				caveat, ok := referencedCaveatMap[update.Relationship.OptionalCaveat.CaveatName]
+				if !ok {
+					// Should ideally never happen since the caveat is type checked above, but just in case.
 					return rewriteError(ctx, NewCaveatNotFoundError(update))
 				}
 
+				// Verify that the provided context information matches the types of the parameters defined.
+				_, err := caveats.ConvertContextToParameters(
+					update.Relationship.OptionalCaveat.Context.AsMap(),
+					caveat.ParameterTypes,
+					caveats.ErrorForUnknownParameters,
+				)
 				if err != nil {
 					return rewriteError(ctx, err)
-				}
-
-				// Verify that the provided context information matches the types of the parameters defined.
-				if update.Relationship.OptionalCaveat.Context != nil {
-					_, err := caveats.ConvertContextToParameters(update.Relationship.OptionalCaveat.Context.AsMap(), caveat.ParameterTypes)
-					if err != nil {
-						return rewriteError(ctx, err)
-					}
 				}
 			}
 		}

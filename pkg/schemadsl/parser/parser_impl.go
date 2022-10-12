@@ -46,6 +46,7 @@ type commentedLexeme struct {
 // sourceParser holds the state of the parser.
 type sourceParser struct {
 	source        input.Source         // the name of the input; used only for error reports
+	input         string               // the input string itself
 	lex           *lexer.PeekableLexer // a reference to the lexer used for tokenization
 	builder       NodeBuilder          // the builder function for creating AstNode instances
 	nodes         *nodeStack           // the stack of the current nodes
@@ -58,6 +59,7 @@ func buildParser(lx *lexer.Lexer, builder NodeBuilder, source input.Source, inpu
 	l := lexer.NewPeekableLexer(lx)
 	return &sourceParser{
 		source:        source,
+		input:         input,
 		lex:           l,
 		builder:       builder,
 		nodes:         &nodeStack{},

@@ -51,12 +51,16 @@ Loop:
 			break Loop
 		}
 
-		// The top level of the DSL is a set of definitions:
+		// The top level of the DSL is a set of definitions and caveats:
 		// definition foobar { ... }
+		// caveat somecaveat (...) { ... }
 
 		switch {
 		case p.isKeyword("definition"):
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeDefinition())
+
+		case p.isKeyword("caveat"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeCaveat())
 
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
@@ -67,8 +71,164 @@ Loop:
 	return rootNode
 }
 
+// consumeCaveat attempts to consume a single caveat definition.
+// ```caveat somecaveat(param1 type, param2 type) { ... }```
+func (p *sourceParser) consumeCaveat() AstNode {
+	defNode := p.startNode(dslshape.NodeTypeCaveatDefinition)
+	defer p.finishNode()
+
+	// caveat ...
+	p.consumeKeyword("caveat")
+	caveatName, ok := p.consumeTypePath()
+	if !ok {
+		return defNode
+	}
+
+	defNode.Decorate(dslshape.NodeCaveatDefinitionPredicateName, caveatName)
+
+	// Parameters:
+	// (
+	_, ok = p.consume(lexer.TokenTypeLeftParen)
+	if !ok {
+		return defNode
+	}
+
+	for {
+		paramNode, ok := p.consumeCaveatParameter()
+		if !ok {
+			return defNode
+		}
+
+		defNode.Connect(dslshape.NodeCaveatDefinitionPredicateParameters, paramNode)
+		if _, ok := p.tryConsume(lexer.TokenTypeComma); !ok {
+			break
+		}
+	}
+
+	// )
+	_, ok = p.consume(lexer.TokenTypeRightParen)
+	if !ok {
+		return defNode
+	}
+
+	// {
+	_, ok = p.consume(lexer.TokenTypeLeftBrace)
+	if !ok {
+		return defNode
+	}
+
+	exprNode, ok := p.consumeCaveatExpression()
+	if !ok {
+		return defNode
+	}
+
+	defNode.Connect(dslshape.NodeCaveatDefinitionPredicateExpession, exprNode)
+
+	// }
+	_, ok = p.consume(lexer.TokenTypeRightBrace)
+	if !ok {
+		return defNode
+	}
+
+	return defNode
+}
+
+func (p *sourceParser) consumeCaveatExpression() (AstNode, bool) {
+	exprNode := p.startNode(dslshape.NodeTypeCaveatExpession)
+	defer p.finishNode()
+
+	// Special Logic Note: Since CEL is its own language, we consume here until we have a matching
+	// close brace, and then pass ALL the found tokens to CEL's own parser to attach the expression
+	// here.
+	braceDepth := 1 // Starting at 1 from the open brace above
+	var startToken *commentedLexeme
+	var endToken *commentedLexeme
+consumer:
+	for {
+		currentToken := p.currentToken
+		switch currentToken.Kind {
+		case lexer.TokenTypeLeftBrace:
+			braceDepth++
+
+		case lexer.TokenTypeRightBrace:
+			if braceDepth == 1 {
+				break consumer
+			}
+
+			braceDepth--
+
+		case lexer.TokenTypeEOF:
+			break consumer
+		}
+
+		if startToken == nil {
+			startToken = &currentToken
+		}
+
+		endToken = &currentToken
+		p.consumeToken()
+	}
+
+	if startToken == nil {
+		p.emitErrorf("missing caveat expression")
+		return exprNode, false
+	}
+
+	caveatExpression := p.input[startToken.Position : int(endToken.Position)+len(endToken.Value)]
+	exprNode.Decorate(dslshape.NodeCaveatExpressionPredicateExpression, caveatExpression)
+	return exprNode, true
+}
+
+// consumeCaveatParameter attempts to consume a caveat parameter.
+// ```(paramName paramtype)```
+func (p *sourceParser) consumeCaveatParameter() (AstNode, bool) {
+	paramNode := p.startNode(dslshape.NodeTypeCaveatParameter)
+	defer p.finishNode()
+
+	name, ok := p.consumeIdentifier()
+	if !ok {
+		return paramNode, false
+	}
+
+	paramNode.Decorate(dslshape.NodeCaveatParameterPredicateName, name)
+	paramNode.Connect(dslshape.NodeCaveatParameterPredicateType, p.consumeCaveatTypeReference())
+	return paramNode, true
+}
+
+// consumeCaveatTypeReference attempts to consume a caveat type reference.
+// ```typeName<childType>```
+func (p *sourceParser) consumeCaveatTypeReference() AstNode {
+	typeRefNode := p.startNode(dslshape.NodeTypeCaveatTypeReference)
+	defer p.finishNode()
+
+	name, ok := p.consumeIdentifier()
+	if !ok {
+		return typeRefNode
+	}
+
+	typeRefNode.Decorate(dslshape.NodeCaveatTypeReferencePredicateType, name)
+
+	// Check for child type(s).
+	// <
+	if _, ok := p.tryConsume(lexer.TokenTypeLessThan); !ok {
+		return typeRefNode
+	}
+
+	for {
+		childTypeRef := p.consumeCaveatTypeReference()
+		typeRefNode.Connect(dslshape.NodeCaveatTypeReferencePredicateChildTypes, childTypeRef)
+		if _, ok := p.tryConsume(lexer.TokenTypeComma); !ok {
+			break
+		}
+	}
+
+	// >
+	p.consume(lexer.TokenTypeGreaterThan)
+	return typeRefNode
+}
+
 // consumeDefinition attempts to consume a single schema definition.
-// ```definition somedef { ... }````
+// ```definition somedef { ... }```
 func (p *sourceParser) consumeDefinition() AstNode {
 	defNode := p.startNode(dslshape.NodeTypeDefinition)
 	defer p.finishNode()
@@ -182,12 +342,12 @@ func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
 		return nil, ok
 	}
 
-	consumed, ok := p.consume(lexer.TokenTypeIdentifier)
+	consumed, ok := p.consumeTypePath()
 	if !ok {
 		return caveatNode, true
 	}
 
-	caveatNode.Decorate(dslshape.NodeCaveatPredicateCaveat, consumed.Value)
+	caveatNode.Decorate(dslshape.NodeCaveatPredicateCaveat, consumed)
 	return caveatNode, true
 }
 
@@ -226,7 +386,6 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 	}
 
 	specificNode.Decorate(dslshape.NodeSpecificReferencePredicateRelation, consumed.Value)
-
 	return specificNode
 }
 

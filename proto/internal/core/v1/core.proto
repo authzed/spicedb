@@ -45,6 +45,12 @@ message CaveatDefinition {
 
   /** parameters_and_types is a map from parameter name to its type */
   map<string, CaveatTypeReference> parameter_types = 3 [(validate.rules).map = {min_pairs: 1, max_pairs: 20}];
+
+  /** metadata contains compiler metadata from schemas compiled into caveats */
+  Metadata metadata = 4;
+
+  /** source_position contains the position of the caveat in the source schema, if any */
+  SourcePosition source_position = 5;
 }
 
 message CaveatTypeReference {

@@ -33,7 +33,9 @@ func EnvForVariables(vars map[string]types.VariableType) (*Environment, error) {
 	return e, nil
 }
 
-func mustEnvForVariables(vars map[string]types.VariableType) *Environment {
+// MustEnvForVariables returns a new environment constructed for the given variables
+// or panics.
+func MustEnvForVariables(vars map[string]types.VariableType) *Environment {
 	env, err := EnvForVariables(vars)
 	if err != nil {
 		panic(err)

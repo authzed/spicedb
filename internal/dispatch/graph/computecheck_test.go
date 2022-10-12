@@ -791,6 +791,63 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				},
 			},
 		},
+		{
+			"schema caveat test",
+			`
+			caveat testcaveat(somecondition uint) {
+				somecondition == 42
+			}
+
+			definition user {}
+
+			definition document {
+				relation viewer: user with testcaveat
+
+				permission view = viewer
+			}`,
+			map[string]caveatDefinition{},
+			[]caveatedUpdate{
+				{core.RelationTupleUpdate_CREATE, "document:foo#viewer@user:sarah", "testcaveat", nil},
+			},
+			[]check{
+				{
+					"document:foo#view@user:sarah",
+					map[string]any{
+						"somecondition": "43a",
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					[]string{},
+					"type error for parameters for caveat `testcaveat`: could not convert context parameter `somecondition`: for uint: a uint64 value is required, but found invalid string value `43a`",
+				},
+				{
+					"document:foo#view@user:sarah",
+					map[string]any{
+						"somecondition": "-43",
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					[]string{},
+					"type error for parameters for caveat `testcaveat`: could not convert context parameter `somecondition`: for uint: a uint value is required, but found int64 value `-43`",
+				},
+				{
+					"document:foo#view@user:sarah",
+					map[string]any{
+						"somecondition": "41",
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					[]string{},
+					"",
+				},
+				{
+					"document:foo#view@user:sarah",
+					map[string]any{
+						"somecondition": "42",
+					},
+					v1.ResourceCheckResult_MEMBER,
+					[]string{},
+					"",
+				},
+			},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -865,7 +922,7 @@ func TestComputeCheckError(t *testing.T) {
 
 func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datastore, schema string, definedCaveats map[string]caveatDefinition, updates []caveatedUpdate) (datastore.Revision, error) {
 	empty := ""
-	defs, err := compiler.Compile([]compiler.InputSchema{
+	compiled, err := compiler.Compile([]compiler.InputSchema{
 		{Source: "schema", SchemaString: schema},
 	}, &empty)
 	if err != nil {
@@ -881,11 +938,11 @@ func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datasto
 
 		require.True(t, len(e.EncodedParametersTypes()) > 0)
 
-		compiled, err := caveats.CompileCaveatWithName(e, c.expression, name)
+		compiledCaveat, err := caveats.CompileCaveatWithName(e, c.expression, name)
 		if err != nil {
 			return datastore.NoRevision, err
 		}
-		serialized, err := compiled.Serialize()
+		serialized, err := compiledCaveat.Serialize()
 		if err != nil {
 			return datastore.NoRevision, err
 		}
@@ -897,7 +954,11 @@ func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datasto
 	}
 
 	return ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		if err := rwt.WriteNamespaces(defs...); err != nil {
+		if err := rwt.WriteNamespaces(compiled.ObjectDefinitions...); err != nil {
+			return err
+		}
+
+		if err := rwt.WriteCaveats(compiled.CaveatDefinitions); err != nil {
 			return err
 		}
 

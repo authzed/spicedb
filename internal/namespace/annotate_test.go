@@ -18,7 +18,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	require.NoError(err)
 
 	empty := ""
-	defs, err := compiler.Compile([]compiler.InputSchema{
+	compiled, err := compiler.Compile([]compiler.InputSchema{
 		{Source: input.Source("schema"), SchemaString: `definition document {
 	relation viewer: document
 	relation editor: document
@@ -34,7 +34,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	lastRevision, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 
-	ts, err := NewNamespaceTypeSystem(defs[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+	ts, err := NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 	require.NoError(err)
 
 	ctx := context.Background()

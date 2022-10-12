@@ -6,8 +6,6 @@ import (
 
 	yamlv3 "gopkg.in/yaml.v3"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -21,8 +19,8 @@ type ParsedSchema struct {
 	// SourcePosition is the position of the schema in the file.
 	SourcePosition spiceerrors.SourcePosition
 
-	// Definitions are the compiled definitions for the schema.
-	Definitions []*core.NamespaceDefinition
+	// CompiledSchema is the compiled schema.
+	CompiledSchema *compiler.CompiledSchema
 }
 
 // UnmarshalYAML is a custom unmarshaller.
@@ -33,7 +31,7 @@ func (ps *ParsedSchema) UnmarshalYAML(node *yamlv3.Node) error {
 	}
 
 	empty := ""
-	defs, err := compiler.Compile([]compiler.InputSchema{{
+	compiled, err := compiler.Compile([]compiler.InputSchema{{
 		Source:       input.Source("schema"),
 		SchemaString: ps.Schema,
 	}}, &empty)
@@ -56,7 +54,7 @@ func (ps *ParsedSchema) UnmarshalYAML(node *yamlv3.Node) error {
 		return fmt.Errorf("error when parsing schema: %w", err)
 	}
 
-	ps.Definitions = defs
+	ps.CompiledSchema = compiled
 	ps.SourcePosition = spiceerrors.SourcePosition{LineNumber: node.Line, ColumnPosition: node.Column}
 	return nil
 }

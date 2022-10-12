@@ -48,7 +48,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"type mismatch",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.UIntType,
 				"b": types.BooleanType,
 			}),
@@ -57,7 +57,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.IntType,
 				"b": types.IntType,
 			}),
@@ -66,7 +66,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over an int",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.UIntType,
 			}),
 			"a[0]",
@@ -74,7 +74,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a list",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.ListType(types.IntType),
 			}),
 			"a[0] == 1",
@@ -82,7 +82,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a list",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.ListType(types.UIntType),
 			}),
 			"a['hi']",
@@ -90,7 +90,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a map",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.MapType(types.IntType),
 			}),
 			"a['hi'] == 1",
@@ -98,7 +98,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a map",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.MapType(types.UIntType),
 			}),
 			"a[42]",
@@ -106,7 +106,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"non-boolean valid expression",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.IntType,
 				"b": types.IntType,
 			}),
@@ -115,7 +115,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a byte sequence",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.BytesType,
 			}),
 			"a == b\"abc\"",
@@ -123,7 +123,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a byte sequence",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.BytesType,
 			}),
 			"a == \"abc\"",
@@ -131,7 +131,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a double",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.DoubleType,
 			}),
 			"a == 7.23",
@@ -139,7 +139,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a double",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.DoubleType,
 			}),
 			"a == true",
@@ -147,7 +147,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a duration",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.DurationType,
 			}),
 			"a > duration(\"1h3m\")",
@@ -155,7 +155,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a duration",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.DurationType,
 			}),
 			"a > \"1h3m\"",
@@ -163,7 +163,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over a timestamp",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.TimestampType,
 			}),
 			"a == timestamp(\"1972-01-01T10:00:20.021-05:00\")",
@@ -171,7 +171,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid expression over a timestamp",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.TimestampType,
 			}),
 			"a == \"1972-01-01T10:00:20.021-05:00\"",
@@ -179,7 +179,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"valid expression over any type",
-			mustEnvForVariables(map[string]types.VariableType{
+			MustEnvForVariables(map[string]types.VariableType{
 				"a": types.AnyType,
 			}),
 			"a == true",
@@ -213,7 +213,7 @@ func TestSerialization(t *testing.T) {
 
 	for _, expr := range exprs {
 		t.Run(expr, func(t *testing.T) {
-			env := mustEnvForVariables(map[string]types.VariableType{
+			env := MustEnvForVariables(map[string]types.VariableType{
 				"a": types.IntType,
 				"b": types.IntType,
 			})
@@ -234,7 +234,7 @@ func TestSerialization(t *testing.T) {
 }
 
 func TestSerializeName(t *testing.T) {
-	env := mustEnvForVariables(map[string]types.VariableType{
+	env := MustEnvForVariables(map[string]types.VariableType{
 		"a": types.IntType,
 		"b": types.IntType,
 	})
