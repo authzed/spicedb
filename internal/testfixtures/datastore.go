@@ -35,6 +35,10 @@ var DocumentNS = ns.Namespace(
 		nil,
 		ns.AllowedRelation("user", "..."),
 	),
+	ns.Relation("caveated_viewer",
+		nil,
+		ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("testcaveat")),
+	),
 	ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
 	ns.Relation("edit",
 		ns.Union(
@@ -122,9 +126,20 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 
 	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		for _, nsDef := range allDefs {
+			var caveats []*core.Caveat
+			if caveatStorer, ok := rwt.(datastore.CaveatStorer); ok {
+				caveats := []*core.Caveat{{
+					Name:       "testcaveat",
+					Expression: []byte{},
+				}}
+				err := caveatStorer.WriteCaveats(caveats)
+				require.NoError(err)
+			}
+
 			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
 				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
 					Namespaces: allDefs,
+					Caveats:    caveats,
 				}))
 			require.NoError(err)
 

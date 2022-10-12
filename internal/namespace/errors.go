@@ -269,7 +269,7 @@ func NewDuplicateRelationError(nsName string, relationName string) error {
 // NewDuplicateAllowedRelationErr constructs an error indicating that an allowed relation was defined more than once for a relation.
 func NewDuplicateAllowedRelationErr(nsName string, relationName string, allowedRelationSource string) error {
 	return ErrDuplicateAllowedRelation{
-		error:                 fmt.Errorf("found duplicate allowed relation `%s` on relation `%s` under definition `%s`", allowedRelationSource, relationName, nsName),
+		error:                 fmt.Errorf("found duplicate allowed subject type `%s` on relation `%s` under definition `%s`", allowedRelationSource, relationName, nsName),
 		namespaceName:         nsName,
 		relationName:          relationName,
 		allowedRelationSource: allowedRelationSource,

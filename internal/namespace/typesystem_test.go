@@ -228,7 +228,7 @@ func TestTypeSystem(t *testing.T) {
 				ns.Namespace("user"),
 			},
 			nil,
-			"found duplicate allowed relation `user#...` on relation `viewer` under definition `document`",
+			"found duplicate allowed subject type `user` on relation `viewer` under definition `document`",
 		},
 		{
 			"redefinition of allowed public relation",
@@ -240,7 +240,7 @@ func TestTypeSystem(t *testing.T) {
 				ns.Namespace("user"),
 			},
 			nil,
-			"found duplicate allowed relation `user:*` on relation `viewer` under definition `document`",
+			"found duplicate allowed subject type `user:*` on relation `viewer` under definition `document`",
 		},
 		{
 			"no redefinition of allowed relation",
@@ -306,7 +306,7 @@ func TestTypeSystem(t *testing.T) {
 			[]*core.Caveat{
 				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
 			},
-			"found duplicate allowed relation `user#... with definedcaveat` on relation `viewer` under definition `document`",
+			"found duplicate allowed subject type `user with definedcaveat` on relation `viewer` under definition `document`",
 		},
 	}
 

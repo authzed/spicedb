@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -182,6 +183,42 @@ func (err ErrPreconditionFailed) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_WRITE_OR_DELETE_PRECONDITION_FAILURE,
 			metadata,
+		),
+	)
+}
+
+// ErrInvalidSubject indicates that the subject type given to an update is invalid.
+type ErrInvalidSubject struct {
+	error
+	update          *v1.RelationshipUpdate
+	relationToCheck *core.AllowedRelation
+}
+
+// NewInvalidSubjectErr constructs a new invalid subject error.
+func NewInvalidSubjectErr(update *v1.RelationshipUpdate, relationToCheck *core.AllowedRelation) ErrInvalidSubject {
+	return ErrInvalidSubject{
+		error: fmt.Errorf(
+			"subjects of type `%s` are not allowed on relation `%v`",
+			namespace.SourceForAllowedRelation(relationToCheck),
+			tuple.StringObjectRef(update.Relationship.Resource),
+		),
+		update:          update,
+		relationToCheck: relationToCheck,
+	}
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrInvalidSubject) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.FailedPrecondition,
+		spiceerrors.ForReason(
+			// TODO(jschorr): Change to the proper error once that is merged
+			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			map[string]string{
+				"relation_name": err.update.Relationship.Relation,
+				"subject_type":  namespace.SourceForAllowedRelation(err.relationToCheck),
+			},
 		),
 	)
 }

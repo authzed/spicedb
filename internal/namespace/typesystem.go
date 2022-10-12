@@ -49,6 +49,21 @@ const (
 	PublicSubjectNotAllowed
 )
 
+// AllowedRelationOption indicates whether an allowed relation off a particular kind is allowed on the right side of another relation.
+type AllowedRelationOption int
+
+const (
+	// UnknownIfAllowed indicates that no type information is defined for
+	// this relation.
+	UnknownIfAllowed AllowedRelationOption = iota
+
+	// AllowedRelationValid indicates that the specified subject relation is valid.
+	AllowedRelationValid
+
+	// AllowedRelationNotValid indicates that the specified subject relation is not valid.
+	AllowedRelationNotValid
+)
+
 // NewNamespaceTypeSystem returns a new type system for the given namespace. Note that the type
 // system is not validated until Validate is called.
 func NewNamespaceTypeSystem(nsDef *core.NamespaceDefinition, resolver Resolver) (*TypeSystem, error) {
@@ -154,6 +169,28 @@ func (nts *TypeSystem) IsAllowedDirectRelation(sourceRelationName string, target
 	}
 
 	return DirectRelationNotValid, nil
+}
+
+// HasAllowedRelation returns whether the source relation has the given allowed relation.
+func (nts *TypeSystem) HasAllowedRelation(sourceRelationName string, toCheck *core.AllowedRelation) (AllowedRelationOption, error) {
+	found, ok := nts.relationMap[sourceRelationName]
+	if !ok {
+		return UnknownIfAllowed, asTypeError(NewRelationNotFoundErr(nts.nsDef.Name, sourceRelationName))
+	}
+
+	typeInfo := found.GetTypeInformation()
+	if typeInfo == nil {
+		return UnknownIfAllowed, nil
+	}
+
+	allowedRelations := typeInfo.GetAllowedDirectRelations()
+	for _, allowedRelation := range allowedRelations {
+		if SourceForAllowedRelation(allowedRelation) == SourceForAllowedRelation(toCheck) {
+			return AllowedRelationValid, nil
+		}
+	}
+
+	return AllowedRelationNotValid, nil
 }
 
 // AllowedDirectRelationsAndWildcards returns the allowed subject relations for a source relation. Note that this function will return
@@ -486,12 +523,16 @@ func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
 		caveatStr = fmt.Sprintf(" with %s", allowedRelation.GetRequiredCaveat().CaveatName)
 	}
 
-	if allowedRelation.GetRelation() != "" {
-		return fmt.Sprintf("%s#%s%s", allowedRelation.GetNamespace(), allowedRelation.GetRelation(), caveatStr)
-	}
-
 	if allowedRelation.GetPublicWildcard() != nil {
 		return fmt.Sprintf("%s:*%s", allowedRelation.GetNamespace(), caveatStr)
+	}
+
+	if allowedRelation.GetRelation() == "" {
+		panic("invalid allowed relation: relation is empty for a non-wildcard")
+	}
+
+	if allowedRelation.GetRelation() != tuple.Ellipsis {
+		return fmt.Sprintf("%s#%s%s", allowedRelation.GetNamespace(), allowedRelation.GetRelation(), caveatStr)
 	}
 
 	return fmt.Sprintf("%s%s", allowedRelation.GetNamespace(), caveatStr)

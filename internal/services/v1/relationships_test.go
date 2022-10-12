@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
-	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -348,15 +346,15 @@ func TestWriteRelationships(t *testing.T) {
 func TestWriteCaveatedRelationships(t *testing.T) {
 	req := require.New(t)
 
-	conn, cleanup, ds, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	toWrite := tuple.MustParse("document:totallynew#parent@folder:plans")
+	toWrite := tuple.MustParse("document:totallynew#caveated_viewer@user:tom")
 	caveatCtx, err := structpb.NewStruct(map[string]any{"a": 1, "b": 2})
 	req.NoError(err)
 	toWrite.Caveat = &core.ContextualizedCaveat{
-		CaveatName: "test",
+		CaveatName: "testcaveat",
 		Context:    caveatCtx,
 	}
 
@@ -435,7 +433,27 @@ func rel(resType, resID, relation, subType, subID, subRel string) *v1.Relationsh
 	}
 }
 
-func TestInvalidWriteRelationshipArgs(t *testing.T) {
+func relWithCaveat(resType, resID, relation, subType, subID, subRel, caveatName string) *v1.Relationship {
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: resType,
+			ObjectId:   resID,
+		},
+		Relation: relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: subType,
+				ObjectId:   subID,
+			},
+			OptionalRelation: subRel,
+		},
+		OptionalCaveat: &v1.ContextualizedCaveat{
+			CaveatName: caveatName,
+		},
+	}
+}
+
+func TestInvalidWriteRelationship(t *testing.T) {
 	testCases := []struct {
 		name          string
 		preconditions []*v1.RelationshipFilter
@@ -504,7 +522,7 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 			nil,
 			[]*v1.Relationship{rel("document", "newdoc", "parent", "user", "someuser", "")},
 			codes.InvalidArgument,
-			"user:someuser is not allowed",
+			"user",
 		},
 		{
 			"bad write wildcard object",
@@ -518,7 +536,7 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 			nil,
 			[]*v1.Relationship{rel("document", "somedoc", "parent", "user", "*", "")},
 			codes.InvalidArgument,
-			"wildcard",
+			"user:*",
 		},
 		{
 			"duplicate relationship",
@@ -529,6 +547,20 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 			},
 			codes.InvalidArgument,
 			"duplicate",
+		},
+		{
+			"disallowed caveat",
+			nil,
+			[]*v1.Relationship{relWithCaveat("document", "somedoc", "viewer", "user", "tom", "", "somecaveat")},
+			codes.InvalidArgument,
+			"user with somecaveat",
+		},
+		{
+			"wildcard disallowed caveat",
+			nil,
+			[]*v1.Relationship{relWithCaveat("document", "somedoc", "viewer", "user", "*", "", "somecaveat")},
+			codes.InvalidArgument,
+			"user:* with somecaveat",
 		},
 	}
 
@@ -566,7 +598,7 @@ func TestInvalidWriteRelationshipArgs(t *testing.T) {
 					if !ok {
 						panic("failed to find error in status")
 					}
-					require.True(strings.Contains(errStatus.Message(), tc.errorContains))
+					require.Contains(errStatus.Message(), tc.errorContains, "found unexpected error message: %s", errStatus.Message())
 				})
 			}
 		})
