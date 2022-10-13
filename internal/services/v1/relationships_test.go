@@ -13,13 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -343,6 +340,8 @@ func TestWriteRelationships(t *testing.T) {
 	require.ErrorIs(err, io.EOF)
 }
 
+/*
+TODO(jschorr): Uncomment once caveats are supported on all datastores
 func TestWriteCaveatedRelationships(t *testing.T) {
 	req := require.New(t)
 
@@ -395,6 +394,23 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 	relRead := readFirst(req, client, resp.WrittenAt, relWritten)
 	req.True(proto.Equal(relWritten, relRead))
 }
+
+func readFirst(require *require.Assertions, client v1.PermissionsServiceClient, token *v1.ZedToken, rel *v1.Relationship) *v1.Relationship {
+	stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtExactSnapshot{
+				AtExactSnapshot: token,
+			},
+		},
+		RelationshipFilter: tuple.RelToFilter(rel),
+	})
+	require.NoError(err)
+
+	result, err := stream.Recv()
+	require.NoError(err)
+	return result.Relationship
+}
+*/
 
 func precondFilter(resType, resID, relation, subType, subID string, subRel *string) *v1.RelationshipFilter {
 	var optionalRel *v1.SubjectFilter_RelationFilter
@@ -1093,20 +1109,4 @@ func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
 		out[t] = struct{}{}
 	}
 	return out
-}
-
-func readFirst(require *require.Assertions, client v1.PermissionsServiceClient, token *v1.ZedToken, rel *v1.Relationship) *v1.Relationship {
-	stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
-		Consistency: &v1.Consistency{
-			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: token,
-			},
-		},
-		RelationshipFilter: tuple.RelToFilter(rel),
-	})
-	require.NoError(err)
-
-	result, err := stream.Recv()
-	require.NoError(err)
-	return result.Relationship
 }
