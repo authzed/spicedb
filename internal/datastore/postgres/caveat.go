@@ -93,15 +93,15 @@ func (rwt *pgReadWriteTXN) WriteCaveats(caveats []*core.Caveat) error {
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteCaveats(caveats []*core.Caveat) error {
+func (rwt *pgReadWriteTXN) DeleteCaveats(names []string) error {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteCaveats")
 	defer span.End()
 
 	deletedCaveatClause := sq.Or{}
-	deletedCaveatNames := make([]string, 0, len(caveats))
-	for _, caveat := range caveats {
-		deletedCaveatClause = append(deletedCaveatClause, sq.Eq{colCaveatName: caveat.Name})
-		deletedCaveatNames = append(deletedCaveatNames, caveat.Name)
+	deletedCaveatNames := make([]string, 0, len(names))
+	for _, name := range names {
+		deletedCaveatClause = append(deletedCaveatClause, sq.Eq{colCaveatName: name})
+		deletedCaveatNames = append(deletedCaveatNames, name)
 	}
 	span.SetAttributes(common.CaveatNameKey.StringSlice(deletedCaveatNames))
 

@@ -49,7 +49,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	// Delete Caveat
 	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		cs := tx.(datastore.CaveatStorer)
-		return cs.DeleteCaveats([]*core.Caveat{coreCaveat})
+		return cs.DeleteCaveats([]string{coreCaveat.Name})
 	})
 	req.NoError(err)
 	cr = ds.SnapshotReader(rev).(datastore.CaveatReader)

@@ -86,19 +86,15 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteCaveats(caveats []*core.Caveat) error {
+func (rwt *memdbReadWriteTx) DeleteCaveats(names []string) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
 	if err != nil {
 		return err
 	}
-	for _, coreCaveat := range caveats {
-		c := caveat{
-			name:       coreCaveat.Name,
-			expression: coreCaveat.Expression,
-		}
-		if err := tx.Delete(tableCaveats, c); err != nil {
+	for _, name := range names {
+		if err := tx.Delete(tableCaveats, caveat{name: name}); err != nil {
 			return err
 		}
 	}

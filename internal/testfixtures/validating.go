@@ -187,9 +187,9 @@ func (vrwt validatingReadWriteTransaction) WriteCaveats(caveats []*core.Caveat) 
 	return fmt.Errorf("transaction delegate does not implement datastore.CaveatStorer")
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteCaveats(caveats []*core.Caveat) error {
+func (vrwt validatingReadWriteTransaction) DeleteCaveats(names []string) error {
 	if ds, ok := vrwt.delegate.(datastore.CaveatStorer); ok {
-		return ds.DeleteCaveats(caveats)
+		return ds.DeleteCaveats(names)
 	}
 	return fmt.Errorf("transaction delegate does not implement datastore.CaveatStorer")
 }

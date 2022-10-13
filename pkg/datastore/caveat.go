@@ -20,6 +20,6 @@ type CaveatStorer interface {
 	// Each element o the returning slice corresponds by possition to the input slice
 	WriteCaveats([]*core.Caveat) error
 
-	// DeleteCaveats deletes the provided caveats
-	DeleteCaveats([]*core.Caveat) error
+	// DeleteCaveats deletes the provided caveats by name
+	DeleteCaveats(names []string) error
 }
