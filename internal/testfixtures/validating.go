@@ -51,7 +51,7 @@ func (vsr validatingSnapshotReader) ListNamespaces(
 ) ([]*core.NamespaceDefinition, error) {
 	read, err := vsr.delegate.ListNamespaces(ctx)
 	if err != nil {
-		return read, err
+		return nil, err
 	}
 
 	for _, nsDef := range read {
@@ -135,6 +135,22 @@ func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name s
 
 	err = read.Validate()
 	return read, createdAt, err
+}
+
+func (vsr validatingSnapshotReader) ListCaveats(ctx context.Context) ([]*core.Caveat, error) {
+	read, err := vsr.delegate.ListCaveats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, nsDef := range read {
+		err := nsDef.Validate()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return read, err
 }
 
 type validatingReadWriteTransaction struct {

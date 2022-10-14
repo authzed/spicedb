@@ -46,6 +46,13 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Empty(foundDiff)
 	req.Equal(rev, readRev)
 
+	// All caveats can be listed
+	cvs, err := cr.ListCaveats(ctx)
+	req.NoError(err)
+	req.Len(cvs, 1)
+	foundDiff = cmp.Diff(coreCaveat, cvs[0], protocmp.Transform())
+	req.Empty(foundDiff)
+
 	// Delete Caveat
 	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		return tx.DeleteCaveats([]string{coreCaveat.Name})

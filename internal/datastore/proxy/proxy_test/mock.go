@@ -147,6 +147,11 @@ func (dm *MockReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 	panic("implement me")
 }
 
+func (dm *MockReader) ListCaveats(ctx context.Context) ([]*core.Caveat, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 type MockReadWriteTransaction struct {
 	mock.Mock
 }
@@ -236,6 +241,11 @@ func (dm *MockReadWriteTransaction) DeleteNamespace(nsName string) error {
 }
 
 func (dm *MockReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (dm *MockReadWriteTransaction) ListCaveats(ctx context.Context) ([]*core.Caveat, error) {
 	// TODO implement me
 	panic("implement me")
 }

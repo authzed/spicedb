@@ -10,6 +10,9 @@ import (
 type CaveatReader interface {
 	// ReadCaveatByName returns a caveat with the provided name
 	ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, Revision, error)
+
+	// ListCaveats returns all caveats stored in the system
+	ListCaveats(ctx context.Context) ([]*core.Caveat, error)
 }
 
 // CaveatStorer offers both read and write operations for Caveats

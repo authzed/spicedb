@@ -18,6 +18,7 @@ import (
 var (
 	writeCaveat            = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatExpression)
 	writeCaveatDeprecated  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatExpression, colCreatedTxnDeprecated)
+	listCaveat             = psql.Select(colCaveatName, colCaveatExpression).From(tableCaveat)
 	readCaveat             = psql.Select(colCaveatExpression, colCreatedXid).From(tableCaveat)
 	readCaveatDeprecated   = psql.Select(colCaveatExpression, colCreatedTxnDeprecated).From(tableCaveat)
 	deleteCaveat           = psql.Update(tableCaveat).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
@@ -58,6 +59,44 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 		Name:       name,
 		Expression: expr,
 	}, rev, nil
+}
+
+func (r *pgReader) ListCaveats(ctx context.Context) ([]*core.Caveat, error) {
+	ctx, span := tracer.Start(ctx, "ListCaveats")
+	defer span.End()
+
+	filteredListCaveat := r.filterer(listCaveat)
+	sql, args, err := filteredListCaveat.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	tx, txCleanup, err := r.txSource(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to list caveat: %w", err)
+	}
+	defer txCleanup(ctx)
+
+	rows, err := tx.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+	var caveats []*core.Caveat
+	for rows.Next() {
+		c := core.Caveat{}
+		err = rows.Scan(&c.Name, &c.Expression)
+		if err != nil {
+			return nil, fmt.Errorf("unable to list caveat: %w", err)
+		}
+		caveats = append(caveats, &c)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("unable to list caveat: %w", rows.Err())
+	}
+
+	return caveats, nil
 }
 
 func (rwt *pgReadWriteTXN) WriteCaveats(caveats []*core.Caveat) error {

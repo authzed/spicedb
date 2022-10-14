@@ -61,6 +61,32 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 	return c.Unwrap(), rev, nil
 }
 
+func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.Caveat, error) {
+	if !r.enableCaveats {
+		return nil, fmt.Errorf("caveats are not enabled")
+	}
+
+	r.lockOrPanic()
+	defer r.Unlock()
+
+	tx, err := r.txSource()
+	if err != nil {
+		return nil, err
+	}
+
+	var caveats []*core.Caveat
+	it, err := tx.LowerBound(tableCaveats, indexID)
+	if err != nil {
+		return nil, err
+	}
+
+	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
+		caveats = append(caveats, foundRaw.(*caveat).Unwrap())
+	}
+
+	return caveats, nil
+}
+
 func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
