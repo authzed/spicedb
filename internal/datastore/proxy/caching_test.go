@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var (
@@ -24,6 +25,20 @@ const (
 	nsA = "namespace_a"
 	nsB = "namespace_b"
 )
+
+// TestNilUnmarshal asserts that if we get a nil NamespaceDefinition from a
+// datastore implementation, the process of inserting it into the cache and
+// back does not break anything.
+func TestNilUnmarshal(t *testing.T) {
+	nsDef := (*core.NamespaceDefinition)(nil)
+	marshalled, err := nsDef.MarshalVT()
+	require.Nil(t, err)
+
+	var newDef *core.NamespaceDefinition
+	err = nsDef.UnmarshalVT(marshalled)
+	require.Nil(t, err)
+	require.Equal(t, nsDef, newDef)
+}
 
 func TestSnapshotNamespaceCaching(t *testing.T) {
 	dsMock := &proxy_test.MockDatastore{}

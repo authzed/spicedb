@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"unsafe"
 
 	"github.com/dustin/go-humanize"
 	"github.com/shopspring/decimal"
@@ -84,8 +85,14 @@ func (r *nsCachingReader) ReadNamespace(
 				return nil, err
 			}
 
-			entry := &cacheEntry{loaded, updatedRev, err}
-			r.p.c.Set(nsRevisionKey, entry, int64(loaded.SizeVT()))
+			marshalledNsDef, err := loaded.MarshalVT()
+			if err != nil {
+				// Propagate this error to the caller
+				return nil, err
+			}
+
+			entry := &cacheEntry{marshalledNsDef, updatedRev, err}
+			r.p.c.Set(nsRevisionKey, entry, entry.Size())
 
 			// We have to call wait here or else Ristretto may not have the key
 			// available to a subsequent caller.
@@ -99,12 +106,25 @@ func (r *nsCachingReader) ReadNamespace(
 	}
 
 	loaded := loadedRaw.(*cacheEntry)
-	return loaded.def, loaded.updated, loaded.notFound
+
+	var def core.NamespaceDefinition
+	err := def.UnmarshalVT(loaded.marshalledNsDef)
+	if err != nil {
+		return nil, datastore.NoRevision, err
+	}
+
+	return &def, loaded.updated, loaded.notFound
 }
 
 type nsCachingRWT struct {
 	datastore.ReadWriteTransaction
 	namespaceCache *sync.Map
+}
+
+type rwtCacheEntry struct {
+	loaded   *core.NamespaceDefinition
+	updated  datastore.Revision
+	notFound error
 }
 
 func (rwt *nsCachingRWT) ReadNamespace(
@@ -113,9 +133,9 @@ func (rwt *nsCachingRWT) ReadNamespace(
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
 	untypedEntry, ok := rwt.namespaceCache.Load(nsName)
 
-	var entry cacheEntry
+	var entry rwtCacheEntry
 	if ok {
-		entry = untypedEntry.(cacheEntry)
+		entry = untypedEntry.(rwtCacheEntry)
 	} else {
 		loaded, updatedRev, err := rwt.ReadWriteTransaction.ReadNamespace(ctx, nsName)
 		if err != nil && !errors.Is(err, &datastore.ErrNamespaceNotFound{}) {
@@ -123,17 +143,21 @@ func (rwt *nsCachingRWT) ReadNamespace(
 			return nil, datastore.NoRevision, err
 		}
 
-		entry = cacheEntry{loaded, updatedRev, err}
+		entry = rwtCacheEntry{loaded, updatedRev, err}
 		rwt.namespaceCache.Store(nsName, entry)
 	}
 
-	return entry.def, entry.updated, entry.notFound
+	return entry.loaded, entry.updated, entry.notFound
 }
 
 type cacheEntry struct {
-	def      *core.NamespaceDefinition
-	updated  datastore.Revision
-	notFound error
+	marshalledNsDef []byte
+	updated         datastore.Revision
+	notFound        error
+}
+
+func (c *cacheEntry) Size() int64 {
+	return int64(len(c.marshalledNsDef)) + int64(unsafe.Sizeof(c))
 }
 
 var (

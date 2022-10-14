@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"unsafe"
 
 	"golang.org/x/exp/maps"
 
@@ -44,22 +45,6 @@ type Dispatcher struct {
 	cacheMisses      prometheus.CounterFunc
 	costAddedBytes   prometheus.CounterFunc
 	costEvictedBytes prometheus.CounterFunc
-}
-
-type checkResultEntry struct {
-	response *v1.DispatchCheckResponse
-}
-
-type lookupResultEntry struct {
-	response *v1.DispatchLookupResponse
-}
-
-type reachableResourcesResultEntry struct {
-	responses []*v1.DispatchReachableResourcesResponse
-}
-
-type lookupSubjectsResultEntry struct {
-	responses []*v1.DispatchLookupSubjectsResponse
 }
 
 func DispatchTestCache(t testing.TB) cache.Cache {
@@ -246,25 +231,25 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 
 	// Disable caching when debugging is enabled.
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
-		cachedResult := cachedResultRaw.(checkResultEntry)
-		if req.Metadata.DepthRemaining >= cachedResult.response.Metadata.DepthRequired {
+		var response v1.DispatchCheckResponse
+		if err := response.UnmarshalVT(cachedResultRaw.([]byte)); err != nil {
+			return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{}}, err
+		}
+
+		if req.Metadata.DepthRemaining >= response.Metadata.DepthRequired {
 			cd.checkFromCacheCounter.Inc()
-			if req.Debug != v1.DispatchCheckRequest_ENABLE_DEBUGGING {
-				return cachedResult.response, nil
+			// If debugging is requested, add the req and the response to the trace.
+			if req.Debug == v1.DispatchCheckRequest_ENABLE_DEBUGGING {
+				response.Metadata.DebugInfo = &v1.DebugInformation{
+					Check: &v1.CheckDebugTrace{
+						Request:        req,
+						Results:        maps.Clone(response.ResultsByResourceId),
+						IsCachedResult: true,
+					},
+				}
 			}
 
-			// If debugging is requested, clone and add the req and the response to the trace.
-			clone := cachedResult.response.CloneVT()
-			results := maps.Clone(cachedResult.response.ResultsByResourceId)
-
-			clone.Metadata.DebugInfo = &v1.DebugInformation{
-				Check: &v1.CheckDebugTrace{
-					Request:        req,
-					Results:        results,
-					IsCachedResult: true,
-				},
-			}
-			return clone, nil
+			return &response, nil
 		}
 	}
 	computed, err := cd.d.DispatchCheck(ctx, req)
@@ -276,11 +261,16 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 		adjustedComputed.Metadata.DispatchCount = 0
 		adjustedComputed.Metadata.DebugInfo = nil
 
-		cd.c.Set(requestKey, checkResultEntry{adjustedComputed}, int64(adjustedComputed.SizeVT()))
+		adjustedBytes, err := adjustedComputed.MarshalVT()
+		if err != nil {
+			return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{}}, err
+		}
+
+		cd.c.Set(requestKey, adjustedBytes, sliceSize(adjustedBytes))
 	}
 
-	// Return both the computed and err in ALL cases: computed contains resolved metadata even
-	// if there was an error.
+	// Return both the computed and err in ALL cases: computed contains resolved
+	// metadata even if there was an error.
 	return computed, err
 }
 
@@ -300,14 +290,17 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 	}
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
-		cachedResult := cachedResultRaw.(lookupResultEntry)
-		if req.Metadata.DepthRemaining >= cachedResult.response.Metadata.DepthRequired {
-			log.Trace().Object("cachedLookup", req).Int("resultCount", len(cachedResult.response.ResolvedOnrs)).Send()
+		var response v1.DispatchLookupResponse
+		if err := response.UnmarshalVT(cachedResultRaw.([]byte)); err != nil {
+			return &v1.DispatchLookupResponse{Metadata: &v1.ResponseMeta{}}, err
+		}
+
+		if req.Metadata.DepthRemaining >= response.Metadata.DepthRequired {
+			log.Trace().Object("cachedLookup", req).Int("resultCount", len(response.ResolvedOnrs)).Send()
 			cd.lookupFromCacheCounter.Inc()
-			return cachedResult.response, nil
+			return &response, nil
 		}
 	}
-
 	computed, err := cd.d.DispatchLookup(ctx, req)
 
 	// We only want to cache the result if there was no error.
@@ -319,15 +312,20 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 		adjustedComputed.Metadata.DispatchCount = 0
 		adjustedComputed.Metadata.DebugInfo = nil
 
-		cd.c.Set(requestKey, lookupResultEntry{adjustedComputed}, int64(adjustedComputed.SizeVT()))
+		adjustedBytes, err := adjustedComputed.MarshalVT()
+		if err != nil {
+			return &v1.DispatchLookupResponse{Metadata: &v1.ResponseMeta{}}, err
+		}
+
+		cd.c.Set(requestKey, adjustedBytes, sliceSize(adjustedBytes))
 	}
 
-	// Return both the computed and err in ALL cases: computed contains resolved metadata even
-	// if there was an error.
+	// Return both the computed and err in ALL cases: computed contains resolved
+	// metadata even if there was an error.
 	return computed, err
 }
 
-// DispatchReachableResources implements dispatch.ReachableResources interface and does not do any caching yet.
+// DispatchReachableResources implements dispatch.ReachableResources interface.
 func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
 	cd.reachableResourcesTotalCounter.Inc()
 
@@ -337,11 +335,13 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 	}
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
-		cachedResult := cachedResultRaw.(reachableResourcesResultEntry)
 		cd.reachableResourcesFromCacheCounter.Inc()
-		for _, result := range cachedResult.responses {
-			err := stream.Publish(result)
-			if err != nil {
+		for _, slice := range cachedResultRaw.([][]byte) {
+			var response v1.DispatchReachableResourcesResponse
+			if err := response.UnmarshalVT(slice); err != nil {
+				return fmt.Errorf("could not publish cached reachable resources result: %w", err)
+			}
+			if err := stream.Publish(&response); err != nil {
 				return fmt.Errorf("could not publish cached reachable resources result: %w", err)
 			}
 		}
@@ -351,8 +351,7 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 
 	var (
 		mu             sync.Mutex
-		estimatedSize  int64
-		toCacheResults = []*v1.DispatchReachableResourcesResponse{}
+		toCacheResults [][]byte
 	)
 	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
 		Stream: stream,
@@ -363,11 +362,13 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 			adjustedResult.Metadata.DispatchCount = 0
 			adjustedResult.Metadata.DebugInfo = nil
 
-			resultSize := int64(adjustedResult.SizeVT())
+			adjustedBytes, err := adjustedResult.MarshalVT()
+			if err != nil {
+				return nil, false, err
+			}
 
 			mu.Lock()
-			estimatedSize += resultSize
-			toCacheResults = append(toCacheResults, adjustedResult)
+			toCacheResults = append(toCacheResults, adjustedBytes)
 			mu.Unlock()
 
 			return result, true, nil
@@ -378,11 +379,21 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 		return err
 	}
 
-	cd.c.Set(requestKey, reachableResourcesResultEntry{toCacheResults}, estimatedSize)
+	var size int64
+	for _, slice := range toCacheResults {
+		size += sliceSize(slice)
+	}
+
+	cd.c.Set(requestKey, toCacheResults, size)
 	return nil
 }
 
-// DispatchLookupSubjects implements dispatch.LookupSubjects interface and does not do any caching yet.
+func sliceSize(xs []byte) int64 {
+	// Slice Header + Slice Contents
+	return int64(int(unsafe.Sizeof(xs)) + len(xs))
+}
+
+// DispatchLookupSubjects implements dispatch.LookupSubjects interface.
 func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
 	cd.lookupSubjectsTotalCounter.Inc()
 
@@ -392,22 +403,22 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 	}
 
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
-		cachedResult := cachedResultRaw.(lookupSubjectsResultEntry)
 		cd.lookupSubjectsFromCacheCounter.Inc()
-		for _, result := range cachedResult.responses {
-			err := stream.Publish(result)
-			if err != nil {
+		for _, slice := range cachedResultRaw.([][]byte) {
+			var response v1.DispatchLookupSubjectsResponse
+			if err := response.UnmarshalVT(slice); err != nil {
+				return fmt.Errorf("could not publish cached lookup subjects result: %w", err)
+			}
+			if err := stream.Publish(&response); err != nil {
 				return fmt.Errorf("could not publish cached lookup subjects result: %w", err)
 			}
 		}
-
 		return nil
 	}
 
 	var (
 		mu             sync.Mutex
-		estimatedSize  int64
-		toCacheResults = []*v1.DispatchLookupSubjectsResponse{}
+		toCacheResults [][]byte
 	)
 	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchLookupSubjectsResponse]{
 		Stream: stream,
@@ -418,11 +429,13 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 			adjustedResult.Metadata.DispatchCount = 0
 			adjustedResult.Metadata.DebugInfo = nil
 
-			resultSize := int64(adjustedResult.SizeVT())
+			adjustedBytes, err := adjustedResult.MarshalVT()
+			if err != nil {
+				return &v1.DispatchLookupSubjectsResponse{Metadata: &v1.ResponseMeta{}}, false, err
+			}
 
 			mu.Lock()
-			estimatedSize += resultSize
-			toCacheResults = append(toCacheResults, adjustedResult)
+			toCacheResults = append(toCacheResults, adjustedBytes)
 			mu.Unlock()
 
 			return result, true, nil
@@ -433,7 +446,12 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 		return err
 	}
 
-	cd.c.Set(requestKey, lookupSubjectsResultEntry{toCacheResults}, estimatedSize)
+	var size int64
+	for _, slice := range toCacheResults {
+		size += sliceSize(slice)
+	}
+
+	cd.c.Set(requestKey, toCacheResults, size)
 	return nil
 }
 
