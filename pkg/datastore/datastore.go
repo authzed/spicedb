@@ -59,6 +59,10 @@ type RelationshipsFilter struct {
 
 	// OptionalSubjectsFilter is the filter to use for subjects of the relationship. If nil, all subjects are allowed.
 	OptionalSubjectsFilter *SubjectsFilter
+
+	// OptionalCaveatName is the filter to use for caveated relationships, filtering by a specific caveat name.
+	// If nil, all caveated and non-caveated relationships are allowed
+	OptionalCaveatName string
 }
 
 // RelationshipsFilterFromPublicFilter constructs a datastore RelationshipsFilter from an API-defined RelationshipFilter.

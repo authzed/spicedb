@@ -46,6 +46,7 @@ var (
 		ColUsersetNamespace: colUsersetNamespace,
 		ColUsersetObjectID:  colUsersetObjectID,
 		ColUsersetRelation:  colUsersetRelation,
+		ColCaveatName:       colCaveatContextName,
 	}
 
 	readNamespace = psql.Select(colConfig, colCreatedXid).From(tableNamespace)

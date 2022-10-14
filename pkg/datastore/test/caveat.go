@@ -102,6 +102,56 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 }
 
+func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
+	req := require.New(t)
+	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
+	req.NoError(err)
+
+	skipIfNotCaveatStorer(t, ds)
+
+	req.NoError(err)
+	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
+
+	// Store caveat, write caveated tuple and read back same value
+	coreCaveat := createCoreCaveat(t)
+	anotherCoreCaveat := createCoreCaveat(t)
+	ctx := context.Background()
+	_, err = writeCaveats(ctx, ds, coreCaveat, anotherCoreCaveat)
+	req.NoError(err)
+
+	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", coreCaveat.Name)
+	anotherTpl := createTestCaveatedTuple(t, "document:anothercompanyplan#parent@folder:company#...", anotherCoreCaveat.Name)
+	nonCaveatedTpl := tuple.MustParse("document:yetanothercompanyplan#parent@folder:company#...")
+	rev, err := common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl, anotherTpl, nonCaveatedTpl)
+	req.NoError(err)
+
+	// filter by first caveat
+	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		ResourceType:       tpl.ResourceAndRelation.Namespace,
+		OptionalCaveatName: coreCaveat.Name,
+	})
+	req.NoError(err)
+
+	expectTuple(req, iter, tpl)
+
+	// filter by second caveat
+	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		ResourceType:       anotherTpl.ResourceAndRelation.Namespace,
+		OptionalCaveatName: anotherCoreCaveat.Name,
+	})
+	req.NoError(err)
+
+	expectTuple(req, iter, anotherTpl)
+}
+
+func expectTuple(req *require.Assertions, iter datastore.RelationshipIterator, tpl *core.RelationTuple) {
+	defer iter.Close()
+	readTpl := iter.Next()
+	foundDiff := cmp.Diff(tpl, readTpl, protocmp.Transform())
+	req.Empty(foundDiff)
+	req.Nil(iter.Next())
+}
+
 func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
 	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
