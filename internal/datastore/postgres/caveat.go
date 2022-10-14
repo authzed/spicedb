@@ -31,7 +31,7 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 
 	statement := readCaveat
 	// TODO remove once the ID->XID migrations are all complete
-	if r.migrationPhase == writeBothReadNew || r.migrationPhase == writeBothReadOld {
+	if r.migrationPhase == writeBothReadOld {
 		statement = readCaveatDeprecated
 	}
 	filteredReadCaveat := r.filterer(statement)
@@ -144,12 +144,10 @@ func (rwt *pgReadWriteTXN) DeleteCaveats(names []string) error {
 	defer span.End()
 
 	deletedCaveatClause := sq.Or{}
-	deletedCaveatNames := make([]string, 0, len(names))
 	for _, name := range names {
 		deletedCaveatClause = append(deletedCaveatClause, sq.Eq{colCaveatName: name})
-		deletedCaveatNames = append(deletedCaveatNames, name)
 	}
-	span.SetAttributes(common.CaveatNameKey.StringSlice(deletedCaveatNames))
+	span.SetAttributes(common.CaveatNameKey.StringSlice(names))
 
 	// mark current caveats as deleted
 	return rwt.deleteCaveatsWithClause(ctx, deletedCaveatClause)

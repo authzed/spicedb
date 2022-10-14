@@ -143,8 +143,8 @@ func (vsr validatingSnapshotReader) ListCaveats(ctx context.Context) ([]*core.Ca
 		return nil, err
 	}
 
-	for _, nsDef := range read {
-		err := nsDef.Validate()
+	for _, caveatDef := range read {
+		err := caveatDef.Validate()
 		if err != nil {
 			return nil, err
 		}
