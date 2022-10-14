@@ -800,7 +800,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
-			revision, err := writeCaveatedTuples(ctx, ds, tt.schema, tt.caveats, tt.updates)
+			revision, err := writeCaveatedTuples(ctx, t, ds, tt.schema, tt.caveats, tt.updates)
 			require.NoError(t, err)
 
 			for _, r := range tt.checks {
@@ -861,7 +861,7 @@ func TestComputeCheckError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema string, definedCaveats map[string]caveatDefinition, updates []caveatedUpdate) (datastore.Revision, error) {
+func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datastore, schema string, definedCaveats map[string]caveatDefinition, updates []caveatedUpdate) (datastore.Revision, error) {
 	empty := ""
 	defs, err := compiler.Compile([]compiler.InputSchema{
 		{Source: "schema", SchemaString: schema},
@@ -876,6 +876,8 @@ func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema str
 		if err != nil {
 			return datastore.NoRevision, err
 		}
+
+		require.True(t, len(e.EncodedParametersTypes()) > 0)
 
 		compiled, err := caveats.CompileCaveatWithName(e, c.expression, name)
 		if err != nil {

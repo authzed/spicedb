@@ -16,6 +16,10 @@ func ConvertContextToParameters(contextMap map[string]any, parameterTypes map[st
 		return nil, nil
 	}
 
+	if len(parameterTypes) == 0 {
+		return nil, fmt.Errorf("missing parameters for caveat")
+	}
+
 	converted := make(map[string]any, len(contextMap))
 
 	for key, value := range contextMap {

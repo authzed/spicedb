@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -51,6 +52,14 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Equal(rev, readRev)
 
 	// All caveats can be listed when no arg is provided
+	// Manually check the caveat's contents.
+	req.Equal(coreCaveat.Name, cv.Name)
+	req.Equal(2, len(cv.ParameterTypes))
+	req.Equal("int", cv.ParameterTypes["foo"].TypeName)
+	req.Equal("map", cv.ParameterTypes["bar"].TypeName)
+	req.Equal("bytes", cv.ParameterTypes["bar"].ChildTypes[0].TypeName)
+
+	// All caveats can be listed
 	cvs, err := cr.ListCaveats(ctx)
 	req.NoError(err)
 	req.Len(cvs, 2)
@@ -327,9 +336,18 @@ func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 	cBytes, err := c.Serialize()
 	require.NoError(t, err)
 
+	env := caveats.NewEnvironment()
+
+	err = env.AddVariable("foo", caveattypes.IntType)
+	require.NoError(t, err)
+
+	err = env.AddVariable("bar", caveattypes.MapType(caveattypes.BytesType))
+	require.NoError(t, err)
+
 	coreCaveat := &core.CaveatDefinition{
 		Name:                 c.Name(),
 		SerializedExpression: cBytes,
+		ParameterTypes:       env.EncodedParametersTypes(),
 	}
 	require.NoError(t, err)
 
@@ -338,9 +356,9 @@ func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 
 func createCompiledCaveat(t *testing.T) *caveats.CompiledCaveat {
 	t.Helper()
-	env, err := caveats.EnvForVariables(map[string]caveats.VariableType{
-		"a": caveats.IntType,
-		"b": caveats.IntType,
+	env, err := caveats.EnvForVariables(map[string]caveattypes.VariableType{
+		"a": caveattypes.IntType,
+		"b": caveattypes.IntType,
 	})
 	require.NoError(t, err)
 

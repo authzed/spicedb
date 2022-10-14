@@ -270,7 +270,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			// TODO(jschorr): once caveats are supported on all datastores, we should elide this check if the
 			// provided context is empty, as the allowed relation check above will ensure the caveat exists.
 			if update.Relationship.OptionalCaveat != nil && update.Relationship.OptionalCaveat.CaveatName != "" {
-				caveat, err := caveatReader.ReadCaveatByName(ctx, update.Relationship.OptionalCaveat.CaveatName)
+				caveat, _, err := rwt.ReadCaveatByName(ctx, update.Relationship.OptionalCaveat.CaveatName)
 				if errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
 					return rewriteError(ctx, NewCaveatNotFoundError(update))
 				}

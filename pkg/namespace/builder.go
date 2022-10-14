@@ -103,7 +103,7 @@ func Caveat(name string) *core.AllowedCaveat {
 }
 
 // CaveatDefinition returns a new caveat definition.
-func CaveatDefinition(env *caveats.Environment, name string, expr string) (*core.Caveat, error) {
+func CaveatDefinition(env *caveats.Environment, name string, expr string) (*core.CaveatDefinition, error) {
 	compiled, err := caveats.CompileCaveatWithName(env, expr, name)
 	if err != nil {
 		return nil, err
@@ -112,15 +112,15 @@ func CaveatDefinition(env *caveats.Environment, name string, expr string) (*core
 	if err != nil {
 		return nil, err
 	}
-	return &core.Caveat{
-		Name:           name,
-		Expression:     serialized,
-		ParameterTypes: env.EncodedParametersTypes(),
+	return &core.CaveatDefinition{
+		Name:                 name,
+		SerializedExpression: serialized,
+		ParameterTypes:       env.EncodedParametersTypes(),
 	}, nil
 }
 
 // MustCaveatDefinition returns a new caveat definition.
-func MustCaveatDefinition(env *caveats.Environment, name string, expr string) *core.Caveat {
+func MustCaveatDefinition(env *caveats.Environment, name string, expr string) *core.CaveatDefinition {
 	cd, err := CaveatDefinition(env, name, expr)
 	if err != nil {
 		panic(err)

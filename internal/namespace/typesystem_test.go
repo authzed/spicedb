@@ -22,7 +22,7 @@ func TestTypeSystem(t *testing.T) {
 		name            string
 		toCheck         *core.NamespaceDefinition
 		otherNamespaces []*core.NamespaceDefinition
-		caveats         []*core.Caveat
+		caveats         []*core.CaveatDefinition
 		expectedError   string
 	}{
 		{
@@ -275,7 +275,7 @@ func TestTypeSystem(t *testing.T) {
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 			},
-			[]*core.Caveat{
+			[]*core.CaveatDefinition{
 				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
 			},
 			"",
@@ -289,7 +289,7 @@ func TestTypeSystem(t *testing.T) {
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 			},
-			[]*core.Caveat{
+			[]*core.CaveatDefinition{
 				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
 			},
 			"",
@@ -303,7 +303,7 @@ func TestTypeSystem(t *testing.T) {
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
 			},
-			[]*core.Caveat{
+			[]*core.CaveatDefinition{
 				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
 			},
 			"found duplicate allowed subject type `user with definedcaveat` on relation `viewer` under definition `document`",

@@ -17,7 +17,7 @@ type Resolver interface {
 	LookupNamespace(ctx context.Context, name string) (*core.NamespaceDefinition, error)
 
 	// LookupCaveat lookups up a caveat.
-	LookupCaveat(ctx context.Context, name string) (*core.Caveat, error)
+	LookupCaveat(ctx context.Context, name string) (*core.CaveatDefinition, error)
 
 	// WithPredefinedElements adds the given predefined elements to this resolver, returning a new
 	// resolver.
@@ -34,7 +34,7 @@ func ResolverForDatastoreReader(ds datastore.Reader) Resolver {
 // PredefinedElements are predefined namespaces and/or caveats to give to a resolver.
 type PredefinedElements struct {
 	Namespaces []*core.NamespaceDefinition
-	Caveats    []*core.Caveat
+	Caveats    []*core.CaveatDefinition
 }
 
 func (pe PredefinedElements) combineWith(other PredefinedElements) PredefinedElements {
@@ -80,7 +80,7 @@ func (r *resolver) WithPredefinedElements(predefined PredefinedElements) Resolve
 	}
 }
 
-func (r *resolver) LookupCaveat(ctx context.Context, name string) (*core.Caveat, error) {
+func (r *resolver) LookupCaveat(ctx context.Context, name string) (*core.CaveatDefinition, error) {
 	if len(r.predefined.Caveats) > 0 {
 		for _, caveat := range r.predefined.Caveats {
 			if caveat.Name == name {
@@ -98,5 +98,6 @@ func (r *resolver) LookupCaveat(ctx context.Context, name string) (*core.Caveat,
 		return nil, fmt.Errorf("caveats are not supported on this datastore type")
 	}
 
-	return cr.ReadCaveatByName(ctx, name)
+	caveatDef, _, err := cr.ReadCaveatByName(ctx, name)
+	return caveatDef, err
 }
