@@ -142,6 +142,11 @@ func (dm *MockReader) LookupNamespaces(ctx context.Context, nsNames []string) ([
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
 
+func (dm *MockReader) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 type MockReadWriteTransaction struct {
 	mock.Mock
 }
@@ -228,6 +233,21 @@ func (dm *MockReadWriteTransaction) WriteNamespaces(newConfigs ...*core.Namespac
 func (dm *MockReadWriteTransaction) DeleteNamespace(nsName string) error {
 	args := dm.Called(nsName)
 	return args.Error(0)
+}
+
+func (dm *MockReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (dm *MockReadWriteTransaction) WriteCaveats(caveats []*core.Caveat) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (dm *MockReadWriteTransaction) DeleteCaveats(names []string) error {
+	// TODO implement me
+	panic("implement me")
 }
 
 var (

@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/authzed/spicedb/pkg/caveats/customtypes"
@@ -841,11 +840,7 @@ func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema str
 			return err
 		}
 
-		cs, ok := rwt.(datastore.CaveatStorer)
-		if !ok {
-			return errors.New("datastore does not implement CaveatStorer")
-		}
-		if err := cs.WriteCaveats(compiledCaveats); err != nil {
+		if err := rwt.WriteCaveats(compiledCaveats); err != nil {
 			return err
 		}
 

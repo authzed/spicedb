@@ -127,6 +127,16 @@ func (vsr validatingSnapshotReader) ReverseQueryRelationships(ctx context.Contex
 	return vsr.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
+func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
+	read, createdAt, err := vsr.delegate.ReadCaveatByName(ctx, name)
+	if err != nil {
+		return read, createdAt, err
+	}
+
+	err = read.Validate()
+	return read, createdAt, err
+}
+
 type validatingReadWriteTransaction struct {
 	validatingSnapshotReader
 	delegate datastore.ReadWriteTransaction
@@ -174,24 +184,15 @@ func (vrwt validatingReadWriteTransaction) DeleteRelationships(filter *v1.Relati
 }
 
 func (vrwt validatingReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
-	if ds, ok := vrwt.delegate.(datastore.CaveatReader); ok {
-		return ds.ReadCaveatByName(ctx, name)
-	}
-	return nil, datastore.NoRevision, fmt.Errorf("transaction delegate does not implement datastore.CaveatReader")
+	return vrwt.delegate.ReadCaveatByName(ctx, name)
 }
 
 func (vrwt validatingReadWriteTransaction) WriteCaveats(caveats []*core.Caveat) error {
-	if ds, ok := vrwt.delegate.(datastore.CaveatStorer); ok {
-		return ds.WriteCaveats(caveats)
-	}
-	return fmt.Errorf("transaction delegate does not implement datastore.CaveatStorer")
+	return vrwt.delegate.WriteCaveats(caveats)
 }
 
 func (vrwt validatingReadWriteTransaction) DeleteCaveats(names []string) error {
-	if ds, ok := vrwt.delegate.(datastore.CaveatStorer); ok {
-		return ds.DeleteCaveats(names)
-	}
-	return fmt.Errorf("transaction delegate does not implement datastore.CaveatStorer")
+	return vrwt.delegate.DeleteCaveats(names)
 }
 
 // validateUpdatesToWrite performs basic validation on relationship updates going into datastores.

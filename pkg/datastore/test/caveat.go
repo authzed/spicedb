@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -38,9 +39,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	// The caveat can be looked up by name
-	cr, ok := ds.SnapshotReader(rev).(datastore.CaveatReader)
-	req.True(ok, "expected a CaveatStorer value")
-
+	cr := ds.SnapshotReader(rev)
 	cv, readRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	foundDiff := cmp.Diff(coreCaveat, cv, protocmp.Transform())
@@ -49,11 +48,10 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	// Delete Caveat
 	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		cs := tx.(datastore.CaveatStorer)
-		return cs.DeleteCaveats([]string{coreCaveat.Name})
+		return tx.DeleteCaveats([]string{coreCaveat.Name})
 	})
 	req.NoError(err)
-	cr = ds.SnapshotReader(rev).(datastore.CaveatReader)
+	cr = ds.SnapshotReader(rev)
 	_, _, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.ErrorAs(err, &datastore.ErrCaveatNameNotFound{})
 
@@ -118,16 +116,14 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	// check most recent revision
-	cr, ok := ds.SnapshotReader(newRev).(datastore.CaveatReader)
-	req.True(ok, "expected a CaveatReader value")
+	cr := ds.SnapshotReader(newRev)
 	cv, fetchedRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(newExpression, cv.Expression)
 	req.Equal(newRev, fetchedRev)
 
 	// check previous revision
-	cr, ok = ds.SnapshotReader(oldRev).(datastore.CaveatReader)
-	req.True(ok, "expected a CaveatReader value")
+	cr = ds.SnapshotReader(oldRev)
 	cv, fetchedRev, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(oldExpression, cv.Expression)
@@ -177,8 +173,9 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
 	ctx := context.Background()
 	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { //nolint: errcheck
-		if cs, ok := transaction.(datastore.CaveatStorer); !ok {
-			t.Skip("datastore does not implement CaveatStorer interface", cs)
+		_, _, err := transaction.ReadCaveatByName(ctx, uuid.NewString())
+		if !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
+			t.Skip("datastore does not implement CaveatStorer interface")
 		}
 		return fmt.Errorf("force rollback of unnecesary tx")
 	})
@@ -198,11 +195,7 @@ func createTestCaveatedTuple(t *testing.T, tplString string, caveatName string) 
 
 func writeCaveats(ctx context.Context, ds datastore.Datastore, coreCaveat ...*core.Caveat) (datastore.Revision, error) {
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		cs, ok := tx.(datastore.CaveatStorer)
-		if !ok {
-			panic("expected a CaveatStorer value")
-		}
-		return cs.WriteCaveats(coreCaveat)
+		return tx.WriteCaveats(coreCaveat)
 	})
 	if err != nil {
 		return datastore.NoRevision, err

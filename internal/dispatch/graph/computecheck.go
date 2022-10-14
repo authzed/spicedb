@@ -11,7 +11,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/caveats"
-	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -120,8 +119,7 @@ func runExpression(
 	if expr.GetCaveat() != nil {
 		ds := datastoremw.MustFromContext(ctx)
 		reader := ds.SnapshotReader(revision)
-		cr := reader.(datastore.CaveatReader)
-		caveat, _, err := cr.ReadCaveatByName(ctx, expr.GetCaveat().CaveatName)
+		caveat, _, err := reader.ReadCaveatByName(ctx, expr.GetCaveat().CaveatName)
 		if err != nil {
 			return nil, err
 		}

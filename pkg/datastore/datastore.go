@@ -145,6 +145,7 @@ func (sf SubjectRelationFilter) IsEmpty() bool {
 }
 
 type Reader interface {
+	CaveatReader
 	// QueryRelationships reads relationships, starting from the resource side.
 	QueryRelationships(
 		ctx context.Context,
@@ -172,6 +173,7 @@ type Reader interface {
 
 type ReadWriteTransaction interface {
 	Reader
+	CaveatStorer
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
 	WriteRelationships(mutations []*core.RelationTupleUpdate) error
