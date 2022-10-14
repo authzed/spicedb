@@ -18,39 +18,46 @@ import (
 var (
 	writeCaveat            = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatExpression)
 	writeCaveatDeprecated  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatExpression, colCreatedTxnDeprecated)
-	readCaveat             = psql.Select(colCaveatExpression).From(tableCaveat)
+	readCaveat             = psql.Select(colCaveatExpression, colCreatedXid).From(tableCaveat)
+	readCaveatDeprecated   = psql.Select(colCaveatExpression, colCreatedTxnDeprecated).From(tableCaveat)
 	deleteCaveat           = psql.Update(tableCaveat).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 	deleteCaveatDeprecated = psql.Update(tableCaveat).Where(sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID})
 )
 
-func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, error) {
+func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "ReadCaveatByName", trace.WithAttributes(attribute.String("name", name)))
 	defer span.End()
 
-	filteredReadCaveat := r.filterer(readCaveat)
+	statement := readCaveat
+	// TODO remove once the ID->XID migrations are all complete
+	if r.migrationPhase == writeBothReadNew || r.migrationPhase == writeBothReadOld {
+		statement = readCaveatDeprecated
+	}
+	filteredReadCaveat := r.filterer(statement)
 	sql, args, err := filteredReadCaveat.Where(sq.Eq{colCaveatName: name}).ToSql()
 	if err != nil {
-		return nil, err
+		return nil, datastore.NoRevision, err
 	}
 
 	tx, txCleanup, err := r.txSource(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read caveat: %w", err)
+		return nil, datastore.NoRevision, fmt.Errorf("unable to read caveat: %w", err)
 	}
 	defer txCleanup(ctx)
 
 	var expr []byte
-	err = tx.QueryRow(ctx, sql, args...).Scan(&expr)
+	var rev datastore.Revision
+	err = tx.QueryRow(ctx, sql, args...).Scan(&expr, &rev)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, datastore.NewCaveatNameNotFoundErr(name)
+			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
 		}
-		return nil, err
+		return nil, datastore.NoRevision, err
 	}
 	return &core.Caveat{
 		Name:       name,
 		Expression: expr,
-	}, nil
+	}, rev, nil
 }
 
 func (rwt *pgReadWriteTXN) WriteCaveats(caveats []*core.Caveat) error {

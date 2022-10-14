@@ -41,10 +41,11 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	cr, ok := ds.SnapshotReader(rev).(datastore.CaveatReader)
 	req.True(ok, "expected a CaveatStorer value")
 
-	cv, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, readRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	foundDiff := cmp.Diff(coreCaveat, cv, protocmp.Transform())
 	req.Empty(foundDiff)
+	req.Equal(rev, readRev)
 
 	// Delete Caveat
 	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
@@ -53,11 +54,11 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	})
 	req.NoError(err)
 	cr = ds.SnapshotReader(rev).(datastore.CaveatReader)
-	_, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	_, _, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.ErrorAs(err, &datastore.ErrCaveatNameNotFound{})
 
 	// Returns an error if caveat name or ID does not exist
-	_, err = cr.ReadCaveatByName(ctx, "doesnotexist")
+	_, _, err = cr.ReadCaveatByName(ctx, "doesnotexist")
 	req.ErrorAs(err, &datastore.ErrCaveatNameNotFound{})
 }
 
@@ -119,16 +120,18 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	// check most recent revision
 	cr, ok := ds.SnapshotReader(newRev).(datastore.CaveatReader)
 	req.True(ok, "expected a CaveatReader value")
-	cv, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, fetchedRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(newExpression, cv.Expression)
+	req.Equal(newRev, fetchedRev)
 
 	// check previous revision
 	cr, ok = ds.SnapshotReader(oldRev).(datastore.CaveatReader)
 	req.True(ok, "expected a CaveatReader value")
-	cv, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, fetchedRev, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(oldExpression, cv.Expression)
+	req.Equal(oldRev, fetchedRev)
 }
 
 func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
@@ -173,7 +176,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 
 func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
 	ctx := context.Background()
-	ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { //nolint: errcheck
+	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { //nolint: errcheck
 		if cs, ok := transaction.(datastore.CaveatStorer); !ok {
 			t.Skip("datastore does not implement CaveatStorer interface", cs)
 		}

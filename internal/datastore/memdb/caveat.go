@@ -16,6 +16,7 @@ const tableCaveats = "caveats"
 type caveat struct {
 	name       string
 	expression []byte
+	revision   datastore.Revision
 }
 
 func (c *caveat) Unwrap() *core.Caveat {
@@ -25,9 +26,9 @@ func (c *caveat) Unwrap() *core.Caveat {
 	}
 }
 
-func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.Caveat, error) {
+func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.Caveat, datastore.Revision, error) {
 	if !r.enableCaveats {
-		return nil, fmt.Errorf("caveats are not enabled")
+		return nil, datastore.NoRevision, fmt.Errorf("caveats are not enabled")
 	}
 
 	r.lockOrPanic()
@@ -35,28 +36,29 @@ func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.Ca
 
 	tx, err := r.txSource()
 	if err != nil {
-		return nil, err
+		return nil, datastore.NoRevision, err
 	}
 	return r.readUnwrappedCaveatByName(tx, name)
 }
 
-func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*caveat, error) {
+func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*caveat, datastore.Revision, error) {
 	found, err := tx.First(tableCaveats, indexID, name)
 	if err != nil {
-		return nil, err
+		return nil, datastore.NoRevision, err
 	}
 	if found == nil {
-		return nil, datastore.NewCaveatNameNotFoundErr(name)
+		return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
 	}
-	return found.(*caveat), nil
+	cvt := found.(*caveat)
+	return cvt, cvt.revision, nil
 }
 
-func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, error) {
-	c, err := r.readCaveatByName(tx, name)
+func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, datastore.Revision, error) {
+	c, rev, err := r.readCaveatByName(tx, name)
 	if err != nil {
-		return nil, err
+		return nil, datastore.NoRevision, err
 	}
-	return c.Unwrap(), nil
+	return c.Unwrap(), rev, nil
 }
 
 func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) error {
@@ -78,6 +80,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 		c := caveat{
 			name:       coreCaveat.Name,
 			expression: coreCaveat.Expression,
+			revision:   rwt.newRevision,
 		}
 		if err := tx.Insert(tableCaveats, &c); err != nil {
 			return err

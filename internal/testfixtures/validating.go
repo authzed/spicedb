@@ -173,11 +173,11 @@ func (vrwt validatingReadWriteTransaction) DeleteRelationships(filter *v1.Relati
 	return vrwt.delegate.DeleteRelationships(filter)
 }
 
-func (vrwt validatingReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, error) {
+func (vrwt validatingReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
 	if ds, ok := vrwt.delegate.(datastore.CaveatReader); ok {
 		return ds.ReadCaveatByName(ctx, name)
 	}
-	return nil, fmt.Errorf("transaction delegate does not implement datastore.CaveatReader")
+	return nil, datastore.NoRevision, fmt.Errorf("transaction delegate does not implement datastore.CaveatReader")
 }
 
 func (vrwt validatingReadWriteTransaction) WriteCaveats(caveats []*core.Caveat) error {

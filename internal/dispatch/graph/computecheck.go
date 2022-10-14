@@ -121,7 +121,7 @@ func runExpression(
 		ds := datastoremw.MustFromContext(ctx)
 		reader := ds.SnapshotReader(revision)
 		cr := reader.(datastore.CaveatReader)
-		caveat, err := cr.ReadCaveatByName(ctx, expr.GetCaveat().CaveatName)
+		caveat, _, err := cr.ReadCaveatByName(ctx, expr.GetCaveat().CaveatName)
 		if err != nil {
 			return nil, err
 		}
