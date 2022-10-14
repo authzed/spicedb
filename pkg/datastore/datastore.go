@@ -59,6 +59,10 @@ type RelationshipsFilter struct {
 
 	// OptionalSubjectsFilter is the filter to use for subjects of the relationship. If nil, all subjects are allowed.
 	OptionalSubjectsFilter *SubjectsFilter
+
+	// OptionalCaveatName is the filter to use for caveated relationships, filtering by a specific caveat name.
+	// If nil, all caveated and non-caveated relationships are allowed
+	OptionalCaveatName string
 }
 
 // RelationshipsFilterFromPublicFilter constructs a datastore RelationshipsFilter from an API-defined RelationshipFilter.
@@ -145,6 +149,7 @@ func (sf SubjectRelationFilter) IsEmpty() bool {
 }
 
 type Reader interface {
+	CaveatReader
 	// QueryRelationships reads relationships, starting from the resource side.
 	QueryRelationships(
 		ctx context.Context,
@@ -172,6 +177,7 @@ type Reader interface {
 
 type ReadWriteTransaction interface {
 	Reader
+	CaveatStorer
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
 	WriteRelationships(mutations []*core.RelationTupleUpdate) error

@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/authzed/spicedb/pkg/caveats/customtypes"
@@ -818,7 +817,7 @@ func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema str
 		return datastore.NoRevision, err
 	}
 
-	compiledCaveats := make([]*core.Caveat, 0, len(definedCaveats))
+	compiledCaveats := make([]*core.CaveatDefinition, 0, len(definedCaveats))
 	for name, c := range definedCaveats {
 		e, err := caveats.EnvForVariables(c.env)
 		if err != nil {
@@ -833,7 +832,7 @@ func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema str
 		if err != nil {
 			return datastore.NoRevision, err
 		}
-		compiledCaveats = append(compiledCaveats, &core.Caveat{Name: name, Expression: serialized})
+		compiledCaveats = append(compiledCaveats, &core.CaveatDefinition{Name: name, SerializedExpression: serialized})
 	}
 
 	return ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -841,11 +840,7 @@ func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema str
 			return err
 		}
 
-		cs, ok := rwt.(datastore.CaveatStorer)
-		if !ok {
-			return errors.New("datastore does not implement CaveatStorer")
-		}
-		if err := cs.WriteCaveats(compiledCaveats); err != nil {
+		if err := rwt.WriteCaveats(compiledCaveats); err != nil {
 			return err
 		}
 

@@ -33,15 +33,15 @@ message ContextualizedCaveat {
   google.protobuf.Struct context = 2 [ (validate.rules).message.required = false ];
 }
 
-message Caveat {
+message CaveatDefinition {
   /** name represents the globally-unique identifier of the caveat **/
   string name = 1 [ (validate.rules).string = {
     pattern : "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$",
     max_bytes : 128,
   } ];
 
-  /** expression is the byte representation of a caveat's logic */
-  bytes expression = 2 [(validate.rules).bytes = {min_len: 0, max_len: 4096}];
+  /** serialized_expression is the byte representation of a caveat's logic */
+  bytes serialized_expression = 2 [(validate.rules).bytes = {min_len: 0, max_len: 4096}];
 }
 
 message ObjectAndRelation {

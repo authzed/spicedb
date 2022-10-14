@@ -58,6 +58,7 @@ type SchemaInformation struct {
 	ColUsersetNamespace string
 	ColUsersetObjectID  string
 	ColUsersetRelation  string
+	ColCaveatName       string
 }
 
 // SchemaQueryFilterer wraps a SchemaInformation and SelectBuilder to give an opinionated
@@ -147,6 +148,10 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 		sqf = sqf.FilterWithSubjectsFilter(*filter.OptionalSubjectsFilter)
 	}
 
+	if filter.OptionalCaveatName != "" {
+		sqf = sqf.FilterWithCaveatName(filter.OptionalCaveatName)
+	}
+
 	return sqf
 }
 
@@ -230,6 +235,12 @@ func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) S
 		sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(dsRelationName))
 	}
 
+	return sqf
+}
+
+func (sqf SchemaQueryFilterer) FilterWithCaveatName(caveatName string) SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColCaveatName: caveatName})
+	sqf.tracerAttributes = append(sqf.tracerAttributes, CaveatNameKey.String(caveatName))
 	return sqf
 }
 

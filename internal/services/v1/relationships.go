@@ -179,24 +179,14 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			}
 		}
 		for _, update := range req.Updates {
-			// TODO(vroldanbet) we type assert CaveatReader for now because not all datastores implement it
-			// eventually this type assertion should be removed
 			if update.Relationship.OptionalCaveat != nil && update.Relationship.OptionalCaveat.CaveatName != "" {
-				if caveatReader, ok := rwt.(datastore.CaveatReader); ok {
-					_, err := caveatReader.ReadCaveatByName(ctx, update.Relationship.OptionalCaveat.CaveatName)
-					if errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
-						return rewriteError(ctx, NewCaveatNotFoundError(update))
-					}
+				_, _, err := rwt.ReadCaveatByName(ctx, update.Relationship.OptionalCaveat.CaveatName)
+				if errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
+					return rewriteError(ctx, NewCaveatNotFoundError(update))
+				}
 
-					if err != nil {
-						return rewriteError(ctx, err)
-					}
-				} else {
-					return status.Errorf(
-						codes.FailedPrecondition,
-						"caveats are currently not supported for this datastore; found for relationship `%s`",
-						tuple.StringRelationship(update.Relationship),
-					)
+				if err != nil {
+					return rewriteError(ctx, err)
 				}
 			}
 

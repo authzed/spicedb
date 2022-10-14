@@ -53,6 +53,7 @@ func (r *memdbReader) QueryRelationships(
 		filter.OptionalResourceIds,
 		filter.OptionalResourceRelation,
 		filter.OptionalSubjectsFilter,
+		filter.OptionalCaveatName,
 		queryOpts.Usersets,
 	)
 	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
@@ -111,6 +112,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 		nil,
 		filterRelation,
 		&subjectsFilter,
+		"",
 		nil,
 	)
 	filteredIterator := memdb.NewFilterIterator(iterator, matchingRelationshipsFilterFunc)
@@ -270,6 +272,7 @@ func filterFuncForFilters(
 	optionalResourceIds []string,
 	optionalRelation string,
 	optionalSubjectsFilter *datastore.SubjectsFilter,
+	optionalCaveatFilter string,
 	usersets []*core.ObjectAndRelation,
 ) memdb.FilterFunc {
 	return func(tupleRaw interface{}) bool {
@@ -281,6 +284,8 @@ func filterFuncForFilters(
 		case len(optionalResourceIds) > 0 && !stringz.SliceContains(optionalResourceIds, tuple.resourceID):
 			return true
 		case optionalRelation != "" && optionalRelation != tuple.relation:
+			return true
+		case optionalCaveatFilter != "" && (tuple.caveat == nil || tuple.caveat.caveatName != optionalCaveatFilter):
 			return true
 		}
 

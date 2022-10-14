@@ -16,16 +16,52 @@ const tableCaveats = "caveats"
 type caveat struct {
 	name       string
 	expression []byte
+	revision   datastore.Revision
 }
 
-func (c *caveat) Unwrap() *core.Caveat {
-	return &core.Caveat{
-		Name:       c.name,
-		Expression: c.expression,
+func (c *caveat) Unwrap() *core.CaveatDefinition {
+	return &core.CaveatDefinition{
+		Name:                 c.name,
+		SerializedExpression: c.expression,
 	}
 }
 
-func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.Caveat, error) {
+func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	if !r.enableCaveats {
+		return nil, datastore.NoRevision, fmt.Errorf("caveats are not enabled")
+	}
+
+	r.lockOrPanic()
+	defer r.Unlock()
+
+	tx, err := r.txSource()
+	if err != nil {
+		return nil, datastore.NoRevision, err
+	}
+	return r.readUnwrappedCaveatByName(tx, name)
+}
+
+func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*caveat, datastore.Revision, error) {
+	found, err := tx.First(tableCaveats, indexID, name)
+	if err != nil {
+		return nil, datastore.NoRevision, err
+	}
+	if found == nil {
+		return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
+	}
+	cvt := found.(*caveat)
+	return cvt, cvt.revision, nil
+}
+
+func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	c, rev, err := r.readCaveatByName(tx, name)
+	if err != nil {
+		return nil, datastore.NoRevision, err
+	}
+	return c.Unwrap(), rev, nil
+}
+
+func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.CaveatDefinition, error) {
 	if !r.enableCaveats {
 		return nil, fmt.Errorf("caveats are not enabled")
 	}
@@ -37,29 +73,21 @@ func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.Ca
 	if err != nil {
 		return nil, err
 	}
-	return r.readUnwrappedCaveatByName(tx, name)
-}
 
-func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*caveat, error) {
-	found, err := tx.First(tableCaveats, indexID, name)
+	var caveats []*core.CaveatDefinition
+	it, err := tx.LowerBound(tableCaveats, indexID)
 	if err != nil {
 		return nil, err
 	}
-	if found == nil {
-		return nil, datastore.NewCaveatNameNotFoundErr(name)
+
+	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
+		caveats = append(caveats, foundRaw.(*caveat).Unwrap())
 	}
-	return found.(*caveat), nil
+
+	return caveats, nil
 }
 
-func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, error) {
-	c, err := r.readCaveatByName(tx, name)
-	if err != nil {
-		return nil, err
-	}
-	return c.Unwrap(), nil
-}
-
-func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) error {
+func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.CaveatDefinition) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
@@ -69,7 +97,7 @@ func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) error {
 	return rwt.writeCaveat(tx, caveats)
 }
 
-func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) error {
+func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDefinition) error {
 	caveatNames := util.NewSet[string]()
 	for _, coreCaveat := range caveats {
 		if !caveatNames.Add(coreCaveat.Name) {
@@ -77,7 +105,8 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 		}
 		c := caveat{
 			name:       coreCaveat.Name,
-			expression: coreCaveat.Expression,
+			expression: coreCaveat.SerializedExpression,
+			revision:   rwt.newRevision,
 		}
 		if err := tx.Insert(tableCaveats, &c); err != nil {
 			return err
@@ -86,19 +115,15 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteCaveats(caveats []*core.Caveat) error {
+func (rwt *memdbReadWriteTx) DeleteCaveats(names []string) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
 	if err != nil {
 		return err
 	}
-	for _, coreCaveat := range caveats {
-		c := caveat{
-			name:       coreCaveat.Name,
-			expression: coreCaveat.Expression,
-		}
-		if err := tx.Delete(tableCaveats, c); err != nil {
+	for _, name := range names {
+		if err := tx.Delete(tableCaveats, caveat{name: name}); err != nil {
 			return err
 		}
 	}

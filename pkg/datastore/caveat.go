@@ -9,7 +9,10 @@ import (
 // CaveatReader offers read operations for caveats
 type CaveatReader interface {
 	// ReadCaveatByName returns a caveat with the provided name
-	ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, error)
+	ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, Revision, error)
+
+	// ListCaveats returns all caveats stored in the system
+	ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error)
 }
 
 // CaveatStorer offers both read and write operations for Caveats
@@ -18,8 +21,8 @@ type CaveatStorer interface {
 
 	// WriteCaveats stores the provided caveats, and returns the assigned IDs
 	// Each element o the returning slice corresponds by possition to the input slice
-	WriteCaveats([]*core.Caveat) error
+	WriteCaveats([]*core.CaveatDefinition) error
 
-	// DeleteCaveats deletes the provided caveats
-	DeleteCaveats([]*core.Caveat) error
+	// DeleteCaveats deletes the provided caveats by name
+	DeleteCaveats(names []string) error
 }

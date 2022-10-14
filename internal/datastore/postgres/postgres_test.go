@@ -590,7 +590,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	require.NoError(migrations.DatabaseMigrations.Run(
 		ctx,
 		migrationDriver,
-		"add-ns-config-id",
+		"add-caveats",
 		migrate.LiveRun,
 	))
 
@@ -639,6 +639,22 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	_, err = conn.Exec(ctx, insertRelsSQL, insertRelsArgs...)
 	require.NoError(err)
 
+	insertCaveatsSQL, insertCaveatsArgs, err := psql.
+		Insert(tableCaveat).
+		Columns(
+			colCaveatName,
+			colCaveatExpression,
+			"created_transaction",
+			"deleted_transaction",
+		).
+		Values("one_caveat", []byte{0x0a, 0x0a}, oldTxIDs[0], oldTxIDs[1]).
+		Values("one_caveat", []byte{0x0a, 0x0b}, oldTxIDs[1], liveDeletedTxnID).
+		ToSql()
+	require.NoError(err)
+
+	_, err = conn.Exec(ctx, insertCaveatsSQL, insertCaveatsArgs...)
+	require.NoError(err)
+
 	// Migrate to the version containing both old and new
 	require.NoError(migrations.DatabaseMigrations.Run(
 		ctx,
@@ -669,16 +685,32 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			},
 		}))
 
+		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+			{
+				Name:                 "one_caveat",
+				SerializedExpression: []byte{0x0a, 0x0c},
+			},
+			{
+				Name:                 "two_caveat",
+				SerializedExpression: []byte{0x0a},
+			},
+		}))
+
 		return nil
 	})
 	require.NoError(err)
 	writtenAtOne := decimal.NewFromInt(int64(oldTxIDs[len(oldTxIDs)-1]))
 	require.True(writtenAtTwo.GreaterThan(writtenAtOne))
 
-	verifyProperAlive(ctx, require, dsWriteBothReadOld, writtenAtTwo, map[string]int{
-		"one_namespace": 1,
-		"two_namespace": 1,
-	})
+	verifyProperAlive(ctx, require, dsWriteBothReadOld, writtenAtTwo,
+		map[string]int{
+			"one_namespace": 1,
+			"two_namespace": 1,
+		},
+		map[string]int{
+			"one_caveat": 1,
+			"two_caveat": 1,
+		})
 
 	// Backfill
 	for _, migrationName := range []string{"backfill-xid-add-indices", "add-xid-constraints"} {
@@ -699,16 +731,26 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 					Tuple:     tuple.MustParse("two_namespace:1#parent@two_namespace:2#..."),
 				},
 			}))
-
+			require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+				{
+					Name:                 "two_caveat",
+					SerializedExpression: []byte{0x0b},
+				},
+			}))
 			return nil
 		})
 		require.NoError(err)
 
 		// Use the existing datastore to check data again
-		verifyProperAlive(ctx, require, dsWriteBothReadOld, lastWritten, map[string]int{
-			"one_namespace": 1,
-			"two_namespace": 1,
-		})
+		verifyProperAlive(ctx, require, dsWriteBothReadOld, lastWritten,
+			map[string]int{
+				"one_namespace": 1,
+				"two_namespace": 1,
+			},
+			map[string]int{
+				"one_caveat": 1,
+				"two_caveat": 1,
+			})
 	}
 
 	dsWriteBothReadNew, err := NewPostgresDatastore(
@@ -734,17 +776,30 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 				Tuple:     tuple.MustParse("three_namespace:1#parent@three_namespace:2#..."),
 			},
 		}))
+		require.NoError(rwt.DeleteCaveats([]string{"one_caveat"}))
+		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+			{
+				Name:                 "three_caveat",
+				SerializedExpression: []byte{0x0a},
+			},
+		}))
 
 		return nil
 	})
 	require.NoError(err)
 	require.True(writtenAtThree.GreaterThan(writtenAtTwo))
 
-	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtThree, map[string]int{
-		"one_namespace":   0,
-		"two_namespace":   1,
-		"three_namespace": 1,
-	})
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtThree,
+		map[string]int{
+			"one_namespace":   0,
+			"two_namespace":   1,
+			"three_namespace": 1,
+		},
+		map[string]int{
+			"one_caveat":   0,
+			"two_caveat":   1,
+			"three_caveat": 1,
+		})
 
 	// Drop the requirement to write old
 	require.NoError(migrations.DatabaseMigrations.Run(
@@ -755,11 +810,17 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	))
 
 	// Use the old datastore to verify again
-	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtThree, map[string]int{
-		"one_namespace":   0,
-		"two_namespace":   1,
-		"three_namespace": 1,
-	})
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtThree,
+		map[string]int{
+			"one_namespace":   0,
+			"two_namespace":   1,
+			"three_namespace": 1,
+		},
+		map[string]int{
+			"one_caveat":   0,
+			"two_caveat":   1,
+			"three_caveat": 1,
+		})
 
 	dsWriteOnlyNew, err := NewPostgresDatastore(
 		uri,
@@ -784,17 +845,31 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			},
 		}))
 
+		require.NoError(rwt.DeleteCaveats([]string{"two_caveat"}))
+		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+			{
+				Name:                 "four_caveat",
+				SerializedExpression: []byte{0x0a},
+			},
+		}))
 		return nil
 	})
 	require.NoError(err)
 	require.True(writtenAtFour.GreaterThan(writtenAtThree))
 
-	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFour, map[string]int{
-		"one_namespace":   0,
-		"two_namespace":   0,
-		"three_namespace": 1,
-		"four_namespace":  1,
-	})
+	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFour,
+		map[string]int{
+			"one_namespace":   0,
+			"two_namespace":   0,
+			"three_namespace": 1,
+			"four_namespace":  1,
+		},
+		map[string]int{
+			"one_caveat":   0,
+			"two_caveat":   0,
+			"three_caveat": 1,
+			"four_caveat":  1,
+		})
 
 	// Drop the old columns entirely
 	require.NoError(migrations.DatabaseMigrations.Run(
@@ -805,12 +880,19 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	))
 
 	// Use the existing datastore to verify
-	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFour, map[string]int{
-		"one_namespace":   0,
-		"two_namespace":   0,
-		"three_namespace": 1,
-		"four_namespace":  1,
-	})
+	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFour,
+		map[string]int{
+			"one_namespace":   0,
+			"two_namespace":   0,
+			"three_namespace": 1,
+			"four_namespace":  1,
+		},
+		map[string]int{
+			"one_caveat":   0,
+			"two_caveat":   0,
+			"three_caveat": 1,
+			"four_caveat":  1,
+		})
 
 	// Attempt a write with the columns dropped
 	writtenAtFive, err := dsWriteOnlyNew.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -830,41 +912,79 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			},
 		}))
 
+		require.NoError(rwt.DeleteCaveats([]string{"three_caveat"}))
+		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+			{
+				Name:                 "five_caveat",
+				SerializedExpression: []byte{0x0a},
+			},
+		}))
 		return nil
 	})
 	require.NoError(err)
 	require.True(writtenAtFive.GreaterThan(writtenAtFour))
 
 	// Check everything at the end state
-	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtOne, map[string]int{
-		"one_namespace": 1,
-	})
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtOne,
+		map[string]int{
+			"one_namespace": 1,
+		},
+		map[string]int{
+			"one_caveat": 1,
+		},
+	)
 
-	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtTwo, map[string]int{
-		"one_namespace": 1,
-		"two_namespace": 1,
-	})
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtTwo,
+		map[string]int{
+			"one_namespace": 1,
+			"two_namespace": 1,
+		},
+		map[string]int{
+			"one_caveat": 1,
+			"two_caveat": 1,
+		})
 
-	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtThree, map[string]int{
-		"one_namespace":   0,
-		"two_namespace":   1,
-		"three_namespace": 1,
-	})
+	verifyProperAlive(ctx, require, dsWriteBothReadNew, writtenAtThree,
+		map[string]int{
+			"one_namespace":   0,
+			"two_namespace":   1,
+			"three_namespace": 1,
+		},
+		map[string]int{
+			"one_caveat":   0,
+			"two_caveat":   1,
+			"three_caveat": 1,
+		})
 
-	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFour, map[string]int{
-		"one_namespace":   0,
-		"two_namespace":   0,
-		"three_namespace": 1,
-		"four_namespace":  1,
-	})
+	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFour,
+		map[string]int{
+			"one_namespace":   0,
+			"two_namespace":   0,
+			"three_namespace": 1,
+			"four_namespace":  1,
+		},
+		map[string]int{
+			"one_caveat":   0,
+			"two_caveat":   0,
+			"three_caveat": 1,
+			"four_caveat":  1,
+		})
 
-	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFive, map[string]int{
-		"one_namespace":   0,
-		"two_namespace":   0,
-		"three_namespace": 0,
-		"four_namespace":  1,
-		"five_namespace":  1,
-	})
+	verifyProperAlive(ctx, require, dsWriteOnlyNew, writtenAtFive,
+		map[string]int{
+			"one_namespace":   0,
+			"two_namespace":   0,
+			"three_namespace": 0,
+			"four_namespace":  1,
+			"five_namespace":  1,
+		},
+		map[string]int{
+			"one_caveat":   0,
+			"two_caveat":   0,
+			"three_caveat": 0,
+			"four_caveat":  1,
+			"five_caveat":  1,
+		})
 }
 
 func countIterator(require *require.Assertions, iter datastore.RelationshipIterator) int {
@@ -882,11 +1002,12 @@ func verifyProperAlive(
 	require *require.Assertions,
 	ds datastore.Datastore,
 	revision datastore.Revision,
-	expected map[string]int,
+	expectedRelationships map[string]int,
+	expectedCaveats map[string]int,
 ) {
 	reader := ds.SnapshotReader(revision)
 
-	for nsName, expectedCount := range expected {
+	for nsName, expectedCount := range expectedRelationships {
 		_, _, err := reader.ReadNamespace(ctx, nsName)
 		if expectedCount == 0 {
 			require.Error(err)
@@ -902,7 +1023,16 @@ func verifyProperAlive(
 			ResourceType: nsName,
 		})
 		require.NoError(err)
-		require.Equal(expectedCount, countIterator(require, iter), "expected tuple count not equal for namespace: %s", nsName)
+		require.Equal(expectedCount, countIterator(require, iter), "expectedRelationships tuple count not equal for namespace: %s", nsName)
+	}
+
+	for caveatName, expectedCount := range expectedCaveats {
+		_, _, err := reader.ReadCaveatByName(ctx, caveatName)
+		if expectedCount == 0 {
+			require.Error(err)
+		} else {
+			require.NoError(err)
+		}
 	}
 }
 
