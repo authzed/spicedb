@@ -142,12 +142,12 @@ func (dm *MockReader) LookupNamespaces(ctx context.Context, nsNames []string) ([
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
 
-func (dm *MockReader) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
+func (dm *MockReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (dm *MockReader) ListCaveats(ctx context.Context) ([]*core.Caveat, error) {
+func (dm *MockReader) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -240,17 +240,17 @@ func (dm *MockReadWriteTransaction) DeleteNamespace(nsName string) error {
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
+func (dm *MockReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (dm *MockReadWriteTransaction) ListCaveats(ctx context.Context) ([]*core.Caveat, error) {
+func (dm *MockReadWriteTransaction) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (dm *MockReadWriteTransaction) WriteCaveats(caveats []*core.Caveat) error {
+func (dm *MockReadWriteTransaction) WriteCaveats(caveats []*core.CaveatDefinition) error {
 	// TODO implement me
 	panic("implement me")
 }

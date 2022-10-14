@@ -399,21 +399,22 @@ var _ interface {
 
 var _ContextualizedCaveat_CaveatName_Pattern = regexp.MustCompile("^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$")
 
-// Validate checks the field values on Caveat with the rules defined in the
-// proto definition for this message. If any rules are violated, the first
-// error encountered is returned, or nil if there are no violations.
-func (m *Caveat) Validate() error {
+// Validate checks the field values on CaveatDefinition with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *CaveatDefinition) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on Caveat with the rules defined in the
-// proto definition for this message. If any rules are violated, the result is
-// a list of violation errors wrapped in CaveatMultiError, or nil if none found.
-func (m *Caveat) ValidateAll() error {
+// ValidateAll checks the field values on CaveatDefinition with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CaveatDefinitionMultiError, or nil if none found.
+func (m *CaveatDefinition) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *Caveat) validate(all bool) error {
+func (m *CaveatDefinition) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -421,7 +422,7 @@ func (m *Caveat) validate(all bool) error {
 	var errors []error
 
 	if len(m.GetName()) > 128 {
-		err := CaveatValidationError{
+		err := CaveatDefinitionValidationError{
 			field:  "Name",
 			reason: "value length must be at most 128 bytes",
 		}
@@ -431,8 +432,8 @@ func (m *Caveat) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if !_Caveat_Name_Pattern.MatchString(m.GetName()) {
-		err := CaveatValidationError{
+	if !_CaveatDefinition_Name_Pattern.MatchString(m.GetName()) {
+		err := CaveatDefinitionValidationError{
 			field:  "Name",
 			reason: "value does not match regex pattern \"^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\\\*)$\"",
 		}
@@ -442,9 +443,9 @@ func (m *Caveat) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if l := len(m.GetExpression()); l < 0 || l > 4096 {
-		err := CaveatValidationError{
-			field:  "Expression",
+	if l := len(m.GetSerializedExpression()); l < 0 || l > 4096 {
+		err := CaveatDefinitionValidationError{
+			field:  "SerializedExpression",
 			reason: "value length must be between 0 and 4096 bytes, inclusive",
 		}
 		if !all {
@@ -454,18 +455,19 @@ func (m *Caveat) validate(all bool) error {
 	}
 
 	if len(errors) > 0 {
-		return CaveatMultiError(errors)
+		return CaveatDefinitionMultiError(errors)
 	}
 
 	return nil
 }
 
-// CaveatMultiError is an error wrapping multiple validation errors returned by
-// Caveat.ValidateAll() if the designated constraints aren't met.
-type CaveatMultiError []error
+// CaveatDefinitionMultiError is an error wrapping multiple validation errors
+// returned by CaveatDefinition.ValidateAll() if the designated constraints
+// aren't met.
+type CaveatDefinitionMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m CaveatMultiError) Error() string {
+func (m CaveatDefinitionMultiError) Error() string {
 	var msgs []string
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -474,11 +476,11 @@ func (m CaveatMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m CaveatMultiError) AllErrors() []error { return m }
+func (m CaveatDefinitionMultiError) AllErrors() []error { return m }
 
-// CaveatValidationError is the validation error returned by Caveat.Validate if
-// the designated constraints aren't met.
-type CaveatValidationError struct {
+// CaveatDefinitionValidationError is the validation error returned by
+// CaveatDefinition.Validate if the designated constraints aren't met.
+type CaveatDefinitionValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -486,22 +488,22 @@ type CaveatValidationError struct {
 }
 
 // Field function returns field value.
-func (e CaveatValidationError) Field() string { return e.field }
+func (e CaveatDefinitionValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e CaveatValidationError) Reason() string { return e.reason }
+func (e CaveatDefinitionValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e CaveatValidationError) Cause() error { return e.cause }
+func (e CaveatDefinitionValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e CaveatValidationError) Key() bool { return e.key }
+func (e CaveatDefinitionValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e CaveatValidationError) ErrorName() string { return "CaveatValidationError" }
+func (e CaveatDefinitionValidationError) ErrorName() string { return "CaveatDefinitionValidationError" }
 
 // Error satisfies the builtin error interface
-func (e CaveatValidationError) Error() string {
+func (e CaveatDefinitionValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -513,14 +515,14 @@ func (e CaveatValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sCaveat.%s: %s%s",
+		"invalid %sCaveatDefinition.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = CaveatValidationError{}
+var _ error = CaveatDefinitionValidationError{}
 
 var _ interface {
 	Field() string
@@ -528,9 +530,9 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = CaveatValidationError{}
+} = CaveatDefinitionValidationError{}
 
-var _Caveat_Name_Pattern = regexp.MustCompile("^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$")
+var _CaveatDefinition_Name_Pattern = regexp.MustCompile("^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$")
 
 // Validate checks the field values on ObjectAndRelation with the rules defined
 // in the proto definition for this message. If any rules are violated, the

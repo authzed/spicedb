@@ -817,7 +817,7 @@ func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema str
 		return datastore.NoRevision, err
 	}
 
-	compiledCaveats := make([]*core.Caveat, 0, len(definedCaveats))
+	compiledCaveats := make([]*core.CaveatDefinition, 0, len(definedCaveats))
 	for name, c := range definedCaveats {
 		e, err := caveats.EnvForVariables(c.env)
 		if err != nil {
@@ -832,7 +832,7 @@ func writeCaveatedTuples(ctx context.Context, ds datastore.Datastore, schema str
 		if err != nil {
 			return datastore.NoRevision, err
 		}
-		compiledCaveats = append(compiledCaveats, &core.Caveat{Name: name, Expression: serialized})
+		compiledCaveats = append(compiledCaveats, &core.CaveatDefinition{Name: name, SerializedExpression: serialized})
 	}
 
 	return ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

@@ -382,9 +382,9 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 
 	// TODO(vroldanbet) temporarily use Datastore to write caveat until we expose it via Schema API
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error {
-		return transaction.WriteCaveats([]*core.Caveat{{
-			Name:       "test",
-			Expression: []byte{},
+		return transaction.WriteCaveats([]*core.CaveatDefinition{{
+			Name:                 "test",
+			SerializedExpression: []byte{},
 		}})
 	})
 	req.NoError(err)

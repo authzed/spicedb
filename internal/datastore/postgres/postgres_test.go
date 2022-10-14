@@ -685,14 +685,14 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			},
 		}))
 
-		require.NoError(rwt.WriteCaveats([]*core.Caveat{
+		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
 			{
-				Name:       "one_caveat",
-				Expression: []byte{0x0a, 0x0c},
+				Name:                 "one_caveat",
+				SerializedExpression: []byte{0x0a, 0x0c},
 			},
 			{
-				Name:       "two_caveat",
-				Expression: []byte{0x0a},
+				Name:                 "two_caveat",
+				SerializedExpression: []byte{0x0a},
 			},
 		}))
 
@@ -731,10 +731,10 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 					Tuple:     tuple.MustParse("two_namespace:1#parent@two_namespace:2#..."),
 				},
 			}))
-			require.NoError(rwt.WriteCaveats([]*core.Caveat{
+			require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
 				{
-					Name:       "two_caveat",
-					Expression: []byte{0x0b},
+					Name:                 "two_caveat",
+					SerializedExpression: []byte{0x0b},
 				},
 			}))
 			return nil
@@ -777,10 +777,10 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			},
 		}))
 		require.NoError(rwt.DeleteCaveats([]string{"one_caveat"}))
-		require.NoError(rwt.WriteCaveats([]*core.Caveat{
+		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
 			{
-				Name:       "three_caveat",
-				Expression: []byte{0x0a},
+				Name:                 "three_caveat",
+				SerializedExpression: []byte{0x0a},
 			},
 		}))
 
@@ -846,10 +846,10 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 		}))
 
 		require.NoError(rwt.DeleteCaveats([]string{"two_caveat"}))
-		require.NoError(rwt.WriteCaveats([]*core.Caveat{
+		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
 			{
-				Name:       "four_caveat",
-				Expression: []byte{0x0a},
+				Name:                 "four_caveat",
+				SerializedExpression: []byte{0x0a},
 			},
 		}))
 		return nil
@@ -913,10 +913,10 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 		}))
 
 		require.NoError(rwt.DeleteCaveats([]string{"three_caveat"}))
-		require.NoError(rwt.WriteCaveats([]*core.Caveat{
+		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
 			{
-				Name:       "five_caveat",
-				Expression: []byte{0x0a},
+				Name:                 "five_caveat",
+				SerializedExpression: []byte{0x0a},
 			},
 		}))
 		return nil

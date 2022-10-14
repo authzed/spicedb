@@ -42,6 +42,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	cr := ds.SnapshotReader(rev)
 	cv, readRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
+
 	foundDiff := cmp.Diff(coreCaveat, cv, protocmp.Transform())
 	req.Empty(foundDiff)
 	req.Equal(rev, readRev)
@@ -50,6 +51,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	cvs, err := cr.ListCaveats(ctx)
 	req.NoError(err)
 	req.Len(cvs, 1)
+
 	foundDiff = cmp.Diff(coreCaveat, cvs[0], protocmp.Transform())
 	req.Empty(foundDiff)
 
@@ -166,9 +168,9 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	// Modify caveat and update
-	oldExpression := coreCaveat.Expression
+	oldExpression := coreCaveat.SerializedExpression
 	newExpression := []byte{0x0a}
-	coreCaveat.Expression = newExpression
+	coreCaveat.SerializedExpression = newExpression
 	newRev, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
 
@@ -176,14 +178,14 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	cr := ds.SnapshotReader(newRev)
 	cv, fetchedRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
-	req.Equal(newExpression, cv.Expression)
+	req.Equal(newExpression, cv.SerializedExpression)
 	req.Equal(newRev, fetchedRev)
 
 	// check previous revision
 	cr = ds.SnapshotReader(oldRev)
 	cv, fetchedRev, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
-	req.Equal(oldExpression, cv.Expression)
+	req.Equal(oldExpression, cv.SerializedExpression)
 	req.Equal(oldRev, fetchedRev)
 }
 
@@ -250,7 +252,7 @@ func createTestCaveatedTuple(t *testing.T, tplString string, caveatName string) 
 	return tpl
 }
 
-func writeCaveats(ctx context.Context, ds datastore.Datastore, coreCaveat ...*core.Caveat) (datastore.Revision, error) {
+func writeCaveats(ctx context.Context, ds datastore.Datastore, coreCaveat ...*core.CaveatDefinition) (datastore.Revision, error) {
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		return tx.WriteCaveats(coreCaveat)
 	})
@@ -260,7 +262,7 @@ func writeCaveats(ctx context.Context, ds datastore.Datastore, coreCaveat ...*co
 	return rev, err
 }
 
-func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.Caveat) (datastore.Revision, error) {
+func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.CaveatDefinition) (datastore.Revision, error) {
 	rev, err := writeCaveats(ctx, ds, coreCaveat)
 	if err != nil {
 		return datastore.NoRevision, err
@@ -268,15 +270,15 @@ func writeCaveat(ctx context.Context, ds datastore.Datastore, coreCaveat *core.C
 	return rev, nil
 }
 
-func createCoreCaveat(t *testing.T) *core.Caveat {
+func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 	t.Helper()
 	c := createCompiledCaveat(t)
 	cBytes, err := c.Serialize()
 	require.NoError(t, err)
 
-	coreCaveat := &core.Caveat{
-		Name:       c.Name(),
-		Expression: cBytes,
+	coreCaveat := &core.CaveatDefinition{
+		Name:                 c.Name(),
+		SerializedExpression: cBytes,
 	}
 	require.NoError(t, err)
 

@@ -66,17 +66,17 @@ func (m *ContextualizedCaveat) CloneGenericVT() proto.Message {
 	return m.CloneVT()
 }
 
-func (m *Caveat) CloneVT() *Caveat {
+func (m *CaveatDefinition) CloneVT() *CaveatDefinition {
 	if m == nil {
-		return (*Caveat)(nil)
+		return (*CaveatDefinition)(nil)
 	}
-	r := &Caveat{
+	r := &CaveatDefinition{
 		Name: m.Name,
 	}
-	if rhs := m.Expression; rhs != nil {
+	if rhs := m.SerializedExpression; rhs != nil {
 		tmpBytes := make([]byte, len(rhs))
 		copy(tmpBytes, rhs)
-		r.Expression = tmpBytes
+		r.SerializedExpression = tmpBytes
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -85,7 +85,7 @@ func (m *Caveat) CloneVT() *Caveat {
 	return r
 }
 
-func (m *Caveat) CloneGenericVT() proto.Message {
+func (m *CaveatDefinition) CloneGenericVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -882,7 +882,7 @@ func (m *ContextualizedCaveat) MarshalToSizedBufferVT(dAtA []byte) (int, error) 
 	return len(dAtA) - i, nil
 }
 
-func (m *Caveat) MarshalVT() (dAtA []byte, err error) {
+func (m *CaveatDefinition) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -895,12 +895,12 @@ func (m *Caveat) MarshalVT() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Caveat) MarshalToVT(dAtA []byte) (int, error) {
+func (m *CaveatDefinition) MarshalToVT(dAtA []byte) (int, error) {
 	size := m.SizeVT()
 	return m.MarshalToSizedBufferVT(dAtA[:size])
 }
 
-func (m *Caveat) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+func (m *CaveatDefinition) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
@@ -912,10 +912,10 @@ func (m *Caveat) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.Expression) > 0 {
-		i -= len(m.Expression)
-		copy(dAtA[i:], m.Expression)
-		i = encodeVarint(dAtA, i, uint64(len(m.Expression)))
+	if len(m.SerializedExpression) > 0 {
+		i -= len(m.SerializedExpression)
+		copy(dAtA[i:], m.SerializedExpression)
+		i = encodeVarint(dAtA, i, uint64(len(m.SerializedExpression)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -2540,7 +2540,7 @@ func (m *ContextualizedCaveat) SizeVT() (n int) {
 	return n
 }
 
-func (m *Caveat) SizeVT() (n int) {
+func (m *CaveatDefinition) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -2550,7 +2550,7 @@ func (m *Caveat) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.Expression)
+	l = len(m.SerializedExpression)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -3484,7 +3484,7 @@ func (m *ContextualizedCaveat) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *Caveat) UnmarshalVT(dAtA []byte) error {
+func (m *CaveatDefinition) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -3507,10 +3507,10 @@ func (m *Caveat) UnmarshalVT(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Caveat: wiretype end group for non-group")
+			return fmt.Errorf("proto: CaveatDefinition: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Caveat: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: CaveatDefinition: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -3547,7 +3547,7 @@ func (m *Caveat) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Expression", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field SerializedExpression", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -3574,9 +3574,9 @@ func (m *Caveat) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Expression = append(m.Expression[:0], dAtA[iNdEx:postIndex]...)
-			if m.Expression == nil {
-				m.Expression = []byte{}
+			m.SerializedExpression = append(m.SerializedExpression[:0], dAtA[iNdEx:postIndex]...)
+			if m.SerializedExpression == nil {
+				m.SerializedExpression = []byte{}
 			}
 			iNdEx = postIndex
 		default:

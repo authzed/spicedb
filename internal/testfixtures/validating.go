@@ -127,7 +127,7 @@ func (vsr validatingSnapshotReader) ReverseQueryRelationships(ctx context.Contex
 	return vsr.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
-func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
+func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	read, createdAt, err := vsr.delegate.ReadCaveatByName(ctx, name)
 	if err != nil {
 		return read, createdAt, err
@@ -137,7 +137,7 @@ func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name s
 	return read, createdAt, err
 }
 
-func (vsr validatingSnapshotReader) ListCaveats(ctx context.Context) ([]*core.Caveat, error) {
+func (vsr validatingSnapshotReader) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
 	read, err := vsr.delegate.ListCaveats(ctx)
 	if err != nil {
 		return nil, err
@@ -199,11 +199,11 @@ func (vrwt validatingReadWriteTransaction) DeleteRelationships(filter *v1.Relati
 	return vrwt.delegate.DeleteRelationships(filter)
 }
 
-func (vrwt validatingReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.Caveat, datastore.Revision, error) {
+func (vrwt validatingReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	return vrwt.delegate.ReadCaveatByName(ctx, name)
 }
 
-func (vrwt validatingReadWriteTransaction) WriteCaveats(caveats []*core.Caveat) error {
+func (vrwt validatingReadWriteTransaction) WriteCaveats(caveats []*core.CaveatDefinition) error {
 	return vrwt.delegate.WriteCaveats(caveats)
 }
 

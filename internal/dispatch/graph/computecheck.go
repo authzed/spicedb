@@ -124,7 +124,7 @@ func runExpression(
 			return nil, err
 		}
 
-		compiled, err := caveats.DeserializeCaveat(caveat.Expression)
+		compiled, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
 		if err != nil {
 			return nil, err
 		}

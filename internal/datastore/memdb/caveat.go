@@ -19,14 +19,14 @@ type caveat struct {
 	revision   datastore.Revision
 }
 
-func (c *caveat) Unwrap() *core.Caveat {
-	return &core.Caveat{
-		Name:       c.name,
-		Expression: c.expression,
+func (c *caveat) Unwrap() *core.CaveatDefinition {
+	return &core.CaveatDefinition{
+		Name:                 c.name,
+		SerializedExpression: c.expression,
 	}
 }
 
-func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.Caveat, datastore.Revision, error) {
+func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	if !r.enableCaveats {
 		return nil, datastore.NoRevision, fmt.Errorf("caveats are not enabled")
 	}
@@ -53,7 +53,7 @@ func (r *memdbReader) readCaveatByName(tx *memdb.Txn, name string) (*caveat, dat
 	return cvt, cvt.revision, nil
 }
 
-func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*core.Caveat, datastore.Revision, error) {
+func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	c, rev, err := r.readCaveatByName(tx, name)
 	if err != nil {
 		return nil, datastore.NoRevision, err
@@ -61,7 +61,7 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 	return c.Unwrap(), rev, nil
 }
 
-func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.Caveat, error) {
+func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.CaveatDefinition, error) {
 	if !r.enableCaveats {
 		return nil, fmt.Errorf("caveats are not enabled")
 	}
@@ -74,7 +74,7 @@ func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.Caveat, error) {
 		return nil, err
 	}
 
-	var caveats []*core.Caveat
+	var caveats []*core.CaveatDefinition
 	it, err := tx.LowerBound(tableCaveats, indexID)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.Caveat, error) {
 	return caveats, nil
 }
 
-func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) error {
+func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.CaveatDefinition) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
@@ -97,7 +97,7 @@ func (rwt *memdbReadWriteTx) WriteCaveats(caveats []*core.Caveat) error {
 	return rwt.writeCaveat(tx, caveats)
 }
 
-func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) error {
+func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDefinition) error {
 	caveatNames := util.NewSet[string]()
 	for _, coreCaveat := range caveats {
 		if !caveatNames.Add(coreCaveat.Name) {
@@ -105,7 +105,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.Caveat) 
 		}
 		c := caveat{
 			name:       coreCaveat.Name,
-			expression: coreCaveat.Expression,
+			expression: coreCaveat.SerializedExpression,
 			revision:   rwt.newRevision,
 		}
 		if err := tx.Insert(tableCaveats, &c); err != nil {
