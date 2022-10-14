@@ -35,22 +35,27 @@ const (
 	tableNamespace   = "namespace_config"
 	tableTransaction = "relation_tuple_transaction"
 	tableTuple       = "relation_tuple"
+	tableCaveat      = "caveat"
 
 	colCreatedTxnDeprecated = "created_transaction"
 	colDeletedTxnDeprecated = "deleted_transaction"
 
-	colXID              = "xid"
-	colTimestamp        = "timestamp"
-	colNamespace        = "namespace"
-	colConfig           = "serialized_config"
-	colCreatedXid       = "created_xid"
-	colDeletedXid       = "deleted_xid"
-	colSnapshot         = "snapshot"
-	colObjectID         = "object_id"
-	colRelation         = "relation"
-	colUsersetNamespace = "userset_namespace"
-	colUsersetObjectID  = "userset_object_id"
-	colUsersetRelation  = "userset_relation"
+	colXID               = "xid"
+	colTimestamp         = "timestamp"
+	colNamespace         = "namespace"
+	colConfig            = "serialized_config"
+	colCreatedXid        = "created_xid"
+	colDeletedXid        = "deleted_xid"
+	colSnapshot          = "snapshot"
+	colObjectID          = "object_id"
+	colRelation          = "relation"
+	colUsersetNamespace  = "userset_namespace"
+	colUsersetObjectID   = "userset_object_id"
+	colUsersetRelation   = "userset_relation"
+	colCaveatName        = "name"
+	colCaveatExpression  = "expression"
+	colCaveatContextName = "caveat_name"
+	colCaveatContext     = "caveat_context"
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 
@@ -282,7 +287,7 @@ func (pgd *pgDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader 
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
+		Executor:         pgxcommon.NewPGXExecutor(createTxFunc, true),
 		UsersetBatchSize: pgd.usersetBatchSize,
 	}
 
@@ -327,7 +332,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
+				Executor:         pgxcommon.NewPGXExecutor(longLivedTx, true),
 				UsersetBatchSize: pgd.usersetBatchSize,
 			}
 

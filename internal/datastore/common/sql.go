@@ -18,6 +18,9 @@ import (
 )
 
 var (
+	// CaveatNameKey is a tracing attribute representing a caveat name
+	CaveatNameKey = attribute.Key("authzed.com/spicedb/sql/caveatName")
+
 	// ObjNamespaceNameKey is a tracing attribute representing the resource
 	// object type.
 	ObjNamespaceNameKey = attribute.Key("authzed.com/spicedb/sql/objNamespaceName")

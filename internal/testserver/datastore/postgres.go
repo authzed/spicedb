@@ -64,7 +64,9 @@ func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigrati
 	uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, port)
 	require.NoError(t, pool.Retry(func() error {
 		var err error
-		builder.conn, err = pgx.Connect(context.Background(), uri)
+		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
+		defer cancelConnect()
+		builder.conn, err = pgx.Connect(ctx, uri)
 		if err != nil {
 			return err
 		}

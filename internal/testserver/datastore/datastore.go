@@ -5,12 +5,15 @@ package datastore
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
+
+const dockerBootTimeout = 10 * time.Second
 
 // InitFunc initializes a datastore instance from a uri that has been
 // generated from a TestDatastoreBuilder

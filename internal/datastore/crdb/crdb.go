@@ -213,7 +213,7 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
+		Executor:         pgxcommon.NewPGXExecutor(createTxFunc, false),
 		UsersetBatchSize: cds.usersetBatchSize,
 	}
 
@@ -234,7 +234,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 			}
 
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
+				Executor:         pgxcommon.NewPGXExecutor(longLivedTx, false),
 				UsersetBatchSize: cds.usersetBatchSize,
 			}
 

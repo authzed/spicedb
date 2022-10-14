@@ -1,12 +1,10 @@
-package memdb
+package test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
-
-	"github.com/google/go-cmp/cmp"
-	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -15,24 +13,27 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-func TestWriteReadCaveat(t *testing.T) {
+func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
-
-	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
 	req.NoError(err)
 
-	// Dupes in same transaction are treated as upserts
-	coreCaveat := createCoreCaveat(t)
+	skipIfNotCaveatStorer(t, ds)
+
+	// Dupes in same transaction are fail to be written
 	ctx := context.Background()
+	coreCaveat := createCoreCaveat(t)
 	_, err = writeCaveats(ctx, ds, coreCaveat, coreCaveat)
-	req.NoError(err)
+	req.Error(err)
 
-	// Succeeds upserting an existing caveat
+	// Succeeds writing a caveat
 	rev, err := writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
 
@@ -40,26 +41,39 @@ func TestWriteReadCaveat(t *testing.T) {
 	cr, ok := ds.SnapshotReader(rev).(datastore.CaveatReader)
 	req.True(ok, "expected a CaveatStorer value")
 
-	cv, err := cr.ReadCaveatByName(coreCaveat.Name)
+	cv, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	foundDiff := cmp.Diff(coreCaveat, cv, protocmp.Transform())
 	req.Empty(foundDiff)
 
+	// Delete Caveat
+	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		cs := tx.(datastore.CaveatStorer)
+		return cs.DeleteCaveats([]*core.Caveat{coreCaveat})
+	})
+	req.NoError(err)
+	cr = ds.SnapshotReader(rev).(datastore.CaveatReader)
+	_, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	req.ErrorAs(err, &datastore.ErrCaveatNameNotFound{})
+
 	// Returns an error if caveat name or ID does not exist
-	_, err = cr.ReadCaveatByName("doesnotexist")
+	_, err = cr.ReadCaveatByName(ctx, "doesnotexist")
 	req.ErrorAs(err, &datastore.ErrCaveatNameNotFound{})
 }
 
-func TestWriteCaveatedTuple(t *testing.T) {
+func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
-	ctx := context.Background()
+	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
+	req.NoError(err)
 
-	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	skipIfNotCaveatStorer(t, ds)
+
 	req.NoError(err)
 	sds, _ := testfixtures.StandardDatastoreWithSchema(ds, req)
 
 	// Store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)
+	ctx := context.Background()
 	_, err = writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
 
@@ -82,11 +96,12 @@ func TestWriteCaveatedTuple(t *testing.T) {
 	req.NoError(err)
 }
 
-func TestCaveatSnapshotReads(t *testing.T) {
+func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
-
-	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
 	req.NoError(err)
+
+	skipIfNotCaveatStorer(t, ds)
 
 	// Write an initial caveat
 	coreCaveat := createCoreCaveat(t)
@@ -103,17 +118,67 @@ func TestCaveatSnapshotReads(t *testing.T) {
 
 	// check most recent revision
 	cr, ok := ds.SnapshotReader(newRev).(datastore.CaveatReader)
-	req.True(ok, "expected a CaveatStorer value")
-	cv, err := cr.ReadCaveatByName(coreCaveat.Name)
+	req.True(ok, "expected a CaveatReader value")
+	cv, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(newExpression, cv.Expression)
 
 	// check previous revision
 	cr, ok = ds.SnapshotReader(oldRev).(datastore.CaveatReader)
-	req.True(ok, "expected a CaveatStorer value")
-	cv, err = cr.ReadCaveatByName(coreCaveat.Name)
+	req.True(ok, "expected a CaveatReader value")
+	cv, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(oldExpression, cv.Expression)
+}
+
+func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
+	req := require.New(t)
+	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 16)
+	req.NoError(err)
+
+	skipIfNotCaveatStorer(t, ds)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Write caveat and caveated relationship
+	coreCaveat := createCoreCaveat(t)
+	_, err = writeCaveat(ctx, ds, coreCaveat)
+	req.NoError(err)
+
+	// TODO bug: Watch API won't send updates i revision used is the first revision
+	lowestRevision, err := ds.HeadRevision(ctx)
+	req.NoError(err)
+	chanRevisionChanges, chanErr := ds.Watch(ctx, lowestRevision)
+	req.Zero(len(chanErr))
+
+	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", coreCaveat.Name)
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	req.NoError(err)
+
+	// Caveated Relationship should come through Watch API
+
+	changeWait := time.NewTimer(5 * time.Second)
+	select {
+	case change, ok := <-chanRevisionChanges:
+		req.True(ok)
+		req.Len(change.Changes, 1)
+		for _, update := range change.Changes {
+			foundDiff := cmp.Diff(tpl, update.Tuple, protocmp.Transform())
+			req.Empty(foundDiff)
+		}
+	case <-changeWait.C:
+		req.Fail("timed out waiting for caveated relationship via Watch API")
+	}
+}
+
+func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
+	ctx := context.Background()
+	ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { //nolint: errcheck
+		if cs, ok := transaction.(datastore.CaveatStorer); !ok {
+			t.Skip("datastore does not implement CaveatStorer interface", cs)
+		}
+		return fmt.Errorf("force rollback of unnecesary tx")
+	})
 }
 
 func createTestCaveatedTuple(t *testing.T, tplString string, caveatName string) *core.RelationTuple {

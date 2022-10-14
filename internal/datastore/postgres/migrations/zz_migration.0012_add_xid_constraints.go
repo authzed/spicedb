@@ -29,6 +29,7 @@ var addXIDConstraints = []string{
 	`ALTER TABLE relation_tuple_transaction ALTER COLUMN snapshot SET NOT NULL;`,
 	`ALTER TABLE relation_tuple ALTER COLUMN created_xid SET NOT NULL;`,
 	`ALTER TABLE namespace_config ALTER COLUMN created_xid SET NOT NULL;`,
+	`ALTER TABLE caveat ALTER COLUMN created_xid SET NOT NULL;`,
 	`ALTER TABLE relation_tuple_transaction
 		DROP CONSTRAINT pk_rttx,
 		ADD CONSTRAINT pk_rttx PRIMARY KEY USING INDEX ix_rttx_pk;`,
@@ -39,6 +40,10 @@ var addXIDConstraints = []string{
 		DROP CONSTRAINT pk_relation_tuple,
 		ADD CONSTRAINT pk_relation_tuple PRIMARY KEY USING INDEX ix_relation_tuple_pk,
 		ADD CONSTRAINT uq_relation_tuple_living_xid UNIQUE USING INDEX ix_relation_tuple_living;`,
+	`ALTER TABLE caveat
+		DROP CONSTRAINT pk_caveat_v1,
+		ADD CONSTRAINT pk_caveat_v2 PRIMARY KEY USING INDEX ix_caveat_living,
+		ADD CONSTRAINT uq_caveat_v2 UNIQUE USING INDEX ix_caveat_unique;`,
 }
 
 func init() {

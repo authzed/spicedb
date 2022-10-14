@@ -48,6 +48,8 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
 	)
 
 	// TODO remove once the ID->XID migrations are all complete
@@ -58,6 +60,8 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
 		colCreatedTxnDeprecated,
 	)
 
@@ -94,15 +98,17 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 	for _, mut := range mutations {
 		tpl := mut.Tuple
 
-		if tpl.Caveat != nil {
-			panic("caveats not currently supported in Postgres datastore")
-		}
-
 		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {
 			deleteClauses = append(deleteClauses, exactRelationshipClause(tpl))
 		}
 
 		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_CREATE {
+			var caveatName string
+			var caveatContext map[string]any
+			if tpl.Caveat != nil {
+				caveatName = tpl.Caveat.CaveatName
+				caveatContext = tpl.Caveat.Context.AsMap()
+			}
 			valuesToWrite := []interface{}{
 				tpl.ResourceAndRelation.Namespace,
 				tpl.ResourceAndRelation.ObjectId,
@@ -110,6 +116,8 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 				tpl.Subject.Namespace,
 				tpl.Subject.ObjectId,
 				tpl.Subject.Relation,
+				caveatName,
+				caveatContext, // PGX driver serializes map[string]any to JSONB type columns
 			}
 
 			// TODO remove once the ID->XID migrations are all complete

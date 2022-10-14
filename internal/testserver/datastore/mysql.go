@@ -87,7 +87,9 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 		if err != nil {
 			return err
 		}
-		err = builder.db.Ping()
+		ctx, cancelPing := context.WithTimeout(context.Background(), dockerBootTimeout)
+		defer cancelPing()
+		err = builder.db.PingContext(ctx)
 		if err != nil {
 			return err
 		}
