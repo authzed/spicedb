@@ -18,7 +18,7 @@ import (
 var (
 	writeCaveat            = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition)
 	writeCaveatDeprecated  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition, colCreatedTxnDeprecated)
-	listCaveat             = psql.Select(colCaveatDefinition).From(tableCaveat)
+	listCaveat             = psql.Select(colCaveatDefinition).From(tableCaveat).OrderBy(colCaveatName)
 	readCaveat             = psql.Select(colCaveatDefinition, colCreatedXid).From(tableCaveat)
 	readCaveatDeprecated   = psql.Select(colCaveatDefinition, colCreatedTxnDeprecated).From(tableCaveat)
 	deleteCaveat           = psql.Update(tableCaveat).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
@@ -60,11 +60,18 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	return &def, rev, err
 }
 
-func (r *pgReader) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
-	ctx, span := tracer.Start(ctx, "ListCaveats")
+func (r *pgReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+	ctx, span := tracer.Start(ctx, "ListCaveats", trace.WithAttributes(
+		attribute.StringSlice("names", caveatNames),
+	))
 	defer span.End()
 
-	filteredListCaveat := r.filterer(listCaveat)
+	caveatsWithNames := listCaveat
+	if len(caveatNames) > 0 {
+		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
+	}
+
+	filteredListCaveat := r.filterer(caveatsWithNames)
 	sql, args, err := filteredListCaveat.ToSql()
 	if err != nil {
 		return nil, err

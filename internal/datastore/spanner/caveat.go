@@ -12,7 +12,7 @@ func (sr spannerReader) ReadCaveatByName(ctx context.Context, name string) (*cor
 	return nil, datastore.NoRevision, fmt.Errorf("unimplemented caveat support in datastore")
 }
 
-func (sr spannerReader) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+func (sr spannerReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
 	return nil, fmt.Errorf("unimplemented caveat support in datastore")
 }
 

@@ -31,11 +31,14 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	// Dupes in same transaction are fail to be written
 	ctx := context.Background()
 	coreCaveat := createCoreCaveat(t)
+	coreCaveat.Name = "a"
 	_, err = writeCaveats(ctx, ds, coreCaveat, coreCaveat)
 	req.Error(err)
 
-	// Succeeds writing a caveat
-	rev, err := writeCaveat(ctx, ds, coreCaveat)
+	// Succeeds writing various caveats
+	anotherCoreCaveat := createCoreCaveat(t)
+	anotherCoreCaveat.Name = "b"
+	rev, err := writeCaveats(ctx, ds, coreCaveat, anotherCoreCaveat)
 	req.NoError(err)
 
 	// The caveat can be looked up by name
@@ -47,13 +50,28 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Empty(foundDiff)
 	req.Equal(rev, readRev)
 
-	// All caveats can be listed
+	// All caveats can be listed when no arg is provided
 	cvs, err := cr.ListCaveats(ctx)
+	req.NoError(err)
+	req.Len(cvs, 2)
+
+	foundDiff = cmp.Diff(coreCaveat, cvs[0], protocmp.Transform())
+	req.Empty(foundDiff)
+	foundDiff = cmp.Diff(anotherCoreCaveat, cvs[1], protocmp.Transform())
+	req.Empty(foundDiff)
+
+	// All caveats can be filtered by names
+	cvs, err = cr.ListCaveats(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Len(cvs, 1)
 
 	foundDiff = cmp.Diff(coreCaveat, cvs[0], protocmp.Transform())
 	req.Empty(foundDiff)
+
+	// Non-existing names returns no caveat
+	cvs, err = cr.ListCaveats(ctx, "doesnotexist")
+	req.NoError(err)
+	req.Empty(cvs)
 
 	// Delete Caveat
 	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {

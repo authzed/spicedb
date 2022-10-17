@@ -64,7 +64,7 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 	return unwrapped, rev, nil
 }
 
-func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.CaveatDefinition, error) {
+func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
 	if !r.enableCaveats {
 		return nil, fmt.Errorf("caveats are not enabled")
 	}
@@ -83,8 +83,13 @@ func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.CaveatDefinition, 
 		return nil, err
 	}
 
+	setOfCaveats := util.NewSet(caveatNames...)
 	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
-		definition, err := foundRaw.(*caveat).Unwrap()
+		rawCaveat := foundRaw.(*caveat)
+		if !setOfCaveats.IsEmpty() && !setOfCaveats.Has(rawCaveat.name) {
+			continue
+		}
+		definition, err := rawCaveat.Unwrap()
 		if err != nil {
 			return nil, err
 		}
