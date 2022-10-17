@@ -139,12 +139,12 @@ message ReachableResource {
     HAS_PERMISSION = 1;
   }
 
-  repeated string resource_ids = 1;
+  string resource_id = 1;
   ResultStatus result_status = 2;
 }
 
 message DispatchReachableResourcesResponse {
-  ReachableResource resource = 1;
+  repeated ReachableResource resources = 1;
   ResponseMeta metadata = 2;
 }
 

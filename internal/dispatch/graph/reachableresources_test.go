@@ -161,14 +161,14 @@ func TestSimpleReachableResources(t *testing.T) {
 
 			results := []reachableResource{}
 			for _, streamResult := range stream.Results() {
-				for _, rid := range streamResult.Resource.ResourceIds {
+				for _, found := range streamResult.Resources {
 					results = append(results, reachableResource{
 						tuple.StringONR(&core.ObjectAndRelation{
 							Namespace: tc.start.Namespace,
-							ObjectId:  rid,
+							ObjectId:  found.ResourceId,
 							Relation:  tc.start.Relation,
 						}),
-						streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
+						found.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
 					})
 				}
 			}
@@ -273,10 +273,10 @@ func BenchmarkReachableResources(b *testing.B) {
 
 				results := []*core.ObjectAndRelation{}
 				for _, streamResult := range stream.Results() {
-					for _, rid := range streamResult.Resource.ResourceIds {
+					for _, found := range streamResult.Resources {
 						results = append(results, &core.ObjectAndRelation{
 							Namespace: tc.start.Namespace,
-							ObjectId:  rid,
+							ObjectId:  found.ResourceId,
 							Relation:  tc.start.Relation,
 						})
 					}

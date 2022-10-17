@@ -63,13 +63,13 @@ func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesRespons
 		ls.depthRequired = max(result.Metadata.DepthRequired, ls.depthRequired)
 	}()
 
-	for _, id := range result.Resource.ResourceIds {
-		if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
-			ls.checker.AddResult(id)
+	for _, found := range result.Resources {
+		if found.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
+			ls.checker.AddResult(found.ResourceId)
 			continue
 		}
 
-		ls.checker.QueueToCheck(id)
+		ls.checker.QueueToCheck(found.ResourceId)
 	}
 	return nil
 }

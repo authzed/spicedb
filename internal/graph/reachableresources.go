@@ -60,12 +60,17 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	// If the resource type matches the subject type, yield directly.
 	if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
 		req.SubjectRelation.Relation == req.ResourceRelation.Relation {
-		err := stream.Publish(&v1.DispatchReachableResourcesResponse{
-			Resource: &v1.ReachableResource{
-				ResourceIds:  req.SubjectIds,
+		resources := make([]*v1.ReachableResource, 0, len(req.SubjectIds))
+		for _, resourceID := range req.SubjectIds {
+			resources = append(resources, &v1.ReachableResource{
+				ResourceId:   resourceID,
 				ResultStatus: v1.ReachableResource_HAS_PERMISSION,
-			},
-			Metadata: emptyMetadata,
+			})
+		}
+
+		err := stream.Publish(&v1.DispatchReachableResourcesResponse{
+			Resources: resources,
+			Metadata:  emptyMetadata,
 		})
 		if err != nil {
 			return err
@@ -369,12 +374,17 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 				status = v1.ReachableResource_HAS_PERMISSION
 			}
 
-			return parentStream.Publish(&v1.DispatchReachableResourcesResponse{
-				Resource: &v1.ReachableResource{
-					ResourceIds:  toDispatchResourceIds,
+			resources := make([]*v1.ReachableResource, 0, len(toDispatchResourceIds))
+			for _, resourceID := range toDispatchResourceIds {
+				resources = append(resources, &v1.ReachableResource{
+					ResourceId:   resourceID,
 					ResultStatus: status,
-				},
-				Metadata: emptyMetadata,
+				})
+			}
+
+			return parentStream.Publish(&v1.DispatchReachableResourcesResponse{
+				Resources: resources,
+				Metadata:  emptyMetadata,
 			})
 		}
 
@@ -388,19 +398,23 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 			Stream: parentStream,
 			Ctx:    ctx,
 			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
+				resources := result.Resources
+
 				// If the entrypoint is not a direct result, then a check is required to determine
 				// whether the resource actually has permission.
-				status := result.Resource.ResultStatus
 				if !entrypoint.IsDirectResult() {
-					status = v1.ReachableResource_REQUIRES_CHECK
+					resources = make([]*v1.ReachableResource, 0, len(result.Resources))
+					for _, foundResource := range result.Resources {
+						resources = append(resources, &v1.ReachableResource{
+							ResourceId:   foundResource.ResourceId,
+							ResultStatus: v1.ReachableResource_REQUIRES_CHECK,
+						})
+					}
 				}
 
 				return &v1.DispatchReachableResourcesResponse{
-					Resource: &v1.ReachableResource{
-						ResourceIds:  result.Resource.ResourceIds,
-						ResultStatus: status,
-					},
-					Metadata: addCallToResponseMetadata(result.Metadata),
+					Resources: resources,
+					Metadata:  addCallToResponseMetadata(result.Metadata),
 				}, true, nil
 			},
 		}

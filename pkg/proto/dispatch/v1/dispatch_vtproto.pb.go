@@ -361,12 +361,8 @@ func (m *ReachableResource) CloneVT() *ReachableResource {
 		return (*ReachableResource)(nil)
 	}
 	r := &ReachableResource{
+		ResourceId:   m.ResourceId,
 		ResultStatus: m.ResultStatus,
-	}
-	if rhs := m.ResourceIds; rhs != nil {
-		tmpContainer := make([]string, len(rhs))
-		copy(tmpContainer, rhs)
-		r.ResourceIds = tmpContainer
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -384,8 +380,14 @@ func (m *DispatchReachableResourcesResponse) CloneVT() *DispatchReachableResourc
 		return (*DispatchReachableResourcesResponse)(nil)
 	}
 	r := &DispatchReachableResourcesResponse{
-		Resource: m.Resource.CloneVT(),
 		Metadata: m.Metadata.CloneVT(),
+	}
+	if rhs := m.Resources; rhs != nil {
+		tmpContainer := make([]*ReachableResource, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.Resources = tmpContainer
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -2075,14 +2077,12 @@ func (m *ReachableResource) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x10
 	}
-	if len(m.ResourceIds) > 0 {
-		for iNdEx := len(m.ResourceIds) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.ResourceIds[iNdEx])
-			copy(dAtA[i:], m.ResourceIds[iNdEx])
-			i = encodeVarint(dAtA, i, uint64(len(m.ResourceIds[iNdEx])))
-			i--
-			dAtA[i] = 0xa
-		}
+	if len(m.ResourceId) > 0 {
+		i -= len(m.ResourceId)
+		copy(dAtA[i:], m.ResourceId)
+		i = encodeVarint(dAtA, i, uint64(len(m.ResourceId)))
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -2127,15 +2127,17 @@ func (m *DispatchReachableResourcesResponse) MarshalToSizedBufferVT(dAtA []byte)
 		i--
 		dAtA[i] = 0x12
 	}
-	if m.Resource != nil {
-		size, err := m.Resource.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
+	if len(m.Resources) > 0 {
+		for iNdEx := len(m.Resources) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Resources[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0xa
 		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -2948,11 +2950,9 @@ func (m *ReachableResource) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if len(m.ResourceIds) > 0 {
-		for _, s := range m.ResourceIds {
-			l = len(s)
-			n += 1 + l + sov(uint64(l))
-		}
+	l = len(m.ResourceId)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
 	}
 	if m.ResultStatus != 0 {
 		n += 1 + sov(uint64(m.ResultStatus))
@@ -2967,9 +2967,11 @@ func (m *DispatchReachableResourcesResponse) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Resource != nil {
-		l = m.Resource.SizeVT()
-		n += 1 + l + sov(uint64(l))
+	if len(m.Resources) > 0 {
+		for _, e := range m.Resources {
+			l = e.SizeVT()
+			n += 1 + l + sov(uint64(l))
+		}
 	}
 	if m.Metadata != nil {
 		l = m.Metadata.SizeVT()
@@ -4972,7 +4974,7 @@ func (m *ReachableResource) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ResourceIds", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceId", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -5000,7 +5002,7 @@ func (m *ReachableResource) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ResourceIds = append(m.ResourceIds, string(dAtA[iNdEx:postIndex]))
+			m.ResourceId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
 			if wireType != 0 {
@@ -5074,7 +5076,7 @@ func (m *DispatchReachableResourcesResponse) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Resource", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Resources", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -5101,10 +5103,8 @@ func (m *DispatchReachableResourcesResponse) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Resource == nil {
-				m.Resource = &ReachableResource{}
-			}
-			if err := m.Resource.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+			m.Resources = append(m.Resources, &ReachableResource{})
+			if err := m.Resources[len(m.Resources)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
