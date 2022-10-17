@@ -298,7 +298,7 @@ func rewriteACLError(ctx context.Context, err error) error {
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &maingraph.ErrAlwaysFail{}):
-		log.Ctx(ctx).Err(err)
+		log.Ctx(ctx).Err(err).Msg("internal graph error in devcontext")
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 
 	default:
@@ -306,7 +306,7 @@ func rewriteACLError(ctx context.Context, err error) error {
 			return status.Errorf(codes.InvalidArgument, "%s", err)
 		}
 
-		log.Ctx(ctx).Err(err)
+		log.Ctx(ctx).Err(err).Msg("unexpected graph error in devcontext")
 		return err
 	}
 }

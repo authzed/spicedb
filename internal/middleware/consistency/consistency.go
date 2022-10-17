@@ -242,7 +242,7 @@ func rewriteDatastoreError(ctx context.Context, err error) error {
 		return shared.ErrServiceReadOnly
 
 	default:
-		log.Ctx(ctx).Err(err)
+		log.Ctx(ctx).Err(err).Msg("unexpected consistency middleware error")
 		return err
 	}
 }

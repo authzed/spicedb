@@ -229,7 +229,7 @@ func rewriteError(ctx context.Context, err error) error {
 	case errors.As(err, &graph.ErrRelationMissingTypeInfo{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 	case errors.As(err, &graph.ErrAlwaysFail{}):
-		log.Ctx(ctx).Err(err)
+		log.Ctx(ctx).Err(err).Msg("received internal error")
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 
 	default:
