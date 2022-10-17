@@ -53,7 +53,7 @@ const (
 	colUsersetObjectID   = "userset_object_id"
 	colUsersetRelation   = "userset_relation"
 	colCaveatName        = "name"
-	colCaveatExpression  = "expression"
+	colCaveatDefinition  = "definition"
 	colCaveatContextName = "caveat_name"
 	colCaveatContext     = "caveat_context"
 

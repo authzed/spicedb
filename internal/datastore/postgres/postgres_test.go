@@ -639,16 +639,19 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	_, err = conn.Exec(ctx, insertRelsSQL, insertRelsArgs...)
 	require.NoError(err)
 
+	c := core.CaveatDefinition{Name: "one_caveat", SerializedExpression: []byte{0x0a, 0x0a}}
+	cMarshalled, err := c.MarshalVT()
+	require.NoError(err)
 	insertCaveatsSQL, insertCaveatsArgs, err := psql.
 		Insert(tableCaveat).
 		Columns(
 			colCaveatName,
-			colCaveatExpression,
+			colCaveatDefinition,
 			"created_transaction",
 			"deleted_transaction",
 		).
-		Values("one_caveat", []byte{0x0a, 0x0a}, oldTxIDs[0], oldTxIDs[1]).
-		Values("one_caveat", []byte{0x0a, 0x0b}, oldTxIDs[1], liveDeletedTxnID).
+		Values("one_caveat", cMarshalled, oldTxIDs[0], oldTxIDs[1]).
+		Values("one_caveat", cMarshalled, oldTxIDs[1], liveDeletedTxnID).
 		ToSql()
 	require.NoError(err)
 
