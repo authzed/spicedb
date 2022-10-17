@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -57,14 +58,16 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 		return fmt.Errorf("no subjects ids given to reachable resources dispatch")
 	}
 
-	// If the resource type matches the subject type, yield directly.
+	// If the resource type matches the subject type, yield directly as a one-to-one result
+	// for each subjectID.
 	if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
 		req.SubjectRelation.Relation == req.ResourceRelation.Relation {
 		resources := make([]*v1.ReachableResource, 0, len(req.SubjectIds))
-		for _, resourceID := range req.SubjectIds {
+		for _, subjectID := range req.SubjectIds {
 			resources = append(resources, &v1.ReachableResource{
-				ResourceId:   resourceID,
-				ResultStatus: v1.ReachableResource_HAS_PERMISSION,
+				ResourceId:    subjectID,
+				ResultStatus:  v1.ReachableResource_HAS_PERMISSION,
+				ForSubjectIds: []string{subjectID},
 			})
 		}
 
@@ -116,7 +119,17 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 				Relation:  containingRelation.Relation,
 			}
 
-			err := crr.redispatchOrReport(subCtx, rewrittenSubjectRelation, req.SubjectIds, rg, g, entrypoint, stream, req, dispatched)
+			err := crr.redispatchOrReport(
+				subCtx,
+				rewrittenSubjectRelation,
+				subjectIDsToResourcesMap(rewrittenSubjectRelation, req.SubjectIds),
+				rg,
+				g,
+				entrypoint,
+				stream,
+				req,
+				dispatched,
+			)
 			if err != nil {
 				return err
 			}
@@ -200,11 +213,8 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 		}
 		defer it.Close()
 
-		return crr.chunkedRedispatch(it, func(resourceIdsFound []string) error {
-			return crr.redispatchOrReport(ctx, &core.RelationReference{
-				Namespace: relationReference.Namespace,
-				Relation:  relationReference.Relation,
-			}, resourceIdsFound, rg, g, entrypoint, stream, req, dispatched)
+		return crr.chunkedRedispatch(relationReference, it, func(rsm resourcesSubjectMap) error {
+			return crr.redispatchOrReport(ctx, relationReference, rsm, rg, g, entrypoint, stream, req, dispatched)
 		})
 	})
 
@@ -218,35 +228,36 @@ func min(a, b int) int {
 	return a
 }
 
-func (crr *ConcurrentReachableResources) chunkedRedispatch(it datastore.RelationshipIterator, handler func(resourceIdsFound []string) error) error {
+func (crr *ConcurrentReachableResources) chunkedRedispatch(resourceType *core.RelationReference, it datastore.RelationshipIterator, handler func(resourcesFound resourcesSubjectMap) error) error {
+	rsm := newResourcesSubjectMap(resourceType)
+
 	for chunkIndex := 0; /* until done with all relationships */ true; chunkIndex++ {
 		chunkSize := progressiveDispatchChunkSizes[min(chunkIndex, len(progressiveDispatchChunkSizes)-1)]
-		resourceIdsFound := make([]string, 0, chunkSize)
-		for i := 0; i < chunkSize; i++ {
-			tpl := it.Next()
-			if it.Err() != nil {
-				return it.Err()
-			}
 
-			if tpl == nil {
-				break
-			}
-
-			if tpl.Caveat != nil {
-				return NewUnimplementedErr(fmt.Errorf("cannot evaluate caveated relationships"))
-			}
-			resourceIdsFound = append(resourceIdsFound, tpl.ResourceAndRelation.ObjectId)
+		tpl := it.Next()
+		if it.Err() != nil {
+			return it.Err()
 		}
 
-		if len(resourceIdsFound) == 0 {
-			return nil
+		if tpl == nil {
+			break
 		}
 
-		err := handler(resourceIdsFound)
-		if err != nil {
-			return err
+		rsm.addRelationship(tpl)
+		if rsm.len() == chunkSize {
+			err := handler(rsm)
+			if err != nil {
+				return err
+			}
+
+			rsm = newResourcesSubjectMap(resourceType)
 		}
 	}
+
+	if rsm.len() > 0 {
+		return handler(rsm)
+	}
+
 	return nil
 }
 
@@ -315,8 +326,13 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 		}
 		defer it.Close()
 
-		return crr.chunkedRedispatch(it, func(resourceIdsFound []string) error {
-			return crr.redispatchOrReport(ctx, containingRelation, resourceIdsFound, rg, g, entrypoint, stream, req, dispatched)
+		tuplesetRelationReference := &core.RelationReference{
+			Namespace: containingRelation.Namespace,
+			Relation:  tuplesetRelation,
+		}
+
+		return crr.chunkedRedispatch(tuplesetRelationReference, it, func(rsm resourcesSubjectMap) error {
+			return crr.redispatchOrReport(ctx, containingRelation, rsm, rg, g, entrypoint, stream, req, dispatched)
 		})
 	})
 
@@ -329,7 +345,7 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 func (crr *ConcurrentReachableResources) redispatchOrReport(
 	ctx context.Context,
 	foundResourceType *core.RelationReference,
-	foundResourceIds []string,
+	foundResources resourcesSubjectMap,
 	rg *namespace.ReachabilityGraph,
 	g *errgroup.Group,
 	entrypoint namespace.ReachabilityEntrypoint,
@@ -337,23 +353,10 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 	parentRequest ValidatedReachableResourcesRequest,
 	dispatched *syncONRSet,
 ) error {
-	toDispatchResourceIds := make([]string, 0, len(foundResourceIds))
-
 	// Skip redispatching or checking for any resources already reported by this
 	// pass.
-	for _, resourceID := range foundResourceIds {
-		if !dispatched.Add(&core.ObjectAndRelation{
-			Namespace: foundResourceType.Namespace,
-			ObjectId:  resourceID,
-			Relation:  foundResourceType.Relation,
-		}) {
-			continue
-		}
-
-		toDispatchResourceIds = append(toDispatchResourceIds, resourceID)
-	}
-
-	if len(toDispatchResourceIds) == 0 {
+	foundResources.filterForDispatch(dispatched)
+	if foundResources.isEmpty() {
 		// Nothing more to do.
 		return nil
 	}
@@ -369,21 +372,8 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 		// If the found resource matches the target resource type and relation, yield the resource.
 		if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace &&
 			foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
-			status := v1.ReachableResource_REQUIRES_CHECK
-			if entrypoint.IsDirectResult() {
-				status = v1.ReachableResource_HAS_PERMISSION
-			}
-
-			resources := make([]*v1.ReachableResource, 0, len(toDispatchResourceIds))
-			for _, resourceID := range toDispatchResourceIds {
-				resources = append(resources, &v1.ReachableResource{
-					ResourceId:   resourceID,
-					ResultStatus: status,
-				})
-			}
-
 			return parentStream.Publish(&v1.DispatchReachableResourcesResponse{
-				Resources: resources,
+				Resources: foundResources.asReachableResources(entrypoint.IsDirectResult()),
 				Metadata:  emptyMetadata,
 			})
 		}
@@ -398,31 +388,21 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 			Stream: parentStream,
 			Ctx:    ctx,
 			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
-				resources := result.Resources
-
-				// If the entrypoint is not a direct result, then a check is required to determine
-				// whether the resource actually has permission.
-				if !entrypoint.IsDirectResult() {
-					resources = make([]*v1.ReachableResource, 0, len(result.Resources))
-					for _, foundResource := range result.Resources {
-						resources = append(resources, &v1.ReachableResource{
-							ResourceId:   foundResource.ResourceId,
-							ResultStatus: v1.ReachableResource_REQUIRES_CHECK,
-						})
-					}
-				}
-
+				// Map the found resources via the subject+resources used for dispatching, to determine
+				// if any need to be made conditional due to caveats.
 				return &v1.DispatchReachableResourcesResponse{
-					Resources: resources,
+					Resources: foundResources.mapFoundResources(result.Resources, entrypoint.IsDirectResult()),
 					Metadata:  addCallToResponseMetadata(result.Metadata),
 				}, true, nil
 			},
 		}
 
+		// Dispatch the found resources as the subjects for the next call, to continue the
+		// resolution.
 		return crr.d.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 			ResourceRelation: parentRequest.ResourceRelation,
 			SubjectRelation:  foundResourceType,
-			SubjectIds:       toDispatchResourceIds,
+			SubjectIds:       foundResources.resourceIDs(),
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     parentRequest.Revision.String(),
 				DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
@@ -430,4 +410,161 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 		}, stream)
 	})
 	return nil
+}
+
+// resourcesSubjectMap is a multimap which tracks mappings from found resource IDs
+// to the subject IDs (may be more than one) for each, as well as whether the mapping
+// is conditional due to the use of a caveat on the relationship which formed the mapping.
+type resourcesSubjectMap struct {
+	resourceType         *core.RelationReference
+	resourcesAndSubjects *util.MultiMap[string, subjectInfo]
+}
+
+type subjectInfo struct {
+	subjectID  string
+	isCaveated bool
+}
+
+func newResourcesSubjectMap(resourceType *core.RelationReference) resourcesSubjectMap {
+	return resourcesSubjectMap{
+		resourceType:         resourceType,
+		resourcesAndSubjects: util.NewMultiMap[string, subjectInfo](),
+	}
+}
+
+func subjectIDsToResourcesMap(resourceType *core.RelationReference, subjectIDs []string) resourcesSubjectMap {
+	rsm := newResourcesSubjectMap(resourceType)
+	for _, subjectID := range subjectIDs {
+		rsm.addSubjectIDAsFoundResourceID(subjectID)
+	}
+	return rsm
+}
+
+func (rsm resourcesSubjectMap) addRelationship(rel *core.RelationTuple) {
+	if rel.ResourceAndRelation.Namespace != rsm.resourceType.Namespace ||
+		rel.ResourceAndRelation.Relation != rsm.resourceType.Relation {
+		panic(fmt.Sprintf("invalid relationship for addRelationship. expected: %v, found: %v", rsm.resourceType, rel.ResourceAndRelation))
+	}
+
+	rsm.resourcesAndSubjects.Add(rel.ResourceAndRelation.ObjectId, subjectInfo{rel.Subject.ObjectId, rel.Caveat != nil && rel.Caveat.CaveatName != ""})
+}
+
+func (rsm resourcesSubjectMap) addSubjectIDAsFoundResourceID(subjectID string) {
+	rsm.resourcesAndSubjects.Add(subjectID, subjectInfo{subjectID, false})
+}
+
+func (rsm resourcesSubjectMap) filterForDispatch(dispatched *syncONRSet) {
+	for _, resourceID := range rsm.resourcesAndSubjects.Keys() {
+		if !dispatched.Add(&core.ObjectAndRelation{
+			Namespace: rsm.resourceType.Namespace,
+			ObjectId:  resourceID,
+			Relation:  rsm.resourceType.Relation,
+		}) {
+			rsm.resourcesAndSubjects.RemoveKey(resourceID)
+			continue
+		}
+	}
+}
+
+func (rsm resourcesSubjectMap) isEmpty() bool {
+	return rsm.resourcesAndSubjects.IsEmpty()
+}
+
+func (rsm resourcesSubjectMap) len() int {
+	return rsm.resourcesAndSubjects.Len()
+}
+
+func (rsm resourcesSubjectMap) resourceIDs() []string {
+	return rsm.resourcesAndSubjects.Keys()
+}
+
+func (rsm resourcesSubjectMap) asReachableResources(isDirectEntrypoint bool) []*v1.ReachableResource {
+	resources := make([]*v1.ReachableResource, 0, rsm.resourcesAndSubjects.Len())
+	for _, resourceID := range rsm.resourcesAndSubjects.Keys() {
+		status := v1.ReachableResource_REQUIRES_CHECK
+		if isDirectEntrypoint {
+			status = v1.ReachableResource_HAS_PERMISSION
+		}
+
+		subjectInfos, _ := rsm.resourcesAndSubjects.Get(resourceID)
+		subjectIDs := make([]string, 0, len(subjectInfos))
+		allCaveated := true
+		nonCaveatedSubjectIDs := make([]string, 0, len(subjectInfos))
+
+		for _, info := range subjectInfos {
+			subjectIDs = append(subjectIDs, info.subjectID)
+			if !info.isCaveated {
+				allCaveated = false
+				nonCaveatedSubjectIDs = append(nonCaveatedSubjectIDs, info.subjectID)
+			}
+		}
+
+		// If all the incoming edges are caveated, then the entire status has to be marked as a check
+		// is required. Otherwise, if there is at least *one* non-caveated incoming edge, then we can
+		// return the existing status as a short-circuit for those non-caveated found subjects.
+		if allCaveated {
+			resources = append(resources, &v1.ReachableResource{
+				ResourceId:    resourceID,
+				ForSubjectIds: subjectIDs,
+				ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
+			})
+		} else {
+			resources = append(resources, &v1.ReachableResource{
+				ResourceId:    resourceID,
+				ForSubjectIds: nonCaveatedSubjectIDs,
+				ResultStatus:  status,
+			})
+		}
+	}
+	return resources
+}
+
+func (rsm resourcesSubjectMap) mapFoundResources(foundResources []*v1.ReachableResource, isDirectEntrypoint bool) []*v1.ReachableResource {
+	// For each found resource, lookup the associated entry(s) for the "ForSubjectIDs" and
+	// check if *all* are conditional. If all are conditional, then mark the found resource
+	// as conditional. Otherwise, mark it as non-conditional.
+	resources := make([]*v1.ReachableResource, 0, len(foundResources))
+	for _, foundResource := range foundResources {
+		// If the found resource already requires a check, nothing more to do.
+		if foundResource.ResultStatus == v1.ReachableResource_REQUIRES_CHECK {
+			resources = append(resources, foundResource)
+			continue
+		}
+
+		// Otherwise, see if a check is required either due to the parent entrypoint being indirect
+		// *or* if the resource was reached via a caveated subject.
+		status := v1.ReachableResource_REQUIRES_CHECK
+		forSubjectIDs := foundResource.ForSubjectIds
+
+		// If a direct entrypoint, then we need to do a caveat check.
+		if isDirectEntrypoint {
+			forSubjectIDs = make([]string, 0, len(foundResource.ForSubjectIds))
+
+		outer:
+			for _, forSubjectID := range foundResource.ForSubjectIds {
+				infos, ok := rsm.resourcesAndSubjects.Get(forSubjectID)
+				if !ok {
+					panic("missing for subject ID")
+				}
+
+				for _, info := range infos {
+					if !info.isCaveated {
+						status = v1.ReachableResource_HAS_PERMISSION
+						forSubjectIDs = []string{info.subjectID}
+						break outer
+					}
+				}
+
+				forSubjectIDs = append(forSubjectIDs, forSubjectID)
+			}
+		}
+
+		resources = append(resources, &v1.ReachableResource{
+			ResourceId:    foundResource.ResourceId,
+			ForSubjectIds: forSubjectIDs,
+			ResultStatus:  status,
+		})
+	}
+
+	return resources
 }

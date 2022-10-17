@@ -364,6 +364,11 @@ func (m *ReachableResource) CloneVT() *ReachableResource {
 		ResourceId:   m.ResourceId,
 		ResultStatus: m.ResultStatus,
 	}
+	if rhs := m.ForSubjectIds; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.ForSubjectIds = tmpContainer
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -994,17 +999,20 @@ func (this *ReachableResource) EqualVT(that *ReachableResource) bool {
 	} else if that == nil {
 		return false
 	}
-	if len(this.ResourceIds) != len(that.ResourceIds) {
+	if this.ResourceId != that.ResourceId {
 		return false
-	}
-	for i, vx := range this.ResourceIds {
-		vy := that.ResourceIds[i]
-		if vx != vy {
-			return false
-		}
 	}
 	if this.ResultStatus != that.ResultStatus {
 		return false
+	}
+	if len(this.ForSubjectIds) != len(that.ForSubjectIds) {
+		return false
+	}
+	for i, vx := range this.ForSubjectIds {
+		vy := that.ForSubjectIds[i]
+		if vx != vy {
+			return false
+		}
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -1015,8 +1023,22 @@ func (this *DispatchReachableResourcesResponse) EqualVT(that *DispatchReachableR
 	} else if that == nil {
 		return false
 	}
-	if !this.Resource.EqualVT(that.Resource) {
+	if len(this.Resources) != len(that.Resources) {
 		return false
+	}
+	for i, vx := range this.Resources {
+		vy := that.Resources[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &ReachableResource{}
+			}
+			if q == nil {
+				q = &ReachableResource{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
 	}
 	if !this.Metadata.EqualVT(that.Metadata) {
 		return false
@@ -2072,6 +2094,15 @@ func (m *ReachableResource) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.ForSubjectIds) > 0 {
+		for iNdEx := len(m.ForSubjectIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ForSubjectIds[iNdEx])
+			copy(dAtA[i:], m.ForSubjectIds[iNdEx])
+			i = encodeVarint(dAtA, i, uint64(len(m.ForSubjectIds[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
 	if m.ResultStatus != 0 {
 		i = encodeVarint(dAtA, i, uint64(m.ResultStatus))
 		i--
@@ -2956,6 +2987,12 @@ func (m *ReachableResource) SizeVT() (n int) {
 	}
 	if m.ResultStatus != 0 {
 		n += 1 + sov(uint64(m.ResultStatus))
+	}
+	if len(m.ForSubjectIds) > 0 {
+		for _, s := range m.ForSubjectIds {
+			l = len(s)
+			n += 1 + l + sov(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -5023,6 +5060,38 @@ func (m *ReachableResource) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ForSubjectIds", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ForSubjectIds = append(m.ForSubjectIds, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])

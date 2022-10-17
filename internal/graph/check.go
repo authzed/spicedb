@@ -257,7 +257,8 @@ func mapFoundResources(result CheckResult, resourceType *core.RelationReference,
 			Relation:  resourceType.Relation,
 		})
 
-		for _, relationTuple := range relationshipsBySubjectONR.Get(subjectKey) {
+		tuples, _ := relationshipsBySubjectONR.Get(subjectKey)
+		for _, relationTuple := range tuples {
 			membershipSet.AddMemberViaRelationship(relationTuple.ResourceAndRelation.ObjectId, result.Expression, relationTuple)
 		}
 	}

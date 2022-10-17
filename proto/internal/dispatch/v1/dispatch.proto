@@ -141,6 +141,7 @@ message ReachableResource {
 
   string resource_id = 1;
   ResultStatus result_status = 2;
+  repeated string for_subject_ids = 3;
 }
 
 message DispatchReachableResourcesResponse {
