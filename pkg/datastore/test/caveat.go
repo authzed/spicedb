@@ -81,27 +81,60 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 
 	// Store caveat, write caveated tuple and read back same value
 	coreCaveat := createCoreCaveat(t)
+	anotherCoreCaveat := createCoreCaveat(t)
 	ctx := context.Background()
-	_, err = writeCaveat(ctx, ds, coreCaveat)
+	_, err = writeCaveats(ctx, ds, coreCaveat, anotherCoreCaveat)
 	req.NoError(err)
 
 	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", coreCaveat.Name)
 	rev, err := common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
-	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType: tpl.ResourceAndRelation.Namespace,
-	})
-	req.NoError(err)
+	assertTupleCorrectlyStored(req, ds, rev, tpl)
 
-	defer iter.Close()
-	readTpl := iter.Next()
-	foundDiff := cmp.Diff(tpl, readTpl, protocmp.Transform())
-	req.Empty(foundDiff)
+	// RelationTupleUpdate_CREATE of the same tuple and different caveat context will fail
+	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
+	req.ErrorAs(err, &common.CreateRelationshipExistsError{})
+
+	// RelationTupleUpdate_TOUCH does update the caveat context for a caveated relationship that already exists
+	currentMap := tpl.Caveat.Context.AsMap()
+	delete(currentMap, "b")
+	st, err := structpb.NewStruct(currentMap)
+	require.NoError(t, err)
+
+	tpl.Caveat.Context = st
+	rev, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_TOUCH, tpl)
+	req.NoError(err)
+	assertTupleCorrectlyStored(req, ds, rev, tpl)
+
+	// TOUCH can remove caveat from relationship
+	caveatContext := tpl.Caveat
+	tpl.Caveat = nil
+	rev, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_TOUCH, tpl)
+	req.NoError(err)
+	assertTupleCorrectlyStored(req, ds, rev, tpl)
+
+	// TOUCH can store caveat in relationship with no caveat
+	tpl.Caveat = caveatContext
+	rev, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_TOUCH, tpl)
+	req.NoError(err)
+	assertTupleCorrectlyStored(req, ds, rev, tpl)
 
 	// Caveated tuple can reference non-existing caveat - controller layer is responsible for validation
 	tpl = createTestCaveatedTuple(t, "document:rando#parent@folder:company#...", "rando")
 	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
+}
+
+func assertTupleCorrectlyStored(req *require.Assertions, ds datastore.Datastore, rev datastore.Revision, expected *core.RelationTuple) {
+	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		ResourceType: expected.ResourceAndRelation.Namespace,
+	})
+	req.NoError(err)
+
+	defer iter.Close()
+	readTpl := iter.Next()
+	foundDiff := cmp.Diff(expected, readTpl, protocmp.Transform())
+	req.Empty(foundDiff)
 }
 
 func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
