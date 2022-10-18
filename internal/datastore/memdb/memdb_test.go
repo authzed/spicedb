@@ -24,10 +24,12 @@ func (mdbt memDBTest) New(revisionQuantization, gcWindow time.Duration, watchBuf
 }
 
 func TestMemdbDatastore(t *testing.T) {
+	t.Parallel()
 	test.All(t, memDBTest{})
 }
 
 func TestConcurrentWritePanic(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
