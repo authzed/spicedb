@@ -7,11 +7,10 @@ import (
 	"testing"
 	"unsafe"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
@@ -247,14 +246,19 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 						IsCachedResult: true,
 					},
 				}
+			} else {
+				// If debugging isn't needed, we can reuse the serialized cache entry
+				response = v1.DispatchCheckResponse{}
+				response.Marshaled = cachedResultRaw.([]byte)
 			}
 
 			return &response, nil
 		}
 	}
+
 	computed, err := cd.d.DispatchCheck(ctx, req)
 
-	// We only want to cache the result if there was no error
+	// Only cache the result if there was no error
 	if err == nil {
 		adjustedComputed := computed.CloneVT()
 		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
@@ -296,16 +300,27 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 		}
 
 		if req.Metadata.DepthRemaining >= response.Metadata.DepthRequired {
-			log.Trace().Object("cachedLookup", req).Int("resultCount", len(response.ResolvedOnrs)).Send()
 			cd.lookupFromCacheCounter.Inc()
+			log.Trace().
+				Object("cachedLookup", req).
+				Int("resultCount", len(response.ResolvedOnrs)).
+				Send()
+
+			// We can reuse the serialized cache entry
+			response = v1.DispatchLookupResponse{}
+			response.Marshaled = cachedResultRaw.([]byte)
 			return &response, nil
 		}
 	}
+
 	computed, err := cd.d.DispatchLookup(ctx, req)
 
-	// We only want to cache the result if there was no error.
+	// Only cache the result if there was no error
 	if err == nil {
-		log.Trace().Object("cachingLookup", req).Int("resultCount", len(computed.ResolvedOnrs)).Send()
+		log.Trace().
+			Object("cachingLookup", req).
+			Int("resultCount", len(computed.ResolvedOnrs)).
+			Send()
 
 		adjustedComputed := computed.CloneVT()
 		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
@@ -337,10 +352,9 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cd.reachableResourcesFromCacheCounter.Inc()
 		for _, slice := range cachedResultRaw.([][]byte) {
-			var response v1.DispatchReachableResourcesResponse
-			if err := response.UnmarshalVT(slice); err != nil {
-				return fmt.Errorf("could not publish cached reachable resources result: %w", err)
-			}
+			slice, response := slice, v1.DispatchReachableResourcesResponse{}
+			response.Marshaled = slice // Stash the marshaled form for re-use
+
 			if err := stream.Publish(&response); err != nil {
 				return fmt.Errorf("could not publish cached reachable resources result: %w", err)
 			}
@@ -405,10 +419,14 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		cd.lookupSubjectsFromCacheCounter.Inc()
 		for _, slice := range cachedResultRaw.([][]byte) {
+			// slice, response := slice, v1.DispatchLookupSubjectsResponse{}
+			// response.Marshaled = slice // Stash the marshaled form for re-use
+
 			var response v1.DispatchLookupSubjectsResponse
 			if err := response.UnmarshalVT(slice); err != nil {
 				return fmt.Errorf("could not publish cached lookup subjects result: %w", err)
 			}
+
 			if err := stream.Publish(&response); err != nil {
 				return fmt.Errorf("could not publish cached lookup subjects result: %w", err)
 			}

@@ -73,6 +73,11 @@ func (m *DispatchCheckResponse) CloneVT() *DispatchCheckResponse {
 		}
 		r.ResultsByResourceId = tmpContainer
 	}
+	if rhs := m.Marshaled; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.Marshaled = tmpBytes
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -223,6 +228,11 @@ func (m *DispatchExpandResponse) CloneVT() *DispatchExpandResponse {
 			r.TreeNode = proto.Clone(rhs).(*v1.RelationTupleTreeNode)
 		}
 	}
+	if rhs := m.Marshaled; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.Marshaled = tmpBytes
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -308,6 +318,11 @@ func (m *DispatchLookupResponse) CloneVT() *DispatchLookupResponse {
 		}
 		r.ResolvedOnrs = tmpContainer
 	}
+	if rhs := m.Marshaled; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.Marshaled = tmpBytes
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -386,6 +401,11 @@ func (m *DispatchReachableResourcesResponse) CloneVT() *DispatchReachableResourc
 	r := &DispatchReachableResourcesResponse{
 		Resource: m.Resource.CloneVT(),
 		Metadata: m.Metadata.CloneVT(),
+	}
+	if rhs := m.Marshaled; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.Marshaled = tmpBytes
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -471,6 +491,11 @@ func (m *DispatchLookupSubjectsResponse) CloneVT() *DispatchLookupSubjectsRespon
 			tmpContainer[k] = v.CloneVT()
 		}
 		r.FoundSubjects = tmpContainer
+	}
+	if rhs := m.Marshaled; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.Marshaled = tmpBytes
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -710,6 +735,13 @@ func (m *DispatchCheckResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error)
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Marshaled) > 0 {
+		i -= len(m.Marshaled)
+		copy(dAtA[i:], m.Marshaled)
+		i = encodeVarint(dAtA, i, uint64(len(m.Marshaled)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if len(m.ResultsByResourceId) > 0 {
 		for k := range m.ResultsByResourceId {
@@ -1045,6 +1077,13 @@ func (m *DispatchExpandResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.Marshaled) > 0 {
+		i -= len(m.Marshaled)
+		copy(dAtA[i:], m.Marshaled)
+		i = encodeVarint(dAtA, i, uint64(len(m.Marshaled)))
+		i--
+		dAtA[i] = 0x1a
+	}
 	if m.TreeNode != nil {
 		if vtmsg, ok := interface{}(m.TreeNode).(interface {
 			MarshalToSizedBufferVT([]byte) (int, error)
@@ -1249,6 +1288,13 @@ func (m *DispatchLookupResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Marshaled) > 0 {
+		i -= len(m.Marshaled)
+		copy(dAtA[i:], m.Marshaled)
+		i = encodeVarint(dAtA, i, uint64(len(m.Marshaled)))
+		i--
+		dAtA[i] = 0x22
 	}
 	if len(m.NextPageReference) > 0 {
 		i -= len(m.NextPageReference)
@@ -1467,6 +1513,13 @@ func (m *DispatchReachableResourcesResponse) MarshalToSizedBufferVT(dAtA []byte)
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.Marshaled) > 0 {
+		i -= len(m.Marshaled)
+		copy(dAtA[i:], m.Marshaled)
+		i = encodeVarint(dAtA, i, uint64(len(m.Marshaled)))
+		i--
+		dAtA[i] = 0x1a
+	}
 	if m.Metadata != nil {
 		size, err := m.Metadata.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -1664,6 +1717,13 @@ func (m *DispatchLookupSubjectsResponse) MarshalToSizedBufferVT(dAtA []byte) (in
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Marshaled) > 0 {
+		i -= len(m.Marshaled)
+		copy(dAtA[i:], m.Marshaled)
+		i = encodeVarint(dAtA, i, uint64(len(m.Marshaled)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if m.Metadata != nil {
 		size, err := m.Metadata.MarshalToSizedBufferVT(dAtA[:i])
@@ -2008,6 +2068,10 @@ func (m *DispatchCheckResponse) SizeVT() (n int) {
 			n += mapEntrySize + 1 + sov(uint64(mapEntrySize))
 		}
 	}
+	l = len(m.Marshaled)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2144,6 +2208,10 @@ func (m *DispatchExpandResponse) SizeVT() (n int) {
 		}
 		n += 1 + l + sov(uint64(l))
 	}
+	l = len(m.Marshaled)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2235,6 +2303,10 @@ func (m *DispatchLookupResponse) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
+	l = len(m.Marshaled)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2310,6 +2382,10 @@ func (m *DispatchReachableResourcesResponse) SizeVT() (n int) {
 	}
 	if m.Metadata != nil {
 		l = m.Metadata.SizeVT()
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.Marshaled)
+	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -2390,6 +2466,10 @@ func (m *DispatchLookupSubjectsResponse) SizeVT() (n int) {
 	}
 	if m.Metadata != nil {
 		l = m.Metadata.SizeVT()
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.Marshaled)
+	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -2933,6 +3013,40 @@ func (m *DispatchCheckResponse) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.ResultsByResourceId[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Marshaled", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Marshaled = append(m.Marshaled[:0], dAtA[iNdEx:postIndex]...)
+			if m.Marshaled == nil {
+				m.Marshaled = []byte{}
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -3606,6 +3720,40 @@ func (m *DispatchExpandResponse) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Marshaled", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Marshaled = append(m.Marshaled[:0], dAtA[iNdEx:postIndex]...)
+			if m.Marshaled == nil {
+				m.Marshaled = []byte{}
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -4045,6 +4193,40 @@ func (m *DispatchLookupResponse) UnmarshalVT(dAtA []byte) error {
 			}
 			m.NextPageReference = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Marshaled", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Marshaled = append(m.Marshaled[:0], dAtA[iNdEx:postIndex]...)
+			if m.Marshaled == nil {
+				m.Marshaled = []byte{}
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -4475,6 +4657,40 @@ func (m *DispatchReachableResourcesResponse) UnmarshalVT(dAtA []byte) error {
 			}
 			if err := m.Metadata.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Marshaled", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Marshaled = append(m.Marshaled[:0], dAtA[iNdEx:postIndex]...)
+			if m.Marshaled == nil {
+				m.Marshaled = []byte{}
 			}
 			iNdEx = postIndex
 		default:
@@ -4918,6 +5134,40 @@ func (m *DispatchLookupSubjectsResponse) UnmarshalVT(dAtA []byte) error {
 			}
 			if err := m.Metadata.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Marshaled", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Marshaled = append(m.Marshaled[:0], dAtA[iNdEx:postIndex]...)
+			if m.Marshaled == nil {
+				m.Marshaled = []byte{}
 			}
 			iNdEx = postIndex
 		default:

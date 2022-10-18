@@ -43,6 +43,10 @@ message DispatchCheckRequest {
 message DispatchCheckResponse {
   ResponseMeta metadata = 1;
   map<string, ResourceCheckResult> results_by_resource_id = 2;
+
+  // Marshaled contains this message already marshaled.
+  // This is used to avoid re-encoding to send over the wire.
+  bytes marshaled = 3;
 }
 
 message ResourceCheckResult {
@@ -93,6 +97,10 @@ message DispatchExpandRequest {
 message DispatchExpandResponse {
   ResponseMeta metadata = 1;
   core.v1.RelationTupleTreeNode tree_node = 2;
+
+  // Marshaled contains this message already marshaled.
+  // This is used to avoid re-encoding to send over the wire.
+  bytes marshaled = 3;
 }
 
 message DispatchLookupRequest {
@@ -112,6 +120,10 @@ message DispatchLookupResponse {
 
   repeated core.v1.ObjectAndRelation resolved_onrs = 2;
   string next_page_reference = 3;
+
+  // Marshaled contains this message already marshaled.
+  // This is used to avoid re-encoding to send over the wire.
+  bytes marshaled = 4;
 }
 
 message DispatchReachableResourcesRequest {
@@ -146,6 +158,10 @@ message ReachableResource {
 message DispatchReachableResourcesResponse {
   ReachableResource resource = 1;
   ResponseMeta metadata = 2;
+
+  // Marshaled contains this message already marshaled.
+  // This is used to avoid re-encoding to send over the wire.
+  bytes marshaled = 3;
 }
 
 message DispatchLookupSubjectsRequest {
@@ -167,6 +183,10 @@ message FoundSubject {
 message DispatchLookupSubjectsResponse {
   repeated FoundSubject found_subjects = 1;
   ResponseMeta metadata = 2;
+
+  // Marshaled contains this message already marshaled.
+  // This is used to avoid re-encoding to send over the wire.
+  bytes marshaled = 3;
 }
 
 message ResolverMeta {

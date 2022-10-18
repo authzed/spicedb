@@ -358,6 +358,8 @@ func (m *DispatchCheckResponse) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for Marshaled
+
 	if len(errors) > 0 {
 		return DispatchCheckResponseMultiError(errors)
 	}
@@ -1137,6 +1139,8 @@ func (m *DispatchExpandResponse) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for Marshaled
+
 	if len(errors) > 0 {
 		return DispatchExpandResponseMultiError(errors)
 	}
@@ -1595,6 +1599,8 @@ func (m *DispatchLookupResponse) validate(all bool) error {
 	}
 
 	// no validation rules for NextPageReference
+
+	// no validation rules for Marshaled
 
 	if len(errors) > 0 {
 		return DispatchLookupResponseMultiError(errors)
@@ -2086,6 +2092,8 @@ func (m *DispatchReachableResourcesResponse) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for Marshaled
+
 	if len(errors) > 0 {
 		return DispatchReachableResourcesResponseMultiError(errors)
 	}
@@ -2576,6 +2584,8 @@ func (m *DispatchLookupSubjectsResponse) validate(all bool) error {
 			}
 		}
 	}
+
+	// no validation rules for Marshaled
 
 	if len(errors) > 0 {
 		return DispatchLookupSubjectsResponseMultiError(errors)

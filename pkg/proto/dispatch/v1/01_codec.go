@@ -1,5 +1,6 @@
 // This file registers a gRPC codec that replaces the default gRPC proto codec
 // with one that attempts to use protobuf codecs in the following order:
+// - PreMarshaler
 // - vtprotobuf
 // - google.golang.org/encoding/proto
 // - github.com/golang/protobuf/proto
@@ -26,11 +27,22 @@ type vtprotoMessage interface {
 	UnmarshalVT([]byte) error
 }
 
+type preMarshaler interface {
+	PreMarshaledBytes() []byte
+}
+
 type vtprotoCodec struct{}
 
 func (vtprotoCodec) Name() string { return Name }
 
 func (vtprotoCodec) Marshal(v any) ([]byte, error) {
+	if m, ok := v.(preMarshaler); ok {
+		bytes := m.PreMarshaledBytes()
+		if len(bytes) > 0 {
+			return bytes, nil
+		}
+	}
+
 	if m, ok := v.(vtprotoMessage); ok {
 		return m.MarshalVT()
 	}
@@ -62,6 +74,12 @@ func (vtprotoCodec) Unmarshal(data []byte, v any) error {
 	return fmt.Errorf("failed to unmarshal, message is %T, want proto.Message", v)
 }
 
-func init() {
-	encoding.RegisterCodec(vtprotoCodec{})
-}
+func init() { encoding.RegisterCodec(vtprotoCodec{}) }
+
+// Implement the preMarshaler interface
+
+func (r *DispatchCheckResponse) PreMarshaledBytes() []byte              { return r.Marshaled }
+func (r *DispatchExpandResponse) PreMarshaledBytes() []byte             { return r.Marshaled }
+func (r *DispatchReachableResourcesResponse) PreMarshaledBytes() []byte { return r.Marshaled }
+func (r *DispatchLookupResponse) PreMarshaledBytes() []byte             { return r.Marshaled }
+func (r *DispatchLookupSubjectsResponse) PreMarshaledBytes() []byte     { return r.Marshaled }
