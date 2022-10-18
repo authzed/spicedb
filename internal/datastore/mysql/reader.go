@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -92,7 +91,7 @@ func (mr *mysqlReader) ReadNamespace(ctx context.Context, nsName string) (*core.
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
-	defer migrations.LogOnError(ctx, txCleanup)
+	defer common.LogOnError(ctx, txCleanup)
 
 	loaded, version, err := loadNamespace(ctx, nsName, tx, mr.filterer(mr.ReadNamespaceQuery))
 	switch {
@@ -143,7 +142,7 @@ func (mr *mysqlReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDef
 	if err != nil {
 		return nil, err
 	}
-	defer migrations.LogOnError(ctx, txCleanup)
+	defer common.LogOnError(ctx, txCleanup)
 
 	query := mr.filterer(mr.ReadNamespaceQuery)
 
@@ -167,7 +166,7 @@ func (mr *mysqlReader) LookupNamespaces(ctx context.Context, nsNames []string) (
 	if err != nil {
 		return nil, err
 	}
-	defer migrations.LogOnError(ctx, txCleanup)
+	defer common.LogOnError(ctx, txCleanup)
 
 	clause := sq.Or{}
 	for _, nsName := range nsNames {
@@ -197,7 +196,7 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 	if err != nil {
 		return nil, err
 	}
-	defer migrations.LogOnError(ctx, rows.Close)
+	defer common.LogOnError(ctx, rows.Close)
 
 	for rows.Next() {
 		var config []byte
