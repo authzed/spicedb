@@ -111,6 +111,9 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 		if it.Err() != nil {
 			return it.Err()
 		}
+		if tpl.Caveat != nil {
+			return NewUnimplementedErr(fmt.Errorf("cannot evaluate caveated relationships"))
+		}
 
 		if tpl.Subject.Namespace == req.SubjectRelation.Namespace &&
 			tpl.Subject.Relation == req.SubjectRelation.Relation {
@@ -198,7 +201,9 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 		if it.Err() != nil {
 			return it.Err()
 		}
-
+		if tpl.Caveat != nil {
+			return NewUnimplementedErr(fmt.Errorf("cannot evaluate caveated relationships"))
+		}
 		toDispatchByTuplesetType.Add(tpl.Subject)
 	}
 

@@ -150,3 +150,15 @@ func NewErrInvalidArgument(baseErr error) error {
 		error: baseErr,
 	}
 }
+
+// ErrUnimplemented is returned when some functionality is not yet supported.
+type ErrUnimplemented struct {
+	error
+}
+
+// NewUnimplementedErr constructs a new unimplemented error.
+func NewUnimplementedErr(baseErr error) error {
+	return ErrUnimplemented{
+		error: baseErr,
+	}
+}

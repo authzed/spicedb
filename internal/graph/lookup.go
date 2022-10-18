@@ -3,7 +3,6 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/shopspring/decimal"
@@ -105,7 +104,7 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 		Metadata:   req.Metadata,
 	}, stream)
 	if err != nil {
-		resp := lookupResultError(NewErrInvalidArgument(fmt.Errorf("error in reachablility: %w", err)), emptyMetadata)
+		resp := lookupResultError(err, emptyMetadata)
 		return resp.Resp, resp.Err
 	}
 
