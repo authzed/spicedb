@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -182,9 +183,7 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 	ctx := context.Background()
 
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		cs, ok := tx.(datastore.CaveatStorer)
-		require.True(ok, "expected ReadWriteTransaction to implement CaveatStorer")
-		return cs.WriteCaveats(createTestCaveat(require))
+		return tx.WriteCaveats(createTestCaveat(require))
 	})
 	require.NoError(err)
 
@@ -205,9 +204,9 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 }
 
 func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
-	env, err := caveats.EnvForVariables(map[string]caveats.VariableType{
-		"secret":         caveats.StringType,
-		"expectedSecret": caveats.StringType,
+	env, err := caveats.EnvForVariables(map[string]caveattypes.VariableType{
+		"secret":         caveattypes.StringType,
+		"expectedSecret": caveattypes.StringType,
 	})
 	require.NoError(err)
 
@@ -217,7 +216,11 @@ func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
 	cBytes, err := c.Serialize()
 	require.NoError(err)
 
-	return []*core.CaveatDefinition{{Name: "test", SerializedExpression: cBytes}}
+	return []*core.CaveatDefinition{{
+		Name:                 "test",
+		SerializedExpression: cBytes,
+		ParameterTypes:       env.EncodedParametersTypes(),
+	}}
 }
 
 type TupleChecker struct {
