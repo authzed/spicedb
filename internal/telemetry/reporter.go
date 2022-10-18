@@ -24,7 +24,7 @@ import (
 	"github.com/prometheus/common/model"
 	prompb "go.buf.build/protocolbuffers/go/prometheus/prometheus"
 
-	log "github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/pkg/logging"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
 

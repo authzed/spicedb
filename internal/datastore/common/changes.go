@@ -7,8 +7,8 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	log "github.com/authzed/spicedb/pkg/logging"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )

@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	log "github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/pkg/logging"
 	"github.com/authzed/spicedb/pkg/releases"
 )
 

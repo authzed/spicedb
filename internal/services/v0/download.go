@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	log "github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/pkg/logging"
 
 	"gopkg.in/yaml.v3"
 )

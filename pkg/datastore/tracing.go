@@ -3,7 +3,7 @@ package datastore
 import (
 	"context"
 
-	log "github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/pkg/logging"
 
 	"go.opentelemetry.io/otel/trace"
 )

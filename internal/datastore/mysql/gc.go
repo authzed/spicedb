@@ -9,8 +9,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	log "github.com/authzed/spicedb/pkg/logging"
 )
 
 var _ common.GarbageCollector = (*Datastore)(nil)

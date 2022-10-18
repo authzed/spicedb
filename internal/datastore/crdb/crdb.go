@@ -20,8 +20,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	log "github.com/authzed/spicedb/pkg/logging"
 )
 
 func init() {

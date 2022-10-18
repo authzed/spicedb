@@ -10,8 +10,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/services/shared"
+	log "github.com/authzed/spicedb/pkg/logging"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 

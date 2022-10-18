@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	log "github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/pkg/logging"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"

@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	log "github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/pkg/logging"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 

@@ -10,7 +10,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	sqlDriver "github.com/go-sql-driver/mysql"
 
-	log "github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/pkg/logging"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 

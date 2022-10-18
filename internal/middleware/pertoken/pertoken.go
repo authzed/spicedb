@@ -11,9 +11,9 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
-	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	log "github.com/authzed/spicedb/pkg/logging"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 

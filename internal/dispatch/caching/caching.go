@@ -14,8 +14,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
+	log "github.com/authzed/spicedb/pkg/logging"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 

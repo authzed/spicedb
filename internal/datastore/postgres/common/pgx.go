@@ -12,8 +12,8 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/logging"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 

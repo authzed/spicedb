@@ -8,6 +8,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/go-logr/zerologr"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil/v2"
@@ -20,13 +21,13 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/internal/logging"
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/serverversion"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/logging"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/releases"
@@ -87,7 +88,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enable
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.UnaryServerInterceptor(logging.InterceptorLogger(logger)),
+			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger)),
 			otelgrpc.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
 			grpcprom.UnaryServerInterceptor,
@@ -99,7 +100,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enable
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.StreamServerInterceptor(logging.InterceptorLogger(logger)),
+			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger)),
 			otelgrpc.StreamServerInterceptor(),
 			grpcauth.StreamServerInterceptor(authFunc),
 			grpcprom.StreamServerInterceptor,
@@ -115,7 +116,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.UnaryServerInterceptor(logging.InterceptorLogger(logger)),
+			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger)),
 			otelgrpc.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
 			grpcprom.UnaryServerInterceptor,
@@ -124,7 +125,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.StreamServerInterceptor(logging.InterceptorLogger(logger)),
+			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger)),
 			otelgrpc.StreamServerInterceptor(),
 			grpcauth.StreamServerInterceptor(authFunc),
 			grpcprom.StreamServerInterceptor,

@@ -10,7 +10,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/gateway"
-	log "github.com/authzed/spicedb/internal/logging"
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
@@ -21,6 +20,7 @@ import (
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	log "github.com/authzed/spicedb/pkg/logging"
 )
 
 const maxDepth = 50

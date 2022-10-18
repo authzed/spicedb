@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/pkg/logging"
 
 	"github.com/jackc/pgconn"
 	"github.com/prometheus/client_golang/prometheus"

@@ -9,7 +9,7 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	log "github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/pkg/logging"
 )
 
 const datastoreReadyTimeout = time.Millisecond * 500

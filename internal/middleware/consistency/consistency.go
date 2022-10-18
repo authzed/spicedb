@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/authzed/spicedb/internal/services/shared"
+	log "github.com/authzed/spicedb/pkg/logging"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
@@ -14,7 +15,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/zedtoken"
