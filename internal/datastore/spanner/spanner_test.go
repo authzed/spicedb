@@ -15,6 +15,7 @@ import (
 )
 
 func TestSpannerDatastore(t *testing.T) {
+	t.Parallel()
 	b := testdatastore.RunSpannerForTesting(t, "")
 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
