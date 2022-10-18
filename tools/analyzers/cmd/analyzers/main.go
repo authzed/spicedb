@@ -1,10 +1,11 @@
 package main
 
 import (
+	"github.com/authzed/spicedb/tools/analyzers/exprstatementcheck"
 	"github.com/authzed/spicedb/tools/analyzers/nilvaluecheck"
-	"golang.org/x/tools/go/analysis/singlechecker"
+	"golang.org/x/tools/go/analysis/multichecker"
 )
 
 func main() {
-	singlechecker.Main(nilvaluecheck.Analyzer())
+	multichecker.Main(nilvaluecheck.Analyzer(), exprstatementcheck.Analyzer())
 }
