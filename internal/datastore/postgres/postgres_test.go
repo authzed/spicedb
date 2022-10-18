@@ -27,6 +27,7 @@ import (
 )
 
 func TestPostgresDatastore(t *testing.T) {
+	t.Parallel()
 	for _, config := range []struct {
 		targetMigration string
 		migrationPhase  string
@@ -54,6 +55,7 @@ func TestPostgresDatastore(t *testing.T) {
 			}))
 
 			t.Run("WithSplit", func(t *testing.T) {
+				t.Parallel()
 				// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
 				test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 					ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -131,6 +133,7 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
+		t.Parallel()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := newPostgresDatastore(uri, options...)
 			require.NoError(t, err)
@@ -143,6 +146,7 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 }
 
 func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already called in createDatastoreTest
 	require := require.New(t)
 
 	ctx := context.Background()
@@ -289,6 +293,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already called in createDatastoreTest
 	require := require.New(t)
 
 	ctx := context.Background()
@@ -327,6 +332,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already called in createDatastoreTest
 	require := require.New(t)
 
 	ctx := context.Background()
@@ -403,6 +409,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 const chunkRelationshipCount = 2000
 
 func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already called in createDatastoreTest
 	require := require.New(t)
 
 	ctx := context.Background()
@@ -487,6 +494,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	// t.Parallel() already called in createDatastoreTest
 	testCases := []struct {
 		testName      string
 		quantization  time.Duration
@@ -528,6 +536,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()

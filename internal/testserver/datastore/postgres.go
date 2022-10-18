@@ -6,6 +6,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ import (
 
 type postgresTester struct {
 	conn            *pgx.Conn
+	mutex           sync.Mutex
 	hostname        string
 	port            string
 	creds           string
@@ -48,6 +50,7 @@ func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigrati
 		hostname:        "localhost",
 		creds:           "postgres:secret",
 		targetMigration: targetMigration,
+		mutex:           sync.Mutex{},
 	}
 	t.Cleanup(func() {
 		require.NoError(t, pool.Purge(resource))
@@ -81,6 +84,8 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 
 	newDBName := "db" + uniquePortion
 
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
 	_, err = b.conn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
 	require.NoError(t, err)
 
