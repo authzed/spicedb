@@ -137,8 +137,8 @@ func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name s
 	return read, createdAt, err
 }
 
-func (vsr validatingSnapshotReader) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
-	read, err := vsr.delegate.ListCaveats(ctx)
+func (vsr validatingSnapshotReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+	read, err := vsr.delegate.ListCaveats(ctx, caveatNames...)
 	if err != nil {
 		return nil, err
 	}

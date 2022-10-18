@@ -147,7 +147,7 @@ func (dm *MockReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 	panic("implement me")
 }
 
-func (dm *MockReader) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+func (dm *MockReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -245,7 +245,7 @@ func (dm *MockReadWriteTransaction) ReadCaveatByName(ctx context.Context, name s
 	panic("implement me")
 }
 
-func (dm *MockReadWriteTransaction) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+func (dm *MockReadWriteTransaction) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
 	// TODO implement me
 	panic("implement me")
 }

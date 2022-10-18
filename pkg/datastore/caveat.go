@@ -11,8 +11,9 @@ type CaveatReader interface {
 	// ReadCaveatByName returns a caveat with the provided name
 	ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, Revision, error)
 
-	// ListCaveats returns all caveats stored in the system
-	ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error)
+	// ListCaveats returns all caveats stored in the system. If caveatNames are provided
+	// the result will be filtered to the provided caveat names
+	ListCaveats(ctx context.Context, caveatNamesForFiltering ...string) ([]*core.CaveatDefinition, error)
 }
 
 // CaveatStorer offers both read and write operations for Caveats

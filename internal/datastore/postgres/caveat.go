@@ -16,11 +16,11 @@ import (
 )
 
 var (
-	writeCaveat            = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatExpression)
-	writeCaveatDeprecated  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatExpression, colCreatedTxnDeprecated)
-	listCaveat             = psql.Select(colCaveatName, colCaveatExpression).From(tableCaveat)
-	readCaveat             = psql.Select(colCaveatExpression, colCreatedXid).From(tableCaveat)
-	readCaveatDeprecated   = psql.Select(colCaveatExpression, colCreatedTxnDeprecated).From(tableCaveat)
+	writeCaveat            = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition)
+	writeCaveatDeprecated  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition, colCreatedTxnDeprecated)
+	listCaveat             = psql.Select(colCaveatDefinition).From(tableCaveat).OrderBy(colCaveatName)
+	readCaveat             = psql.Select(colCaveatDefinition, colCreatedXid).From(tableCaveat)
+	readCaveatDeprecated   = psql.Select(colCaveatDefinition, colCreatedTxnDeprecated).From(tableCaveat)
 	deleteCaveat           = psql.Update(tableCaveat).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 	deleteCaveatDeprecated = psql.Update(tableCaveat).Where(sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID})
 )
@@ -46,26 +46,32 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	}
 	defer txCleanup(ctx)
 
-	var expr []byte
+	var serializedDef []byte
 	var rev datastore.Revision
-	err = tx.QueryRow(ctx, sql, args...).Scan(&expr, &rev)
+	err = tx.QueryRow(ctx, sql, args...).Scan(&serializedDef, &rev)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
 		}
 		return nil, datastore.NoRevision, err
 	}
-	return &core.CaveatDefinition{
-		Name:                 name,
-		SerializedExpression: expr,
-	}, rev, nil
+	def := core.CaveatDefinition{}
+	err = def.UnmarshalVT(serializedDef)
+	return &def, rev, err
 }
 
-func (r *pgReader) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
-	ctx, span := tracer.Start(ctx, "ListCaveats")
+func (r *pgReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+	ctx, span := tracer.Start(ctx, "ListCaveats", trace.WithAttributes(
+		attribute.StringSlice("names", caveatNames),
+	))
 	defer span.End()
 
-	filteredListCaveat := r.filterer(listCaveat)
+	caveatsWithNames := listCaveat
+	if len(caveatNames) > 0 {
+		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
+	}
+
+	filteredListCaveat := r.filterer(caveatsWithNames)
 	sql, args, err := filteredListCaveat.ToSql()
 	if err != nil {
 		return nil, err
@@ -85,8 +91,13 @@ func (r *pgReader) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, e
 	defer rows.Close()
 	var caveats []*core.CaveatDefinition
 	for rows.Next() {
+		var defBytes []byte
+		err = rows.Scan(&defBytes)
+		if err != nil {
+			return nil, fmt.Errorf("unable to list caveat: %w", err)
+		}
 		c := core.CaveatDefinition{}
-		err = rows.Scan(&c.Name, &c.SerializedExpression)
+		err = c.UnmarshalVT(defBytes)
 		if err != nil {
 			return nil, fmt.Errorf("unable to list caveat: %w", err)
 		}
@@ -112,7 +123,11 @@ func (rwt *pgReadWriteTXN) WriteCaveats(caveats []*core.CaveatDefinition) error 
 	writtenCaveatNames := make([]string, 0, len(caveats))
 	for _, caveat := range caveats {
 		deletedCaveatClause = append(deletedCaveatClause, sq.Eq{colCaveatName: caveat.Name})
-		valuesToWrite := []any{caveat.Name, caveat.SerializedExpression}
+		definitionBytes, err := caveat.MarshalVT()
+		if err != nil {
+			return err
+		}
+		valuesToWrite := []any{caveat.Name, definitionBytes}
 		// TODO remove once the ID->XID migrations are all complete
 		if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
 			valuesToWrite = append(valuesToWrite, rwt.newXID.Uint)

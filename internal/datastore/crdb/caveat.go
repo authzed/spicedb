@@ -12,7 +12,7 @@ func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 	return nil, datastore.NoRevision, fmt.Errorf("unimplemented caveat support in datastore")
 }
 
-func (cr *crdbReader) ListCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
 	return nil, fmt.Errorf("unimplemented caveat support in datastore")
 }
 

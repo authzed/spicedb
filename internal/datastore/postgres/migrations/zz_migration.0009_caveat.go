@@ -9,7 +9,7 @@ import (
 var caveatStatements = []string{
 	`CREATE TABLE caveat (
 		name VARCHAR NOT NULL,
-		expression BYTEA NOT NULL,
+		definition BYTEA NOT NULL,
 		created_transaction BIGINT NOT NULL,
 		deleted_transaction BIGINT NOT NULL DEFAULT '9223372036854775807',
 		CONSTRAINT pk_caveat_v1 PRIMARY KEY (name, deleted_transaction),

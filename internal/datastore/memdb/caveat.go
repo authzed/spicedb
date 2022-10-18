@@ -15,15 +15,14 @@ const tableCaveats = "caveats"
 
 type caveat struct {
 	name       string
-	expression []byte
+	definition []byte
 	revision   datastore.Revision
 }
 
-func (c *caveat) Unwrap() *core.CaveatDefinition {
-	return &core.CaveatDefinition{
-		Name:                 c.name,
-		SerializedExpression: c.expression,
-	}
+func (c *caveat) Unwrap() (*core.CaveatDefinition, error) {
+	definition := core.CaveatDefinition{}
+	err := definition.UnmarshalVT(c.definition)
+	return &definition, err
 }
 
 func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
@@ -58,10 +57,14 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 	if err != nil {
 		return nil, datastore.NoRevision, err
 	}
-	return c.Unwrap(), rev, nil
+	unwrapped, err := c.Unwrap()
+	if err != nil {
+		return nil, datastore.NoRevision, err
+	}
+	return unwrapped, rev, nil
 }
 
-func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.CaveatDefinition, error) {
+func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
 	if !r.enableCaveats {
 		return nil, fmt.Errorf("caveats are not enabled")
 	}
@@ -80,8 +83,17 @@ func (r *memdbReader) ListCaveats(_ context.Context) ([]*core.CaveatDefinition, 
 		return nil, err
 	}
 
+	setOfCaveats := util.NewSet(caveatNames...)
 	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
-		caveats = append(caveats, foundRaw.(*caveat).Unwrap())
+		rawCaveat := foundRaw.(*caveat)
+		if !setOfCaveats.IsEmpty() && !setOfCaveats.Has(rawCaveat.name) {
+			continue
+		}
+		definition, err := rawCaveat.Unwrap()
+		if err != nil {
+			return nil, err
+		}
+		caveats = append(caveats, definition)
 	}
 
 	return caveats, nil
@@ -103,9 +115,13 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDe
 		if !caveatNames.Add(coreCaveat.Name) {
 			return fmt.Errorf("duplicate caveat %s", coreCaveat.Name)
 		}
+		marshalled, err := coreCaveat.MarshalVT()
+		if err != nil {
+			return err
+		}
 		c := caveat{
 			name:       coreCaveat.Name,
-			expression: coreCaveat.SerializedExpression,
+			definition: marshalled,
 			revision:   rwt.newRevision,
 		}
 		if err := tx.Insert(tableCaveats, &c); err != nil {
