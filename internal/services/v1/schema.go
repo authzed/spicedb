@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/scylladb/go-set/strset"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,8 +28,8 @@ import (
 func NewSchemaServer() v1.SchemaServiceServer {
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
-			Unary:  grpcvalidate.UnaryServerInterceptor(),
-			Stream: grpcvalidate.StreamServerInterceptor(),
+			Unary:  grpcvalidate.UnaryServerInterceptor(true),
+			Stream: grpcvalidate.StreamServerInterceptor(true),
 		},
 	}
 }

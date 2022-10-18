@@ -6,7 +6,7 @@ import (
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
-	auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpc "google.golang.org/grpc"
 	"time"
 )

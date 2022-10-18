@@ -8,8 +8,7 @@ import (
 	"testing"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
-	grpc_testing "github.com/grpc-ecosystem/go-grpc-middleware/testing"
-	pb_testproto "github.com/grpc-ecosystem/go-grpc-middleware/testing/testproto"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -19,25 +18,27 @@ import (
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-type testServer struct{}
+type testServer struct {
+	testpb.UnimplementedTestServiceServer
+}
 
-func (t testServer) PingEmpty(ctx context.Context, empty *pb_testproto.Empty) (*pb_testproto.PingResponse, error) {
+func (t testServer) PingEmpty(ctx context.Context, empty *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
 	SetInContext(ctx, &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
 	})
-	return &pb_testproto.PingResponse{Value: ""}, nil
+	return &testpb.PingEmptyResponse{}, nil
 }
 
-func (t testServer) Ping(ctx context.Context, request *pb_testproto.PingRequest) (*pb_testproto.PingResponse, error) {
+func (t testServer) Ping(ctx context.Context, request *testpb.PingRequest) (*testpb.PingResponse, error) {
 	SetInContext(ctx, &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
 	})
-	return &pb_testproto.PingResponse{Value: ""}, nil
+	return &testpb.PingResponse{Value: ""}, nil
 }
 
-func (t testServer) PingError(ctx context.Context, request *pb_testproto.PingRequest) (*pb_testproto.Empty, error) {
+func (t testServer) PingError(ctx context.Context, request *testpb.PingErrorRequest) (*testpb.PingErrorResponse, error) {
 	SetInContext(ctx, &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
@@ -45,7 +46,7 @@ func (t testServer) PingError(ctx context.Context, request *pb_testproto.PingReq
 	return nil, fmt.Errorf("err")
 }
 
-func (t testServer) PingList(request *pb_testproto.PingRequest, server pb_testproto.TestService_PingListServer) error {
+func (t testServer) PingList(request *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
 	SetInContext(server.Context(), &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
@@ -53,7 +54,7 @@ func (t testServer) PingList(request *pb_testproto.PingRequest, server pb_testpr
 	return nil
 }
 
-func (t testServer) PingStream(stream pb_testproto.TestService_PingStreamServer) error {
+func (t testServer) PingStream(stream testpb.TestService_PingStreamServer) error {
 	count := 0
 	for {
 		_, err := stream.Recv()
@@ -62,19 +63,19 @@ func (t testServer) PingStream(stream pb_testproto.TestService_PingStreamServer)
 		} else if err != nil {
 			return err
 		}
-		_ = stream.Send(&pb_testproto.PingResponse{Value: "", Counter: int32(count)})
+		_ = stream.Send(&testpb.PingStreamResponse{Value: "", Counter: int32(count)})
 		count++
 	}
 	return nil
 }
 
 type metricsMiddlewareTestSuite struct {
-	*grpc_testing.InterceptorTestSuite
+	*testpb.InterceptorTestSuite
 }
 
 func TestMetricsMiddleware(t *testing.T) {
 	s := &metricsMiddlewareTestSuite{
-		InterceptorTestSuite: &grpc_testing.InterceptorTestSuite{
+		InterceptorTestSuite: &testpb.InterceptorTestSuite{
 			TestService: &testServer{},
 			ServerOpts: []grpc.ServerOption{
 				grpc.UnaryInterceptor(UnaryServerInterceptor()),
@@ -88,7 +89,7 @@ func TestMetricsMiddleware(t *testing.T) {
 
 func (s *metricsMiddlewareTestSuite) TestTrailers_Unary() {
 	var trailerMD metadata.MD
-	_, err := s.Client.Ping(s.SimpleCtx(), &pb_testproto.PingRequest{Value: "something"}, grpc.Trailer(&trailerMD))
+	_, err := s.Client.Ping(s.SimpleCtx(), &testpb.PingRequest{Value: "something"}, grpc.Trailer(&trailerMD))
 	require.NoError(s.T(), err)
 
 	dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(
@@ -107,7 +108,7 @@ func (s *metricsMiddlewareTestSuite) TestTrailers_Unary() {
 }
 
 func (s *metricsMiddlewareTestSuite) TestTrailers_Stream() {
-	stream, err := s.Client.PingList(s.SimpleCtx(), &pb_testproto.PingRequest{Value: "something"})
+	stream, err := s.Client.PingList(s.SimpleCtx(), &testpb.PingListRequest{Value: "something"})
 	require.NoError(s.T(), err)
 	for {
 		_, err := stream.Recv()

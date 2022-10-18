@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,7 +28,7 @@ type watchServer struct {
 func NewWatchServer() v1.WatchServiceServer {
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
-			Stream: grpcvalidate.StreamServerInterceptor(),
+			Stream: grpcvalidate.StreamServerInterceptor(true),
 		},
 	}
 	return s

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
+	"github.com/authzed/spicedb/internal/middleware"
 	"github.com/authzed/spicedb/internal/util"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -56,13 +56,13 @@ func NewPermissionsServer(
 		dispatch: dispatch,
 		config:   configWithDefaults,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
-			Unary: grpcmw.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(),
+			Unary: middleware.ChainUnaryServer(
+				grpcvalidate.UnaryServerInterceptor(true),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
 			),
-			Stream: grpcmw.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(),
+			Stream: middleware.ChainStreamServer(
+				grpcvalidate.StreamServerInterceptor(true),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 			),
