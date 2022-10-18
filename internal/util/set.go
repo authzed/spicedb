@@ -94,3 +94,8 @@ func (s *Set[T]) AsSlice() []T {
 	}
 	return slice
 }
+
+// Len returns the length of the set.
+func (s *Set[T]) Len() uint64 {
+	return uint64(len(s.values))
+}

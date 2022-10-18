@@ -2,30 +2,33 @@ package graph
 
 import (
 	"context"
+	"fmt"
 	"sync"
+
+	"github.com/authzed/spicedb/internal/util"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// ParallelChecker is a helper for initiating checks over a large set of resources
-// for a specific subject, and putting the results concurrently into a set.
-type ParallelChecker struct {
-	toCheck         chan *v1.DispatchCheckRequest
-	enqueuedToCheck *tuple.ONRSet
+// parallelChecker is a helper for initiating checks over a large set of resources of a specific
+// type, for a specific subject, and putting the results concurrently into a set.
+type parallelChecker struct {
+	c        dispatch.Check
+	g        *errgroup.Group
+	checkCtx context.Context
+	cancel   func()
 
-	c             dispatch.Check
-	g             *errgroup.Group
-	checkCtx      context.Context
-	subject       *core.ObjectAndRelation
+	toCheck         chan string
+	enqueuedToCheck *util.Set[string]
+
+	lookupRequest ValidatedLookupRequest
 	maxConcurrent uint16
-	results       *tuple.ONRSet
+
+	foundResourceIDs *util.Set[string]
 
 	dispatchCount       uint32
 	cachedDispatchCount uint32
@@ -34,101 +37,145 @@ type ParallelChecker struct {
 	mu sync.Mutex
 }
 
-// NewParallelChecker creates a new parallel checker, for a given subject.
-func NewParallelChecker(ctx context.Context, c dispatch.Check, subject *core.ObjectAndRelation, maxConcurrent uint16) *ParallelChecker {
+// newParallelChecker creates a new parallel checker, for a given subject.
+func newParallelChecker(ctx context.Context, cancel func(), c dispatch.Check, req ValidatedLookupRequest, maxConcurrent uint16) *parallelChecker {
 	g, checkCtx := errgroup.WithContext(ctx)
-	toCheck := make(chan *v1.DispatchCheckRequest)
-	return &ParallelChecker{toCheck, tuple.NewONRSet(), c, g, checkCtx, subject, maxConcurrent, tuple.NewONRSet(), 0, 0, 0, sync.Mutex{}}
+	toCheck := make(chan string)
+	return &parallelChecker{
+		checkCtx: checkCtx,
+		cancel:   cancel,
+
+		c: c,
+		g: g,
+
+		toCheck:         toCheck,
+		enqueuedToCheck: util.NewSet[string](),
+
+		lookupRequest: req,
+		maxConcurrent: maxConcurrent,
+
+		foundResourceIDs:    util.NewSet[string](),
+		dispatchCount:       0,
+		cachedDispatchCount: 0,
+		depthRequired:       0,
+
+		mu: sync.Mutex{},
+	}
 }
 
 // AddResult adds a result that has been already checked to the set.
-func (pc *ParallelChecker) AddResult(resource *core.ObjectAndRelation) {
+func (pc *parallelChecker) AddResult(resourceID string) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
-	pc.addResultsUnsafe(resource)
+	pc.addResultsUnsafe(resourceID)
 }
 
 // DispatchCount returns the number of dispatches used for checks.
-func (pc *ParallelChecker) DispatchCount() uint32 {
+func (pc *parallelChecker) DispatchCount() uint32 {
 	return pc.dispatchCount
 }
 
 // CachedDispatchCount returns the number of cached dispatches used for checks.
-func (pc *ParallelChecker) CachedDispatchCount() uint32 {
+func (pc *parallelChecker) CachedDispatchCount() uint32 {
 	return pc.cachedDispatchCount
 }
 
 // DepthRequired returns the maximum depth required for the checks.
-func (pc *ParallelChecker) DepthRequired() uint32 {
+func (pc *parallelChecker) DepthRequired() uint32 {
 	return pc.depthRequired
 }
 
-func (pc *ParallelChecker) addResultsUnsafe(resource *core.ObjectAndRelation) {
-	pc.results.Add(resource)
+func (pc *parallelChecker) addResultsUnsafe(resourceID string) {
+	pc.foundResourceIDs.Add(resourceID)
+	if pc.foundResourceIDs.Len() >= uint64(pc.lookupRequest.Limit) {
+		// Cancel any further work
+		pc.cancel()
+		close(pc.toCheck)
+		return
+	}
 }
 
-func (pc *ParallelChecker) updateStatsUnsafe(metadata *v1.ResponseMeta) {
+func (pc *parallelChecker) updateStatsUnsafe(metadata *v1.ResponseMeta) {
 	pc.dispatchCount += metadata.DispatchCount
 	pc.cachedDispatchCount += metadata.CachedDispatchCount
 	pc.depthRequired = max(pc.depthRequired, metadata.DepthRequired)
 }
 
-// QueueCheck queues a resource to be checked.
-func (pc *ParallelChecker) QueueCheck(resource *core.ObjectAndRelation, meta *v1.ResolverMeta) {
+// QueueToCheck queues a resource ID to be checked.
+func (pc *parallelChecker) QueueToCheck(resourceID string) {
 	queue := func() bool {
 		pc.mu.Lock()
 		defer pc.mu.Unlock()
-		return pc.enqueuedToCheck.Add(resource)
+		if pc.foundResourceIDs.Len() >= uint64(pc.lookupRequest.Limit) {
+			close(pc.toCheck)
+			return false
+		}
+
+		return pc.enqueuedToCheck.Add(resourceID)
 	}()
 	if !queue {
 		return
 	}
 
-	pc.toCheck <- &v1.DispatchCheckRequest{
-		Metadata: meta,
-		ResourceRelation: &core.RelationReference{
-			Namespace: resource.Namespace,
-			Relation:  resource.Relation,
-		},
-		ResourceIds: []string{resource.ObjectId},
-		Subject:     pc.subject,
-	}
+	pc.toCheck <- resourceID
 }
 
-// Start starts the parallel checks over those items added via QueueCheck.
-func (pc *ParallelChecker) Start() {
+// Start starts the parallel checks over those items added via QueueToCheck.
+func (pc *parallelChecker) Start() {
+	meta := &v1.ResolverMeta{
+		AtRevision:     pc.lookupRequest.Revision.String(),
+		DepthRemaining: pc.lookupRequest.Metadata.DepthRemaining,
+	}
+
 	pc.g.Go(func() error {
 		sem := semaphore.NewWeighted(int64(pc.maxConcurrent))
 		for {
 			if err := sem.Acquire(pc.checkCtx, 1); err != nil {
 				return err
 			}
-			req, ok := <-pc.toCheck
-			if !ok {
+
+			collected := make([]string, 0, maxDispatchChunkSize)
+
+			for {
+				req, ok := <-pc.toCheck
+				if !ok {
+					break
+				}
+
+				collected = append(collected, req)
+				if len(collected) == maxDispatchChunkSize {
+					break
+				}
+			}
+
+			if len(collected) == 0 {
 				sem.Release(1)
 				break
 			}
 
 			pc.g.Go(func() error {
 				defer sem.Release(1)
-				res, err := pc.c.DispatchCheck(pc.checkCtx, req)
+				res, err := pc.c.DispatchCheck(pc.checkCtx, &v1.DispatchCheckRequest{
+					ResourceRelation: pc.lookupRequest.ObjectRelation,
+					ResourceIds:      collected,
+					Subject:          pc.lookupRequest.Subject,
+					ResultsSetting:   v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
+					Metadata:         meta,
+				})
 				if err != nil {
 					return err
 				}
 
-				func() {
-					pc.mu.Lock()
-					defer pc.mu.Unlock()
-					resourceID := req.ResourceIds[0]
-					if found, ok := res.ResultsByResourceId[resourceID]; ok && found.Membership == v1.ResourceCheckResult_MEMBER {
-						pc.addResultsUnsafe(&core.ObjectAndRelation{
-							Namespace: req.ResourceRelation.Namespace,
-							ObjectId:  resourceID,
-							Relation:  req.ResourceRelation.Relation,
-						})
+				pc.mu.Lock()
+				for resourceID, result := range res.ResultsByResourceId {
+					if result.Membership == v1.ResourceCheckResult_MEMBER {
+						pc.addResultsUnsafe(resourceID)
+						pc.updateStatsUnsafe(res.Metadata)
+					} else if result.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER {
+						return fmt.Errorf("found caveated result; this is unsupported (for now)")
 					}
-					pc.updateStatsUnsafe(res.Metadata)
-				}()
+				}
+				pc.mu.Unlock()
 				return nil
 			})
 		}
@@ -141,12 +188,12 @@ func (pc *ParallelChecker) Start() {
 
 // Wait waits for the parallel checker to finish performing all of its
 // checks and returns the set of resources that checked, along with whether an
-// error occurred. Once called, no new items can be added via QueueCheck.
-func (pc *ParallelChecker) Wait() (*tuple.ONRSet, error) {
+// error occurred. Once called, no new items can be added via QueueToCheck.
+func (pc *parallelChecker) Wait() ([]string, error) {
 	close(pc.toCheck)
 	if err := pc.g.Wait(); err != nil {
 		return nil, err
 	}
 
-	return pc.results, nil
+	return pc.foundResourceIDs.AsSlice(), nil
 }

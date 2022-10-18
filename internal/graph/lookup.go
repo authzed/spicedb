@@ -36,7 +36,7 @@ type ValidatedLookupRequest struct {
 }
 
 type collectingStream struct {
-	checker *ParallelChecker
+	checker *parallelChecker
 	req     ValidatedLookupRequest
 	context context.Context
 
@@ -66,21 +66,12 @@ func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesRespons
 	}()
 
 	for _, id := range result.Resource.ResourceIds {
-		resource := &core.ObjectAndRelation{
-			Namespace: ls.req.ObjectRelation.Namespace,
-			ObjectId:  id,
-			Relation:  ls.req.ObjectRelation.Relation,
-		}
-
 		if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
-			ls.checker.AddResult(resource)
+			ls.checker.AddResult(id)
 			continue
 		}
 
-		ls.checker.QueueCheck(resource, &v1.ResolverMeta{
-			AtRevision:     ls.req.Revision.String(),
-			DepthRemaining: ls.req.Metadata.DepthRemaining,
-		})
+		ls.checker.QueueToCheck(id)
 	}
 	return nil
 }
@@ -91,10 +82,10 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 		return resp.Resp, resp.Err
 	}
 
-	cancelCtx, checkCancel := context.WithCancel(ctx)
-	defer checkCancel()
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	checker := NewParallelChecker(cancelCtx, cl.c, req.Subject, cl.concurrencyLimit)
+	checker := newParallelChecker(cancelCtx, cancel, cl.c, req, cl.concurrencyLimit)
 	stream := &collectingStream{checker, req, cancelCtx, 0, 0, 0, sync.Mutex{}}
 
 	// Start the checker.
@@ -102,6 +93,8 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 
 	// Dispatch to the reachability API to find all reachable objects and queue them
 	// either for checks, or directly as results.
+	// NOTE: This dispatch call is blocking until all results have been sent to the specified
+	// stream.
 	err := cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 		ResourceRelation: req.ObjectRelation,
 		SubjectRelation: &core.RelationReference{
@@ -123,7 +116,7 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 		return resp.Resp, resp.Err
 	}
 
-	res := lookupResult(limitedSlice(allowed.AsSlice(), req.Limit), &v1.ResponseMeta{
+	res := lookupResult(allowed, req, &v1.ResponseMeta{
 		DispatchCount:       stream.dispatchCount + checker.DispatchCount() + 1, // +1 for the lookup
 		CachedDispatchCount: stream.cachedDispatchCount + checker.CachedDispatchCount(),
 		DepthRequired:       max(stream.depthRequired, checker.DepthRequired()) + 1, // +1 for the lookup
@@ -131,7 +124,18 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	return res.Resp, res.Err
 }
 
-func lookupResult(resolvedONRs []*core.ObjectAndRelation, subProblemMetadata *v1.ResponseMeta) LookupResult {
+func lookupResult(foundResourceIDs []string, req ValidatedLookupRequest, subProblemMetadata *v1.ResponseMeta) LookupResult {
+	limitedResourceIDs := limitedSlice(foundResourceIDs, req.Limit)
+
+	resolvedONRs := make([]*core.ObjectAndRelation, 0, len(limitedResourceIDs))
+	for _, resourceID := range limitedResourceIDs {
+		resolvedONRs = append(resolvedONRs, &core.ObjectAndRelation{
+			Namespace: req.ObjectRelation.Namespace,
+			ObjectId:  resourceID,
+			Relation:  req.ObjectRelation.Relation,
+		})
+	}
+
 	return LookupResult{
 		&v1.DispatchLookupResponse{
 			Metadata:     ensureMetadata(subProblemMetadata),
@@ -141,7 +145,7 @@ func lookupResult(resolvedONRs []*core.ObjectAndRelation, subProblemMetadata *v1
 	}
 }
 
-func limitedSlice(slice []*core.ObjectAndRelation, limit uint32) []*core.ObjectAndRelation {
+func limitedSlice(slice []string, limit uint32) []string {
 	if len(slice) > int(limit) {
 		return slice[0:limit]
 	}

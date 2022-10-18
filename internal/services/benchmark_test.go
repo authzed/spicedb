@@ -82,6 +82,22 @@ func BenchmarkServices(b *testing.B) {
 			},
 		},
 		{
+			"lookup with intersection",
+			"benchconfigs/lookupintersection.yaml",
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+				results, err := tester.Lookup(ctx, &core.RelationReference{
+					Namespace: "resource",
+					Relation:  "view",
+				}, &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "tom",
+					Relation:  tuple.Ellipsis,
+				}, revision)
+				require.Equal(b, len(results), 499)
+				return err
+			},
+		},
+		{
 			"basic check for a user",
 			"testconfigs/basicrbac.yaml",
 			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
