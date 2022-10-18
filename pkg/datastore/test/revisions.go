@@ -27,6 +27,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("quantization%s", tc.quantizationRange), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ds, err := tester.New(tc.quantizationRange, veryLargeGCWindow, 1)

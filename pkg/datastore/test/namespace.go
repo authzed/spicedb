@@ -33,6 +33,7 @@ var (
 // NamespaceWriteTest tests whether or not the requirements for writing
 // namespaces hold for a particular datastore.
 func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
@@ -125,6 +126,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 // NamespaceDeleteTest tests whether or not the requirements for deleting
 // namespaces hold for a particular datastore.
 func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
@@ -201,6 +203,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 
 // EmptyNamespaceDeleteTest tests deleting an empty namespace in the datastore.
 func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
@@ -222,6 +225,7 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 // StableNamespaceReadWriteTest tests writing a namespace to the datastore and reading it back,
 // ensuring that it does not change in any way and that the deserialized data matches that stored.
 func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	schemaString := `caveat foo(someParam int) {

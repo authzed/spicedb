@@ -25,6 +25,7 @@ const waitForChangesTimeout = 5 * time.Second
 // WatchTest tests whether or not the requirements for watching changes hold
 // for a particular datastore.
 func WatchTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	testCases := []struct {
 		numTuples        int
 		expectFallBehind bool
@@ -45,6 +46,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 	for _, tc := range testCases {
 		t.Run(strconv.Itoa(tc.numTuples), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ds, err := tester.New(0, veryLargeGCWindow, 16)
@@ -169,6 +171,7 @@ func setOfChanges(changes []*core.RelationTupleUpdate) *strset.Set {
 // WatchCancelTest tests whether or not the requirements for cancelling watches
 // hold for a particular datastore.
 func WatchCancelTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds, err := tester.New(0, veryLargeGCWindow, 1)

@@ -13,6 +13,7 @@ import (
 const statsRetryCount = 3
 
 func StatsTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	ctx := context.Background()
 	require := require.New(t)
 

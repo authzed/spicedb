@@ -31,6 +31,7 @@ const (
 // SimpleTest tests whether or not the requirements for simple reading and
 // writing of relationships hold for a particular datastore.
 func SimpleTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	testCases := []int{1, 2, 4, 32, 256}
 
 	for _, numTuples := range testCases {
@@ -316,6 +317,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 // DeleteRelationshipsTest tests whether or not the requirements for deleting
 // relationships hold for a particular datastore.
 func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	var testTuples []*core.RelationTuple
 	for i := 0; i < 10; i++ {
 		newTuple := makeTestTuple(fmt.Sprintf("resource%d", i), fmt.Sprintf("user%d", i%2))
@@ -431,6 +433,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 // invalid revisions hold for a particular datastore.
 func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 	t.Run("revision expiration", func(t *testing.T) {
+		t.Parallel()
 		testGCDuration := 600 * time.Millisecond
 
 		require := require.New(t)
@@ -477,6 +480,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 
 // DeleteNotExistantTest tests the deletion of a non-existant relationship.
 func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
@@ -498,6 +502,7 @@ func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
 
 // DeleteAlreadyDeletedTest tests the deletion of an already-deleted relationship.
 func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
@@ -533,6 +538,7 @@ func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 
 // WriteDeleteWriteTest tests writing a relationship, deleting it, and then writing it again.
 func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
@@ -554,6 +560,7 @@ func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
 
 // CreateAlreadyExistingTest tests creating a relationship twice.
 func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
@@ -574,6 +581,7 @@ func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 
 // TouchAlreadyExistingTest tests touching a relationship twice.
 func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
@@ -594,6 +602,7 @@ func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 // UsersetsTest tests whether or not the requirements for reading usersets hold
 // for a particular datastore.
 func UsersetsTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	testCases := []int{1, 2, 4, 32, 1024}
 
 	t.Run("multiple usersets tuple query", func(t *testing.T) {
@@ -646,6 +655,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 }
 
 func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
@@ -675,6 +685,7 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 // ConcurrentWriteSerializationTest uses goroutines and channels to intentionally set up a
 // deadlocking dependency between transactions.
 func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := tester.New(0, veryLargeGCWindow, 1)

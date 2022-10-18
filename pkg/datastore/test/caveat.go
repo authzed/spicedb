@@ -23,6 +23,7 @@ import (
 )
 
 func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	req := require.New(t)
 	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
 	req.NoError(err)
@@ -97,6 +98,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 }
 
 func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	req := require.New(t)
 	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
 	req.NoError(err)
@@ -170,6 +172,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 }
 
 func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	req := require.New(t)
 	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
 	req.NoError(err)
@@ -212,6 +215,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 }
 
 func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	req := require.New(t)
 	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
 	req.NoError(err)
@@ -247,6 +251,7 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 }
 
 func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
+	t.Parallel()
 	req := require.New(t)
 	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 16)
 	req.NoError(err)
