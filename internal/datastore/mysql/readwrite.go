@@ -17,7 +17,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -90,7 +89,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*core.RelationTuple
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
-		defer migrations.LogOnError(ctx, rows.Close)
+		defer common.LogOnError(ctx, rows.Close)
 
 		tupleIds := make([]int64, 0, len(clauses))
 		for rows.Next() {

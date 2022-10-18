@@ -342,7 +342,7 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
-		defer migrations.LogOnError(ctx, rows.Close)
+		defer common.LogOnError(ctx, rows.Close)
 
 		span.AddEvent("Query issued to database")
 
@@ -492,7 +492,7 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer migrations.LogOnError(ctx, tx.Rollback)
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	// idempotent INSERT IGNORE transaction id=1. safe to be executed concurrently.
 	result, err := tx.ExecContext(ctx, mds.createBaseTxn)

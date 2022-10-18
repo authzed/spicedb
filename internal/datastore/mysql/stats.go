@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/common"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 
 	"github.com/Masterminds/squirrel"
@@ -67,7 +68,7 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	if err != nil {
 		return datastore.Stats{}, err
 	}
-	defer migrations.LogOnError(ctx, tx.Rollback)
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	nsDefs, err := loadAllNamespaces(ctx, tx, nsQuery)
 	if err != nil {
