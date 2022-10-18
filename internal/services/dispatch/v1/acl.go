@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -27,8 +27,8 @@ func NewDispatchServer(localDispatch dispatch.Dispatcher) dispatchv1.DispatchSer
 	return &dispatchServer{
 		localDispatch: localDispatch,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
-			Unary:  grpcvalidate.UnaryServerInterceptor(),
-			Stream: grpcvalidate.StreamServerInterceptor(),
+			Unary:  grpcvalidate.UnaryServerInterceptor(true),
+			Stream: grpcvalidate.StreamServerInterceptor(true),
 		},
 	}
 }

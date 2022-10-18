@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/authzed/grpcutil"
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"

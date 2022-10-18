@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"

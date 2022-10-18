@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	grpc_testing "github.com/grpc-ecosystem/go-grpc-middleware/testing"
-	pb_testproto "github.com/grpc-ecosystem/go-grpc-middleware/testing/testproto"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -152,7 +151,7 @@ func TestMiddlewareConsistencyTestSuite(t *testing.T) {
 	ds.On("HeadRevision").Return(head, nil)
 
 	s := &ConsistencyTestSuite{
-		InterceptorTestSuite: &grpc_testing.InterceptorTestSuite{
+		InterceptorTestSuite: &testpb.InterceptorTestSuite{
 			ServerOpts: []grpc.ServerOption{
 				grpc.ChainStreamInterceptor(
 					datastoremw.StreamServerInterceptor(ds),
@@ -169,10 +168,13 @@ func TestMiddlewareConsistencyTestSuite(t *testing.T) {
 	ds.AssertExpectations(t)
 }
 
-var goodPing = &pb_testproto.PingRequest{Value: "something"}
+var (
+	goodPing = &testpb.PingRequest{Value: "something"}
+	goodList = &testpb.PingListRequest{Value: "something"}
+)
 
 type ConsistencyTestSuite struct {
-	*grpc_testing.InterceptorTestSuite
+	*testpb.InterceptorTestSuite
 }
 
 func (s *ConsistencyTestSuite) TestValidPasses_Unary() {
@@ -183,7 +185,7 @@ func (s *ConsistencyTestSuite) TestValidPasses_Unary() {
 
 func (s *ConsistencyTestSuite) TestValidPasses_ServerStream() {
 	require := require.New(s.T())
-	stream, err := s.Client.PingList(s.SimpleCtx(), goodPing)
+	stream, err := s.Client.PingList(s.SimpleCtx(), goodList)
 	require.NoError(err)
 	for {
 		_, err := stream.Recv()

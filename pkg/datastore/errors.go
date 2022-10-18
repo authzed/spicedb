@@ -19,7 +19,7 @@ func (err ErrNamespaceNotFound) NotFoundNamespaceName() string {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName)
+	e.Err(err.error).Str("namespace", err.namespaceName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -74,11 +74,11 @@ func (err ErrInvalidRevision) Reason() InvalidRevisionReason {
 func (err ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
 	switch err.reason {
 	case RevisionStale:
-		e.Err(err).Str("reason", "stale")
+		e.Err(err.error).Str("reason", "stale")
 	case CouldNotDetermineRevision:
-		e.Err(err).Str("reason", "indeterminate")
+		e.Err(err.error).Str("reason", "indeterminate")
 	default:
-		e.Err(err).Str("reason", "unknown")
+		e.Err(err.error).Str("reason", "unknown")
 	}
 }
 

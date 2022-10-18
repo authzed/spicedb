@@ -6,11 +6,11 @@ import (
 
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
-	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/scylladb/go-set/strset"
 	"github.com/shopspring/decimal"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -55,7 +55,7 @@ func NewSchemaServer(prefixRequired PrefixRequiredOption) v1alpha1.SchemaService
 	return &schemaServiceServer{
 		prefixRequired: prefixRequired,
 		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
-			Unary: grpcmw.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
+			Unary: middleware.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
 		},
 	}
 }
