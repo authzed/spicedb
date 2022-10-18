@@ -70,6 +70,7 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
+		t.Parallel()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := newMySQLDatastore(uri, options...)
 			require.NoError(t, err)
@@ -82,6 +83,7 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 }
 
 func TestMySQLDatastore(t *testing.T) {
+	t.Parallel()
 	b := testdatastore.RunMySQLForTesting(t, "")
 	dst := datastoreTester{b: b, t: t}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
@@ -102,12 +104,14 @@ func TestMySQLDatastore(t *testing.T) {
 }
 
 func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
+	t.Parallel()
 	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, Prefix: "spicedb_"}, "")
 	dst := datastoreTester{b: b, t: t, prefix: "spicedb_"}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 }
 
 func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already invoked in createDatastoreTest
 	req := require.New(t)
 
 	// ensure datastore is seeded right after initialization
@@ -122,6 +126,7 @@ func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already invoked in createDatastoreTest
 	req := require.New(t)
 
 	// cause some use of the SQL connection pool to generate metrics
@@ -144,6 +149,7 @@ func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already invoked in createDatastoreTest
 	req := require.New(t)
 
 	ctx := context.Background()
@@ -282,6 +288,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already invoked in createDatastoreTest
 	req := require.New(t)
 
 	ctx := context.Background()
@@ -355,6 +362,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already invoked in createDatastoreTest
 	req := require.New(t)
 
 	ctx := context.Background()
@@ -438,6 +446,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	// t.Parallel() already invoked in createDatastoreTest
 	testCases := []struct {
 		testName         string
 		quantization     time.Duration
@@ -478,6 +487,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -537,6 +547,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 // By default, the current time zone for each connection is the server's time.
 // The time zone can be set on a per-connection basis.
 func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
+	// t.Parallel() already invoked in createDatastoreTest
 	req := require.New(t)
 
 	// Setting db default time zone to before UTC
@@ -576,6 +587,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func TestMySQLMigrations(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 
 	db := datastoreDB(t, false)
@@ -597,6 +609,7 @@ func TestMySQLMigrations(t *testing.T) {
 }
 
 func TestMySQLMigrationsWithPrefix(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 
 	prefix := "spicedb_"
