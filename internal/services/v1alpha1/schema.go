@@ -185,7 +185,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 				return err
 			}
 
-			if err := shared.SanityCheckExistingRelationships(ctx, rwt, nsdef, existingObjectDefMap); err != nil {
+			if _, err := shared.SanityCheckNamespaceChanges(ctx, rwt, nsdef, existingObjectDefMap); err != nil {
 				return err
 			}
 		}

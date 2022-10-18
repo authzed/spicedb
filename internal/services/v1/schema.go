@@ -157,13 +157,25 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		}
 
 		// For each definition, perform a diff and ensure the changes will not result in any
-		// relationships left without associated schema.
+		// breaking changes.
+		objectDefsWithChanges := make([]*core.NamespaceDefinition, 0, len(compiled.ObjectDefinitions))
 		for _, nsdef := range compiled.ObjectDefinitions {
-			if err := shared.SanityCheckExistingRelationships(ctx, rwt, nsdef, existingObjectDefMap); err != nil {
+			diff, err := shared.SanityCheckNamespaceChanges(ctx, rwt, nsdef, existingObjectDefMap)
+			if err != nil {
 				return err
 			}
+
+			if len(diff.Deltas()) > 0 {
+				objectDefsWithChanges = append(objectDefsWithChanges, nsdef)
+			}
 		}
-		log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("validated namespace definitions")
+
+		log.Ctx(ctx).
+			Trace().
+			Int("objectDefinitions", len(compiled.ObjectDefinitions)).
+			Int("caveatDefinitions", len(compiled.CaveatDefinitions)).
+			Int("objectDefsWithChanges", len(objectDefsWithChanges)).
+			Msg("validated namespace definitions")
 
 		// Ensure that deleting namespaces will not result in any relationships left without associated
 		// schema.
@@ -175,19 +187,22 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		}
 
 		// Write the new caveats.
+		// TODO(jschorr): Only write updated caveats once the diff has been changed to support expressions.
 		if len(compiled.CaveatDefinitions) > 0 {
 			if err := rwt.WriteCaveats(compiled.CaveatDefinitions); err != nil {
 				return err
 			}
 		}
 
-		// Write the new namespaces.
-		if err := rwt.WriteNamespaces(compiled.ObjectDefinitions...); err != nil {
-			return err
+		// Write the new/changed namespaces.
+		if len(objectDefsWithChanges) > 0 {
+			if err := rwt.WriteNamespaces(objectDefsWithChanges...); err != nil {
+				return err
+			}
 		}
 
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-			DispatchCount: uint32(len(compiled.ObjectDefinitions) + len(compiled.CaveatDefinitions)),
+			DispatchCount: uint32(len(objectDefsWithChanges)),
 		})
 
 		// Delete the removed namespaces.

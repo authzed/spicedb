@@ -507,3 +507,45 @@ definition user {}`
 	require.NoError(t, err)
 	require.Equal(t, newSchema, readback.SchemaText)
 }
+
+func TestSchemaUnchangedNamespaces(t *testing.T) {
+	conn, cleanup, ds, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+
+	client := v1.NewSchemaServiceClient(conn)
+
+	// Write a schema.
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+	
+		definition document {
+			relation editor: user
+			relation viewer: user
+		}`,
+	})
+	require.NoError(t, err)
+
+	// Update the schema.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+	
+		definition document {
+			relation viewer: user
+		}`,
+	})
+	require.NoError(t, err)
+
+	// Ensure the `user` definition was not modified.
+	rev, err := ds.HeadRevision(context.Background())
+	require.NoError(t, err)
+
+	reader := ds.SnapshotReader(rev)
+
+	_, userRevision, err := reader.ReadNamespace(context.Background(), "user")
+	require.NoError(t, err)
+
+	_, docRevision, err := reader.ReadNamespace(context.Background(), "document")
+	require.NoError(t, err)
+
+	require.True(t, docRevision.GreaterThan(userRevision))
+}
