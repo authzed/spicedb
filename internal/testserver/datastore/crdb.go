@@ -6,6 +6,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -23,6 +24,7 @@ const enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
 
 type crdbTester struct {
 	conn     *pgx.Conn
+	mutex    sync.Mutex
 	hostname string
 	creds    string
 	port     string
@@ -82,7 +84,8 @@ func (r *crdbTester) NewDatabase(t testing.TB) string {
 	require.NoError(t, err)
 
 	newDBName := "db" + uniquePortion
-
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 	_, err = r.conn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
 	require.NoError(t, err)
 

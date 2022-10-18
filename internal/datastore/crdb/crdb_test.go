@@ -33,6 +33,7 @@ import (
 )
 
 func TestCRDBDatastore(t *testing.T) {
+	t.Parallel()
 	b := testdatastore.RunCRDBForTesting(t, "")
 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -52,6 +53,7 @@ func TestCRDBDatastore(t *testing.T) {
 }
 
 func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
+	t.Parallel()
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 
@@ -61,6 +63,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	}
 	for _, quantization := range quantizationDurations {
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ds := testdatastore.RunCRDBForTesting(t, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -96,6 +99,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 }
 
 func TestWatchFeatureDetection(t *testing.T) {
+	t.Parallel()
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 	cases := []struct {
@@ -136,6 +140,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			adminConn, nonAdminConnURI := newCRDBWithUser(t, pool)
