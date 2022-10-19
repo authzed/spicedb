@@ -426,6 +426,42 @@ func TestNamespaceDiff(t *testing.T) {
 				},
 			},
 		},
+		{
+			"removed required caveat type",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil),
+			),
+			[]Delta{
+				{
+					Type:         RelationAllowedTypeRemoved,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")),
+				},
+			},
+		},
+		{
+			"change required caveat type to optional",
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
+			),
+			ns.Namespace(
+				"document",
+				ns.Relation("somerel", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
+			),
+			[]Delta{
+				{
+					Type:         RelationAllowedTypeAdded,
+					RelationName: "somerel",
+					AllowedType:  ns.AllowedRelation("user", "..."),
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
