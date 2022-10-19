@@ -578,6 +578,13 @@ func TestInvalidWriteRelationship(t *testing.T) {
 			codes.InvalidArgument,
 			"user:* with somecaveat",
 		},
+		{
+			"disallowed relation caveat",
+			nil,
+			[]*v1.Relationship{relWithCaveat("document", "somedoc", "viewer", "folder", "foo", "owner", "somecaveat")},
+			codes.InvalidArgument,
+			"folder#owner with somecaveat",
+		},
 	}
 
 	for _, delta := range testTimedeltas {
