@@ -23,7 +23,7 @@ func (err ErrNamespaceNotFound) NotFoundNamespaceName() string {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName)
+	e.Err(err.error).Str("namespace", err.namespaceName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -51,7 +51,7 @@ func (err ErrRelationNotFound) NotFoundRelationName() string {
 }
 
 func (err ErrRelationNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -74,7 +74,7 @@ func (err ErrCaveatNotFound) CaveatName() string {
 }
 
 func (err ErrCaveatNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("caveat", err.caveatName)
+	e.Err(err.error).Str("caveat", err.caveatName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -93,7 +93,7 @@ type ErrDuplicateRelation struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrDuplicateRelation) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -115,7 +115,7 @@ type ErrPermissionUsedOnLeftOfArrow struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrPermissionUsedOnLeftOfArrow) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("permission", err.parentPermissionName).Str("usedPermission", err.foundPermissionName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("permission", err.parentPermissionName).Str("usedPermission", err.foundPermissionName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -137,7 +137,7 @@ type ErrWildcardUsedInArrow struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrWildcardUsedInArrow) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("parentPermissionName", err.parentPermissionName).Str("accessedRelationName", err.accessedRelationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("parentPermissionName", err.parentPermissionName).Str("accessedRelationName", err.accessedRelationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -158,7 +158,7 @@ type ErrMissingAllowedRelations struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrMissingAllowedRelations) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -179,7 +179,7 @@ type ErrTransitiveWildcard struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrTransitiveWildcard) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -199,7 +199,7 @@ type ErrPermissionsCycle struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrPermissionsCycle) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("permissions", strings.Join(err.permissionNames, ", "))
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("permissions", strings.Join(err.permissionNames, ", "))
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -220,7 +220,7 @@ type ErrDuplicateAllowedRelation struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrDuplicateAllowedRelation) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName).Str("allowed-relation", err.allowedRelationSource)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName).Str("allowed-relation", err.allowedRelationSource)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
