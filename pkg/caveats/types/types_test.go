@@ -9,50 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testCase struct {
-	vtype VariableType
-}
-
-func TestEncodeDecodeTypes(t *testing.T) {
-	tcs := []testCase{
-		{
-			vtype: IntType,
-		},
-		{
-			vtype: ListType(IntType),
-		},
-		{
-			vtype: ListType(StringType),
-		},
-		{
-			vtype: MapType(AnyType),
-		},
-		{
-			vtype: MapType(UIntType),
-		},
-		{
-			vtype: IPAddressType,
-		},
-	}
-
-	for _, def := range definitions {
-		if def.childTypeCount == 0 {
-			tcs = append(tcs, testCase{
-				vtype: def.asVariableType(nil),
-			})
-		}
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.vtype.String(), func(t *testing.T) {
-			encoded := EncodeParameterType(tc.vtype)
-			decoded, err := DecodeParameterType(encoded)
-			require.NoError(t, err)
-			require.Equal(t, tc.vtype.String(), decoded.String())
-		})
-	}
-}
-
 func TestConversion(t *testing.T) {
 	tcs := []struct {
 		name          string
@@ -83,6 +39,20 @@ func TestConversion(t *testing.T) {
 			expectedErr:   "for string: a string value is required, but found int `42`",
 		},
 		{
+			name:          "float to float",
+			vtype:         DoubleType,
+			inputValue:    42.0,
+			expectedValue: 42.0,
+			expectedErr:   "",
+		},
+		{
+			name:          "string to float",
+			vtype:         DoubleType,
+			inputValue:    "42.0",
+			expectedValue: 42.0,
+			expectedErr:   "",
+		},
+		{
 			name:          "float to uint",
 			vtype:         UIntType,
 			inputValue:    42.0,
@@ -108,6 +78,20 @@ func TestConversion(t *testing.T) {
 			vtype:         IntType,
 			inputValue:    42.0,
 			expectedValue: int64(42),
+			expectedErr:   "",
+		},
+		{
+			name:          "string to int",
+			vtype:         IntType,
+			inputValue:    "42",
+			expectedValue: int64(42),
+			expectedErr:   "",
+		},
+		{
+			name:          "string to uint",
+			vtype:         UIntType,
+			inputValue:    "42",
+			expectedValue: uint64(42),
 			expectedErr:   "",
 		},
 		{
