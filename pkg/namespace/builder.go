@@ -128,7 +128,7 @@ func MustCaveatDefinition(env *caveats.Environment, name string, expr string) *c
 	return cd
 }
 
-// AllowedPublicNamespaceWithCaveats creates a relation reference to an allowed public namespace.
+// AllowedPublicNamespaceWithCaveat creates a relation reference to an allowed public namespace.
 func AllowedPublicNamespaceWithCaveat(namespaceName string, withCaveat *core.AllowedCaveat) *core.AllowedRelation {
 	return &core.AllowedRelation{
 		Namespace: namespaceName,
