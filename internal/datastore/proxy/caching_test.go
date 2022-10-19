@@ -5,12 +5,17 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
+	"github.com/authzed/spicedb/internal/datastore/memdb"
+
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
+	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -158,4 +163,60 @@ func TestSingleFlight(t *testing.T) {
 
 	dsMock.AssertExpectations(t)
 	oneReader.AssertExpectations(t)
+}
+
+func TestSnapshotNamespaceCachingRealDatastore(t *testing.T) {
+	tcs := []struct {
+		name          string
+		nsDef         *core.NamespaceDefinition
+		namespaceName string
+	}{
+		{
+			"missing namespace",
+			nil,
+			"somenamespace",
+		},
+		{
+			"defined namespace",
+			ns.Namespace(
+				"document",
+				ns.Relation("owner",
+					nil,
+					ns.AllowedRelation("user", "..."),
+				),
+				ns.Relation("editor",
+					nil,
+					ns.AllowedRelation("user", "..."),
+				),
+			),
+			"document",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			ds := NewCachingDatastoreProxy(rawDS, nil)
+
+			if tc.nsDef != nil {
+				_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+					return rwt.WriteNamespaces(tc.nsDef)
+				})
+				require.NoError(t, err)
+			}
+
+			headRev, err := ds.HeadRevision(ctx)
+			require.NoError(t, err)
+
+			reader := ds.SnapshotReader(headRev)
+			ns, _, _ := reader.ReadNamespace(ctx, tc.namespaceName)
+			require.True(t, proto.Equal(tc.nsDef, ns))
+
+			ns2, _, _ := reader.ReadNamespace(ctx, tc.namespaceName)
+			require.True(t, proto.Equal(tc.nsDef, ns2))
+		})
+	}
 }
