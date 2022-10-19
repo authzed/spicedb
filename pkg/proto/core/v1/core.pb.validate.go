@@ -454,6 +454,17 @@ func (m *CaveatDefinition) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
+	if l := len(m.GetParameterTypes()); l < 1 || l > 20 {
+		err := CaveatDefinitionValidationError{
+			field:  "ParameterTypes",
+			reason: "value must contain between 1 and 20 pairs, inclusive",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
 	{
 		sorted_keys := make([]string, len(m.GetParameterTypes()))
 		i := 0
@@ -603,6 +614,17 @@ func (m *CaveatTypeReference) validate(all bool) error {
 	var errors []error
 
 	// no validation rules for TypeName
+
+	if len(m.GetChildTypes()) > 1 {
+		err := CaveatTypeReferenceValidationError{
+			field:  "ChildTypes",
+			reason: "value must contain no more than 1 item(s)",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	for idx, item := range m.GetChildTypes() {
 		_, _ = idx, item
