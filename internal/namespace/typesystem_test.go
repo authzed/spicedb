@@ -308,6 +308,42 @@ func TestTypeSystem(t *testing.T) {
 			},
 			"found duplicate allowed subject type `user with definedcaveat` on relation `viewer` under definition `document`",
 		},
+		{
+			"valid wildcard caveat",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedPublicNamespaceWithCaveat("user", ns.AllowedCaveat("definedcaveat"))),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+			},
+			[]*core.CaveatDefinition{
+				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
+			},
+			"",
+		},
+		{
+			"valid all the caveats",
+			ns.Namespace(
+				"document",
+				ns.Relation("viewer", nil,
+					ns.AllowedRelation("user", "..."),
+					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("definedcaveat")),
+					ns.AllowedPublicNamespaceWithCaveat("user", ns.AllowedCaveat("definedcaveat")),
+					ns.AllowedRelationWithCaveat("team", "member", ns.AllowedCaveat("definedcaveat")),
+				),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+				ns.Namespace("team",
+					ns.Relation("member", nil),
+				),
+			},
+			[]*core.CaveatDefinition{
+				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
+			},
+			"",
+		},
 	}
 
 	for _, tc := range testCases {
