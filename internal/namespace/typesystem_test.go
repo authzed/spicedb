@@ -258,7 +258,7 @@ func TestTypeSystem(t *testing.T) {
 			"unknown caveat",
 			ns.Namespace(
 				"document",
-				ns.Relation("viewer", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("unknown"))),
+				ns.Relation("viewer", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("unknown"))),
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
@@ -270,7 +270,7 @@ func TestTypeSystem(t *testing.T) {
 			"valid caveat",
 			ns.Namespace(
 				"document",
-				ns.Relation("viewer", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("definedcaveat"))),
+				ns.Relation("viewer", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("definedcaveat"))),
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
@@ -284,7 +284,7 @@ func TestTypeSystem(t *testing.T) {
 			"valid optional caveat",
 			ns.Namespace(
 				"document",
-				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("definedcaveat"))),
+				ns.Relation("viewer", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("definedcaveat"))),
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),
@@ -298,7 +298,7 @@ func TestTypeSystem(t *testing.T) {
 			"duplicate caveat",
 			ns.Namespace(
 				"document",
-				ns.Relation("viewer", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("definedcaveat")), ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("definedcaveat"))),
+				ns.Relation("viewer", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("definedcaveat")), ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("definedcaveat"))),
 			),
 			[]*core.NamespaceDefinition{
 				ns.Namespace("user"),

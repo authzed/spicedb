@@ -95,8 +95,8 @@ func AllowedPublicNamespace(namespaceName string) *core.AllowedRelation {
 	}
 }
 
-// Caveat creates a caveat reference.
-func Caveat(name string) *core.AllowedCaveat {
+// AllowedCaveat creates a caveat reference.
+func AllowedCaveat(name string) *core.AllowedCaveat {
 	return &core.AllowedCaveat{
 		CaveatName: name,
 	}

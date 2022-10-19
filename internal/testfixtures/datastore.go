@@ -40,7 +40,7 @@ var DocumentNS = ns.Namespace(
 		TODO(jschorr): Uncomment once caveats are supported on all datastores
 		ns.Relation("caveated_viewer",
 			nil,
-			ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("testcaveat")),
+			ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("testcaveat")),
 		),*/
 	ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
 	ns.Relation("edit",

@@ -370,7 +370,7 @@ func TestNamespaceDiff(t *testing.T) {
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat"))),
+				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
 			),
 			[]Delta{
 				{
@@ -381,7 +381,7 @@ func TestNamespaceDiff(t *testing.T) {
 				{
 					Type:         RelationAllowedTypeAdded,
 					RelationName: "somerel",
-					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat")),
+					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")),
 				},
 			},
 		},
@@ -393,13 +393,13 @@ func TestNamespaceDiff(t *testing.T) {
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat"))),
+				ns.Relation("somerel", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
 			),
 			[]Delta{
 				{
 					Type:         RelationAllowedTypeAdded,
 					RelationName: "somerel",
-					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat")),
+					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")),
 				},
 			},
 		},
@@ -407,22 +407,22 @@ func TestNamespaceDiff(t *testing.T) {
 			"changed required caveat type",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat"))),
+				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("anothercaveat"))),
+				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("anothercaveat"))),
 			),
 			[]Delta{
 				{
 					Type:         RelationAllowedTypeRemoved,
 					RelationName: "somerel",
-					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("somecaveat")),
+					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")),
 				},
 				{
 					Type:         RelationAllowedTypeAdded,
 					RelationName: "somerel",
-					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.Caveat("anothercaveat")),
+					AllowedType:  ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("anothercaveat")),
 				},
 			},
 		},

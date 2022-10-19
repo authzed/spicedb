@@ -234,7 +234,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			var caveat *core.AllowedCaveat
 
 			if update.Relationship.OptionalCaveat != nil {
-				caveat = ns.Caveat(update.Relationship.OptionalCaveat.CaveatName)
+				caveat = ns.AllowedCaveat(update.Relationship.OptionalCaveat.CaveatName)
 			}
 
 			if update.Relationship.Subject.Object.ObjectId == tuple.PublicWildcard {

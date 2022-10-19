@@ -126,8 +126,8 @@ func TestGenerator(t *testing.T) {
 					namespace.AllowedRelation("foos/user", "..."),
 					namespace.AllowedPublicNamespace("foos/user"),
 					namespace.AllowedRelation("foos/group", "member"),
-					namespace.AllowedRelationWithCaveat("foos/user", "...", namespace.Caveat("somecaveat")),
-					namespace.AllowedRelationWithCaveat("foos/group", "member", namespace.Caveat("somecaveat")),
+					namespace.AllowedRelationWithCaveat("foos/user", "...", namespace.AllowedCaveat("somecaveat")),
+					namespace.AllowedRelationWithCaveat("foos/group", "member", namespace.AllowedCaveat("somecaveat")),
 				),
 				namespace.Relation("read", namespace.Union(
 					namespace.ComputedUserset("reader"),
