@@ -122,6 +122,7 @@ func initializeTestCRDBCluster(ctx context.Context, t testing.TB) cockroach.Clus
 }
 
 func TestNoNewEnemy(t *testing.T) {
+	t.Parallel()
 	rand.Seed(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(testCtx)
 	t.Cleanup(cancel)
@@ -204,7 +205,9 @@ func TestNoNewEnemy(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			vulnerableFn, protectedFn := attemptFnsForProbeFns(tt.vulnerableMax, tt.vulnerableProbe, tt.protectedProbe)
 			statTest(t, tt.sampleSize, vulnerableFn, protectedFn)
 		})
