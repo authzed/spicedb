@@ -50,7 +50,7 @@ type crdbReadWriteTXN struct {
 
 var (
 	upsertTupleSuffix = fmt.Sprintf(
-		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now()",
+		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s",
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -58,6 +58,10 @@ var (
 		colUsersetObjectID,
 		colUsersetRelation,
 		colTimestamp,
+		colCaveatContextName,
+		colCaveatContextName,
+		colCaveatContext,
+		colCaveatContext,
 	)
 
 	queryWriteTuple = psql.Insert(tableTuple).Columns(
@@ -67,6 +71,8 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
 	)
 
 	queryTouchTuple = queryWriteTuple.Suffix(upsertTupleSuffix)
@@ -96,8 +102,11 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleU
 	for _, mutation := range mutations {
 		rel := mutation.Tuple
 
+		var caveatContext map[string]any
+		var caveatName string
 		if rel.Caveat != nil {
-			panic("caveats not currently supported in CRDB datastore")
+			caveatName = rel.Caveat.CaveatName
+			caveatContext = rel.Caveat.Context.AsMap()
 		}
 
 		rwt.addOverlapKey(rel.ResourceAndRelation.Namespace)
@@ -113,6 +122,8 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleU
 				rel.Subject.Namespace,
 				rel.Subject.ObjectId,
 				rel.Subject.Relation,
+				caveatName,
+				caveatContext,
 			)
 			bulkTouchCount++
 		case core.RelationTupleUpdate_CREATE:
@@ -124,6 +135,8 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleU
 				rel.Subject.Namespace,
 				rel.Subject.ObjectId,
 				rel.Subject.Relation,
+				caveatName,
+				caveatContext,
 			)
 			bulkWriteCount++
 		case core.RelationTupleUpdate_DELETE:

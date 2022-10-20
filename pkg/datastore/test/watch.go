@@ -20,6 +20,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+const waitForChangesTimeout = 5 * time.Second
+
 // WatchTest tests whether or not the requirements for watching changes hold
 // for a particular datastore.
 func WatchTest(t *testing.T, tester DatastoreTester) {
@@ -122,18 +124,18 @@ func verifyUpdates(
 	expectDisconnect bool,
 ) {
 	for _, expected := range testUpdates {
-		changeWait := time.NewTimer(5 * time.Second)
+		changeWait := time.NewTimer(waitForChangesTimeout)
 		select {
 		case change, ok := <-changes:
 			if !ok {
 				require.True(expectDisconnect, "unexpected disconnect")
-				errWait := time.NewTimer(2 * time.Second)
+				errWait := time.NewTimer(waitForChangesTimeout)
 				select {
 				case err := <-errchan:
 					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
 					return
 				case <-errWait.C:
-					require.Fail("Timed out")
+					require.Fail("Timed out waiting for ErrWatchDisconnected")
 				}
 				return
 			}
@@ -184,7 +186,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	cancel()
 
 	for {
-		changeWait := time.NewTimer(250 * time.Millisecond)
+		changeWait := time.NewTimer(waitForChangesTimeout)
 		select {
 		case created, ok := <-changes:
 			if ok {
@@ -196,14 +198,14 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 				require.Empty(foundDiff)
 				require.True(created.Revision.GreaterThan(datastore.NoRevision))
 			} else {
-				errWait := time.NewTimer(100 * time.Millisecond)
+				errWait := time.NewTimer(waitForChangesTimeout)
 				require.Zero(created)
 				select {
 				case err := <-errchan:
 					require.True(errors.As(err, &datastore.ErrWatchCanceled{}))
 					return
 				case <-errWait.C:
-					require.Fail("Timed out")
+					require.Fail("Timed out waiting for ErrWatchCanceled")
 				}
 				return
 			}

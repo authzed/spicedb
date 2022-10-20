@@ -287,7 +287,7 @@ func (pgd *pgDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader 
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(createTxFunc, true),
+		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
 		UsersetBatchSize: pgd.usersetBatchSize,
 	}
 
@@ -332,7 +332,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         pgxcommon.NewPGXExecutor(longLivedTx, true),
+				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
 				UsersetBatchSize: pgd.usersetBatchSize,
 			}
 

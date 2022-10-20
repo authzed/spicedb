@@ -49,7 +49,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	foundDiff := cmp.Diff(coreCaveat, cv, protocmp.Transform())
 	req.Empty(foundDiff)
-	req.Equal(rev, readRev)
+	req.True(readRev.LessThanOrEqual(rev))
 
 	// All caveats can be listed when no arg is provided
 	// Manually check the caveat's contents.
@@ -133,6 +133,12 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 	assertTupleCorrectlyStored(req, ds, rev, tpl)
 
+	// RelationTupleUpdate_TOUCH does update the caveat name for a caveated relationship that already exists
+	tpl.Caveat.CaveatName = anotherCoreCaveat.Name
+	rev, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_TOUCH, tpl)
+	req.NoError(err)
+	assertTupleCorrectlyStored(req, ds, rev, tpl)
+
 	// TOUCH can remove caveat from relationship
 	caveatContext := tpl.Caveat
 	tpl.Caveat = nil
@@ -161,18 +167,6 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	tpl = createTestCaveatedTuple(t, "document:rando#parent@folder:company#...", "rando")
 	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
-}
-
-func assertTupleCorrectlyStored(req *require.Assertions, ds datastore.Datastore, rev datastore.Revision, expected *core.RelationTuple) {
-	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-		ResourceType: expected.ResourceAndRelation.Namespace,
-	})
-	req.NoError(err)
-
-	defer iter.Close()
-	readTpl := iter.Next()
-	foundDiff := cmp.Diff(expected, readTpl, protocmp.Transform())
-	req.Empty(foundDiff)
 }
 
 func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
@@ -217,14 +211,6 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	expectTuple(req, iter, anotherTpl)
 }
 
-func expectTuple(req *require.Assertions, iter datastore.RelationshipIterator, tpl *core.RelationTuple) {
-	defer iter.Close()
-	readTpl := iter.Next()
-	foundDiff := cmp.Diff(tpl, readTpl, protocmp.Transform())
-	req.Empty(foundDiff)
-	req.Nil(iter.Next())
-}
-
 func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
 	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
@@ -250,14 +236,14 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	cv, fetchedRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(newExpression, cv.SerializedExpression)
-	req.Equal(newRev, fetchedRev)
+	req.True(fetchedRev.LessThanOrEqual(newRev))
 
 	// check previous revision
 	cr = ds.SnapshotReader(oldRev)
 	cv, fetchedRev, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(oldExpression, cv.SerializedExpression)
-	req.Equal(oldRev, fetchedRev)
+	req.True(fetchedRev.LessThanOrEqual(oldRev))
 }
 
 func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
@@ -270,34 +256,79 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	defer cancel()
 
 	// Write caveat and caveated relationship
+	// TODO bug(postgres): Watch API won't send updates if revision used is the first revision, so write something first
 	coreCaveat := createCoreCaveat(t)
 	_, err = writeCaveat(ctx, ds, coreCaveat)
 	req.NoError(err)
 
-	// TODO bug: Watch API won't send updates i revision used is the first revision
-	lowestRevision, err := ds.HeadRevision(ctx)
+	// test relationship with caveat and context
+	tupleWithContext := createTestCaveatedTuple(t, "document:a#parent@folder:company#...", coreCaveat.Name)
+	revBeforeWrite, err := ds.HeadRevision(ctx)
+	require.NoError(t, err)
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithContext)
+	require.NoError(t, err)
+	expectTupleChange(t, ds, revBeforeWrite, tupleWithContext)
+
+	// test relationship with caveat and empty context
+	tupleWithEmptyContext := createTestCaveatedTuple(t, "document:b#parent@folder:company#...", coreCaveat.Name)
+	strct, err := structpb.NewStruct(nil)
 	req.NoError(err)
-	chanRevisionChanges, chanErr := ds.Watch(ctx, lowestRevision)
-	req.Zero(len(chanErr))
+	tupleWithEmptyContext.Caveat.Context = strct
+	revBeforeWrite, err = ds.HeadRevision(ctx)
+	require.NoError(t, err)
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithEmptyContext)
+	require.NoError(t, err)
+	expectTupleChange(t, ds, revBeforeWrite, tupleWithEmptyContext)
 
-	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", coreCaveat.Name)
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	// test relationship with caveat and empty context
+	tupleWithNilContext := createTestCaveatedTuple(t, "document:c#parent@folder:company#...", coreCaveat.Name)
+	tupleWithNilContext.Caveat.Context = nil
+	revBeforeWrite, err = ds.HeadRevision(ctx)
+	require.NoError(t, err)
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithNilContext)
 	req.NoError(err)
+	tupleWithNilContext.Caveat.Context = &structpb.Struct{} // nil struct comes back as zero-value struct
+	expectTupleChange(t, ds, revBeforeWrite, tupleWithNilContext)
+}
 
-	// Caveated Relationship should come through Watch API
+func expectTupleChange(t *testing.T, ds datastore.Datastore, revBeforeWrite datastore.Revision, expectedTuple *core.RelationTuple) {
+	t.Helper()
 
-	changeWait := time.NewTimer(5 * time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	chanRevisionChanges, chanErr := ds.Watch(ctx, revBeforeWrite)
+	require.Zero(t, len(chanErr))
+
+	changeWait := time.NewTimer(waitForChangesTimeout)
 	select {
 	case change, ok := <-chanRevisionChanges:
-		req.True(ok)
-		req.Len(change.Changes, 1)
-		for _, update := range change.Changes {
-			foundDiff := cmp.Diff(tpl, update.Tuple, protocmp.Transform())
-			req.Empty(foundDiff)
-		}
+		require.True(t, ok)
+		// do not check length of change, may contain duplicates
+		foundDiff := cmp.Diff(expectedTuple, change.Changes[0].Tuple, protocmp.Transform())
+		require.Empty(t, foundDiff)
 	case <-changeWait.C:
-		req.Fail("timed out waiting for caveated relationship via Watch API")
+		require.Fail(t, "timed out waiting for relationship update via Watch API")
 	}
+}
+
+func expectTuple(req *require.Assertions, iter datastore.RelationshipIterator, tpl *core.RelationTuple) {
+	defer iter.Close()
+	readTpl := iter.Next()
+	foundDiff := cmp.Diff(tpl, readTpl, protocmp.Transform())
+	req.Empty(foundDiff)
+	req.Nil(iter.Next())
+}
+
+func assertTupleCorrectlyStored(req *require.Assertions, ds datastore.Datastore, rev datastore.Revision, expected *core.RelationTuple) {
+	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		ResourceType: expected.ResourceAndRelation.Namespace,
+	})
+	req.NoError(err)
+
+	defer iter.Close()
+	readTpl := iter.Next()
+	foundDiff := cmp.Diff(expected, readTpl, protocmp.Transform())
+	req.Empty(foundDiff)
 }
 
 func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
