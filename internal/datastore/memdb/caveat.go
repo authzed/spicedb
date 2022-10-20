@@ -66,7 +66,8 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 
 func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
 	if !r.enableCaveats {
-		return nil, fmt.Errorf("caveats are not enabled")
+		// Return empty in the case caveats are not enabled, to not break callers.
+		return nil, nil
 	}
 
 	r.lockOrPanic()
