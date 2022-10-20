@@ -108,6 +108,7 @@ func TestParser(t *testing.T) {
 		{"wildcard test", "wildcard"},
 		{"broken wildcard test", "brokenwildcard"},
 		{"nil test", "nil"},
+		{"caveats type test", "caveatstype"},
 	}
 
 	for _, test := range parserTests {

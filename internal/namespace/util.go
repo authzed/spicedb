@@ -77,7 +77,7 @@ func ReadNamespaceAndTypes(
 		return nil, nil, err
 	}
 
-	ts, terr := BuildNamespaceTypeSystemForDatastore(nsDef, ds)
+	ts, terr := NewNamespaceTypeSystem(nsDef, ResolverForDatastoreReader(ds))
 	return nsDef, ts, terr
 }
 

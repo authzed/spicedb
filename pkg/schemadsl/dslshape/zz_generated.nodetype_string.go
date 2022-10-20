@@ -16,17 +16,18 @@ func _() {
 	_ = x[NodeTypePermission-5]
 	_ = x[NodeTypeTypeReference-6]
 	_ = x[NodeTypeSpecificTypeReference-7]
-	_ = x[NodeTypeUnionExpression-8]
-	_ = x[NodeTypeIntersectExpression-9]
-	_ = x[NodeTypeExclusionExpression-10]
-	_ = x[NodeTypeArrowExpression-11]
-	_ = x[NodeTypeIdentifier-12]
-	_ = x[NodeTypeNilExpression-13]
+	_ = x[NodeTypeCaveatReference-8]
+	_ = x[NodeTypeUnionExpression-9]
+	_ = x[NodeTypeIntersectExpression-10]
+	_ = x[NodeTypeExclusionExpression-11]
+	_ = x[NodeTypeArrowExpression-12]
+	_ = x[NodeTypeIdentifier-13]
+	_ = x[NodeTypeNilExpression-14]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpression"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpression"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 74, 92, 113, 142, 165, 192, 219, 242, 260, 281}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 74, 92, 113, 142, 165, 188, 215, 242, 265, 283, 304}
 
 func (i NodeType) String() string {
 	if i < 0 || i >= NodeType(len(_NodeType_index)-1) {

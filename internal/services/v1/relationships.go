@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/authzed/spicedb/internal/middleware"
-	"github.com/authzed/spicedb/internal/util"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/jzelinskie/stringz"
@@ -14,13 +11,18 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/middleware"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/internal/util"
+	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	ns "github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -172,6 +174,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	}
 
 	// Execute the write operation(s).
+	// TODO(jschorr): look into loading the type system once per type, rather than once per relationship
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		for _, precond := range req.OptionalPreconditions {
 			if err := ps.checkFilterNamespaces(ctx, precond.Filter, rwt); err != nil {
@@ -179,17 +182,6 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			}
 		}
 		for _, update := range req.Updates {
-			if update.Relationship.OptionalCaveat != nil && update.Relationship.OptionalCaveat.CaveatName != "" {
-				_, _, err := rwt.ReadCaveatByName(ctx, update.Relationship.OptionalCaveat.CaveatName)
-				if errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
-					return rewriteError(ctx, NewCaveatNotFoundError(update))
-				}
-
-				if err != nil {
-					return rewriteError(ctx, err)
-				}
-			}
-
 			if err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId); err != nil {
 				return err
 			}
@@ -218,6 +210,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				return err
 			}
 
+			// Build the type system for the object type.
 			_, ts, err := namespace.ReadNamespaceAndTypes(
 				ctx,
 				update.Relationship.Resource.ObjectType,
@@ -227,6 +220,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				return err
 			}
 
+			// Validate that the relationship is not writing to a permission.
 			if ts.IsPermission(update.Relationship.Relation) {
 				return status.Errorf(
 					codes.InvalidArgument,
@@ -235,39 +229,62 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				)
 			}
 
+			// Validate the subject against the allowed relation(s).
+			var relationToCheck *core.AllowedRelation
+			var caveat *core.AllowedCaveat
+
+			if update.Relationship.OptionalCaveat != nil {
+				caveat = ns.AllowedCaveat(update.Relationship.OptionalCaveat.CaveatName)
+			}
+
 			if update.Relationship.Subject.Object.ObjectId == tuple.PublicWildcard {
-				isAllowed, err := ts.IsAllowedPublicNamespace(
-					update.Relationship.Relation,
-					update.Relationship.Subject.Object.ObjectType)
-				if err != nil {
-					return err
-				}
-
-				if isAllowed != namespace.PublicSubjectAllowed {
-					return status.Errorf(
-						codes.InvalidArgument,
-						"wildcard subjects of type %s are not allowed on %v",
-						update.Relationship.Subject.Object.ObjectType,
-						tuple.StringObjectRef(update.Relationship.Resource),
-					)
-				}
+				relationToCheck = ns.AllowedPublicNamespaceWithCaveat(update.Relationship.Subject.Object.ObjectType, caveat)
 			} else {
-				isAllowed, err := ts.IsAllowedDirectRelation(
-					update.Relationship.Relation,
+				relationToCheck = ns.AllowedRelationWithCaveat(
 					update.Relationship.Subject.Object.ObjectType,
-					stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
+					stringz.DefaultEmpty(
+						update.Relationship.Subject.OptionalRelation,
+						datastore.Ellipsis),
+					caveat)
+			}
+
+			isAllowed, err := ts.HasAllowedRelation(
+				update.Relationship.Relation,
+				relationToCheck,
+			)
+			if err != nil {
+				return err
+			}
+
+			if isAllowed != namespace.AllowedRelationValid {
+				return status.Errorf(
+					codes.InvalidArgument,
+					"subjects of type `%s` are not allowed on relation `%v`",
+					namespace.SourceForAllowedRelation(relationToCheck),
+					tuple.StringObjectRef(update.Relationship.Resource),
 				)
-				if err != nil {
-					return err
+			}
+
+			// Validate caveat and its context, if applicable.
+			// TODO(vroldanbet) load the list of caveats in bulk if possible.
+			// TODO(jschorr): once caveats are supported on all datastores, we should elide this check if the
+			// provided context is empty, as the allowed relation check above will ensure the caveat exists.
+			if update.Relationship.OptionalCaveat != nil && update.Relationship.OptionalCaveat.CaveatName != "" {
+				caveat, _, err := rwt.ReadCaveatByName(ctx, update.Relationship.OptionalCaveat.CaveatName)
+				if errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
+					return rewriteError(ctx, NewCaveatNotFoundError(update))
 				}
 
-				if isAllowed == namespace.DirectRelationNotValid {
-					return status.Errorf(
-						codes.InvalidArgument,
-						"subject %s is not allowed for the resource %s",
-						tuple.StringSubjectRef(update.Relationship.Subject),
-						tuple.StringObjectRef(update.Relationship.Resource),
-					)
+				if err != nil {
+					return rewriteError(ctx, err)
+				}
+
+				// Verify that the provided context information matches the types of the parameters defined.
+				if update.Relationship.OptionalCaveat.Context != nil {
+					_, err := caveats.ConvertContextToParameters(update.Relationship.OptionalCaveat.Context.AsMap(), caveat.ParameterTypes)
+					if err != nil {
+						return rewriteError(ctx, err)
+					}
 				}
 			}
 		}

@@ -147,12 +147,12 @@ func (rg *ReachabilityGraph) getOrBuildGraph(ctx context.Context, resourceType *
 	}
 
 	// Load the type system for the target resource relation.
-	namespace, err := rg.ts.lookupNamespace(ctx, resourceType.Namespace)
+	namespace, err := rg.ts.resolver.LookupNamespace(ctx, resourceType.Namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	rts, err := BuildNamespaceTypeSystem(namespace, rg.ts.lookupNamespace)
+	rts, err := NewNamespaceTypeSystem(namespace, rg.ts.resolver)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -35,6 +36,12 @@ var DocumentNS = ns.Namespace(
 		nil,
 		ns.AllowedRelation("user", "..."),
 	),
+	/*
+		TODO(jschorr): Uncomment once caveats are supported on all datastores
+		ns.Relation("caveated_viewer",
+			nil,
+			ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("testcaveat")),
+		),*/
 	ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
 	ns.Relation("edit",
 		ns.Union(
@@ -119,10 +126,23 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 	validating := NewValidatingDatastore(ds)
 
 	allDefs := []*core.NamespaceDefinition{UserNS, FolderNS, DocumentNS}
+	caveats := []*core.CaveatDefinition{{
+		Name:                 "testcaveat",
+		SerializedExpression: []byte{},
+	}}
+
+	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteCaveats(caveats)
+	})
+	//				require.NoError(err)
 
 	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		for _, nsDef := range allDefs {
-			ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsDef, rwt, allDefs)
+			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
+				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+					Namespaces: allDefs,
+					Caveats:    caveats,
+				}))
 			require.NoError(err)
 
 			vts, err := ts.Validate(ctx)
@@ -163,9 +183,7 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 	ctx := context.Background()
 
 	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		cs, ok := tx.(datastore.CaveatStorer)
-		require.True(ok, "expected ReadWriteTransaction to implement CaveatStorer")
-		return cs.WriteCaveats(createTestCaveat(require))
+		return tx.WriteCaveats(createTestCaveat(require))
 	})
 	require.NoError(err)
 
@@ -186,9 +204,9 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 }
 
 func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
-	env, err := caveats.EnvForVariables(map[string]caveats.VariableType{
-		"secret":         caveats.StringType,
-		"expectedSecret": caveats.StringType,
+	env, err := caveats.EnvForVariables(map[string]caveattypes.VariableType{
+		"secret":         caveattypes.StringType,
+		"expectedSecret": caveattypes.StringType,
 	})
 	require.NoError(err)
 
@@ -198,7 +216,11 @@ func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
 	cBytes, err := c.Serialize()
 	require.NoError(err)
 
-	return []*core.CaveatDefinition{{Name: "test", SerializedExpression: cBytes}}
+	return []*core.CaveatDefinition{{
+		Name:                 "test",
+		SerializedExpression: cBytes,
+		ParameterTypes:       env.EncodedParametersTypes(),
+	}}
 }
 
 type TupleChecker struct {

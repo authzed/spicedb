@@ -124,7 +124,11 @@ func TestGenerator(t *testing.T) {
 				),
 				namespace.RelationWithComment("reader", "//foobar", nil,
 					namespace.AllowedRelation("foos/user", "..."),
+					namespace.AllowedPublicNamespace("foos/user"),
 					namespace.AllowedRelation("foos/group", "member"),
+					namespace.AllowedRelationWithCaveat("foos/user", "...", namespace.AllowedCaveat("somecaveat")),
+					namespace.AllowedRelationWithCaveat("foos/group", "member", namespace.AllowedCaveat("somecaveat")),
+					namespace.AllowedPublicNamespaceWithCaveat("foos/user", namespace.AllowedCaveat("somecaveat")),
 				),
 				namespace.Relation("read", namespace.Union(
 					namespace.ComputedUserset("reader"),
@@ -136,7 +140,7 @@ definition foos/document {
 	relation owner: foos/user
 
 	// foobar
-	relation reader: foos/user | foos/group#member
+	relation reader: foos/user | foos/user:* | foos/group#member | foos/user with somecaveat | foos/group#member with somecaveat | foos/user:* with somecaveat
 	permission read = reader + owner
 }`,
 			true,

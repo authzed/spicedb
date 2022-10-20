@@ -74,7 +74,7 @@ func SanityCheckExistingRelationships(
 				ctx,
 				qy,
 				qyErr,
-				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship exists under it", delta.RelationName, nsdef.Name)
+				"cannot delete relation `%s` in object definition `%s`, as a relationship exists under it", delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
 			}
@@ -90,17 +90,35 @@ func SanityCheckExistingRelationships(
 				ctx,
 				qy,
 				qyErr,
-				"cannot delete Relation `%s` in Object Definition `%s`, as a Relationship references it", delta.RelationName, nsdef.Name)
+				"cannot delete relation `%s` in object definition `%s`, as a relationship references it", delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
 			}
 
-		case namespace.RelationDirectWildcardTypeRemoved:
+		case namespace.RelationAllowedTypeRemoved:
+			var optionalSubjectIds []string
+			var relationFilter datastore.SubjectRelationFilter
+			optionalCaveatName := ""
+
+			if delta.AllowedType.GetPublicWildcard() != nil {
+				optionalSubjectIds = []string{tuple.PublicWildcard}
+			} else {
+				relationFilter = datastore.SubjectRelationFilter{
+					NonEllipsisRelation: delta.RelationName,
+				}
+			}
+
+			if delta.AllowedType.GetRequiredCaveat() != nil {
+				optionalCaveatName = delta.AllowedType.GetRequiredCaveat().CaveatName
+			}
+
 			qy, qyErr := rwt.ReverseQueryRelationships(
 				ctx,
 				datastore.SubjectsFilter{
-					SubjectType:        delta.WildcardType,
-					OptionalSubjectIds: []string{tuple.PublicWildcard},
+					SubjectType:        delta.AllowedType.Namespace,
+					OptionalSubjectIds: optionalSubjectIds,
+					RelationFilter:     relationFilter,
+					OptionalCaveatName: optionalCaveatName,
 				},
 				options.WithResRelation(&options.ResourceRelation{
 					Namespace: nsdef.Name,
@@ -112,33 +130,8 @@ func SanityCheckExistingRelationships(
 				ctx,
 				qy,
 				qyErr,
-				"cannot remove allowed wildcard type `%s:*` from Relation `%s` in Object Definition `%s`, as a Relationship exists with it",
-				delta.WildcardType, delta.RelationName, nsdef.Name)
-			if err != nil {
-				return err
-			}
-
-		case namespace.RelationDirectTypeRemoved:
-			qy, qyErr := rwt.ReverseQueryRelationships(
-				ctx,
-				datastore.SubjectsFilter{
-					SubjectType: delta.DirectType.Namespace,
-					RelationFilter: datastore.SubjectRelationFilter{
-						NonEllipsisRelation: delta.RelationName,
-					},
-				},
-				options.WithResRelation(&options.ResourceRelation{
-					Namespace: nsdef.Name,
-					Relation:  delta.RelationName,
-				}),
-				options.WithReverseLimit(options.LimitOne),
-			)
-			err = ErrorIfTupleIteratorReturnsTuples(
-				ctx,
-				qy,
-				qyErr,
-				"cannot remove allowed direct Relation `%s#%s` from Relation `%s` in Object Definition `%s`, as a Relationship exists with it",
-				delta.DirectType.Namespace, delta.DirectType.Relation, delta.RelationName, nsdef.Name)
+				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
+				namespace.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
 			if err != nil {
 				return err
 			}

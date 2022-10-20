@@ -42,6 +42,14 @@ message CaveatDefinition {
 
   /** serialized_expression is the byte representation of a caveat's logic */
   bytes serialized_expression = 2 [(validate.rules).bytes = {min_len: 0, max_len: 4096}];
+
+  /** parameters_and_types is a map from parameter name to its type */
+  map<string, CaveatTypeReference> parameter_types = 3 [(validate.rules).map = {min_pairs: 1, max_pairs: 20}];
+}
+
+message CaveatTypeReference {
+  string type_name = 1;
+  repeated CaveatTypeReference child_types = 2 [(validate.rules).repeated = {min_items: 0, max_items: 1}];
 }
 
 message ObjectAndRelation {
@@ -357,6 +365,21 @@ message AllowedRelation {
 
   /** source_position contains the position of the type in the source schema, if any */
   SourcePosition source_position = 5;
+
+  /** 
+   * required_caveat defines the required caveat on this relation. 
+   */
+  AllowedCaveat required_caveat = 6;
+}
+
+/**
+ * AllowedCaveat is an allowed caveat of a relation.
+ */
+message AllowedCaveat {
+  /**
+   * caveat_name is the name of the allowed caveat.
+   */
+  string caveat_name = 1;
 }
 
 message UsersetRewrite {

@@ -1,4 +1,4 @@
-package customtypes
+package types
 
 import (
 	"fmt"
@@ -67,8 +67,28 @@ func (ipa IPAddress) Value() interface{} {
 	return ipa
 }
 
-func init() {
-	registerCustomType("IPAddress", cel.Function("in_cidr",
+var IPAddressType = registerCustomType(
+	"ipaddress",
+	cel.ObjectType("IPAddress"),
+	func(value any) (any, error) {
+		ipvalue, ok := value.(IPAddress)
+		if ok {
+			return ipvalue, nil
+		}
+
+		vle, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("ipaddress requires an ipaddress string, found: %T `%v`", value, value)
+		}
+
+		d, err := ParseIPAddress(vle)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse ip address string `%s`: %w", vle, err)
+		}
+
+		return d, nil
+	},
+	cel.Function("in_cidr",
 		cel.MemberOverload("ipaddress_in_cidr_string",
 			[]*cel.Type{cel.ObjectType("IPAddress"), cel.StringType},
 			cel.BoolType,
@@ -87,4 +107,3 @@ func init() {
 			}),
 		),
 	))
-}

@@ -23,7 +23,7 @@ func (err ErrNamespaceNotFound) NotFoundNamespaceName() string {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName)
+	e.Err(err.error).Str("namespace", err.namespaceName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -51,7 +51,7 @@ func (err ErrRelationNotFound) NotFoundRelationName() string {
 }
 
 func (err ErrRelationNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -59,6 +59,28 @@ func (err ErrRelationNotFound) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"definition_name":             err.namespaceName,
 		"relation_or_permission_name": err.relationName,
+	}
+}
+
+// ErrCaveatNotFound occurs when a caveat was not found.
+type ErrCaveatNotFound struct {
+	error
+	caveatName string
+}
+
+// CaveatName returns the name of the caveat not found.
+func (err ErrCaveatNotFound) CaveatName() string {
+	return err.caveatName
+}
+
+func (err ErrCaveatNotFound) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error).Str("caveat", err.caveatName)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrCaveatNotFound) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"caveat_name": err.caveatName,
 	}
 }
 
@@ -71,7 +93,7 @@ type ErrDuplicateRelation struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrDuplicateRelation) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -93,7 +115,7 @@ type ErrPermissionUsedOnLeftOfArrow struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrPermissionUsedOnLeftOfArrow) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("permission", err.parentPermissionName).Str("usedPermission", err.foundPermissionName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("permission", err.parentPermissionName).Str("usedPermission", err.foundPermissionName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -115,7 +137,7 @@ type ErrWildcardUsedInArrow struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrWildcardUsedInArrow) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("parentPermissionName", err.parentPermissionName).Str("accessedRelationName", err.accessedRelationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("parentPermissionName", err.parentPermissionName).Str("accessedRelationName", err.accessedRelationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -136,7 +158,7 @@ type ErrMissingAllowedRelations struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrMissingAllowedRelations) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -157,7 +179,7 @@ type ErrTransitiveWildcard struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrTransitiveWildcard) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -177,7 +199,7 @@ type ErrPermissionsCycle struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrPermissionsCycle) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("permissions", strings.Join(err.permissionNames, ", "))
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("permissions", strings.Join(err.permissionNames, ", "))
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -185,6 +207,28 @@ func (err ErrPermissionsCycle) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"definition_name":  err.namespaceName,
 		"permission_names": strings.Join(err.permissionNames, ","),
+	}
+}
+
+// ErrDuplicateAllowedRelation indicates that an allowed relation was redefined on a relation.
+type ErrDuplicateAllowedRelation struct {
+	error
+	namespaceName         string
+	relationName          string
+	allowedRelationSource string
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (err ErrDuplicateAllowedRelation) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName).Str("allowed-relation", err.allowedRelationSource)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrDuplicateAllowedRelation) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"definition_name":  err.namespaceName,
+		"relation_name":    err.relationName,
+		"allowed_relation": err.allowedRelationSource,
 	}
 }
 
@@ -205,12 +249,30 @@ func NewRelationNotFoundErr(nsName string, relationName string) error {
 	}
 }
 
+// NewCaveatNotFoundErr constructs a new caveat not found error.
+func NewCaveatNotFoundErr(caveatName string) error {
+	return ErrCaveatNotFound{
+		error:      fmt.Errorf("caveat `%s` not found", caveatName),
+		caveatName: caveatName,
+	}
+}
+
 // NewDuplicateRelationError constructs an error indicating that a relation was defined more than once in a namespace.
 func NewDuplicateRelationError(nsName string, relationName string) error {
 	return ErrDuplicateRelation{
 		error:         fmt.Errorf("found duplicate relation/permission name `%s` under definition `%s`", relationName, nsName),
 		namespaceName: nsName,
 		relationName:  relationName,
+	}
+}
+
+// NewDuplicateAllowedRelationErr constructs an error indicating that an allowed relation was defined more than once for a relation.
+func NewDuplicateAllowedRelationErr(nsName string, relationName string, allowedRelationSource string) error {
+	return ErrDuplicateAllowedRelation{
+		error:                 fmt.Errorf("found duplicate allowed subject type `%s` on relation `%s` under definition `%s`", allowedRelationSource, relationName, nsName),
+		namespaceName:         nsName,
+		relationName:          relationName,
+		allowedRelationSource: allowedRelationSource,
 	}
 }
 

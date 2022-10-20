@@ -144,7 +144,11 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		}
 
 		for _, nsdef := range nsdefs {
-			ts, err := namespace.BuildNamespaceTypeSystemForDefs(nsdef, liveDefs)
+			ts, err := namespace.NewNamespaceTypeSystem(
+				nsdef,
+				namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
+					Namespaces: liveDefs,
+				}))
 			if err != nil {
 				return err
 			}

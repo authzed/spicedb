@@ -495,7 +495,10 @@ func TestReachabilityGraph(t *testing.T) {
 			var rts *ValidatedNamespaceTypeSystem
 			for _, nsDef := range defs {
 				reader := ds.SnapshotReader(lastRevision)
-				ts, err := BuildNamespaceTypeSystemWithFallback(nsDef, reader, defs)
+				ts, err := NewNamespaceTypeSystem(nsDef,
+					ResolverForDatastoreReader(reader).WithPredefinedElements(PredefinedElements{
+						Namespaces: defs,
+					}))
 				require.NoError(err)
 
 				vts, terr := ts.Validate(ctx)

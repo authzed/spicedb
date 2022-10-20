@@ -387,7 +387,7 @@ func TestCanonicalization(t *testing.T) {
 			ctx := context.Background()
 
 			var lastRevision decimal.Decimal
-			ts, err := BuildNamespaceTypeSystemForDatastore(tc.toCheck, ds.SnapshotReader(lastRevision))
+			ts, err := NewNamespaceTypeSystem(tc.toCheck, ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)
@@ -518,7 +518,7 @@ func TestCanonicalizationComparison(t *testing.T) {
 			require.NoError(err)
 
 			var lastRevision decimal.Decimal
-			ts, err := BuildNamespaceTypeSystemForDatastore(defs[0], ds.SnapshotReader(lastRevision))
+			ts, err := NewNamespaceTypeSystem(defs[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)

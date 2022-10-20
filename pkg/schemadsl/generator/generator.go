@@ -97,6 +97,10 @@ func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRela
 	if allowedRelation.GetPublicWildcard() != nil {
 		sg.append(":*")
 	}
+	if allowedRelation.GetRequiredCaveat() != nil {
+		sg.append(" with ")
+		sg.append(allowedRelation.RequiredCaveat.CaveatName)
+	}
 }
 
 func (sg *sourceGenerator) emitRewrite(rewrite *core.UsersetRewrite) {

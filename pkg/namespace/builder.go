@@ -1,6 +1,7 @@
 package namespace
 
 import (
+	"github.com/authzed/spicedb/pkg/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
@@ -73,6 +74,17 @@ func AllowedRelation(namespaceName string, relationName string) *core.AllowedRel
 	}
 }
 
+// AllowedRelationWithCaveat creates a relation reference to an allowed relation.
+func AllowedRelationWithCaveat(namespaceName string, relationName string, withCaveat *core.AllowedCaveat) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_Relation{
+			Relation: relationName,
+		},
+		RequiredCaveat: withCaveat,
+	}
+}
+
 // AllowedPublicNamespace creates a relation reference to an allowed public namespace.
 func AllowedPublicNamespace(namespaceName string) *core.AllowedRelation {
 	return &core.AllowedRelation{
@@ -80,6 +92,50 @@ func AllowedPublicNamespace(namespaceName string) *core.AllowedRelation {
 		RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
 			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
 		},
+	}
+}
+
+// AllowedCaveat creates a caveat reference.
+func AllowedCaveat(name string) *core.AllowedCaveat {
+	return &core.AllowedCaveat{
+		CaveatName: name,
+	}
+}
+
+// CaveatDefinition returns a new caveat definition.
+func CaveatDefinition(env *caveats.Environment, name string, expr string) (*core.CaveatDefinition, error) {
+	compiled, err := caveats.CompileCaveatWithName(env, expr, name)
+	if err != nil {
+		return nil, err
+	}
+	serialized, err := compiled.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return &core.CaveatDefinition{
+		Name:                 name,
+		SerializedExpression: serialized,
+		ParameterTypes:       env.EncodedParametersTypes(),
+	}, nil
+}
+
+// MustCaveatDefinition returns a new caveat definition.
+func MustCaveatDefinition(env *caveats.Environment, name string, expr string) *core.CaveatDefinition {
+	cd, err := CaveatDefinition(env, name, expr)
+	if err != nil {
+		panic(err)
+	}
+	return cd
+}
+
+// AllowedPublicNamespaceWithCaveat creates a relation reference to an allowed public namespace.
+func AllowedPublicNamespaceWithCaveat(namespaceName string, withCaveat *core.AllowedCaveat) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
+			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
+		},
+		RequiredCaveat: withCaveat,
 	}
 }
 

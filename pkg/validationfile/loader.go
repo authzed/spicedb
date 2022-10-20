@@ -91,7 +91,10 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 		var lnerr error
 		revision, lnerr = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			for _, nsDef := range nsDefs {
-				ts, err := namespace.BuildNamespaceTypeSystemWithFallback(nsDef, rwt, nsDefs)
+				ts, err := namespace.NewNamespaceTypeSystem(nsDef,
+					namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+						Namespaces: nsDefs,
+					}))
 				if err != nil {
 					return err
 				}

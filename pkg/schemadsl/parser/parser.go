@@ -148,13 +148,47 @@ func (p *sourceParser) consumeTypeReference() AstNode {
 	defer p.finishNode()
 
 	for {
-		refNode.Connect(dslshape.NodeTypeReferencePredicateType, p.consumeSpecificType())
+		refNode.Connect(dslshape.NodeTypeReferencePredicateType, p.consumeSpecificTypeWithCaveat())
 		if _, ok := p.tryConsume(lexer.TokenTypePipe); !ok {
 			break
 		}
 	}
 
 	return refNode
+}
+
+// consumeSpecificType consumes an identifier as a specific type reference, with optional caveat.
+func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
+	specificNode := p.consumeSpecificType()
+
+	caveatNode, ok := p.tryConsumeWithCaveat()
+	if ok {
+		specificNode.Connect(dslshape.NodeSpecificReferencePredicateCaveat, caveatNode)
+	}
+
+	return specificNode
+}
+
+// tryConsumeWithCaveat tries to consume a caveat `with` expression.
+func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
+	if !p.isKeyword("with") {
+		return nil, false
+	}
+
+	caveatNode := p.startNode(dslshape.NodeTypeCaveatReference)
+	defer p.finishNode()
+
+	if ok := p.consumeKeyword("with"); !ok {
+		return nil, ok
+	}
+
+	consumed, ok := p.consume(lexer.TokenTypeIdentifier)
+	if !ok {
+		return caveatNode, true
+	}
+
+	caveatNode.Decorate(dslshape.NodeCaveatPredicateCaveat, consumed.Value)
+	return caveatNode, true
 }
 
 // consumeSpecificType consumes an identifier as a specific type reference.

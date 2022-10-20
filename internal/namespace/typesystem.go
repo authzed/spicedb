@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/internal/util"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/graph"
@@ -48,73 +49,24 @@ const (
 	PublicSubjectNotAllowed
 )
 
-// LookupNamespace is a function used to lookup a namespace.
-type LookupNamespace func(ctx context.Context, name string) (*core.NamespaceDefinition, error)
+// AllowedRelationOption indicates whether an allowed relation off a particular kind is allowed on the right side of another relation.
+type AllowedRelationOption int
 
-// BuildNamespaceTypeSystemWithFallback constructs a type system view of a namespace definition, with automatic lookup
-// via the additional defs first, and then the namespace manager as a fallback.
-func BuildNamespaceTypeSystemWithFallback(nsDef *core.NamespaceDefinition, ds datastore.Reader, additionalDefs []*core.NamespaceDefinition) (*TypeSystem, error) {
-	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, namespaceName string) (*core.NamespaceDefinition, error) {
-		// NOTE: Order is important here: We always check the new definitions before the existing
-		// ones.
+const (
+	// UnknownIfAllowed indicates that no type information is defined for
+	// this relation.
+	UnknownIfAllowed AllowedRelationOption = iota
 
-		// Check the additional namespace definitions for the namespace.
-		for _, additionalDef := range additionalDefs {
-			if additionalDef.Name == namespaceName {
-				return additionalDef, nil
-			}
-		}
+	// AllowedRelationValid indicates that the specified subject relation is valid.
+	AllowedRelationValid
 
-		// Otherwise, check already defined namespaces.
-		otherNamespaceDef, _, err := ds.ReadNamespace(ctx, namespaceName)
-		return otherNamespaceDef, asTypeError(err)
-	})
-}
+	// AllowedRelationNotValid indicates that the specified subject relation is not valid.
+	AllowedRelationNotValid
+)
 
-// BuildNamespaceTypeSystemForDatastore constructs a type system view of a namespace definition, with automatic lookup
-// via the datastore reader.
-func BuildNamespaceTypeSystemForDatastore(nsDef *core.NamespaceDefinition, ds datastore.Reader) (*TypeSystem, error) {
-	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*core.NamespaceDefinition, error) {
-		nsDef, _, err := ds.ReadNamespace(ctx, nsName)
-		return nsDef, asTypeError(err)
-	})
-}
-
-// BuildNamespaceTypeSystemForDefs constructs a type system view of a namespace definition, with lookup in the
-// list of definitions given.
-func BuildNamespaceTypeSystemForDefs(nsDef *core.NamespaceDefinition, allDefs []*core.NamespaceDefinition) (*TypeSystem, error) {
-	return BuildNamespaceTypeSystem(nsDef, func(ctx context.Context, nsName string) (*core.NamespaceDefinition, error) {
-		for _, def := range allDefs {
-			if def.Name == nsName {
-				return def, nil
-			}
-		}
-
-		return nil, asTypeError(NewNamespaceNotFoundErr(nsName))
-	})
-}
-
-func newTypeErrorWithSource(wrapped error, withSource nspkg.WithSourcePosition, sourceCodeString string) error {
-	sourcePosition := withSource.GetSourcePosition()
-	if sourcePosition != nil {
-		return asTypeError(spiceerrors.NewErrorWithSource(
-			wrapped,
-			sourceCodeString,
-			sourcePosition.ZeroIndexedLineNumber+1, // +1 to make 1-indexed
-			sourcePosition.ZeroIndexedColumnPosition+1, // +1 to make 1-indexed
-		))
-	}
-
-	return asTypeError(spiceerrors.NewErrorWithSource(
-		wrapped,
-		sourceCodeString,
-		0,
-		0,
-	))
-}
-
-// BuildNamespaceTypeSystem constructs a type system view of a namespace definition.
-func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace LookupNamespace) (*TypeSystem, error) {
+// NewNamespaceTypeSystem returns a new type system for the given namespace. Note that the type
+// system is not validated until Validate is called.
+func NewNamespaceTypeSystem(nsDef *core.NamespaceDefinition, resolver Resolver) (*TypeSystem, error) {
 	relationMap := map[string]*core.Relation{}
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
@@ -130,7 +82,7 @@ func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace L
 	}
 
 	return &TypeSystem{
-		lookupNamespace:    lookupNamespace,
+		resolver:           resolver,
 		nsDef:              nsDef,
 		relationMap:        relationMap,
 		wildcardCheckCache: map[string]*WildcardTypeReference{},
@@ -139,7 +91,7 @@ func BuildNamespaceTypeSystem(nsDef *core.NamespaceDefinition, lookupNamespace L
 
 // TypeSystem represents typing information found in a namespace.
 type TypeSystem struct {
-	lookupNamespace    LookupNamespace
+	resolver           Resolver
 	nsDef              *core.NamespaceDefinition
 	relationMap        map[string]*core.Relation
 	wildcardCheckCache map[string]*WildcardTypeReference
@@ -217,6 +169,28 @@ func (nts *TypeSystem) IsAllowedDirectRelation(sourceRelationName string, target
 	}
 
 	return DirectRelationNotValid, nil
+}
+
+// HasAllowedRelation returns whether the source relation has the given allowed relation.
+func (nts *TypeSystem) HasAllowedRelation(sourceRelationName string, toCheck *core.AllowedRelation) (AllowedRelationOption, error) {
+	found, ok := nts.relationMap[sourceRelationName]
+	if !ok {
+		return UnknownIfAllowed, asTypeError(NewRelationNotFoundErr(nts.nsDef.Name, sourceRelationName))
+	}
+
+	typeInfo := found.GetTypeInformation()
+	if typeInfo == nil {
+		return UnknownIfAllowed, nil
+	}
+
+	allowedRelations := typeInfo.GetAllowedDirectRelations()
+	for _, allowedRelation := range allowedRelations {
+		if SourceForAllowedRelation(allowedRelation) == SourceForAllowedRelation(toCheck) {
+			return AllowedRelationValid, nil
+		}
+	}
+
+	return AllowedRelationNotValid, nil
 }
 
 // AllowedDirectRelationsAndWildcards returns the allowed subject relations for a source relation. Note that this function will return
@@ -450,9 +424,24 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 			}
 		}
 
-		// Verify that all allowed relations are not this very relation, and that
-		// they exist within the namespace.
+		// Allowed relations verification:
+		// 1) that all allowed relations are not this very relation
+		// 2) that they exist within the referenced namespace
+		// 3) that they are not duplicated in any way
+		// 4) that if they have a caveat reference, the caveat is valid
+		encountered := util.NewSet[string]()
+
 		for _, allowedRelation := range allowedDirectRelations {
+			source := SourceForAllowedRelation(allowedRelation)
+			if !encountered.Add(source) {
+				return nil, newTypeErrorWithSource(
+					NewDuplicateAllowedRelationErr(nts.nsDef.Name, relation.Name, source),
+					allowedRelation,
+					source,
+				)
+			}
+
+			// Check the namespace.
 			if allowedRelation.GetNamespace() == nts.nsDef.Name {
 				if allowedRelation.GetPublicWildcard() == nil && allowedRelation.GetRelation() != tuple.Ellipsis {
 					_, ok := nts.relationMap[allowedRelation.GetRelation()]
@@ -474,6 +463,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 					)
 				}
 
+				// Check for relations.
 				if allowedRelation.GetPublicWildcard() == nil && allowedRelation.GetRelation() != tuple.Ellipsis {
 					// Ensure the relation exists.
 					ok := subjectTS.HasRelation(allowedRelation.GetRelation())
@@ -507,10 +497,45 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 					}
 				}
 			}
+
+			// Check the caveat, if any.
+			if allowedRelation.GetRequiredCaveat() != nil {
+				_, err := nts.resolver.LookupCaveat(ctx, allowedRelation.GetRequiredCaveat().CaveatName)
+				if err != nil {
+					return nil, newTypeErrorWithSource(
+						fmt.Errorf("could not lookup caveat `%s` for relation `%s`: %w", allowedRelation.GetRequiredCaveat().CaveatName, relation.Name, err),
+						allowedRelation,
+						source,
+					)
+				}
+			}
 		}
 	}
 
 	return &ValidatedNamespaceTypeSystem{nts}, nil
+}
+
+// SourceForAllowedRelation returns the source code representation of an allowed relation.
+func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
+	caveatStr := ""
+
+	if allowedRelation.GetRequiredCaveat() != nil {
+		caveatStr = fmt.Sprintf(" with %s", allowedRelation.GetRequiredCaveat().CaveatName)
+	}
+
+	if allowedRelation.GetPublicWildcard() != nil {
+		return fmt.Sprintf("%s:*%s", allowedRelation.GetNamespace(), caveatStr)
+	}
+
+	if allowedRelation.GetRelation() == "" {
+		panic("invalid allowed relation: relation is empty for a non-wildcard")
+	}
+
+	if allowedRelation.GetRelation() != tuple.Ellipsis {
+		return fmt.Sprintf("%s#%s%s", allowedRelation.GetNamespace(), allowedRelation.GetRelation(), caveatStr)
+	}
+
+	return fmt.Sprintf("%s%s", allowedRelation.GetNamespace(), caveatStr)
 }
 
 func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName string) (*TypeSystem, error) {
@@ -518,15 +543,34 @@ func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName
 		return nts, nil
 	}
 
-	nsDef, err := nts.lookupNamespace(ctx, namespaceName)
+	nsDef, err := nts.resolver.LookupNamespace(ctx, namespaceName)
 	if err != nil {
 		return nil, err
 	}
 
-	return BuildNamespaceTypeSystem(nsDef, nts.lookupNamespace)
+	return NewNamespaceTypeSystem(nsDef, nts.resolver)
 }
 
 // ValidatedNamespaceTypeSystem is validated type system for a namespace.
 type ValidatedNamespaceTypeSystem struct {
 	*TypeSystem
+}
+
+func newTypeErrorWithSource(wrapped error, withSource nspkg.WithSourcePosition, sourceCodeString string) error {
+	sourcePosition := withSource.GetSourcePosition()
+	if sourcePosition != nil {
+		return asTypeError(spiceerrors.NewErrorWithSource(
+			wrapped,
+			sourceCodeString,
+			sourcePosition.ZeroIndexedLineNumber+1, // +1 to make 1-indexed
+			sourcePosition.ZeroIndexedColumnPosition+1, // +1 to make 1-indexed
+		))
+	}
+
+	return asTypeError(spiceerrors.NewErrorWithSource(
+		wrapped,
+		sourceCodeString,
+		0,
+		0,
+	))
 }

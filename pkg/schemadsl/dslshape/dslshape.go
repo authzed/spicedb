@@ -19,6 +19,7 @@ const (
 
 	NodeTypeTypeReference         // A type reference
 	NodeTypeSpecificTypeReference // A reference to a specific type.
+	NodeTypeCaveatReference       // A caveat reference under a type.
 
 	NodeTypeUnionExpression
 	NodeTypeIntersectExpression
@@ -104,6 +105,16 @@ const (
 
 	// A wildcard under a type reference.
 	NodeSpecificReferencePredicateWildcard = "type-wildcard"
+
+	// A caveat under a type reference.
+	NodeSpecificReferencePredicateCaveat = "caveat"
+
+	//
+	// NodeTypeCaveatReference
+	//
+
+	// The caveat name under the caveat.
+	NodeCaveatPredicateCaveat = "caveat-name"
 
 	//
 	// NodeTypePermission
