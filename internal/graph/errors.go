@@ -78,7 +78,7 @@ func (err ErrRelationNotFound) NotFoundRelationName() string {
 }
 
 func (err ErrRelationNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -119,7 +119,7 @@ func (err ErrRelationMissingTypeInfo) RelationName() string {
 }
 
 func (err ErrRelationMissingTypeInfo) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.

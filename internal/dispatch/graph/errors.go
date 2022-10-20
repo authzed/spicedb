@@ -19,7 +19,7 @@ func (err ErrNamespaceNotFound) NotFoundNamespaceName() string {
 
 // MarshalZerologObject implements zerolog.LogObjectMarshaler
 func (err ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName)
+	e.Err(err.error).Str("namespace", err.namespaceName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -56,7 +56,7 @@ func (err ErrRelationNotFound) NotFoundRelationName() string {
 
 // MarshalZerologObject implements zerolog.LogObjectMarshaler
 func (err ErrRelationNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("namespace", err.namespaceName).Str("relation", err.relationName)
+	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
