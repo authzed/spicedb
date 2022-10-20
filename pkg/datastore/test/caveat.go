@@ -146,6 +146,17 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 	assertTupleCorrectlyStored(req, ds, rev, tpl)
 
+	// RelationTupleUpdate_DELETE ignores caveat part of the request
+	tpl.Caveat.CaveatName = "rando"
+	rev, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_DELETE, tpl)
+	req.NoError(err)
+	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		ResourceType: tpl.ResourceAndRelation.Namespace,
+	})
+	req.NoError(err)
+	defer iter.Close()
+	req.Nil(iter.Next())
+
 	// Caveated tuple can reference non-existing caveat - controller layer is responsible for validation
 	tpl = createTestCaveatedTuple(t, "document:rando#parent@folder:company#...", "rando")
 	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
