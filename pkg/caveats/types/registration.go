@@ -2,6 +2,7 @@ package types
 
 import (
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types/ref"
 )
 
 var definitions = map[string]typeDefinition{}
@@ -10,6 +11,10 @@ var definitions = map[string]typeDefinition{}
 // so that the CEL environment construction can apply the necessary env options for the custom
 // types.
 var CustomTypes = map[string][]cel.EnvOption{}
+
+// CustomMethodsOnTypes holds a set of new methods applied over defined types. This is exported
+// so that the CEL environment construction can apply the necessary env options to support these methods
+var CustomMethodsOnTypes []cel.EnvOption
 
 type (
 	typedValueConverter func(value any) (any, error)
@@ -69,4 +74,12 @@ func registerGenericType(
 func registerCustomType(keyword string, baseCelType *cel.Type, converter typedValueConverter, opts ...cel.EnvOption) VariableType {
 	CustomTypes[keyword] = opts
 	return registerBasicType(keyword, baseCelType, converter)
+}
+
+func registerMethodOnDefinedType(baseType *cel.Type, name string, args []*cel.Type, returnType *cel.Type, binding func(arg ...ref.Val) ref.Val) {
+	finalArgs := make([]*cel.Type, 0, len(args)+1)
+	finalArgs = append(finalArgs, baseType)
+	finalArgs = append(finalArgs, args...)
+	method := cel.Function(name, cel.MemberOverload(name, finalArgs, returnType, cel.FunctionBinding(binding)))
+	CustomMethodsOnTypes = append(CustomMethodsOnTypes, method)
 }

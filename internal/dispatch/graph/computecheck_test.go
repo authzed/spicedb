@@ -469,7 +469,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			}`,
 			map[string]caveatDefinition{
 				"attributes_match": {
-					"expected.all(x, expected[x] == provided[x])",
+					"expected.isSubtreeOf(provided)",
 					map[string]types.VariableType{
 						"expected": types.MapType(types.AnyType),
 						"provided": types.MapType(types.AnyType),
@@ -525,8 +525,9 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						"provided": map[string]any{
 							"type": "backend", "region": "us", "team": "shop",
 							"additional_attrs": map[string]any{
-								"tag1": 100,
+								"tag1": 100.0,
 								"tag2": false,
+								"tag3": "hi",
 							},
 						},
 					},
