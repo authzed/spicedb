@@ -33,7 +33,7 @@ type ErrExceedsMaximumUpdates struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrExceedsMaximumUpdates) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Uint16("updateCount", err.updateCount).Uint16("maxCountAllowed", err.maxCountAllowed)
+	e.Err(err.error).Uint16("updateCount", err.updateCount).Uint16("maxCountAllowed", err.maxCountAllowed)
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
@@ -69,7 +69,7 @@ type ErrExceedsMaximumPreconditions struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrExceedsMaximumPreconditions) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Uint16("preconditionCount", err.preconditionCount).Uint16("maxCountAllowed", err.maxCountAllowed)
+	e.Err(err.error).Uint16("preconditionCount", err.preconditionCount).Uint16("maxCountAllowed", err.maxCountAllowed)
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
@@ -139,7 +139,7 @@ type ErrPreconditionFailed struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrPreconditionFailed) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Interface("precondition", err.precondition)
+	e.Err(err.error).Interface("precondition", err.precondition)
 }
 
 // NewPreconditionFailedErr constructs a new precondition failed error.

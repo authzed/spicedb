@@ -51,7 +51,7 @@ type ParameterConversionErr struct {
 
 // MarshalZerologObject implements zerolog.LogObjectMarshaler
 func (err ParameterConversionErr) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("parameterName", err.parameterName)
+	e.Err(err.error).Str("parameterName", err.parameterName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
