@@ -3,7 +3,8 @@ package spiceerrors
 import (
 	"errors"
 
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
+
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

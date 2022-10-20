@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
