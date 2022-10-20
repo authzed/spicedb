@@ -14,6 +14,7 @@ import (
 )
 
 func TestRemoteClockOptimizedRevisions(t *testing.T) {
+	t.Parallel()
 	type timeAndExpectedRevision struct {
 		unixTime int64
 		expected int64
@@ -72,7 +73,9 @@ func TestRemoteClockOptimizedRevisions(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			rcr := NewRemoteClockRevisions(1*time.Hour, 0, tc.followerReadDelay, tc.quantization)
@@ -107,6 +110,7 @@ func TestRemoteClockOptimizedRevisions(t *testing.T) {
 }
 
 func TestRemoteClockCheckRevisions(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                string
 		gcWindow            time.Duration
@@ -123,7 +127,9 @@ func TestRemoteClockCheckRevisions(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			rcr := NewRemoteClockRevisions(tc.gcWindow, 0, 0, 0)

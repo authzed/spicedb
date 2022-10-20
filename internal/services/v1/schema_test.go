@@ -20,6 +20,7 @@ import (
 )
 
 func TestSchemaWriteNoPrefix(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -30,6 +31,7 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidSchema(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -44,6 +46,7 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 }
 
 func TestSchemaWriteInvalidNamespace(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -60,6 +63,7 @@ func TestSchemaWriteInvalidNamespace(t *testing.T) {
 }
 
 func TestSchemaWriteAndReadBack(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -80,6 +84,7 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -142,6 +147,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 }
 
 func TestSchemaDeletePermission(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -180,6 +186,7 @@ func TestSchemaDeletePermission(t *testing.T) {
 }
 
 func TestSchemaChangeRelationToPermission(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -239,6 +246,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 }
 
 func TestSchemaDeleteDefinition(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -290,6 +298,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 }
 
 func TestSchemaRemoveWildcard(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -351,6 +360,7 @@ definition example/user {}`
 }
 
 func TestSchemaEmpty(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -401,6 +411,7 @@ func TestSchemaEmpty(t *testing.T) {
 }
 
 func TestSchemaTypeRedefined(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -422,6 +433,7 @@ func TestSchemaTypeRedefined(t *testing.T) {
 }
 
 func TestSchemaTypeInvalid(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)

@@ -25,6 +25,7 @@ import (
 )
 
 func TestBurst(t *testing.T) {
+	t.Parallel()
 	blacklist := []string{
 		spanner.Engine, // spanner emulator doesn't support parallel transactions
 	}

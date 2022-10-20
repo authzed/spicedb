@@ -23,6 +23,7 @@ import (
 )
 
 func TestHealthCheck(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	for _, engine := range datastore.Engines {

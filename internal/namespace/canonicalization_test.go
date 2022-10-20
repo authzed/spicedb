@@ -16,6 +16,7 @@ import (
 )
 
 func TestCanonicalization(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name             string
 		toCheck          *core.NamespaceDefinition
@@ -377,7 +378,9 @@ func TestCanonicalization(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -416,6 +419,7 @@ definition document {
 `
 
 func TestCanonicalizationComparison(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name         string
 		first        string
@@ -503,7 +507,9 @@ func TestCanonicalizationComparison(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)

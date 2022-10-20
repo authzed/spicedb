@@ -10,6 +10,7 @@ import (
 )
 
 func TestCompile(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name           string
 		env            *Environment
@@ -188,7 +189,9 @@ func TestCompile(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			compiled, err := compileCaveat(tc.env, tc.exprString)
 			if len(tc.expectedErrors) == 0 {
 				require.NoError(t, err)
@@ -214,10 +217,13 @@ func TestDeserializeEmpty(t *testing.T) {
 }
 
 func TestSerialization(t *testing.T) {
+	t.Parallel()
 	exprs := []string{"a == 1", "a + b == 2", "b - a == 4"}
 
 	for _, expr := range exprs {
+		expr := expr
 		t.Run(expr, func(t *testing.T) {
+			t.Parallel()
 			env := MustEnvForVariables(map[string]types.VariableType{
 				"a": types.IntType,
 				"b": types.IntType,
@@ -239,6 +245,7 @@ func TestSerialization(t *testing.T) {
 }
 
 func TestSerializeName(t *testing.T) {
+	t.Parallel()
 	env := MustEnvForVariables(map[string]types.VariableType{
 		"a": types.IntType,
 		"b": types.IntType,

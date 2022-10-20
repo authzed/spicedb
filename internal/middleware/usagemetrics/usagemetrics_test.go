@@ -74,6 +74,7 @@ type metricsMiddlewareTestSuite struct {
 }
 
 func TestMetricsMiddleware(t *testing.T) {
+	t.Parallel()
 	s := &metricsMiddlewareTestSuite{
 		InterceptorTestSuite: &testpb.InterceptorTestSuite{
 			TestService: &testServer{},

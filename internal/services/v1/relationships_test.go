@@ -26,6 +26,7 @@ import (
 )
 
 func TestReadRelationships(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name         string
 		filter       *v1.RelationshipFilter
@@ -200,9 +201,13 @@ func TestReadRelationships(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			t.Parallel()
 			for _, tc := range testCases {
+				tc := tc
 				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
 					require := require.New(t)
 					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
@@ -255,6 +260,7 @@ func TestReadRelationships(t *testing.T) {
 }
 
 func TestWriteRelationships(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -458,6 +464,7 @@ func relWithCaveat(resType, resID, relation, subType, subID, subRel, caveatName 
 }
 
 func TestInvalidWriteRelationship(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		preconditions []*v1.RelationshipFilter
@@ -576,9 +583,12 @@ func TestInvalidWriteRelationship(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
+				tc := tc
 				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
 					require := require.New(t)
 					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 					client := v1.NewPermissionsServiceClient(conn)
@@ -617,6 +627,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 }
 
 func TestDeleteRelationships(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		req           *v1.DeleteRelationshipsRequest
@@ -898,8 +909,11 @@ func TestDeleteRelationships(t *testing.T) {
 		},
 	}
 	for _, delta := range testTimedeltas {
+		delta := delta
 		for _, tc := range testCases {
+			tc := tc
 			t.Run(fmt.Sprintf("fuzz%d/%s", delta/time.Millisecond, tc.name), func(t *testing.T) {
+				t.Parallel()
 				require := require.New(t)
 				conn, cleanup, ds, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 				client := v1.NewPermissionsServiceClient(conn)
@@ -926,6 +940,7 @@ func TestDeleteRelationships(t *testing.T) {
 }
 
 func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
 		require,
@@ -984,6 +999,7 @@ func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 }
 
 func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
 		require,
@@ -1033,6 +1049,7 @@ func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {
 }
 
 func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
 		require,

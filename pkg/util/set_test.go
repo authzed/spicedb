@@ -9,6 +9,7 @@ import (
 )
 
 func TestSetOperations(t *testing.T) {
+	t.Parallel()
 	// Create a set and ensure it is empty.
 	set := NewSet[string]()
 	require.True(t, set.IsEmpty())
@@ -118,6 +119,7 @@ func TestSetSubtract(t *testing.T) {
 }
 
 func TestSetIntersectionDifference(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		first    []int
 		second   []int
@@ -141,7 +143,9 @@ func TestSetIntersectionDifference(t *testing.T) {
 	}
 
 	for index, tc := range tcs {
+		tc := tc
 		t.Run(fmt.Sprintf("%d", index), func(t *testing.T) {
+			t.Parallel()
 			firstSet := NewSet[int]()
 			firstSet.Extend(tc.first)
 

@@ -28,6 +28,7 @@ var (
 )
 
 func TestAddRevisionToContextNoneSupplied(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
@@ -41,6 +42,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 }
 
 func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
@@ -60,6 +62,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 }
 
 func TestAddRevisionToContextFullyConsistent(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
@@ -79,6 +82,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 }
 
 func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
@@ -99,6 +103,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 }
 
 func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
@@ -119,6 +124,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 }
 
 func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
@@ -138,6 +144,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 }
 
 func TestAddRevisionToContextAPIAlwaysFullyConsistent(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds := &proxy_test.MockDatastore{}
@@ -151,6 +158,7 @@ func TestAddRevisionToContextAPIAlwaysFullyConsistent(t *testing.T) {
 }
 
 func TestMiddlewareConsistencyTestSuite(t *testing.T) {
+	t.Parallel()
 	ds := &proxy_test.MockDatastore{}
 	ds.On("HeadRevision").Return(head, nil)
 

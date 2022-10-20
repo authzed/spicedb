@@ -18,6 +18,7 @@ import (
 )
 
 func TestKeyPrefixOverlap(t *testing.T) {
+	t.Parallel()
 	encountered := map[string]struct{}{}
 	for _, prefix := range cachePrefixes {
 		_, ok := encountered[string(prefix)]
@@ -32,6 +33,7 @@ var (
 )
 
 func TestStableCacheKeys(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name      string
 		createKey func() DispatchCacheKey
@@ -269,7 +271,9 @@ func TestStableCacheKeys(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			key := tc.createKey()
 			require.Equal(t, tc.expected, hex.EncodeToString(key.StableSumAsBytes()))
 		})
@@ -412,6 +416,7 @@ var generatorFuncs = map[string]generatorFunc{
 }
 
 func TestCacheKeyNoOverlap(t *testing.T) {
+	t.Parallel()
 	allResourceIds := [][]string{
 		{"1"},
 		{"1", "2"},
@@ -448,7 +453,7 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 	// Ensure all key functions are generated.
 	require.Equal(t, len(generatorFuncs), len(cachePrefixes))
 
-	for _, resourceIds := range allResourceIds {
+	for _, resourceIds := range allResourceIds { // nolint: paralleltest
 		t.Run(strings.Join(resourceIds, ","), func(t *testing.T) {
 			for _, subjectIds := range allSubjectIds {
 				t.Run(strings.Join(subjectIds, ","), func(t *testing.T) {
@@ -485,6 +490,7 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 }
 
 func TestComputeOnlyStableHash(t *testing.T) {
+	t.Parallel()
 	result := checkRequestToKey(&v1.DispatchCheckRequest{
 		ResourceRelation: RR("document", "view"),
 		ResourceIds:      []string{"foo", "bar"},

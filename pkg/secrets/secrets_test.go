@@ -11,6 +11,7 @@ var tests = []uint8{
 }
 
 func TestTokenBytes(t *testing.T) {
+	t.Parallel()
 	assert := assert.New(t)
 	for _, nbytes := range tests {
 		res, err := TokenBytes(nbytes)
@@ -20,6 +21,7 @@ func TestTokenBytes(t *testing.T) {
 }
 
 func TestTokenHex(t *testing.T) {
+	t.Parallel()
 	assert := assert.New(t)
 	for _, nbytes := range tests {
 		res, err := TokenHex(nbytes)

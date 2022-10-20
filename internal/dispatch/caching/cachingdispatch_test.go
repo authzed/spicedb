@@ -32,6 +32,7 @@ func RR(namespaceName string, relationName string) *core.RelationReference {
 }
 
 func TestMaxDepthCaching(t *testing.T) {
+	t.Parallel()
 	start1 := "document:doc1#read"
 	start2 := "document:doc2#read"
 	user1 := "user:user1#..."
@@ -86,7 +87,9 @@ func TestMaxDepthCaching(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			delegate := delegateDispatchMock{&mock.Mock{}}

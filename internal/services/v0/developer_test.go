@@ -11,6 +11,7 @@ import (
 )
 
 func TestDeveloperSharing(t *testing.T) {
+	t.Parallel()
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
 	require := require.New(t)
@@ -44,6 +45,7 @@ func TestDeveloperSharing(t *testing.T) {
 }
 
 func TestDeveloperSharingConverted(t *testing.T) {
+	t.Parallel()
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
 	require := require.New(t)

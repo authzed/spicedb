@@ -32,6 +32,7 @@ var (
 )
 
 func TestOptimizedRevisionCache(t *testing.T) {
+	t.Parallel()
 	type revisionResponse struct {
 		rev      datastore.Revision
 		validFor time.Duration
@@ -101,7 +102,9 @@ func TestOptimizedRevisionCache(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			or := NewCachedOptimizedRevisions(tc.maxStaleness)
@@ -131,6 +134,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 }
 
 func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	or := NewCachedOptimizedRevisions(0)
@@ -166,6 +170,7 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 }
 
 func TestSingleFlightError(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 
 	or := NewCachedOptimizedRevisions(0)

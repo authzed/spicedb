@@ -9,6 +9,7 @@ import (
 )
 
 func TestDecodeValidationFile(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                     string
 		contents                 string
@@ -81,7 +82,9 @@ validation:
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			decoded, err := DecodeValidationFile([]byte(tt.contents))
 			if tt.expectedError != "" {
 				require.NotNil(t, err)
@@ -101,6 +104,7 @@ validation:
 }
 
 func TestDecodeRelationshipsErrorLineNumber(t *testing.T) {
+	t.Parallel()
 	_, err := DecodeValidationFile([]byte(`schema: >-
   definition user {}
 
@@ -118,6 +122,7 @@ relationships: >-
 }
 
 func TestDecodeRelationshipsErrorLineNumberLater(t *testing.T) {
+	t.Parallel()
 	_, err := DecodeValidationFile([]byte(`schema: >-
   definition user {}
 
@@ -135,6 +140,7 @@ relationships: >-
 }
 
 func TestDecodeRelationshipsErrorLineNumberEventLater(t *testing.T) {
+	t.Parallel()
 	_, err := DecodeValidationFile([]byte(`schema: >-
   definition user {}
 
@@ -158,6 +164,7 @@ relationships: >-
 }
 
 func TestDecodeAssertionsErrorLineNumber(t *testing.T) {
+	t.Parallel()
 	_, err := DecodeValidationFile([]byte(`
 schema: >-
   definition user {}
@@ -182,6 +189,7 @@ assertions:
 }
 
 func TestDecodeAssertionsErrorLineNumberSmallerToken(t *testing.T) {
+	t.Parallel()
 	_, err := DecodeValidationFile([]byte(`
 schema: >-
   definition user {}

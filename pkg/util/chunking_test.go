@@ -8,9 +8,13 @@ import (
 )
 
 func TestForEachChunk(t *testing.T) {
+	t.Parallel()
 	for _, datasize := range []int{0, 1, 5, 10, 50, 100, 250} {
+		datasize := datasize
 		for _, chunksize := range []uint64{1, 2, 3, 5, 10, 50} {
+			chunksize := chunksize
 			t.Run(fmt.Sprintf("test-%d-%d", datasize, chunksize), func(t *testing.T) {
+				t.Parallel()
 				data := []int{}
 				for i := 0; i < datasize; i++ {
 					data = append(data, i)

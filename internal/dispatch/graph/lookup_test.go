@@ -34,6 +34,7 @@ func resolvedRes(resourceID string) *v1.ResolvedResource {
 
 func TestSimpleLookup(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
+	t.Parallel()
 
 	testCases := []struct {
 		start                 *core.RelationReference
@@ -99,6 +100,7 @@ func TestSimpleLookup(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		name := fmt.Sprintf(
 			"%s#%s->%s",
 			tc.start.Namespace,
@@ -107,6 +109,7 @@ func TestSimpleLookup(t *testing.T) {
 		)
 
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			ctx, dispatch, revision := newLocalDispatcher(t)
 
@@ -153,6 +156,7 @@ func TestSimpleLookup(t *testing.T) {
 }
 
 func TestMaxDepthLookup(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)

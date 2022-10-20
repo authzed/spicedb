@@ -10,6 +10,7 @@ import (
 )
 
 func TestValidationString(t *testing.T) {
+	t.Parallel()
 	type testCase struct {
 		name            string
 		input           string
@@ -81,7 +82,9 @@ func TestValidationString(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			vs := ValidationString(tc.input)
 
@@ -106,6 +109,7 @@ func TestValidationString(t *testing.T) {
 }
 
 func TestParseExpectedRelations(t *testing.T) {
+	t.Parallel()
 	type testCase struct {
 		name          string
 		contents      string
@@ -168,7 +172,9 @@ document:seconddoc#view:
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			per := ParsedExpectedRelations{}
 			err := yamlv3.Unmarshal([]byte(tc.contents), &per)

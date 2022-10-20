@@ -43,6 +43,7 @@ import (
 var testTimedeltas = []time.Duration{1 * time.Second}
 
 func TestConsistency(t *testing.T) {
+	t.Parallel()
 	_, filename, _, _ := runtime.Caller(0)
 	consistencyTestFiles := []string{}
 	err := filepath.Walk(path.Join(path.Dir(filename), "testconfigs"), func(path string, info os.FileInfo, err error) error {
@@ -61,7 +62,9 @@ func TestConsistency(t *testing.T) {
 	rrequire.NoError(err)
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			t.Parallel()
 			for _, filePath := range consistencyTestFiles {
 				t.Run(path.Base(filePath), func(t *testing.T) {
 					for _, dispatcherKind := range []string{"local", "caching"} {

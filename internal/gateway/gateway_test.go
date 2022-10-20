@@ -13,6 +13,7 @@ import (
 )
 
 func TestOtelForwarding(t *testing.T) {
+	t.Parallel()
 	// Set the global propagator
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 

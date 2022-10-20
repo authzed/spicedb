@@ -11,6 +11,7 @@ import (
 )
 
 func TestParseAssertions(t *testing.T) {
+	t.Parallel()
 	type testCase struct {
 		name               string
 		contents           string
@@ -93,7 +94,9 @@ assertFalse: garbage
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			a := Assertions{}
 			err := yamlv3.Unmarshal([]byte(tc.contents), &a)

@@ -12,6 +12,7 @@ import (
 )
 
 func TestS3ShareStore(t *testing.T) {
+	t.Parallel()
 	backend := s3mem.New()
 	faker := gofakes3.New(backend)
 	ts := httptest.NewServer(faker.Server())

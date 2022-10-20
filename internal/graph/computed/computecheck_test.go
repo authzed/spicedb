@@ -30,6 +30,7 @@ type caveatedUpdate struct {
 }
 
 func TestComputeCheckWithCaveats(t *testing.T) {
+	t.Parallel()
 	type check struct {
 		check                 string
 		context               map[string]any
@@ -801,7 +802,9 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
@@ -849,6 +852,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 }
 
 func TestComputeCheckError(t *testing.T) {
+	t.Parallel()
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 

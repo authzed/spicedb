@@ -45,6 +45,7 @@ type fakeConnPool struct{}
 type fakeTx struct{}
 
 func TestContextError(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 	ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(1*time.Millisecond))
 	m := NewManager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]()
@@ -71,6 +72,7 @@ type revisionRangeTest struct {
 }
 
 func TestRevisionWalking(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		migrations map[string]migration[fakeConnPool, fakeTx]
 		ranges     []revisionRangeTest
@@ -131,6 +133,7 @@ func TestRevisionWalking(t *testing.T) {
 }
 
 func TestComputeHeadRevision(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		migrations   map[string]migration[fakeConnPool, fakeTx]
 		headRevision string
@@ -153,6 +156,7 @@ func TestComputeHeadRevision(t *testing.T) {
 }
 
 func TestIsHeadCompatible(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		migrations       map[string]migration[fakeConnPool, fakeTx]
 		currentMigration string
@@ -180,6 +184,7 @@ func TestIsHeadCompatible(t *testing.T) {
 }
 
 func TestManagerEnsureVersionIsWritten(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 	m := NewManager[Driver[fakeConnPool, fakeTx], fakeConnPool, fakeTx]()
 	err := m.Register("0", "", noNonatomicMigration, noTxMigration)

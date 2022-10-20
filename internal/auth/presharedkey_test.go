@@ -12,6 +12,7 @@ import (
 )
 
 func TestPresharedKeys(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		name           string
 		presharedkeys  []string
@@ -28,7 +29,9 @@ func TestPresharedKeys(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
+		testcase := testcase
 		t.Run(testcase.name, func(t *testing.T) {
+			t.Parallel()
 			f := RequirePresharedKey(testcase.presharedkeys)
 			ctx := context.Background()
 			if testcase.withMetadata {

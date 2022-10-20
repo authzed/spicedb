@@ -32,6 +32,7 @@ func reachable(onr *core.ObjectAndRelation, hasPermission bool) reachableResourc
 
 func TestSimpleReachableResources(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
+	t.Parallel()
 
 	testCases := []struct {
 		start     *core.RelationReference
@@ -133,6 +134,7 @@ func TestSimpleReachableResources(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		name := fmt.Sprintf(
 			"%s#%s->%s",
 			tc.start.Namespace,
@@ -141,6 +143,7 @@ func TestSimpleReachableResources(t *testing.T) {
 		)
 
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ctx, dispatcher, revision := newLocalDispatcher(t)
@@ -182,6 +185,7 @@ func TestSimpleReachableResources(t *testing.T) {
 }
 
 func TestMaxDepthreachableResources(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ctx, dispatcher, revision := newLocalDispatcher(t)

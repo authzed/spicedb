@@ -14,6 +14,7 @@ import (
 )
 
 func TestDevelopment(t *testing.T) {
+	t.Parallel()
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
 	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
@@ -46,6 +47,7 @@ definition document {
 }
 
 func TestDevelopmentInvalidRelationship(t *testing.T) {
+	t.Parallel()
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
 	_, _, err := NewDevContext(context.Background(), &devinterface.RequestContext{

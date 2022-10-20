@@ -50,6 +50,7 @@ func update(
 }
 
 func TestWatch(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name              string
 		objectTypesFilter []string
@@ -99,7 +100,9 @@ func TestWatch(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			conn, cleanup, _, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, testfixtures.StandardDatastoreWithData)

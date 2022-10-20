@@ -16,6 +16,7 @@ import (
 )
 
 func TestGenerateCaveat(t *testing.T) {
+	t.Parallel()
 	type generatorTest struct {
 		name     string
 		input    *core.CaveatDefinition
@@ -212,7 +213,9 @@ definition foos/document {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			source, ok := GenerateSource(test.input)
 			require.Equal(test.expected, source)
@@ -222,6 +225,7 @@ definition foos/document {
 }
 
 func TestFormatting(t *testing.T) {
+	t.Parallel()
 	type formattingTest struct {
 		name     string
 		input    string
@@ -352,7 +356,9 @@ definition foos/document {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source(test.name),

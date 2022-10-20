@@ -8,6 +8,7 @@ import (
 )
 
 func TestPositionMapping(t *testing.T) {
+	t.Parallel()
 	mappingText, err := os.ReadFile("tests/mapping.txt")
 	if !assert.Nil(t, err, "Got error reading mapping file") {
 		return

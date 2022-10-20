@@ -13,6 +13,7 @@ type testCase struct {
 }
 
 func TestEncodeDecodeTypes(t *testing.T) {
+	t.Parallel()
 	tcs := []testCase{
 		{
 			vtype: IntType,
@@ -45,7 +46,9 @@ func TestEncodeDecodeTypes(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.vtype.String(), func(t *testing.T) {
+			t.Parallel()
 			encoded := EncodeParameterType(tc.vtype)
 			decoded, err := DecodeParameterType(encoded)
 			require.NoError(t, err)
@@ -55,6 +58,7 @@ func TestEncodeDecodeTypes(t *testing.T) {
 }
 
 func TestDecodeUnknownType(t *testing.T) {
+	t.Parallel()
 	_, err := DecodeParameterType(&core.CaveatTypeReference{
 		TypeName: "unknown",
 	})
@@ -63,6 +67,7 @@ func TestDecodeUnknownType(t *testing.T) {
 }
 
 func TestDecodeWrongChildTypeCount(t *testing.T) {
+	t.Parallel()
 	_, err := DecodeParameterType(&core.CaveatTypeReference{
 		TypeName: "list",
 	})

@@ -8,6 +8,7 @@ import (
 )
 
 func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    *v1.RelationshipFilter
@@ -89,7 +90,9 @@ func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			computed := RelationshipsFilterFromPublicFilter(test.input)
 			require.Equal(t, test.expected, computed)
 		})

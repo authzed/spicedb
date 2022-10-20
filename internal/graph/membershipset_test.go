@@ -24,6 +24,7 @@ func caveat(name string, context map[string]any) *v1.CaveatExpression {
 }
 
 func TestMembershipSetAddDirectMember(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name                string
 		existingMembers     map[string]*v1.CaveatExpression
@@ -126,7 +127,9 @@ func TestMembershipSetAddDirectMember(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ms := membershipSetFromMap(tc.existingMembers)
 			ms.AddDirectMember(tc.directMemberID, unwrapCaveat(tc.directMemberCaveat))
 			require.Equal(t, tc.expectedMembers, ms.membersByID)
@@ -137,6 +140,7 @@ func TestMembershipSetAddDirectMember(t *testing.T) {
 }
 
 func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name                     string
 		existingMembers          map[string]*v1.CaveatExpression
@@ -228,7 +232,9 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ms := membershipSetFromMap(tc.existingMembers)
 			ms.AddMemberViaRelationship(tc.resourceID, tc.resourceCaveatExpression, tc.parentRelationship)
 			require.Equal(t, tc.expectedMembers, ms.membersByID)
@@ -238,6 +244,7 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 }
 
 func TestMembershipSetUnionWith(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name                string
 		set1                map[string]*v1.CaveatExpression
@@ -369,7 +376,9 @@ func TestMembershipSetUnionWith(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ms1 := membershipSetFromMap(tc.set1)
 			ms2 := membershipSetFromMap(tc.set2)
 			ms1.UnionWith(ms2.AsCheckResultsMap())
@@ -381,6 +390,7 @@ func TestMembershipSetUnionWith(t *testing.T) {
 }
 
 func TestMembershipSetIntersectWith(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name                string
 		set1                map[string]*v1.CaveatExpression
@@ -545,7 +555,9 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ms1 := membershipSetFromMap(tc.set1)
 			ms2 := membershipSetFromMap(tc.set2)
 			ms1.IntersectWith(ms2.AsCheckResultsMap())
@@ -557,6 +569,7 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 }
 
 func TestMembershipSetSubtract(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name                string
 		set1                map[string]*v1.CaveatExpression
@@ -705,7 +718,9 @@ func TestMembershipSetSubtract(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ms1 := membershipSetFromMap(tc.set1)
 			ms2 := membershipSetFromMap(tc.set2)
 			ms1.Subtract(ms2.AsCheckResultsMap())

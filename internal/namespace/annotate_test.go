@@ -12,6 +12,7 @@ import (
 )
 
 func TestAnnotateNamespace(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)

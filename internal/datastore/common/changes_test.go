@@ -32,6 +32,7 @@ func revisionFromTransactionID(txID uint64) datastore.Revision {
 }
 
 func TestChanges(t *testing.T) {
+	t.Parallel()
 	type changeEntry struct {
 		revision     uint64
 		relationship string
@@ -176,7 +177,9 @@ func TestChanges(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ctx := context.Background()
@@ -195,6 +198,7 @@ func TestChanges(t *testing.T) {
 }
 
 func TestCanonicalize(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name            string
 		input, expected []*datastore.RevisionChanges
@@ -269,7 +273,9 @@ func TestCanonicalize(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			require.Equal(tc.expected, canonicalize(tc.input))
 		})

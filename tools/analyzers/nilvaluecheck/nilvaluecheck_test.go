@@ -7,6 +7,7 @@ import (
 )
 
 func TestAnalyzer(t *testing.T) {
+	t.Parallel()
 	analyzer := Analyzer()
 	analyzer.Flags.Set("disallowed-nil-return-type-paths", "*nilreturn.someStruct")
 

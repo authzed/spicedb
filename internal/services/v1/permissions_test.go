@@ -54,6 +54,7 @@ func sub(subType string, subID string, subRel string) *v1.SubjectReference {
 }
 
 func TestCheckPermissions(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		resource       *v1.ObjectReference
 		permission     string
@@ -226,10 +227,15 @@ func TestCheckPermissions(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			t.Parallel()
 			for _, debug := range []bool{false, true} {
+				debug := debug
 				t.Run(fmt.Sprintf("debug%v", debug), func(t *testing.T) {
+					t.Parallel()
 					for _, tc := range testCases {
+						tc := tc
 						t.Run(fmt.Sprintf(
 							"%s:%s#%s@%s:%s#%s",
 							tc.resource.ObjectType,
@@ -239,6 +245,7 @@ func TestCheckPermissions(t *testing.T) {
 							tc.subject.Object.ObjectId,
 							tc.subject.OptionalRelation,
 						), func(t *testing.T) {
+							t.Parallel()
 							require := require.New(t)
 							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 							client := v1.NewPermissionsServiceClient(conn)
@@ -297,6 +304,7 @@ func TestCheckPermissions(t *testing.T) {
 }
 
 func TestCheckPermissionWithDebugInfo(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	conn, cleanup, _, revision := testserver.NewTestServer(require, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
 	client := v1.NewPermissionsServiceClient(conn)
@@ -342,7 +350,7 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	require.Equal(3, len(compiled.OrderedDefinitions))
 }
 
-func TestLookupResources(t *testing.T) {
+func TestLookupResources(t *testing.T) { // nolint: paralleltest
 	testCases := []struct {
 		objectType        string
 		permission        string
@@ -455,7 +463,7 @@ func TestLookupResources(t *testing.T) {
 		},
 	}
 
-	for _, delta := range testTimedeltas {
+	for _, delta := range testTimedeltas { // nolint: paralleltest
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
@@ -511,7 +519,7 @@ func TestLookupResources(t *testing.T) {
 	}
 }
 
-func TestExpand(t *testing.T) {
+func TestExpand(t *testing.T) { // nolint: paralleltest
 	testCases := []struct {
 		startObjectType    string
 		startObjectID      string
@@ -526,7 +534,7 @@ func TestExpand(t *testing.T) {
 		{"document", "", "owner", 1, codes.InvalidArgument},
 	}
 
-	for _, delta := range testTimedeltas {
+	for _, delta := range testTimedeltas { // nolint: paralleltest
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s:%s#%s", tc.startObjectType, tc.startObjectID, tc.startPermission), func(t *testing.T) {
@@ -582,6 +590,7 @@ func countLeafs(node *v1.PermissionRelationshipTree) int {
 }
 
 func TestTranslateExpansionTree(t *testing.T) {
+	t.Parallel()
 	ONR := tuple.ObjectAndRelation
 
 	table := []struct {
@@ -652,14 +661,16 @@ func TestTranslateExpansionTree(t *testing.T) {
 	}
 
 	for _, tt := range table {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			out := v1svc.TranslateRelationshipTree(v1svc.TranslateExpansionTree(tt.input))
 			require.Equal(t, tt.input, out)
 		})
 	}
 }
 
-func TestLookupSubjects(t *testing.T) {
+func TestLookupSubjects(t *testing.T) { // nolint: paralleltest
 	testCases := []struct {
 		resource        *v1.ObjectReference
 		permission      string
@@ -751,7 +762,7 @@ func TestLookupSubjects(t *testing.T) {
 		},
 	}
 
-	for _, delta := range testTimedeltas {
+	for _, delta := range testTimedeltas { // nolint: paralleltest
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(fmt.Sprintf("%s:%s#%s for %s#%s", tc.resource.ObjectType, tc.resource.ObjectId, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
@@ -809,6 +820,7 @@ func TestLookupSubjects(t *testing.T) {
 }
 
 func TestCheckWithCaveats(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
 	client := v1.NewPermissionsServiceClient(conn)
@@ -860,6 +872,7 @@ func TestCheckWithCaveats(t *testing.T) {
 }
 
 func TestLookupResourcesWithCaveats(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
 		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
@@ -981,6 +994,7 @@ func (a byIDAndPermission) Less(i, j int) bool {
 func (a byIDAndPermission) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func TestLookupSubjectsWithCaveats(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
 		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {

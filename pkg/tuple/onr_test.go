@@ -35,12 +35,15 @@ var onrTestCases = []struct {
 }
 
 func TestSerializeONR(t *testing.T) {
+	t.Parallel()
 	for _, tc := range onrTestCases {
+		tc := tc
 		if tc.objectFormat == nil {
 			continue
 		}
 
 		t.Run(tc.serialized, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			serialized := StringONR(tc.objectFormat)
 			require.Equal(tc.serialized, serialized)
@@ -49,8 +52,11 @@ func TestSerializeONR(t *testing.T) {
 }
 
 func TestParseONR(t *testing.T) {
+	t.Parallel()
 	for _, tc := range onrTestCases {
+		tc := tc
 		t.Run(tc.serialized, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			parsed := ParseONR(tc.serialized)
@@ -94,8 +100,11 @@ var subjectOnrTestCases = []struct {
 }
 
 func TestParseSubjectONR(t *testing.T) {
+	t.Parallel()
 	for _, tc := range subjectOnrTestCases {
+		tc := tc
 		t.Run(tc.serialized, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			parsed := ParseSubjectONR(tc.serialized)

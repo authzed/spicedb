@@ -11,6 +11,7 @@ import (
 )
 
 func TestAsyncDispatch(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		numRequests      uint16
 		concurrencyLimit uint16
@@ -23,7 +24,9 @@ func TestAsyncDispatch(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%d/%d", tc.numRequests, tc.concurrencyLimit), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ctx := context.Background()

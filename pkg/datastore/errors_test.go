@@ -8,6 +8,7 @@ import (
 )
 
 func TestError(t *testing.T) {
+	t.Parallel()
 	logging.Info().Err(ErrNamespaceNotFound{
 		error:         fmt.Errorf("test"),
 		namespaceName: "test/test",

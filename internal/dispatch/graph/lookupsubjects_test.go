@@ -31,6 +31,7 @@ var (
 
 func TestSimpleLookupSubjects(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
+	t.Parallel()
 
 	testCases := []struct {
 		resourceType     string
@@ -131,7 +132,9 @@ func TestSimpleLookupSubjects(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("simple-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -188,6 +191,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 }
 
 func TestLookupSubjectsMaxDepth(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -219,6 +223,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 }
 
 func TestLookupSubjectsDispatchCount(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		resourceType          string
 		resourceID            string
@@ -246,7 +251,9 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("dispatch-count-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)

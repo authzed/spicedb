@@ -13,6 +13,7 @@ import (
 )
 
 func Test_revisionFromTransaction(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		txID uint64
@@ -23,7 +24,9 @@ func Test_revisionFromTransaction(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			got := revisionFromTransaction(tt.txID)
 			require.True(tt.want.Equal(got))
@@ -32,6 +35,7 @@ func Test_revisionFromTransaction(t *testing.T) {
 }
 
 func Test_transactionFromRevision(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		revision revision.Decimal
@@ -42,7 +46,9 @@ func Test_transactionFromRevision(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			got := transactionFromRevision(tt.revision)
 			require.Equal(tt.want, got)

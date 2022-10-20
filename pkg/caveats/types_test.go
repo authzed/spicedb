@@ -9,6 +9,7 @@ import (
 )
 
 func TestIPAddress(t *testing.T) {
+	t.Parallel()
 	compiled, err := compileCaveat(MustEnvForVariables(map[string]types.VariableType{
 		"user_ip": types.IPAddressType,
 	}), "user_ip.in_cidr('192.168.0.0/16')")
@@ -30,6 +31,7 @@ func TestIPAddress(t *testing.T) {
 }
 
 func TestIPAddressInvalidCIDR(t *testing.T) {
+	t.Parallel()
 	compiled, err := compileCaveat(MustEnvForVariables(map[string]types.VariableType{
 		"user_ip": types.IPAddressType,
 	}), "user_ip.in_cidr('invalidcidr')")

@@ -8,6 +8,7 @@ import (
 )
 
 func TestParseSchema(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		contents         string
@@ -41,7 +42,9 @@ func TestParseSchema(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ps := ParsedSchema{}
 			err := yamlv3.Unmarshal([]byte(tt.contents), &ps)
 			if tt.expectedError != "" {

@@ -9,6 +9,7 @@ import (
 )
 
 func TestDisabledGRPC(t *testing.T) {
+	t.Parallel()
 	s, err := (&GRPCServerConfig{Enabled: false}).Complete(zerolog.InfoLevel, nil)
 	require.NoError(t, err)
 	require.NoError(t, s.Listen(context.Background())())
@@ -17,6 +18,7 @@ func TestDisabledGRPC(t *testing.T) {
 }
 
 func TestDisabledHTTP(t *testing.T) {
+	t.Parallel()
 	s, err := (&HTTPServerConfig{Enabled: false}).Complete(zerolog.InfoLevel, nil)
 	require.NoError(t, err)
 	require.NoError(t, s.ListenAndServe())

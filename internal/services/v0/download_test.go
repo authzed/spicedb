@@ -10,6 +10,7 @@ import (
 )
 
 func TestDeveloperDownload(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	store := NewInMemoryShareStore("flavored")
@@ -70,7 +71,9 @@ assertions: ay
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			url := downloadPath + test.ref
 			require.HTTPStatusCode(handler, test.method, url, nil, test.expectedCode)
 			if len(test.expectedBody) > 0 {

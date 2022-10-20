@@ -10,6 +10,7 @@ import (
 )
 
 func TestConversion(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name          string
 		vtype         VariableType
@@ -282,7 +283,9 @@ func TestConversion(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := tc.vtype.ConvertValue(tc.inputValue)
 			if err != nil {
 				require.Equal(t, tc.expectedErr, err.Error())

@@ -7,6 +7,7 @@ import (
 )
 
 func TestOverlapKeyAddition(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name       string
 		keyer      overlapKeyer
@@ -44,7 +45,9 @@ func TestOverlapKeyAddition(t *testing.T) {
 		},
 	}
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			set := newKeySet()
 			for _, n := range tt.namespaces {
 				tt.keyer.addKey(set, n)

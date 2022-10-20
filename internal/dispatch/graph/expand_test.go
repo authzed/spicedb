@@ -131,6 +131,7 @@ var (
 
 func TestExpand(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
+	t.Parallel()
 
 	testCases := []struct {
 		start                 *core.ObjectAndRelation
@@ -156,7 +157,9 @@ func TestExpand(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%s-%s", tuple.StringONR(tc.start), tc.expansionMode), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ctx, dispatch, revision := newLocalDispatcher(t)
@@ -268,6 +271,7 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 
 func TestMaxDepthExpand(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
+	t.Parallel()
 
 	require := require.New(t)
 

@@ -15,6 +15,7 @@ type testCase struct {
 }
 
 func TestCheckIsLatestVersion(t *testing.T) {
+	t.Parallel()
 	testCases := []testCase{
 		{"up to date", "v1.5.6", "v1.5.6", UpToDate},
 		{"ahead of version", "v1.7.0", "v1.5.6", UpToDate},
@@ -27,7 +28,9 @@ func TestCheckIsLatestVersion(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			state, _, _, _ := CheckIsLatestVersion(context.Background(), func() (string, error) {
 				return tc.version, nil
 			}, func(ctx context.Context) (*Release, error) {

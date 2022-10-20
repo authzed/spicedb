@@ -27,8 +27,11 @@ var encodeRevisionTests = []datastore.Revision{
 }
 
 func TestZedTokenEncode(t *testing.T) {
+	t.Parallel()
 	for _, rev := range encodeRevisionTests {
+		rev := rev
 		t.Run(rev.String(), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			encoded := NewFromRevision(rev)
 			decoded, err := DecodeRevision(encoded, revision.DecimalDecoder{})
@@ -113,9 +116,12 @@ var decodeTests = []struct {
 }
 
 func TestDecode(t *testing.T) {
+	t.Parallel()
 	for _, testCase := range decodeTests {
+		testCase := testCase
 		testName := fmt.Sprintf("%s(%s)=>%s", testCase.format, testCase.token, testCase.expectedRevision)
 		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			decoded, err := DecodeRevision(&v1.ZedToken{

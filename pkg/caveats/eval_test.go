@@ -13,6 +13,7 @@ import (
 var noMissingVars []string
 
 func TestEvaluateCaveat(t *testing.T) {
+	t.Parallel()
 	wetTz, err := time.LoadLocation("WET")
 	require.NoError(t, err)
 	tcs := []struct {
@@ -264,7 +265,9 @@ func TestEvaluateCaveat(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			compiled, err := compileCaveat(tc.env, tc.exprString)
 			require.NoError(t, err)
 
@@ -303,6 +306,7 @@ func TestEvaluateCaveat(t *testing.T) {
 }
 
 func TestPartialEvaluation(t *testing.T) {
+	t.Parallel()
 	compiled, err := compileCaveat(MustEnvForVariables(map[string]types.VariableType{
 		"a": types.IntType,
 		"b": types.IntType,
@@ -339,6 +343,7 @@ func TestPartialEvaluation(t *testing.T) {
 }
 
 func TestEvalWithMaxCost(t *testing.T) {
+	t.Parallel()
 	compiled, err := compileCaveat(MustEnvForVariables(map[string]types.VariableType{
 		"a": types.IntType,
 		"b": types.IntType,
@@ -356,6 +361,7 @@ func TestEvalWithMaxCost(t *testing.T) {
 }
 
 func TestEvalWithNesting(t *testing.T) {
+	t.Parallel()
 	compiled, err := compileCaveat(MustEnvForVariables(map[string]types.VariableType{
 		"foo.a": types.IntType,
 		"foo.b": types.IntType,

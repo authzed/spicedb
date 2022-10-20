@@ -12,6 +12,7 @@ import (
 )
 
 func TestListReferencedNamespaces(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		toCheck       []*core.NamespaceDefinition
@@ -55,7 +56,9 @@ func TestListReferencedNamespaces(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			found := ListReferencedNamespaces(tc.toCheck)

@@ -14,6 +14,7 @@ import (
 )
 
 func TestSchemaQueryFilterer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		run          func(filterer SchemaQueryFilterer) SchemaQueryFilterer
@@ -290,7 +291,9 @@ func TestSchemaQueryFilterer(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			base := sq.Select("*")
 			filterer := NewSchemaQueryFilterer(SchemaInformation{
 				TableTuple:          "tuple",

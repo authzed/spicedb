@@ -16,6 +16,7 @@ import (
 )
 
 func TestTypeSystem(t *testing.T) {
+	t.Parallel()
 	emptyEnv := caveats.NewEnvironment()
 
 	testCases := []struct {
@@ -347,7 +348,9 @@ func TestTypeSystem(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)

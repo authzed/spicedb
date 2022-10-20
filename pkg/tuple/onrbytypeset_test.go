@@ -17,6 +17,7 @@ func RR(namespaceName string, relationName string) *core.RelationReference {
 }
 
 func TestONRByTypeSet(t *testing.T) {
+	t.Parallel()
 	assertHasObjectIds := func(s *ONRByTypeSet, rr *core.RelationReference, expected []string) {
 		wasFound := false
 		s.ForEachType(func(foundRR *core.RelationReference, objectIds []string) {

@@ -58,6 +58,7 @@ var (
 )
 
 func TestMembershipSetBasic(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -79,6 +80,7 @@ func TestMembershipSetBasic(t *testing.T) {
 }
 
 func TestMembershipSetIntersectionBasic(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -99,6 +101,7 @@ func TestMembershipSetIntersectionBasic(t *testing.T) {
 }
 
 func TestMembershipSetIntersectionWithDifferentTypesOneMissingLeft(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -120,6 +123,7 @@ func TestMembershipSetIntersectionWithDifferentTypesOneMissingLeft(t *testing.T)
 }
 
 func TestMembershipSetIntersectionWithDifferentTypesOneMissingRight(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -141,6 +145,7 @@ func TestMembershipSetIntersectionWithDifferentTypesOneMissingRight(t *testing.T
 }
 
 func TestMembershipSetIntersectionWithDifferentTypes(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -164,6 +169,7 @@ func TestMembershipSetIntersectionWithDifferentTypes(t *testing.T) {
 }
 
 func TestMembershipSetExclusion(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -184,6 +190,7 @@ func TestMembershipSetExclusion(t *testing.T) {
 }
 
 func TestMembershipSetExclusionMultiple(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -208,6 +215,7 @@ func TestMembershipSetExclusionMultiple(t *testing.T) {
 }
 
 func TestMembershipSetExclusionMultipleWithWildcard(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -231,6 +239,7 @@ func TestMembershipSetExclusionMultipleWithWildcard(t *testing.T) {
 }
 
 func TestMembershipSetExclusionMultipleMiddle(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -255,6 +264,7 @@ func TestMembershipSetExclusionMultipleMiddle(t *testing.T) {
 }
 
 func TestMembershipSetIntersectionWithOneWildcard(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -275,6 +285,7 @@ func TestMembershipSetIntersectionWithOneWildcard(t *testing.T) {
 }
 
 func TestMembershipSetIntersectionWithAllWildcardLeft(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -295,6 +306,7 @@ func TestMembershipSetIntersectionWithAllWildcardLeft(t *testing.T) {
 }
 
 func TestMembershipSetIntersectionWithAllWildcardRight(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -315,6 +327,7 @@ func TestMembershipSetIntersectionWithAllWildcardRight(t *testing.T) {
 }
 
 func TestMembershipSetExclusionWithLeftWildcard(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -335,6 +348,7 @@ func TestMembershipSetExclusionWithLeftWildcard(t *testing.T) {
 }
 
 func TestMembershipSetExclusionWithRightWildcard(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -355,6 +369,7 @@ func TestMembershipSetExclusionWithRightWildcard(t *testing.T) {
 }
 
 func TestMembershipSetIntersectionWithThreeWildcards(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -378,6 +393,7 @@ func TestMembershipSetIntersectionWithThreeWildcards(t *testing.T) {
 }
 
 func TestMembershipSetIntersectionWithOneBranchMissingWildcards(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 
@@ -402,6 +418,7 @@ func TestMembershipSetIntersectionWithOneBranchMissingWildcards(t *testing.T) {
 }
 
 func TestMembershipSetIntersectionWithTwoBranchesMissingWildcards(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	ms := NewMembershipSet()
 

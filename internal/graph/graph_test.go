@@ -9,6 +9,7 @@ import (
 )
 
 func TestChunkSizes(t *testing.T) {
+	t.Parallel()
 	for index, cs := range progressiveDispatchChunkSizes {
 		require.LessOrEqual(t, cs, datastore.FilterMaximumIDCount)
 		if index > 0 {
@@ -18,5 +19,6 @@ func TestChunkSizes(t *testing.T) {
 }
 
 func TestMaxDispatchChunkSize(t *testing.T) {
+	t.Parallel()
 	require.LessOrEqual(t, maxDispatchChunkSize, datastore.FilterMaximumIDCount)
 }

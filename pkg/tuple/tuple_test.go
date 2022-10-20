@@ -138,8 +138,11 @@ var testCases = []struct {
 }
 
 func TestSerialize(t *testing.T) {
+	t.Parallel()
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("tuple/"+tc.input, func(t *testing.T) {
+			t.Parallel()
 			if tc.tupleFormat == nil {
 				return
 			}
@@ -150,7 +153,9 @@ func TestSerialize(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("relationship/"+tc.input, func(t *testing.T) {
+			t.Parallel()
 			if tc.relFormat == nil {
 				return
 			}
@@ -162,22 +167,29 @@ func TestSerialize(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
+	t.Parallel()
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("tuple/"+tc.input, func(t *testing.T) {
 			require.Equal(t, tc.tupleFormat, Parse(tc.input))
 		})
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("relationship/"+tc.input, func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, tc.relFormat, ParseRel(tc.input))
 		})
 	}
 }
 
 func TestConvert(t *testing.T) {
+	t.Parallel()
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			parsed := Parse(tc.input)
@@ -200,8 +212,11 @@ func TestConvert(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
+	t.Parallel()
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("validate/"+tc.input, func(t *testing.T) {
+			t.Parallel()
 			parsed := ParseRel(tc.input)
 			if parsed != nil {
 				require.NoError(t, ValidateResourceID(parsed.Resource.ObjectId))

@@ -35,7 +35,7 @@ var (
 
 type testFunc func(t *testing.T, proxy datastore.Datastore, expectFirst bool)
 
-func TestDatastoreRequestHedging(t *testing.T) {
+func TestDatastoreRequestHedging(t *testing.T) { // nolint: paralleltest
 	testCases := []struct {
 		methodName        string
 		useSnapshotReader bool
@@ -133,7 +133,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range testCases { // nolint: paralleltest
 		t.Run(tc.methodName, func(t *testing.T) {
 			defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/authzed/spicedb/internal/datastore/proxy.autoAdvance.func1"), goleak.IgnoreCurrent())
 			mockTime := clock.NewMock()
@@ -195,6 +195,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 }
 
 func TestDigestRollover(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	delegate := &proxy_test.MockDatastore{}
@@ -258,6 +259,7 @@ func TestDigestRollover(t *testing.T) {
 }
 
 func TestBadArgs(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	delegate := &proxy_test.MockDatastore{}
 
@@ -283,6 +285,7 @@ func TestBadArgs(t *testing.T) {
 }
 
 func TestDatastoreE2E(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	delegateDatastore := &proxy_test.MockDatastore{}
@@ -340,6 +343,7 @@ func TestDatastoreE2E(t *testing.T) {
 }
 
 func TestContextCancellation(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	delegate := &proxy_test.MockDatastore{}

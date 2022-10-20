@@ -22,6 +22,7 @@ func (tn testNode) Key() string {
 }
 
 func TestHashring(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		replicationFactor uint16
 		nodes             []testNode
@@ -35,7 +36,9 @@ func TestHashring(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(strconv.Itoa(int(tc.replicationFactor)), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ring := NewHashring(xxhash.Sum64, tc.replicationFactor)
@@ -131,11 +134,13 @@ func TestHashring(t *testing.T) {
 const numTestKeys = 1_000_000
 
 func TestBackendBalance(t *testing.T) {
+	t.Parallel()
 	hasherFunc := xxhash.Sum64
 
 	testCases := []int{1, 2, 3, 5, 10, 100}
 
 	for _, numMembers := range testCases {
+		numMembers := numMembers
 		t.Run(strconv.Itoa(numMembers), func(t *testing.T) {
 			t.Parallel()
 			require := require.New(t)
@@ -268,6 +273,7 @@ func verify(require *require.Assertions, ring *Hashring,
 }
 
 func TestConsistency(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	ring := NewHashring(xxhash.Sum64, 100)

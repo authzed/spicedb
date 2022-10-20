@@ -12,6 +12,7 @@ import (
 )
 
 func TestMetadata(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	marshalled, err := anypb.New(&iv1.DocComment{

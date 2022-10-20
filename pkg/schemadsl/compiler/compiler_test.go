@@ -17,6 +17,7 @@ import (
 var someTenant = "sometenant"
 
 func TestCompile(t *testing.T) {
+	t.Parallel()
 	type compileTest struct {
 		name           string
 		implicitTenant *string
@@ -719,7 +720,9 @@ func TestCompile(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			compiled, err := Compile(InputSchema{
 				input.Source(test.name), test.input,

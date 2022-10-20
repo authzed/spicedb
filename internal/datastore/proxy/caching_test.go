@@ -37,6 +37,7 @@ const (
 // datastore implementation, the process of inserting it into the cache and
 // back does not break anything.
 func TestNilUnmarshal(t *testing.T) {
+	t.Parallel()
 	nsDef := (*core.NamespaceDefinition)(nil)
 	marshalled, err := nsDef.MarshalVT()
 	require.Nil(t, err)
@@ -48,6 +49,7 @@ func TestNilUnmarshal(t *testing.T) {
 }
 
 func TestSnapshotNamespaceCaching(t *testing.T) {
+	t.Parallel()
 	dsMock := &proxy_test.MockDatastore{}
 
 	oneReader := &proxy_test.MockReader{}
@@ -103,6 +105,7 @@ func TestSnapshotNamespaceCaching(t *testing.T) {
 }
 
 func TestRWTNamespaceCaching(t *testing.T) {
+	t.Parallel()
 	dsMock := &proxy_test.MockDatastore{}
 	rwtMock := &proxy_test.MockReadWriteTransaction{}
 
@@ -180,6 +183,7 @@ func TestRWTNamespaceCacheWithWrites(t *testing.T) {
 }
 
 func TestSingleFlight(t *testing.T) {
+	t.Parallel()
 	dsMock := &proxy_test.MockDatastore{}
 
 	ctx := context.Background()
@@ -213,6 +217,7 @@ func TestSingleFlight(t *testing.T) {
 }
 
 func TestSnapshotNamespaceCachingRealDatastore(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name          string
 		nsDef         *core.NamespaceDefinition
@@ -241,7 +246,9 @@ func TestSnapshotNamespaceCachingRealDatastore(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 

@@ -9,6 +9,7 @@ import (
 )
 
 func TestAddVariable(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 	env := NewEnvironment()
 	err := env.AddVariable("foobar", types.IntType)

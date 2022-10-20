@@ -7,6 +7,7 @@ import (
 )
 
 func TestAnalyzer(t *testing.T) {
+	t.Parallel()
 	analyzer := Analyzer()
 	analyzer.Flags.Set("disallowed-expr-statement-types", "*missingsend.Event:missing Send or Msg for zerolog log statement")
 

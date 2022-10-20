@@ -34,6 +34,7 @@ var goleakIgnores = []goleak.Option{
 
 func TestSimpleCheck(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
+	t.Parallel()
 
 	type expected struct {
 		relation string
@@ -105,8 +106,11 @@ func TestSimpleCheck(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		for _, userset := range tc.usersets {
+			userset := userset
 			for _, expected := range userset.expected {
+				expected := expected
 				name := fmt.Sprintf(
 					"simple::%s:%s#%s@%s:%s#%s=>%t",
 					tc.namespace,
@@ -119,6 +123,7 @@ func TestSimpleCheck(t *testing.T) {
 				)
 
 				t.Run(name, func(t *testing.T) {
+					t.Parallel()
 					require := require.New(t)
 
 					ctx, dispatch, revision := newLocalDispatcher(t)
@@ -150,6 +155,7 @@ func TestSimpleCheck(t *testing.T) {
 }
 
 func TestMaxDepth(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -183,6 +189,7 @@ func TestMaxDepth(t *testing.T) {
 }
 
 func TestCheckMetadata(t *testing.T) {
+	t.Parallel()
 	type expected struct {
 		relation              string
 		isMember              bool
@@ -239,8 +246,11 @@ func TestCheckMetadata(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		for _, userset := range tc.usersets {
+			userset := userset
 			for _, expected := range userset.expected {
+				expected := expected
 				name := fmt.Sprintf(
 					"metadata:%s:%s#%s@%s:%s#%s=>%t",
 					tc.namespace,
@@ -253,6 +263,7 @@ func TestCheckMetadata(t *testing.T) {
 				)
 
 				t.Run(name, func(t *testing.T) {
+					t.Parallel()
 					require := require.New(t)
 
 					ctx, dispatch, revision := newLocalDispatcher(t)

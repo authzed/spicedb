@@ -7,6 +7,7 @@ import (
 )
 
 func TestParsePercent(t *testing.T) {
+	t.Parallel()
 	table := []struct {
 		percent     string
 		freeMem     uint64

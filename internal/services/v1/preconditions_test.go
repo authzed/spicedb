@@ -23,6 +23,7 @@ var companyPlanFolder = &v1.RelationshipFilter{
 }
 
 func TestPreconditions(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	uninitialized, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)

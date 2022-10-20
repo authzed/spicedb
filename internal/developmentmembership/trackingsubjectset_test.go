@@ -58,6 +58,7 @@ func fs(subjectType string, subjectID string, subjectRel string, excludedSubject
 }
 
 func TestTrackingSubjectSet(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		set      *TrackingSubjectSet
@@ -327,7 +328,9 @@ func TestTrackingSubjectSet(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			for _, fs := range tc.expected {
 				_, isWildcard := fs.WildcardType()
@@ -351,6 +354,7 @@ func TestTrackingSubjectSet(t *testing.T) {
 }
 
 func TestTrackingSubjectSetResourceTracking(t *testing.T) {
+	t.Parallel()
 	tss := NewTrackingSubjectSet()
 	tss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "foo", "viewer")))
 	tss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "bar", "viewer")))
@@ -369,6 +373,7 @@ func TestTrackingSubjectSetResourceTracking(t *testing.T) {
 }
 
 func TestTrackingSubjectSetResourceTrackingWithWildcard(t *testing.T) {
+	t.Parallel()
 	tss := NewTrackingSubjectSet()
 	tss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "foo", "viewer")))
 

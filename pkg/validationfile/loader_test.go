@@ -11,6 +11,7 @@ import (
 )
 
 func TestPopulateFromFiles(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		filePaths     []string
@@ -78,7 +79,9 @@ func TestPopulateFromFiles(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			ds, err := memdb.NewMemdbDatastore(0, 0, 0)
 			require.NoError(err)

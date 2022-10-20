@@ -27,6 +27,7 @@ func newReadOnlyMock() (*proxy_test.MockDatastore, *proxy_test.MockReader) {
 }
 
 func TestRWOperationErrors(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	delegate, _ := newReadOnlyMock()
@@ -54,6 +55,7 @@ func TestRWOperationErrors(t *testing.T) {
 var expectedRevision = revision.NewFromDecimal(decimal.NewFromInt(123))
 
 func TestIsReadyPassthrough(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	delegate, _ := newReadOnlyMock()
@@ -69,6 +71,7 @@ func TestIsReadyPassthrough(t *testing.T) {
 }
 
 func TestOptimizedRevisionPassthrough(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	delegate, _ := newReadOnlyMock()
@@ -84,6 +87,7 @@ func TestOptimizedRevisionPassthrough(t *testing.T) {
 }
 
 func TestHeadRevisionPassthrough(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	delegate, _ := newReadOnlyMock()
@@ -99,6 +103,7 @@ func TestHeadRevisionPassthrough(t *testing.T) {
 }
 
 func TestCheckRevisionPassthrough(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	delegate, _ := newReadOnlyMock()
@@ -113,6 +118,7 @@ func TestCheckRevisionPassthrough(t *testing.T) {
 }
 
 func TestWatchPassthrough(t *testing.T) {
+	t.Parallel()
 	delegate, _ := newReadOnlyMock()
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
@@ -127,6 +133,7 @@ func TestWatchPassthrough(t *testing.T) {
 }
 
 func TestSnapshotReaderPassthrough(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	delegate, reader := newReadOnlyMock()
