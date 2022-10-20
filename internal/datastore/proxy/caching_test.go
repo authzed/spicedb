@@ -2,6 +2,9 @@ package proxy
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -135,6 +138,7 @@ func TestRWTNamespaceCaching(t *testing.T) {
 func TestSingleFlight(t *testing.T) {
 	dsMock := &proxy_test.MockDatastore{}
 
+	ctx := context.Background()
 	oneReader := &proxy_test.MockReader{}
 	dsMock.On("SnapshotReader", one).Return(oneReader)
 	oneReader.
@@ -144,7 +148,6 @@ func TestSingleFlight(t *testing.T) {
 		Once()
 
 	require := require.New(t)
-	ctx := context.Background()
 
 	ds := NewCachingDatastoreProxy(dsMock, nil)
 
@@ -219,4 +222,48 @@ func TestSnapshotNamespaceCachingRealDatastore(t *testing.T) {
 			require.True(t, proto.Equal(tc.nsDef, ns2))
 		})
 	}
+}
+
+type reader struct {
+	proxy_test.MockReader
+}
+
+func (r *reader) ReadNamespace(ctx context.Context, namespace string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+	time.Sleep(10 * time.Millisecond)
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return nil, old, fmt.Errorf("error")
+	}
+	return &core.NamespaceDefinition{Name: namespace}, old, nil
+}
+
+func TestSingleFlightCancelled(t *testing.T) {
+	dsMock := &proxy_test.MockDatastore{}
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	defer cancel1()
+
+	dsMock.On("SnapshotReader", one).Return(&reader{MockReader: proxy_test.MockReader{}})
+
+	ds := NewCachingDatastoreProxy(dsMock, nil)
+
+	g := sync.WaitGroup{}
+	var ns2 *core.NamespaceDefinition
+	g.Add(2)
+	go func() {
+		_, _, _ = ds.SnapshotReader(one).ReadNamespace(ctx1, nsA)
+		g.Done()
+	}()
+	go func() {
+		time.Sleep(5 * time.Millisecond)
+		ns2, _, _ = ds.SnapshotReader(one).ReadNamespace(ctx2, nsA)
+		g.Done()
+	}()
+	cancel1()
+
+	g.Wait()
+	require.NotNil(t, ns2)
+	require.Equal(t, nsA, ns2.Name)
+
+	dsMock.AssertExpectations(t)
 }
