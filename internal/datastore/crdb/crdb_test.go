@@ -62,6 +62,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 		100 * time.Millisecond,
 	}
 	for _, quantization := range quantizationDurations {
+		quantization := quantization
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
 			t.Parallel()
 			require := require.New(t)
@@ -139,6 +140,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 		},
 	}
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
