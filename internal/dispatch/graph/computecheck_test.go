@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/caveats/types"
@@ -16,7 +17,6 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/tuple"
 
-	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -469,7 +469,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			}`,
 			map[string]caveatDefinition{
 				"attributes_match": {
-					"expected.all(x, expected[x] == provided[x])",
+					"expected.isSubtreeOf(provided)",
 					map[string]types.VariableType{
 						"expected": types.MapType(types.AnyType),
 						"provided": types.MapType(types.AnyType),
@@ -525,8 +525,9 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						"provided": map[string]any{
 							"type": "backend", "region": "us", "team": "shop",
 							"additional_attrs": map[string]any{
-								"tag1": 100,
+								"tag1": 100.0,
 								"tag2": false,
+								"tag3": "hi",
 							},
 						},
 					},
@@ -540,7 +541,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						"provided": map[string]any{
 							"type": "backend", "region": "us", "team": "shop",
 							"additional_attrs": map[string]any{
-								"tag1": 200,
+								"tag1": 200.0,
 								"tag2": false,
 							},
 						},

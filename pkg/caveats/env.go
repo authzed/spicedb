@@ -65,6 +65,7 @@ func (e *Environment) asCelEnvironment() (*cel.Env, error) {
 	for _, customTypeOpts := range types.CustomTypes {
 		opts = append(opts, customTypeOpts...)
 	}
+	opts = append(opts, types.CustomMethodsOnTypes...)
 
 	// Set options.
 	// DefaultUTCTimeZone: ensure all timestamps are evaluated at UTC
