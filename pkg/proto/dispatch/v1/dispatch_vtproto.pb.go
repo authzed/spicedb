@@ -440,12 +440,15 @@ func (m *FoundSubject) CloneVT() *FoundSubject {
 		return (*FoundSubject)(nil)
 	}
 	r := &FoundSubject{
-		SubjectId: m.SubjectId,
+		SubjectId:        m.SubjectId,
+		CaveatExpression: m.CaveatExpression.CloneVT(),
 	}
-	if rhs := m.ExcludedSubjectIds; rhs != nil {
-		tmpContainer := make([]string, len(rhs))
-		copy(tmpContainer, rhs)
-		r.ExcludedSubjectIds = tmpContainer
+	if rhs := m.ExcludedSubjects; rhs != nil {
+		tmpContainer := make([]*FoundSubject, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.ExcludedSubjects = tmpContainer
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -573,6 +576,653 @@ func (m *CheckDebugTrace) CloneVT() *CheckDebugTrace {
 
 func (m *CheckDebugTrace) CloneGenericVT() proto.Message {
 	return m.CloneVT()
+}
+
+func (this *DispatchCheckRequest) EqualVT(that *DispatchCheckRequest) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if equal, ok := interface{}(this.ResourceRelation).(interface {
+		EqualVT(*v1.RelationReference) bool
+	}); ok {
+		if !equal.EqualVT(that.ResourceRelation) {
+			return false
+		}
+	} else if !proto.Equal(this.ResourceRelation, that.ResourceRelation) {
+		return false
+	}
+	if len(this.ResourceIds) != len(that.ResourceIds) {
+		return false
+	}
+	for i, vx := range this.ResourceIds {
+		vy := that.ResourceIds[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if equal, ok := interface{}(this.Subject).(interface {
+		EqualVT(*v1.ObjectAndRelation) bool
+	}); ok {
+		if !equal.EqualVT(that.Subject) {
+			return false
+		}
+	} else if !proto.Equal(this.Subject, that.Subject) {
+		return false
+	}
+	if this.ResultsSetting != that.ResultsSetting {
+		return false
+	}
+	if this.Debug != that.Debug {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DispatchCheckResponse) EqualVT(that *DispatchCheckResponse) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if len(this.ResultsByResourceId) != len(that.ResultsByResourceId) {
+		return false
+	}
+	for i, vx := range this.ResultsByResourceId {
+		vy, ok := that.ResultsByResourceId[i]
+		if !ok {
+			return false
+		}
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &ResourceCheckResult{}
+			}
+			if q == nil {
+				q = &ResourceCheckResult{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ResourceCheckResult) EqualVT(that *ResourceCheckResult) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Membership != that.Membership {
+		return false
+	}
+	if !this.Expression.EqualVT(that.Expression) {
+		return false
+	}
+	if len(this.MissingExprFields) != len(that.MissingExprFields) {
+		return false
+	}
+	for i, vx := range this.MissingExprFields {
+		vy := that.MissingExprFields[i]
+		if vx != vy {
+			return false
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *CaveatExpression) EqualVT(that *CaveatExpression) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.OperationOrCaveat == nil && that.OperationOrCaveat != nil {
+		return false
+	} else if this.OperationOrCaveat != nil {
+		if that.OperationOrCaveat == nil {
+			return false
+		}
+		if !this.OperationOrCaveat.(interface {
+			EqualVT(isCaveatExpression_OperationOrCaveat) bool
+		}).EqualVT(that.OperationOrCaveat) {
+			return false
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *CaveatExpression_Operation) EqualVT(thatIface isCaveatExpression_OperationOrCaveat) bool {
+	that, ok := thatIface.(*CaveatExpression_Operation)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Operation, that.Operation; p != q {
+		if p == nil {
+			p = &CaveatOperation{}
+		}
+		if q == nil {
+			q = &CaveatOperation{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *CaveatExpression_Caveat) EqualVT(thatIface isCaveatExpression_OperationOrCaveat) bool {
+	that, ok := thatIface.(*CaveatExpression_Caveat)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Caveat, that.Caveat; p != q {
+		if p == nil {
+			p = &v1.ContextualizedCaveat{}
+		}
+		if q == nil {
+			q = &v1.ContextualizedCaveat{}
+		}
+		if equal, ok := interface{}(p).(interface {
+			EqualVT(*v1.ContextualizedCaveat) bool
+		}); ok {
+			if !equal.EqualVT(q) {
+				return false
+			}
+		} else if !proto.Equal(p, q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *CaveatOperation) EqualVT(that *CaveatOperation) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Op != that.Op {
+		return false
+	}
+	if len(this.Children) != len(that.Children) {
+		return false
+	}
+	for i, vx := range this.Children {
+		vy := that.Children[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &CaveatExpression{}
+			}
+			if q == nil {
+				q = &CaveatExpression{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DispatchExpandRequest) EqualVT(that *DispatchExpandRequest) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if equal, ok := interface{}(this.ResourceAndRelation).(interface {
+		EqualVT(*v1.ObjectAndRelation) bool
+	}); ok {
+		if !equal.EqualVT(that.ResourceAndRelation) {
+			return false
+		}
+	} else if !proto.Equal(this.ResourceAndRelation, that.ResourceAndRelation) {
+		return false
+	}
+	if this.ExpansionMode != that.ExpansionMode {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DispatchExpandResponse) EqualVT(that *DispatchExpandResponse) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if equal, ok := interface{}(this.TreeNode).(interface {
+		EqualVT(*v1.RelationTupleTreeNode) bool
+	}); ok {
+		if !equal.EqualVT(that.TreeNode) {
+			return false
+		}
+	} else if !proto.Equal(this.TreeNode, that.TreeNode) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DispatchLookupRequest) EqualVT(that *DispatchLookupRequest) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if equal, ok := interface{}(this.ObjectRelation).(interface {
+		EqualVT(*v1.RelationReference) bool
+	}); ok {
+		if !equal.EqualVT(that.ObjectRelation) {
+			return false
+		}
+	} else if !proto.Equal(this.ObjectRelation, that.ObjectRelation) {
+		return false
+	}
+	if equal, ok := interface{}(this.Subject).(interface {
+		EqualVT(*v1.ObjectAndRelation) bool
+	}); ok {
+		if !equal.EqualVT(that.Subject) {
+			return false
+		}
+	} else if !proto.Equal(this.Subject, that.Subject) {
+		return false
+	}
+	if this.Limit != that.Limit {
+		return false
+	}
+	if len(this.DirectStack) != len(that.DirectStack) {
+		return false
+	}
+	for i, vx := range this.DirectStack {
+		vy := that.DirectStack[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &v1.RelationReference{}
+			}
+			if q == nil {
+				q = &v1.RelationReference{}
+			}
+			if equal, ok := interface{}(p).(interface {
+				EqualVT(*v1.RelationReference) bool
+			}); ok {
+				if !equal.EqualVT(q) {
+					return false
+				}
+			} else if !proto.Equal(p, q) {
+				return false
+			}
+		}
+	}
+	if len(this.TtuStack) != len(that.TtuStack) {
+		return false
+	}
+	for i, vx := range this.TtuStack {
+		vy := that.TtuStack[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &v1.RelationReference{}
+			}
+			if q == nil {
+				q = &v1.RelationReference{}
+			}
+			if equal, ok := interface{}(p).(interface {
+				EqualVT(*v1.RelationReference) bool
+			}); ok {
+				if !equal.EqualVT(q) {
+					return false
+				}
+			} else if !proto.Equal(p, q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DispatchLookupResponse) EqualVT(that *DispatchLookupResponse) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if len(this.ResolvedOnrs) != len(that.ResolvedOnrs) {
+		return false
+	}
+	for i, vx := range this.ResolvedOnrs {
+		vy := that.ResolvedOnrs[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &v1.ObjectAndRelation{}
+			}
+			if q == nil {
+				q = &v1.ObjectAndRelation{}
+			}
+			if equal, ok := interface{}(p).(interface {
+				EqualVT(*v1.ObjectAndRelation) bool
+			}); ok {
+				if !equal.EqualVT(q) {
+					return false
+				}
+			} else if !proto.Equal(p, q) {
+				return false
+			}
+		}
+	}
+	if this.NextPageReference != that.NextPageReference {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DispatchReachableResourcesRequest) EqualVT(that *DispatchReachableResourcesRequest) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if equal, ok := interface{}(this.ResourceRelation).(interface {
+		EqualVT(*v1.RelationReference) bool
+	}); ok {
+		if !equal.EqualVT(that.ResourceRelation) {
+			return false
+		}
+	} else if !proto.Equal(this.ResourceRelation, that.ResourceRelation) {
+		return false
+	}
+	if equal, ok := interface{}(this.SubjectRelation).(interface {
+		EqualVT(*v1.RelationReference) bool
+	}); ok {
+		if !equal.EqualVT(that.SubjectRelation) {
+			return false
+		}
+	} else if !proto.Equal(this.SubjectRelation, that.SubjectRelation) {
+		return false
+	}
+	if len(this.SubjectIds) != len(that.SubjectIds) {
+		return false
+	}
+	for i, vx := range this.SubjectIds {
+		vy := that.SubjectIds[i]
+		if vx != vy {
+			return false
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ReachableResource) EqualVT(that *ReachableResource) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.ResourceIds) != len(that.ResourceIds) {
+		return false
+	}
+	for i, vx := range this.ResourceIds {
+		vy := that.ResourceIds[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if this.ResultStatus != that.ResultStatus {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DispatchReachableResourcesResponse) EqualVT(that *DispatchReachableResourcesResponse) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Resource.EqualVT(that.Resource) {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DispatchLookupSubjectsRequest) EqualVT(that *DispatchLookupSubjectsRequest) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if equal, ok := interface{}(this.ResourceRelation).(interface {
+		EqualVT(*v1.RelationReference) bool
+	}); ok {
+		if !equal.EqualVT(that.ResourceRelation) {
+			return false
+		}
+	} else if !proto.Equal(this.ResourceRelation, that.ResourceRelation) {
+		return false
+	}
+	if len(this.ResourceIds) != len(that.ResourceIds) {
+		return false
+	}
+	for i, vx := range this.ResourceIds {
+		vy := that.ResourceIds[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if equal, ok := interface{}(this.SubjectRelation).(interface {
+		EqualVT(*v1.RelationReference) bool
+	}); ok {
+		if !equal.EqualVT(that.SubjectRelation) {
+			return false
+		}
+	} else if !proto.Equal(this.SubjectRelation, that.SubjectRelation) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *FoundSubject) EqualVT(that *FoundSubject) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.SubjectId != that.SubjectId {
+		return false
+	}
+	if !this.CaveatExpression.EqualVT(that.CaveatExpression) {
+		return false
+	}
+	if len(this.ExcludedSubjects) != len(that.ExcludedSubjects) {
+		return false
+	}
+	for i, vx := range this.ExcludedSubjects {
+		vy := that.ExcludedSubjects[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &FoundSubject{}
+			}
+			if q == nil {
+				q = &FoundSubject{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DispatchLookupSubjectsResponse) EqualVT(that *DispatchLookupSubjectsResponse) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.FoundSubjects) != len(that.FoundSubjects) {
+		return false
+	}
+	for i, vx := range this.FoundSubjects {
+		vy := that.FoundSubjects[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &FoundSubject{}
+			}
+			if q == nil {
+				q = &FoundSubject{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ResolverMeta) EqualVT(that *ResolverMeta) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.AtRevision != that.AtRevision {
+		return false
+	}
+	if this.DepthRemaining != that.DepthRemaining {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ResponseMeta) EqualVT(that *ResponseMeta) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.DispatchCount != that.DispatchCount {
+		return false
+	}
+	if this.DepthRequired != that.DepthRequired {
+		return false
+	}
+	if this.CachedDispatchCount != that.CachedDispatchCount {
+		return false
+	}
+	if !this.DebugInfo.EqualVT(that.DebugInfo) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DebugInformation) EqualVT(that *DebugInformation) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Check.EqualVT(that.Check) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *CheckDebugTrace) EqualVT(that *CheckDebugTrace) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Request.EqualVT(that.Request) {
+		return false
+	}
+	if this.ResourceRelationType != that.ResourceRelationType {
+		return false
+	}
+	if len(this.Results) != len(that.Results) {
+		return false
+	}
+	for i, vx := range this.Results {
+		vy, ok := that.Results[i]
+		if !ok {
+			return false
+		}
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &ResourceCheckResult{}
+			}
+			if q == nil {
+				q = &ResourceCheckResult{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	if this.IsCachedResult != that.IsCachedResult {
+		return false
+	}
+	if len(this.SubProblems) != len(that.SubProblems) {
+		return false
+	}
+	for i, vx := range this.SubProblems {
+		vy := that.SubProblems[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &CheckDebugTrace{}
+			}
+			if q == nil {
+				q = &CheckDebugTrace{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
 }
 
 func (m *DispatchCheckRequest) MarshalVT() (dAtA []byte, err error) {
@@ -1616,14 +2266,27 @@ func (m *FoundSubject) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.ExcludedSubjectIds) > 0 {
-		for iNdEx := len(m.ExcludedSubjectIds) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.ExcludedSubjectIds[iNdEx])
-			copy(dAtA[i:], m.ExcludedSubjectIds[iNdEx])
-			i = encodeVarint(dAtA, i, uint64(len(m.ExcludedSubjectIds[iNdEx])))
+	if len(m.ExcludedSubjects) > 0 {
+		for iNdEx := len(m.ExcludedSubjects) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.ExcludedSubjects[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
 			i--
-			dAtA[i] = 0x12
+			dAtA[i] = 0x1a
 		}
+	}
+	if m.CaveatExpression != nil {
+		size, err := m.CaveatExpression.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x12
 	}
 	if len(m.SubjectId) > 0 {
 		i -= len(m.SubjectId)
@@ -2366,9 +3029,13 @@ func (m *FoundSubject) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if len(m.ExcludedSubjectIds) > 0 {
-		for _, s := range m.ExcludedSubjectIds {
-			l = len(s)
+	if m.CaveatExpression != nil {
+		l = m.CaveatExpression.SizeVT()
+		n += 1 + l + sov(uint64(l))
+	}
+	if len(m.ExcludedSubjects) > 0 {
+		for _, e := range m.ExcludedSubjects {
+			l = e.SizeVT()
 			n += 1 + l + sov(uint64(l))
 		}
 	}
@@ -4769,9 +5436,9 @@ func (m *FoundSubject) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ExcludedSubjectIds", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field CaveatExpression", wireType)
 			}
-			var stringLen uint64
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -4781,23 +5448,61 @@ func (m *FoundSubject) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if msglen < 0 {
 				return ErrInvalidLength
 			}
-			postIndex := iNdEx + intStringLen
+			postIndex := iNdEx + msglen
 			if postIndex < 0 {
 				return ErrInvalidLength
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ExcludedSubjectIds = append(m.ExcludedSubjectIds, string(dAtA[iNdEx:postIndex]))
+			if m.CaveatExpression == nil {
+				m.CaveatExpression = &CaveatExpression{}
+			}
+			if err := m.CaveatExpression.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExcludedSubjects", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ExcludedSubjects = append(m.ExcludedSubjects, &FoundSubject{})
+			if err := m.ExcludedSubjects[len(m.ExcludedSubjects)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

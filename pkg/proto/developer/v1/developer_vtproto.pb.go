@@ -380,6 +380,367 @@ func (m *FormatSchemaResult) CloneGenericVT() proto.Message {
 	return m.CloneVT()
 }
 
+func (this *DeveloperRequest) EqualVT(that *DeveloperRequest) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Context.EqualVT(that.Context) {
+		return false
+	}
+	if len(this.Operations) != len(that.Operations) {
+		return false
+	}
+	for i, vx := range this.Operations {
+		vy := that.Operations[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &Operation{}
+			}
+			if q == nil {
+				q = &Operation{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DeveloperResponse) EqualVT(that *DeveloperResponse) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.InternalError != that.InternalError {
+		return false
+	}
+	if !this.DeveloperErrors.EqualVT(that.DeveloperErrors) {
+		return false
+	}
+	if !this.OperationsResults.EqualVT(that.OperationsResults) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RequestContext) EqualVT(that *RequestContext) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Schema != that.Schema {
+		return false
+	}
+	if len(this.Relationships) != len(that.Relationships) {
+		return false
+	}
+	for i, vx := range this.Relationships {
+		vy := that.Relationships[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &v1.RelationTuple{}
+			}
+			if q == nil {
+				q = &v1.RelationTuple{}
+			}
+			if equal, ok := interface{}(p).(interface{ EqualVT(*v1.RelationTuple) bool }); ok {
+				if !equal.EqualVT(q) {
+					return false
+				}
+			} else if !proto.Equal(p, q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Operation) EqualVT(that *Operation) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.CheckParameters.EqualVT(that.CheckParameters) {
+		return false
+	}
+	if !this.AssertionsParameters.EqualVT(that.AssertionsParameters) {
+		return false
+	}
+	if !this.ValidationParameters.EqualVT(that.ValidationParameters) {
+		return false
+	}
+	if !this.FormatSchemaParameters.EqualVT(that.FormatSchemaParameters) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *OperationsResults) EqualVT(that *OperationsResults) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.Results) != len(that.Results) {
+		return false
+	}
+	for i, vx := range this.Results {
+		vy, ok := that.Results[i]
+		if !ok {
+			return false
+		}
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &OperationResult{}
+			}
+			if q == nil {
+				q = &OperationResult{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *OperationResult) EqualVT(that *OperationResult) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.CheckResult.EqualVT(that.CheckResult) {
+		return false
+	}
+	if !this.AssertionsResult.EqualVT(that.AssertionsResult) {
+		return false
+	}
+	if !this.ValidationResult.EqualVT(that.ValidationResult) {
+		return false
+	}
+	if !this.FormatSchemaResult.EqualVT(that.FormatSchemaResult) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DeveloperError) EqualVT(that *DeveloperError) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Message != that.Message {
+		return false
+	}
+	if this.Line != that.Line {
+		return false
+	}
+	if this.Column != that.Column {
+		return false
+	}
+	if this.Source != that.Source {
+		return false
+	}
+	if this.Kind != that.Kind {
+		return false
+	}
+	if len(this.Path) != len(that.Path) {
+		return false
+	}
+	for i, vx := range this.Path {
+		vy := that.Path[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if this.Context != that.Context {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DeveloperErrors) EqualVT(that *DeveloperErrors) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.InputErrors) != len(that.InputErrors) {
+		return false
+	}
+	for i, vx := range this.InputErrors {
+		vy := that.InputErrors[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &DeveloperError{}
+			}
+			if q == nil {
+				q = &DeveloperError{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *CheckOperationParameters) EqualVT(that *CheckOperationParameters) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if equal, ok := interface{}(this.Resource).(interface {
+		EqualVT(*v1.ObjectAndRelation) bool
+	}); ok {
+		if !equal.EqualVT(that.Resource) {
+			return false
+		}
+	} else if !proto.Equal(this.Resource, that.Resource) {
+		return false
+	}
+	if equal, ok := interface{}(this.Subject).(interface {
+		EqualVT(*v1.ObjectAndRelation) bool
+	}); ok {
+		if !equal.EqualVT(that.Subject) {
+			return false
+		}
+	} else if !proto.Equal(this.Subject, that.Subject) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *CheckOperationsResult) EqualVT(that *CheckOperationsResult) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Membership != that.Membership {
+		return false
+	}
+	if !this.CheckError.EqualVT(that.CheckError) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RunAssertionsParameters) EqualVT(that *RunAssertionsParameters) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.AssertionsYaml != that.AssertionsYaml {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RunAssertionsResult) EqualVT(that *RunAssertionsResult) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.InputError.EqualVT(that.InputError) {
+		return false
+	}
+	if len(this.ValidationErrors) != len(that.ValidationErrors) {
+		return false
+	}
+	for i, vx := range this.ValidationErrors {
+		vy := that.ValidationErrors[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &DeveloperError{}
+			}
+			if q == nil {
+				q = &DeveloperError{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RunValidationParameters) EqualVT(that *RunValidationParameters) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.ValidationYaml != that.ValidationYaml {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RunValidationResult) EqualVT(that *RunValidationResult) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.InputError.EqualVT(that.InputError) {
+		return false
+	}
+	if this.UpdatedValidationYaml != that.UpdatedValidationYaml {
+		return false
+	}
+	if len(this.ValidationErrors) != len(that.ValidationErrors) {
+		return false
+	}
+	for i, vx := range this.ValidationErrors {
+		vy := that.ValidationErrors[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &DeveloperError{}
+			}
+			if q == nil {
+				q = &DeveloperError{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *FormatSchemaParameters) EqualVT(that *FormatSchemaParameters) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *FormatSchemaResult) EqualVT(that *FormatSchemaResult) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.FormattedSchema != that.FormattedSchema {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
 func (m *DeveloperRequest) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil

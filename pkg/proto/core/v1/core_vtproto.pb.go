@@ -810,6 +810,982 @@ func (m *SourcePosition) CloneGenericVT() proto.Message {
 	return m.CloneVT()
 }
 
+func (this *RelationTuple) EqualVT(that *RelationTuple) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.ResourceAndRelation.EqualVT(that.ResourceAndRelation) {
+		return false
+	}
+	if !this.Subject.EqualVT(that.Subject) {
+		return false
+	}
+	if !this.Caveat.EqualVT(that.Caveat) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ContextualizedCaveat) EqualVT(that *ContextualizedCaveat) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.CaveatName != that.CaveatName {
+		return false
+	}
+	if equal, ok := interface{}(this.Context).(interface{ EqualVT(*structpb.Struct) bool }); ok {
+		if !equal.EqualVT(that.Context) {
+			return false
+		}
+	} else if !proto.Equal(this.Context, that.Context) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *CaveatDefinition) EqualVT(that *CaveatDefinition) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Name != that.Name {
+		return false
+	}
+	if string(this.SerializedExpression) != string(that.SerializedExpression) {
+		return false
+	}
+	if len(this.ParameterTypes) != len(that.ParameterTypes) {
+		return false
+	}
+	for i, vx := range this.ParameterTypes {
+		vy, ok := that.ParameterTypes[i]
+		if !ok {
+			return false
+		}
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &CaveatTypeReference{}
+			}
+			if q == nil {
+				q = &CaveatTypeReference{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *CaveatTypeReference) EqualVT(that *CaveatTypeReference) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.TypeName != that.TypeName {
+		return false
+	}
+	if len(this.ChildTypes) != len(that.ChildTypes) {
+		return false
+	}
+	for i, vx := range this.ChildTypes {
+		vy := that.ChildTypes[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &CaveatTypeReference{}
+			}
+			if q == nil {
+				q = &CaveatTypeReference{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ObjectAndRelation) EqualVT(that *ObjectAndRelation) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Namespace != that.Namespace {
+		return false
+	}
+	if this.ObjectId != that.ObjectId {
+		return false
+	}
+	if this.Relation != that.Relation {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RelationReference) EqualVT(that *RelationReference) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Namespace != that.Namespace {
+		return false
+	}
+	if this.Relation != that.Relation {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Zookie) EqualVT(that *Zookie) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Token != that.Token {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RelationTupleUpdate) EqualVT(that *RelationTupleUpdate) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Operation != that.Operation {
+		return false
+	}
+	if !this.Tuple.EqualVT(that.Tuple) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RelationTupleTreeNode) EqualVT(that *RelationTupleTreeNode) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.NodeType == nil && that.NodeType != nil {
+		return false
+	} else if this.NodeType != nil {
+		if that.NodeType == nil {
+			return false
+		}
+		if !this.NodeType.(interface {
+			EqualVT(isRelationTupleTreeNode_NodeType) bool
+		}).EqualVT(that.NodeType) {
+			return false
+		}
+	}
+	if !this.Expanded.EqualVT(that.Expanded) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RelationTupleTreeNode_IntermediateNode) EqualVT(thatIface isRelationTupleTreeNode_NodeType) bool {
+	that, ok := thatIface.(*RelationTupleTreeNode_IntermediateNode)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.IntermediateNode, that.IntermediateNode; p != q {
+		if p == nil {
+			p = &SetOperationUserset{}
+		}
+		if q == nil {
+			q = &SetOperationUserset{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *RelationTupleTreeNode_LeafNode) EqualVT(thatIface isRelationTupleTreeNode_NodeType) bool {
+	that, ok := thatIface.(*RelationTupleTreeNode_LeafNode)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.LeafNode, that.LeafNode; p != q {
+		if p == nil {
+			p = &DirectSubjects{}
+		}
+		if q == nil {
+			q = &DirectSubjects{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *SetOperationUserset) EqualVT(that *SetOperationUserset) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Operation != that.Operation {
+		return false
+	}
+	if len(this.ChildNodes) != len(that.ChildNodes) {
+		return false
+	}
+	for i, vx := range this.ChildNodes {
+		vy := that.ChildNodes[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &RelationTupleTreeNode{}
+			}
+			if q == nil {
+				q = &RelationTupleTreeNode{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DirectSubjects) EqualVT(that *DirectSubjects) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.Subjects) != len(that.Subjects) {
+		return false
+	}
+	for i, vx := range this.Subjects {
+		vy := that.Subjects[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &ObjectAndRelation{}
+			}
+			if q == nil {
+				q = &ObjectAndRelation{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Metadata) EqualVT(that *Metadata) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.MetadataMessage) != len(that.MetadataMessage) {
+		return false
+	}
+	for i, vx := range this.MetadataMessage {
+		vy := that.MetadataMessage[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &anypb.Any{}
+			}
+			if q == nil {
+				q = &anypb.Any{}
+			}
+			if equal, ok := interface{}(p).(interface{ EqualVT(*anypb.Any) bool }); ok {
+				if !equal.EqualVT(q) {
+					return false
+				}
+			} else if !proto.Equal(p, q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *NamespaceDefinition) EqualVT(that *NamespaceDefinition) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Name != that.Name {
+		return false
+	}
+	if len(this.Relation) != len(that.Relation) {
+		return false
+	}
+	for i, vx := range this.Relation {
+		vy := that.Relation[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &Relation{}
+			}
+			if q == nil {
+				q = &Relation{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Relation) EqualVT(that *Relation) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Name != that.Name {
+		return false
+	}
+	if !this.UsersetRewrite.EqualVT(that.UsersetRewrite) {
+		return false
+	}
+	if !this.TypeInformation.EqualVT(that.TypeInformation) {
+		return false
+	}
+	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	if this.AliasingRelation != that.AliasingRelation {
+		return false
+	}
+	if this.CanonicalCacheKey != that.CanonicalCacheKey {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ReachabilityGraph) EqualVT(that *ReachabilityGraph) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.EntrypointsBySubjectType) != len(that.EntrypointsBySubjectType) {
+		return false
+	}
+	for i, vx := range this.EntrypointsBySubjectType {
+		vy, ok := that.EntrypointsBySubjectType[i]
+		if !ok {
+			return false
+		}
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &ReachabilityEntrypoints{}
+			}
+			if q == nil {
+				q = &ReachabilityEntrypoints{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	if len(this.EntrypointsBySubjectRelation) != len(that.EntrypointsBySubjectRelation) {
+		return false
+	}
+	for i, vx := range this.EntrypointsBySubjectRelation {
+		vy, ok := that.EntrypointsBySubjectRelation[i]
+		if !ok {
+			return false
+		}
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &ReachabilityEntrypoints{}
+			}
+			if q == nil {
+				q = &ReachabilityEntrypoints{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ReachabilityEntrypoints) EqualVT(that *ReachabilityEntrypoints) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.Entrypoints) != len(that.Entrypoints) {
+		return false
+	}
+	for i, vx := range this.Entrypoints {
+		vy := that.Entrypoints[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &ReachabilityEntrypoint{}
+			}
+			if q == nil {
+				q = &ReachabilityEntrypoint{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	if this.SubjectType != that.SubjectType {
+		return false
+	}
+	if !this.SubjectRelation.EqualVT(that.SubjectRelation) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ReachabilityEntrypoint) EqualVT(that *ReachabilityEntrypoint) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Kind != that.Kind {
+		return false
+	}
+	if !this.TargetRelation.EqualVT(that.TargetRelation) {
+		return false
+	}
+	if this.ResultStatus != that.ResultStatus {
+		return false
+	}
+	if this.TuplesetRelation != that.TuplesetRelation {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *TypeInformation) EqualVT(that *TypeInformation) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.AllowedDirectRelations) != len(that.AllowedDirectRelations) {
+		return false
+	}
+	for i, vx := range this.AllowedDirectRelations {
+		vy := that.AllowedDirectRelations[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &AllowedRelation{}
+			}
+			if q == nil {
+				q = &AllowedRelation{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *AllowedRelation_PublicWildcard) EqualVT(that *AllowedRelation_PublicWildcard) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *AllowedRelation) EqualVT(that *AllowedRelation) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.RelationOrWildcard == nil && that.RelationOrWildcard != nil {
+		return false
+	} else if this.RelationOrWildcard != nil {
+		if that.RelationOrWildcard == nil {
+			return false
+		}
+		if !this.RelationOrWildcard.(interface {
+			EqualVT(isAllowedRelation_RelationOrWildcard) bool
+		}).EqualVT(that.RelationOrWildcard) {
+			return false
+		}
+	}
+	if this.Namespace != that.Namespace {
+		return false
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	if !this.RequiredCaveat.EqualVT(that.RequiredCaveat) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *AllowedRelation_Relation) EqualVT(thatIface isAllowedRelation_RelationOrWildcard) bool {
+	that, ok := thatIface.(*AllowedRelation_Relation)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if this.Relation != that.Relation {
+		return false
+	}
+	return true
+}
+
+func (this *AllowedRelation_PublicWildcard_) EqualVT(thatIface isAllowedRelation_RelationOrWildcard) bool {
+	that, ok := thatIface.(*AllowedRelation_PublicWildcard_)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.PublicWildcard, that.PublicWildcard; p != q {
+		if p == nil {
+			p = &AllowedRelation_PublicWildcard{}
+		}
+		if q == nil {
+			q = &AllowedRelation_PublicWildcard{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *AllowedCaveat) EqualVT(that *AllowedCaveat) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.CaveatName != that.CaveatName {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *UsersetRewrite) EqualVT(that *UsersetRewrite) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.RewriteOperation == nil && that.RewriteOperation != nil {
+		return false
+	} else if this.RewriteOperation != nil {
+		if that.RewriteOperation == nil {
+			return false
+		}
+		if !this.RewriteOperation.(interface {
+			EqualVT(isUsersetRewrite_RewriteOperation) bool
+		}).EqualVT(that.RewriteOperation) {
+			return false
+		}
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *UsersetRewrite_Union) EqualVT(thatIface isUsersetRewrite_RewriteOperation) bool {
+	that, ok := thatIface.(*UsersetRewrite_Union)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Union, that.Union; p != q {
+		if p == nil {
+			p = &SetOperation{}
+		}
+		if q == nil {
+			q = &SetOperation{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *UsersetRewrite_Intersection) EqualVT(thatIface isUsersetRewrite_RewriteOperation) bool {
+	that, ok := thatIface.(*UsersetRewrite_Intersection)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Intersection, that.Intersection; p != q {
+		if p == nil {
+			p = &SetOperation{}
+		}
+		if q == nil {
+			q = &SetOperation{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *UsersetRewrite_Exclusion) EqualVT(thatIface isUsersetRewrite_RewriteOperation) bool {
+	that, ok := thatIface.(*UsersetRewrite_Exclusion)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Exclusion, that.Exclusion; p != q {
+		if p == nil {
+			p = &SetOperation{}
+		}
+		if q == nil {
+			q = &SetOperation{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *SetOperation_Child_This) EqualVT(that *SetOperation_Child_This) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *SetOperation_Child_Nil) EqualVT(that *SetOperation_Child_Nil) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *SetOperation_Child) EqualVT(that *SetOperation_Child) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.ChildType == nil && that.ChildType != nil {
+		return false
+	} else if this.ChildType != nil {
+		if that.ChildType == nil {
+			return false
+		}
+		if !this.ChildType.(interface {
+			EqualVT(isSetOperation_Child_ChildType) bool
+		}).EqualVT(that.ChildType) {
+			return false
+		}
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	if len(this.OperationPath) != len(that.OperationPath) {
+		return false
+	}
+	for i, vx := range this.OperationPath {
+		vy := that.OperationPath[i]
+		if vx != vy {
+			return false
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *SetOperation_Child_XThis) EqualVT(thatIface isSetOperation_Child_ChildType) bool {
+	that, ok := thatIface.(*SetOperation_Child_XThis)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.XThis, that.XThis; p != q {
+		if p == nil {
+			p = &SetOperation_Child_This{}
+		}
+		if q == nil {
+			q = &SetOperation_Child_This{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *SetOperation_Child_ComputedUserset) EqualVT(thatIface isSetOperation_Child_ChildType) bool {
+	that, ok := thatIface.(*SetOperation_Child_ComputedUserset)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.ComputedUserset, that.ComputedUserset; p != q {
+		if p == nil {
+			p = &ComputedUserset{}
+		}
+		if q == nil {
+			q = &ComputedUserset{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *SetOperation_Child_TupleToUserset) EqualVT(thatIface isSetOperation_Child_ChildType) bool {
+	that, ok := thatIface.(*SetOperation_Child_TupleToUserset)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.TupleToUserset, that.TupleToUserset; p != q {
+		if p == nil {
+			p = &TupleToUserset{}
+		}
+		if q == nil {
+			q = &TupleToUserset{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *SetOperation_Child_UsersetRewrite) EqualVT(thatIface isSetOperation_Child_ChildType) bool {
+	that, ok := thatIface.(*SetOperation_Child_UsersetRewrite)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.UsersetRewrite, that.UsersetRewrite; p != q {
+		if p == nil {
+			p = &UsersetRewrite{}
+		}
+		if q == nil {
+			q = &UsersetRewrite{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *SetOperation_Child_XNil) EqualVT(thatIface isSetOperation_Child_ChildType) bool {
+	that, ok := thatIface.(*SetOperation_Child_XNil)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.XNil, that.XNil; p != q {
+		if p == nil {
+			p = &SetOperation_Child_Nil{}
+		}
+		if q == nil {
+			q = &SetOperation_Child_Nil{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *SetOperation) EqualVT(that *SetOperation) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.Child) != len(that.Child) {
+		return false
+	}
+	for i, vx := range this.Child {
+		vy := that.Child[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &SetOperation_Child{}
+			}
+			if q == nil {
+				q = &SetOperation_Child{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *TupleToUserset_Tupleset) EqualVT(that *TupleToUserset_Tupleset) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Relation != that.Relation {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *TupleToUserset) EqualVT(that *TupleToUserset) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if !this.Tupleset.EqualVT(that.Tupleset) {
+		return false
+	}
+	if !this.ComputedUserset.EqualVT(that.ComputedUserset) {
+		return false
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ComputedUserset) EqualVT(that *ComputedUserset) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Object != that.Object {
+		return false
+	}
+	if this.Relation != that.Relation {
+		return false
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *SourcePosition) EqualVT(that *SourcePosition) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.ZeroIndexedLineNumber != that.ZeroIndexedLineNumber {
+		return false
+	}
+	if this.ZeroIndexedColumnPosition != that.ZeroIndexedColumnPosition {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
 func (m *RelationTuple) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil

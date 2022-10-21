@@ -142,7 +142,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			foundSubjectIds := []string{}
 			for _, result := range stream.Results() {
 				for _, found := range result.FoundSubjects {
-					if len(found.ExcludedSubjectIds) > 0 {
+					if len(found.ExcludedSubjects) > 0 {
 						continue
 					}
 

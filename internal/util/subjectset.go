@@ -15,16 +15,7 @@ type SubjectSet struct {
 // NewSubjectSet creates and returns a new subject set.
 func NewSubjectSet() SubjectSet {
 	return SubjectSet{
-		BaseSubjectSet: BaseSubjectSet[*v1.FoundSubject]{
-			values: map[string]*v1.FoundSubject{},
-			constructor: func(subjectID string, excludedSubjectIDs []string, sources ...*v1.FoundSubject) *v1.FoundSubject {
-				return &v1.FoundSubject{
-					SubjectId:          subjectID,
-					ExcludedSubjectIds: excludedSubjectIDs,
-				}
-			},
-			combiner: nil,
-		},
+		BaseSubjectSet: NewBaseSubjectSet[*v1.FoundSubject](subjectSetConstructor),
 	}
 }
 
@@ -38,4 +29,12 @@ func (ss SubjectSet) IntersectionDifference(other SubjectSet) {
 
 func (ss SubjectSet) UnionWithSet(other SubjectSet) {
 	ss.BaseSubjectSet.UnionWithSet(other.BaseSubjectSet)
+}
+
+func subjectSetConstructor(subjectID string, caveatExpression *v1.CaveatExpression, excludedSubjects []*v1.FoundSubject, sources ...*v1.FoundSubject) *v1.FoundSubject {
+	return &v1.FoundSubject{
+		SubjectId:        subjectID,
+		CaveatExpression: caveatExpression,
+		ExcludedSubjects: excludedSubjects,
+	}
 }
