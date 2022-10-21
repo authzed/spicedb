@@ -88,9 +88,18 @@ func init() {
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	getRevision = psql.Select(fmt.Sprintf("MAX(%s::text::bigint)", colXID)).From(tableTransaction)
+	getRevision = psql.
+			Select(colXID, fmt.Sprintf("pg_snapshot_xmin(%s)", colSnapshot)).
+			From(tableTransaction).
+			OrderByClause(fmt.Sprintf("%s DESC", colXID)).
+			Limit(1)
 
-	createTxn = fmt.Sprintf("INSERT INTO %s DEFAULT VALUES RETURNING %s", tableTransaction, colXID)
+	createTxn = fmt.Sprintf(
+		"INSERT INTO %s DEFAULT VALUES RETURNING %s, pg_snapshot_xmin(%s)",
+		tableTransaction,
+		colXID,
+		colSnapshot,
+	)
 
 	getNow = psql.Select("NOW()")
 
@@ -171,6 +180,7 @@ func NewPostgresDatastore(
 		tableTransaction,
 		colTimestamp,
 		quantizationPeriodNanos,
+		colSnapshot,
 	)
 
 	validTransactionQuery := fmt.Sprintf(
@@ -319,10 +329,10 @@ func (pgd *pgDatastore) ReadWriteTx(
 ) (datastore.Revision, error) {
 	var err error
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
-		var newXID xid8
+		var newXID, newXmin xid8
 		err = pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
-			newXID, err = createNewTransaction(ctx, tx)
+			newXID, newXmin, err = createNewTransaction(ctx, tx)
 			if err != nil {
 				return err
 			}
@@ -358,7 +368,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			return datastore.NoRevision, err
 		}
 
-		return revisionFromTransaction(newXID), nil
+		return revisionFromTransaction(newXID, newXmin), nil
 	}
 	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
 }
@@ -464,7 +474,7 @@ func buildLivingObjectFilterForRevisionDeprecated(revision datastore.Revision) q
 		return original.Where(sq.LtOrEq{colCreatedTxnDeprecated: txID.Uint}).
 			Where(sq.Or{
 				sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID},
-				sq.Gt{colDeletedTxnDeprecated: revision},
+				sq.Gt{colDeletedTxnDeprecated: txID.Uint},
 			})
 	}
 }

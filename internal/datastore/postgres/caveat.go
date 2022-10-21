@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/shopspring/decimal"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
@@ -46,9 +47,16 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	}
 	defer txCleanup(ctx)
 
+	var txID xid8
+	var versionDest interface{} = &txID
+	// TODO remove once the ID->XID migrations are all complete
+	var versionTxDeprecated uint64
+	if r.migrationPhase == writeBothReadOld {
+		versionDest = &versionTxDeprecated
+	}
+
 	var serializedDef []byte
-	var rev datastore.Revision
-	err = tx.QueryRow(ctx, sql, args...).Scan(&serializedDef, &rev)
+	err = tx.QueryRow(ctx, sql, args...).Scan(&serializedDef, versionDest)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
@@ -57,6 +65,13 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	}
 	def := core.CaveatDefinition{}
 	err = def.UnmarshalVT(serializedDef)
+	rev := revisionFromTransaction(txID, txID)
+
+	// TODO remove once the ID->XID migrations are all complete
+	if r.migrationPhase == writeBothReadOld {
+		rev = decimal.NewFromInt(int64(versionTxDeprecated))
+	}
+
 	return &def, rev, err
 }
 

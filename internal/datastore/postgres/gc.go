@@ -58,10 +58,10 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
-	value := xid8{}
+	var value, xmin xid8
 	err = pgd.dbpool.QueryRow(
 		datastore.SeparateContextWithTracing(ctx), sql, args...,
-	).Scan(&value)
+	).Scan(&value, &xmin)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
@@ -71,7 +71,7 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
-	return revisionFromTransaction(value), nil
+	return revisionFromTransaction(value, xmin), nil
 }
 
 func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (removed common.DeletionCounts, err error) {

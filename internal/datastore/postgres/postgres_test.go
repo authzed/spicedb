@@ -295,7 +295,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	tx, err := pgd.dbpool.Begin(ctx)
 	require.NoError(err)
 
-	txXID, err := createNewTransaction(ctx, tx)
+	txXID, _, err := createNewTransaction(ctx, tx)
 	require.NoError(err)
 
 	err = tx.Commit(ctx)
@@ -553,11 +553,12 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				tableTransaction,
 				colTimestamp,
 				tc.quantization.Nanoseconds(),
+				colSnapshot,
 			)
 
-			var revision xid8
+			var revision, xmin xid8
 			var validFor time.Duration
-			err = conn.QueryRow(ctx, queryRevision).Scan(&revision, &validFor)
+			err = conn.QueryRow(ctx, queryRevision).Scan(&revision, &xmin, &validFor)
 			require.NoError(err)
 
 			queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE %[1]s %[3]s $1;"

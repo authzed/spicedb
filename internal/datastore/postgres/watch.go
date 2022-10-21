@@ -183,9 +183,9 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revision xid8) (*datast
 		}
 
 		if createdXID.Uint == revision.Uint {
-			tracked.AddChange(ctx, revisionFromTransaction(revision), nextTuple, core.RelationTupleUpdate_TOUCH)
+			tracked.AddChange(ctx, revisionFromTransaction(revision, revision), nextTuple, core.RelationTupleUpdate_TOUCH)
 		} else if deletedXID.Uint == revision.Uint {
-			tracked.AddChange(ctx, revisionFromTransaction(revision), nextTuple, core.RelationTupleUpdate_DELETE)
+			tracked.AddChange(ctx, revisionFromTransaction(revision, revision), nextTuple, core.RelationTupleUpdate_DELETE)
 		}
 	}
 	if changes.Err() != nil {
@@ -195,7 +195,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revision xid8) (*datast
 	reconciledChanges := tracked.AsRevisionChanges()
 	if len(reconciledChanges) == 0 {
 		return &datastore.RevisionChanges{
-			Revision: revisionFromTransaction(revision),
+			Revision: revisionFromTransaction(revision, revision),
 		}, nil
 	}
 	return reconciledChanges[0], nil

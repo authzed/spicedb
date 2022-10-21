@@ -240,7 +240,7 @@ func loadAllNamespaces(
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		revision := revisionFromTransaction(version)
+		revision := revisionFromTransaction(version, version)
 
 		// TODO remove once the ID->XID migrations are all complete
 		if migrationPhase == writeBothReadOld {
