@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -26,8 +27,8 @@ var (
 	errKnown             = errors.New("known error")
 	errAnotherKnown      = errors.New("another known error")
 	nsKnown              = "namespace_name"
-	revisionKnown        = decimal.NewFromInt(1)
-	anotherRevisionKnown = decimal.NewFromInt(2)
+	revisionKnown        = revisions.NewFromDecimal(decimal.NewFromInt(1))
+	anotherRevisionKnown = revisions.NewFromDecimal(decimal.NewFromInt(2))
 
 	emptyIterator = datastore.NewSliceRelationshipIterator(nil)
 )
@@ -349,7 +350,7 @@ func TestContextCancellation(t *testing.T) {
 
 	delegate.
 		On("HeadRevision", mock.Anything).
-		Return(decimal.Zero, errKnown).
+		Return(datastore.NoRevision, errKnown).
 		WaitUntil(mockTime.After(500 * time.Microsecond)).
 		Once()
 

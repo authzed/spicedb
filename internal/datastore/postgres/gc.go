@@ -71,16 +71,18 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
-	return revisionFromTransaction(value, xmin), nil
+	return postgresRevision{value, xmin}, nil
 }
 
 func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (removed common.DeletionCounts, err error) {
+	revision := txID.(postgresRevision)
+
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	removed.Relationships, err = pgd.batchDelete(
 		ctx,
 		tableTuple,
 		relationTuplePKCols,
-		sq.LtOrEq{colDeletedXid: transactionFromRevision(txID)},
+		sq.LtOrEq{colDeletedXid: revision.tx},
 	)
 	if err != nil {
 		return
@@ -94,7 +96,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		ctx,
 		tableTransaction,
 		transactionPKCols,
-		sq.Lt{colXID: txID},
+		sq.Lt{colXID: revision.tx},
 	)
 	if err != nil {
 		return
@@ -105,7 +107,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		ctx,
 		tableNamespace,
 		namespacePKCols,
-		sq.LtOrEq{colDeletedXid: txID},
+		sq.LtOrEq{colDeletedXid: revision.tx},
 	)
 	if err != nil {
 		return

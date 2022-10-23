@@ -8,6 +8,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -17,8 +18,8 @@ func Test_revisionFromTransaction(t *testing.T) {
 		txID uint64
 		want datastore.Revision
 	}{
-		{"0", 0, decimal.NewFromInt(0)},
-		{"uint64 max", math.MaxUint64, decimal.NewFromBigInt(new(big.Int).SetUint64(math.MaxUint64), 0)},
+		{"0", 0, revisions.NewFromDecimal(decimal.NewFromInt(0))},
+		{"uint64 max", math.MaxUint64, revisions.NewFromDecimal(decimal.NewFromBigInt(new(big.Int).SetUint64(math.MaxUint64), 0))},
 	}
 
 	for _, tt := range tests {
@@ -33,11 +34,11 @@ func Test_revisionFromTransaction(t *testing.T) {
 func Test_transactionFromRevision(t *testing.T) {
 	tests := []struct {
 		name     string
-		revision datastore.Revision
+		revision revisions.DecimalRevision
 		want     uint64
 	}{
-		{"0", decimal.NewFromInt(0), 0},
-		{"uint64 max", decimal.NewFromBigInt(new(big.Int).SetUint64(math.MaxUint64), 0), math.MaxUint64},
+		{"0", revisions.NewFromDecimal(decimal.NewFromInt(0)), 0},
+		{"uint64 max", revisions.NewFromDecimal(decimal.NewFromBigInt(new(big.Int).SetUint64(math.MaxUint64), 0)), math.MaxUint64},
 	}
 
 	for _, tt := range tests {

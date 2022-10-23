@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -28,7 +27,7 @@ import (
 type DevContext struct {
 	Ctx        context.Context
 	Datastore  datastore.Datastore
-	Revision   decimal.Decimal
+	Revision   datastore.Revision
 	Namespaces []*core.NamespaceDefinition
 	Dispatcher dispatch.Dispatcher
 }

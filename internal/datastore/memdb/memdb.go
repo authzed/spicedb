@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/shopspring/decimal"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -85,37 +86,40 @@ func NewMemdbDatastoreWithCaveatsOption(
 
 type memdbDatastore struct {
 	sync.RWMutex
+	revisions.DecimalDecoder
 
 	db             *memdb.MemDB
 	revisions      []snapshot
 	activeWriteTxn *memdb.Txn
 
-	negativeGCWindow   datastore.Revision
-	quantizationPeriod datastore.Revision
+	negativeGCWindow   decimal.Decimal
+	quantizationPeriod decimal.Decimal
 	watchBufferLength  uint16
 	uniqueID           string
 	enableCaveats      bool
 }
 
 type snapshot struct {
-	revision datastore.Revision
+	revision decimal.Decimal
 	db       *memdb.MemDB
 }
 
 func (mdb *memdbDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+	dr := revision.(revisions.DecimalRevision)
+
 	mdb.RLock()
 	defer mdb.RUnlock()
 
 	if len(mdb.revisions) == 0 {
-		return &memdbReader{nil, nil, datastore.NoRevision, fmt.Errorf("memdb datastore is not ready"), mdb.enableCaveats}
+		return &memdbReader{nil, nil, decimal.Zero, fmt.Errorf("memdb datastore is not ready"), mdb.enableCaveats}
 	}
 
-	if err := mdb.checkRevisionLocal(revision); err != nil {
-		return &memdbReader{nil, nil, datastore.NoRevision, err, mdb.enableCaveats}
+	if err := mdb.checkRevisionLocal(dr); err != nil {
+		return &memdbReader{nil, nil, decimal.Zero, err, mdb.enableCaveats}
 	}
 
 	revIndex := sort.Search(len(mdb.revisions), func(i int) bool {
-		return mdb.revisions[i].revision.GreaterThanOrEqual(revision)
+		return mdb.revisions[i].revision.GreaterThanOrEqual(dr.Decimal)
 	})
 
 	// handle the case when there is no revision snapshot newer than the requested revision
@@ -125,7 +129,7 @@ func (mdb *memdbDatastore) SnapshotReader(revision datastore.Revision) datastore
 
 	rev := mdb.revisions[revIndex]
 	if rev.db == nil {
-		return &memdbReader{nil, nil, datastore.NoRevision, fmt.Errorf("memdb datastore is already closed"), mdb.enableCaveats}
+		return &memdbReader{nil, nil, decimal.Zero, fmt.Errorf("memdb datastore is already closed"), mdb.enableCaveats}
 	}
 
 	snapshotRevision := rev.revision
@@ -171,7 +175,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		newRevision := revisionFromTimestamp(time.Now().UTC())
 
-		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, datastore.NoRevision, nil, mdb.enableCaveats}, newRevision}
+		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, decimal.Zero, nil, mdb.enableCaveats}, newRevision}
 		if err := f(ctx, rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {
@@ -246,7 +250,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 
 		snap := mdb.db.Snapshot()
-		mdb.revisions = append(mdb.revisions, snapshot{newRevision, snap})
+		mdb.revisions = append(mdb.revisions, snapshot{newRevision.Decimal, snap})
 		return newRevision, nil
 	}
 

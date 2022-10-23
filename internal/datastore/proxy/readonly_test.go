@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -50,7 +51,7 @@ func TestRWOperationErrors(t *testing.T) {
 	require.Equal(datastore.NoRevision, rev)
 }
 
-var expectedRevision = decimal.NewFromInt(123)
+var expectedRevision = revisions.NewFromDecimal(decimal.NewFromInt(123))
 
 func TestIsReadyPassthrough(t *testing.T) {
 	require := require.New(t)
@@ -136,7 +137,7 @@ func TestSnapshotReaderPassthrough(t *testing.T) {
 
 	_, rev, err := ds.SnapshotReader(expectedRevision).ReadNamespace(ctx, "fake")
 	require.NoError(err)
-	require.Equal(expectedRevision.IntPart(), rev.IntPart())
+	require.True(expectedRevision.Equal(rev))
 	delegate.AssertExpectations(t)
 	reader.AssertExpectations(t)
 }

@@ -12,8 +12,8 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -703,7 +703,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 		return nil
 	})
 	require.NoError(err)
-	writtenAtOne := decimal.NewFromInt(int64(oldTxIDs[len(oldTxIDs)-1]))
+	writtenAtOne := postgresRevision{xid8{Uint: oldTxIDs[len(oldTxIDs)-1], Status: pgtype.Present}, noXmin}
 	require.True(writtenAtTwo.GreaterThan(writtenAtOne))
 
 	verifyProperAlive(ctx, require, dsWriteBothReadOld, writtenAtTwo,

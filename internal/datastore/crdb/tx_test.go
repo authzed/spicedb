@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgconn"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -143,7 +143,7 @@ func TestTxReset(t *testing.T) {
 				require.Equal(datastore.NoRevision, revision)
 			} else {
 				require.NoError(err)
-				require.True(revision.GreaterThan(decimal.Zero))
+				require.True(revision.GreaterThan(revisions.NoRevision))
 			}
 		})
 	}

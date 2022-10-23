@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/shopspring/decimal"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -37,7 +35,7 @@ type ConcurrentChecker struct {
 // consumption.
 type ValidatedCheckRequest struct {
 	*v1.DispatchCheckRequest
-	Revision decimal.Decimal
+	Revision datastore.Revision
 }
 
 // currentRequestContext holds context information for the current request being

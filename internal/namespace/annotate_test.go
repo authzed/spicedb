@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -32,7 +31,9 @@ func TestAnnotateNamespace(t *testing.T) {
 	}, &empty)
 	require.NoError(err)
 
-	var lastRevision decimal.Decimal
+	lastRevision, err := ds.HeadRevision(context.Background())
+	require.NoError(err)
+
 	ts, err := NewNamespaceTypeSystem(defs[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 	require.NoError(err)
 

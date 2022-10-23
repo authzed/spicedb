@@ -43,7 +43,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
-	require.True(startRevision.GreaterThanOrEqual(datastore.NoRevision))
+	require.True(startRevision.GreaterThan(datastore.NoRevision))
 
 	nsDefs, err := ds.SnapshotReader(startRevision).ListNamespaces(ctx)
 	require.NoError(err)
@@ -79,7 +79,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 
 	found, createdRev, err := ds.SnapshotReader(secondWritten).ReadNamespace(ctx, testNamespace.Name)
 	require.NoError(err)
-	require.True(createdRev.LessThanOrEqual(secondWritten))
+	require.False(createdRev.GreaterThan(secondWritten))
 	require.True(createdRev.GreaterThan(startRevision))
 	foundDiff := cmp.Diff(testNamespace, found, protocmp.Transform())
 	require.Empty(foundDiff)
@@ -91,14 +91,14 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 
 	checkUpdated, createdRev, err := ds.SnapshotReader(updatedRevision).ReadNamespace(ctx, testNamespace.Name)
 	require.NoError(err)
-	require.True(createdRev.LessThanOrEqual(updatedRevision))
+	require.False(createdRev.GreaterThan(updatedRevision))
 	require.True(createdRev.GreaterThan(startRevision))
 	foundUpdated := cmp.Diff(updatedNamespace, checkUpdated, protocmp.Transform())
 	require.Empty(foundUpdated)
 
 	checkOld, createdRev, err := ds.SnapshotReader(writtenRev).ReadNamespace(ctx, testUserNamespace)
 	require.NoError(err)
-	require.True(createdRev.LessThanOrEqual(writtenRev))
+	require.False(createdRev.GreaterThan(writtenRev))
 	require.True(createdRev.GreaterThan(startRevision))
 	require.Empty(cmp.Diff(testUserNS, checkOld, protocmp.Transform()))
 

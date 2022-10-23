@@ -344,7 +344,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 
 	delSQL, delArgs, err := deleteNamespace.
 		Set(colDeletedXid, rwt.newXID).
-		Where(sq.Eq{colNamespace: nsName, colCreatedXid: createdAt}).
+		Where(sq.Eq{colNamespace: nsName, colCreatedXid: createdAt.tx}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -352,9 +352,9 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 
 	// TODO remove once the ID->XID migrations are all complete
 	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
-		whereClause := sq.Eq{colNamespace: nsName, colCreatedXid: createdAt}
+		whereClause := sq.Eq{colNamespace: nsName, colCreatedXid: createdAt.tx}
 		if rwt.migrationPhase == writeBothReadOld {
-			whereClause = sq.Eq{colNamespace: nsName, colCreatedTxnDeprecated: createdAt}
+			whereClause = sq.Eq{colNamespace: nsName, colCreatedTxnDeprecated: createdAt.tx.Uint}
 		}
 
 		delSQL, delArgs, err = deleteNamespace.

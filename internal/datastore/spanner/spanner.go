@@ -56,6 +56,8 @@ var (
 
 type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
+	revisions.DecimalDecoder
+
 	client *spanner.Client
 	config spannerOptions
 	stopGC context.CancelFunc
@@ -96,7 +98,7 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		client: client,
 		config: config,
 	}
-	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
+	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
 	if config.gcInterval > 0*time.Minute && config.gcEnabled {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -112,7 +114,9 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	return ds, nil
 }
 
-func (sd spannerDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
+	revision := revisionRaw.(revisions.DecimalRevision)
+
 	txSource := func() readTX {
 		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(revision)))
 	}

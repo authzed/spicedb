@@ -11,10 +11,10 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	revisions "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
-	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -42,7 +42,7 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 }
 
 func TestSchemaWriteNoPrefixNotRequired(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
+	conn, cleanup, ds, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 
@@ -51,7 +51,7 @@ func TestSchemaWriteNoPrefixNotRequired(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rev, err := nspkg.DecodeV1Alpha1Revision(resp.ComputedDefinitionsRevision)
+	rev, err := revisions.DecodeV1Alpha1Revision(resp.ComputedDefinitionsRevision, ds)
 	require.NoError(t, err)
 	require.Len(t, rev, 1)
 }
@@ -84,7 +84,7 @@ func TestSchemaWriteInvalidSchema(t *testing.T) {
 }
 
 func TestSchemaWriteAndReadBack(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
+	conn, cleanup, ds, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 
@@ -103,7 +103,7 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, requestedObjectDefNames, writeResp.GetObjectDefinitionsNames())
 
-	rev, err := nspkg.DecodeV1Alpha1Revision(writeResp.ComputedDefinitionsRevision)
+	rev, err := revisions.DecodeV1Alpha1Revision(writeResp.ComputedDefinitionsRevision, ds)
 	require.NoError(t, err)
 	require.Len(t, rev, 1)
 
@@ -115,7 +115,7 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {
-	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
+	conn, cleanup, ds, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, testfixtures.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1alpha1.NewSchemaServiceClient(conn)
 	v1client := v1.NewPermissionsServiceClient(conn)
@@ -177,7 +177,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	rev, err := nspkg.DecodeV1Alpha1Revision(writeResp.ComputedDefinitionsRevision)
+	rev, err := revisions.DecodeV1Alpha1Revision(writeResp.ComputedDefinitionsRevision, ds)
 	require.NoError(t, err)
 	require.Len(t, rev, 2)
 }

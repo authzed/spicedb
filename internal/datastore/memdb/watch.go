@@ -7,12 +7,15 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const errWatchError = "watch error: %w"
 
 func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+	ar := afterRevision.(revisions.DecimalRevision)
+
 	updates := make(chan *datastore.RevisionChanges, mdb.watchBufferLength)
 	errs := make(chan error, 1)
 
@@ -20,7 +23,7 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 		defer close(updates)
 		defer close(errs)
 
-		currentTxn := afterRevision.IntPart()
+		currentTxn := ar.IntPart()
 
 		for {
 			var stagedUpdates []*datastore.RevisionChanges

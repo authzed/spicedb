@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -855,7 +856,7 @@ func TestComputeCheckError(t *testing.T) {
 		ResourceID:         "id",
 		Subject:            &core.ObjectAndRelation{},
 		CaveatContext:      nil,
-		AtRevision:         datastore.NoRevision,
+		AtRevision:         revisions.NoRevision,
 		MaximumDepth:       50,
 		IsDebuggingEnabled: true,
 	})

@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
+	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -18,7 +19,7 @@ type txFactory func() (*memdb.Txn, error)
 type memdbReader struct {
 	TryLocker
 	txSource      txFactory
-	revision      datastore.Revision
+	revision      decimal.Decimal
 	initErr       error
 	enableCaveats bool
 }

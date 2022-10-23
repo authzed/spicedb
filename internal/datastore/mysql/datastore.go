@@ -223,7 +223,9 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+func (mds *Datastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+	rev := revision.(revisions.DecimalRevision)
+
 	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
 		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
 		if err != nil {
@@ -403,6 +405,7 @@ type Datastore struct {
 
 	*QueryBuilder
 	*revisions.CachedOptimizedRevisions
+	revisions.DecimalDecoder
 }
 
 // Close closes the data store.
@@ -546,7 +549,7 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
+func buildLivingObjectFilterForRevision(revision revisions.DecimalRevision) queryFilterer {
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
 		return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 			Where(sq.Or{

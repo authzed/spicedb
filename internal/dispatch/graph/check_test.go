@@ -7,7 +7,6 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -18,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -155,7 +155,7 @@ func TestMaxDepth(t *testing.T) {
 
 	revision, err := common.UpdateTuplesInDatastore(ctx, ds, mutation)
 	require.NoError(err)
-	require.True(revision.GreaterThan(decimal.Zero))
+	require.True(revision.GreaterThan(datastore.NoRevision))
 
 	dispatch := NewLocalOnlyDispatcher(10)
 
@@ -275,7 +275,7 @@ func TestCheckMetadata(t *testing.T) {
 	}
 }
 
-func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, decimal.Decimal) {
+func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, datastore.Revision) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 

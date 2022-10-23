@@ -7,10 +7,12 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -122,7 +124,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 	}
 
 	var config []byte
-	var version datastore.Revision
+	var version decimal.Decimal
 	err = tx.QueryRowContext(ctx, query, args...).Scan(&config, &version)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -136,7 +138,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 		return nil, datastore.NoRevision, err
 	}
 
-	return loaded, version, nil
+	return loaded, revisions.NewFromDecimal(version), nil
 }
 
 func (mr *mysqlReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
@@ -205,7 +207,7 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 
 	for rows.Next() {
 		var config []byte
-		var version datastore.Revision
+		var version decimal.Decimal
 		if err := rows.Scan(&config, &version); err != nil {
 			return nil, err
 		}

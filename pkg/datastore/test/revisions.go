@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -35,7 +34,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			ctx := context.Background()
 			veryFirstRevision, err := ds.OptimizedRevision(ctx)
 			require.NoError(err)
-			require.True(veryFirstRevision.GreaterThan(decimal.Zero))
+			require.True(veryFirstRevision.GreaterThan(datastore.NoRevision))
 
 			postSetupRevision := setupDatastore(ds, require)
 			require.True(postSetupRevision.GreaterThan(veryFirstRevision))
@@ -61,7 +60,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			for start := time.Now(); time.Since(start) < 10*time.Millisecond; {
 				testRevision, err := ds.OptimizedRevision(ctx)
 				require.NoError(err)
-				require.True(testRevision.GreaterThanOrEqual(nowRevision))
+				require.True(nowRevision.LessThan(testRevision) || nowRevision.Equal(testRevision))
 			}
 		})
 	}

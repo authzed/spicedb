@@ -7,20 +7,23 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-var encodeRevisionTests = []decimal.Decimal{
-	decimal.Zero,
-	decimal.NewFromInt(1),
-	decimal.NewFromInt(2),
-	decimal.NewFromInt(4),
-	decimal.NewFromInt(8),
-	decimal.NewFromInt(16),
-	decimal.NewFromInt(128),
-	decimal.NewFromInt(256),
-	decimal.NewFromInt(1621538189028928000),
-	decimal.New(12345, -2),
-	decimal.New(0, -10),
+var encodeRevisionTests = []datastore.Revision{
+	revisions.NewFromDecimal(decimal.Zero),
+	revisions.NewFromDecimal(decimal.NewFromInt(1)),
+	revisions.NewFromDecimal(decimal.NewFromInt(2)),
+	revisions.NewFromDecimal(decimal.NewFromInt(4)),
+	revisions.NewFromDecimal(decimal.NewFromInt(8)),
+	revisions.NewFromDecimal(decimal.NewFromInt(16)),
+	revisions.NewFromDecimal(decimal.NewFromInt(128)),
+	revisions.NewFromDecimal(decimal.NewFromInt(256)),
+	revisions.NewFromDecimal(decimal.NewFromInt(1621538189028928000)),
+	revisions.NewFromDecimal(decimal.New(12345, -2)),
+	revisions.NewFromDecimal(decimal.New(0, -10)),
 }
 
 func TestZedTokenEncode(t *testing.T) {
@@ -28,7 +31,7 @@ func TestZedTokenEncode(t *testing.T) {
 		t.Run(rev.String(), func(t *testing.T) {
 			require := require.New(t)
 			encoded := NewFromRevision(rev)
-			decoded, err := DecodeRevision(encoded)
+			decoded, err := DecodeRevision(encoded, revisions.DecimalDecoder{})
 			require.NoError(err)
 			require.True(rev.Equal(decoded))
 		})
@@ -117,13 +120,13 @@ func TestDecode(t *testing.T) {
 
 			decoded, err := DecodeRevision(&v1.ZedToken{
 				Token: testCase.token,
-			})
+			}, revisions.DecimalDecoder{})
 			if testCase.expectError {
 				require.Error(err)
 			} else {
 				require.NoError(err)
 				require.True(
-					testCase.expectedRevision.Equal(decoded),
+					revisions.NewFromDecimal(testCase.expectedRevision).Equal(decoded),
 					"%s != %s",
 					testCase.expectedRevision,
 					decoded,

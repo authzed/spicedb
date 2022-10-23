@@ -5,8 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/shopspring/decimal"
-
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -31,7 +30,7 @@ type ConcurrentLookup struct {
 // consumption.
 type ValidatedLookupRequest struct {
 	*v1.DispatchLookupRequest
-	Revision decimal.Decimal
+	Revision datastore.Revision
 }
 
 type collectingStream struct {

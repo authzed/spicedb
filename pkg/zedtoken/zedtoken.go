@@ -9,6 +9,8 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
+	"github.com/authzed/spicedb/pkg/datastore"
 	zedtoken "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
@@ -23,7 +25,7 @@ const (
 var ErrNilZedToken = errors.New("zedtoken pointer was nil")
 
 // NewFromRevision generates an encoded zedtoken from an integral revision.
-func NewFromRevision(revision decimal.Decimal) *v1.ZedToken {
+func NewFromRevision(revision datastore.Revision) *v1.ZedToken {
 	toEncode := &zedtoken.DecodedZedToken{
 		VersionOneof: &zedtoken.DecodedZedToken_V1{
 			V1: &zedtoken.DecodedZedToken_V1ZedToken{
@@ -68,22 +70,26 @@ func Decode(encoded *v1.ZedToken) (*zedtoken.DecodedZedToken, error) {
 }
 
 // DecodeRevision converts and extracts the revision from a zedtoken or legacy zookie.
-func DecodeRevision(encoded *v1.ZedToken) (decimal.Decimal, error) {
+func DecodeRevision(encoded *v1.ZedToken, ds revisionDecoder) (datastore.Revision, error) {
 	decoded, err := Decode(encoded)
 	if err != nil {
-		return decimal.Zero, err
+		return datastore.NoRevision, err
 	}
 
 	switch ver := decoded.VersionOneof.(type) {
 	case *zedtoken.DecodedZedToken_DeprecatedV1Zookie:
-		return decimal.NewFromInt(int64(ver.DeprecatedV1Zookie.Revision)), nil
+		return revisions.NewFromDecimal(decimal.NewFromInt(int64(ver.DeprecatedV1Zookie.Revision))), nil
 	case *zedtoken.DecodedZedToken_V1:
-		parsed, err := decimal.NewFromString(ver.V1.Revision)
+		parsed, err := ds.RevisionFromString(ver.V1.Revision)
 		if err != nil {
-			return decimal.Zero, fmt.Errorf(errDecodeError, err)
+			return datastore.NoRevision, fmt.Errorf(errDecodeError, err)
 		}
 		return parsed, nil
 	default:
-		return decimal.Zero, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
+		return datastore.NoRevision, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
 	}
+}
+
+type revisionDecoder interface {
+	RevisionFromString(string) (datastore.Revision, error)
 }

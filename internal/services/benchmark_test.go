@@ -10,7 +10,6 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -31,12 +30,12 @@ func BenchmarkServices(b *testing.B) {
 	bts := []struct {
 		title    string
 		fileName string
-		runner   func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error
+		runner   func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error
 	}{
 		{
 			"basic lookup of view for a user",
 			"testconfigs/basicrbac.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
 				results, err := tester.Lookup(ctx, &core.RelationReference{
 					Namespace: "example/document",
 					Relation:  "view",
@@ -52,7 +51,7 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"recursively through groups",
 			"testconfigs/simplerecursive.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
 				results, err := tester.Lookup(ctx, &core.RelationReference{
 					Namespace: "srrr/resource",
 					Relation:  "viewer",
@@ -68,7 +67,7 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"recursively through wide groups",
 			"benchconfigs/widegroups.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
 				results, err := tester.Lookup(ctx, &core.RelationReference{
 					Namespace: "resource",
 					Relation:  "view",
@@ -84,7 +83,7 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"lookup with intersection",
 			"benchconfigs/lookupintersection.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
 				results, err := tester.Lookup(ctx, &core.RelationReference{
 					Namespace: "resource",
 					Relation:  "view",
@@ -100,7 +99,7 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"basic check for a user",
 			"testconfigs/basicrbac.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, &core.ObjectAndRelation{
 					Namespace: "example/document",
 					ObjectId:  "firstdoc",
@@ -117,7 +116,7 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"recursive check for a user",
 			"testconfigs/quay.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, &core.ObjectAndRelation{
 					Namespace: "quay/repo",
 					ObjectId:  "buynlarge/orgrepo",
@@ -134,7 +133,7 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"wide groups check for a user",
 			"benchconfigs/checkwidegroups.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, &core.ObjectAndRelation{
 					Namespace: "resource",
 					ObjectId:  "someresource",

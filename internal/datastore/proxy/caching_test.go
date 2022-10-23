@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 
 	"github.com/shopspring/decimal"
@@ -23,10 +24,10 @@ import (
 )
 
 var (
-	old  = decimal.NewFromInt(-100)
-	zero = decimal.NewFromInt(0)
-	one  = decimal.NewFromInt(1)
-	two  = decimal.NewFromInt(2)
+	old  = revisions.NewFromDecimal(decimal.NewFromInt(-100))
+	zero = revisions.NewFromDecimal(decimal.NewFromInt(0))
+	one  = revisions.NewFromDecimal(decimal.NewFromInt(1))
+	two  = revisions.NewFromDecimal(decimal.NewFromInt(2))
 )
 
 const (
@@ -68,35 +69,35 @@ func TestSnapshotNamespaceCaching(t *testing.T) {
 
 	_, updatedOneA, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsA)
 	require.NoError(err)
-	require.Equal(old.IntPart(), updatedOneA.IntPart())
+	require.True(old.Equal(updatedOneA))
 
 	_, updatedOneAAgain, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsA)
 	require.NoError(err)
-	require.Equal(old.IntPart(), updatedOneAAgain.IntPart())
+	require.True(old.Equal(updatedOneAAgain))
 
 	_, updatedOneB, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsB)
 	require.NoError(err)
-	require.Equal(zero.IntPart(), updatedOneB.IntPart())
+	require.True(zero.Equal(updatedOneB))
 
 	_, updatedOneBAgain, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsB)
 	require.NoError(err)
-	require.Equal(zero.IntPart(), updatedOneBAgain.IntPart())
+	require.True(zero.Equal(updatedOneBAgain))
 
 	_, updatedTwoA, err := ds.SnapshotReader(two).ReadNamespace(ctx, nsA)
 	require.NoError(err)
-	require.Equal(zero.IntPart(), updatedTwoA.IntPart())
+	require.True(zero.Equal(updatedTwoA))
 
 	_, updatedTwoAAgain, err := ds.SnapshotReader(two).ReadNamespace(ctx, nsA)
 	require.NoError(err)
-	require.Equal(zero.IntPart(), updatedTwoAAgain.IntPart())
+	require.True(zero.Equal(updatedTwoAAgain))
 
 	_, updatedTwoB, err := ds.SnapshotReader(two).ReadNamespace(ctx, nsB)
 	require.NoError(err)
-	require.Equal(one.IntPart(), updatedTwoB.IntPart())
+	require.True(one.Equal(updatedTwoB))
 
 	_, updatedTwoBAgain, err := ds.SnapshotReader(two).ReadNamespace(ctx, nsB)
 	require.NoError(err)
-	require.Equal(one.IntPart(), updatedTwoBAgain.IntPart())
+	require.True(one.Equal(updatedTwoBAgain))
 
 	dsMock.AssertExpectations(t)
 	oneReader.AssertExpectations(t)
@@ -119,16 +120,16 @@ func TestRWTNamespaceCaching(t *testing.T) {
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		_, updatedA, err := rwt.ReadNamespace(ctx, nsA)
 		require.NoError(err)
-		require.Equal(zero.IntPart(), updatedA.IntPart())
+		require.True(zero.Equal(updatedA))
 
 		// This will not call out the mock RWT again, the mock will panic if it does.
 		_, updatedA, err = rwt.ReadNamespace(ctx, nsA)
 		require.NoError(err)
-		require.Equal(zero.IntPart(), updatedA.IntPart())
+		require.True(zero.Equal(updatedA))
 
 		return nil
 	})
-	require.Equal(one.IntPart(), rev.IntPart())
+	require.True(one.Equal(rev))
 	require.NoError(err)
 
 	dsMock.AssertExpectations(t)
@@ -154,7 +155,7 @@ func TestSingleFlight(t *testing.T) {
 	readNamespace := func() error {
 		_, updatedAt, err := ds.SnapshotReader(one).ReadNamespace(ctx, nsA)
 		require.NoError(err)
-		require.Equal(old.IntPart(), updatedAt.IntPart())
+		require.True(old.Equal(updatedAt))
 		return err
 	}
 

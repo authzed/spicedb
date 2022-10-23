@@ -46,8 +46,10 @@ var (
 
 func (pgd *pgDatastore) Watch(
 	ctx context.Context,
-	afterRevision datastore.Revision,
+	afterRevisionRaw datastore.Revision,
 ) (<-chan *datastore.RevisionChanges, <-chan error) {
+	afterRevision := afterRevisionRaw.(postgresRevision)
+
 	updates := make(chan *datastore.RevisionChanges, pgd.watchBufferLength)
 	errs := make(chan error, 1)
 
@@ -55,7 +57,7 @@ func (pgd *pgDatastore) Watch(
 		defer close(updates)
 		defer close(errs)
 
-		currentTxn := transactionFromRevision(afterRevision)
+		currentTxn := afterRevision.tx
 
 		for {
 			newTxns, err := pgd.getNewRevisions(ctx, currentTxn)
@@ -183,19 +185,19 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revision xid8) (*datast
 		}
 
 		if createdXID.Uint == revision.Uint {
-			tracked.AddChange(ctx, revisionFromTransaction(revision, revision), nextTuple, core.RelationTupleUpdate_TOUCH)
+			tracked.AddChange(ctx, postgresRevision{revision, noXmin}, nextTuple, core.RelationTupleUpdate_TOUCH)
 		} else if deletedXID.Uint == revision.Uint {
-			tracked.AddChange(ctx, revisionFromTransaction(revision, revision), nextTuple, core.RelationTupleUpdate_DELETE)
+			tracked.AddChange(ctx, postgresRevision{revision, noXmin}, nextTuple, core.RelationTupleUpdate_DELETE)
 		}
 	}
 	if changes.Err() != nil {
 		return nil, fmt.Errorf("unable to load changes for XID: %w", err)
 	}
 
-	reconciledChanges := tracked.AsRevisionChanges()
+	reconciledChanges := tracked.AsRevisionChanges(pgd)
 	if len(reconciledChanges) == 0 {
 		return &datastore.RevisionChanges{
-			Revision: revisionFromTransaction(revision, revision),
+			Revision: postgresRevision{revision, noXmin},
 		}, nil
 	}
 	return reconciledChanges[0], nil

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/shopspring/decimal"
-
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -19,8 +17,8 @@ func keyFromRevision(rev datastore.Revision) revisionKey {
 	return revisionKey(rev.String())
 }
 
-func mustRevisionFromKey(key revisionKey) datastore.Revision {
-	rev, err := decimal.NewFromString(string(key))
+func mustRevisionFromKey(key revisionKey, ds revisionDecoder) datastore.Revision {
+	rev, err := ds.RevisionFromString(string(key))
 	if err != nil {
 		panic(fmt.Errorf("unparseable revision key(%s): %w", key, err))
 	}
@@ -44,7 +42,7 @@ func NewChanges() Changes {
 // AddChange adds a specific change to the complete list of tracked changes
 func (ch Changes) AddChange(
 	ctx context.Context,
-	rev decimal.Decimal,
+	rev datastore.Revision,
 	tpl *core.RelationTuple,
 	op core.RelationTupleUpdate_Operation,
 ) {
@@ -79,7 +77,7 @@ func (ch Changes) AddChange(
 
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
 // compatible, ordered, changelist.
-func (ch Changes) AsRevisionChanges() (changes []*datastore.RevisionChanges) {
+func (ch Changes) AsRevisionChanges(ds revisionDecoder) (changes []*datastore.RevisionChanges) {
 	type keyAndRevision struct {
 		key revisionKey
 		rev datastore.Revision
@@ -87,7 +85,7 @@ func (ch Changes) AsRevisionChanges() (changes []*datastore.RevisionChanges) {
 
 	revisionsWithChanges := make([]keyAndRevision, 0, len(ch))
 	for rk := range ch {
-		kar := keyAndRevision{rk, mustRevisionFromKey(rk)}
+		kar := keyAndRevision{rk, mustRevisionFromKey(rk, ds)}
 		revisionsWithChanges = append(revisionsWithChanges, kar)
 	}
 	sort.Slice(revisionsWithChanges, func(i int, j int) bool {
@@ -116,4 +114,8 @@ func (ch Changes) AsRevisionChanges() (changes []*datastore.RevisionChanges) {
 	}
 
 	return
+}
+
+type revisionDecoder interface {
+	RevisionFromString(string) (datastore.Revision, error)
 }

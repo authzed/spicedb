@@ -3,8 +3,6 @@ package keys
 import (
 	"context"
 
-	"github.com/shopspring/decimal"
-
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -102,18 +100,19 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 	// a check for `somenamespace:someobject#somerel@somenamespace:someobject#somerel`.
 	if req.ResourceRelation.Namespace != req.Subject.Namespace {
 		// Load the relation to get its computed cache key, if any.
-		revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+		ds := datastoremw.MustFromContext(ctx)
+
+		revision, err := ds.RevisionFromString(req.Metadata.AtRevision)
 		if err != nil {
 			return emptyDispatchCacheKey, err
 		}
-
-		ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision)
+		r := ds.SnapshotReader(revision)
 
 		_, relation, err := namespace.ReadNamespaceAndRelation(
 			ctx,
 			req.ResourceRelation.Namespace,
 			req.ResourceRelation.Relation,
-			ds,
+			r,
 		)
 		if err != nil {
 			return emptyDispatchCacheKey, err

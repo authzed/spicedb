@@ -1,14 +1,20 @@
-package namespace
+package v1alpha1
 
 import (
 	"crypto/sha256"
 	"fmt"
 	"sort"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
+type revisionDecoder interface {
+	RevisionFromString(string) (datastore.Revision, error)
+}
+
 // ComputeHashForRevision computes a *stable* hash for the encoded v1alpha1 schema revision.
-func ComputeHashForRevision(encodedRevision string) (string, error) {
-	decoded, err := DecodeV1Alpha1Revision(encodedRevision)
+func ComputeHashForRevision(encodedRevision string, ds revisionDecoder) (string, error) {
+	decoded, err := DecodeV1Alpha1Revision(encodedRevision, ds)
 	if err != nil {
 		return "", err
 	}

@@ -8,7 +8,6 @@ import (
 	"unsafe"
 
 	"github.com/dustin/go-humanize"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/singleflight"
 
@@ -53,7 +52,7 @@ func (p *nsCachingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader
 func (p *nsCachingProxy) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
-) (decimal.Decimal, error) {
+) (datastore.Revision, error) {
 	return p.Datastore.ReadWriteTx(ctx, func(ctx context.Context, delegateRWT datastore.ReadWriteTransaction) error {
 		rwt := &nsCachingRWT{delegateRWT, &sync.Map{}}
 		return f(ctx, rwt)

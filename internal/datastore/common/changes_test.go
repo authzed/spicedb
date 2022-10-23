@@ -9,6 +9,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -21,13 +22,13 @@ const (
 )
 
 var (
-	rev1          = decimal.NewFromInt(1)
-	rev2          = decimal.NewFromInt(2)
-	revOneMillion = decimal.NewFromInt(1_000_000)
+	rev1          = revisions.NewFromDecimal(decimal.NewFromInt(1))
+	rev2          = revisions.NewFromDecimal(decimal.NewFromInt(2))
+	revOneMillion = revisions.NewFromDecimal(decimal.NewFromInt(1_000_000))
 )
 
 func revisionFromTransactionID(txID uint64) datastore.Revision {
-	return decimal.NewFromInt(int64(txID))
+	return revisions.NewFromDecimal(decimal.NewFromInt(int64(txID)))
 }
 
 func TestChanges(t *testing.T) {
@@ -185,7 +186,10 @@ func TestChanges(t *testing.T) {
 				ch.AddChange(ctx, revisionFromTransactionID(step.revision), rel, step.op)
 			}
 
-			require.Equal(canonicalize(tc.expected), canonicalize(ch.AsRevisionChanges()))
+			require.Equal(
+				canonicalize(tc.expected),
+				canonicalize(ch.AsRevisionChanges(revisions.DecimalDecoder{})),
+			)
 		})
 	}
 }

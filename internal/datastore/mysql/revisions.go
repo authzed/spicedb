@@ -10,6 +10,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -63,7 +64,7 @@ func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revi
 	if err := mds.db.QueryRowContext(
 		datastore.SeparateContextWithTracing(ctx), mds.optimizedRevisionQuery,
 	).Scan(&revision, &validForNanos); err != nil {
-		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
+		return revisions.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
 	return revisionFromTransaction(revision), validForNanos, nil
 }
@@ -85,7 +86,13 @@ func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, err
 	return revisionFromTransaction(revision), nil
 }
 
-func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+func (mds *Datastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
+	if revisionRaw == datastore.NoRevision {
+		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.CouldNotDetermineRevision)
+	}
+
+	revision := revisionRaw.(revisions.DecimalRevision)
+
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
@@ -174,10 +181,10 @@ func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (new
 	return uint64(lastInsertID), nil
 }
 
-func revisionFromTransaction(txID uint64) datastore.Revision {
-	return decimal.NewFromBigInt(new(big.Int).SetUint64(txID), 0)
+func revisionFromTransaction(txID uint64) revisions.DecimalRevision {
+	return revisions.NewFromDecimal(decimal.NewFromBigInt(new(big.Int).SetUint64(txID), 0))
 }
 
-func transactionFromRevision(revision datastore.Revision) uint64 {
-	return revision.BigInt().Uint64()
+func transactionFromRevision(revision revisions.DecimalRevision) uint64 {
+	return uint64(revision.IntPart())
 }

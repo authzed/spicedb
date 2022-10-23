@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/shopspring/decimal"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -23,7 +22,7 @@ import (
 // consumption.
 type ValidatedLookupSubjectsRequest struct {
 	*v1.DispatchLookupSubjectsRequest
-	Revision decimal.Decimal
+	Revision datastore.Revision
 }
 
 // NewConcurrentLookupSubjects creates an instance of ConcurrentLookupSubjects.

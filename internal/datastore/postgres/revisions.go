@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgtype"
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	errRevision      = "unable to find revision: %w"
-	errCheckRevision = "unable to check revision: %w"
+	errRevision       = "unable to find revision: %w"
+	errCheckRevision  = "unable to check revision: %w"
+	errRevisionFormat = "invalid revision format: %w"
 
 	// querySelectRevision will round the database's timestamp down to the nearest
 	// quantization period, and then find the first transaction (and its active xmin)
@@ -67,7 +69,7 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
 
-	return revisionFromTransaction(revision, xmin), validForNanos, nil
+	return postgresRevision{revision, xmin}, validForNanos, nil
 }
 
 func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
@@ -79,18 +81,21 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 		return datastore.NoRevision, err
 	}
 
-	return revisionFromTransaction(revision, xmin), nil
+	return postgresRevision{revision, xmin}, nil
 }
 
-func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
+	revision, ok := revisionRaw.(postgresRevision)
+	if !ok {
+		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.CouldNotDetermineRevision)
+	}
+
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
 
-	revisionTx := transactionFromRevision(revision)
-
 	var freshEnough, unknown bool
 	if err := pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), pgd.validTransactionQuery, revisionTx,
+		datastore.SeparateContextWithTracing(ctx), pgd.validTransactionQuery, revision.tx,
 	).Scan(&freshEnough, &unknown); err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -103,6 +108,53 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revision datastore.Re
 	}
 
 	return nil
+}
+
+func (pgd *pgDatastore) RevisionFromString(revisionStr string) (datastore.Revision, error) {
+	return parseRevision(revisionStr)
+}
+
+func parseRevision(revisionStr string) (datastore.Revision, error) {
+	components := strings.Split(revisionStr, ".")
+	numComponents := len(components)
+	if numComponents != 1 && numComponents != 2 {
+		return datastore.NoRevision, fmt.Errorf(
+			errRevisionFormat,
+			fmt.Errorf("wrong number of components %d != 1 or 2", len(components)),
+		)
+	}
+
+	xid, err := strconv.ParseInt(components[0], 10, 64)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errRevisionFormat, err)
+	}
+	if xid < 0 {
+		return datastore.NoRevision, fmt.Errorf(
+			errRevisionFormat,
+			errors.New("xid component is negative"),
+		)
+	}
+
+	xmin := noXmin
+
+	if numComponents == 2 {
+		xminInt, err := strconv.ParseInt(components[1], 10, 64)
+		if err != nil {
+			return datastore.NoRevision, fmt.Errorf(errRevisionFormat, err)
+		}
+		if xminInt < 0 {
+			return datastore.NoRevision, fmt.Errorf(
+				errRevisionFormat,
+				errors.New("xmin component is negative"),
+			)
+		}
+		xmin = xid8{
+			Uint:   uint64(xminInt),
+			Status: pgtype.Present,
+		}
+	}
+
+	return postgresRevision{xid8{Uint: uint64(xid), Status: pgtype.Present}, xmin}, nil
 }
 
 func (pgd *pgDatastore) loadRevision(ctx context.Context) (xid8, xid8, error) {
@@ -126,19 +178,6 @@ func (pgd *pgDatastore) loadRevision(ctx context.Context) (xid8, xid8, error) {
 	return revision, xmin, nil
 }
 
-func revisionFromTransaction(txID xid8, xmin xid8) datastore.Revision {
-	rev := decimal.NewFromInt(int64(txID.Uint))
-	rev = rev.Add(decimal.NewFromBigInt(big.NewInt(int64(xmin.Uint)), -19))
-	return rev
-}
-
-func transactionFromRevision(revision datastore.Revision) xid8 {
-	return xid8{
-		Uint:   uint64(revision.IntPart()),
-		Status: pgtype.Present,
-	}
-}
-
 func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID, newXmin xid8, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
@@ -147,31 +186,54 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID, newXmin xid8,
 	return
 }
 
-type ComparisonResult uint8
-
-const (
-	Unknown ComparisonResult = iota
-	GreaterThan
-	LessThan
-	Equal
-	Concurrent
-)
-
-func xminFromRevision(rev datastore.Revision) int64 {
-	rev = rev.Sub(rev.Floor())
-	rev = rev.Mul(decimal.NewFromBigInt(big.NewInt(10), 18))
-	return rev.IntPart()
+type postgresRevision struct {
+	tx   xid8
+	xmin xid8
 }
 
-func ComparePostgresRevisions(lhs, rhs datastore.Revision) ComparisonResult {
-	switch {
-	case lhs.Equal(rhs):
-		return Equal
-	case lhs.GreaterThan(rhs) && xminFromRevision(lhs) > rhs.IntPart():
-		return GreaterThan
-	case lhs.LessThan(rhs) && xminFromRevision(rhs) > lhs.IntPart():
-		return LessThan
-	default:
-		return Concurrent
+var noXmin = xid8{
+	Uint:   0,
+	Status: pgtype.Undefined,
+}
+
+func (pr postgresRevision) Equal(rhsRaw datastore.Revision) bool {
+	rhs, ok := validateRHS(rhsRaw)
+	return ok && pr.tx.Uint == rhs.tx.Uint
+}
+
+func (pr postgresRevision) GreaterThan(rhsRaw datastore.Revision) bool {
+	if rhsRaw == datastore.NoRevision {
+		return true
 	}
+
+	rhs, ok := validateRHS(rhsRaw)
+	return ok && pr.tx.Uint > rhs.tx.Uint &&
+		((pr.xmin.Status == pgtype.Present && pr.xmin.Uint > rhs.tx.Uint) ||
+			pr.xmin.Status != pgtype.Present)
 }
+
+func (pr postgresRevision) LessThan(rhsRaw datastore.Revision) bool {
+	rhs, ok := validateRHS(rhsRaw)
+	return ok && pr.tx.Uint < rhs.tx.Uint &&
+		((rhs.xmin.Status == pgtype.Present && rhs.xmin.Uint > pr.tx.Uint) ||
+			rhs.xmin.Status != pgtype.Present)
+}
+
+func (pr postgresRevision) String() string {
+	if pr.xmin.Status == pgtype.Present {
+		return fmt.Sprintf("%d.%d", pr.tx.Uint, pr.xmin.Uint)
+	}
+	return fmt.Sprintf("%d", pr.tx.Uint)
+}
+
+func (pr postgresRevision) MarshalBinary() ([]byte, error) {
+	// We use the decimal library for this to keep it backward compatible with the old version.
+	return decimal.NewFromInt(int64(pr.tx.Uint)).MarshalBinary()
+}
+
+func validateRHS(rhsRaw datastore.Revision) (postgresRevision, bool) {
+	rhs, ok := rhsRaw.(postgresRevision)
+	return rhs, ok && rhs.tx.Status == pgtype.Present
+}
+
+var _ datastore.Revision = postgresRevision{}

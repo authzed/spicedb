@@ -8,9 +8,9 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/shopspring/decimal"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -65,11 +65,11 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	}
 	def := core.CaveatDefinition{}
 	err = def.UnmarshalVT(serializedDef)
-	rev := revisionFromTransaction(txID, txID)
+	rev := postgresRevision{txID, noXmin}
 
 	// TODO remove once the ID->XID migrations are all complete
 	if r.migrationPhase == writeBothReadOld {
-		rev = decimal.NewFromInt(int64(versionTxDeprecated))
+		rev = postgresRevision{xid8{Uint: versionTxDeprecated, Status: pgtype.Present}, noXmin}
 	}
 
 	return &def, rev, err

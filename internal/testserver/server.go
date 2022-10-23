@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -31,7 +30,7 @@ func NewTestServer(require *require.Assertions,
 	gcWindow time.Duration,
 	schemaPrefixRequired bool,
 	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
-) (*grpc.ClientConn, func(), datastore.Datastore, decimal.Decimal) {
+) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	return NewTestServerWithConfig(require, revisionQuantization, gcWindow, schemaPrefixRequired,
 		ServerConfig{
 			MaxUpdatesPerWrite:    1000,
@@ -47,7 +46,7 @@ func NewTestServerWithConfig(require *require.Assertions,
 	schemaPrefixRequired bool,
 	config ServerConfig,
 	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
-) (*grpc.ClientConn, func(), datastore.Datastore, decimal.Decimal) {
+) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(err)
 	ds, revision := dsInitFunc(emptyDS, require)

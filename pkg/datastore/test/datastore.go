@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -86,7 +85,7 @@ func makeTestTuple(resourceID, userID string) *core.RelationTuple {
 	}
 }
 
-func setupDatastore(ds datastore.Datastore, require *require.Assertions) decimal.Decimal {
+func setupDatastore(ds datastore.Datastore, require *require.Assertions) datastore.Revision {
 	ctx := context.Background()
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
