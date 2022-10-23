@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -27,8 +27,8 @@ var (
 	errKnown             = errors.New("known error")
 	errAnotherKnown      = errors.New("another known error")
 	nsKnown              = "namespace_name"
-	revisionKnown        = revisions.NewFromDecimal(decimal.NewFromInt(1))
-	anotherRevisionKnown = revisions.NewFromDecimal(decimal.NewFromInt(2))
+	revisionKnown        = revision.NewFromDecimal(decimal.NewFromInt(1))
+	anotherRevisionKnown = revision.NewFromDecimal(decimal.NewFromInt(2))
 
 	emptyIterator = datastore.NewSliceRelationshipIterator(nil)
 )

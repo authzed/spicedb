@@ -6,41 +6,41 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
-func revisionFromTimestamp(t time.Time) revisions.DecimalRevision {
-	return revisions.NewFromDecimal(decimal.NewFromInt(t.UnixNano()))
+func revisionFromTimestamp(t time.Time) revision.Decimal {
+	return revision.NewFromDecimal(decimal.NewFromInt(t.UnixNano()))
 }
 
 func (mdb *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	head := revisionFromTimestamp(time.Now().UTC())
-	return revisions.NewFromDecimal(head.Sub(head.Mod(mdb.quantizationPeriod))), nil
+	return revision.NewFromDecimal(head.Sub(head.Mod(mdb.quantizationPeriod))), nil
 }
 
 func (mdb *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	return revisionFromTimestamp(time.Now().UTC()), nil
 }
 
-func (mdb *memdbDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	dr, ok := revision.(revisions.DecimalRevision)
+func (mdb *memdbDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
+	dr, ok := revisionRaw.(revision.Decimal)
 	if !ok {
-		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
+		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.CouldNotDetermineRevision)
 	}
 	return mdb.checkRevisionLocal(dr)
 }
 
-func (mdb *memdbDatastore) checkRevisionLocal(revision revisions.DecimalRevision) error {
+func (mdb *memdbDatastore) checkRevisionLocal(revisionRaw revision.Decimal) error {
 	now := revisionFromTimestamp(time.Now().UTC())
 
-	if revision.GreaterThan(now) {
-		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
+	if revisionRaw.GreaterThan(now) {
+		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.CouldNotDetermineRevision)
 	}
 
-	oldest := revisions.NewFromDecimal(now.Add(mdb.negativeGCWindow))
-	if revision.LessThan(oldest) {
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
+	oldest := revision.NewFromDecimal(now.Add(mdb.negativeGCWindow))
+	if revisionRaw.LessThan(oldest) {
+		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.RevisionStale)
 	}
 
 	return nil

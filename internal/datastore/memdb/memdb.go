@@ -13,8 +13,8 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -86,7 +86,7 @@ func NewMemdbDatastoreWithCaveatsOption(
 
 type memdbDatastore struct {
 	sync.RWMutex
-	revisions.DecimalDecoder
+	revision.DecimalDecoder
 
 	db             *memdb.MemDB
 	revisions      []snapshot
@@ -104,8 +104,8 @@ type snapshot struct {
 	db       *memdb.MemDB
 }
 
-func (mdb *memdbDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
-	dr := revision.(revisions.DecimalRevision)
+func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
+	dr := revisionRaw.(revision.Decimal)
 
 	mdb.RLock()
 	defer mdb.RUnlock()

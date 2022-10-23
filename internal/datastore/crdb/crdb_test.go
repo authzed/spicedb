@@ -24,10 +24,10 @@ import (
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -88,7 +88,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 				nowRevision, err := ds.HeadRevision(ctx)
 				require.NoError(err)
 
-				diff := nowRevision.(revisions.DecimalRevision).IntPart() - testRevision.(revisions.DecimalRevision).IntPart()
+				diff := nowRevision.(revision.Decimal).IntPart() - testRevision.(revision.Decimal).IntPart()
 				require.True(diff > followerReadDelay.Nanoseconds())
 			}
 		})

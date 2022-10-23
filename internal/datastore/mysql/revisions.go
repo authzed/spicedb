@@ -10,8 +10,8 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 const (
@@ -59,14 +59,14 @@ const (
 )
 
 func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
-	var revision uint64
+	var rev uint64
 	var validForNanos time.Duration
 	if err := mds.db.QueryRowContext(
 		datastore.SeparateContextWithTracing(ctx), mds.optimizedRevisionQuery,
-	).Scan(&revision, &validForNanos); err != nil {
-		return revisions.NoRevision, 0, fmt.Errorf(errRevision, err)
+	).Scan(&rev, &validForNanos); err != nil {
+		return revision.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
-	return revisionFromTransaction(revision), validForNanos, nil
+	return revisionFromTransaction(rev), validForNanos, nil
 }
 
 func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
@@ -91,7 +91,7 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revisionRaw datastore.R
 		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.CouldNotDetermineRevision)
 	}
 
-	revision := revisionRaw.(revisions.DecimalRevision)
+	revision := revisionRaw.(revision.Decimal)
 
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "CheckRevision")
@@ -181,10 +181,10 @@ func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (new
 	return uint64(lastInsertID), nil
 }
 
-func revisionFromTransaction(txID uint64) revisions.DecimalRevision {
-	return revisions.NewFromDecimal(decimal.NewFromBigInt(new(big.Int).SetUint64(txID), 0))
+func revisionFromTransaction(txID uint64) revision.Decimal {
+	return revision.NewFromDecimal(decimal.NewFromBigInt(new(big.Int).SetUint64(txID), 0))
 }
 
-func transactionFromRevision(revision revisions.DecimalRevision) uint64 {
+func transactionFromRevision(revision revision.Decimal) uint64 {
 	return uint64(revision.IntPart())
 }

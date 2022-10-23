@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
@@ -23,7 +23,7 @@ const (
 //
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	afterRevision := afterRevisionRaw.(revisions.DecimalRevision)
+	afterRevision := afterRevisionRaw.(revision.Decimal)
 
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errs := make(chan error, 1)

@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 type trackingRevisionFunction struct {
@@ -21,13 +22,13 @@ type trackingRevisionFunction struct {
 
 func (m *trackingRevisionFunction) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	args := m.Called()
-	return args.Get(0).(DecimalRevision), args.Get(1).(time.Duration), args.Error(2)
+	return args.Get(0).(revision.Decimal), args.Get(1).(time.Duration), args.Error(2)
 }
 
 var (
-	one   = DecimalRevision{decimal.NewFromInt(1)}
-	two   = DecimalRevision{decimal.NewFromInt(2)}
-	three = DecimalRevision{decimal.NewFromInt(3)}
+	one   = revision.NewFromDecimal(decimal.NewFromInt(1))
+	two   = revision.NewFromDecimal(decimal.NewFromInt(2))
+	three = revision.NewFromDecimal(decimal.NewFromInt(3))
 )
 
 func TestOptimizedRevisionCache(t *testing.T) {

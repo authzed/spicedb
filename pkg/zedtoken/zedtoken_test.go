@@ -8,22 +8,22 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 var encodeRevisionTests = []datastore.Revision{
-	revisions.NewFromDecimal(decimal.Zero),
-	revisions.NewFromDecimal(decimal.NewFromInt(1)),
-	revisions.NewFromDecimal(decimal.NewFromInt(2)),
-	revisions.NewFromDecimal(decimal.NewFromInt(4)),
-	revisions.NewFromDecimal(decimal.NewFromInt(8)),
-	revisions.NewFromDecimal(decimal.NewFromInt(16)),
-	revisions.NewFromDecimal(decimal.NewFromInt(128)),
-	revisions.NewFromDecimal(decimal.NewFromInt(256)),
-	revisions.NewFromDecimal(decimal.NewFromInt(1621538189028928000)),
-	revisions.NewFromDecimal(decimal.New(12345, -2)),
-	revisions.NewFromDecimal(decimal.New(0, -10)),
+	revision.NewFromDecimal(decimal.Zero),
+	revision.NewFromDecimal(decimal.NewFromInt(1)),
+	revision.NewFromDecimal(decimal.NewFromInt(2)),
+	revision.NewFromDecimal(decimal.NewFromInt(4)),
+	revision.NewFromDecimal(decimal.NewFromInt(8)),
+	revision.NewFromDecimal(decimal.NewFromInt(16)),
+	revision.NewFromDecimal(decimal.NewFromInt(128)),
+	revision.NewFromDecimal(decimal.NewFromInt(256)),
+	revision.NewFromDecimal(decimal.NewFromInt(1621538189028928000)),
+	revision.NewFromDecimal(decimal.New(12345, -2)),
+	revision.NewFromDecimal(decimal.New(0, -10)),
 }
 
 func TestZedTokenEncode(t *testing.T) {
@@ -31,7 +31,7 @@ func TestZedTokenEncode(t *testing.T) {
 		t.Run(rev.String(), func(t *testing.T) {
 			require := require.New(t)
 			encoded := NewFromRevision(rev)
-			decoded, err := DecodeRevision(encoded, revisions.DecimalDecoder{})
+			decoded, err := DecodeRevision(encoded, revision.DecimalDecoder{})
 			require.NoError(err)
 			require.True(rev.Equal(decoded))
 		})
@@ -120,13 +120,13 @@ func TestDecode(t *testing.T) {
 
 			decoded, err := DecodeRevision(&v1.ZedToken{
 				Token: testCase.token,
-			}, revisions.DecimalDecoder{})
+			}, revision.DecimalDecoder{})
 			if testCase.expectError {
 				require.Error(err)
 			} else {
 				require.NoError(err)
 				require.True(
-					revisions.NewFromDecimal(testCase.expectedRevision).Equal(decoded),
+					revision.NewFromDecimal(testCase.expectedRevision).Equal(decoded),
 					"%s != %s",
 					testCase.expectedRevision,
 					decoded,

@@ -8,10 +8,11 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 // RemoteNowFunction queries the datastore to get a current revision.
-type RemoteNowFunction func(context.Context) (DecimalRevision, error)
+type RemoteNowFunction func(context.Context) (revision.Decimal, error)
 
 // RemoteClockRevisions handles revision calculation for datastores that provide
 // their own clocks.
@@ -45,7 +46,7 @@ func NewRemoteClockRevisions(gcWindow, maxRevisionStaleness, followerReadDelay, 
 func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	nowHLC, err := rcr.nowFunc(ctx)
 	if err != nil {
-		return NoRevision, 0, err
+		return revision.NoRevision, 0, err
 	}
 
 	delayedNow := nowHLC.IntPart() - rcr.followerReadDelayNanos
@@ -58,7 +59,7 @@ func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (dat
 	}
 	log.Debug().Int64("readSkew", rcr.followerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
 
-	return NewFromDecimal(decimal.NewFromInt(quantized)), time.Duration(validForNanos) * time.Nanosecond, nil
+	return revision.NewFromDecimal(decimal.NewFromInt(quantized)), time.Duration(validForNanos) * time.Nanosecond, nil
 }
 
 // SetNowFunc sets the function used to determine the head revision
@@ -71,7 +72,7 @@ func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, dsRevision d
 		return datastore.NewInvalidRevisionErr(dsRevision, datastore.CouldNotDetermineRevision)
 	}
 
-	revision := dsRevision.(DecimalRevision)
+	revision := dsRevision.(revision.Decimal)
 
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()

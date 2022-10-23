@@ -10,7 +10,6 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 
 	"github.com/shopspring/decimal"
@@ -19,15 +18,16 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var (
-	old  = revisions.NewFromDecimal(decimal.NewFromInt(-100))
-	zero = revisions.NewFromDecimal(decimal.NewFromInt(0))
-	one  = revisions.NewFromDecimal(decimal.NewFromInt(1))
-	two  = revisions.NewFromDecimal(decimal.NewFromInt(2))
+	old  = revision.NewFromDecimal(decimal.NewFromInt(-100))
+	zero = revision.NewFromDecimal(decimal.NewFromInt(0))
+	one  = revision.NewFromDecimal(decimal.NewFromInt(1))
+	two  = revision.NewFromDecimal(decimal.NewFromInt(2))
 )
 
 const (

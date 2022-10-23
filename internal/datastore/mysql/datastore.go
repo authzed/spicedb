@@ -23,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -223,8 +224,8 @@ func NewMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func (mds *Datastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
-	rev := revision.(revisions.DecimalRevision)
+func (mds *Datastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
+	rev := revisionRaw.(revision.Decimal)
 
 	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
 		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
@@ -405,7 +406,7 @@ type Datastore struct {
 
 	*QueryBuilder
 	*revisions.CachedOptimizedRevisions
-	revisions.DecimalDecoder
+	revision.DecimalDecoder
 }
 
 // Close closes the data store.
@@ -549,7 +550,7 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func buildLivingObjectFilterForRevision(revision revisions.DecimalRevision) queryFilterer {
+func buildLivingObjectFilterForRevision(revision revision.Decimal) queryFilterer {
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
 		return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
 			Where(sq.Or{

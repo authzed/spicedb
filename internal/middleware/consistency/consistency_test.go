@@ -14,17 +14,17 @@ import (
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 var (
-	zero      = revisions.NewFromDecimal(decimal.NewFromInt(0))
-	optimized = revisions.NewFromDecimal(decimal.NewFromInt(100))
-	exact     = revisions.NewFromDecimal(decimal.NewFromInt(123))
-	head      = revisions.NewFromDecimal(decimal.NewFromInt(145))
+	zero      = revision.NewFromDecimal(decimal.NewFromInt(0))
+	optimized = revision.NewFromDecimal(decimal.NewFromInt(100))
+	exact     = revision.NewFromDecimal(decimal.NewFromInt(123))
+	head      = revision.NewFromDecimal(decimal.NewFromInt(145))
 )
 
 func TestAddRevisionToContextNoneSupplied(t *testing.T) {

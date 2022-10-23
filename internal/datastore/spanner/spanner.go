@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -56,7 +57,7 @@ var (
 
 type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
-	revisions.DecimalDecoder
+	revision.DecimalDecoder
 
 	client *spanner.Client
 	config spannerOptions
@@ -115,7 +116,7 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 }
 
 func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
-	revision := revisionRaw.(revisions.DecimalRevision)
+	revision := revisionRaw.(revision.Decimal)
 
 	txSource := func() readTX {
 		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(revision)))

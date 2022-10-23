@@ -7,15 +7,15 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	rev "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 func TestHashingSame(t *testing.T) {
 	encoded, err := rev.ComputeV1Alpha1Revision(map[string]datastore.Revision{
-		"foo": revisions.NewFromDecimal(decimal.NewFromInt(42)),
-		"bar": revisions.NewFromDecimal(decimal.NewFromInt(16)),
+		"foo": revision.NewFromDecimal(decimal.NewFromInt(42)),
+		"bar": revision.NewFromDecimal(decimal.NewFromInt(16)),
 	})
 	require.NoError(t, err)
 
@@ -30,14 +30,14 @@ func TestHashingSame(t *testing.T) {
 
 func TestHashingDifferent(t *testing.T) {
 	encoded, err := rev.ComputeV1Alpha1Revision(map[string]datastore.Revision{
-		"foo": revisions.NewFromDecimal(decimal.NewFromInt(42)),
-		"bar": revisions.NewFromDecimal(decimal.NewFromInt(16)),
+		"foo": revision.NewFromDecimal(decimal.NewFromInt(42)),
+		"bar": revision.NewFromDecimal(decimal.NewFromInt(16)),
 	})
 	require.NoError(t, err)
 
 	encoded2, err := rev.ComputeV1Alpha1Revision(map[string]datastore.Revision{
-		"foo": revisions.NewFromDecimal(decimal.NewFromInt(43)),
-		"bar": revisions.NewFromDecimal(decimal.NewFromInt(16)),
+		"foo": revision.NewFromDecimal(decimal.NewFromInt(43)),
+		"bar": revision.NewFromDecimal(decimal.NewFromInt(16)),
 	})
 	require.NoError(t, err)
 
@@ -57,21 +57,21 @@ func TestHashingStable(t *testing.T) {
 	}{
 		{
 			input: map[string]datastore.Revision{
-				"foo": revisions.NewFromDecimal(decimal.NewFromInt(42)),
-				"bar": revisions.NewFromDecimal(decimal.NewFromInt(16)),
+				"foo": revision.NewFromDecimal(decimal.NewFromInt(42)),
+				"bar": revision.NewFromDecimal(decimal.NewFromInt(16)),
 			},
 			expected: "7718a08c8ab2dd38eb5f5b47932c8c05204cebfbc6a57a8b34fc614b3c17fcc2",
 		},
 		{
 			input: map[string]datastore.Revision{
-				"faa": revisions.NewFromDecimal(decimal.NewFromInt(42)),
-				"bar": revisions.NewFromDecimal(decimal.NewFromInt(16)),
+				"faa": revision.NewFromDecimal(decimal.NewFromInt(42)),
+				"bar": revision.NewFromDecimal(decimal.NewFromInt(16)),
 			},
 			expected: "cda4e43ebd43dbbaf39bfc598cc060ce6e0670e0db9221d1a0d75ea1f2703537",
 		},
 		{
 			input: map[string]datastore.Revision{
-				"foo/bar": revisions.NewFromDecimal(decimal.NewFromInt(42)),
+				"foo/bar": revision.NewFromDecimal(decimal.NewFromInt(42)),
 			},
 			expected: "8b2a162d68780bac1fe325a7613c56c9dd8b0b7fa8cf3e945f132218dde6d7e4",
 		},

@@ -7,20 +7,20 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	rev "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
-var decoder revisions.DecimalDecoder
+var decoder revision.DecimalDecoder
 
 func TestDeterminism(t *testing.T) {
 	revisions := map[string]datastore.Revision{
-		"foo":  revisions.NewFromDecimal(decimal.NewFromInt(1)),
-		"bar":  revisions.NewFromDecimal(decimal.NewFromInt(2)),
-		"baz":  revisions.NewFromDecimal(decimal.NewFromInt(3)),
-		"meh":  revisions.NewFromDecimal(decimal.NewFromInt(4)),
-		"yarg": revisions.NewFromDecimal(decimal.NewFromInt(5)),
+		"foo":  revision.NewFromDecimal(decimal.NewFromInt(1)),
+		"bar":  revision.NewFromDecimal(decimal.NewFromInt(2)),
+		"baz":  revision.NewFromDecimal(decimal.NewFromInt(3)),
+		"meh":  revision.NewFromDecimal(decimal.NewFromInt(4)),
+		"yarg": revision.NewFromDecimal(decimal.NewFromInt(5)),
 	}
 
 	computed1, err := rev.ComputeV1Alpha1Revision(revisions)
@@ -34,11 +34,11 @@ func TestDeterminism(t *testing.T) {
 
 func TestEncodeDecode(t *testing.T) {
 	revs := map[string]datastore.Revision{
-		"foo":  revisions.NewFromDecimal(decimal.NewFromInt(1)),
-		"bar":  revisions.NewFromDecimal(decimal.NewFromInt(2)),
-		"baz":  revisions.NewFromDecimal(decimal.NewFromInt(3)),
-		"meh":  revisions.NewFromDecimal(decimal.NewFromInt(4)),
-		"yarg": revisions.NewFromDecimal(decimal.NewFromInt(5)),
+		"foo":  revision.NewFromDecimal(decimal.NewFromInt(1)),
+		"bar":  revision.NewFromDecimal(decimal.NewFromInt(2)),
+		"baz":  revision.NewFromDecimal(decimal.NewFromInt(3)),
+		"meh":  revision.NewFromDecimal(decimal.NewFromInt(4)),
+		"yarg": revision.NewFromDecimal(decimal.NewFromInt(5)),
 	}
 
 	computed, err := rev.ComputeV1Alpha1Revision(revs)
@@ -50,8 +50,8 @@ func TestEncodeDecode(t *testing.T) {
 	require.Equal(t, revs, decoded)
 
 	different := map[string]datastore.Revision{
-		"foo": revisions.NewFromDecimal(decimal.NewFromInt(2)),
-		"bar": revisions.NewFromDecimal(decimal.NewFromInt(7)),
+		"foo": revision.NewFromDecimal(decimal.NewFromInt(2)),
+		"bar": revision.NewFromDecimal(decimal.NewFromInt(7)),
 	}
 
 	computedDifferent, err := rev.ComputeV1Alpha1Revision(different)
@@ -71,11 +71,11 @@ func TestInvalidDecode(t *testing.T) {
 
 func TestEncodeInObject(t *testing.T) {
 	revisions := map[string]datastore.Revision{
-		"foo":  revisions.NewFromDecimal(decimal.NewFromInt(1)),
-		"bar":  revisions.NewFromDecimal(decimal.NewFromInt(2)),
-		"baz":  revisions.NewFromDecimal(decimal.NewFromInt(3)),
-		"meh":  revisions.NewFromDecimal(decimal.NewFromInt(4)),
-		"yarg": revisions.NewFromDecimal(decimal.NewFromInt(5)),
+		"foo":  revision.NewFromDecimal(decimal.NewFromInt(1)),
+		"bar":  revision.NewFromDecimal(decimal.NewFromInt(2)),
+		"baz":  revision.NewFromDecimal(decimal.NewFromInt(3)),
+		"meh":  revision.NewFromDecimal(decimal.NewFromInt(4)),
+		"yarg": revision.NewFromDecimal(decimal.NewFromInt(5)),
 	}
 
 	// Encode the revision.

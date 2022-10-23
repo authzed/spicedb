@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -51,7 +51,7 @@ func TestRWOperationErrors(t *testing.T) {
 	require.Equal(datastore.NoRevision, rev)
 }
 
-var expectedRevision = revisions.NewFromDecimal(decimal.NewFromInt(123))
+var expectedRevision = revision.NewFromDecimal(decimal.NewFromInt(123))
 
 func TestIsReadyPassthrough(t *testing.T) {
 	require := require.New(t)

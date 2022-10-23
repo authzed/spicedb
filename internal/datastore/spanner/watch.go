@@ -9,8 +9,8 @@ import (
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -21,7 +21,7 @@ const (
 var queryChanged = sql.Select(allChangelogCols...).From(tableChangelog)
 
 func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	afterRevision := afterRevisionRaw.(revisions.DecimalRevision)
+	afterRevision := afterRevisionRaw.(revision.Decimal)
 
 	updates := make(chan *datastore.RevisionChanges, sd.config.watchBufferLength)
 	errs := make(chan error, 1)

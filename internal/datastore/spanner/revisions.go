@@ -8,14 +8,14 @@ import (
 	"cloud.google.com/go/spanner"
 	"github.com/shopspring/decimal"
 
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
-func (sd spannerDatastore) headRevisionInternal(ctx context.Context) (revisions.DecimalRevision, error) {
+func (sd spannerDatastore) headRevisionInternal(ctx context.Context) (revision.Decimal, error) {
 	now, err := sd.now(ctx)
 	if err != nil {
-		return revisions.NoRevision, fmt.Errorf(errRevision, err)
+		return revision.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
 	return revisionFromTimestamp(now), nil
@@ -45,10 +45,10 @@ func (sd spannerDatastore) now(ctx context.Context) (time.Time, error) {
 	return timestamp, nil
 }
 
-func revisionFromTimestamp(t time.Time) revisions.DecimalRevision {
-	return revisions.NewFromDecimal(decimal.NewFromInt(t.UnixNano()))
+func revisionFromTimestamp(t time.Time) revision.Decimal {
+	return revision.NewFromDecimal(decimal.NewFromInt(t.UnixNano()))
 }
 
-func timestampFromRevision(r revisions.DecimalRevision) time.Time {
+func timestampFromRevision(r revision.Decimal) time.Time {
 	return time.Unix(0, r.IntPart())
 }
