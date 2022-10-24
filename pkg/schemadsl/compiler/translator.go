@@ -25,14 +25,14 @@ type translationContext struct {
 	schemaString     string
 }
 
-func (tctx translationContext) namespacePath(namespaceName string) (string, error) {
+func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
 	var prefix, name string
-	if err := stringz.SplitExact(namespaceName, "/", &prefix, &name); err != nil {
+	if err := stringz.SplitExact(definitionName, "/", &prefix, &name); err != nil {
 		if tctx.objectTypePrefix == nil {
-			return "", fmt.Errorf("found reference `%s` without prefix", namespaceName)
+			return "", fmt.Errorf("found reference `%s` without prefix", definitionName)
 		}
 		prefix = *tctx.objectTypePrefix
-		name = namespaceName
+		name = definitionName
 	}
 
 	if prefix == "" {
@@ -129,7 +129,7 @@ func translateCaveatDefinition(tctx translationContext, defNode *dslNode) (*core
 		}
 	}
 
-	nspath, err := tctx.namespacePath(definitionName)
+	caveatPath, err := tctx.prefixedPath(definitionName)
 	if err != nil {
 		return nil, defNode.Errorf("%w", err)
 	}
@@ -150,17 +150,17 @@ func translateCaveatDefinition(tctx translationContext, defNode *dslNode) (*core
 		return nil, defNode.ErrorWithSourcef(expressionString, "invalid expression: %w", err)
 	}
 
-	source, err := caveats.NewSource(expressionString, rnge.Start(), nspath)
+	source, err := caveats.NewSource(expressionString, rnge.Start(), caveatPath)
 	if err != nil {
 		return nil, defNode.ErrorWithSourcef(expressionString, "invalid expression: %w", err)
 	}
 
-	compiled, err := caveats.CompileCaveatWithSource(env, nspath, source)
+	compiled, err := caveats.CompileCaveatWithSource(env, caveatPath, source)
 	if err != nil {
 		return nil, expressionStringNode.ErrorWithSourcef(expressionString, "invalid expression for caveat `%s`: %w", definitionName, err)
 	}
 
-	def, err := namespace.CompiledCaveatDefinition(env, nspath, compiled)
+	def, err := namespace.CompiledCaveatDefinition(env, caveatPath, compiled)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core
 		relationsAndPermissions = append(relationsAndPermissions, relationOrPermission)
 	}
 
-	nspath, err := tctx.namespacePath(definitionName)
+	nspath, err := tctx.prefixedPath(definitionName)
 	if err != nil {
 		return nil, defNode.Errorf("%w", err)
 	}
@@ -528,7 +528,7 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		return nil, typeRefNode.Errorf("invalid type name: %w", err)
 	}
 
-	nspath, err := tctx.namespacePath(typePath)
+	nspath, err := tctx.prefixedPath(typePath)
 	if err != nil {
 		return nil, typeRefNode.Errorf("%w", err)
 	}
