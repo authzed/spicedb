@@ -90,7 +90,7 @@ func TestReferencedParameters(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.expr, func(t *testing.T) {
-			compiled, err := CompileCaveat(tc.env, tc.expr)
+			compiled, err := compileCaveat(tc.env, tc.expr)
 			require.NoError(t, err)
 
 			sort.Strings(tc.referencedParamNames)

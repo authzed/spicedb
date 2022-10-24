@@ -189,7 +189,7 @@ func TestCompile(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			compiled, err := CompileCaveat(tc.env, tc.exprString)
+			compiled, err := compileCaveat(tc.env, tc.exprString)
 			if len(tc.expectedErrors) == 0 {
 				require.NoError(t, err)
 				require.NotNil(t, compiled)
@@ -217,7 +217,7 @@ func TestSerialization(t *testing.T) {
 				"a": types.IntType,
 				"b": types.IntType,
 			})
-			compiled, err := CompileCaveat(env, expr)
+			compiled, err := compileCaveat(env, expr)
 			require.NoError(t, err)
 
 			serialized, err := compiled.Serialize()

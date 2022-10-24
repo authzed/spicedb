@@ -73,12 +73,6 @@ func CompileCaveatWithName(env *Environment, exprString, name string) (*Compiled
 	return c, nil
 }
 
-// CompileCaveat compiles a caveat string into a compiled caveat, or returns the compilation errors.
-func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error) {
-	s := common.NewStringSource(exprString, "caveat")
-	return CompileCaveatWithSource(env, "caveat", s)
-}
-
 // CompileCaveatWithSource compiles a caveat source into a compiled caveat, or returns the compilation errors.
 func CompileCaveatWithSource(env *Environment, name string, source common.Source) (*CompiledCaveat, error) {
 	celEnv, err := env.asCelEnvironment()
@@ -98,6 +92,12 @@ func CompileCaveatWithSource(env *Environment, name string, source common.Source
 	compiled := &CompiledCaveat{celEnv, ast, anonymousCaveat}
 	compiled.name = name
 	return compiled, nil
+}
+
+// compileCaveat compiles a caveat string into a compiled caveat, or returns the compilation errors.
+func compileCaveat(env *Environment, exprString string) (*CompiledCaveat, error) {
+	s := common.NewStringSource(exprString, "caveat")
+	return CompileCaveatWithSource(env, "caveat", s)
 }
 
 // DeserializeCaveat deserializes a byte-serialized caveat back into a CompiledCaveat.
