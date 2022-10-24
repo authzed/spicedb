@@ -50,6 +50,7 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })
 
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
+	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
 
 	t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
 	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
