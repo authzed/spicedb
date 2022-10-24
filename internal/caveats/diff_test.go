@@ -62,7 +62,7 @@ func TestCaveatDiff(t *testing.T) {
 				"somecaveat",
 				"true",
 			),
-			nil,
+			[]Delta{},
 		},
 		{
 			"added parameter",

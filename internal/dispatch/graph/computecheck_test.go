@@ -20,11 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type caveatDefinition struct {
-	expression string
-	env        map[string]types.VariableType
-}
-
 type caveatedUpdate struct {
 	Operation  core.RelationTupleUpdate_Operation
 	tuple      string

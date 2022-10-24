@@ -45,7 +45,7 @@ func (tctx translationContext) prefixedPath(definitionName string) (string, erro
 const Ellipsis = "..."
 
 func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) {
-	var orderedDefinitions []SchemaDefinition
+	orderedDefinitions := make([]SchemaDefinition, 0, len(root.GetChildren()))
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
 
