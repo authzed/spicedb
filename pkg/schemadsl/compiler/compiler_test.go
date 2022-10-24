@@ -563,7 +563,7 @@ func TestCompile(t *testing.T) {
 			&someTenant,
 			`definition foo {}
 			definition foo {}`,
-			"parse error in `duplicate definition`, line 2, column 4: duplicate top-level definition: sometenant/foo",
+			"parse error in `duplicate definition`, line 2, column 4: found name reused between multiple definitions and/or caveats: sometenant/foo",
 			[]SchemaDefinition{},
 		},
 		{
@@ -573,7 +573,7 @@ func TestCompile(t *testing.T) {
 				someParam == 42
 			}
 			definition foo {}`,
-			"parse error in `duplicate definitions across objects and caveats`, line 4, column 4: duplicate top-level definition: sometenant/foo",
+			"parse error in `duplicate definitions across objects and caveats`, line 4, column 4: found name reused between multiple definitions and/or caveats: sometenant/foo",
 			[]SchemaDefinition{},
 		},
 		{
@@ -602,15 +602,15 @@ func TestCompile(t *testing.T) {
 			"parse error in `caveat invalid parameter type`, line 1, column 12: invalid type for caveat parameter `someParam` on caveat `foo`: unknown type `foobar`",
 			[]SchemaDefinition{},
 		},
-		/*{
+		{
 			"caveat invalid parameter type",
 			&someTenant,
 			`caveat foo(someParam map<foobar>) {
 				someParam == 42
 			}`,
-			"-",
+			"unknown type `foobar`",
 			[]SchemaDefinition{},
-		},*/
+		},
 		{
 			"caveat missing parameter",
 			&someTenant,
@@ -681,6 +681,39 @@ func TestCompile(t *testing.T) {
 				), "sometenant/foo",
 					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56 
 					&& anotherParam == "hi there" && 42 in thirdParam`),
+			},
+		},
+		{
+			"caveat IP example",
+			&someTenant,
+			`caveat has_allowed_ip(user_ip ipaddress) {
+				!user_ip.in_cidr('1.2.3.0')
+			}`,
+			``,
+			[]SchemaDefinition{
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+					map[string]caveattypes.VariableType{
+						"user_ip": caveattypes.IPAddressType,
+					},
+				), "sometenant/has_allowed_ip",
+					`!user_ip.in_cidr('1.2.3.0')`),
+			},
+		},
+		{
+			"caveat subtree example",
+			&someTenant,
+			`caveat something(someMap map<any>, anotherMap map<any>) {
+				someMap.isSubtreeOf(anotherMap)
+			}`,
+			``,
+			[]SchemaDefinition{
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+					map[string]caveattypes.VariableType{
+						"someMap":    caveattypes.MapType(caveattypes.AnyType),
+						"anotherMap": caveattypes.MapType(caveattypes.AnyType),
+					},
+				), "sometenant/something",
+					`someMap.isSubtreeOf(anotherMap)`),
 			},
 		},
 	}

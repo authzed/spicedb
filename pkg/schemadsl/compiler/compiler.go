@@ -44,10 +44,6 @@ type CompiledSchema struct {
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, objectTypePrefix *string) (*CompiledSchema, error) {
 	mapper := newPositionMapper(schema)
-
-	// Parse and translate the schema.
-	orderedDefinitions := []SchemaDefinition{}
-
 	root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
 	errs := root.FindAll(dslshape.NodeTypeError)
 	if len(errs) > 0 {
@@ -55,7 +51,7 @@ func Compile(schema InputSchema, objectTypePrefix *string) (*CompiledSchema, err
 		return nil, err
 	}
 
-	translatedDefs, err := translate(translationContext{
+	compiled, err := translate(translationContext{
 		objectTypePrefix: objectTypePrefix,
 		mapper:           mapper,
 		schemaString:     schema.SchemaString,
@@ -69,23 +65,7 @@ func Compile(schema InputSchema, objectTypePrefix *string) (*CompiledSchema, err
 		return nil, err
 	}
 
-	orderedDefinitions = append(orderedDefinitions, translatedDefs...)
-
-	return &CompiledSchema{
-		CaveatDefinitions:  filterTo[*core.CaveatDefinition](orderedDefinitions),
-		ObjectDefinitions:  filterTo[*core.NamespaceDefinition](orderedDefinitions),
-		OrderedDefinitions: orderedDefinitions,
-	}, nil
-}
-
-func filterTo[T SchemaDefinition](orderedDefinitions []SchemaDefinition) []T {
-	filtered := make([]T, 0, len(orderedDefinitions))
-	for _, def := range orderedDefinitions {
-		if casted, ok := def.(T); ok {
-			filtered = append(filtered, casted)
-		}
-	}
-	return filtered
+	return compiled, nil
 }
 
 func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {

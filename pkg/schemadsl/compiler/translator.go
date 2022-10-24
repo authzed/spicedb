@@ -44,8 +44,11 @@ func (tctx translationContext) namespacePath(namespaceName string) (string, erro
 
 const Ellipsis = "..."
 
-func translate(tctx translationContext, root *dslNode) ([]SchemaDefinition, error) {
-	definitions := []SchemaDefinition{}
+func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) {
+	var orderedDefinitions []SchemaDefinition
+	var objectDefinitions []*core.NamespaceDefinition
+	var caveatDefinitions []*core.CaveatDefinition
+
 	names := util.NewSet[string]()
 
 	for _, definitionNode := range root.GetChildren() {
@@ -59,6 +62,7 @@ func translate(tctx translationContext, root *dslNode) ([]SchemaDefinition, erro
 			}
 
 			definition = def
+			caveatDefinitions = append(caveatDefinitions, def)
 
 		case dslshape.NodeTypeDefinition:
 			def, err := translateObjectDefinition(tctx, definitionNode)
@@ -67,16 +71,21 @@ func translate(tctx translationContext, root *dslNode) ([]SchemaDefinition, erro
 			}
 
 			definition = def
+			objectDefinitions = append(objectDefinitions, def)
 		}
 
 		if !names.Add(definition.GetName()) {
-			return nil, definitionNode.ErrorWithSourcef(definition.GetName(), "duplicate top-level definition: %s", definition.GetName())
+			return nil, definitionNode.ErrorWithSourcef(definition.GetName(), "found name reused between multiple definitions and/or caveats: %s", definition.GetName())
 		}
 
-		definitions = append(definitions, definition)
+		orderedDefinitions = append(orderedDefinitions, definition)
 	}
 
-	return definitions, nil
+	return &CompiledSchema{
+		CaveatDefinitions:  caveatDefinitions,
+		ObjectDefinitions:  objectDefinitions,
+		OrderedDefinitions: orderedDefinitions,
+	}, nil
 }
 
 func translateCaveatDefinition(tctx translationContext, defNode *dslNode) (*core.CaveatDefinition, error) {
