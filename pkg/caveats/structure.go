@@ -8,6 +8,8 @@ import (
 	"github.com/authzed/spicedb/internal/util"
 )
 
+// referencedParameters traverses the expression given and finds all parameters which are referenced
+// in the expression for the purpose of usage tracking.
 func referencedParameters(definedParameters *util.Set[string], expr *exprpb.Expr, referencedParams *util.Set[string]) {
 	if expr == nil {
 		return
