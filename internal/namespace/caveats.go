@@ -10,10 +10,8 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-/**
- * ValidateCaveatDefinition validates the parameters and types within the given caveat
- * definition, including usage of the parameters.
- */
+// ValidateCaveatDefinition validates the parameters and types within the given caveat
+// definition, including usage of the parameters.
 func ValidateCaveatDefinition(caveat *core.CaveatDefinition) error {
 	if len(caveat.ParameterTypes) == 0 {
 		return newTypeErrorWithSource(
