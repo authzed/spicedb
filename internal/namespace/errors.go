@@ -241,7 +241,7 @@ type ErrUnusedCaveatParameter struct {
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrUnusedCaveatParameter) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("caveat", err.caveatName).Str("param", err.paramName)
+	e.Err(err.error).Str("caveat", err.caveatName).Str("param", err.paramName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
