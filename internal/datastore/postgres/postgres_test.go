@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
@@ -118,6 +119,17 @@ func TestPostgresDatastore(t *testing.T) {
 			t.Run("QuantizedRevisions", func(t *testing.T) {
 				QuantizedRevisionTest(t, b)
 			})
+
+			if config.migrationPhase == "" {
+				t.Run("RevisionInversion", createDatastoreTest(
+					b,
+					RevisionInversionTest,
+					RevisionQuantization(0),
+					GCWindow(1*time.Millisecond),
+					WatchBufferLength(1),
+					MigrationPhase(config.migrationPhase),
+				))
+			}
 		})
 	}
 
@@ -573,6 +585,85 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			require.Equal(tc.numHigher, numHigher)
 		})
 	}
+}
+
+// RevisionInversionTest uses goroutines and channels to intentionally set up a pair of
+// revisions that might compare incorrectly.
+func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx := context.Background()
+	ok, err := ds.IsReady(ctx)
+	require.NoError(err)
+	require.True(ok)
+
+	// Write basic namespaces.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(namespace.Namespace(
+			"resource",
+			namespace.Relation("reader", nil),
+		), namespace.Namespace("user"))
+	})
+	require.NoError(err)
+
+	g := errgroup.Group{}
+
+	waitToStart := make(chan struct{})
+	waitToFinish := make(chan struct{})
+
+	var commitLastRev, commitFirstRev datastore.Revision
+	g.Go(func() error {
+		var err error
+		commitLastRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			rtu := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: "resource",
+					ObjectId:  "123",
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+			err = rwt.WriteRelationships([]*core.RelationTupleUpdate{rtu})
+			require.NoError(err)
+
+			close(waitToStart)
+			<-waitToFinish
+
+			defer fmt.Println("committing last")
+			return err
+		})
+		require.NoError(err)
+		return nil
+	})
+
+	<-waitToStart
+
+	commitFirstRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		rtu := tuple.Touch(&core.RelationTuple{
+			ResourceAndRelation: &core.ObjectAndRelation{
+				Namespace: "resource",
+				ObjectId:  "789",
+				Relation:  "reader",
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: "user",
+				ObjectId:  "ten",
+				Relation:  "...",
+			},
+		})
+		defer fmt.Println("committing first")
+		return rwt.WriteRelationships([]*core.RelationTupleUpdate{rtu})
+	})
+	close(waitToFinish)
+
+	require.NoError(err)
+	require.NoError(g.Wait())
+	require.False(commitFirstRev.GreaterThan(commitLastRev))
+	require.False(commitFirstRev.Equal(commitLastRev))
 }
 
 func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForTest) {
