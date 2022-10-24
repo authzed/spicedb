@@ -173,10 +173,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		}
 
 		// Only load the caveat if we need its type information for context checking.
-		if update.Relationship.OptionalCaveat != nil &&
-			update.Relationship.OptionalCaveat.CaveatName != "" &&
-			update.Relationship.OptionalCaveat.Context != nil &&
-			len(update.Relationship.OptionalCaveat.Context.AsMap()) > 0 {
+		if hasNonEmptyCaveatContext(update) {
 			referencedCaveatNamesWithContext.Add(update.Relationship.OptionalCaveat.CaveatName)
 		}
 	}
@@ -293,10 +290,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			// Validate caveat and its context, if applicable.
 			// TODO(jschorr): once caveats are supported on all datastores, we should elide this check if the
 			// provided context is empty, as the allowed relation check above will ensure the caveat exists.
-			if update.Relationship.OptionalCaveat != nil &&
-				update.Relationship.OptionalCaveat.CaveatName != "" &&
-				update.Relationship.OptionalCaveat.Context != nil &&
-				len(update.Relationship.OptionalCaveat.Context.AsMap()) > 0 {
+			if hasNonEmptyCaveatContext(update) {
 				caveat, ok := referencedCaveatMap[update.Relationship.OptionalCaveat.CaveatName]
 				if !ok {
 					// Should ideally never happen since the caveat is type checked above, but just in case.
@@ -333,6 +327,13 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	return &v1.WriteRelationshipsResponse{
 		WrittenAt: zedtoken.NewFromRevision(revision),
 	}, nil
+}
+
+func hasNonEmptyCaveatContext(update *v1.RelationshipUpdate) bool {
+	return update.Relationship.OptionalCaveat != nil &&
+		update.Relationship.OptionalCaveat.CaveatName != "" &&
+		update.Relationship.OptionalCaveat.Context != nil &&
+		len(update.Relationship.OptionalCaveat.Context.GetFields()) > 0
 }
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
