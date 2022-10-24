@@ -75,6 +75,48 @@ func TestSetOperations(t *testing.T) {
 	require.Equal(t, slice, []string{"hello"})
 }
 
+func TestSetIntersect(t *testing.T) {
+	// Create a set and ensure it is empty.
+	set := NewSet[string]()
+	require.True(t, set.IsEmpty())
+
+	// Add some items to the set.
+	require.True(t, set.Add("1"))
+	require.True(t, set.Add("2"))
+	require.True(t, set.Add("3"))
+	require.True(t, set.Add("4"))
+
+	// Subtract some items.
+	updated := set.Intersect(NewSet[string]("1", "2", "3", "5"))
+	updatedSlice := updated.AsSlice()
+	sort.Strings(updatedSlice)
+	require.Equal(t, []string{"1", "2", "3"}, updatedSlice)
+
+	slice := set.AsSlice()
+	sort.Strings(slice)
+	require.Equal(t, []string{"1", "2", "3", "4"}, slice)
+}
+
+func TestSetSubtract(t *testing.T) {
+	// Create a set and ensure it is empty.
+	set := NewSet[string]()
+	require.True(t, set.IsEmpty())
+
+	// Add some items to the set.
+	require.True(t, set.Add("1"))
+	require.True(t, set.Add("2"))
+	require.True(t, set.Add("3"))
+	require.True(t, set.Add("4"))
+
+	// Subtract some items.
+	updated := set.Subtract(NewSet[string]("1", "2", "3", "5"))
+	require.Equal(t, []string{"4"}, updated.AsSlice())
+
+	slice := set.AsSlice()
+	sort.Strings(slice)
+	require.Equal(t, []string{"1", "2", "3", "4"}, slice)
+}
+
 func TestSetIntersectionDifference(t *testing.T) {
 	tcs := []struct {
 		first    []int
