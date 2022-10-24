@@ -41,37 +41,35 @@ type CompiledSchema struct {
 	OrderedDefinitions []SchemaDefinition
 }
 
-// Compile compilers the input schema(s) into a set of namespace definition protos.
-func Compile(schemas []InputSchema, objectTypePrefix *string) (*CompiledSchema, error) {
-	mapper := newPositionMapper(schemas)
+// Compile compilers the input schema into a set of namespace definition protos.
+func Compile(schema InputSchema, objectTypePrefix *string) (*CompiledSchema, error) {
+	mapper := newPositionMapper(schema)
 
-	// Parse and translate the various schemas.
+	// Parse and translate the schema.
 	orderedDefinitions := []SchemaDefinition{}
 
-	for _, schema := range schemas {
-		root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
-		errs := root.FindAll(dslshape.NodeTypeError)
-		if len(errs) > 0 {
-			err := errorNodeToError(errs[0], mapper)
-			return nil, err
-		}
-
-		translatedDefs, err := translate(translationContext{
-			objectTypePrefix: objectTypePrefix,
-			mapper:           mapper,
-			schemaString:     schema.SchemaString,
-		}, root)
-		if err != nil {
-			var errorWithNode errorWithNode
-			if errors.As(err, &errorWithNode) {
-				err = toContextError(errorWithNode.error.Error(), errorWithNode.errorSourceCode, errorWithNode.node, mapper)
-			}
-
-			return nil, err
-		}
-
-		orderedDefinitions = append(orderedDefinitions, translatedDefs...)
+	root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
+	errs := root.FindAll(dslshape.NodeTypeError)
+	if len(errs) > 0 {
+		err := errorNodeToError(errs[0], mapper)
+		return nil, err
 	}
+
+	translatedDefs, err := translate(translationContext{
+		objectTypePrefix: objectTypePrefix,
+		mapper:           mapper,
+		schemaString:     schema.SchemaString,
+	}, root)
+	if err != nil {
+		var errorWithNode errorWithNode
+		if errors.As(err, &errorWithNode) {
+			err = toContextError(errorWithNode.error.Error(), errorWithNode.errorSourceCode, errorWithNode.node, mapper)
+		}
+
+		return nil, err
+	}
+
+	orderedDefinitions = append(orderedDefinitions, translatedDefs...)
 
 	return &CompiledSchema{
 		CaveatDefinitions:  filterTo[*core.CaveatDefinition](orderedDefinitions),

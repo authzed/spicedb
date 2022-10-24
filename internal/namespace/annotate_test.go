@@ -18,8 +18,9 @@ func TestAnnotateNamespace(t *testing.T) {
 	require.NoError(err)
 
 	empty := ""
-	compiled, err := compiler.Compile([]compiler.InputSchema{
-		{Source: input.Source("schema"), SchemaString: `definition document {
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source: input.Source("schema"),
+		SchemaString: `definition document {
 	relation viewer: document
 	relation editor: document
 
@@ -27,7 +28,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	permission computed = viewer + editor
 	permission other = editor - viewer
 	permission also_aliased = viewer
-}`},
+}`,
 	}, &empty)
 	require.NoError(err)
 

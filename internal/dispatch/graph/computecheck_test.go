@@ -922,8 +922,9 @@ func TestComputeCheckError(t *testing.T) {
 
 func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datastore, schema string, definedCaveats map[string]caveatDefinition, updates []caveatedUpdate) (datastore.Revision, error) {
 	empty := ""
-	compiled, err := compiler.Compile([]compiler.InputSchema{
-		{Source: "schema", SchemaString: schema},
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       "schema",
+		SchemaString: schema,
 	}, &empty)
 	if err != nil {
 		return datastore.NoRevision, err

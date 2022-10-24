@@ -213,8 +213,9 @@ func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {
 
 	// Compile namespace to write to the datastore.
 	empty := ""
-	compiled, err := compiler.Compile([]compiler.InputSchema{
-		{Source: input.Source("schema"), SchemaString: schemaString},
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schemaString,
 	}, &empty)
 	require.NoError(err)
 	require.Equal(1, len(compiled.OrderedDefinitions))

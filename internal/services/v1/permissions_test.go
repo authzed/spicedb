@@ -329,14 +329,12 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	require.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), 1)
 	require.NotEmpty(debugInfo.SchemaUsed)
 
-	inputSchema := compiler.InputSchema{
-		Source:       input.Source("schema"),
-		SchemaString: debugInfo.SchemaUsed,
-	}
-
 	// Compile the schema into the namespace definitions.
 	emptyDefaultPrefix := ""
-	compiled, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: debugInfo.SchemaUsed,
+	}, &emptyDefaultPrefix)
 	require.NoError(err, "Invalid schema: %s", debugInfo.SchemaUsed)
 	require.Equal(3, len(compiled.OrderedDefinitions))
 }

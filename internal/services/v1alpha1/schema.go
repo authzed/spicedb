@@ -100,18 +100,16 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	log.Ctx(ctx).Trace().Str("schema", in.GetSchema()).Msg("requested Schema to be written")
 	ds := datastoremw.MustFromContext(ctx)
 
-	inputSchema := compiler.InputSchema{
-		Source:       input.Source("schema"),
-		SchemaString: in.GetSchema(),
-	}
-
 	var prefix *string
 	if ss.prefixRequired == PrefixNotRequired {
 		empty := ""
 		prefix = &empty
 	}
 
-	compiled, err := compiler.Compile([]compiler.InputSchema{inputSchema}, prefix)
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: in.GetSchema(),
+	}, prefix)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}

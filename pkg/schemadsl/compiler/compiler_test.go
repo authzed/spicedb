@@ -688,8 +688,8 @@ func TestCompile(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			compiled, err := Compile([]InputSchema{
-				{input.Source(test.name), test.input},
+			compiled, err := Compile(InputSchema{
+				input.Source(test.name), test.input,
 			}, test.implicitTenant)
 
 			if test.expectedError != "" {

@@ -354,10 +354,10 @@ definition foos/document {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			compiled, err := compiler.Compile([]compiler.InputSchema{{
+			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source(test.name),
 				SchemaString: test.input,
-			}}, nil)
+			}, nil)
 			require.NoError(err)
 
 			source, _ := GenerateSchema(compiled.OrderedDefinitions)

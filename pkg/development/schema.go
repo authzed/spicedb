@@ -13,11 +13,9 @@ import (
 // internal errors occurred.
 func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.DeveloperError, error) {
 	empty := ""
-	compiled, err := compiler.Compile([]compiler.InputSchema{
-		{
-			Source:       input.Source("schema"),
-			SchemaString: schema,
-		},
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schema,
 	}, &empty)
 
 	var contextError compiler.ErrorWithContext

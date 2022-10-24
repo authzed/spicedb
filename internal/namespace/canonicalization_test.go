@@ -513,8 +513,9 @@ func TestCanonicalizationComparison(t *testing.T) {
 
 			empty := ""
 			schemaText := fmt.Sprintf(comparisonSchemaTemplate, tc.first, tc.second)
-			compiled, err := compiler.Compile([]compiler.InputSchema{
-				{Source: input.Source("schema"), SchemaString: schemaText},
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("schema"),
+				SchemaString: schemaText,
 			}, &empty)
 			require.NoError(err)
 
