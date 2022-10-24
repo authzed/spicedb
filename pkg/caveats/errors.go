@@ -15,7 +15,7 @@ type ParameterConversionErr struct {
 
 // MarshalZerologObject implements zerolog.LogObjectMarshaler
 func (err ParameterConversionErr) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Str("parameterName", err.parameterName)
+	e.Err(err.error).Str("parameterName", err.parameterName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
@@ -44,7 +44,7 @@ func (err CompilationErrors) ColumnPosition() int {
 
 // MarshalZerologObject implements zerolog.LogObjectMarshaler
 func (err CompilationErrors) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err).Int("lineNumber", err.LineNumber()).Int("columnPosition", err.ColumnPosition())
+	e.Err(err.error).Int("lineNumber", err.LineNumber()).Int("columnPosition", err.ColumnPosition())
 }
 
 // DetailsMetadata returns the metadata for details for this error.
