@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
+	revisions "github.com/authzed/spicedb/pkg/namespace/v1alpha1"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -82,7 +83,7 @@ func (ss *schemaServiceServer) ReadSchema(ctx context.Context, in *v1alpha1.Read
 		DispatchCount: uint32(numRequested),
 	})
 
-	computedRevision, err := ComputeV1Alpha1Revision(createdRevisions)
+	computedRevision, err := revisions.ComputeV1Alpha1Revision(createdRevisions)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
@@ -169,7 +170,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		// If a precondition was given, decode it, and verify that none of the namespaces specified
 		// have changed in any way.
 		if in.OptionalDefinitionsRevisionPrecondition != "" {
-			decoded, err := DecodeV1Alpha1Revision(in.OptionalDefinitionsRevisionPrecondition, ds)
+			decoded, err := revisions.DecodeV1Alpha1Revision(in.OptionalDefinitionsRevisionPrecondition, ds)
 			if err != nil {
 				return err
 			}
@@ -207,14 +208,14 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		return nil, rewriteError(ctx, err)
 	}
 
-	revisions := make(map[string]datastore.Revision, len(nsdefs))
+	revs := make(map[string]datastore.Revision, len(nsdefs))
 	names := make([]string, 0, len(nsdefs))
 	for _, nsdef := range nsdefs {
 		names = append(names, nsdef.Name)
-		revisions[nsdef.Name] = revision
+		revs[nsdef.Name] = revision
 	}
 
-	computedRevision, err := ComputeV1Alpha1Revision(revisions)
+	computedRevision, err := revisions.ComputeV1Alpha1Revision(revs)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}

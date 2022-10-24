@@ -7,9 +7,9 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	rev "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
+	rev "github.com/authzed/spicedb/pkg/namespace/v1alpha1"
 )
 
 func TestHashingSame(t *testing.T) {
