@@ -86,8 +86,8 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 			},
 		}, nil
 	}
-	deltas := []Delta{}
 
+	var deltas []Delta
 	existingParameterNames := util.NewSet[string](maps.Keys(existing.ParameterTypes)...)
 	updatedParameterNames := util.NewSet[string](maps.Keys(updated.ParameterTypes)...)
 
