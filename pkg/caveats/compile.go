@@ -79,7 +79,7 @@ func CompileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 	return CompileCaveatWithSource(env, "caveat", s)
 }
 
-// CompileCaveatWithSource compiles a caveat sourceinto a compiled caveat, or returns the compilation errors.
+// CompileCaveatWithSource compiles a caveat source into a compiled caveat, or returns the compilation errors.
 func CompileCaveatWithSource(env *Environment, name string, source common.Source) (*CompiledCaveat, error) {
 	celEnv, err := env.asCelEnvironment()
 	if err != nil {
