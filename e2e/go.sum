@@ -45,8 +45,8 @@ github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAE
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed h1:ue9pVfIcP+QMEjfgo/Ez4ZjNZfonGgR6NgjMaJMu1Cg=
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
-github.com/authzed/authzed-go v0.7.1-0.20221014175106-c7eaea237a32 h1:xaiUxYuPpyNMiATRCfUJinEC8vXKqJYD9RZwtASAesw=
-github.com/authzed/authzed-go v0.7.1-0.20221014175106-c7eaea237a32/go.mod h1:h9Zar1MSSrVsqbcbE5/RO7gpg6Fx5QYW2C5QduSox5M=
+github.com/authzed/authzed-go v0.7.1-0.20221018173308-ff2f106e02f9 h1:nFE7lzoZhRhD31G4xvhxTJECiTZt0CM+gYJTok40Wa8=
+github.com/authzed/authzed-go v0.7.1-0.20221018173308-ff2f106e02f9/go.mod h1:h9Zar1MSSrVsqbcbE5/RO7gpg6Fx5QYW2C5QduSox5M=
 github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5 h1:sZM7XzdyuLyxj7pC/g7uX+XAqZ7m6NMxZzuQRovgBPw=
 github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5/go.mod h1:rqjY3zyK/YP7NID9+B2BdIRRkvnK+cdf9/qya/zaFZE=
 github.com/brianvoe/gofakeit/v6 v6.15.0 h1:lJPGJZ2/07TRGDazyTzD5b18N3y4tmmJpdhCUw18FlI=
@@ -231,6 +231,8 @@ github.com/jackc/puddle v1.1.3/go.mod h1:m4B5Dj62Y0fbyuIc15OsIqK0+JU8nkqQjsgx7dv
 github.com/jackc/puddle v1.3.0/go.mod h1:m4B5Dj62Y0fbyuIc15OsIqK0+JU8nkqQjsgx7dvjSWk=
 github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1:6v2b51hI/fHJwM22ozAgKL4VKDeJcHhJFhtBdhmNjmU=
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
+github.com/jzelinskie/stringz v0.0.1 h1:IahR+y8ct2nyj7B6i8UtFsGFj4ex1SX27iKFYsAheLk=
+github.com/jzelinskie/stringz v0.0.1/go.mod h1:hHYbgxJuNLRw91CmpuFsYEOyQqpDVFg8pvEh23vy4P0=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/konsorten/go-windows-terminal-sequences v1.0.1/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
