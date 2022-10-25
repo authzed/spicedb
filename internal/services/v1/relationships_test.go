@@ -913,7 +913,7 @@ func TestDeleteRelationships(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(fmt.Sprintf("fuzz%d/%s", delta/time.Millisecond, tc.name), func(t *testing.T) {
 				require := require.New(t)
-				conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+				conn, cleanup, ds, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
 				client := v1.NewPermissionsServiceClient(conn)
 				t.Cleanup(cleanup)
 
@@ -928,7 +928,7 @@ func TestDeleteRelationships(t *testing.T) {
 				}
 				require.NoError(err)
 				require.NotNil(resp.DeletedAt)
-				rev, err := zedtoken.DecodeRevision(resp.DeletedAt)
+				rev, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
 				require.NoError(err)
 				require.True(rev.GreaterThan(revision))
 				require.EqualValues(standardTuplesWithout(tc.deleted), readAll(require, client, resp.DeletedAt))

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/singleflight"
 
@@ -25,7 +24,7 @@ type OptimizedRevisionFunction func(context.Context) (rev datastore.Revision, va
 // NewCachedOptimizedRevisions returns a CachedOptimizedRevisions for the given configuration
 func NewCachedOptimizedRevisions(maxRevisionStaleness time.Duration) *CachedOptimizedRevisions {
 	rev := atomicRevision{}
-	rev.set(validRevision{decimal.Zero, time.Time{}})
+	rev.set(validRevision{datastore.NoRevision, time.Time{}})
 	return &CachedOptimizedRevisions{
 		maxRevisionStaleness:  maxRevisionStaleness,
 		lastQuantizedRevision: &rev,
@@ -71,7 +70,7 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	if err != nil {
 		return datastore.NoRevision, err
 	}
-	return lastQuantizedRevision.(decimal.Decimal), err
+	return lastQuantizedRevision.(datastore.Revision), err
 }
 
 // CachedOptimizedRevisions does caching and deduplication for requests for optimized revisions.
@@ -89,7 +88,7 @@ type CachedOptimizedRevisions struct {
 }
 
 type validRevision struct {
-	revision     decimal.Decimal
+	revision     datastore.Revision
 	validThrough time.Time
 }
 

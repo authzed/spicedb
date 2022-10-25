@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -855,7 +856,7 @@ func TestComputeCheckError(t *testing.T) {
 		ResourceID:         "id",
 		Subject:            &core.ObjectAndRelation{},
 		CaveatContext:      nil,
-		AtRevision:         datastore.NoRevision,
+		AtRevision:         revision.NoRevision,
 		MaximumDepth:       50,
 		IsDebuggingEnabled: true,
 	})

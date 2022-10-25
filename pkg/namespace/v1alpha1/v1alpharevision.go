@@ -1,13 +1,13 @@
-package namespace
+package v1alpha1
 
 import (
 	"encoding/base64"
 	"fmt"
 	"sort"
 
-	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/pkg/datastore"
 	internal "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
@@ -18,7 +18,7 @@ const (
 
 // ComputeV1Alpha1Revision computes and encodes a string representing the revisions for each
 // of the namespaces in the map.
-func ComputeV1Alpha1Revision(revisions map[string]decimal.Decimal) (string, error) {
+func ComputeV1Alpha1Revision(revisions map[string]datastore.Revision) (string, error) {
 	msg := &internal.V1Alpha1Revision{}
 	for nsName, revision := range revisions {
 		msg.NsRevisions = append(msg.NsRevisions, &internal.NamespaceAndRevision{
@@ -44,7 +44,7 @@ func ComputeV1Alpha1Revision(revisions map[string]decimal.Decimal) (string, erro
 
 // DecodeV1Alpha1Revision decodes and returns the map of namespace names and their associated
 // revisions.
-func DecodeV1Alpha1Revision(encoded string) (map[string]decimal.Decimal, error) {
+func DecodeV1Alpha1Revision(encoded string, ds revisionDecoder) (map[string]datastore.Revision, error) {
 	decodedBytes, err := base64.RawStdEncoding.DecodeString(encoded)
 	if err != nil {
 		return nil, fmt.Errorf(errDecodeError, err)
@@ -55,9 +55,9 @@ func DecodeV1Alpha1Revision(encoded string) (map[string]decimal.Decimal, error) 
 		return nil, fmt.Errorf(errDecodeError, err)
 	}
 
-	revisions := map[string]decimal.Decimal{}
+	revisions := map[string]datastore.Revision{}
 	for _, nameAndRev := range decoded.NsRevisions {
-		parsed, err := decimal.NewFromString(nameAndRev.Revision)
+		parsed, err := ds.RevisionFromString(nameAndRev.Revision)
 		if err != nil {
 			return nil, err
 		}

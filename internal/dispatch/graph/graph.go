@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -62,7 +61,7 @@ type localDispatcher struct {
 	lookupSubjectsHandler     *graph.ConcurrentLookupSubjects
 }
 
-func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision decimal.Decimal) (*core.NamespaceDefinition, error) {
+func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, error) {
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(revision)
 
 	// Load namespace and relation from the datastore
@@ -74,7 +73,12 @@ func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, rev
 	return ns, err
 }
 
-func (ld *localDispatcher) lookupRelation(ctx context.Context, ns *core.NamespaceDefinition, relationName string, revision decimal.Decimal) (*core.Relation, error) {
+func (ld *localDispatcher) parseRevision(ctx context.Context, s string) (datastore.Revision, error) {
+	ds := datastoremw.MustFromContext(ctx)
+	return ds.RevisionFromString(s)
+}
+
+func (ld *localDispatcher) lookupRelation(ctx context.Context, ns *core.NamespaceDefinition, relationName string) (*core.Relation, error) {
 	var relation *core.Relation
 	for _, candidate := range ns.Relation {
 		if candidate.Name == relationName {
@@ -137,7 +141,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		}, err
 	}
 
-	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
@@ -147,7 +151,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	relation, err := ld.lookupRelation(ctx, ns, req.ResourceRelation.Relation, revision)
+	relation, err := ld.lookupRelation(ctx, ns, req.ResourceRelation.Relation)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
@@ -157,7 +161,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	// resource and subject types are the same because a check on the *exact same* resource and
 	// subject must pass, and we don't know how many intermediate steps may hit that case.
 	if relation.AliasingRelation != "" && req.ResourceRelation.Namespace != req.Subject.Namespace {
-		relation, err := ld.lookupRelation(ctx, ns, relation.AliasingRelation, revision)
+		relation, err := ld.lookupRelation(ctx, ns, relation.AliasingRelation)
 		if err != nil {
 			return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 		}
@@ -197,7 +201,7 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
@@ -207,7 +211,7 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	relation, err := ld.lookupRelation(ctx, ns, req.ResourceAndRelation.Relation, revision)
+	relation, err := ld.lookupRelation(ctx, ns, req.ResourceAndRelation.Relation)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
@@ -231,7 +235,7 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
 
-	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}
@@ -262,7 +266,7 @@ func (ld *localDispatcher) DispatchReachableResources(
 		return err
 	}
 
-	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
 	if err != nil {
 		return err
 	}
@@ -292,7 +296,7 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 		return err
 	}
 
-	revision, err := decimal.NewFromString(req.Metadata.AtRevision)
+	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
 	if err != nil {
 		return err
 	}

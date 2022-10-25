@@ -2,12 +2,12 @@ package datastore
 
 import (
 	"context"
+	"encoding"
 	"fmt"
 	"sort"
 	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -220,6 +220,10 @@ type Datastore interface {
 	// hasn't been garbage collected.
 	CheckRevision(ctx context.Context, revision Revision) error
 
+	// RevisionFromString will parse the revision text and return the specific type of Revision
+	// used by the specific datastore implementation.
+	RevisionFromString(serialized string) (Revision, error)
+
 	// Watch notifies the caller about all changes to tuples.
 	//
 	// All events following afterRevision will be sent to the caller.
@@ -290,12 +294,45 @@ type RelationshipIterator interface {
 	Close()
 }
 
-// Revision is a type alias to make changing the revision type a bit
-// easier if we need to do it in the future. Implementations should code
-// directly against decimal.Decimal when creating or parsing.
-type Revision = decimal.Decimal
+// Revision is an interface for a comparable revision type that can be different for
+// each datastore implementation.
+type Revision interface {
+	fmt.Stringer
+	encoding.BinaryMarshaler
+
+	// Equal returns whether the revisions should be considered equal.
+	Equal(Revision) bool
+
+	// Equal returns whether the receiver is provably greater than the right hand side.
+	GreaterThan(Revision) bool
+
+	// Equal returns whether the receiver is provably less than the right hand side.
+	LessThan(Revision) bool
+}
+
+type nilRevision struct{}
+
+func (nilRevision) Equal(rhs Revision) bool {
+	return rhs == NoRevision
+}
+
+func (nilRevision) GreaterThan(rhs Revision) bool {
+	return false
+}
+
+func (nilRevision) LessThan(rhs Revision) bool {
+	return true
+}
+
+func (nilRevision) String() string {
+	panic("the nil revision should never be serialized")
+}
+
+func (nilRevision) MarshalBinary() ([]byte, error) {
+	panic("the nil revision should never be serialized")
+}
 
 // NoRevision is a zero type for the revision that will make changing the
 // revision type in the future a bit easier if necessary. Implementations
 // should use any time they want to signal an empty/error revision.
-var NoRevision Revision
+var NoRevision Revision = nilRevision{}

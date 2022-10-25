@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgconn"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -135,15 +135,15 @@ func TestTxReset(t *testing.T) {
 			require.True(ok)
 
 			// WriteNamespace utilizes execute so we'll use it
-			revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				return rwt.WriteNamespaces(testUserNS)
 			})
 			if tt.expectError {
 				require.Error(err)
-				require.Equal(datastore.NoRevision, revision)
+				require.Equal(datastore.NoRevision, rev)
 			} else {
 				require.NoError(err)
-				require.True(revision.GreaterThan(decimal.Zero))
+				require.True(rev.GreaterThan(revision.NoRevision))
 			}
 		})
 	}

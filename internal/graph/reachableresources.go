@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/shopspring/decimal"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -34,7 +33,7 @@ type ConcurrentReachableResources struct {
 // consumption.
 type ValidatedReachableResourcesRequest struct {
 	*v1.DispatchReachableResourcesRequest
-	Revision decimal.Decimal
+	Revision datastore.Revision
 }
 
 type syncONRSet struct {

@@ -49,7 +49,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	foundDiff := cmp.Diff(coreCaveat, cv, protocmp.Transform())
 	req.Empty(foundDiff)
-	req.True(readRev.LessThanOrEqual(rev))
+	req.True(readRev.GreaterThan(datastore.NoRevision))
 
 	// All caveats can be listed when no arg is provided
 	// Manually check the caveat's contents.
@@ -236,14 +236,14 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 	cv, fetchedRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(newExpression, cv.SerializedExpression)
-	req.True(fetchedRev.LessThanOrEqual(newRev))
+	req.True(fetchedRev.GreaterThan(datastore.NoRevision))
 
 	// check previous revision
 	cr = ds.SnapshotReader(oldRev)
 	cv, fetchedRev, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(oldExpression, cv.SerializedExpression)
-	req.True(fetchedRev.LessThanOrEqual(oldRev))
+	req.True(fetchedRev.GreaterThan(datastore.NoRevision))
 }
 
 func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {

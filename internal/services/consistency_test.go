@@ -15,7 +15,6 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/jwangsadinata/go-multimap/slicemultimap"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	yamlv2 "gopkg.in/yaml.v2"
 
@@ -134,7 +133,7 @@ func runAssertions(t *testing.T,
 	tester serviceTester,
 	dispatch dispatch.Dispatcher,
 	fullyResolved *validationfile.PopulatedValidationFile,
-	revision decimal.Decimal,
+	revision datastore.Revision,
 ) {
 	for _, parsedFile := range fullyResolved.ParsedFiles {
 		for _, assertTrue := range parsedFile.Assertions.AssertTrue {
@@ -176,7 +175,7 @@ func runAssertions(t *testing.T,
 func runCrossVersionTests(t *testing.T,
 	testers []serviceTester,
 	fullyResolved *validationfile.PopulatedValidationFile,
-	revision decimal.Decimal,
+	revision datastore.Revision,
 ) {
 	// NOTE: added to skip tests when there is only one version defined.
 	if len(testers) < 2 {
@@ -240,7 +239,7 @@ func runConsistencyTests(t *testing.T,
 	dispatch dispatch.Dispatcher,
 	fullyResolved *validationfile.PopulatedValidationFile,
 	tuplesPerNamespace *slicemultimap.MultiMap,
-	revision decimal.Decimal,
+	revision datastore.Revision,
 ) {
 	lrequire := require.New(t)
 
@@ -353,7 +352,7 @@ func runConsistencyTests(t *testing.T,
 	validateDeveloper(t, vctx)
 }
 
-func accessibleViaWildcardOnly(t *testing.T, ds datastore.Datastore, dispatch dispatch.Dispatcher, onr *core.ObjectAndRelation, subject *core.ObjectAndRelation, revision decimal.Decimal) bool {
+func accessibleViaWildcardOnly(t *testing.T, ds datastore.Datastore, dispatch dispatch.Dispatcher, onr *core.ObjectAndRelation, subject *core.ObjectAndRelation, revision datastore.Revision) bool {
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -383,7 +382,7 @@ type validationContext struct {
 	dispatch dispatch.Dispatcher
 
 	tester   serviceTester
-	revision decimal.Decimal
+	revision datastore.Revision
 }
 
 func validateDeveloper(t *testing.T, vctx *validationContext) {

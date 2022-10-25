@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/e2e/cockroach"
 	"github.com/authzed/spicedb/e2e/generator"
 	"github.com/authzed/spicedb/e2e/spice"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -364,11 +365,11 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 		ns2AllowlistLeader := getLeaderNodeForNamespace(ctx, crdb[2].Conn(), allowlists[i].Relationship.Subject.Object.ObjectType)
 
 		r1leader, r2leader := getLeaderNode(ctx, crdb[2].Conn(), blockusers[i].Relationship), getLeaderNode(ctx, crdb[2].Conn(), allowlists[i].Relationship)
-		z1, _ := zedtoken.DecodeRevision(r1.WrittenAt)
-		z2, _ := zedtoken.DecodeRevision(r2.WrittenAt)
-		t.Log(sleep, z1, z2, z1.Sub(z2).String(), r1leader, r2leader, ns1BlocklistLeader, ns1UserLeader, ns2ResourceLeader, ns2AllowlistLeader)
+		z1, _ := zedtoken.DecodeRevision(r1.WrittenAt, revision.DecimalDecoder{})
+		z2, _ := zedtoken.DecodeRevision(r2.WrittenAt, revision.DecimalDecoder{})
+		t.Log(sleep, z1, z2, z1.GreaterThan(z2), r1leader, r2leader, ns1BlocklistLeader, ns1UserLeader, ns2ResourceLeader, ns2AllowlistLeader)
 
-		if z1.Sub(z2).IsPositive() {
+		if z1.GreaterThan(z2) {
 			t.Log("timestamps are reversed", canHas.Permissionship.String())
 		}
 

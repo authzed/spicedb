@@ -9,11 +9,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 
-	"github.com/shopspring/decimal"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const queryChangefeed = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s';"
@@ -75,7 +72,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 			if details.Resolved != "" {
 				// This entry indicates that we are ready to potentially emit some changes
-				resolved, err := decimal.NewFromString(details.Resolved)
+				resolved, err := cds.RevisionFromString(details.Resolved)
 				if err != nil {
 					errs <- err
 					return
@@ -83,7 +80,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 				var toEmit []*datastore.RevisionChanges
 				for ts, values := range pendingChanges {
-					if values.Revision.LessThanOrEqual(resolved) {
+					if resolved.GreaterThan(values.Revision) {
 						delete(pendingChanges, ts)
 
 						toEmit = append(toEmit, values)
@@ -112,7 +109,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				return
 			}
 
-			revision, err := decimal.NewFromString(details.Updated)
+			revision, err := cds.RevisionFromString(details.Updated)
 			if err != nil {
 				errs <- fmt.Errorf("malformed update timestamp: %w", err)
 				return

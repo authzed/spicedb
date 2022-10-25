@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/shopspring/decimal"
 	"google.golang.org/protobuf/encoding/prototext"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -35,13 +34,13 @@ type PopulatedValidationFile struct {
 
 // PopulateFromFiles populates the given datastore with the namespaces and tuples found in
 // the validation file(s) specified.
-func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedValidationFile, decimal.Decimal, error) {
+func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedValidationFile, datastore.Revision, error) {
 	contents := map[string][]byte{}
 
 	for _, filePath := range filePaths {
 		fileContents, err := os.ReadFile(filePath)
 		if err != nil {
-			return nil, decimal.Zero, err
+			return nil, datastore.NoRevision, err
 		}
 
 		contents[filePath] = fileContents
@@ -52,8 +51,8 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 
 // PopulateFromFilesContents populates the given datastore with the namespaces and tuples found in
 // the validation file(s) contents specified.
-func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string][]byte) (*PopulatedValidationFile, decimal.Decimal, error) {
-	var revision decimal.Decimal
+func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
+	var revision datastore.Revision
 	var nsDefs []*core.NamespaceDefinition
 	schema := ""
 	var tuples []*core.RelationTuple
@@ -62,7 +61,7 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 	for filePath, fileContents := range filesContents {
 		parsed, err := DecodeValidationFile(fileContents)
 		if err != nil {
-			return nil, decimal.Zero, fmt.Errorf("error when parsing config file %s: %w", filePath, err)
+			return nil, datastore.NoRevision, fmt.Errorf("error when parsing config file %s: %w", filePath, err)
 		}
 
 		files = append(files, *parsed)
@@ -135,7 +134,7 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 		for index, validationTuple := range parsed.ValidationTuples {
 			tpl := tuple.Parse(validationTuple)
 			if tpl == nil {
-				return nil, decimal.Zero, fmt.Errorf("error parsing validation tuple #%v: %s", index, validationTuple)
+				return nil, datastore.NoRevision, fmt.Errorf("error parsing validation tuple #%v: %s", index, validationTuple)
 			}
 
 			_, ok := seenTuples[tuple.String(tpl)]
@@ -152,7 +151,7 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 			return rwt.WriteRelationships(updates)
 		})
 		if terr != nil {
-			return nil, decimal.Zero, fmt.Errorf("error when loading validation tuples from file %s: %w", filePath, terr)
+			return nil, datastore.NoRevision, fmt.Errorf("error when loading validation tuples from file %s: %w", filePath, terr)
 		}
 
 		revision = wrevision

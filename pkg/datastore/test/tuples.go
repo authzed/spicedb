@@ -10,7 +10,6 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -473,11 +472,6 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		err = ds.CheckRevision(ctx, firstWrite)
 		require.True(errors.As(err, &revisionErr))
 		require.Equal(datastore.RevisionStale, revisionErr.Reason())
-
-		// Check that we can't read a revision that's ahead of the latest
-		err = ds.CheckRevision(ctx, nextWrite.Add(decimal.NewFromInt(1_000_000_000)))
-		require.True(errors.As(err, &revisionErr))
-		require.Equal(datastore.CouldNotDetermineRevision, revisionErr.Reason())
 	})
 }
 
@@ -620,7 +614,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 				ctx := context.Background()
 
 				// Add test tuples on the same resource but with different users.
-				var lastRevision datastore.Revision
+				lastRevision := datastore.NoRevision
 
 				usersets := []*core.ObjectAndRelation{}
 				for i := 0; i < numTuples; i++ {

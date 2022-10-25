@@ -88,9 +88,18 @@ func init() {
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	getRevision = psql.Select(fmt.Sprintf("MAX(%s::text::bigint)", colXID)).From(tableTransaction)
+	getRevision = psql.
+			Select(colXID, fmt.Sprintf("pg_snapshot_xmin(%s)", colSnapshot)).
+			From(tableTransaction).
+			OrderByClause(fmt.Sprintf("%s DESC", colXID)).
+			Limit(1)
 
-	createTxn = fmt.Sprintf("INSERT INTO %s DEFAULT VALUES RETURNING %s", tableTransaction, colXID)
+	createTxn = fmt.Sprintf(
+		"INSERT INTO %s DEFAULT VALUES RETURNING %s, pg_snapshot_xmin(%s)",
+		tableTransaction,
+		colXID,
+		colSnapshot,
+	)
 
 	getNow = psql.Select("NOW()")
 
@@ -171,6 +180,7 @@ func NewPostgresDatastore(
 		tableTransaction,
 		colTimestamp,
 		quantizationPeriodNanos,
+		colSnapshot,
 	)
 
 	validTransactionQuery := fmt.Sprintf(
@@ -270,7 +280,9 @@ type pgDatastore struct {
 	cancelGc context.CancelFunc
 }
 
-func (pgd *pgDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {
+	rev := revRaw.(postgresRevision)
+
 	createTxFunc := func(ctx context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
 		tx, err := pgd.dbpool.BeginTx(ctx, pgd.readTxOptions)
 		if err != nil {
@@ -319,10 +331,10 @@ func (pgd *pgDatastore) ReadWriteTx(
 ) (datastore.Revision, error) {
 	var err error
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
-		var newXID xid8
+		var newXID, newXmin xid8
 		err = pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
-			newXID, err = createNewTransaction(ctx, tx)
+			newXID, newXmin, err = createNewTransaction(ctx, tx)
 			if err != nil {
 				return err
 			}
@@ -358,7 +370,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			return datastore.NoRevision, err
 		}
 
-		return revisionFromTransaction(newXID), nil
+		return postgresRevision{newXID, newXmin}, nil
 	}
 	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
 }
@@ -422,9 +434,7 @@ func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, erro
 	return &datastore.Features{Watch: datastore.Feature{Enabled: pgd.watchEnabled}}, nil
 }
 
-func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
-	txID := transactionFromRevision(revision)
-
+func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer {
 	createdBeforeTXN := sq.Expr(fmt.Sprintf(
 		snapshotAlive,
 		colCreatedXid,
@@ -432,11 +442,11 @@ func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilter
 		tableTransaction,
 		colXID,
 		sq.Placeholders(1),
-	), txID, true)
+	), revision.tx, true)
 
 	alreadyAlive := sq.Or{
 		createdBeforeTXN,
-		sq.Expr(colCreatedXid+" = "+sq.Placeholders(1), txID),
+		sq.Expr(colCreatedXid+" = "+sq.Placeholders(1), revision.tx),
 	}
 
 	deletedAfterTXN := sq.Expr(fmt.Sprintf(
@@ -446,10 +456,10 @@ func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilter
 		tableTransaction,
 		colXID,
 		sq.Placeholders(1),
-	), txID, false)
+	), revision.tx, false)
 	notYetDead := sq.And{
 		deletedAfterTXN,
-		sq.Expr(colDeletedXid+" <> "+sq.Placeholders(1), txID),
+		sq.Expr(colDeletedXid+" <> "+sq.Placeholders(1), revision.tx),
 	}
 
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
@@ -458,13 +468,12 @@ func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilter
 }
 
 // TODO remove once the ID->XID migrations are all complete
-func buildLivingObjectFilterForRevisionDeprecated(revision datastore.Revision) queryFilterer {
-	txID := transactionFromRevision(revision)
+func buildLivingObjectFilterForRevisionDeprecated(revision postgresRevision) queryFilterer {
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
-		return original.Where(sq.LtOrEq{colCreatedTxnDeprecated: txID.Uint}).
+		return original.Where(sq.LtOrEq{colCreatedTxnDeprecated: revision.tx.Uint}).
 			Where(sq.Or{
 				sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID},
-				sq.Gt{colDeletedTxnDeprecated: revision},
+				sq.Gt{colDeletedTxnDeprecated: revision.tx.Uint},
 			})
 	}
 }

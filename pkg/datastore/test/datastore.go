@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -51,6 +50,7 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })
 
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
+	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
 
 	t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
 	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
@@ -86,7 +86,7 @@ func makeTestTuple(resourceID, userID string) *core.RelationTuple {
 	}
 }
 
-func setupDatastore(ds datastore.Datastore, require *require.Assertions) decimal.Decimal {
+func setupDatastore(ds datastore.Datastore, require *require.Assertions) datastore.Revision {
 	ctx := context.Background()
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

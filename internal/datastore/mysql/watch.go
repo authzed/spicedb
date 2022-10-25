@@ -7,6 +7,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
@@ -21,7 +22,9 @@ const (
 // All events following afterRevision will be sent to the caller.
 //
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func (mds *Datastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+	afterRevision := afterRevisionRaw.(revision.Decimal)
+
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errs := make(chan error, 1)
 
@@ -145,7 +148,7 @@ func (mds *Datastore) loadChanges(
 		return
 	}
 
-	changes = stagedChanges.AsRevisionChanges()
+	changes = stagedChanges.AsRevisionChanges(mds)
 
 	return
 }

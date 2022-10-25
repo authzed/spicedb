@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -386,7 +385,9 @@ func TestCanonicalization(t *testing.T) {
 
 			ctx := context.Background()
 
-			var lastRevision decimal.Decimal
+			lastRevision, err := ds.HeadRevision(context.Background())
+			require.NoError(err)
+
 			ts, err := NewNamespaceTypeSystem(tc.toCheck, ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
@@ -517,7 +518,9 @@ func TestCanonicalizationComparison(t *testing.T) {
 			}, &empty)
 			require.NoError(err)
 
-			var lastRevision decimal.Decimal
+			lastRevision, err := ds.HeadRevision(context.Background())
+			require.NoError(err)
+
 			ts, err := NewNamespaceTypeSystem(defs[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 

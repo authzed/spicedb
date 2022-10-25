@@ -9,15 +9,20 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
-func (sd spannerDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (sd spannerDatastore) headRevisionInternal(ctx context.Context) (revision.Decimal, error) {
 	now, err := sd.now(ctx)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+		return revision.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
 	return revisionFromTimestamp(now), nil
+}
+
+func (sd spannerDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	return sd.headRevisionInternal(ctx)
 }
 
 func (sd spannerDatastore) now(ctx context.Context) (time.Time, error) {
@@ -40,10 +45,10 @@ func (sd spannerDatastore) now(ctx context.Context) (time.Time, error) {
 	return timestamp, nil
 }
 
-func revisionFromTimestamp(t time.Time) datastore.Revision {
-	return decimal.NewFromInt(t.UnixNano())
+func revisionFromTimestamp(t time.Time) revision.Decimal {
+	return revision.NewFromDecimal(decimal.NewFromInt(t.UnixNano()))
 }
 
-func timestampFromRevision(r datastore.Revision) time.Time {
+func timestampFromRevision(r revision.Decimal) time.Time {
 	return time.Unix(0, r.IntPart())
 }

@@ -18,7 +18,6 @@ type txFactory func() (*memdb.Txn, error)
 type memdbReader struct {
 	TryLocker
 	txSource      txFactory
-	revision      datastore.Revision
 	initErr       error
 	enableCaveats bool
 }

@@ -16,14 +16,15 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 var (
-	zero      = decimal.NewFromInt(0)
-	optimized = decimal.NewFromInt(100)
-	exact     = decimal.NewFromInt(123)
-	head      = decimal.NewFromInt(145)
+	zero      = revision.NewFromDecimal(decimal.NewFromInt(0))
+	optimized = revision.NewFromDecimal(decimal.NewFromInt(100))
+	exact     = revision.NewFromDecimal(decimal.NewFromInt(123))
+	head      = revision.NewFromDecimal(decimal.NewFromInt(145))
 )
 
 func TestAddRevisionToContextNoneSupplied(t *testing.T) {
@@ -35,7 +36,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, ds)
 	require.NoError(err)
-	require.Equal(optimized.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(optimized.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -54,7 +55,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(optimized.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(optimized.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -73,7 +74,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(head.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(head.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -82,6 +83,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
@@ -92,7 +94,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(exact.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(exact.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -101,6 +103,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("CheckRevision", exact).Return(nil).Times(1)
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
@@ -111,7 +114,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(exact.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(exact.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -120,6 +123,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("CheckRevision", zero).Return(errors.New("bad revision")).Times(1)
+	ds.On("RevisionFromString", zero.String()).Return(zero, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
@@ -142,7 +146,7 @@ func TestAddRevisionToContextAPIAlwaysFullyConsistent(t *testing.T) {
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.WriteSchemaRequest{}, ds)
 	require.NoError(err)
-	require.Equal(head.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(head.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 

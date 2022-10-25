@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -118,7 +118,7 @@ func (r *pgReader) ReadNamespace(ctx context.Context, nsName string) (*core.Name
 	}
 }
 
-func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, filterer queryFilterer) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "loadNamespace")
 	defer span.End()
 
@@ -126,11 +126,11 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.T
 		return filterer(original).Where(sq.Eq{colNamespace: namespace})
 	}, r.migrationPhase)
 	if err != nil {
-		return nil, datastore.NoRevision, err
+		return nil, postgresRevision{}, err
 	}
 
 	if len(defs) < 1 {
-		return nil, datastore.NoRevision, datastore.NewNamespaceNotFoundErr(namespace)
+		return nil, postgresRevision{}, datastore.NewNamespaceNotFoundErr(namespace)
 	}
 
 	return defs[0].nsDef, defs[0].revision, nil
@@ -191,7 +191,7 @@ func stripRevisions(defsWithRevisions []nsAndVersion) []*core.NamespaceDefinitio
 
 type nsAndVersion struct {
 	nsDef    *core.NamespaceDefinition
-	revision datastore.Revision
+	revision postgresRevision
 }
 
 func loadAllNamespaces(
@@ -240,11 +240,11 @@ func loadAllNamespaces(
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		revision := revisionFromTransaction(version)
+		revision := postgresRevision{version, noXmin}
 
 		// TODO remove once the ID->XID migrations are all complete
 		if migrationPhase == writeBothReadOld {
-			revision = decimal.NewFromInt(int64(versionTxDeprecated))
+			revision = postgresRevision{xid8{Uint: versionTxDeprecated, Status: pgtype.Present}, noXmin}
 		}
 
 		nsDefs = append(nsDefs, nsAndVersion{loaded, revision})

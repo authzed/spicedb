@@ -22,6 +22,7 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 func init() {
@@ -141,6 +142,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
+		revision.DecimalDecoder{},
 		url,
 		pool,
 		config.watchBufferLength,
@@ -150,7 +152,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		config.disableStats,
 	}
 
-	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
+	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
 	return ds, nil
 }
@@ -181,6 +183,7 @@ func configurePool(config crdbOptions, pgxConfig *pgxpool.Config) {
 
 type crdbDatastore struct {
 	*revisions.RemoteClockRevisions
+	revision.DecimalDecoder
 
 	dburl             string
 	pool              *pgxpool.Pool
@@ -231,7 +234,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
 ) (datastore.Revision, error) {
-	var commitTimestamp datastore.Revision
+	var commitTimestamp revision.Decimal
 	if err := cds.execute(ctx, func(ctx context.Context) error {
 		return cds.pool.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			longLivedTx := func(context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
@@ -318,16 +321,20 @@ func (cds *crdbDatastore) Close() error {
 }
 
 func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+	return cds.headRevisionInternal(ctx)
+}
+
+func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (revision.Decimal, error) {
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "HeadRevision")
 	defer span.End()
 
-	var hlcNow datastore.Revision
+	var hlcNow revision.Decimal
 	err := cds.execute(ctx, func(ctx context.Context) error {
 		return cds.pool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 			var fnErr error
 			hlcNow, fnErr = readCRDBNow(ctx, tx)
 			if fnErr != nil {
-				hlcNow = datastore.NoRevision
+				hlcNow = revision.NoRevision
 				return fmt.Errorf(errRevision, fnErr)
 			}
 			return nil
@@ -363,7 +370,7 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	return &features, nil
 }
 
-func readCRDBNow(ctx context.Context, tx pgx.Tx) (decimal.Decimal, error) {
+func readCRDBNow(ctx context.Context, tx pgx.Tx) (revision.Decimal, error) {
 	ctx, span := tracer.Start(ctx, "readCRDBNow")
 	defer span.End()
 
@@ -372,10 +379,10 @@ func readCRDBNow(ctx context.Context, tx pgx.Tx) (decimal.Decimal, error) {
 		datastore.SeparateContextWithTracing(ctx),
 		querySelectNow,
 	).Scan(&hlcNow); err != nil {
-		return decimal.Decimal{}, fmt.Errorf("unable to read timestamp: %w", err)
+		return revision.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
 	}
 
-	return hlcNow, nil
+	return revision.NewFromDecimal(hlcNow), nil
 }
 
 func readClusterTTLNanos(conn *pgxpool.Pool) (int64, error) {
@@ -399,6 +406,6 @@ func readClusterTTLNanos(conn *pgxpool.Pool) (int64, error) {
 	return gcSeconds * 1_000_000_000, nil
 }
 
-func revisionFromTimestamp(t time.Time) datastore.Revision {
-	return decimal.NewFromInt(t.UnixNano())
+func revisionFromTimestamp(t time.Time) revision.Decimal {
+	return revision.NewFromDecimal(decimal.NewFromInt(t.UnixNano()))
 }

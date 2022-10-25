@@ -5,7 +5,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -491,7 +490,9 @@ func TestReachabilityGraph(t *testing.T) {
 			}, &empty)
 			require.NoError(err)
 
-			var lastRevision decimal.Decimal
+			lastRevision, err := ds.HeadRevision(context.Background())
+			require.NoError(err)
+
 			var rts *ValidatedNamespaceTypeSystem
 			for _, nsDef := range defs {
 				reader := ds.SnapshotReader(lastRevision)

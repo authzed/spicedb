@@ -49,6 +49,11 @@ func (dm *MockDatastore) CheckRevision(ctx context.Context, revision datastore.R
 	return args.Error(0)
 }
 
+func (dm *MockDatastore) RevisionFromString(s string) (datastore.Revision, error) {
+	args := dm.Called(s)
+	return args.Get(0).(datastore.Revision), args.Error(1)
+}
+
 func (dm *MockDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	args := dm.Called(afterRevision)
 	return args.Get(0).(<-chan *datastore.RevisionChanges), args.Get(1).(<-chan error)

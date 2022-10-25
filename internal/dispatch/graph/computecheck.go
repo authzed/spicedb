@@ -6,11 +6,10 @@ import (
 
 	"golang.org/x/exp/maps"
 
-	"github.com/shopspring/decimal"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/caveats"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -21,7 +20,7 @@ type CheckParameters struct {
 	ResourceID         string
 	Subject            *core.ObjectAndRelation
 	CaveatContext      map[string]any
-	AtRevision         decimal.Decimal
+	AtRevision         datastore.Revision
 	MaximumDepth       uint32
 	IsDebuggingEnabled bool
 }
@@ -114,7 +113,7 @@ func runExpression(
 	env *caveats.Environment,
 	expr *v1.CaveatExpression,
 	context map[string]any,
-	revision decimal.Decimal,
+	revision datastore.Revision,
 ) (expressionResult, error) {
 	if expr.GetCaveat() != nil {
 		ds := datastoremw.MustFromContext(ctx)

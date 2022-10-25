@@ -5,7 +5,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
-	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -43,9 +42,9 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		objectTypesMap[objectType] = struct{}{}
 	}
 
-	var afterRevision decimal.Decimal
+	var afterRevision datastore.Revision
 	if req.OptionalStartCursor != nil && req.OptionalStartCursor.Token != "" {
-		decodedRevision, err := zedtoken.DecodeRevision(req.OptionalStartCursor)
+		decodedRevision, err := zedtoken.DecodeRevision(req.OptionalStartCursor, ds)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}

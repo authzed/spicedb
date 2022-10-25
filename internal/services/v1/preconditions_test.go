@@ -28,7 +28,7 @@ func TestPreconditions(t *testing.T) {
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(uninitialized, require)
-	require.Greater(revision.IntPart(), datastore.NoRevision.IntPart())
+	require.True(revision.GreaterThan(datastore.NoRevision))
 
 	ctx := context.Background()
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

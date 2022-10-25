@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/shopspring/decimal"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -31,7 +29,7 @@ type ConcurrentExpander struct {
 // consumption.
 type ValidatedExpandRequest struct {
 	*v1.DispatchExpandRequest
-	Revision decimal.Decimal
+	Revision datastore.Revision
 }
 
 // Expand performs an expand request with the provided request and context.
