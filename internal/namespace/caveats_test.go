@@ -32,6 +32,18 @@ func TestValidateCaveatDefinition(t *testing.T) {
 			), "test", "true"),
 			"parameter `someCondition` for caveat `test` is unused",
 		},
+		{
+			ns.MustCaveatDefinition(caveats.MustEnvForVariables(
+				map[string]caveattypes.VariableType{},
+			), "test", "true"),
+			"caveat `test` must have at least one parameter defined",
+		},
+		{
+			&core.CaveatDefinition{
+				SerializedExpression: []byte("123"),
+			},
+			"could not decode caveat",
+		},
 	}
 
 	for _, tc := range tcs {

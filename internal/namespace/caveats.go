@@ -13,19 +13,19 @@ import (
 // ValidateCaveatDefinition validates the parameters and types within the given caveat
 // definition, including usage of the parameters.
 func ValidateCaveatDefinition(caveat *core.CaveatDefinition) error {
-	if len(caveat.ParameterTypes) == 0 {
-		return newTypeErrorWithSource(
-			fmt.Errorf("caveat `%s` must have at least one parameter defined", caveat.Name),
-			caveat,
-			caveat.Name,
-		)
-	}
-
 	// Ensure all parameters are used by the caveat expression itself.
 	deserialized, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
 	if err != nil {
 		return newTypeErrorWithSource(
 			fmt.Errorf("could not decode caveat `%s`: %w", caveat.Name, err),
+			caveat,
+			caveat.Name,
+		)
+	}
+
+	if len(caveat.ParameterTypes) == 0 {
+		return newTypeErrorWithSource(
+			fmt.Errorf("caveat `%s` must have at least one parameter defined", caveat.Name),
 			caveat,
 			caveat.Name,
 		)

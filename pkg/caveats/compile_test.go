@@ -208,6 +208,11 @@ func TestCompile(t *testing.T) {
 	}
 }
 
+func TestDeserializeEmpty(t *testing.T) {
+	_, err := DeserializeCaveat([]byte{})
+	require.NotNil(t, err)
+}
+
 func TestSerialization(t *testing.T) {
 	exprs := []string{"a == 1", "a + b == 2", "b - a == 4"}
 
