@@ -122,6 +122,8 @@ func (mds *Datastore) loadChanges(
 
 		var createdTxn uint64
 		var deletedTxn uint64
+		var caveatName string
+		var caveatContext caveatContextWrapper
 		err = rows.Scan(
 			&nextTuple.ResourceAndRelation.Namespace,
 			&nextTuple.ResourceAndRelation.ObjectId,
@@ -129,9 +131,15 @@ func (mds *Datastore) loadChanges(
 			&nextTuple.Subject.Namespace,
 			&nextTuple.Subject.ObjectId,
 			&nextTuple.Subject.Relation,
+			&caveatName,
+			&caveatContext,
 			&createdTxn,
 			&deletedTxn,
 		)
+		if err != nil {
+			return
+		}
+		nextTuple.Caveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
 		if err != nil {
 			return
 		}

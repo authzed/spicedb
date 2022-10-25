@@ -46,6 +46,7 @@ var schema = common.SchemaInformation{
 	ColUsersetNamespace: colUsersetNamespace,
 	ColUsersetObjectID:  colUsersetObjectID,
 	ColUsersetRelation:  colUsersetRelation,
+	ColCaveatName:       colCaveatName,
 }
 
 func (mr *mysqlReader) QueryRelationships(

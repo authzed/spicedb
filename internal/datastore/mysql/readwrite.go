@@ -3,6 +3,8 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -37,6 +39,21 @@ type mysqlReadWriteTXN struct {
 	newTxnID uint64
 }
 
+// caveatContextWrapper is used to marshall maps into MySQLs JSON data type
+type caveatContextWrapper map[string]any
+
+func (cc *caveatContextWrapper) Scan(val any) error {
+	v, ok := val.([]byte)
+	if !ok {
+		return fmt.Errorf("unsupported type: %T", v)
+	}
+	return json.Unmarshal(v, &cc)
+}
+
+func (cc *caveatContextWrapper) Value() (driver.Value, error) {
+	return json.Marshal(&cc)
+}
+
 // WriteRelationships takes a list of existing relationships that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified namespace.
 func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
@@ -56,14 +73,17 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 	for _, mut := range mutations {
 		tpl := mut.Tuple
 
-		if tpl.Caveat != nil {
-			panic("caveats not currently supported in MySQL datastore")
-		}
 		// Implementation for TOUCH deviates from PostgreSQL datastore to prevent a deadlock in MySQL
 		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {
 			clauses = append(clauses, exactRelationshipClause(tpl))
 		}
 
+		var caveatName string
+		var caveatContext caveatContextWrapper
+		if tpl.Caveat != nil {
+			caveatName = tpl.Caveat.CaveatName
+			caveatContext = tpl.Caveat.Context.AsMap()
+		}
 		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_CREATE {
 			bulkWrite = bulkWrite.Values(
 				tpl.ResourceAndRelation.Namespace,
@@ -72,6 +92,8 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 				tpl.Subject.Namespace,
 				tpl.Subject.ObjectId,
 				tpl.Subject.Relation,
+				caveatName,
+				&caveatContext,
 				rwt.newTxnID,
 			)
 			bulkWriteHasValues = true
@@ -201,7 +223,6 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}
-		span.AddEvent("Serialized namespace config")
 
 		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{colNamespace: newNamespace.Name})
 		writeQuery = writeQuery.Values(newNamespace.Name, serialized, rwt.newTxnID)
