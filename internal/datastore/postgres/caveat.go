@@ -12,7 +12,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -26,8 +25,17 @@ var (
 	deleteCaveatDeprecated = psql.Update(tableCaveat).Where(sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID})
 )
 
+const (
+	errWriteCaveats  = "unable to write caveats: %w"
+	errDeleteCaveats = "unable delete caveats: %w"
+	errListCaveats   = "unable to list caveats: %w"
+	errReadCaveat    = "unable to read caveat: %w"
+)
+
 func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "ReadCaveatByName", trace.WithAttributes(attribute.String("name", name)))
+	ctx = datastore.SeparateContextWithTracing(ctx)
+	ctx, span := tracer.Start(ctx, "ReadCaveatByName", trace.WithAttributes(
+		common.CaveatNameKey.String(name)))
 	defer span.End()
 
 	statement := readCaveat
@@ -38,12 +46,12 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	filteredReadCaveat := r.filterer(statement)
 	sql, args, err := filteredReadCaveat.Where(sq.Eq{colCaveatName: name}).ToSql()
 	if err != nil {
-		return nil, datastore.NoRevision, err
+		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
 
 	tx, txCleanup, err := r.txSource(ctx)
 	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf("unable to read caveat: %w", err)
+		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
 	defer txCleanup(ctx)
 
@@ -61,10 +69,13 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
 		}
-		return nil, datastore.NoRevision, err
+		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
 	def := core.CaveatDefinition{}
 	err = def.UnmarshalVT(serializedDef)
+	if err != nil {
+		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
+	}
 	rev := postgresRevision{txID, noXmin}
 
 	// TODO remove once the ID->XID migrations are all complete
@@ -72,13 +83,13 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 		rev = postgresRevision{xid8{Uint: versionTxDeprecated, Status: pgtype.Present}, noXmin}
 	}
 
-	return &def, rev, err
+	return &def, rev, nil
 }
 
 func (r *pgReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+	ctx = datastore.SeparateContextWithTracing(ctx)
 	ctx, span := tracer.Start(ctx, "ListCaveats", trace.WithAttributes(
-		attribute.StringSlice("names", caveatNames),
-	))
+		common.CaveatNameKey.StringSlice(caveatNames)))
 	defer span.End()
 
 	caveatsWithNames := listCaveat
@@ -89,18 +100,18 @@ func (r *pgReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*c
 	filteredListCaveat := r.filterer(caveatsWithNames)
 	sql, args, err := filteredListCaveat.ToSql()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(errListCaveats, err)
 	}
 
 	tx, txCleanup, err := r.txSource(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to list caveat: %w", err)
+		return nil, fmt.Errorf(errListCaveats, err)
 	}
 	defer txCleanup(ctx)
 
 	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(errListCaveats, err)
 	}
 
 	defer rows.Close()
@@ -109,17 +120,17 @@ func (r *pgReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*c
 		var defBytes []byte
 		err = rows.Scan(&defBytes)
 		if err != nil {
-			return nil, fmt.Errorf("unable to list caveat: %w", err)
+			return nil, fmt.Errorf(errListCaveats, err)
 		}
 		c := core.CaveatDefinition{}
 		err = c.UnmarshalVT(defBytes)
 		if err != nil {
-			return nil, fmt.Errorf("unable to list caveat: %w", err)
+			return nil, fmt.Errorf(errListCaveats, err)
 		}
 		caveats = append(caveats, &c)
 	}
 	if rows.Err() != nil {
-		return nil, fmt.Errorf("unable to list caveat: %w", rows.Err())
+		return nil, fmt.Errorf(errListCaveats, rows.Err())
 	}
 
 	return caveats, nil
@@ -129,7 +140,6 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteCaveats")
 	defer span.End()
 
-	deletedCaveatClause := sq.Or{}
 	write := writeCaveat
 	// TODO remove once the ID->XID migrations are all complete
 	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
@@ -137,10 +147,9 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 	}
 	writtenCaveatNames := make([]string, 0, len(caveats))
 	for _, caveat := range caveats {
-		deletedCaveatClause = append(deletedCaveatClause, sq.Eq{colCaveatName: caveat.Name})
 		definitionBytes, err := caveat.MarshalVT()
 		if err != nil {
-			return err
+			return fmt.Errorf(errWriteCaveats, err)
 		}
 		valuesToWrite := []any{caveat.Name, definitionBytes}
 		// TODO remove once the ID->XID migrations are all complete
@@ -153,43 +162,39 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 	span.SetAttributes(common.CaveatNameKey.StringSlice(writtenCaveatNames))
 
 	// mark current caveats as deleted
-	err := rwt.deleteCaveatsWithClause(ctx, deletedCaveatClause)
+	err := rwt.deleteCaveatsFromNames(ctx, writtenCaveatNames)
 	if err != nil {
-		return err
+		return fmt.Errorf(errWriteCaveats, err)
 	}
 
 	// store the new caveat revision
 	sql, args, err := write.ToSql()
 	if err != nil {
-		return fmt.Errorf("unable to write new caveat revision: %w", err)
+		return fmt.Errorf(errWriteCaveats, err)
 	}
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-		return fmt.Errorf("unable to write new caveat revision: %w", err)
+		return fmt.Errorf(errWriteCaveats, err)
 	}
 	return nil
 }
 
 func (rwt *pgReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteCaveats")
+	ctx = datastore.SeparateContextWithTracing(ctx)
+	ctx, span := tracer.Start(ctx, "DeleteCaveats", trace.WithAttributes(
+		common.CaveatNameKey.StringSlice(names)))
 	defer span.End()
 
-	deletedCaveatClause := sq.Or{}
-	for _, name := range names {
-		deletedCaveatClause = append(deletedCaveatClause, sq.Eq{colCaveatName: name})
-	}
-	span.SetAttributes(common.CaveatNameKey.StringSlice(names))
-
 	// mark current caveats as deleted
-	return rwt.deleteCaveatsWithClause(ctx, deletedCaveatClause)
+	return rwt.deleteCaveatsFromNames(ctx, names)
 }
 
-func (rwt *pgReadWriteTXN) deleteCaveatsWithClause(ctx context.Context, deleteClauses sq.Or) error {
+func (rwt *pgReadWriteTXN) deleteCaveatsFromNames(ctx context.Context, names []string) error {
 	sql, args, err := deleteCaveat.
 		Set(colDeletedXid, rwt.newXID).
-		Where(sq.And{sq.Eq{colDeletedXid: liveDeletedTxnID}, deleteClauses}).
+		Where(sq.Eq{colCaveatName: names}).
 		ToSql()
 	if err != nil {
-		return fmt.Errorf("unable to mark previous caveat revisions as deleted: %w", err)
+		return fmt.Errorf(errDeleteCaveats, err)
 	}
 
 	// TODO remove once the ID->XID migrations are all complete
@@ -200,17 +205,17 @@ func (rwt *pgReadWriteTXN) deleteCaveatsWithClause(ctx context.Context, deleteCl
 		}
 
 		sql, args, err = baseQuery.
-			Where(deleteClauses).
+			Where(sq.Eq{colCaveatName: names}).
 			Set(colDeletedTxnDeprecated, rwt.newXID.Uint).
 			Set(colDeletedXid, rwt.newXID).
 			ToSql()
 		if err != nil {
-			return fmt.Errorf("unable to mark previous caveat revisions as deleted: %w", err)
+			return fmt.Errorf(errDeleteCaveats, err)
 		}
 	}
 
 	if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-		return fmt.Errorf("unable to mark previous caveat revisions as deleted: %w", err)
+		return fmt.Errorf(errDeleteCaveats, err)
 	}
 	return nil
 }
