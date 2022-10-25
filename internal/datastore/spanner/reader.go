@@ -86,6 +86,8 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 				ResourceAndRelation: &core.ObjectAndRelation{},
 				Subject:             &core.ObjectAndRelation{},
 			}
+			var caveatName spanner.NullString
+			var caveatCtx spanner.NullJSON
 			err := row.Columns(
 				&nextTuple.ResourceAndRelation.Namespace,
 				&nextTuple.ResourceAndRelation.ObjectId,
@@ -93,7 +95,14 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 				&nextTuple.Subject.Namespace,
 				&nextTuple.Subject.ObjectId,
 				&nextTuple.Subject.Relation,
+				&caveatName,
+				&caveatCtx,
 			)
+			if err != nil {
+				return err
+			}
+
+			nextTuple.Caveat, err = ContextualizedCaveatFrom(caveatName, caveatCtx)
 			if err != nil {
 				return err
 			}
@@ -218,6 +227,8 @@ var queryTuples = sql.Select(
 	colUsersetNamespace,
 	colUsersetObjectID,
 	colUsersetRelation,
+	colCaveatName,
+	colCaveatContext,
 ).From(tableRelationship)
 
 var schema = common.SchemaInformation{
@@ -227,6 +238,7 @@ var schema = common.SchemaInformation{
 	ColUsersetNamespace: colUsersetNamespace,
 	ColUsersetObjectID:  colUsersetObjectID,
 	ColUsersetRelation:  colUsersetRelation,
+	ColCaveatName:       colCaveatName,
 }
 
 var _ datastore.Reader = spannerReader{}

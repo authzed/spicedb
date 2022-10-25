@@ -272,6 +272,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	// test relationship with caveat and empty context
 	tupleWithEmptyContext := createTestCaveatedTuple(t, "document:b#parent@folder:company#...", coreCaveat.Name)
 	strct, err := structpb.NewStruct(nil)
+
 	req.NoError(err)
 	tupleWithEmptyContext.Caveat.Context = strct
 	revBeforeWrite, err = ds.HeadRevision(ctx)
@@ -333,7 +334,7 @@ func assertTupleCorrectlyStored(req *require.Assertions, ds datastore.Datastore,
 
 func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
 	ctx := context.Background()
-	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { //nolint: errcheck
+	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { // nolint: errcheck
 		_, _, err := transaction.ReadCaveatByName(ctx, uuid.NewString())
 		if !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
 			t.Skip("datastore does not implement CaveatStorer interface")

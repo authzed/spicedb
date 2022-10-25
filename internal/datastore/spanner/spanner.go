@@ -41,6 +41,11 @@ const (
 	errUnableToDeleteConfig   = "unable to delete namespace config: %w"
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 
+	errUnableToReadCaveat   = "unable to read caveat: %w"
+	errUnableToWriteCaveat  = "unable to write caveat: %w"
+	errUnableToListCaveats  = "unable to list caveats: %w"
+	errUnableToDeleteCaveat = "unable to delete caveat: %w"
+
 	// Spanner requires a much smaller userset batch size than other datastores because of the
 	// limitation on the maximum number of function calls.
 	// https://cloud.google.com/spanner/quotas

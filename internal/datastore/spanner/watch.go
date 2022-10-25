@@ -95,6 +95,8 @@ func (sd spannerDatastore) loadChanges(
 		var op int64
 		var timestamp time.Time
 		var colChangeUUID string
+		var caveatName spanner.NullString
+		var caveatCtx spanner.NullJSON
 		err := r.Columns(
 			&timestamp,
 			&colChangeUUID,
@@ -105,7 +107,13 @@ func (sd spannerDatastore) loadChanges(
 			&tpl.Subject.Namespace,
 			&tpl.Subject.ObjectId,
 			&tpl.Subject.Relation,
+			&caveatName,
+			&caveatCtx,
 		)
+		if err != nil {
+			return err
+		}
+		tpl.Caveat, err = ContextualizedCaveatFrom(caveatName, caveatCtx)
 		if err != nil {
 			return err
 		}
