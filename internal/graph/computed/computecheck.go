@@ -1,4 +1,4 @@
-package graph
+package computed
 
 import (
 	"context"
@@ -17,7 +17,6 @@ import (
 // CheckParameters are the parameters for the ComputeCheck call. *All* are required.
 type CheckParameters struct {
 	ResourceType       *core.RelationReference
-	ResourceID         string
 	Subject            *core.ObjectAndRelation
 	CaveatContext      map[string]any
 	AtRevision         datastore.Revision
@@ -29,18 +28,47 @@ type CheckParameters struct {
 // caveat expressions found.
 func ComputeCheck(
 	ctx context.Context,
-	d dispatch.Dispatcher,
+	d dispatch.Check,
 	params CheckParameters,
+	resourceID string,
 ) (*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
+	resultsMap, meta, err := computeCheck(ctx, d, params, []string{resourceID})
+	if err != nil {
+		return nil, meta, err
+	}
+	return resultsMap[resourceID], meta, err
+}
+
+// ComputeBulkCheck computes a check result for the given resources and subject, computing any
+// caveat expressions found.
+func ComputeBulkCheck(
+	ctx context.Context,
+	d dispatch.Check,
+	params CheckParameters,
+	resourceIDs []string,
+) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
+	return computeCheck(ctx, d, params, resourceIDs)
+}
+
+func computeCheck(ctx context.Context,
+	d dispatch.Check,
+	params CheckParameters,
+	resourceIDs []string,
+) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
 	debugging := v1.DispatchCheckRequest_NO_DEBUG
 	if params.IsDebuggingEnabled {
 		debugging = v1.DispatchCheckRequest_ENABLE_DEBUGGING
 	}
 
+	setting := v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS
+	if len(resourceIDs) == 1 {
+		setting = v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT
+	}
+
 	checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: params.ResourceType,
-		ResourceIds:      []string{params.ResourceID},
-		ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
+		ResourceIds:      resourceIDs,
+		ResultsSetting:   setting,
 		Subject:          params.Subject,
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     params.AtRevision.String(),
@@ -52,21 +80,33 @@ func ComputeCheck(
 		return nil, checkResult.Metadata, err
 	}
 
-	result, ok := checkResult.ResultsByResourceId[params.ResourceID]
+	results := make(map[string]*v1.ResourceCheckResult, len(resourceIDs))
+	for _, resourceID := range resourceIDs {
+		computed, err := computeCaveatedCheckResult(ctx, params, resourceID, checkResult)
+		if err != nil {
+			return nil, checkResult.Metadata, err
+		}
+		results[resourceID] = computed
+	}
+	return results, checkResult.Metadata, nil
+}
+
+func computeCaveatedCheckResult(ctx context.Context, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {
+	result, ok := checkResult.ResultsByResourceId[resourceID]
 	if !ok {
 		return &v1.ResourceCheckResult{
 			Membership: v1.ResourceCheckResult_NOT_MEMBER,
-		}, checkResult.Metadata, nil
+		}, nil
 	}
 
 	if result.Membership == v1.ResourceCheckResult_MEMBER {
-		return result, checkResult.Metadata, nil
+		return result, nil
 	}
 
 	env := caveats.NewEnvironment()
 	caveatResult, err := runExpression(ctx, env, result.Expression, params.CaveatContext, params.AtRevision)
 	if err != nil {
-		return nil, checkResult.Metadata, err
+		return nil, err
 	}
 
 	if caveatResult.IsPartial() {
@@ -74,16 +114,18 @@ func ComputeCheck(
 		return &v1.ResourceCheckResult{
 			Membership:        v1.ResourceCheckResult_CAVEATED_MEMBER,
 			MissingExprFields: missingFields,
-		}, checkResult.Metadata, nil
-	} else if caveatResult.Value() {
+		}, nil
+	}
+
+	if caveatResult.Value() {
 		return &v1.ResourceCheckResult{
 			Membership: v1.ResourceCheckResult_MEMBER,
-		}, checkResult.Metadata, nil
-	} else {
-		return &v1.ResourceCheckResult{
-			Membership: v1.ResourceCheckResult_NOT_MEMBER,
-		}, checkResult.Metadata, nil
+		}, nil
 	}
+
+	return &v1.ResourceCheckResult{
+		Membership: v1.ResourceCheckResult_NOT_MEMBER,
+	}, nil
 }
 
 type expressionResult interface {

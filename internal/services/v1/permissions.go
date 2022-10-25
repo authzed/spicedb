@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/graph/computed"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -18,7 +20,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
-	dispatchgraph "github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -69,13 +70,12 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		_, isDebuggingEnabled = md[string(requestmeta.RequestDebugInformation)]
 	}
 
-	cr, metadata, err := dispatchgraph.ComputeCheck(ctx, ps.dispatch,
-		dispatchgraph.CheckParameters{
+	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
+		computed.CheckParameters{
 			ResourceType: &core.RelationReference{
 				Namespace: req.Resource.ObjectType,
 				Relation:  req.Permission,
 			},
-			ResourceID: req.Resource.ObjectId,
 			Subject: &core.ObjectAndRelation{
 				Namespace: req.Subject.Object.ObjectType,
 				ObjectId:  req.Subject.Object.ObjectId,
@@ -86,6 +86,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			MaximumDepth:       ps.config.MaximumAPIDepth,
 			IsDebuggingEnabled: isDebuggingEnabled,
 		},
+		req.Resource.ObjectId,
 	)
 	usagemetrics.SetInContext(ctx, metadata)
 

@@ -1,4 +1,4 @@
-package graph
+package computed_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/graph/computed"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/caveats/types"
@@ -803,7 +805,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			dispatch := NewLocalOnlyDispatcher(10)
+			dispatch := graph.NewLocalOnlyDispatcher(10)
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -814,19 +816,20 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				t.Run(r.check, func(t *testing.T) {
 					rel := tuple.MustParse(r.check)
 
-					result, _, err := ComputeCheck(ctx, dispatch,
-						CheckParameters{
+					result, _, err := computed.ComputeCheck(ctx, dispatch,
+						computed.CheckParameters{
 							ResourceType: &core.RelationReference{
 								Namespace: rel.ResourceAndRelation.Namespace,
 								Relation:  rel.ResourceAndRelation.Relation,
 							},
-							ResourceID:         rel.ResourceAndRelation.ObjectId,
 							Subject:            rel.Subject,
 							CaveatContext:      r.context,
 							AtRevision:         revision,
 							MaximumDepth:       50,
 							IsDebuggingEnabled: true,
-						})
+						},
+						rel.ResourceAndRelation.ObjectId,
+					)
 
 					if r.error != "" {
 						require.NotNil(t, err, "missing required error: %s", r.error)
@@ -849,22 +852,24 @@ func TestComputeCheckError(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatch := graph.NewLocalOnlyDispatcher(10)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
-	_, _, err = ComputeCheck(ctx, dispatch, CheckParameters{
-		ResourceType: &core.RelationReference{
-			Namespace: "a",
-			Relation:  "b",
+	_, _, err = computed.ComputeCheck(ctx, dispatch,
+		computed.CheckParameters{
+			ResourceType: &core.RelationReference{
+				Namespace: "a",
+				Relation:  "b",
+			},
+			Subject:            &core.ObjectAndRelation{},
+			CaveatContext:      nil,
+			AtRevision:         revision.NoRevision,
+			MaximumDepth:       50,
+			IsDebuggingEnabled: true,
 		},
-		ResourceID:         "id",
-		Subject:            &core.ObjectAndRelation{},
-		CaveatContext:      nil,
-		AtRevision:         revision.NoRevision,
-		MaximumDepth:       50,
-		IsDebuggingEnabled: true,
-	})
+		"id",
+	)
 	require.Error(t, err)
 }
 
