@@ -76,6 +76,8 @@ var addXIDIndices = []string{
 	// Add indices that will eventually back our new constraints
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_rttx_pk
 		ON relation_tuple_transaction (xid);`,
+	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_rttx_ts
+		ON relation_tuple_transaction ((xid::text::bigint), timestamp);`,
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_namespace_config_pk
 		ON namespace_config (namespace, created_xid, deleted_xid);`,
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_namespace_config_living
