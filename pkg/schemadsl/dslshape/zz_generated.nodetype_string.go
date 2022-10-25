@@ -12,22 +12,26 @@ func _() {
 	_ = x[NodeTypeFile-1]
 	_ = x[NodeTypeComment-2]
 	_ = x[NodeTypeDefinition-3]
-	_ = x[NodeTypeRelation-4]
-	_ = x[NodeTypePermission-5]
-	_ = x[NodeTypeTypeReference-6]
-	_ = x[NodeTypeSpecificTypeReference-7]
-	_ = x[NodeTypeCaveatReference-8]
-	_ = x[NodeTypeUnionExpression-9]
-	_ = x[NodeTypeIntersectExpression-10]
-	_ = x[NodeTypeExclusionExpression-11]
-	_ = x[NodeTypeArrowExpression-12]
-	_ = x[NodeTypeIdentifier-13]
-	_ = x[NodeTypeNilExpression-14]
+	_ = x[NodeTypeCaveatDefinition-4]
+	_ = x[NodeTypeCaveatParameter-5]
+	_ = x[NodeTypeCaveatExpession-6]
+	_ = x[NodeTypeRelation-7]
+	_ = x[NodeTypePermission-8]
+	_ = x[NodeTypeTypeReference-9]
+	_ = x[NodeTypeSpecificTypeReference-10]
+	_ = x[NodeTypeCaveatReference-11]
+	_ = x[NodeTypeUnionExpression-12]
+	_ = x[NodeTypeIntersectExpression-13]
+	_ = x[NodeTypeExclusionExpression-14]
+	_ = x[NodeTypeArrowExpression-15]
+	_ = x[NodeTypeIdentifier-16]
+	_ = x[NodeTypeNilExpression-17]
+	_ = x[NodeTypeCaveatTypeReference-18]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpression"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpessionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 74, 92, 113, 142, 165, 188, 215, 242, 265, 283, 304}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 82, 105, 128, 144, 162, 183, 212, 235, 258, 285, 312, 335, 353, 374, 401}
 
 func (i NodeType) String() string {
 	if i < 0 || i >= NodeType(len(_NodeType_index)-1) {

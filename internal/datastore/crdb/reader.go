@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -168,11 +167,6 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	if subjectsFilter.OptionalCaveatName != "" {
-		// TODO(vroldanbet): remove once OptionalCaveatName is supported in the subjects filter
-		return nil, fmt.Errorf("caveats are unsupported on this datastore")
-	}
-
 	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
 		FilterWithSubjectsFilter(subjectsFilter)
 

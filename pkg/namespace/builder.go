@@ -108,6 +108,11 @@ func CaveatDefinition(env *caveats.Environment, name string, expr string) (*core
 	if err != nil {
 		return nil, err
 	}
+	return CompiledCaveatDefinition(env, name, compiled)
+}
+
+// CompiledCaveatDefinition returns a new caveat definition.
+func CompiledCaveatDefinition(env *caveats.Environment, name string, compiled *caveats.CompiledCaveat) (*core.CaveatDefinition, error) {
 	serialized, err := compiled.Serialize()
 	if err != nil {
 		return nil, err

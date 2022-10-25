@@ -126,22 +126,12 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 	validating := NewValidatingDatastore(ds)
 
 	allDefs := []*core.NamespaceDefinition{UserNS, FolderNS, DocumentNS}
-	caveats := []*core.CaveatDefinition{{
-		Name:                 "testcaveat",
-		SerializedExpression: []byte{},
-	}}
-
-	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteCaveats(caveats)
-	})
-	//				require.NoError(err)
 
 	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		for _, nsDef := range allDefs {
 			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
 				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
 					Namespaces: allDefs,
-					Caveats:    caveats,
 				}))
 			require.NoError(err)
 

@@ -54,6 +54,7 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
 	var revision datastore.Revision
 	var nsDefs []*core.NamespaceDefinition
+	var caveatDefs []*core.CaveatDefinition
 	schema := ""
 	var tuples []*core.RelationTuple
 	files := make([]ValidationFile, 0, len(filesContents))
@@ -67,13 +68,14 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 		files = append(files, *parsed)
 
 		// Add schema-based namespace definitions.
-		defs := parsed.Schema.Definitions
+		defs := parsed.Schema.CompiledSchema.ObjectDefinitions
 		if len(defs) > 0 {
 			schema += parsed.Schema.Schema + "\n\n"
 		}
 
 		log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(defs)).Msg("Loading schema definitions")
 		nsDefs = append(nsDefs, defs...)
+		caveatDefs = append(caveatDefs, parsed.Schema.CompiledSchema.CaveatDefinitions...)
 
 		// Load the namespace configs.
 		log.Info().Str("filePath", filePath).Int("namespaceCount", len(parsed.NamespaceConfigs)).Msg("Loading namespaces")
@@ -89,6 +91,13 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 		// Load the namespaces and type check.
 		var lnerr error
 		revision, lnerr = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			// Write the caveat definitions.
+			err := rwt.WriteCaveats(caveatDefs)
+			if err != nil {
+				return err
+			}
+
+			// Write the object definitions.
 			for _, nsDef := range nsDefs {
 				ts, err := namespace.NewNamespaceTypeSystem(nsDef,
 					namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
@@ -109,6 +118,7 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 					return aerr
 				}
 
+				// Write the namespaces.
 				log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
 				if err := rwt.WriteNamespaces(nsDef); err != nil {
 					return fmt.Errorf("error when loading namespace %s: %w", nsDef.Name, err)

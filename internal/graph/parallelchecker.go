@@ -87,7 +87,7 @@ func (pc *parallelChecker) DepthRequired() uint32 {
 
 func (pc *parallelChecker) addResultsUnsafe(resourceID string) {
 	pc.foundResourceIDs.Add(resourceID)
-	if pc.foundResourceIDs.Len() >= uint64(pc.lookupRequest.Limit) {
+	if pc.foundResourceIDs.Len() >= int(pc.lookupRequest.Limit) {
 		// Cancel any further work
 		pc.cancel()
 		close(pc.toCheck)
@@ -106,7 +106,7 @@ func (pc *parallelChecker) QueueToCheck(resourceID string) {
 	queue := func() bool {
 		pc.mu.Lock()
 		defer pc.mu.Unlock()
-		if pc.foundResourceIDs.Len() >= uint64(pc.lookupRequest.Limit) {
+		if pc.foundResourceIDs.Len() >= int(pc.lookupRequest.Limit) {
 			close(pc.toCheck)
 			return false
 		}

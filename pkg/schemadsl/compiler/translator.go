@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/authzed/spicedb/pkg/caveats"
+
 	"github.com/authzed/spicedb/internal/util"
 
 	"github.com/jzelinskie/stringz"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -19,16 +22,17 @@ import (
 type translationContext struct {
 	objectTypePrefix *string
 	mapper           input.PositionMapper
+	schemaString     string
 }
 
-func (tctx translationContext) namespacePath(namespaceName string) (string, error) {
+func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
 	var prefix, name string
-	if err := stringz.SplitExact(namespaceName, "/", &prefix, &name); err != nil {
+	if err := stringz.SplitExact(definitionName, "/", &prefix, &name); err != nil {
 		if tctx.objectTypePrefix == nil {
-			return "", fmt.Errorf("found reference `%s` without prefix", namespaceName)
+			return "", fmt.Errorf("found reference `%s` without prefix", definitionName)
 		}
 		prefix = *tctx.objectTypePrefix
-		name = namespaceName
+		name = definitionName
 	}
 
 	if prefix == "" {
@@ -40,27 +44,157 @@ func (tctx translationContext) namespacePath(namespaceName string) (string, erro
 
 const Ellipsis = "..."
 
-func translate(tctx translationContext, root *dslNode) ([]*core.NamespaceDefinition, error) {
-	definitions := []*core.NamespaceDefinition{}
+func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) {
+	orderedDefinitions := make([]SchemaDefinition, 0, len(root.GetChildren()))
+	var objectDefinitions []*core.NamespaceDefinition
+	var caveatDefinitions []*core.CaveatDefinition
+
 	names := util.NewSet[string]()
 
 	for _, definitionNode := range root.GetChildren() {
-		definition, err := translateDefinition(tctx, definitionNode)
-		if err != nil {
-			return []*core.NamespaceDefinition{}, err
+		var definition SchemaDefinition
+
+		switch definitionNode.GetType() {
+		case dslshape.NodeTypeCaveatDefinition:
+			def, err := translateCaveatDefinition(tctx, definitionNode)
+			if err != nil {
+				return nil, err
+			}
+
+			definition = def
+			caveatDefinitions = append(caveatDefinitions, def)
+
+		case dslshape.NodeTypeDefinition:
+			def, err := translateObjectDefinition(tctx, definitionNode)
+			if err != nil {
+				return nil, err
+			}
+
+			definition = def
+			objectDefinitions = append(objectDefinitions, def)
 		}
 
-		if !names.Add(definition.Name) {
-			return nil, definitionNode.ErrorWithSourcef(definition.Name, "duplicate definition: %s", definition.Name)
+		if !names.Add(definition.GetName()) {
+			return nil, definitionNode.ErrorWithSourcef(definition.GetName(), "found name reused between multiple definitions and/or caveats: %s", definition.GetName())
 		}
 
-		definitions = append(definitions, definition)
+		orderedDefinitions = append(orderedDefinitions, definition)
 	}
 
-	return definitions, nil
+	return &CompiledSchema{
+		CaveatDefinitions:  caveatDefinitions,
+		ObjectDefinitions:  objectDefinitions,
+		OrderedDefinitions: orderedDefinitions,
+	}, nil
 }
 
-func translateDefinition(tctx translationContext, defNode *dslNode) (*core.NamespaceDefinition, error) {
+func translateCaveatDefinition(tctx translationContext, defNode *dslNode) (*core.CaveatDefinition, error) {
+	definitionName, err := defNode.GetString(dslshape.NodeCaveatDefinitionPredicateName)
+	if err != nil {
+		return nil, defNode.ErrorWithSourcef(definitionName, "invalid definition name: %w", err)
+	}
+
+	// parameters
+	paramNodes := defNode.List(dslshape.NodeCaveatDefinitionPredicateParameters)
+	if len(paramNodes) == 0 {
+		return nil, defNode.ErrorWithSourcef(definitionName, "caveat `%s` must have at least one parameter defined", definitionName)
+	}
+
+	env := caveats.NewEnvironment()
+	parameters := make(map[string]caveattypes.VariableType, len(paramNodes))
+	for _, paramNode := range paramNodes {
+		paramName, err := paramNode.GetString(dslshape.NodeCaveatParameterPredicateName)
+		if err != nil {
+			return nil, paramNode.ErrorWithSourcef(paramName, "invalid parameter name: %w", err)
+		}
+
+		if _, ok := parameters[paramName]; ok {
+			return nil, paramNode.ErrorWithSourcef(paramName, "duplicate parameter `%s` defined on caveat `%s`", paramName, definitionName)
+		}
+
+		typeRefNode, err := paramNode.Lookup(dslshape.NodeCaveatParameterPredicateType)
+		if err != nil {
+			return nil, paramNode.ErrorWithSourcef(paramName, "invalid type for parameter: %w", err)
+		}
+
+		translatedType, err := translateCaveatTypeReference(tctx, typeRefNode)
+		if err != nil {
+			return nil, paramNode.ErrorWithSourcef(paramName, "invalid type for caveat parameter `%s` on caveat `%s`: %w", paramName, definitionName, err)
+		}
+
+		parameters[paramName] = *translatedType
+		err = env.AddVariable(paramName, *translatedType)
+		if err != nil {
+			return nil, paramNode.ErrorWithSourcef(paramName, "invalid type for caveat parameter `%s` on caveat `%s`: %w", paramName, definitionName, err)
+		}
+	}
+
+	caveatPath, err := tctx.prefixedPath(definitionName)
+	if err != nil {
+		return nil, defNode.Errorf("%w", err)
+	}
+
+	// caveat expression.
+	expressionStringNode, err := defNode.Lookup(dslshape.NodeCaveatDefinitionPredicateExpession)
+	if err != nil {
+		return nil, defNode.ErrorWithSourcef(definitionName, "invalid expression: %w", err)
+	}
+
+	expressionString, err := expressionStringNode.GetString(dslshape.NodeCaveatExpressionPredicateExpression)
+	if err != nil {
+		return nil, defNode.ErrorWithSourcef(expressionString, "invalid expression: %w", err)
+	}
+
+	rnge, err := expressionStringNode.Range(tctx.mapper)
+	if err != nil {
+		return nil, defNode.ErrorWithSourcef(expressionString, "invalid expression: %w", err)
+	}
+
+	source, err := caveats.NewSource(expressionString, rnge.Start(), caveatPath)
+	if err != nil {
+		return nil, defNode.ErrorWithSourcef(expressionString, "invalid expression: %w", err)
+	}
+
+	compiled, err := caveats.CompileCaveatWithSource(env, caveatPath, source)
+	if err != nil {
+		return nil, expressionStringNode.ErrorWithSourcef(expressionString, "invalid expression for caveat `%s`: %w", definitionName, err)
+	}
+
+	def, err := namespace.CompiledCaveatDefinition(env, caveatPath, compiled)
+	if err != nil {
+		return nil, err
+	}
+
+	def.Metadata = addComments(def.Metadata, defNode)
+	def.SourcePosition = getSourcePosition(defNode, tctx.mapper)
+	return def, nil
+}
+
+func translateCaveatTypeReference(tctx translationContext, typeRefNode *dslNode) (*caveattypes.VariableType, error) {
+	typeName, err := typeRefNode.GetString(dslshape.NodeCaveatTypeReferencePredicateType)
+	if err != nil {
+		return nil, typeRefNode.ErrorWithSourcef(typeName, "invalid type name: %w", err)
+	}
+
+	childTypeNodes := typeRefNode.List(dslshape.NodeCaveatTypeReferencePredicateChildTypes)
+	childTypes := make([]caveattypes.VariableType, 0, len(childTypeNodes))
+	for _, childTypeNode := range childTypeNodes {
+		translated, err := translateCaveatTypeReference(tctx, childTypeNode)
+		if err != nil {
+			return nil, err
+		}
+		childTypes = append(childTypes, *translated)
+	}
+
+	constructedType, err := caveattypes.BuildType(typeName, childTypes)
+	if err != nil {
+		return nil, typeRefNode.ErrorWithSourcef(typeName, "%w", err)
+	}
+
+	return constructedType, nil
+}
+
+func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core.NamespaceDefinition, error) {
 	definitionName, err := defNode.GetString(dslshape.NodeDefinitionPredicateName)
 	if err != nil {
 		return nil, defNode.ErrorWithSourcef(definitionName, "invalid definition name: %w", err)
@@ -80,7 +214,7 @@ func translateDefinition(tctx translationContext, defNode *dslNode) (*core.Names
 		relationsAndPermissions = append(relationsAndPermissions, relationOrPermission)
 	}
 
-	nspath, err := tctx.namespacePath(definitionName)
+	nspath, err := tctx.prefixedPath(definitionName)
 	if err != nil {
 		return nil, defNode.Errorf("%w", err)
 	}
@@ -394,7 +528,7 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		return nil, typeRefNode.Errorf("invalid type name: %w", err)
 	}
 
-	nspath, err := tctx.namespacePath(typePath)
+	nspath, err := tctx.prefixedPath(typePath)
 	if err != nil {
 		return nil, typeRefNode.Errorf("%w", err)
 	}

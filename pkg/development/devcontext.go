@@ -19,17 +19,18 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // DevContext holds the various helper types for running the developer calls.
 type DevContext struct {
-	Ctx        context.Context
-	Datastore  datastore.Datastore
-	Revision   datastore.Revision
-	Namespaces []*core.NamespaceDefinition
-	Dispatcher dispatch.Dispatcher
+	Ctx            context.Context
+	Datastore      datastore.Datastore
+	Revision       datastore.Revision
+	CompiledSchema *compiler.CompiledSchema
+	Dispatcher     dispatch.Dispatcher
 }
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
@@ -56,8 +57,8 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 }
 
 func newDevContextWithDatastore(ctx context.Context, requestContext *devinterface.RequestContext, ds datastore.Datastore) (*DevContext, *devinterface.DeveloperErrors, error) {
-	// Compile the schema and load its namespaces into the datastore.
-	namespaces, devError, err := CompileSchema(requestContext.Schema)
+	// Compile the schema and load its caveats and namespaces into the datastore.
+	compiled, devError, err := CompileSchema(requestContext.Schema)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -68,11 +69,10 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 
 	var inputErrors []*devinterface.DeveloperError
 	currentRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		inputErrors, err = loadNamespaces(ctx, namespaces, rwt)
+		inputErrors, err = loadCompiled(ctx, compiled, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err
 		}
-
 		// Load the test relationships into the datastore.
 		inputErrors, err = loadTuples(ctx, requestContext.Relationships, rwt)
 		if err != nil || len(inputErrors) > 0 {
@@ -94,11 +94,11 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 	}
 
 	return &DevContext{
-		Ctx:        ctx,
-		Datastore:  ds,
-		Namespaces: namespaces,
-		Revision:   currentRevision,
-		Dispatcher: graph.NewLocalOnlyDispatcher(10),
+		Ctx:            ctx,
+		Datastore:      ds,
+		CompiledSchema: compiled,
+		Revision:       currentRevision,
+		Dispatcher:     graph.NewLocalOnlyDispatcher(10),
 	}, nil, nil
 }
 
@@ -154,17 +154,47 @@ func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore
 	return devErrors, err
 }
 
-func loadNamespaces(
+func loadCompiled(
 	ctx context.Context,
-	namespaces []*core.NamespaceDefinition,
+	compiled *compiler.CompiledSchema,
 	rwt datastore.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
-	errors := make([]*devinterface.DeveloperError, 0, len(namespaces))
+	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
 	resolver := namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
-		Namespaces: namespaces,
+		Namespaces: compiled.ObjectDefinitions,
+		Caveats:    compiled.CaveatDefinitions,
 	})
 
-	for _, nsDef := range namespaces {
+	for _, caveatDef := range compiled.CaveatDefinitions {
+		cverr := namespace.ValidateCaveatDefinition(caveatDef)
+		if cverr == nil {
+			if err := rwt.WriteCaveats([]*core.CaveatDefinition{caveatDef}); err != nil {
+				return errors, err
+			}
+			continue
+		}
+
+		errWithSource, ok := spiceerrors.AsErrorWithSource(cverr)
+		if ok {
+			errors = append(errors, &devinterface.DeveloperError{
+				Message: cverr.Error(),
+				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+				Source:  devinterface.DeveloperError_SCHEMA,
+				Context: errWithSource.SourceCodeString,
+				Line:    uint32(errWithSource.LineNumber),
+				Column:  uint32(errWithSource.ColumnPosition),
+			})
+		} else {
+			errors = append(errors, &devinterface.DeveloperError{
+				Message: cverr.Error(),
+				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+				Source:  devinterface.DeveloperError_SCHEMA,
+				Context: caveatDef.Name,
+			})
+		}
+	}
+
+	for _, nsDef := range compiled.ObjectDefinitions {
 		ts, terr := namespace.NewNamespaceTypeSystem(nsDef, resolver)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)

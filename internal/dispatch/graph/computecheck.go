@@ -138,7 +138,11 @@ func runExpression(
 		maps.Copy(untypedFullContext, relationshipContext)
 
 		// Perform type checking and conversion on the context map.
-		typedParameters, err := caveats.ConvertContextToParameters(untypedFullContext, caveat.ParameterTypes)
+		typedParameters, err := caveats.ConvertContextToParameters(
+			untypedFullContext,
+			caveat.ParameterTypes,
+			caveats.SkipUnknownParameters,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("type error for parameters for caveat `%s`: %w", caveat.Name, err)
 		}

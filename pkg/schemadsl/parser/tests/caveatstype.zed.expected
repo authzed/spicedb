@@ -1,11 +1,11 @@
 NodeTypeFile
-  end-rune = 155
+  end-rune = 189
   input-source = caveats type test
   start-rune = 0
   child-node =>
     NodeTypeDefinition
       definition-name = document
-      end-rune = 155
+      end-rune = 189
       input-source = caveats type test
       start-rune = 0
       child-node =>
@@ -49,13 +49,13 @@ NodeTypeFile
                       input-source = caveats type test
                       start-rune = 83
         NodeTypeRelation
-          end-rune = 153
+          end-rune = 187
           input-source = caveats type test
           relation-name = viewer
           start-rune = 104
           allowed-types =>
             NodeTypeTypeReference
-              end-rune = 153
+              end-rune = 187
               input-source = caveats type test
               start-rune = 121
               type-ref-type =>
@@ -76,3 +76,14 @@ NodeTypeFile
                       end-rune = 153
                       input-source = caveats type test
                       start-rune = 135
+                NodeTypeSpecificTypeReference
+                  end-rune = 160
+                  input-source = caveats type test
+                  start-rune = 157
+                  type-name = user
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = someprefix/somecaveat
+                      end-rune = 187
+                      input-source = caveats type test
+                      start-rune = 162

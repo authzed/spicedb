@@ -1,18 +1,82 @@
 package generator
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
-func TestGenerator(t *testing.T) {
+func TestGenerateCaveat(t *testing.T) {
+	type generatorTest struct {
+		name     string
+		input    *core.CaveatDefinition
+		expected string
+		okay     bool
+	}
+
+	tests := []generatorTest{
+		{
+			"basic",
+			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				map[string]caveattypes.VariableType{
+					"someParam": caveattypes.IntType,
+				},
+			), "somecaveat", "someParam == 42"),
+			`
+caveat somecaveat(someParam int) {
+	someParam == 42
+}`,
+			true,
+		},
+		{
+			"multiparameter",
+			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				map[string]caveattypes.VariableType{
+					"someParam":    caveattypes.IntType,
+					"anotherParam": caveattypes.MapType(caveattypes.UIntType),
+				},
+			), "somecaveat", "someParam == 42"),
+			`
+caveat somecaveat(anotherParam map<uint>, someParam int) {
+	someParam == 42
+}`,
+			true,
+		},
+		{
+			"long",
+			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				map[string]caveattypes.VariableType{
+					"someParam": caveattypes.IntType,
+				},
+			), "somecaveat", "someParam == 42 && someParam == 43 && someParam == 44 && someParam == 45"),
+			`
+caveat somecaveat(someParam int) {
+	someParam == 42 && someParam == 43 && someParam == 44 && someParam == 45
+}`,
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require := require.New(t)
+			source, ok := GenerateCaveatSource(test.input)
+			require.Equal(strings.TrimSpace(test.expected), source)
+			require.Equal(test.okay, ok)
+		})
+	}
+}
+
+func TestGenerateNamespace(t *testing.T) {
 	type generatorTest struct {
 		name     string
 		input    *core.NamespaceDefinition
@@ -240,10 +304,16 @@ definition foos/test {
 		{
 			"full example",
 			`
+/** some cool caveat */
+caveat foos/somecaveat(someParam int, anotherParam bool) {
+						someParam == 42 &&
+				anotherParam
+}
+
 /** the document */
 definition foos/document {
 	/** some super long comment goes here and therefore should be made into a multiline comment */
-	relation reader: foos/user | foos/user:*
+	relation reader: foos/user | foos/user:* | foos/user with foos/somecaveat
 
 	/** multiline
 comment */
@@ -255,12 +325,17 @@ comment */
 	permission minus = rela - relb - relc
 }
 `,
-			`/** the document */
+			`/** some cool caveat */
+caveat foos/somecaveat(anotherParam bool, someParam int) {
+	someParam == 42 && anotherParam
+}
+
+/** the document */
 definition foos/document {
 	/**
 	 * some super long comment goes here and therefore should be made into a multiline comment
 	 */
-	relation reader: foos/user | foos/user:*
+	relation reader: foos/user | foos/user:* | foos/user with foos/somecaveat
 
 	/**
 	 * multiline
@@ -279,13 +354,13 @@ definition foos/document {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			defs, err := compiler.Compile([]compiler.InputSchema{{
+			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source(test.name),
 				SchemaString: test.input,
-			}}, nil)
+			}, nil)
 			require.NoError(err)
 
-			source, _ := GenerateSource(defs[0])
+			source, _ := GenerateSchema(compiled.OrderedDefinitions)
 			require.Equal(test.expected, source)
 		})
 	}

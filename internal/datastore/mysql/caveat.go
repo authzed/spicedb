@@ -13,7 +13,8 @@ func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core
 }
 
 func (mr *mysqlReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
-	return nil, fmt.Errorf("unimplemented caveat support in datastore")
+	// Unimplemented, but returns empty to not break callers.
+	return nil, nil
 }
 
 func (rwt *mysqlReadWriteTXN) WriteCaveats(caveats []*core.CaveatDefinition) error {

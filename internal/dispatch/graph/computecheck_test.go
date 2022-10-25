@@ -9,7 +9,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
@@ -20,11 +19,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
-
-type caveatDefinition struct {
-	expression string
-	env        map[string]types.VariableType
-}
 
 type caveatedUpdate struct {
 	Operation  core.RelationTupleUpdate_Operation
@@ -45,7 +39,6 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 	testCases := []struct {
 		name    string
 		schema  string
-		caveats map[string]caveatDefinition
 		updates []caveatedUpdate
 		checks  []check
 	}{
@@ -54,32 +47,26 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			`definition user {}
 
 			definition organization {
-				relation admin: user
+				relation admin: user | user with testcaveat
 			}
 					
 			definition document {
-				relation org: organization
-				relation viewer: user
-				relation editor: user
+				relation org: organization | organization with anothercaveat
+				relation viewer: user | user with testcaveat
+				relation editor: user | user with testcaveat
 
 				permission edit = editor + org->admin
 				permission view = viewer + edit
-			}`,
-			map[string]caveatDefinition{
-				"testcaveat": {
-					"somecondition == 42 && somebool",
-					map[string]types.VariableType{
-						"somecondition": types.IntType,
-						"somebool":      types.BooleanType,
-					},
-				},
-				"anothercaveat": {
-					"int(anothercondition) == 15",
-					map[string]types.VariableType{
-						"anothercondition": types.UIntType,
-					},
-				},
-			},
+			}
+			
+			caveat testcaveat(somecondition int, somebool bool) {
+				somecondition == 42 && somebool
+			}
+
+			caveat anothercaveat(anothercondition uint) {
+				int(anothercondition) == 15
+			}
+			`,
 			[]caveatedUpdate{
 				{core.RelationTupleUpdate_CREATE, "organization:someorg#admin@user:sarah", "testcaveat", nil},
 				{core.RelationTupleUpdate_CREATE, "organization:someorg#admin@user:john", "testcaveat", map[string]any{"somecondition": "42", "somebool": true}},
@@ -195,17 +182,14 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			`definition user {}
 
 			definition document {
-				relation viewer: user
+				relation viewer: user | user with testcaveat
 				permission view = viewer
-			}`,
-			map[string]caveatDefinition{
-				"testcaveat": {
-					"somecondition == 42",
-					map[string]types.VariableType{
-						"somecondition": types.IntType,
-					},
-				},
-			},
+			}
+			
+			caveat testcaveat(somecondition int) {
+				somecondition == 42
+			}
+			`,
 			[]caveatedUpdate{
 				{core.RelationTupleUpdate_CREATE, "document:foo#viewer@user:tom", "testcaveat", map[string]any{
 					"somecondition": 41, // not allowed
@@ -235,24 +219,19 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			`definition user {}
 
 			definition document {
-				relation viewer: user
-				relation editor: user
+				relation viewer: user | user with viewcaveat
+				relation editor: user | user with editcaveat
 				permission view_and_edit = viewer & editor
-			}`,
-			map[string]caveatDefinition{
-				"viewcaveat": {
-					"somecondition == 42",
-					map[string]types.VariableType{
-						"somecondition": types.IntType,
-					},
-				},
-				"editcaveat": {
-					"today == 'tuesday'",
-					map[string]types.VariableType{
-						"today": types.StringType,
-					},
-				},
-			},
+			}
+			
+			caveat viewcaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			caveat editcaveat(today string) {
+				today == 'tuesday'
+			}
+			`,
 			[]caveatedUpdate{
 				{
 					core.RelationTupleUpdate_CREATE,
@@ -305,24 +284,19 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			`definition user {}
 
 			definition document {
-				relation viewer: user
-				relation banned: user
+				relation viewer: user | user with viewcaveat
+				relation banned: user | user with bannedcaveat
 				permission view_not_banned = viewer - banned
-			}`,
-			map[string]caveatDefinition{
-				"viewcaveat": {
-					"somecondition == 42",
-					map[string]types.VariableType{
-						"somecondition": types.IntType,
-					},
-				},
-				"bannedcaveat": {
-					"region == 'bad'",
-					map[string]types.VariableType{
-						"region": types.StringType,
-					},
-				},
-			},
+			}
+			
+			caveat viewcaveat(somecondition int) {
+				somecondition == 42
+			}
+			
+			caveat bannedcaveat(region string) {
+				region == 'bad'
+			}
+			`,
 			[]caveatedUpdate{
 				{
 					core.RelationTupleUpdate_CREATE,
@@ -376,7 +350,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 
 			definition organization {
 				relation members: user
-				relation ip_allowlist_policy: organization#members
+				relation ip_allowlist_policy:  organization#members | organization#members with ip_allowlist
 			
 				permission policy = ip_allowlist_policy
 			}
@@ -386,16 +360,12 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				relation reader: user
 			
 				permission read = reader & owner->policy
-			}`,
-			map[string]caveatDefinition{
-				"ip_allowlist": {
-					"user_ip.in_cidr(cidr)",
-					map[string]types.VariableType{
-						"user_ip": types.IPAddressType,
-						"cidr":    types.StringType,
-					},
-				},
-			},
+			}
+			
+			caveat ip_allowlist(user_ip ipaddress, cidr string) {
+				user_ip.in_cidr(cidr)
+			}
+			`,
 			[]caveatedUpdate{
 				{
 					core.RelationTupleUpdate_CREATE,
@@ -465,18 +435,14 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			"App attributes example",
 			`definition application {}
 			definition group {
-				relation member: application
+				relation member: application | application with attributes_match
 				permission allowed = member
-			}`,
-			map[string]caveatDefinition{
-				"attributes_match": {
-					"expected.isSubtreeOf(provided)",
-					map[string]types.VariableType{
-						"expected": types.MapType(types.AnyType),
-						"provided": types.MapType(types.AnyType),
-					},
-				},
-			},
+			}
+			
+			caveat attributes_match(expected map<any>, provided map<any>) {
+				expected.isSubtreeOf(provided)
+			}
+			`,
 			[]caveatedUpdate{
 				{
 					core.RelationTupleUpdate_CREATE,
@@ -559,20 +525,16 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				relation actors: actor
 			}
 			definition resource {
-				relation creation_policy: root#actors
+				relation creation_policy: root#actors | root#actors with created_before
 				permission tag = creation_policy
 			}
 			
-			definition actor {}`,
-			map[string]caveatDefinition{
-				"created_before": {
-					"timestamp(actor_created_at) > timestamp(created_at)",
-					map[string]types.VariableType{
-						"created_at":       types.StringType,
-						"actor_created_at": types.StringType,
-					},
-				},
-			},
+			definition actor {}
+			
+			caveat created_before(actor_created_at string, created_at string) {
+				timestamp(actor_created_at) > timestamp(created_at)
+			}
+			`,
 			[]caveatedUpdate{
 				{
 					core.RelationTupleUpdate_CREATE,
@@ -613,25 +575,20 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 		{
 			"time-bound permission",
 			`definition resource {
-				relation reader: user
+				relation reader: user | user with not_expired
 				permission view = reader
 			}
 			
+			caveat not_expired(expiration string, now string) {
+				timestamp(now) < timestamp(expiration)
+			}
+
 			definition user {}`,
-			map[string]caveatDefinition{
-				"expired": {
-					"timestamp(now) < timestamp(expiration)",
-					map[string]types.VariableType{
-						"expiration": types.StringType,
-						"now":        types.StringType,
-					},
-				},
-			},
 			[]caveatedUpdate{
 				{
 					core.RelationTupleUpdate_CREATE,
 					"resource:foo#reader@user:sarah",
-					"expired",
+					"not_expired",
 					map[string]any{
 						"expiration": "2030-01-01T10:00:00.021Z",
 						"now":        "2020-01-01T10:00:00.021Z",
@@ -640,7 +597,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				{
 					core.RelationTupleUpdate_CREATE,
 					"resource:foo#reader@user:john",
-					"expired",
+					"not_expired",
 					map[string]any{
 						"expiration": "2020-01-01T10:00:00.021Z",
 						"now":        "2020-01-01T10:00:00.021Z",
@@ -668,23 +625,18 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			"legal-guardian example",
 			`definition claim {
 				relation claimer: user
-				relation dependent_of: user#dependent_of
+				relation dependent_of: user#dependent_of | user#dependent_of with legal_guardian
 			  
 				permission view = claimer + dependent_of
+			}
+
+			caveat legal_guardian(age int, class string) {
+				age < 12 || (class != "sensitive" && age > 12 && age < 18)
 			}
 			
 			definition user {
 				relation dependent_of: user
 			}`,
-			map[string]caveatDefinition{
-				"legal_guardian": {
-					`age < 12 || (class != "sensitive" && age > 12 && age < 18)`,
-					map[string]types.VariableType{
-						"age":   types.IntType,
-						"class": types.StringType,
-					},
-				},
-			},
 			[]caveatedUpdate{
 				{
 					core.RelationTupleUpdate_CREATE,
@@ -755,18 +707,15 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			`definition user {}
 
 			definition document {
-				relation viewer: user
+				relation viewer: user | user with testcaveat
 
 				permission view = viewer
-			}`,
-			map[string]caveatDefinition{
-				"testcaveat": {
-					"somecondition == 42",
-					map[string]types.VariableType{
-						"somecondition": types.UIntType,
-					},
-				},
-			},
+			}
+			
+			caveat testcaveat(somecondition uint) {
+				somecondition == 42
+			}
+			`,
 			[]caveatedUpdate{
 				{core.RelationTupleUpdate_CREATE, "document:foo#viewer@user:sarah", "testcaveat", nil},
 			},
@@ -791,6 +740,62 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				},
 			},
 		},
+		{
+			"schema caveat test",
+			`
+			caveat testcaveat(somecondition uint) {
+				somecondition == 42
+			}
+
+			definition user {}
+
+			definition document {
+				relation viewer: user with testcaveat
+
+				permission view = viewer
+			}`,
+			[]caveatedUpdate{
+				{core.RelationTupleUpdate_CREATE, "document:foo#viewer@user:sarah", "testcaveat", nil},
+			},
+			[]check{
+				{
+					"document:foo#view@user:sarah",
+					map[string]any{
+						"somecondition": "43a",
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					[]string{},
+					"type error for parameters for caveat `testcaveat`: could not convert context parameter `somecondition`: for uint: a uint64 value is required, but found invalid string value `43a`",
+				},
+				{
+					"document:foo#view@user:sarah",
+					map[string]any{
+						"somecondition": "-43",
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					[]string{},
+					"type error for parameters for caveat `testcaveat`: could not convert context parameter `somecondition`: for uint: a uint value is required, but found int64 value `-43`",
+				},
+				{
+					"document:foo#view@user:sarah",
+					map[string]any{
+						"somecondition": "41",
+					},
+					v1.ResourceCheckResult_NOT_MEMBER,
+					[]string{},
+					"",
+				},
+				{
+					"document:foo#view@user:sarah",
+					map[string]any{
+						"somecondition": "42",
+					},
+					v1.ResourceCheckResult_MEMBER,
+					[]string{},
+					"",
+				},
+			},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -802,7 +807,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
-			revision, err := writeCaveatedTuples(ctx, t, ds, tt.schema, tt.caveats, tt.updates)
+			revision, err := writeCaveatedTuples(ctx, t, ds, tt.schema, tt.updates)
 			require.NoError(t, err)
 
 			for _, r := range tt.checks {
@@ -863,45 +868,22 @@ func TestComputeCheckError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datastore, schema string, definedCaveats map[string]caveatDefinition, updates []caveatedUpdate) (datastore.Revision, error) {
+func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datastore, schema string, updates []caveatedUpdate) (datastore.Revision, error) {
 	empty := ""
-	defs, err := compiler.Compile([]compiler.InputSchema{
-		{Source: "schema", SchemaString: schema},
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       "schema",
+		SchemaString: schema,
 	}, &empty)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
 
-	compiledCaveats := make([]*core.CaveatDefinition, 0, len(definedCaveats))
-	for name, c := range definedCaveats {
-		e, err := caveats.EnvForVariables(c.env)
-		if err != nil {
-			return datastore.NoRevision, err
-		}
-
-		require.True(t, len(e.EncodedParametersTypes()) > 0)
-
-		compiled, err := caveats.CompileCaveatWithName(e, c.expression, name)
-		if err != nil {
-			return datastore.NoRevision, err
-		}
-		serialized, err := compiled.Serialize()
-		if err != nil {
-			return datastore.NoRevision, err
-		}
-		compiledCaveats = append(compiledCaveats, &core.CaveatDefinition{
-			Name:                 name,
-			SerializedExpression: serialized,
-			ParameterTypes:       types.EncodeParameterTypes(c.env),
-		})
-	}
-
 	return ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		if err := rwt.WriteNamespaces(defs...); err != nil {
+		if err := rwt.WriteNamespaces(compiled.ObjectDefinitions...); err != nil {
 			return err
 		}
 
-		if err := rwt.WriteCaveats(compiledCaveats); err != nil {
+		if err := rwt.WriteCaveats(compiled.CaveatDefinitions); err != nil {
 			return err
 		}
 

@@ -1,6 +1,8 @@
 package types
 
 import (
+	"fmt"
+
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types/ref"
 )
@@ -28,7 +30,7 @@ type typeDefinition struct {
 	childTypeCount uint
 
 	// asVariableType converts the type definition into a VariableType.
-	asVariableType func(childTypes []VariableType) VariableType
+	asVariableType func(childTypes []VariableType) (*VariableType, error)
 }
 
 // registerBasicType registers a basic type with the given keyword, CEL type, and converter.
@@ -43,8 +45,8 @@ func registerBasicType(keyword string, celType *cel.Type, converter typedValueCo
 	definitions[keyword] = typeDefinition{
 		localName:      keyword,
 		childTypeCount: 0,
-		asVariableType: func(childTypes []VariableType) VariableType {
-			return varType
+		asVariableType: func(childTypes []VariableType) (*VariableType, error) {
+			return &varType, nil
 		},
 	}
 	return varType
@@ -59,7 +61,14 @@ func registerGenericType(
 	definitions[keyword] = typeDefinition{
 		localName:      keyword,
 		childTypeCount: childTypeCount,
-		asVariableType: asVariableType,
+		asVariableType: func(childTypes []VariableType) (*VariableType, error) {
+			if uint(len(childTypes)) != childTypeCount {
+				return nil, fmt.Errorf("type `%s` requires %d generic types; found %d", keyword, childTypeCount, len(childTypes))
+			}
+
+			built := asVariableType(childTypes)
+			return &built, nil
+		},
 	}
 	return func(childTypes ...VariableType) VariableType {
 		if uint(len(childTypes)) != childTypeCount {

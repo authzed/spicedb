@@ -213,8 +213,7 @@ func (err ErrInvalidSubject) GRPCStatus() *status.Status {
 		err,
 		codes.FailedPrecondition,
 		spiceerrors.ForReason(
-			// TODO(jschorr): Change to the proper error once that is merged
-			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			v1.ErrorReason_ERROR_REASON_INVALID_SUBJECT_TYPE,
 			map[string]string{
 				"relation_name": err.update.Relationship.Relation,
 				"subject_type":  namespace.SourceForAllowedRelation(err.relationToCheck),

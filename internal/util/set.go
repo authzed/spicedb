@@ -1,5 +1,9 @@
 package util
 
+import (
+	"github.com/rs/zerolog"
+)
+
 // Set implements a very basic generic set.
 type Set[T comparable] struct {
 	values map[T]struct{}
@@ -77,6 +81,23 @@ func (s *Set[T]) Subtract(other *Set[T]) *Set[T] {
 	return newSet
 }
 
+// Copy returns a copy of this set.
+func (s *Set[T]) Copy() *Set[T] {
+	return NewSet[T](s.AsSlice()...)
+}
+
+// Intersect removes any values from this set that
+// are not shared with the other set, returning a new set.
+func (s *Set[T]) Intersect(other *Set[T]) *Set[T] {
+	cpy := s.Copy()
+	for value := range cpy.values {
+		if !other.Has(value) {
+			cpy.Remove(value)
+		}
+	}
+	return cpy
+}
+
 // IsEmpty returns true if the set is empty.
 func (s *Set[T]) IsEmpty() bool {
 	return len(s.values) == 0
@@ -96,6 +117,32 @@ func (s *Set[T]) AsSlice() []T {
 }
 
 // Len returns the length of the set.
-func (s *Set[T]) Len() uint64 {
-	return uint64(len(s.values))
+func (s *Set[T]) Len() int {
+	return len(s.values)
+}
+
+// ForEach executes the callback for each item in the set until an error is encountered.
+func (s *Set[T]) ForEach(callback func(value T) error) error {
+	for value := range s.values {
+		if err := callback(value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// StringSetWrapper wraps a set of strings and provides marshalling for zerolog.
+type StringSetWrapper struct {
+	StrSet *Set[string]
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (s StringSetWrapper) MarshalZerologObject(e *zerolog.Event) {
+	e.Strs("values", s.StrSet.AsSlice())
+}
+
+// StringSet wraps a Set of strings and provides automatic log marshalling.
+func StringSet(set *Set[string]) StringSetWrapper {
+	return StringSetWrapper{set}
 }
