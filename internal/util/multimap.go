@@ -4,20 +4,26 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+// NewMultiMap creates and returns a new MultiMap from keys of type T to values of type Q.
 func NewMultiMap[T comparable, Q any]() *MultiMap[T, Q] {
 	return &MultiMap[T, Q]{
 		items: map[T][]Q{},
 	}
 }
 
+// MultiMap represents a map that can contain 1 or more values for each key.
 type MultiMap[T comparable, Q any] struct {
 	items map[T][]Q
 }
 
+// Clear clears all entries in the map.
 func (mm *MultiMap[T, Q]) Clear() {
 	mm.items = map[T][]Q{}
 }
 
+// Add adds the value to the map for the given key. If there exists an existing value, then this
+// value is added to those already present *without comparison*. This means a value can be added
+// twice, if this method is called again for the same value.
 func (mm *MultiMap[T, Q]) Add(key T, item Q) {
 	if _, ok := mm.items[key]; !ok {
 		mm.items[key] = []Q{}
@@ -26,15 +32,19 @@ func (mm *MultiMap[T, Q]) Add(key T, item Q) {
 	mm.items[key] = append(mm.items[key], item)
 }
 
+// RemoveKey removes the given key from the map.
 func (mm *MultiMap[T, Q]) RemoveKey(key T) {
 	delete(mm.items, key)
 }
 
+// Has returns true if the key is found in the map.
 func (mm *MultiMap[T, Q]) Has(key T) bool {
 	_, ok := mm.items[key]
 	return ok
 }
 
+// Get returns the values for the given key in the map and whether the key existed. If the key
+// does not exist, an empty slice is returned.
 func (mm *MultiMap[T, Q]) Get(key T) ([]Q, bool) {
 	found, ok := mm.items[key]
 	if !ok {
@@ -44,14 +54,17 @@ func (mm *MultiMap[T, Q]) Get(key T) ([]Q, bool) {
 	return found, true
 }
 
+// IsEmpty returns true if the map is currently empty.
 func (mm *MultiMap[T, Q]) IsEmpty() bool {
 	return len(mm.items) == 0
 }
 
+// Len returns the length of the map, e.g. the number of *keys* present.
 func (mm *MultiMap[T, Q]) Len() int {
 	return len(mm.items)
 }
 
+// Keys returns the keys of the map.
 func (mm *MultiMap[T, Q]) Keys() []T {
 	return maps.Keys(mm.items)
 }

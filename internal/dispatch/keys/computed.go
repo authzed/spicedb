@@ -62,6 +62,7 @@ func lookupRequestToKey(req *v1.DispatchLookupRequest, option dispatchCacheKeyHa
 	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision, option,
 		hashableRelationReference{req.ObjectRelation},
 		hashableOnr{req.Subject},
+		hashableContext{req.Context}, // NOTE: context is included here because lookup does a single dispatch
 	)
 }
 

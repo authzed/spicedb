@@ -229,8 +229,8 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 	}, &emptyDefaultPrefix)
 	require.NoError(err)
 
-	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		err := rwt.WriteCaveats(compiled.CaveatDefinitions)
+	newRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
 		require.NoError(err)
 
 		for _, nsDef := range compiled.ObjectDefinitions {
@@ -247,7 +247,7 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 			aerr := namespace.AnnotateNamespace(vts)
 			require.NoError(aerr)
 
-			err = rwt.WriteNamespaces(nsDef)
+			err = rwt.WriteNamespaces(ctx, nsDef)
 			require.NoError(err)
 		}
 
@@ -255,7 +255,7 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 		for _, rel := range relationships {
 			mutations = append(mutations, tuple.Create(rel))
 		}
-		err = rwt.WriteRelationships(mutations)
+		err = rwt.WriteRelationships(ctx, mutations)
 		require.NoError(err)
 
 		return nil

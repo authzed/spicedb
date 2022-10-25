@@ -290,13 +290,6 @@ func BenchmarkReachableResources(b *testing.B) {
 	}
 }
 
-func withCaveat(tpl *core.RelationTuple, caveatName string) *core.RelationTuple {
-	tpl.Caveat = &core.ContextualizedCaveat{
-		CaveatName: caveatName,
-	}
-	return tpl
-}
-
 func TestCaveatedReachableResources(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -350,7 +343,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			}
 			`,
 			[]*core.RelationTuple{
-				withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 			},
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -375,7 +368,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			`,
 			[]*core.RelationTuple{
 				tuple.MustParse("document:somedoc#parent@organization:foo"),
-				withCaveat(tuple.MustParse("organization:foo#viewer@user:tom"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("organization:foo#viewer@user:tom"), "testcaveat"),
 			},
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -400,7 +393,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			`,
 			[]*core.RelationTuple{
 				tuple.MustParse("organization:foo#viewer@user:tom"),
-				withCaveat(tuple.MustParse("document:somedoc#parent@organization:foo"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:somedoc#parent@organization:foo"), "testcaveat"),
 			},
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -420,7 +413,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			}
 			`,
 			[]*core.RelationTuple{
-				withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 				tuple.MustParse("document:bar#viewer@user:tom"),
 			},
 			RR("document", "view"),
@@ -445,13 +438,16 @@ func TestCaveatedReachableResources(t *testing.T) {
 			}
 			`,
 			[]*core.RelationTuple{
-				withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
+				tuple.MustParse("document:bar#editor@user:tom"),
+				tuple.MustParse("document:bar#viewer@user:tom"),
+				tuple.WithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 				tuple.MustParse("document:foo#editor@user:tom"),
 			},
 			RR("document", "can_do_things"),
 			ONR("user", "tom", "..."),
 			[]reachableResource{
 				{"document:foo#can_do_things", false},
+				{"document:bar#can_do_things", false},
 			},
 		},
 		{
@@ -469,7 +465,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			}
 			`,
 			[]*core.RelationTuple{
-				withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 				tuple.MustParse("document:foo#editor@user:tom"),
 			},
 			RR("document", "can_do_things"),
@@ -493,7 +489,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			}
 			`,
 			[]*core.RelationTuple{
-				withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 				tuple.MustParse("document:foo#banned@user:tom"),
 			},
 			RR("document", "can_do_things"),
@@ -520,7 +516,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			}
 			`,
 			[]*core.RelationTuple{
-				withCaveat(tuple.MustParse("document:foo#folder@folder:maybe"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:foo#folder@folder:maybe"), "testcaveat"),
 				tuple.MustParse("document:foo#folder@folder:always"),
 				tuple.MustParse("folder:always#viewer@user:tom"),
 				tuple.MustParse("folder:maybe#viewer@user:tom"),
@@ -546,7 +542,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			}
 			`,
 			[]*core.RelationTuple{
-				withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 				tuple.MustParse("document:foo#editor@user:tom"),
 			},
 			RR("document", "view"),

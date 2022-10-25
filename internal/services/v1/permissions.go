@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/authzed/spicedb/internal/graph/computed"
 
@@ -313,12 +312,7 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	ctx := resp.Context()
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
-
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-
-	if req.Context != nil {
-		return rewriteError(ctx, status.Error(codes.Unimplemented, "caveats not yet supported"))
-	}
 
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
@@ -359,26 +353,29 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			ObjectId:  req.Subject.Object.ObjectId,
 			Relation:  normalizeSubjectRelation(req.Subject),
 		},
-		Limit:       ^uint32(0), // Set no limit for now
-		DirectStack: nil,
-		TtuStack:    nil,
+		Context: req.Context,
+		Limit:   ^uint32(0), // Set no limit for now
 	})
 	usagemetrics.SetInContext(ctx, lookupResp.Metadata)
 	if err != nil {
 		return rewriteError(ctx, err)
 	}
 
-	for _, found := range lookupResp.ResolvedOnrs {
-		if found.Namespace != req.ResourceObjectType {
-			return rewriteError(
-				ctx,
-				fmt.Errorf("got invalid resolved object %v (expected %v)", found.Namespace, req.ResourceObjectType),
-			)
+	for _, found := range lookupResp.ResolvedResources {
+		var partial *v1.PartialCaveatInfo
+		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+		if found.Permissionship == dispatch.ResolvedResource_CONDITIONALLY_HAS_PERMISSION {
+			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+			partial = &v1.PartialCaveatInfo{
+				MissingRequiredContext: found.MissingRequiredContext,
+			}
 		}
 
 		err := resp.Send(&v1.LookupResourcesResponse{
-			LookedUpAt:       revisionReadAt,
-			ResourceObjectId: found.ObjectId,
+			LookedUpAt:        revisionReadAt,
+			ResourceObjectId:  found.ResourceId,
+			Permissionship:    permissionship,
+			PartialCaveatInfo: partial,
 		})
 		if err != nil {
 			return err

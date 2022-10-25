@@ -296,7 +296,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 		}
 
 		if req.Metadata.DepthRemaining >= response.Metadata.DepthRequired {
-			log.Trace().Object("cachedLookup", req).Int("resultCount", len(response.ResolvedOnrs)).Send()
+			log.Trace().Object("cachedLookup", req).Int("resultCount", len(response.ResolvedResources)).Send()
 			cd.lookupFromCacheCounter.Inc()
 			return &response, nil
 		}
@@ -305,7 +305,7 @@ func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookup
 
 	// We only want to cache the result if there was no error.
 	if err == nil {
-		log.Trace().Object("cachingLookup", req).Int("resultCount", len(computed.ResolvedOnrs)).Send()
+		log.Trace().Object("cachingLookup", req).Int("resultCount", len(computed.ResolvedResources)).Send()
 
 		adjustedComputed := computed.CloneVT()
 		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount

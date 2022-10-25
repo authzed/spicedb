@@ -7,8 +7,11 @@ import (
 	"io"
 	"math/rand"
 	"sort"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/authzed/authzed-go/pkg/responsemeta"
@@ -858,11 +861,33 @@ func TestCheckWithCaveats(t *testing.T) {
 
 func TestLookupResourcesWithCaveats(t *testing.T) {
 	req := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, `
+				definition user {}
+
+				caveat testcaveat(somecondition int) {
+					somecondition == 42
+				}
+
+				definition document {
+					relation viewer: user | user with testcaveat
+					permission view = viewer
+				}
+			`, []*core.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:tom"),
+				tuple.WithCaveat(tuple.MustParse("document:second#viewer@user:tom"), "testcaveat"),
+			}, require)
+		})
+
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
+
+	// Run with empty context.
+	caveatContext, err := structpb.NewStruct(map[string]any{})
+	require.NoError(t, err)
 
 	request := &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
@@ -872,28 +897,88 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 		},
 		ResourceObjectType: "document",
 		Permission:         "view",
-		Subject:            sub("user", "owner", ""),
+		Subject:            sub("user", "tom", ""),
+		Context:            caveatContext,
 	}
-
-	// caveat support is not implemented yet - forwarding a context returns gRPC error unimplemented
-	var err error
-	request.Context, err = structpb.NewStruct(map[string]any{"secret": "incorrect_value"})
-	req.NoError(err)
 
 	cli, err := client.LookupResources(ctx, request)
 	req.NoError(err)
 
-	_, err = cli.Recv()
-	grpcutil.RequireStatus(t, codes.Unimplemented, err)
+	var responses []*v1.LookupResourcesResponse
+	for {
+		res, err := cli.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
 
-	// without caveat context the operation fails if caveated relationships are evaluated in the graph
-	request.Context = nil
+		require.NoError(t, err)
+		responses = append(responses, res)
+	}
+
+	sort.Sort(byIDAndPermission(responses))
+
+	require.Equal(t, 2, len(responses))
+
+	require.Equal(t, "first", responses[0].ResourceObjectId)
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].Permissionship)
+
+	require.Equal(t, "second", responses[1].ResourceObjectId)
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, responses[1].Permissionship)
+	require.Equal(t, []string{"somecondition"}, responses[1].PartialCaveatInfo.MissingRequiredContext)
+
+	// Run with full context.
+	caveatContext, err = structpb.NewStruct(map[string]any{
+		"somecondition": 42,
+	})
+	require.NoError(t, err)
+
+	request = &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		ResourceObjectType: "document",
+		Permission:         "view",
+		Subject:            sub("user", "tom", ""),
+		Context:            caveatContext,
+	}
+
 	cli, err = client.LookupResources(ctx, request)
 	req.NoError(err)
 
-	_, err = cli.Recv()
-	grpcutil.RequireStatus(t, codes.Unimplemented, err)
+	responses = make([]*v1.LookupResourcesResponse, 0)
+	for {
+		res, err := cli.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		require.NoError(t, err)
+		responses = append(responses, res)
+	}
+
+	sort.Sort(byIDAndPermission(responses))
+
+	require.Equal(t, 2, len(responses))
+
+	require.Equal(t, "first", responses[0].ResourceObjectId)
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].Permissionship)
+
+	require.Equal(t, "second", responses[1].ResourceObjectId)
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[1].Permissionship)
 }
+
+type byIDAndPermission []*v1.LookupResourcesResponse
+
+func (a byIDAndPermission) Len() int { return len(a) }
+func (a byIDAndPermission) Less(i, j int) bool {
+	return strings.Compare(
+		fmt.Sprintf("%s:%v", a[i].ResourceObjectId, a[i].Permissionship),
+		fmt.Sprintf("%s:%v", a[j].ResourceObjectId, a[j].Permissionship),
+	) < 0
+}
+func (a byIDAndPermission) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func TestLookupSubjectsWithCaveats(t *testing.T) {
 	req := require.New(t)

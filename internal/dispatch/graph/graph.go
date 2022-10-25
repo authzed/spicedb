@@ -224,6 +224,8 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 
 // DispatchLookup implements dispatch.Lookup interface
 func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+	// TODO(jschorr): Since lookup is now calling reachable resources exclusively, we should
+	// probably move it out of the dispatcher and into computed
 	ctx, span := tracer.Start(ctx, "DispatchLookup", trace.WithAttributes(
 		attribute.Stringer("start", stringableRelRef{req.ObjectRelation}),
 		attribute.Stringer("subject", stringableOnr{req.Subject}),
@@ -241,7 +243,7 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	}
 
 	if req.Limit <= 0 {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedOnrs: []*core.ObjectAndRelation{}}, nil
+		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedResources: []*v1.ResolvedResource{}}, nil
 	}
 
 	return ld.lookupHandler.LookupViaReachability(ctx, graph.ValidatedLookupRequest{
