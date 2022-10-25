@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/authzed/spicedb/internal/graph/computed"
+
 	"github.com/authzed/spicedb/internal/util"
 
 	"golang.org/x/sync/errgroup"
@@ -155,22 +157,27 @@ func (pc *parallelChecker) Start() {
 
 			pc.g.Go(func() error {
 				defer sem.Release(1)
-				res, err := pc.c.DispatchCheck(pc.checkCtx, &v1.DispatchCheckRequest{
-					ResourceRelation: pc.lookupRequest.ObjectRelation,
-					ResourceIds:      collected,
-					Subject:          pc.lookupRequest.Subject,
-					ResultsSetting:   v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
-					Metadata:         meta,
-				})
+
+				results, resultsMeta, err := computed.ComputeBulkCheck(pc.checkCtx, pc.c,
+					computed.CheckParameters{
+						ResourceType:       pc.lookupRequest.ObjectRelation,
+						Subject:            pc.lookupRequest.Subject,
+						CaveatContext:      nil,
+						AtRevision:         pc.lookupRequest.Revision,
+						MaximumDepth:       meta.DepthRemaining,
+						IsDebuggingEnabled: false,
+					},
+					collected,
+				)
 				if err != nil {
 					return err
 				}
 
 				pc.mu.Lock()
-				for resourceID, result := range res.ResultsByResourceId {
+				for resourceID, result := range results {
 					if result.Membership == v1.ResourceCheckResult_MEMBER {
 						pc.addResultsUnsafe(resourceID)
-						pc.updateStatsUnsafe(res.Metadata)
+						pc.updateStatsUnsafe(resultsMeta)
 					} else if result.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER {
 						return fmt.Errorf("found caveated result; this is unsupported (for now)")
 					}
