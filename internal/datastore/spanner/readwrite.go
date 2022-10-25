@@ -31,9 +31,6 @@ func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupl
 	var rowCountChange int64
 
 	for _, mutation := range mutations {
-		if mutation.Tuple.Caveat != nil {
-			panic("caveats not currently supported in Spanner datastore")
-		}
 		var txnMut *spanner.Mutation
 		var op int
 		switch mutation.Operation {
@@ -129,6 +126,8 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 		ResourceAndRelation: &core.ObjectAndRelation{},
 		Subject:             &core.ObjectAndRelation{},
 	}
+	var caveatName spanner.NullString
+	var caveatCtx spanner.NullJSON
 
 	var changelogMutations []*spanner.Mutation
 	if err := toDelete.Do(func(row *spanner.Row) error {
@@ -139,7 +138,13 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 			&rel.Subject.Namespace,
 			&rel.Subject.ObjectId,
 			&rel.Subject.Relation,
+			&caveatName,
+			&caveatCtx,
 		)
+		if err != nil {
+			return err
+		}
+		rel.Caveat, err = ContextualizedCaveatFrom(caveatName, caveatCtx)
 		if err != nil {
 			return err
 		}
@@ -175,9 +180,11 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 	return nil
 }
 
-func upsertVals(r *core.RelationTuple) []interface{} {
+func upsertVals(r *core.RelationTuple) []any {
 	key := keyFromRelationship(r)
-	return append(key, spanner.CommitTimestamp)
+	key = append(key, spanner.CommitTimestamp)
+	key = append(key, caveatVals(r)...)
+	return key
 }
 
 func keyFromRelationship(r *core.RelationTuple) spanner.Key {
@@ -191,8 +198,8 @@ func keyFromRelationship(r *core.RelationTuple) spanner.Key {
 	}
 }
 
-func changeVals(changeUUID string, op int, r *core.RelationTuple) []interface{} {
-	return []interface{}{
+func changeVals(changeUUID string, op int, r *core.RelationTuple) []any {
+	vals := []any{
 		spanner.CommitTimestamp,
 		changeUUID,
 		op,
@@ -203,6 +210,21 @@ func changeVals(changeUUID string, op int, r *core.RelationTuple) []interface{} 
 		r.Subject.ObjectId,
 		r.Subject.Relation,
 	}
+	vals = append(vals, caveatVals(r)...)
+	return vals
+}
+
+func caveatVals(r *core.RelationTuple) []any {
+	if r.Caveat == nil {
+		return []any{"", nil}
+	}
+	vals := []any{r.Caveat.CaveatName}
+	if r.Caveat.Context != nil {
+		vals = append(vals, spanner.NullJSON{Value: r.Caveat.Context, Valid: true})
+	} else {
+		vals = append(vals, nil)
+	}
+	return vals
 }
 
 func (rwt spannerReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {
