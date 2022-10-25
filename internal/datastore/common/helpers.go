@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -49,4 +51,21 @@ func NewCreateRelationshipExistsError(relationship *core.RelationTuple) error {
 		fmt.Errorf(msg),
 		relationship,
 	}
+}
+
+// ContextualizedCaveatFrom convenience method that handles creation of a contextualized caveat
+// given the possibility of arguments with zero-values.
+func ContextualizedCaveatFrom(name string, context map[string]any) (*core.ContextualizedCaveat, error) {
+	var caveat *core.ContextualizedCaveat
+	if name != "" {
+		strct, err := structpb.NewStruct(context)
+		if err != nil {
+			return nil, fmt.Errorf("malformed caveat context: %w", err)
+		}
+		caveat = &core.ContextualizedCaveat{
+			CaveatName: name,
+			Context:    strct,
+		}
+	}
+	return caveat, nil
 }

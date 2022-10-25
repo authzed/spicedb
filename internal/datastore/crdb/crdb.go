@@ -41,16 +41,21 @@ const (
 	tableNamespace    = "namespace_config"
 	tableTuple        = "relation_tuple"
 	tableTransactions = "transactions"
+	tableCaveat       = "caveat"
 
-	colNamespace        = "namespace"
-	colConfig           = "serialized_config"
-	colTimestamp        = "timestamp"
-	colTransactionKey   = "key"
-	colObjectID         = "object_id"
-	colRelation         = "relation"
-	colUsersetNamespace = "userset_namespace"
-	colUsersetObjectID  = "userset_object_id"
-	colUsersetRelation  = "userset_relation"
+	colNamespace         = "namespace"
+	colConfig            = "serialized_config"
+	colTimestamp         = "timestamp"
+	colTransactionKey    = "key"
+	colObjectID          = "object_id"
+	colRelation          = "relation"
+	colUsersetNamespace  = "userset_namespace"
+	colUsersetObjectID   = "userset_object_id"
+	colUsersetRelation   = "userset_relation"
+	colCaveatName        = "name"
+	colCaveatDefinition  = "definition"
+	colCaveatContextName = "caveat_name"
+	colCaveatContext     = "caveat_context"
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	errRevision            = "unable to find revision: %w"
@@ -213,7 +218,7 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(createTxFunc, false),
+		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
 		UsersetBatchSize: cds.usersetBatchSize,
 	}
 
@@ -234,7 +239,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 			}
 
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         pgxcommon.NewPGXExecutor(longLivedTx, false),
+				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
 				UsersetBatchSize: cds.usersetBatchSize,
 			}
 

@@ -5,16 +5,15 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/zerologadapter"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/protobuf/types/known/structpb"
-
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/log/zerologadapter"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -22,7 +21,7 @@ const (
 )
 
 // NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(txSource TxFactory, caveatEnabled bool) common.ExecuteQueryFunc {
+func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) ([]*corev1.RelationTuple, error) {
 		ctx = datastore.SeparateContextWithTracing(ctx)
 
@@ -33,12 +32,12 @@ func NewPGXExecutor(txSource TxFactory, caveatEnabled bool) common.ExecuteQueryF
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
 		defer txCleanup(ctx)
-		return queryTuples(ctx, sql, args, span, tx, caveatEnabled)
+		return queryTuples(ctx, sql, args, span, tx)
 	}
 }
 
 // queryTuples queries tuples for the given query and transaction.
-func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx pgx.Tx, caveatEnabled bool) ([]*corev1.RelationTuple, error) {
+func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx pgx.Tx) ([]*corev1.RelationTuple, error) {
 	span.AddEvent("DB transaction established")
 	rows, err := tx.Query(ctx, sqlStatement, args...)
 	if err != nil {
@@ -56,44 +55,24 @@ func queryTuples(ctx context.Context, sqlStatement string, args []any, span trac
 		}
 		var caveatName sql.NullString
 		var caveatCtx map[string]any
-		var err error
-		// TODO(vroldanbet) deprecate bool flag once CRDB also supports caveat
-		if caveatEnabled {
-			err = rows.Scan(
-				&nextTuple.ResourceAndRelation.Namespace,
-				&nextTuple.ResourceAndRelation.ObjectId,
-				&nextTuple.ResourceAndRelation.Relation,
-				&nextTuple.Subject.Namespace,
-				&nextTuple.Subject.ObjectId,
-				&nextTuple.Subject.Relation,
-				&caveatName,
-				&caveatCtx,
-			)
-		} else {
-			err = rows.Scan(
-				&nextTuple.ResourceAndRelation.Namespace,
-				&nextTuple.ResourceAndRelation.ObjectId,
-				&nextTuple.ResourceAndRelation.Relation,
-				&nextTuple.Subject.Namespace,
-				&nextTuple.Subject.ObjectId,
-				&nextTuple.Subject.Relation,
-			)
-		}
+		err := rows.Scan(
+			&nextTuple.ResourceAndRelation.Namespace,
+			&nextTuple.ResourceAndRelation.ObjectId,
+			&nextTuple.ResourceAndRelation.Relation,
+			&nextTuple.Subject.Namespace,
+			&nextTuple.Subject.ObjectId,
+			&nextTuple.Subject.Relation,
+			&caveatName,
+			&caveatCtx,
+		)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
 
-		if caveatEnabled && caveatName.String != "" {
-			caveatStruct, err := structpb.NewStruct(caveatCtx)
-			if err != nil {
-				return nil, fmt.Errorf("unable to fetch caveat context: %w", err)
-			}
-			nextTuple.Caveat = &corev1.ContextualizedCaveat{
-				CaveatName: caveatName.String,
-				Context:    caveatStruct,
-			}
+		nextTuple.Caveat, err = common.ContextualizedCaveatFrom(caveatName.String, caveatCtx)
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch caveat context: %w", err)
 		}
-
 		tuples = append(tuples, nextTuple)
 	}
 	if err := rows.Err(); err != nil {
