@@ -114,9 +114,6 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 }
 
 func (sr spannerReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "ReadNamespace")
-	defer span.End()
-
 	nsKey := spanner.Key{nsName}
 	row, err := sr.txSource().ReadRow(
 		ctx,
@@ -146,9 +143,6 @@ func (sr spannerReader) ReadNamespace(ctx context.Context, nsName string) (*core
 }
 
 func (sr spannerReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	ctx, span := tracer.Start(ctx, "ListNamespaces")
-	defer span.End()
-
 	iter := sr.txSource().Read(
 		ctx,
 		tableNamespace,
@@ -168,9 +162,6 @@ func (sr spannerReader) LookupNamespaces(ctx context.Context, nsNames []string) 
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
-
-	ctx, span := tracer.Start(ctx, "LookupNamespaces")
-	defer span.End()
 
 	keys := make([]spanner.Key, 0, len(nsNames))
 	for _, nsName := range nsNames {

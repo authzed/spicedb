@@ -15,9 +15,6 @@ import (
 var queryRelationshipEstimate = fmt.Sprintf("SELECT SUM(%s) FROM %s", colCount, tableCounters)
 
 func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	ctx, span := tracer.Start(ctx, "Statistics")
-	defer span.End()
-
 	idRows := sd.client.Single().Read(
 		context.Background(),
 		tableMetadata,

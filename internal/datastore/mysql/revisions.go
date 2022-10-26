@@ -72,9 +72,6 @@ func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revi
 func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	// implementation deviates slightly from PSQL implementation in order to support
 	// database seeding in runtime, instead of through migrate command
-	ctx, span := tracer.Start(ctx, "HeadRevision")
-	defer span.End()
-
 	revision, err := mds.loadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
@@ -94,8 +91,6 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revisionRaw datastore.R
 	revision := revisionRaw.(revision.Decimal)
 
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx, span := tracer.Start(ctx, "CheckRevision")
-	defer span.End()
 
 	revisionTx := transactionFromRevision(revision)
 

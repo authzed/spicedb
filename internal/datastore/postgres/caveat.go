@@ -5,14 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
-	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -33,11 +31,6 @@ const (
 )
 
 func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-	ctx, span := tracer.Start(ctx, "ReadCaveatByName", trace.WithAttributes(
-		common.CaveatNameKey.String(name)))
-	defer span.End()
-
 	statement := readCaveat
 	// TODO remove once the ID->XID migrations are all complete
 	if r.migrationPhase == writeBothReadOld {
@@ -87,11 +80,6 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 }
 
 func (r *pgReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-	ctx, span := tracer.Start(ctx, "ListCaveats", trace.WithAttributes(
-		common.CaveatNameKey.StringSlice(caveatNames)))
-	defer span.End()
-
 	caveatsWithNames := listCaveat
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
@@ -137,9 +125,6 @@ func (r *pgReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*c
 }
 
 func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteCaveats")
-	defer span.End()
-
 	write := writeCaveat
 	// TODO remove once the ID->XID migrations are all complete
 	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
@@ -159,7 +144,6 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 		write = write.Values(valuesToWrite...)
 		writtenCaveatNames = append(writtenCaveatNames, caveat.Name)
 	}
-	span.SetAttributes(common.CaveatNameKey.StringSlice(writtenCaveatNames))
 
 	// mark current caveats as deleted
 	err := rwt.deleteCaveatsFromNames(ctx, writtenCaveatNames)
@@ -179,11 +163,6 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 }
 
 func (rwt *pgReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-	ctx, span := tracer.Start(ctx, "DeleteCaveats", trace.WithAttributes(
-		common.CaveatNameKey.StringSlice(names)))
-	defer span.End()
-
 	// mark current caveats as deleted
 	return rwt.deleteCaveatsFromNames(ctx, names)
 }

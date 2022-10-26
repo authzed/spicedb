@@ -324,9 +324,6 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 }
 
 func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (revision.Decimal, error) {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "HeadRevision")
-	defer span.End()
-
 	var hlcNow revision.Decimal
 	err := cds.execute(ctx, func(ctx context.Context) error {
 		return cds.pool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {

@@ -14,8 +14,6 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jzelinskie/stringz"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -59,8 +57,6 @@ func (cc *caveatContextWrapper) Value() (driver.Value, error) {
 func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// there are some fundamental changes introduced to prevent a deadlock in MySQL
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
-	defer span.End()
 
 	bulkWrite := rwt.WriteTupleQuery
 	bulkWriteHasValues := false
@@ -162,36 +158,25 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 
 func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
-	defer span.End()
-
 	// Add clauses for the ResourceFilter
 	query := rwt.DeleteTupleQuery.Where(sq.Eq{colNamespace: filter.ResourceType})
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(filter.OptionalResourceId))
 	}
 	if filter.OptionalRelation != "" {
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(filter.OptionalRelation))
 	}
 
 	// Add clauses for the SubjectFilter
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
 		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
-		tracerAttributes = append(tracerAttributes, common.SubNamespaceNameKey.String(subjectFilter.SubjectType))
 		if subjectFilter.OptionalSubjectId != "" {
 			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
-			tracerAttributes = append(tracerAttributes, common.SubObjectIDKey.String(subjectFilter.OptionalSubjectId))
 		}
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
 			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
-			tracerAttributes = append(tracerAttributes, common.SubRelationNameKey.String(relationFilter.Relation))
 		}
 	}
-
-	span.SetAttributes(tracerAttributes...)
 
 	query = query.Set(colDeletedTxn, rwt.newTxnID)
 
@@ -209,15 +194,10 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 
 func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces ...*core.NamespaceDefinition) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
-	ctx, span := tracer.Start(ctx, "WriteNamespaces")
-	defer span.End()
 
 	deletedNamespaceClause := sq.Or{}
 	writeQuery := rwt.WriteNamespaceQuery
 
-	writtenNamespaceNames := make([]string, 0, len(newNamespaces))
 	for _, newNamespace := range newNamespaces {
 		serialized, err := proto.Marshal(newNamespace)
 		if err != nil {
@@ -226,10 +206,7 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 
 		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{colNamespace: newNamespace.Name})
 		writeQuery = writeQuery.Values(newNamespace.Name, serialized, rwt.newTxnID)
-		writtenNamespaceNames = append(writtenNamespaceNames, newNamespace.Name)
 	}
-
-	span.SetAttributes(common.ObjNamespaceNameKey.StringSlice(writtenNamespaceNames))
 
 	delSQL, delArgs, err := rwt.DeleteNamespaceQuery.
 		Set(colDeletedTxn, rwt.newTxnID).
@@ -253,18 +230,12 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 	if err != nil {
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
-	span.AddEvent("Namespace config written")
 
 	return nil
 }
 
 func (rwt *mysqlReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx, span := tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
-		attribute.String("name", nsName),
-	))
-	defer span.End()
-	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	baseQuery := rwt.ReadNamespaceQuery.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 	_, createdAt, err := loadNamespace(ctx, nsName, rwt.tx, baseQuery)

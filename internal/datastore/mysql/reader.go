@@ -8,8 +8,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/shopspring/decimal"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -85,11 +83,6 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 
 func (mr *mysqlReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
-		attribute.String("name", nsName),
-	))
-	defer span.End()
-
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)

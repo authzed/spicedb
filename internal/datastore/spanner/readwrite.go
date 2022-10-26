@@ -22,9 +22,6 @@ type spannerReadWriteTXN struct {
 }
 
 func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
-	ctx, span := tracer.Start(ctx, "WriteRelationships")
-	defer span.End()
-
 	changeUUID := uuid.New().String()
 
 	var rowCountChange int64
@@ -67,9 +64,6 @@ func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations
 }
 
 func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
-	ctx, span := tracer.Start(ctx, "DeleteRelationships")
-	defer span.End()
-
 	err := deleteWithFilter(ctx, rwt.spannerRWT, filter)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
@@ -227,9 +221,6 @@ func caveatVals(r *core.RelationTuple) []any {
 }
 
 func (rwt spannerReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
-	_, span := tracer.Start(ctx, "WriteNamespace")
-	defer span.End()
-
 	mutations := make([]*spanner.Mutation, 0, len(newConfigs))
 	for _, newConfig := range newConfigs {
 		serialized, err := proto.Marshal(newConfig)
@@ -248,9 +239,6 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs .
 }
 
 func (rwt spannerReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
-	ctx, span := tracer.Start(ctx, "DeleteNamespace")
-	defer span.End()
-
 	if err := deleteWithFilter(ctx, rwt.spannerRWT, &v1.RelationshipFilter{
 		ResourceType: nsName,
 	}); err != nil {
