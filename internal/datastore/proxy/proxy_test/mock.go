@@ -27,7 +27,7 @@ func (dm *MockDatastore) ReadWriteTx(
 	args := dm.Called()
 	mockRWT := args.Get(0).(datastore.ReadWriteTransaction)
 
-	if err := f(ctx, mockRWT); err != nil {
+	if err := f(mockRWT); err != nil {
 		return datastore.NoRevision, err
 	}
 
@@ -225,22 +225,22 @@ func (dm *MockReadWriteTransaction) LookupNamespaces(ctx context.Context, nsName
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
+func (dm *MockReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	args := dm.Called(mutations)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteRelationships(filter *v1.RelationshipFilter) error {
+func (dm *MockReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
 	args := dm.Called(filter)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {
+func (dm *MockReadWriteTransaction) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	args := dm.Called(newConfigs)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteNamespace(nsName string) error {
+func (dm *MockReadWriteTransaction) DeleteNamespace(ctx context.Context, nsName string) error {
 	args := dm.Called(nsName)
 	return args.Error(0)
 }
@@ -255,12 +255,12 @@ func (dm *MockReadWriteTransaction) ListCaveats(ctx context.Context, caveatNames
 	panic("implement me")
 }
 
-func (dm *MockReadWriteTransaction) WriteCaveats(caveats []*core.CaveatDefinition) error {
+func (dm *MockReadWriteTransaction) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (dm *MockReadWriteTransaction) DeleteCaveats(names []string) error {
+func (dm *MockReadWriteTransaction) DeleteCaveats(ctx context.Context, names []string) error {
 	// TODO implement me
 	panic("implement me")
 }

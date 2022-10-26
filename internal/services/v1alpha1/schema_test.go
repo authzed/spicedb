@@ -243,8 +243,10 @@ func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
 
 	requestedObjectDefNames := []string{"example/user"}
 
+	ctx := context.Background()
+
 	// Issue a write to create the schema's namespaces.
-	writeResp, err := client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+	writeResp, err := client.WriteSchema(ctx, &v1alpha1.WriteSchemaRequest{
 		Schema: `definition example/user {
 			relation foo1: example/user
 		}`,
@@ -253,15 +255,15 @@ func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
 	require.Equal(t, requestedObjectDefNames, writeResp.GetObjectDefinitionsNames())
 
 	// Read the schema.
-	resp, err := client.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
+	resp, err := client.ReadSchema(ctx, &v1alpha1.ReadSchemaRequest{
 		ObjectDefinitionsNames: requestedObjectDefNames,
 	})
 	require.NoError(t, err)
 
 	// Issue a delete out of band for the namespace.
-	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		for _, nsName := range requestedObjectDefNames {
-			derr := rwt.DeleteNamespace(nsName)
+			derr := rwt.DeleteNamespace(ctx, nsName)
 			if derr != nil {
 				return derr
 			}
@@ -271,7 +273,7 @@ func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to write using the previous revision and ensure it fails.
-	_, err = client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+	_, err = client.WriteSchema(ctx, &v1alpha1.WriteSchemaRequest{
 		Schema: `definition example/user {
 			relation foo3: example/user
 		}`,
@@ -280,7 +282,7 @@ func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 
 	// Read the schema and ensure it was not written.
-	_, err = client.ReadSchema(context.Background(), &v1alpha1.ReadSchemaRequest{
+	_, err = client.ReadSchema(ctx, &v1alpha1.ReadSchemaRequest{
 		ObjectDefinitionsNames: requestedObjectDefNames,
 	})
 	grpcutil.RequireStatus(t, codes.NotFound, err)

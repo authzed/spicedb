@@ -174,7 +174,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		newRevision := revisionFromTimestamp(time.Now().UTC())
 
 		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, mdb.enableCaveats}, newRevision}
-		if err := f(ctx, rwt); err != nil {
+		if err := f(rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {
 				tx.Abort()

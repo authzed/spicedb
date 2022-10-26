@@ -33,17 +33,16 @@ var duplicateEntryRegx = regexp.MustCompile(`^Duplicate entry '(.+)' for key 'uq
 type mysqlReadWriteTXN struct {
 	*mysqlReader
 
-	ctx      context.Context
 	tx       *sql.Tx
 	newTxnID uint64
 }
 
 // WriteRelationships takes a list of existing relationships that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified namespace.
-func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
+func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// there are some fundamental changes introduced to prevent a deadlock in MySQL
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteTuples")
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
 
 	bulkWrite := rwt.WriteTupleQuery
@@ -139,9 +138,9 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(mutations []*core.RelationTuple
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) error {
+func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteRelationships")
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 
 	// Add clauses for the ResourceFilter
@@ -186,9 +185,9 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter)
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) WriteNamespaces(newNamespaces ...*core.NamespaceDefinition) error {
+func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces ...*core.NamespaceDefinition) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx := datastore.SeparateContextWithTracing(rwt.ctx)
+	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	ctx, span := tracer.Start(ctx, "WriteNamespaces")
 	defer span.End()
@@ -238,9 +237,9 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(newNamespaces ...*core.NamespaceDe
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteNamespace(nsName string) error {
+func (rwt *mysqlReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx, span := tracer.Start(rwt.ctx, "DeleteNamespace", trace.WithAttributes(
+	ctx, span := tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
 	defer span.End()

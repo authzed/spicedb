@@ -254,12 +254,11 @@ func (cds *crdbDatastore) ReadWriteTx(
 					make(keySet),
 					executeOnce,
 				},
-				ctx,
 				tx,
 				0,
 			}
 
-			if err := f(ctx, rwt); err != nil {
+			if err := f(rwt); err != nil {
 				return err
 			}
 

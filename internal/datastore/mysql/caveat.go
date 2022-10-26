@@ -17,10 +17,10 @@ func (mr *mysqlReader) ListCaveats(ctx context.Context, caveatNames ...string) (
 	return nil, nil
 }
 
-func (rwt *mysqlReadWriteTXN) WriteCaveats(caveats []*core.CaveatDefinition) error {
+func (rwt *mysqlReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
 	return fmt.Errorf("unimplemented caveat support in datastore")
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteCaveats(names []string) error {
+func (rwt *mysqlReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
 	return fmt.Errorf("unimplemented caveat support in datastore")
 }

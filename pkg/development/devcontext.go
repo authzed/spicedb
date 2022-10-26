@@ -68,7 +68,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 	}
 
 	var inputErrors []*devinterface.DeveloperError
-	currentRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	currentRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		inputErrors, err = loadCompiled(ctx, compiled, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err
@@ -149,7 +149,7 @@ func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore
 		updates = append(updates, tuple.Touch(tpl))
 	}
 
-	err := rwt.WriteRelationships(updates)
+	err := rwt.WriteRelationships(ctx, updates)
 
 	return devErrors, err
 }
@@ -168,7 +168,7 @@ func loadCompiled(
 	for _, caveatDef := range compiled.CaveatDefinitions {
 		cverr := namespace.ValidateCaveatDefinition(caveatDef)
 		if cverr == nil {
-			if err := rwt.WriteCaveats([]*core.CaveatDefinition{caveatDef}); err != nil {
+			if err := rwt.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef}); err != nil {
 				return errors, err
 			}
 			continue
@@ -221,7 +221,7 @@ func loadCompiled(
 
 		_, tverr := ts.Validate(ctx)
 		if tverr == nil {
-			if err := rwt.WriteNamespaces(nsDef); err != nil {
+			if err := rwt.WriteNamespaces(ctx, nsDef); err != nil {
 				return errors, err
 			}
 			continue

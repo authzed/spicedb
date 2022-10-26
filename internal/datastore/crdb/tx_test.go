@@ -135,8 +135,8 @@ func TestTxReset(t *testing.T) {
 			require.True(ok)
 
 			// WriteNamespace utilizes execute so we'll use it
-			rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				return rwt.WriteNamespaces(testUserNS)
+			rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+				return rwt.WriteNamespaces(ctx, testUserNS)
 			})
 			if tt.expectError {
 				require.Error(err)

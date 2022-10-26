@@ -43,7 +43,6 @@ var (
 
 type crdbReadWriteTXN struct {
 	*crdbReader
-	ctx            context.Context
 	tx             pgx.Tx
 	relCountChange int64
 }
@@ -88,8 +87,8 @@ var (
 	)
 )
 
-func (rwt *crdbReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteTuples")
+func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
 
 	bulkWrite := queryWriteTuple
@@ -194,8 +193,8 @@ func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	}
 }
 
-func (rwt *crdbReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteRelationships")
+func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 
 	// Add clauses for the ResourceFilter
@@ -241,7 +240,7 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) 
 	return nil
 }
 
-func (rwt *crdbReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	query := queryWriteNamespace
 
 	for _, newConfig := range newConfigs {
@@ -259,7 +258,7 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefini
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	ctx := datastore.SeparateContextWithTracing(rwt.ctx)
+	ctx = datastore.SeparateContextWithTracing(ctx)
 	if _, err := rwt.tx.Exec(ctx, writeSQL, writeArgs...); err != nil {
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
@@ -267,8 +266,8 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefini
 	return nil
 }
 
-func (rwt *crdbReadWriteTXN) DeleteNamespace(nsName string) error {
-	ctx := datastore.SeparateContextWithTracing(rwt.ctx)
+func (rwt *crdbReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
+	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	_, timestamp, err := loadNamespace(ctx, rwt.tx, nsName)
 	if err != nil {

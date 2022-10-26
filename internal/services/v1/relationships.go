@@ -180,7 +180,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	// Execute the write operation(s).
 	// TODO(jschorr): look into loading the type system once per type, rather than once per relationship
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		// Validate the preconditions.
 		for _, precond := range req.OptionalPreconditions {
 			if err := ps.checkFilterNamespaces(ctx, precond.Filter, rwt); err != nil {
@@ -318,7 +318,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			return err
 		}
 
-		return rwt.WriteRelationships(tuple.UpdateFromRelationshipUpdates(req.Updates))
+		return rwt.WriteRelationships(ctx, tuple.UpdateFromRelationshipUpdates(req.Updates))
 	})
 	if err != nil {
 		return nil, rewriteError(ctx, err)
@@ -346,7 +346,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 
 	ds := datastoremw.MustFromContext(ctx)
 
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, rwt); err != nil {
 			return err
 		}
@@ -360,7 +360,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			return err
 		}
 
-		return rwt.DeleteRelationships(req.RelationshipFilter)
+		return rwt.DeleteRelationships(ctx, req.RelationshipFilter)
 	})
 	if err != nil {
 		return nil, rewriteError(ctx, err)

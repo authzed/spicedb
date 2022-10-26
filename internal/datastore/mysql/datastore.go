@@ -283,12 +283,11 @@ func (mds *Datastore) ReadWriteTx(
 					querySplitter,
 					currentlyLivingObjects,
 				},
-				ctx,
 				tx,
 				newTxnID,
 			}
 
-			if err := fn(ctx, rwt); err != nil {
+			if err := fn(rwt); err != nil {
 				return err
 			}
 

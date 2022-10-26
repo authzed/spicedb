@@ -120,7 +120,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	}
 
 	// Start the transaction to update the schema.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		// Build a map of existing caveats to determine those being removed, if any.
 		existingCaveats, err := rwt.ListCaveats(ctx)
 		existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(existingCaveats))
@@ -189,14 +189,14 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		// Write the new caveats.
 		// TODO(jschorr): Only write updated caveats once the diff has been changed to support expressions.
 		if len(compiled.CaveatDefinitions) > 0 {
-			if err := rwt.WriteCaveats(compiled.CaveatDefinitions); err != nil {
+			if err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions); err != nil {
 				return err
 			}
 		}
 
 		// Write the new/changed namespaces.
 		if len(objectDefsWithChanges) > 0 {
-			if err := rwt.WriteNamespaces(objectDefsWithChanges...); err != nil {
+			if err := rwt.WriteNamespaces(ctx, objectDefsWithChanges...); err != nil {
 				return err
 			}
 		}
@@ -206,13 +206,15 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		})
 
 		// Delete the removed namespaces.
-		if err := removedObjectDefNames.ForEach(rwt.DeleteNamespace); err != nil {
+		if err := removedObjectDefNames.ForEach(func(value string) error {
+			return rwt.DeleteNamespace(ctx, value)
+		}); err != nil {
 			return err
 		}
 
 		// Delete the removed caveats.
 		if !removedCaveatDefNames.IsEmpty() {
-			if err := rwt.DeleteCaveats(removedCaveatDefNames.AsSlice()); err != nil {
+			if err := rwt.DeleteCaveats(ctx, removedCaveatDefNames.AsSlice()); err != nil {
 				return err
 			}
 		}

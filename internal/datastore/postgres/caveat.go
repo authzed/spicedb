@@ -125,8 +125,8 @@ func (r *pgReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*c
 	return caveats, nil
 }
 
-func (rwt *pgReadWriteTXN) WriteCaveats(caveats []*core.CaveatDefinition) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteCaveats")
+func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteCaveats")
 	defer span.End()
 
 	deletedCaveatClause := sq.Or{}
@@ -169,8 +169,8 @@ func (rwt *pgReadWriteTXN) WriteCaveats(caveats []*core.CaveatDefinition) error 
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteCaveats(names []string) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteCaveats")
+func (rwt *pgReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteCaveats")
 	defer span.End()
 
 	deletedCaveatClause := sq.Or{}

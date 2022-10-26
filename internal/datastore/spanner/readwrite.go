@@ -18,12 +18,11 @@ import (
 
 type spannerReadWriteTXN struct {
 	spannerReader
-	ctx        context.Context
 	spannerRWT *spanner.ReadWriteTransaction
 }
 
-func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
-	ctx, span := tracer.Start(rwt.ctx, "WriteRelationships")
+func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+	ctx, span := tracer.Start(ctx, "WriteRelationships")
 	defer span.End()
 
 	changeUUID := uuid.New().String()
@@ -67,8 +66,8 @@ func (rwt spannerReadWriteTXN) WriteRelationships(mutations []*core.RelationTupl
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) error {
-	ctx, span := tracer.Start(rwt.ctx, "DeleteRelationships")
+func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+	ctx, span := tracer.Start(ctx, "DeleteRelationships")
 	defer span.End()
 
 	err := deleteWithFilter(ctx, rwt.spannerRWT, filter)
@@ -227,8 +226,8 @@ func caveatVals(r *core.RelationTuple) []any {
 	return vals
 }
 
-func (rwt spannerReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {
-	_, span := tracer.Start(rwt.ctx, "WriteNamespace")
+func (rwt spannerReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	_, span := tracer.Start(ctx, "WriteNamespace")
 	defer span.End()
 
 	mutations := make([]*spanner.Mutation, 0, len(newConfigs))
@@ -248,8 +247,8 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefi
 	return rwt.spannerRWT.BufferWrite(mutations)
 }
 
-func (rwt spannerReadWriteTXN) DeleteNamespace(nsName string) error {
-	ctx, span := tracer.Start(rwt.ctx, "DeleteNamespace")
+func (rwt spannerReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
+	ctx, span := tracer.Start(ctx, "DeleteNamespace")
 	defer span.End()
 
 	if err := deleteWithFilter(ctx, rwt.spannerRWT, &v1.RelationshipFilter{

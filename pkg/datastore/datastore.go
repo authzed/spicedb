@@ -180,20 +180,20 @@ type ReadWriteTransaction interface {
 	CaveatStorer
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
-	WriteRelationships(mutations []*core.RelationTupleUpdate) error
+	WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error
 
 	// DeleteRelationships deletes all Relationships that match the provided filter.
-	DeleteRelationships(filter *v1.RelationshipFilter) error
+	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error
 
 	// WriteNamespaces takes proto namespace definitions and persists them.
-	WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error
+	WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error
 
 	// DeleteNamespace deletes a namespace and any associated tuples.
-	DeleteNamespace(nsName string) error
+	DeleteNamespace(ctx context.Context, nsName string) error
 }
 
 // TxUserFunc is a type for the function that users supply when they invoke a read-write transaction.
-type TxUserFunc func(context.Context, ReadWriteTransaction) error
+type TxUserFunc func(ReadWriteTransaction) error
 
 // Datastore represents tuple access for a single namespace.
 type Datastore interface {

@@ -89,8 +89,8 @@ func makeTestTuple(resourceID, userID string) *core.RelationTuple {
 func setupDatastore(ds datastore.Datastore, require *require.Assertions) datastore.Revision {
 	ctx := context.Background()
 
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(testResourceNS, testUserNS)
+	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, testResourceNS, testUserNS)
 	})
 	require.NoError(err)
 

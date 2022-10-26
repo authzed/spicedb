@@ -73,14 +73,13 @@ var (
 
 type pgReadWriteTXN struct {
 	*pgReader
-	ctx            context.Context
 	tx             pgx.Tx
 	newXID         xid8
 	migrationPhase migrationPhase
 }
 
-func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteTuples")
+func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteTuples")
 	defer span.End()
 
 	bulkWrite := writeTuple
@@ -186,8 +185,8 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*core.RelationTupleUpd
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteRelationships")
+func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteRelationships")
 	defer span.End()
 
 	// Add clauses for the ResourceFilter
@@ -238,8 +237,8 @@ func (rwt *pgReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) er
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteNamespaces")
+func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteNamespaces")
 	defer span.End()
 
 	deletedNamespaceClause := sq.Or{}
@@ -317,8 +316,8 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteNamespace")
+func (rwt *pgReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteNamespace")
 	defer span.End()
 
 	filterer := func(original sq.SelectBuilder) sq.SelectBuilder {

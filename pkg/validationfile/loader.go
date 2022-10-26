@@ -88,11 +88,13 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 			nsDefs = append(nsDefs, &nsDef)
 		}
 
+		ctx := context.Background()
+
 		// Load the namespaces and type check.
 		var lnerr error
-		revision, lnerr = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		revision, lnerr = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 			// Write the caveat definitions.
-			err := rwt.WriteCaveats(caveatDefs)
+			err := rwt.WriteCaveats(ctx, caveatDefs)
 			if err != nil {
 				return err
 			}
@@ -107,7 +109,7 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 					return err
 				}
 
-				ctx := dsctx.ContextWithDatastore(context.Background(), ds)
+				ctx := dsctx.ContextWithDatastore(ctx, ds)
 				vts, terr := ts.Validate(ctx)
 				if terr != nil {
 					return terr
@@ -120,7 +122,7 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 
 				// Write the namespaces.
 				log.Info().Str("filePath", filePath).Str("namespaceName", nsDef.Name).Msg("Loading namespace")
-				if err := rwt.WriteNamespaces(nsDef); err != nil {
+				if err := rwt.WriteNamespaces(ctx, nsDef); err != nil {
 					return fmt.Errorf("error when loading namespace %s: %w", nsDef.Name, err)
 				}
 			}
@@ -157,8 +159,8 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 			updates = append(updates, tuple.Create(tpl))
 		}
 
-		wrevision, terr := ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			return rwt.WriteRelationships(updates)
+		wrevision, terr := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			return rwt.WriteRelationships(ctx, updates)
 		})
 		if terr != nil {
 			return nil, datastore.NoRevision, fmt.Errorf("error when loading validation tuples from file %s: %w", filePath, terr)
