@@ -878,12 +878,12 @@ func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datasto
 		return datastore.NoRevision, err
 	}
 
-	return ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		if err := rwt.WriteNamespaces(compiled.ObjectDefinitions...); err != nil {
+	return ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		if err := rwt.WriteNamespaces(ctx, compiled.ObjectDefinitions...); err != nil {
 			return err
 		}
 
-		if err := rwt.WriteCaveats(compiled.CaveatDefinitions); err != nil {
+		if err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions); err != nil {
 			return err
 		}
 
@@ -895,7 +895,7 @@ func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datasto
 			})
 		}
 
-		return rwt.WriteRelationships(rtu)
+		return rwt.WriteRelationships(ctx, rtu)
 	})
 }
 

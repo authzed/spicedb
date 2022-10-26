@@ -1,6 +1,7 @@
 package memdb
 
 import (
+	"context"
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -19,7 +20,7 @@ type memdbReadWriteTx struct {
 	newRevision datastore.Revision
 }
 
-func (rwt *memdbReadWriteTx) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
+func (rwt *memdbReadWriteTx) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 
@@ -103,7 +104,7 @@ func (rwt *memdbReadWriteTx) toCaveatReference(mutation *core.RelationTupleUpdat
 	return cr
 }
 
-func (rwt *memdbReadWriteTx) DeleteRelationships(filter *v1.RelationshipFilter) error {
+func (rwt *memdbReadWriteTx) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 
@@ -137,7 +138,7 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 	return rwt.write(tx, mutations...)
 }
 
-func (rwt *memdbReadWriteTx) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {
+func (rwt *memdbReadWriteTx) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 
@@ -163,7 +164,7 @@ func (rwt *memdbReadWriteTx) WriteNamespaces(newConfigs ...*core.NamespaceDefini
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteNamespace(nsName string) error {
+func (rwt *memdbReadWriteTx) DeleteNamespace(ctx context.Context, nsName string) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 

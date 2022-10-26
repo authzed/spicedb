@@ -117,8 +117,8 @@ func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([
 	return caveats, nil
 }
 
-func (rwt *crdbReadWriteTXN) WriteCaveats(caveats []*core.CaveatDefinition) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteCaveats")
+func (rwt *crdbReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteCaveats")
 	defer span.End()
 
 	write := writeCaveat
@@ -151,8 +151,8 @@ func (rwt *crdbReadWriteTXN) WriteCaveats(caveats []*core.CaveatDefinition) erro
 	})
 }
 
-func (rwt *crdbReadWriteTXN) DeleteCaveats(names []string) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteCaveats",
+func (rwt *crdbReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
+	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteCaveats",
 		trace.WithAttributes(attribute.StringSlice("names", names)))
 	defer span.End()
 

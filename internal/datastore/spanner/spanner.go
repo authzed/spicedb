@@ -147,8 +147,8 @@ func (sd spannerDatastore) ReadWriteTx(
 			Executor:         queryExecutor(txSource),
 			UsersetBatchSize: usersetBatchsize,
 		}
-		rwt := spannerReadWriteTXN{spannerReader{querySplitter, txSource}, ctx, spannerRWT}
-		return fn(ctx, rwt)
+		rwt := spannerReadWriteTXN{spannerReader{querySplitter, txSource}, spannerRWT}
+		return fn(rwt)
 	})
 	if err != nil {
 		if cerr := convertToWriteConstraintError(err); cerr != nil {

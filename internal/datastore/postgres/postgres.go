@@ -355,13 +355,12 @@ func (pgd *pgDatastore) ReadWriteTx(
 					currentlyLivingObjects,
 					pgd.migrationPhase,
 				},
-				ctx,
 				tx,
 				newXID,
 				pgd.migrationPhase,
 			}
 
-			return fn(ctx, rwt)
+			return fn(rwt)
 		})
 		if err != nil {
 			if errorRetryable(err) {

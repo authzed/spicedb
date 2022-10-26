@@ -133,7 +133,7 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	referencedNamespaceNames := namespace.ListReferencedNamespaces(compiled.ObjectDefinitions)
 
 	// Run the schema update.
-	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		var existingCaveatDefs []*core.CaveatDefinition
 		if len(caveatNames) > 0 {
 			found, err := rwt.ListCaveats(ctx, caveatNames...)
@@ -236,12 +236,12 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 		}
 
 		if len(compiled.CaveatDefinitions) > 0 {
-			if err := rwt.WriteCaveats(compiled.CaveatDefinitions); err != nil {
+			if err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions); err != nil {
 				return err
 			}
 		}
 
-		if err := rwt.WriteNamespaces(compiled.ObjectDefinitions...); err != nil {
+		if err := rwt.WriteNamespaces(ctx, compiled.ObjectDefinitions...); err != nil {
 			return err
 		}
 

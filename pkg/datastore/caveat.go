@@ -22,8 +22,8 @@ type CaveatStorer interface {
 
 	// WriteCaveats stores the provided caveats, and returns the assigned IDs
 	// Each element o the returning slice corresponds by possition to the input slice
-	WriteCaveats([]*core.CaveatDefinition) error
+	WriteCaveats(context.Context, []*core.CaveatDefinition) error
 
 	// DeleteCaveats deletes the provided caveats by name
-	DeleteCaveats(names []string) error
+	DeleteCaveats(ctx context.Context, names []string) error
 }

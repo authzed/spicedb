@@ -163,9 +163,9 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(ok)
 
-	firstWrite, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	firstWrite, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		// Write basic namespaces.
-		return rwt.WriteNamespaces(namespace.Namespace(
+		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.Relation("reader", nil),
 		), namespace.Namespace("user"))
@@ -182,8 +182,9 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Zero(removed.Namespaces)
 
 	// Replace the namespace with a new one.
-	updateTwoNamespaces, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	updateTwoNamespaces, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
+			ctx,
 			namespace.Namespace(
 				"resource",
 				namespace.Relation("reader", nil),
@@ -287,7 +288,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
 
 	// Inject a transaction to clean up the last write
-	lastRev, err := pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	lastRev, err := pds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return nil
 	})
 	require.NoError(err)
@@ -349,8 +350,8 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.True(ok)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(namespace.Namespace(
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.Relation("reader", nil),
 		), namespace.Namespace("user"))
@@ -392,7 +393,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Inject a revision to sweep up the last revision
-	_, err = pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err = pds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return nil
 	})
 	require.NoError(err)
@@ -425,8 +426,8 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.True(ok)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(namespace.Namespace(
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.Relation("reader", nil),
 		), namespace.Namespace("user"))
@@ -473,7 +474,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Inject a revision to sweep up the last revision
-	_, err = pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err = pds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return nil
 	})
 	require.NoError(err)
@@ -624,8 +625,8 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	require.True(ok)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(namespace.Namespace(
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.Relation("reader", nil),
 		), namespace.Namespace("user"))
@@ -640,7 +641,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	var commitLastRev, commitFirstRev datastore.Revision
 	g.Go(func() error {
 		var err error
-		commitLastRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		commitLastRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 			rtu := tuple.Touch(&core.RelationTuple{
 				ResourceAndRelation: &core.ObjectAndRelation{
 					Namespace: "resource",
@@ -653,7 +654,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 					Relation:  "...",
 				},
 			})
-			err = rwt.WriteRelationships([]*core.RelationTupleUpdate{rtu})
+			err = rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
 			require.NoError(err)
 
 			close(waitToStart)
@@ -668,7 +669,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 
 	<-waitToStart
 
-	commitFirstRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	commitFirstRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		rtu := tuple.Touch(&core.RelationTuple{
 			ResourceAndRelation: &core.ObjectAndRelation{
 				Namespace: "resource",
@@ -682,7 +683,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 			},
 		})
 		defer fmt.Println("committing first")
-		return rwt.WriteRelationships([]*core.RelationTupleUpdate{rtu})
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
 	})
 	close(waitToFinish)
 
@@ -791,11 +792,11 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	)
 	require.NoError(err)
 
-	writtenAtTwo, err := dsWriteBothReadOld.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+	writtenAtTwo, err := dsWriteBothReadOld.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		require.NoError(rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"two_namespace", namespace.Relation("parent", nil, nil))))
 
-		require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+		require.NoError(rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 			{
 				Operation: core.RelationTupleUpdate_TOUCH,
 				Tuple:     tuple.MustParse("one_namespace:1#parent@one_namespace:2#..."),
@@ -806,7 +807,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			},
 		}))
 
-		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+		require.NoError(rwt.WriteCaveats(ctx, []*core.CaveatDefinition{
 			{
 				Name:                 "one_caveat",
 				SerializedExpression: []byte{0x0a, 0x0c},
@@ -842,17 +843,17 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			migrate.LiveRun,
 		))
 
-		lastWritten, err := dsWriteBothReadOld.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+		lastWritten, err := dsWriteBothReadOld.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			require.NoError(rwt.WriteNamespaces(ctx, namespace.Namespace(
 				"two_namespace", namespace.Relation("parent", nil, nil))))
 
-			require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+			require.NoError(rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 				{
 					Operation: core.RelationTupleUpdate_TOUCH,
 					Tuple:     tuple.MustParse("two_namespace:1#parent@two_namespace:2#..."),
 				},
 			}))
-			require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+			require.NoError(rwt.WriteCaveats(ctx, []*core.CaveatDefinition{
 				{
 					Name:                 "two_caveat",
 					SerializedExpression: []byte{0x0b},
@@ -881,24 +882,24 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	)
 	require.NoError(err)
 
-	writtenAtThree, err := dsWriteBothReadNew.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		require.NoError(rwt.DeleteRelationships(&v1.RelationshipFilter{
+	writtenAtThree, err := dsWriteBothReadNew.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		require.NoError(rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			ResourceType: "one_namespace",
 		}))
 
-		require.NoError(rwt.DeleteNamespace("one_namespace"))
+		require.NoError(rwt.DeleteNamespace(ctx, "one_namespace"))
 
-		require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+		require.NoError(rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"three_namespace", namespace.Relation("parent", nil, nil))))
 
-		require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+		require.NoError(rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 			{
 				Operation: core.RelationTupleUpdate_TOUCH,
 				Tuple:     tuple.MustParse("three_namespace:1#parent@three_namespace:2#..."),
 			},
 		}))
-		require.NoError(rwt.DeleteCaveats([]string{"one_caveat"}))
-		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+		require.NoError(rwt.DeleteCaveats(ctx, []string{"one_caveat"}))
+		require.NoError(rwt.WriteCaveats(ctx, []*core.CaveatDefinition{
 			{
 				Name:                 "three_caveat",
 				SerializedExpression: []byte{0x0a},
@@ -949,25 +950,25 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 	)
 	require.NoError(err)
 
-	writtenAtFour, err := dsWriteOnlyNew.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		require.NoError(rwt.DeleteRelationships(&v1.RelationshipFilter{
+	writtenAtFour, err := dsWriteOnlyNew.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		require.NoError(rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			ResourceType: "two_namespace",
 		}))
 
-		require.NoError(rwt.DeleteNamespace("two_namespace"))
+		require.NoError(rwt.DeleteNamespace(ctx, "two_namespace"))
 
-		require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+		require.NoError(rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"four_namespace", namespace.Relation("parent", nil, nil))))
 
-		require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+		require.NoError(rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 			{
 				Operation: core.RelationTupleUpdate_TOUCH,
 				Tuple:     tuple.MustParse("four_namespace:1#parent@four_namespace:2#..."),
 			},
 		}))
 
-		require.NoError(rwt.DeleteCaveats([]string{"two_caveat"}))
-		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+		require.NoError(rwt.DeleteCaveats(ctx, []string{"two_caveat"}))
+		require.NoError(rwt.WriteCaveats(ctx, []*core.CaveatDefinition{
 			{
 				Name:                 "four_caveat",
 				SerializedExpression: []byte{0x0a},
@@ -1016,25 +1017,25 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 		})
 
 	// Attempt a write with the columns dropped
-	writtenAtFive, err := dsWriteOnlyNew.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		require.NoError(rwt.DeleteRelationships(&v1.RelationshipFilter{
+	writtenAtFive, err := dsWriteOnlyNew.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		require.NoError(rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			ResourceType: "three_namespace",
 		}))
 
-		require.NoError(rwt.DeleteNamespace("three_namespace"))
+		require.NoError(rwt.DeleteNamespace(ctx, "three_namespace"))
 
-		require.NoError(rwt.WriteNamespaces(namespace.Namespace(
+		require.NoError(rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"five_namespace", namespace.Relation("parent", nil, nil))))
 
-		require.NoError(rwt.WriteRelationships([]*core.RelationTupleUpdate{
+		require.NoError(rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 			{
 				Operation: core.RelationTupleUpdate_TOUCH,
 				Tuple:     tuple.MustParse("five_namespace:1#parent@five_namespace:2#..."),
 			},
 		}))
 
-		require.NoError(rwt.DeleteCaveats([]string{"three_caveat"}))
-		require.NoError(rwt.WriteCaveats([]*core.CaveatDefinition{
+		require.NoError(rwt.DeleteCaveats(ctx, []string{"three_caveat"}))
+		require.NoError(rwt.WriteCaveats(ctx, []*core.CaveatDefinition{
 			{
 				Name:                 "five_caveat",
 				SerializedExpression: []byte{0x0a},

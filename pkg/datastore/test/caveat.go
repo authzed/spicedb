@@ -83,8 +83,8 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Empty(cvs)
 
 	// Delete Caveat
-	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.DeleteCaveats([]string{coreCaveat.Name})
+	rev, err = ds.ReadWriteTx(ctx, func(tx datastore.ReadWriteTransaction) error {
+		return tx.DeleteCaveats(ctx, []string{coreCaveat.Name})
 	})
 	req.NoError(err)
 	cr = ds.SnapshotReader(rev)
@@ -334,7 +334,7 @@ func assertTupleCorrectlyStored(req *require.Assertions, ds datastore.Datastore,
 
 func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
 	ctx := context.Background()
-	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { // nolint: errcheck
+	_, _ = ds.ReadWriteTx(ctx, func(transaction datastore.ReadWriteTransaction) error { // nolint: errcheck
 		_, _, err := transaction.ReadCaveatByName(ctx, uuid.NewString())
 		if !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
 			t.Skip("datastore does not implement CaveatStorer interface")
@@ -356,8 +356,8 @@ func createTestCaveatedTuple(t *testing.T, tplString string, caveatName string) 
 }
 
 func writeCaveats(ctx context.Context, ds datastore.Datastore, coreCaveat ...*core.CaveatDefinition) (datastore.Revision, error) {
-	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(coreCaveat)
+	rev, err := ds.ReadWriteTx(ctx, func(tx datastore.ReadWriteTransaction) error {
+		return tx.WriteCaveats(ctx, coreCaveat)
 	})
 	if err != nil {
 		return datastore.NoRevision, err

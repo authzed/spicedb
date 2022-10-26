@@ -44,7 +44,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 
 	numPanics := uint64(0)
 	require.Eventually(func() bool {
-		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 			g := errgroup.Group{}
 			g.Go(func() (err error) {
 				defer func() {
@@ -54,7 +54,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 					}
 				}()
 
-				return rwt.WriteNamespaces(ns.Namespace(
+				return rwt.WriteNamespaces(ctx, ns.Namespace(
 					"resource",
 					relationList...,
 				))
@@ -68,7 +68,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 					}
 				}()
 
-				return rwt.WriteNamespaces(ns.Namespace("user", relationList...))
+				return rwt.WriteNamespaces(ctx, ns.Namespace("user", relationList...))
 			})
 
 			return g.Wait()

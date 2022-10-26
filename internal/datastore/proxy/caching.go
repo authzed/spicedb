@@ -53,9 +53,9 @@ func (p *nsCachingProxy) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
 ) (datastore.Revision, error) {
-	return p.Datastore.ReadWriteTx(ctx, func(ctx context.Context, delegateRWT datastore.ReadWriteTransaction) error {
+	return p.Datastore.ReadWriteTx(ctx, func(delegateRWT datastore.ReadWriteTransaction) error {
 		rwt := &nsCachingRWT{delegateRWT, &sync.Map{}}
-		return f(ctx, rwt)
+		return f(rwt)
 	})
 }
 

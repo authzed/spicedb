@@ -117,7 +117,7 @@ func TestRWTNamespaceCaching(t *testing.T) {
 
 	ds := NewCachingDatastoreProxy(dsMock, nil)
 
-	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		_, updatedA, err := rwt.ReadNamespace(ctx, nsA)
 		require.NoError(err)
 		require.True(zero.Equal(updatedA))
@@ -206,8 +206,8 @@ func TestSnapshotNamespaceCachingRealDatastore(t *testing.T) {
 			ds := NewCachingDatastoreProxy(rawDS, nil)
 
 			if tc.nsDef != nil {
-				_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-					return rwt.WriteNamespaces(tc.nsDef)
+				_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+					return rwt.WriteNamespaces(ctx, tc.nsDef)
 				})
 				require.NoError(t, err)
 			}

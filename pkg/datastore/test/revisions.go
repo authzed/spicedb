@@ -77,8 +77,8 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	revToTest, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(testNamespace)
+	revToTest, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, testNamespace)
 	})
 	require.NoError(err)
 

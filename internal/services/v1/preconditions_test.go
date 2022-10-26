@@ -31,7 +31,7 @@ func TestPreconditions(t *testing.T) {
 	require.True(revision.GreaterThan(datastore.NoRevision))
 
 	ctx := context.Background()
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		require.NoError(checkPreconditions(ctx, rwt, []*v1.Precondition{
 			{
 				Operation: v1.Precondition_OPERATION_MUST_MATCH,

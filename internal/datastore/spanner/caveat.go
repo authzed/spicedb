@@ -80,8 +80,8 @@ func (sr spannerReader) ListCaveats(ctx context.Context, caveatNames ...string) 
 	return caveats, nil
 }
 
-func (rwt spannerReadWriteTXN) WriteCaveats(caveats []*core.CaveatDefinition) error {
-	_, span := tracer.Start(rwt.ctx, "WriteCaveats")
+func (rwt spannerReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	_, span := tracer.Start(ctx, "WriteCaveats")
 	defer span.End()
 
 	names := map[string]struct{}{}
@@ -106,8 +106,8 @@ func (rwt spannerReadWriteTXN) WriteCaveats(caveats []*core.CaveatDefinition) er
 	return rwt.spannerRWT.BufferWrite(mutations)
 }
 
-func (rwt spannerReadWriteTXN) DeleteCaveats(names []string) error {
-	_, span := tracer.Start(rwt.ctx, "DeleteCaveats", trace.WithAttributes(attribute.StringSlice("names", names)))
+func (rwt spannerReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
+	_, span := tracer.Start(ctx, "DeleteCaveats", trace.WithAttributes(attribute.StringSlice("names", names)))
 	defer span.End()
 
 	keys := make([]spanner.Key, 0, len(names))

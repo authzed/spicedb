@@ -127,7 +127,7 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 
 	allDefs := []*core.NamespaceDefinition{UserNS, FolderNS, DocumentNS}
 
-	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	newRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		for _, nsDef := range allDefs {
 			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
 				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
@@ -141,7 +141,7 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 			aerr := namespace.AnnotateNamespace(vts)
 			require.NoError(aerr)
 
-			err = rwt.WriteNamespaces(nsDef)
+			err = rwt.WriteNamespaces(ctx, nsDef)
 			require.NoError(err)
 		}
 
@@ -172,8 +172,8 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 	ds, _ = StandardDatastoreWithSchema(ds, require)
 	ctx := context.Background()
 
-	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteCaveats(createTestCaveat(require))
+	_, err := ds.ReadWriteTx(ctx, func(tx datastore.ReadWriteTransaction) error {
+		return tx.WriteCaveats(ctx, createTestCaveat(require))
 	})
 	require.NoError(err)
 

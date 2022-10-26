@@ -36,9 +36,9 @@ func (vd validatingDatastore) ReadWriteTx(
 		return datastore.NoRevision, fmt.Errorf("nil delegate function")
 	}
 
-	return vd.Datastore.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	return vd.Datastore.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		txDelegate := validatingReadWriteTransaction{validatingSnapshotReader{rwt}, rwt}
-		return f(ctx, txDelegate)
+		return f(txDelegate)
 	})
 }
 
@@ -158,20 +158,20 @@ type validatingReadWriteTransaction struct {
 	delegate datastore.ReadWriteTransaction
 }
 
-func (vrwt validatingReadWriteTransaction) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {
+func (vrwt validatingReadWriteTransaction) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	for _, newConfig := range newConfigs {
 		if err := newConfig.Validate(); err != nil {
 			return err
 		}
 	}
-	return vrwt.delegate.WriteNamespaces(newConfigs...)
+	return vrwt.delegate.WriteNamespaces(ctx, newConfigs...)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteNamespace(nsName string) error {
-	return vrwt.delegate.DeleteNamespace(nsName)
+func (vrwt validatingReadWriteTransaction) DeleteNamespace(ctx context.Context, nsName string) error {
+	return vrwt.delegate.DeleteNamespace(ctx, nsName)
 }
 
-func (vrwt validatingReadWriteTransaction) WriteRelationships(mutations []*core.RelationTupleUpdate) error {
+func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	if err := validateUpdatesToWrite(mutations...); err != nil {
 		return err
 	}
@@ -188,23 +188,23 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(mutations []*core.
 		}
 	}
 
-	return vrwt.delegate.WriteRelationships(mutations)
+	return vrwt.delegate.WriteRelationships(ctx, mutations)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteRelationships(filter *v1.RelationshipFilter) error {
+func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
 	if err := filter.Validate(); err != nil {
 		return err
 	}
 
-	return vrwt.delegate.DeleteRelationships(filter)
+	return vrwt.delegate.DeleteRelationships(ctx, filter)
 }
 
-func (vrwt validatingReadWriteTransaction) WriteCaveats(caveats []*core.CaveatDefinition) error {
-	return vrwt.delegate.WriteCaveats(caveats)
+func (vrwt validatingReadWriteTransaction) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	return vrwt.delegate.WriteCaveats(ctx, caveats)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteCaveats(names []string) error {
-	return vrwt.delegate.DeleteCaveats(names)
+func (vrwt validatingReadWriteTransaction) DeleteCaveats(ctx context.Context, names []string) error {
+	return vrwt.delegate.DeleteCaveats(ctx, names)
 }
 
 // validateUpdatesToWrite performs basic validation on relationship updates going into datastores.

@@ -34,14 +34,14 @@ func TestRWOperationErrors(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespace("fake")
+	rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.DeleteNamespace(ctx, "fake")
 	})
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
-	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(&core.NamespaceDefinition{Name: "user"})
+	rev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{Name: "user"})
 	})
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
