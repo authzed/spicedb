@@ -35,13 +35,13 @@ const (
 	querySelectRevision = `
 	
 	WITH selected AS (SELECT COALESCE(
-		(SELECT MIN(%[1]s::text::bigint) FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 / %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc'),
-		(SELECT MAX(%[1]s::text::bigint) FROM %[2]s)
+		(SELECT %[1]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 / %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1),
+		(SELECT %[1]s FROM %[2]s ORDER BY %[3]s DESC LIMIT 1)
 	) as xid)
 	SELECT selected.xid,
 	pg_snapshot_xmin(%[5]s),
 	%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d
-	FROM selected INNER JOIN %[2]s ON selected.xid = %[2]s.xid::text::bigint;`
+	FROM selected INNER JOIN %[2]s ON selected.xid = %[2]s.%[1]s;`
 
 	// queryValidTransaction will return a single row with two values, one boolean
 	// for whether the specified transaction ID is newer than the garbage collection
@@ -54,9 +54,9 @@ const (
 	//   %[4] Inverse of GC window (in seconds)
 	queryValidTransaction = `
 	SELECT $1 >= (
-		SELECT MIN(%[1]s::text::bigint) FROM %[2]s WHERE %[3]s >= NOW() - INTERVAL '%[4]f seconds'
+		SELECT %[1]s FROM %[2]s WHERE %[3]s >= NOW() - INTERVAL '%[4]f seconds' ORDER BY %[3]s ASC LIMIT 1
 	) as fresh, $1 > (
-		SELECT MAX(%[1]s::text::bigint) FROM %[2]s
+		SELECT %[1]s FROM %[2]s ORDER BY %[3]s DESC LIMIT 1
 	) as unknown;`
 )
 

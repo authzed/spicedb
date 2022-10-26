@@ -90,11 +90,6 @@ var addXIDIndices = []string{
 		ON caveat (name, created_xid, deleted_xid);`,
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_caveat_living
 		ON caveat (name, deleted_xid);`,
-
-	// Add the require index for aggregate operations on xid8s prior to postgres 15.0
-	// TODO drop this index in a future migration when our required postgres version >= 15.0
-	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_rttx_xid_as_bigint
-		ON relation_tuple_transaction ( (xid::text::bigint) )`,
 }
 
 var dropBackfillIndices = []string{
