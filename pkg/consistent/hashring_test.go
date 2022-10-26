@@ -137,6 +137,7 @@ func TestBackendBalance(t *testing.T) {
 
 	for _, numMembers := range testCases {
 		t.Run(strconv.Itoa(numMembers), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			ring := NewHashring(hasherFunc, 100)
