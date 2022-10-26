@@ -134,6 +134,7 @@ func grpcServiceBuilder() *cobragrpc.Builder {
 	return cobragrpc.New("grpc",
 		cobragrpc.WithLogger(zerologr.New(&log.Logger)),
 		cobragrpc.WithFlagPrefix("grpc"),
+		cobragrpc.WithDefaultEnabled(true),
 	)
 }
 
