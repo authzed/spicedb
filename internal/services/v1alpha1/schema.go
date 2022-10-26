@@ -260,7 +260,6 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	}
 	for _, caveat := range compiled.CaveatDefinitions {
 		key := caveatKeyPrefix + caveat.Name
-		names = append(names, key)
 		revs[key] = revision
 	}
 
