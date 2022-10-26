@@ -1,4 +1,7 @@
-package services_test
+//go:build !skipintegrationtests
+// +build !skipintegrationtests
+
+package integrationtesting_test
 
 import (
 	"context"
