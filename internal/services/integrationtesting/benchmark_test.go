@@ -1,7 +1,7 @@
-//go:build docker
-// +build docker
+//go:build docker && !skipintegrationtests
+// +build docker,!skipintegrationtests
 
-package services_test
+package integrationtesting_test
 
 import (
 	"context"

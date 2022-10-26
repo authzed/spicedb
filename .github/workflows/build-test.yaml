@@ -1,6 +1,6 @@
 ---
 name: "Build & Test"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
@@ -71,8 +71,21 @@ jobs:
           go-version: "~1.19.2"
       - uses: "authzed/actions/go-test@main"
         with:
+          tags: "ci,docker,skipintegrationtests"
+          timeout: "10m"
+  integration:
+    name: "Integration Tests"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
+        with:
+          go-version: "~1.19.2"
+      - uses: "authzed/actions/go-test@main"
+        with:
           tags: "ci,docker"
-          timeout: "30m"
+          timeout: "10m"
+          working_directory: "internal/services/integrationtesting"
   e2e:
     name: "E2E"
     runs-on: "ubuntu-latest"

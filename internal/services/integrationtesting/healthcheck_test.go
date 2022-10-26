@@ -1,7 +1,7 @@
-//go:build ci && docker
-// +build ci,docker
+//go:build ci && docker && !skipintegrationtests
+// +build ci,docker,!skipintegrationtests
 
-package services_test
+package integrationtesting_test
 
 import (
 	"context"
