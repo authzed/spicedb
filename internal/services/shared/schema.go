@@ -76,19 +76,20 @@ func EnsureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 	return nil
 }
 
-// SanityCheckExistingRelationships ensures that a namespace definition being written does not result
-// in relationships without associated defined schema object definitions and relations.
-func SanityCheckExistingRelationships(
+// SanityCheckNamespaceChanges ensures that a namespace definition being written does not result
+// in breaking changes, such as relationships without associated defined schema object definitions
+// and relations.
+func SanityCheckNamespaceChanges(
 	ctx context.Context,
 	rwt datastore.ReadWriteTransaction,
 	nsdef *core.NamespaceDefinition,
 	existingDefs map[string]*core.NamespaceDefinition,
-) error {
+) (*namespace.Diff, error) {
 	// Ensure that the updated namespace does not break the existing tuple data.
 	existing := existingDefs[nsdef.Name]
 	diff, err := namespace.DiffNamespaces(existing, nsdef)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, delta := range diff.Deltas() {
@@ -105,7 +106,7 @@ func SanityCheckExistingRelationships(
 				qyErr,
 				"cannot delete relation `%s` in object definition `%s`, as a relationship exists under it", delta.RelationName, nsdef.Name)
 			if err != nil {
-				return err
+				return diff, err
 			}
 
 			// Also check for right sides of tuples.
@@ -121,7 +122,7 @@ func SanityCheckExistingRelationships(
 				qyErr,
 				"cannot delete relation `%s` in object definition `%s`, as a relationship references it", delta.RelationName, nsdef.Name)
 			if err != nil {
-				return err
+				return diff, err
 			}
 
 		case namespace.RelationAllowedTypeRemoved:
@@ -162,11 +163,11 @@ func SanityCheckExistingRelationships(
 				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
 				namespace.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
 			if err != nil {
-				return err
+				return diff, err
 			}
 		}
 	}
-	return nil
+	return diff, nil
 }
 
 // ErrorIfTupleIteratorReturnsTuples takes a tuple iterator and any error that was generated
