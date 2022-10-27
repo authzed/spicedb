@@ -18,6 +18,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - run: |
           echo "Building WASM..."
           GOOS=js GOARCH=wasm go build  -o dist/development.wasm ./pkg/development/wasm/...

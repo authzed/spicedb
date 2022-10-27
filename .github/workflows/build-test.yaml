@@ -42,6 +42,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - uses: "authzed/actions/go-build@main"
 
   image-build:
@@ -58,6 +59,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - uses: "authzed/actions/go-test@main"
         with:
           working_directory: "cmd/spicedb"
@@ -71,6 +73,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,skipintegrationtests"
@@ -84,6 +87,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,docker"
@@ -101,6 +105,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,docker"
@@ -114,6 +119,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - name: "Cache Binaries"
         id: "cache-binaries"
         uses: "actions/cache@v2"
@@ -161,6 +167,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - uses: "authzed/actions/go-test@main"
         with:
           working_directory: "tools/analyzers"
@@ -172,6 +179,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - name: "Install wasmbrowsertest"
         run: "go install github.com/agnivade/wasmbrowsertest@latest"
       - name: "Run WASM Tests"
@@ -185,6 +193,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
       - name: "Install Go Tools"
         run: "./hack/install-tools.sh"
       - uses: "authzed/actions/buf-generate@main"
