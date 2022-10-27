@@ -125,7 +125,8 @@ func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assert
 	ctx := context.Background()
 	validating := NewValidatingDatastore(ds)
 
-	allDefs := []*core.NamespaceDefinition{UserNS, FolderNS, DocumentNS}
+	// clone to avoid races due to annotations on schema write
+	allDefs := []*core.NamespaceDefinition{UserNS.CloneVT(), FolderNS.CloneVT(), DocumentNS.CloneVT()}
 
 	newRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		for _, nsDef := range allDefs {

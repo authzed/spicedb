@@ -43,6 +43,8 @@ func TestPostgresDatastore(t *testing.T) {
 		{"drop-bigserial-ids", ""},
 	} {
 		t.Run(fmt.Sprintf("%s-%s", config.targetMigration, config.migrationPhase), func(t *testing.T) {
+			config := config
+			t.Parallel()
 			b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration)
 
 			test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
