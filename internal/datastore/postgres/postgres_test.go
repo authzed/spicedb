@@ -42,8 +42,8 @@ func TestPostgresDatastore(t *testing.T) {
 		{"drop-id-constraints", ""},
 		{"drop-bigserial-ids", ""},
 	} {
+		config := config
 		t.Run(fmt.Sprintf("%s-%s", config.targetMigration, config.migrationPhase), func(t *testing.T) {
-			config := config
 			t.Parallel()
 			b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration)
 
