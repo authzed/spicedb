@@ -41,7 +41,7 @@ func (pgd *pgDatastore) Now(ctx context.Context) (time.Time, error) {
 	}
 
 	var now time.Time
-	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
+	err = pgd.dbpool.QueryRow(ctx, nowSQL, nowArgs...).Scan(&now)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -59,9 +59,7 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 	}
 
 	var value, xmin xid8
-	err = pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
-	).Scan(&value, &xmin)
+	err = pgd.dbpool.QueryRow(ctx, sql, args...).Scan(&value, &xmin)
 	if err != nil {
 		return datastore.NoRevision, err
 	}

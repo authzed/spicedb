@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
@@ -68,9 +69,7 @@ const (
 	livingTupleConstraint = "pk_relation_tuple"
 )
 
-// NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB
-// database while leveraging its AOST functionality.
-func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error) {
+func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -155,6 +154,16 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
 	return ds, nil
+}
+
+// NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB
+// database while leveraging its AOST functionality.
+func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error) {
+	ds, err := newCRDBDatastore(url, options...)
+	if err != nil {
+		return nil, err
+	}
+	return proxy.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 func configurePool(config crdbOptions, pgxConfig *pgxpool.Config) {
@@ -371,10 +380,7 @@ func readCRDBNow(ctx context.Context, tx pgx.Tx) (revision.Decimal, error) {
 	defer span.End()
 
 	var hlcNow decimal.Decimal
-	if err := tx.QueryRow(
-		datastore.SeparateContextWithTracing(ctx),
-		querySelectNow,
-	).Scan(&hlcNow); err != nil {
+	if err := tx.QueryRow(ctx, querySelectNow).Scan(&hlcNow); err != nil {
 		return revision.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
 	}
 

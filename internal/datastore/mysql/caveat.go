@@ -13,7 +13,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/shopspring/decimal"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -24,11 +23,6 @@ const (
 )
 
 func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-	ctx, span := tracer.Start(ctx, "ReadCaveatByName", trace.WithAttributes(
-		common.CaveatNameKey.String(name)))
-	defer span.End()
-
 	filteredReadCaveat := mr.filterer(mr.ReadCaveatQuery)
 	sqlStatement, args, err := filteredReadCaveat.Where(sq.Eq{colName: name}).ToSql()
 	if err != nil {
@@ -59,11 +53,6 @@ func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core
 }
 
 func (mr *mysqlReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-	ctx, span := tracer.Start(ctx, "ListCaveats", trace.WithAttributes(
-		common.CaveatNameKey.StringSlice(caveatNames)))
-	defer span.End()
-
 	caveatsWithNames := mr.ListCaveatsQuery
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colName: caveatNames})
@@ -109,10 +98,6 @@ func (mr *mysqlReader) ListCaveats(ctx context.Context, caveatNames ...string) (
 }
 
 func (rwt *mysqlReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-	ctx, span := tracer.Start(ctx, "WriteNamespaces")
-	defer span.End()
-
 	writeQuery := rwt.WriteCaveatQuery
 
 	caveatNamesToWrite := make([]string, 0, len(caveats))
@@ -126,13 +111,10 @@ func (rwt *mysqlReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.
 		caveatNamesToWrite = append(caveatNamesToWrite, newCaveat.Name)
 	}
 
-	span.SetAttributes(common.CaveatNameKey.StringSlice(caveatNamesToWrite))
-
 	err := rwt.deleteCaveatsFromNames(ctx, caveatNamesToWrite)
 	if err != nil {
 		return fmt.Errorf(errWriteCaveats, err)
 	}
-	span.AddEvent("previous caveat revisions marked deleted")
 
 	querySQL, writeArgs, err := writeQuery.ToSql()
 	if err != nil {
@@ -143,17 +125,11 @@ func (rwt *mysqlReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.
 	if err != nil {
 		return fmt.Errorf(errWriteCaveats, err)
 	}
-	span.AddEvent("new caveat revisions marked alive")
 
 	return nil
 }
 
 func (rwt *mysqlReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-	ctx, span := tracer.Start(ctx, "DeleteCaveats", trace.WithAttributes(
-		common.CaveatNameKey.StringSlice(names)))
-	defer span.End()
-
 	return rwt.deleteCaveatsFromNames(ctx, names)
 }
 

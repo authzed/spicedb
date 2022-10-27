@@ -58,7 +58,7 @@ func (p *observableProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserFun
 
 func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(datastore.SeparateContextWithTracing(ctx), "OptimizedRevision")
+	ctx, span = tracer.Start(ctx, "OptimizedRevision")
 	defer span.End()
 
 	return p.delegate.OptimizedRevision(ctx)
@@ -66,11 +66,9 @@ func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revi
 
 func (p *observableProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
 	var span trace.Span
-	ctx, span = tracer.Start(
-		datastore.SeparateContextWithTracing(ctx),
-		"CheckRevision",
-		trace.WithAttributes(attribute.String("revision", revision.String())),
-	)
+	ctx, span = tracer.Start(ctx, "CheckRevision", trace.WithAttributes(
+		attribute.String("revision", revision.String()),
+	))
 	defer span.End()
 
 	return p.delegate.CheckRevision(ctx, revision)
@@ -78,7 +76,7 @@ func (p *observableProxy) CheckRevision(ctx context.Context, revision datastore.
 
 func (p *observableProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(datastore.SeparateContextWithTracing(ctx), "HeadRevision")
+	ctx, span = tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
 	return p.delegate.HeadRevision(ctx)
@@ -94,7 +92,7 @@ func (p *observableProxy) Watch(ctx context.Context, afterRevision datastore.Rev
 
 func (p *observableProxy) Features(ctx context.Context) (*datastore.Features, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(datastore.SeparateContextWithTracing(ctx), "Features")
+	ctx, span = tracer.Start(ctx, "Features")
 	defer span.End()
 
 	return p.delegate.Features(ctx)
@@ -102,7 +100,7 @@ func (p *observableProxy) Features(ctx context.Context) (*datastore.Features, er
 
 func (p *observableProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(datastore.SeparateContextWithTracing(ctx), "Statistics")
+	ctx, span = tracer.Start(ctx, "Statistics")
 	defer span.End()
 
 	return p.delegate.Statistics(ctx)
@@ -110,7 +108,7 @@ func (p *observableProxy) Statistics(ctx context.Context) (datastore.Stats, erro
 
 func (p *observableProxy) IsReady(ctx context.Context) (bool, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(datastore.SeparateContextWithTracing(ctx), "IsReady")
+	ctx, span = tracer.Start(ctx, "IsReady")
 	defer span.End()
 
 	return p.delegate.IsReady(ctx)
@@ -122,11 +120,9 @@ type observableReader struct{ delegate datastore.Reader }
 
 func (r *observableReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(
-		datastore.SeparateContextWithTracing(ctx),
-		"ReadCaveatByName",
-		trace.WithAttributes(attribute.String("name", name)),
-	)
+	ctx, span = tracer.Start(ctx, "ReadCaveatByName", trace.WithAttributes(
+		attribute.String("name", name),
+	))
 	defer span.End()
 
 	return r.delegate.ReadCaveatByName(ctx, name)
@@ -134,11 +130,9 @@ func (r *observableReader) ReadCaveatByName(ctx context.Context, name string) (*
 
 func (r *observableReader) ListCaveats(ctx context.Context, caveatNamesForFiltering ...string) ([]*core.CaveatDefinition, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(
-		datastore.SeparateContextWithTracing(ctx),
-		"ListCaveats",
-		trace.WithAttributes(attribute.StringSlice("names", caveatNamesForFiltering)),
-	)
+	ctx, span = tracer.Start(ctx, "ListCaveats", trace.WithAttributes(
+		attribute.StringSlice("names", caveatNamesForFiltering),
+	))
 	defer span.End()
 
 	return r.delegate.ListCaveats(ctx, caveatNamesForFiltering...)
@@ -146,7 +140,7 @@ func (r *observableReader) ListCaveats(ctx context.Context, caveatNamesForFilter
 
 func (r *observableReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(datastore.SeparateContextWithTracing(ctx), "ListNamespaces")
+	ctx, span = tracer.Start(ctx, "ListNamespaces")
 	defer span.End()
 
 	return r.delegate.ListNamespaces(ctx)
@@ -154,22 +148,18 @@ func (r *observableReader) ListNamespaces(ctx context.Context) ([]*core.Namespac
 
 func (r *observableReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(
-		datastore.SeparateContextWithTracing(ctx),
-		"LookupNamespaces",
-		trace.WithAttributes(attribute.StringSlice("names", nsNames)),
-	)
+	ctx, span = tracer.Start(ctx, "LookupNamespaces", trace.WithAttributes(
+		attribute.StringSlice("names", nsNames),
+	))
 	defer span.End()
 
 	return r.delegate.ListNamespaces(ctx)
 }
 
 func (r *observableReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	ctx, span := tracer.Start(
-		datastore.SeparateContextWithTracing(ctx),
-		"ReadNamespace",
-		trace.WithAttributes(attribute.String("name", nsName)),
-	)
+	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
+		attribute.String("name", nsName),
+	))
 	defer span.End()
 
 	return r.delegate.ReadNamespace(ctx, nsName)
@@ -177,7 +167,7 @@ func (r *observableReader) ReadNamespace(ctx context.Context, nsName string) (*c
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(datastore.SeparateContextWithTracing(ctx), "QueryRelationships")
+	ctx, span = tracer.Start(ctx, "QueryRelationships")
 
 	iterator, err := r.delegate.QueryRelationships(ctx, filter, options...)
 	if err != nil {
@@ -197,7 +187,7 @@ func (i observableRelationshipIterator) Close()                    { i.span.End(
 
 func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjectFilter datastore.SubjectsFilter, options ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	var span trace.Span
-	ctx, span = tracer.Start(datastore.SeparateContextWithTracing(ctx), "ReverseQueryRelationships")
+	ctx, span = tracer.Start(ctx, "ReverseQueryRelationships")
 
 	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectFilter, options...)
 	if err != nil {
@@ -228,11 +218,9 @@ func (rwt *observableRWT) WriteCaveats(ctx context.Context, caveats []*core.Cave
 }
 
 func (rwt *observableRWT) DeleteCaveats(ctx context.Context, names []string) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"DeleteCaveats",
-		trace.WithAttributes(attribute.StringSlice("names", names)),
-	)
+	ctx, span := tracer.Start(ctx, "DeleteCaveats", trace.WithAttributes(
+		attribute.StringSlice("names", names),
+	))
 	defer span.End()
 
 	return rwt.delegate.DeleteCaveats(ctx, names)

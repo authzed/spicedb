@@ -58,8 +58,6 @@ func (cr *crdbReader) ReadNamespace(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	var config *core.NamespaceDefinition
 	var timestamp time.Time
 	if err := cr.execute(ctx, func(ctx context.Context) error {
@@ -88,8 +86,6 @@ func (cr *crdbReader) ReadNamespace(
 }
 
 func (cr *crdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	var nsDefs []*core.NamespaceDefinition
 	if err := cr.execute(ctx, func(ctx context.Context) error {
 		tx, txCleanup, err := cr.txSource(ctx)
@@ -118,8 +114,6 @@ func (cr *crdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
-
-	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	var nsDefs []*core.NamespaceDefinition
 	if err := cr.execute(ctx, func(ctx context.Context) error {

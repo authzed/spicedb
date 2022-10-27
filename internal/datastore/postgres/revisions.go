@@ -63,9 +63,8 @@ const (
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	var revision, xmin xid8
 	var validForNanos time.Duration
-	if err := pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), pgd.optimizedRevisionQuery,
-	).Scan(&revision, &xmin, &validForNanos); err != nil {
+	if err := pgd.dbpool.QueryRow(ctx, pgd.optimizedRevisionQuery).
+		Scan(&revision, &xmin, &validForNanos); err != nil {
 		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
 
@@ -88,9 +87,8 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 	}
 
 	var freshEnough, unknown bool
-	if err := pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), pgd.validTransactionQuery, revision.tx,
-	).Scan(&freshEnough, &unknown); err != nil {
+	if err := pgd.dbpool.QueryRow(ctx, pgd.validTransactionQuery, revision.tx).
+		Scan(&freshEnough, &unknown); err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
@@ -161,7 +159,7 @@ func (pgd *pgDatastore) loadRevision(ctx context.Context) (xid8, xid8, error) {
 	}
 
 	var revision, xmin xid8
-	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), sql, args...).Scan(&revision, &xmin)
+	err = pgd.dbpool.QueryRow(ctx, sql, args...).Scan(&revision, &xmin)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return xid8{}, xid8{}, nil

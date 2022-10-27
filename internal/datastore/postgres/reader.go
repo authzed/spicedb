@@ -107,7 +107,7 @@ func (r *pgReader) ReadNamespace(ctx context.Context, nsName string) (*core.Name
 }
 
 func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "loadNamespace")
+	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
 	defs, err := loadAllNamespaces(ctx, tx, func(original sq.SelectBuilder) sq.SelectBuilder {
@@ -125,8 +125,6 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.T
 }
 
 func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	tx, txCleanup, err := r.txSource(ctx)
 	if err != nil {
 		return nil, err
@@ -145,8 +143,6 @@ func (r *pgReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*c
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
-
-	ctx = datastore.SeparateContextWithTracing(ctx)
 
 	tx, txCleanup, err := r.txSource(ctx)
 	if err != nil {

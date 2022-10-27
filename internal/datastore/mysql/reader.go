@@ -102,8 +102,6 @@ func (mr *mysqlReader) ReadNamespace(ctx context.Context, nsName string) (*core.
 
 func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery sq.SelectBuilder) (*core.NamespaceDefinition, datastore.Revision, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
@@ -132,8 +130,6 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 
 func (mr *mysqlReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
 		return nil, err
@@ -156,8 +152,6 @@ func (mr *mysqlReader) LookupNamespaces(ctx context.Context, nsNames []string) (
 	}
 
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
 		return nil, err

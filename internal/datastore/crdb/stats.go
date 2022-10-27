@@ -33,8 +33,6 @@ var (
 )
 
 func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	sql, args, err := queryReadUniqueID.ToSql()
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to prepare unique ID sql: %w", err)
