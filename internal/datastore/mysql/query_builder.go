@@ -24,6 +24,11 @@ type QueryBuilder struct {
 	WriteTupleQuery       sq.InsertBuilder
 	QueryChangedQuery     sq.SelectBuilder
 	CountTupleQuery       sq.SelectBuilder
+
+	WriteCaveatQuery  sq.InsertBuilder
+	ReadCaveatQuery   sq.SelectBuilder
+	ListCaveatsQuery  sq.SelectBuilder
+	DeleteCaveatQuery sq.UpdateBuilder
 }
 
 // NewQueryBuilder returns a new QueryBuilder instance. The migration
@@ -50,7 +55,33 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder.QueryChangedQuery = queryChanged(driver.RelationTuple())
 	builder.CountTupleQuery = countTuples(driver.RelationTuple())
 
+	// caveat builders
+	builder.ReadCaveatQuery = readCaveat(driver.Caveat())
+	builder.ListCaveatsQuery = listCaveats(driver.Caveat())
+	builder.WriteCaveatQuery = writeCaveat(driver.Caveat())
+	builder.DeleteCaveatQuery = deleteCaveat(driver.Caveat())
+
 	return &builder
+}
+
+func listCaveats(tableCaveat string) sq.SelectBuilder {
+	return sb.Select(colCaveatDefinition).From(tableCaveat).OrderBy(colName)
+}
+
+func deleteCaveat(tableCaveat string) sq.UpdateBuilder {
+	return sb.Update(tableCaveat).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+}
+
+func writeCaveat(tableCaveat string) sq.InsertBuilder {
+	return sb.Insert(tableCaveat).Columns(
+		colName,
+		colCaveatDefinition,
+		colCreatedTxn,
+	)
+}
+
+func readCaveat(tableCaveat string) sq.SelectBuilder {
+	return sb.Select(colCaveatDefinition, colCreatedTxn).From(tableCaveat)
 }
 
 func getLastRevision(tableTransaction string) sq.SelectBuilder {
@@ -95,6 +126,8 @@ func queryTuples(tableTuple string) sq.SelectBuilder {
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveatName,
+		colCaveatContext,
 	).From(tableTuple)
 }
 
@@ -120,6 +153,8 @@ func writeTuple(tableTuple string) sq.InsertBuilder {
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveatName,
+		colCaveatContext,
 		colCreatedTxn,
 	)
 }
@@ -132,6 +167,8 @@ func queryChanged(tableTuple string) sq.SelectBuilder {
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveatName,
+		colCaveatContext,
 		colCreatedTxn,
 		colDeletedTxn,
 	).From(tableTuple)

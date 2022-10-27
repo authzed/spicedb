@@ -41,6 +41,10 @@ const (
 	colUsersetNamespace = "userset_namespace"
 	colUsersetObjectID  = "userset_object_id"
 	colUsersetRelation  = "userset_relation"
+	colName             = "name"
+	colCaveatDefinition = "definition"
+	colCaveatName       = "caveat_name"
+	colCaveatContext    = "caveat_context"
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	liveDeletedTxnID       = uint64(math.MaxInt64)
@@ -355,6 +359,8 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 				Subject:             &core.ObjectAndRelation{},
 			}
 
+			var caveatName string
+			var caveatContext caveatContextWrapper
 			err := rows.Scan(
 				&nextTuple.ResourceAndRelation.Namespace,
 				&nextTuple.ResourceAndRelation.ObjectId,
@@ -362,7 +368,14 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 				&nextTuple.Subject.Namespace,
 				&nextTuple.Subject.ObjectId,
 				&nextTuple.Subject.Relation,
+				&caveatName,
+				&caveatContext,
 			)
+			if err != nil {
+				return nil, fmt.Errorf(errUnableToQueryTuples, err)
+			}
+
+			nextTuple.Caveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
 			if err != nil {
 				return nil, fmt.Errorf(errUnableToQueryTuples, err)
 			}
