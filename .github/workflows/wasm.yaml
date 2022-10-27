@@ -5,6 +5,8 @@ on:  # yamllint disable-line rule:truthy
     types: ["created"]
 permissions:
   contents: "write"
+env:
+  GO_VERSION: "~1.19.2"
 jobs:
   build:
     name: "Build WASM"
@@ -15,7 +17,7 @@ jobs:
           ref: "${{ env.GITHUB_SHA }}"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.19.2"
+          go-version: "${{ env.GO_VERSION }}"
       - run: |
           echo "Building WASM..."
           GOOS=js GOARCH=wasm go build  -o dist/development.wasm ./pkg/development/wasm/...

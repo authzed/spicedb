@@ -31,6 +31,8 @@ on:  # yamllint disable-line rule:truthy
       - "e2e/**"
       - "internal/**"
       - "proto/**"
+env:
+  GO_VERSION: "~1.19.2"
 jobs:
   build:
     name: "Build Binary"
@@ -39,7 +41,7 @@ jobs:
       - uses: "actions/checkout@v3"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.19.2"
+          go-version: "${{ env.GO_VERSION }}"
       - uses: "authzed/actions/go-build@main"
 
   image-build:
@@ -47,15 +49,15 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
-        with:
-          go-version: "~1.19.2"
       - uses: "authzed/actions/docker-build@main"
         with:
           push: false
           tags: "authzed/spicedb:ci"
           buildx: false
           qemu: false
+      - uses: "actions/setup-go@v3"
+        with:
+          go-version: "${{ env.GO_VERSION }}"
       - uses: "authzed/actions/go-test@main"
         with:
           working_directory: "cmd/spicedb"
@@ -68,11 +70,12 @@ jobs:
       - uses: "actions/checkout@v3"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.19.2"
+          go-version: "${{ env.GO_VERSION }}"
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,skipintegrationtests"
           timeout: "10m"
+
   integration:
     name: "Integration Tests"
     runs-on: "ubuntu-latest"
@@ -80,17 +83,13 @@ jobs:
       - uses: "actions/checkout@v3"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.19.2"
+          go-version: "${{ env.GO_VERSION }}"
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,docker"
           timeout: "10m"
           working_directory: "internal/services/integrationtesting"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          tags: "ci,docker"
-          timeout: "5m"
-          working_directory: "cmd/spicedb"
+
   datastore:
     name: "Datastore Tests"
     runs-on: "ubuntu-latest"
@@ -101,7 +100,7 @@ jobs:
       - uses: "actions/checkout@v3"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.19.2"
+          go-version: "${{ env.GO_VERSION }}"
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,docker"
@@ -114,7 +113,7 @@ jobs:
       - uses: "actions/checkout@v3"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.19.2"
+          go-version: "${{ env.GO_VERSION }}"
       - name: "Cache Binaries"
         id: "cache-binaries"
         uses: "actions/cache@v2"
@@ -154,15 +153,25 @@ jobs:
         with:
           name: "node-logs"
           path: "e2e/newenemy/*.log"
-
-  development:
-    name: "Development Package"
+  analyzers-unit-tests:
+    name: "Analyzers Unit Tests"
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.19.2"
+          go-version: "${{ env.GO_VERSION }}"
+      - uses: "authzed/actions/go-test@main"
+        with:
+          working_directory: "tools/analyzers"
+  development:
+    name: "WASM Tests"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
+        with:
+          go-version: "${{ env.GO_VERSION }}"
       - name: "Install wasmbrowsertest"
         run: "go install github.com/agnivade/wasmbrowsertest@latest"
       - name: "Run WASM Tests"
@@ -175,7 +184,7 @@ jobs:
       - uses: "actions/checkout@v3"
       - uses: "actions/setup-go@v3"
         with:
-          go-version: "~1.19.2"
+          go-version: "${{ env.GO_VERSION }}"
       - name: "Install Go Tools"
         run: "./hack/install-tools.sh"
       - uses: "authzed/actions/buf-generate@main"
