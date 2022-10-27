@@ -350,6 +350,7 @@ func TestWriteRelationships(t *testing.T) {
 }
 
 func TestWriteCaveatedRelationships(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 
 	conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)

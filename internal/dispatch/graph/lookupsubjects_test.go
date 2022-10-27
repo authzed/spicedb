@@ -29,9 +29,8 @@ var (
 	caveatInvert = caveats.Invert
 )
 
-func TestSimpleLookupSubjects(t *testing.T) {
+func TestSimpleLookupSubjects(t *testing.T) { // nolint: paralleltest
 	defer goleak.VerifyNone(t, goleakIgnores...)
-	t.Parallel()
 
 	testCases := []struct {
 		resourceType     string
@@ -278,6 +277,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 }
 
 func TestCaveatedLookupSubjects(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		schema        string
@@ -645,7 +645,9 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			dispatcher := NewLocalOnlyDispatcher(10)

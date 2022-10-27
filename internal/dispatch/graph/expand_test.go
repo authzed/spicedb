@@ -129,9 +129,8 @@ var (
 	)
 )
 
-func TestExpand(t *testing.T) {
+func TestExpand(t *testing.T) { // nolint: paralleltest
 	defer goleak.VerifyNone(t, goleakIgnores...)
-	t.Parallel()
 
 	testCases := []struct {
 		start                 *core.ObjectAndRelation
@@ -269,9 +268,8 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 	}
 }
 
-func TestMaxDepthExpand(t *testing.T) {
+func TestMaxDepthExpand(t *testing.T) { // nolint: paralleltest
 	defer goleak.VerifyNone(t, goleakIgnores...)
-	t.Parallel()
 
 	require := require.New(t)
 

@@ -12,6 +12,7 @@ import (
 )
 
 func TestValidateCaveatDefinition(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		caveat        *core.CaveatDefinition
 		expectedError string
@@ -47,7 +48,9 @@ func TestValidateCaveatDefinition(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.caveat.Name, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateCaveatDefinition(tc.caveat)
 			if tc.expectedError != "" {
 				require.NotNil(t, err)

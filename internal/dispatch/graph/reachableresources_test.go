@@ -30,9 +30,8 @@ func reachable(onr *core.ObjectAndRelation, hasPermission bool) reachableResourc
 	}
 }
 
-func TestSimpleReachableResources(t *testing.T) {
+func TestSimpleReachableResources(t *testing.T) { // nolint: paralleltest
 	defer goleak.VerifyNone(t, goleakIgnores...)
-	t.Parallel()
 
 	testCases := []struct {
 		start     *core.RelationReference
@@ -295,6 +294,7 @@ func BenchmarkReachableResources(b *testing.B) {
 }
 
 func TestCaveatedReachableResources(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		schema        string
@@ -559,7 +559,9 @@ func TestCaveatedReachableResources(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			dispatcher := NewLocalOnlyDispatcher(10)

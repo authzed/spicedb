@@ -11,6 +11,7 @@ import (
 )
 
 func TestAreProtoEqual(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name          string
 		first         proto.Message
@@ -95,7 +96,7 @@ func TestAreProtoEqual(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			err := AreProtoEqual(tc.first, tc.second, "something went wrong")
 			require.True(t, (err == nil) == (tc.expectedEqual))
@@ -104,6 +105,7 @@ func TestAreProtoEqual(t *testing.T) {
 }
 
 func TestRequireProtoEqual(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name   string
 		first  proto.Message
@@ -149,7 +151,7 @@ func TestRequireProtoEqual(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			RequireProtoEqual(t, tc.first, tc.second, "something went wrong")
 		})
@@ -157,6 +159,7 @@ func TestRequireProtoEqual(t *testing.T) {
 }
 
 func TestAreProtoSlicesEqual(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name          string
 		first         []*core.ObjectAndRelation
@@ -216,7 +219,7 @@ func TestAreProtoSlicesEqual(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			err := AreProtoSlicesEqual(tc.first, tc.second, func(first *core.ObjectAndRelation, second *core.ObjectAndRelation) int {
 				return strings.Compare(first.ObjectId, second.ObjectId)
@@ -227,6 +230,7 @@ func TestAreProtoSlicesEqual(t *testing.T) {
 }
 
 func TestRequireProtoSlicesEqual(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name   string
 		first  []*core.ObjectAndRelation
@@ -261,7 +265,7 @@ func TestRequireProtoSlicesEqual(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			RequireProtoSlicesEqual(t, tc.first, tc.second, func(first *core.ObjectAndRelation, second *core.ObjectAndRelation) int {
 				return strings.Compare(first.ObjectId, second.ObjectId)

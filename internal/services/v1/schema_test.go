@@ -451,6 +451,7 @@ func TestSchemaTypeInvalid(t *testing.T) {
 }
 
 func TestSchemaRemoveCaveat(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
@@ -521,6 +522,7 @@ definition user {}`
 }
 
 func TestSchemaUnchangedNamespaces(t *testing.T) {
+	t.Parallel()
 	conn, cleanup, ds, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 

@@ -12,6 +12,7 @@ import (
 )
 
 func TestReferencedParameters(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		env                  *Environment
 		expr                 string
@@ -89,7 +90,9 @@ func TestReferencedParameters(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.expr, func(t *testing.T) {
+			t.Parallel()
 			compiled, err := compileCaveat(tc.env, tc.expr)
 			require.NoError(t, err)
 

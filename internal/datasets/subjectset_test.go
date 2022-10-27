@@ -22,6 +22,7 @@ var (
 )
 
 func TestSubjectSetAdd(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name        string
 		existing    []*v1.FoundSubject
@@ -227,7 +228,7 @@ func TestSubjectSetAdd(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			existingSet := NewSubjectSet()
 			for _, existing := range tc.existing {
@@ -244,6 +245,7 @@ func TestSubjectSetAdd(t *testing.T) {
 }
 
 func TestSubjectSetSubtract(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name        string
 		existing    []*v1.FoundSubject
@@ -592,7 +594,7 @@ func TestSubjectSetSubtract(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			existingSet := NewSubjectSet()
 			for _, existing := range tc.existing {
@@ -609,6 +611,7 @@ func TestSubjectSetSubtract(t *testing.T) {
 }
 
 func TestSubjectSetIntersection(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name                string
 		existing            []*v1.FoundSubject
@@ -926,7 +929,7 @@ func TestSubjectSetIntersection(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			existingSet := NewSubjectSet()
 			for _, existing := range tc.existing {
@@ -973,6 +976,7 @@ func TestSubjectSetIntersection(t *testing.T) {
 }
 
 func TestMultipleOperations(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name        string
 		runOps      func(set SubjectSet)
@@ -1299,7 +1303,7 @@ func TestMultipleOperations(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			set := NewSubjectSet()
 			tc.runOps(set)
@@ -1312,6 +1316,7 @@ func TestMultipleOperations(t *testing.T) {
 }
 
 func TestSubtractAll(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name             string
 		startingSubjects []*v1.FoundSubject
@@ -1344,7 +1349,7 @@ func TestSubtractAll(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			set := NewSubjectSet()
 
@@ -1367,6 +1372,7 @@ func TestSubtractAll(t *testing.T) {
 }
 
 func TestSubjectSetClone(t *testing.T) {
+	t.Parallel()
 	ss := NewSubjectSet()
 	require.True(t, ss.IsEmpty())
 
@@ -1397,6 +1403,7 @@ func TestSubjectSetClone(t *testing.T) {
 }
 
 func TestSubjectSetGet(t *testing.T) {
+	t.Parallel()
 	ss := NewSubjectSet()
 	require.True(t, ss.IsEmpty())
 
@@ -1451,7 +1458,8 @@ var testSets = [][]*v1.FoundSubject{
 }
 
 func TestUnionCommutativity(t *testing.T) {
-	for _, pair := range allSubsets(testSets, 2) {
+	t.Parallel()
+	for _, pair := range allSubsets(testSets, 2) { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%v", pair), func(t *testing.T) {
 			left1, left2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range pair[0] {
@@ -1476,7 +1484,8 @@ func TestUnionCommutativity(t *testing.T) {
 }
 
 func TestUnionAssociativity(t *testing.T) {
-	for _, triple := range allSubsets(testSets, 3) {
+	t.Parallel()
+	for _, triple := range allSubsets(testSets, 3) { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s U %s U %s", testutil.FormatSubjects(triple[0]), testutil.FormatSubjects(triple[1]), testutil.FormatSubjects(triple[2])), func(t *testing.T) {
 			// A U (B U C) == (A U B) U C
 
@@ -1512,7 +1521,8 @@ func TestUnionAssociativity(t *testing.T) {
 }
 
 func TestIntersectionCommutativity(t *testing.T) {
-	for _, pair := range allSubsets(testSets, 2) {
+	t.Parallel()
+	for _, pair := range allSubsets(testSets, 2) { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%v", pair), func(t *testing.T) {
 			left1, left2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range pair[0] {
@@ -1537,7 +1547,8 @@ func TestIntersectionCommutativity(t *testing.T) {
 }
 
 func TestIntersectionAssociativity(t *testing.T) {
-	for _, triple := range allSubsets(testSets, 3) {
+	t.Parallel()
+	for _, triple := range allSubsets(testSets, 3) { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s ∩ %s ∩ %s", testutil.FormatSubjects(triple[0]), testutil.FormatSubjects(triple[1]), testutil.FormatSubjects(triple[2])), func(t *testing.T) {
 			// A ∩ (B ∩ C) == (A ∩ B) ∩ C
 
@@ -1573,7 +1584,8 @@ func TestIntersectionAssociativity(t *testing.T) {
 }
 
 func TestIdempotentUnion(t *testing.T) {
-	for _, set := range testSets {
+	t.Parallel()
+	for _, set := range testSets { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%v", set), func(t *testing.T) {
 			// A U A == A
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
@@ -1591,7 +1603,8 @@ func TestIdempotentUnion(t *testing.T) {
 }
 
 func TestIdempotentIntersection(t *testing.T) {
-	for _, set := range testSets {
+	t.Parallel()
+	for _, set := range testSets { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%v", set), func(t *testing.T) {
 			// A ∩ A == A
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
@@ -1609,6 +1622,7 @@ func TestIdempotentIntersection(t *testing.T) {
 }
 
 func TestUnionWildcardWithWildcard(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		existing        *v1.FoundSubject
 		toUnion         *v1.FoundSubject
@@ -1705,7 +1719,7 @@ func TestUnionWildcardWithWildcard(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 			produced := unionWildcardWithWildcard[*v1.FoundSubject](existing, tc.toUnion, subjectSetConstructor)
@@ -1719,6 +1733,7 @@ func TestUnionWildcardWithWildcard(t *testing.T) {
 }
 
 func TestUnionWildcardWithConcrete(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		existing *v1.FoundSubject
 		toUnion  *v1.FoundSubject
@@ -1821,7 +1836,7 @@ func TestUnionWildcardWithConcrete(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 			produced := unionWildcardWithConcrete[*v1.FoundSubject](existing, tc.toUnion, subjectSetConstructor)
@@ -1831,6 +1846,7 @@ func TestUnionWildcardWithConcrete(t *testing.T) {
 }
 
 func TestUnionConcreteWithConcrete(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		existing         *v1.FoundSubject
 		toUnion          *v1.FoundSubject
@@ -1879,7 +1895,7 @@ func TestUnionConcreteWithConcrete(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 			toUnion := wrap(tc.toUnion)
@@ -1894,6 +1910,7 @@ func TestUnionConcreteWithConcrete(t *testing.T) {
 }
 
 func TestSubtractWildcardFromWildcard(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		existing          *v1.FoundSubject
 		toSubtract        *v1.FoundSubject
@@ -2020,7 +2037,7 @@ func TestSubtractWildcardFromWildcard(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 
@@ -2032,6 +2049,7 @@ func TestSubtractWildcardFromWildcard(t *testing.T) {
 }
 
 func TestSubtractWildcardFromConcrete(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		existing   *v1.FoundSubject
 		toSubtract *v1.FoundSubject
@@ -2127,7 +2145,7 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%v - %v", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			produced := subtractWildcardFromConcrete[*v1.FoundSubject](tc.existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
@@ -2136,6 +2154,7 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 }
 
 func TestSubtractConcreteFromConcrete(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		existing   *v1.FoundSubject
 		toSubtract *v1.FoundSubject
@@ -2176,7 +2195,7 @@ func TestSubtractConcreteFromConcrete(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			produced := subtractConcreteFromConcrete[*v1.FoundSubject](tc.existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
@@ -2185,6 +2204,7 @@ func TestSubtractConcreteFromConcrete(t *testing.T) {
 }
 
 func TestSubtractConcreteFromWildcard(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		existing   *v1.FoundSubject
 		toSubtract *v1.FoundSubject
@@ -2249,7 +2269,7 @@ func TestSubtractConcreteFromWildcard(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			produced := subtractConcreteFromWildcard[*v1.FoundSubject](tc.existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
@@ -2258,6 +2278,7 @@ func TestSubtractConcreteFromWildcard(t *testing.T) {
 }
 
 func TestIntersectConcreteWithConcrete(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		first    *v1.FoundSubject
 		second   *v1.FoundSubject
@@ -2305,7 +2326,7 @@ func TestIntersectConcreteWithConcrete(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.first), testutil.FormatSubject(tc.second)), func(t *testing.T) {
 			second := wrap(tc.second)
 
@@ -2316,6 +2337,7 @@ func TestIntersectConcreteWithConcrete(t *testing.T) {
 }
 
 func TestIntersectWildcardWithWildcard(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		first  *v1.FoundSubject
 		second *v1.FoundSubject
@@ -2415,7 +2437,7 @@ func TestIntersectWildcardWithWildcard(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.first), testutil.FormatSubject(tc.second)), func(t *testing.T) {
 			first := wrap(tc.first)
 			second := wrap(tc.second)
@@ -2430,6 +2452,7 @@ func TestIntersectWildcardWithWildcard(t *testing.T) {
 }
 
 func TestIntersectConcreteWithWildcard(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		concrete *v1.FoundSubject
 		wildcard *v1.FoundSubject
@@ -2540,7 +2563,7 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.concrete), testutil.FormatSubject(tc.wildcard)), func(t *testing.T) {
 			wildcard := wrap(tc.wildcard)
 

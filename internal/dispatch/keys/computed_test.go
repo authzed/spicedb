@@ -504,6 +504,7 @@ func TestComputeOnlyStableHash(t *testing.T) {
 }
 
 func TestComputeContextHash(t *testing.T) {
+	t.Parallel()
 	result := lookupRequestToKey(&v1.DispatchLookupRequest{
 		ObjectRelation: RR("document", "view"),
 		Subject:        ONR("user", "mariah", "..."),

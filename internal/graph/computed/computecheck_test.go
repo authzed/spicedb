@@ -878,6 +878,7 @@ func TestComputeCheckError(t *testing.T) {
 }
 
 func TestComputeBulkCheck(t *testing.T) {
+	t.Parallel()
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 

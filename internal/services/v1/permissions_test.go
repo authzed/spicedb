@@ -1154,6 +1154,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 }
 
 func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
+	t.Parallel()
 	req := require.New(t)
 	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
 		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {

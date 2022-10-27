@@ -22,6 +22,7 @@ const (
 )
 
 func TestRevisionOrdering(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		lhsTx        uint64
 		lhsXmin      int64
@@ -62,7 +63,9 @@ func TestRevisionOrdering(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%d.%d:%d.%d", tc.lhsTx, tc.lhsXmin, tc.rhsTx, tc.rhsXmin), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			lhs := testRevision(tc.lhsTx, tc.lhsXmin)
@@ -80,6 +83,7 @@ func TestRevisionOrdering(t *testing.T) {
 }
 
 func TestRevisionSerDe(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		tx          uint64
 		xmin        int64
@@ -95,7 +99,9 @@ func TestRevisionSerDe(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%d.%d", tc.tx, tc.xmin), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			rev := testRevision(tc.tx, tc.xmin)
 			serialized := rev.String()
@@ -109,6 +115,7 @@ func TestRevisionSerDe(t *testing.T) {
 }
 
 func TestRevisionDeserializationErrors(t *testing.T) {
+	t.Parallel()
 	testCases := []string{
 		"1:0",
 		"-1.0",
@@ -121,7 +128,7 @@ func TestRevisionDeserializationErrors(t *testing.T) {
 		"0.abc",
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range testCases { // nolint: paralleltest
 		t.Run(tc, func(t *testing.T) {
 			_, err := parseRevision(tc)
 			require.Error(t, err)

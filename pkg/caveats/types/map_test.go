@@ -7,6 +7,7 @@ import (
 )
 
 func TestMapSubtree(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		map1    map[string]any
 		map2    map[string]any
@@ -53,7 +54,7 @@ func TestMapSubtree(t *testing.T) {
 			true,
 		},
 	}
-	for _, tt := range tcs {
+	for _, tt := range tcs { // nolint: paralleltest
 		t.Run("", func(t *testing.T) {
 			require.Equal(t, tt.subtree, subtree(tt.map1, tt.map2))
 		})

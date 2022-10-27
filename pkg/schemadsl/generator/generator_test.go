@@ -68,7 +68,9 @@ caveat somecaveat(someParam int) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			source, ok := GenerateCaveatSource(test.input)
 			require.Equal(strings.TrimSpace(test.expected), source)
@@ -78,6 +80,7 @@ caveat somecaveat(someParam int) {
 }
 
 func TestGenerateNamespace(t *testing.T) {
+	t.Parallel()
 	type generatorTest struct {
 		name     string
 		input    *core.NamespaceDefinition

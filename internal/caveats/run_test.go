@@ -21,6 +21,7 @@ var (
 )
 
 func TestRunCaveatExpressions(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		name          string
 		expression    *v1.CaveatExpression
@@ -162,7 +163,9 @@ func TestRunCaveatExpressions(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			req := require.New(t)
 
 			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)

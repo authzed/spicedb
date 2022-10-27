@@ -138,6 +138,7 @@ func TestRWTNamespaceCaching(t *testing.T) {
 }
 
 func TestRWTNamespaceCacheWithWrites(t *testing.T) {
+	t.Parallel()
 	dsMock := &proxy_test.MockDatastore{}
 	rwtMock := &proxy_test.MockReadWriteTransaction{}
 
@@ -288,6 +289,7 @@ func (r *reader) ReadNamespace(ctx context.Context, namespace string) (ns *core.
 }
 
 func TestSingleFlightCancelled(t *testing.T) {
+	t.Parallel()
 	dsMock := &proxy_test.MockDatastore{}
 	ctx1, cancel1 := context.WithCancel(context.Background())
 	ctx2, cancel2 := context.WithCancel(context.Background())

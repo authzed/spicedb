@@ -10,6 +10,7 @@ import (
 )
 
 func TestRewriteCanceledError(t *testing.T) {
+	t.Parallel()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	cancelFunc()
 	errorRewritten := rewriteError(ctx, ctx.Err())
@@ -17,6 +18,7 @@ func TestRewriteCanceledError(t *testing.T) {
 }
 
 func TestRewriteDeadlineExceededError(t *testing.T) {
+	t.Parallel()
 	ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now())
 	defer cancelFunc()
 	errorRewritten := rewriteError(ctx, ctx.Err())

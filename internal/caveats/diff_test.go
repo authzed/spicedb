@@ -12,6 +12,7 @@ import (
 )
 
 func TestCaveatDiff(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name           string
 		existing       *core.CaveatDefinition
@@ -152,7 +153,9 @@ func TestCaveatDiff(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 			diff, err := DiffCaveats(tc.existing, tc.updated)
 			require.Nil(err)

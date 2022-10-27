@@ -9,6 +9,7 @@ import (
 )
 
 func TestShortcircuitedOr(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		first    *v1.CaveatExpression
 		second   *v1.CaveatExpression
@@ -36,7 +37,7 @@ func TestShortcircuitedOr(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%v-%v", tc.first, tc.second), func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.expected, ShortcircuitedOr(tc.first, tc.second), "mismatch")
 		})
@@ -44,6 +45,7 @@ func TestShortcircuitedOr(t *testing.T) {
 }
 
 func TestOr(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		first    *v1.CaveatExpression
 		second   *v1.CaveatExpression
@@ -83,7 +85,7 @@ func TestOr(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%v-%v", tc.first, tc.second), func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.expected, Or(tc.first, tc.second), "mismatch")
 		})
@@ -91,6 +93,7 @@ func TestOr(t *testing.T) {
 }
 
 func TestAnd(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		first    *v1.CaveatExpression
 		second   *v1.CaveatExpression
@@ -130,7 +133,7 @@ func TestAnd(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%v-%v", tc.first, tc.second), func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.expected, And(tc.first, tc.second), "mismatch")
 		})
@@ -138,6 +141,7 @@ func TestAnd(t *testing.T) {
 }
 
 func TestInvert(t *testing.T) {
+	t.Parallel()
 	tcs := []struct {
 		first    *v1.CaveatExpression
 		expected *v1.CaveatExpression
@@ -159,7 +163,7 @@ func TestInvert(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tcs {
+	for _, tc := range tcs { // nolint: paralleltest
 		t.Run(fmt.Sprintf("%v", tc.first), func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.expected, Invert(tc.first), "mismatch")
 		})

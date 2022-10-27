@@ -77,6 +77,7 @@ func TestSetOperations(t *testing.T) {
 }
 
 func TestSetIntersect(t *testing.T) {
+	t.Parallel()
 	// Create a set and ensure it is empty.
 	set := NewSet[string]()
 	require.True(t, set.IsEmpty())
@@ -99,6 +100,7 @@ func TestSetIntersect(t *testing.T) {
 }
 
 func TestSetSubtract(t *testing.T) {
+	t.Parallel()
 	// Create a set and ensure it is empty.
 	set := NewSet[string]()
 	require.True(t, set.IsEmpty())

@@ -10,6 +10,7 @@ import (
 )
 
 func TestParallelCheckerDirectOverload(t *testing.T) {
+	t.Parallel()
 	pc := newParallelChecker(context.Background(), func() {}, nil, ValidatedLookupRequest{
 		DispatchLookupRequest: &v1.DispatchLookupRequest{
 			Limit: 50,
@@ -42,6 +43,7 @@ func TestParallelCheckerDirectOverload(t *testing.T) {
 }
 
 func TestQueueToCheckLimit(t *testing.T) {
+	t.Parallel()
 	pc := newParallelChecker(context.Background(), func() {}, nil, ValidatedLookupRequest{
 		DispatchLookupRequest: &v1.DispatchLookupRequest{
 			Limit: 1,

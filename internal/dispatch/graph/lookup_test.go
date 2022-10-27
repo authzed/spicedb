@@ -32,9 +32,8 @@ func resolvedRes(resourceID string) *v1.ResolvedResource {
 	}
 }
 
-func TestSimpleLookup(t *testing.T) {
+func TestSimpleLookup(t *testing.T) { // nolint: paralleltest
 	defer goleak.VerifyNone(t, goleakIgnores...)
-	t.Parallel()
 
 	testCases := []struct {
 		start                 *core.RelationReference

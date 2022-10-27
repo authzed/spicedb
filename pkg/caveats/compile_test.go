@@ -212,6 +212,7 @@ func TestCompile(t *testing.T) {
 }
 
 func TestDeserializeEmpty(t *testing.T) {
+	t.Parallel()
 	_, err := DeserializeCaveat([]byte{})
 	require.NotNil(t, err)
 }

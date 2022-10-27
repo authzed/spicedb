@@ -14,6 +14,7 @@ import (
 )
 
 func TestApplySchemaChanges(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)

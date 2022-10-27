@@ -18,6 +18,7 @@ func RR(namespaceName string, relationName string) *core.RelationReference {
 }
 
 func TestSubjectByTypeSet(t *testing.T) {
+	t.Parallel()
 	assertHasObjectIds := func(s *SubjectByTypeSet, rr *core.RelationReference, expected []string) {
 		wasFound := false
 		s.ForEachType(func(foundRR *core.RelationReference, subjects SubjectSet) {
@@ -74,6 +75,7 @@ func TestSubjectByTypeSet(t *testing.T) {
 }
 
 func TestSubjectSetByTypeWithCaveats(t *testing.T) {
+	t.Parallel()
 	set := NewSubjectByTypeSet()
 	require.True(t, set.IsEmpty())
 

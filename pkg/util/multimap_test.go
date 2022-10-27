@@ -8,6 +8,7 @@ import (
 )
 
 func TestMultimapOperations(t *testing.T) {
+	t.Parallel()
 	mm := NewMultiMap[string, int]()
 	require.Equal(t, 0, mm.Len())
 	require.True(t, mm.IsEmpty())

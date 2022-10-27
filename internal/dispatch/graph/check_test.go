@@ -32,9 +32,8 @@ var goleakIgnores = []goleak.Option{
 	goleak.IgnoreCurrent(),
 }
 
-func TestSimpleCheck(t *testing.T) {
+func TestSimpleCheck(t *testing.T) { // nolint: paralleltest
 	defer goleak.VerifyNone(t, goleakIgnores...)
-	t.Parallel()
 
 	type expected struct {
 		relation string
