@@ -8,10 +8,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -37,9 +34,6 @@ const (
 )
 
 func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "ReadCaveatByName", trace.WithAttributes(attribute.String("name", name)))
-	defer span.End()
-
 	query := readCaveat.Where(sq.Eq{colCaveatName: name})
 	sql, args, err := query.ToSql()
 	if err != nil {
@@ -69,9 +63,6 @@ func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 }
 
 func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
-	ctx, span := tracer.Start(ctx, "ListCaveats", trace.WithAttributes(attribute.StringSlice("names", caveatNames)))
-	defer span.End()
-
 	caveatsWithNames := listCaveat
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
@@ -118,9 +109,6 @@ func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([
 }
 
 func (rwt *crdbReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "WriteCaveats")
-	defer span.End()
-
 	write := writeCaveat
 	writtenCaveatNames := make([]string, 0, len(caveats))
 	for _, caveat := range caveats {
@@ -132,7 +120,6 @@ func (rwt *crdbReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.C
 		write = write.Values(valuesToWrite...)
 		writtenCaveatNames = append(writtenCaveatNames, caveat.Name)
 	}
-	span.SetAttributes(common.CaveatNameKey.StringSlice(writtenCaveatNames))
 
 	// store the new caveat
 	sql, args, err := write.ToSql()
@@ -152,10 +139,6 @@ func (rwt *crdbReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.C
 }
 
 func (rwt *crdbReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(ctx), "DeleteCaveats",
-		trace.WithAttributes(attribute.StringSlice("names", names)))
-	defer span.End()
-
 	deleteCaveatClause := deleteCaveat.Where(sq.Eq{colCaveatName: names})
 	sql, args, err := deleteCaveatClause.ToSql()
 	if err != nil {

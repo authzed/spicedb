@@ -8,8 +8,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -91,11 +89,6 @@ func (r *pgReader) ReverseQueryRelationships(
 }
 
 func (r *pgReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
-		attribute.String("name", nsName),
-	))
-	defer span.End()
-
 	tx, txCleanup, err := r.txSource(ctx)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)

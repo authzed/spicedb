@@ -131,6 +131,8 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 	}
 
+	ds = proxy.NewObservableDatastoreProxy(ds)
+
 	nscc, err := c.NamespaceCacheConfig.Complete()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)

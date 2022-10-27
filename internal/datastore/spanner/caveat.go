@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -16,9 +14,6 @@ import (
 )
 
 func (sr spannerReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "ReadCaveatByName", trace.WithAttributes(attribute.String("name", name)))
-	defer span.End()
-
 	caveatKey := spanner.Key{name}
 	row, err := sr.txSource().ReadRow(ctx, tableCaveat, caveatKey, []string{colCaveatDefinition, colCaveatTS})
 	if err != nil {
@@ -41,9 +36,6 @@ func (sr spannerReader) ReadCaveatByName(ctx context.Context, name string) (*cor
 }
 
 func (sr spannerReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
-	ctx, span := tracer.Start(ctx, "ListCaveats", trace.WithAttributes(attribute.StringSlice("names", caveatNames)))
-	defer span.End()
-
 	keyset := spanner.AllKeys()
 	if len(caveatNames) > 0 {
 		keys := make([]spanner.Key, 0, len(caveatNames))
@@ -81,9 +73,6 @@ func (sr spannerReader) ListCaveats(ctx context.Context, caveatNames ...string) 
 }
 
 func (rwt spannerReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	_, span := tracer.Start(ctx, "WriteCaveats")
-	defer span.End()
-
 	names := map[string]struct{}{}
 	mutations := make([]*spanner.Mutation, 0, len(caveats))
 	for _, caveat := range caveats {
@@ -107,9 +96,6 @@ func (rwt spannerReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core
 }
 
 func (rwt spannerReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
-	_, span := tracer.Start(ctx, "DeleteCaveats", trace.WithAttributes(attribute.StringSlice("names", names)))
-	defer span.End()
-
 	keys := make([]spanner.Key, 0, len(names))
 	for _, n := range names {
 		keys = append(keys, spanner.Key{n})

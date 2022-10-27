@@ -73,9 +73,6 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 }
 
 func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "HeadRevision")
-	defer span.End()
-
 	revision, xmin, err := pgd.loadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
@@ -89,9 +86,6 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 	if !ok {
 		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.CouldNotDetermineRevision)
 	}
-
-	ctx, span := tracer.Start(ctx, "CheckRevision")
-	defer span.End()
 
 	var freshEnough, unknown bool
 	if err := pgd.dbpool.QueryRow(
