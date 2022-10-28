@@ -20,15 +20,18 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("add-caveats", "add-metadata-and-counters", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, createCaveatTable); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, addRelationshipCaveatContext); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
+	err := CRDBMigrations.Register("add-caveats", "add-metadata-and-counters", addCaveatFunc, noAtomicMigration)
+	if err != nil {
 		panic("failed to register migration: " + err.Error())
 	}
+}
+
+func addCaveatFunc(ctx context.Context, conn *pgx.Conn) error {
+	if _, err := conn.Exec(ctx, createCaveatTable); err != nil {
+		return err
+	}
+	if _, err := conn.Exec(ctx, addRelationshipCaveatContext); err != nil {
+		return err
+	}
+	return nil
 }

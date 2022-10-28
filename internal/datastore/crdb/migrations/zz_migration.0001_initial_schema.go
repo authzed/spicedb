@@ -35,7 +35,7 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("initial", "", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
+	if err := CRDBMigrations.Register("initial", "", noNonAtomicMigration, func(ctx context.Context, tx pgx.Tx) error {
 		statements := []string{
 			createNamespaceConfig,
 			createRelationTuple,
