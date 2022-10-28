@@ -21,7 +21,7 @@ const (
 )
 
 func init() {
-	if err := CRDBMigrations.Register("add-metadata-and-counters", "add-transactions-table", noNonatomicMigration, func(ctx context.Context, tx pgx.Tx) error {
+	if err := CRDBMigrations.Register("add-metadata-and-counters", "add-transactions-table", noNonAtomicMigration, func(ctx context.Context, tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, createMetadataTable); err != nil {
 			return err
 		}
