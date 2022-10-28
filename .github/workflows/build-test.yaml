@@ -43,6 +43,8 @@ jobs:
         with:
           go-version: "${{ env.GO_VERSION }}"
           cache: "true"
+      - name: "go mod download" # prevent CI cache poisoning by getting all deps
+        run: "go mod download"
       - uses: "authzed/actions/go-build@main"
 
   image-build:
