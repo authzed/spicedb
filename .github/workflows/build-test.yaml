@@ -121,6 +121,7 @@ jobs:
         with:
           go-version: "${{ env.GO_VERSION }}"
           cache: "true"
+          cache-dependency-path: "e2e/go.sum"
       - name: "Cache Binaries"
         id: "cache-binaries"
         uses: "actions/cache@v2"
@@ -169,6 +170,7 @@ jobs:
         with:
           go-version: "${{ env.GO_VERSION }}"
           cache: "true"
+          cache-dependency-path: "tools/analyzers/go.sum"
       - uses: "authzed/actions/go-test@main"
         with:
           working_directory: "tools/analyzers"
