@@ -31,18 +31,6 @@ const (
 	addTransactionDefault = `
 		ALTER TABLE relation_tuple_transaction
 			ALTER COLUMN snapshot SET DEFAULT (pg_current_snapshot());`
-
-	addRelationTupleDefault = `
-		ALTER TABLE relation_tuple
-			ALTER COLUMN created_xid SET DEFAULT (pg_current_xact_id());`
-
-	addNamepsaceDefault = `
-		ALTER TABLE namespace_config
-			ALTER COLUMN created_xid SET DEFAULT (pg_current_xact_id());`
-
-	addCaveatDefault = `
-		ALTER TABLE caveat
-			ALTER COLUMN created_xid SET DEFAULT (pg_current_xact_id());`
 )
 
 func init() {
@@ -55,9 +43,6 @@ func init() {
 				addNamespaceXIDColumns,
 				addCaveatXIDColumns,
 				addTransactionDefault,
-				addRelationTupleDefault,
-				addNamepsaceDefault,
-				addCaveatDefault,
 			} {
 				if _, err := tx.Exec(ctx, stmt); err != nil {
 					return err

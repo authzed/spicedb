@@ -33,6 +33,7 @@ var (
 		colNamespace,
 		colConfig,
 		colCreatedTxnDeprecated,
+		colCreatedXid,
 	)
 
 	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
@@ -61,6 +62,7 @@ var (
 		colCaveatContextName,
 		colCaveatContext,
 		colCreatedTxnDeprecated,
+		colCreatedXid,
 	)
 
 	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
@@ -116,7 +118,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 
 			// TODO remove once the ID->XID migrations are all complete
 			if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
-				valuesToWrite = append(valuesToWrite, rwt.newXID.Uint)
+				valuesToWrite = append(valuesToWrite, rwt.newXID.Uint, rwt.newXID)
 			}
 
 			bulkWrite = bulkWrite.Values(valuesToWrite...)
@@ -242,7 +244,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 
 		// TODO remove once the ID->XID migrations are all complete
 		if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
-			valuesToWrite = append(valuesToWrite, rwt.newXID.Uint)
+			valuesToWrite = append(valuesToWrite, rwt.newXID.Uint, rwt.newXID)
 		}
 
 		writeQuery = writeQuery.Values(valuesToWrite...)

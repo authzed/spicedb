@@ -11,7 +11,24 @@ import (
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
+var (
+	addRelationTupleDefault = `
+		ALTER TABLE relation_tuple
+			ALTER COLUMN created_xid SET DEFAULT (pg_current_xact_id());`
+
+	addNamepsaceDefault = `
+		ALTER TABLE namespace_config
+			ALTER COLUMN created_xid SET DEFAULT (pg_current_xact_id());`
+
+	addCaveatDefault = `
+		ALTER TABLE caveat
+			ALTER COLUMN created_xid SET DEFAULT (pg_current_xact_id());`
+)
+
 var addBackfillIndices = []string{
+	addRelationTupleDefault,
+	addNamepsaceDefault,
+	addCaveatDefault,
 	`CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_backfill_rtt_temp
 		ON relation_tuple_transaction ( (snapshot IS NULL) )`,
 	`CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_backfill_ns_temp
