@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
@@ -115,6 +116,18 @@ type sqlFilter interface {
 //
 // This datastore is also tested to be compatible with CockroachDB.
 func NewPostgresDatastore(
+	url string,
+	options ...Option,
+) (datastore.Datastore, error) {
+	ds, err := newPostgresDatastore(url, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return proxy.NewSeparatingContextDatastoreProxy(ds), nil
+}
+
+func newPostgresDatastore(
 	url string,
 	options ...Option,
 ) (datastore.Datastore, error) {

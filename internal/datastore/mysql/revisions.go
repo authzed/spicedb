@@ -61,9 +61,8 @@ const (
 func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	var rev uint64
 	var validForNanos time.Duration
-	if err := mds.db.QueryRowContext(
-		datastore.SeparateContextWithTracing(ctx), mds.optimizedRevisionQuery,
-	).Scan(&rev, &validForNanos); err != nil {
+	if err := mds.db.QueryRowContext(ctx, mds.optimizedRevisionQuery).
+		Scan(&rev, &validForNanos); err != nil {
 		return revision.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
 	return revisionFromTransaction(rev), validForNanos, nil
@@ -121,7 +120,7 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 	}
 
 	var revision *uint64
-	err = mds.db.QueryRowContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
+	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&revision)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, nil
@@ -142,9 +141,8 @@ func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint
 
 	var freshEnough, unknown sql.NullBool
 
-	err := mds.db.QueryRowContext(
-		datastore.SeparateContextWithTracing(ctx), mds.validTransactionQuery, revisionTx, revisionTx,
-	).Scan(&freshEnough, &unknown)
+	err := mds.db.QueryRowContext(ctx, mds.validTransactionQuery, revisionTx, revisionTx).
+		Scan(&freshEnough, &unknown)
 	if err != nil {
 		return false, false, fmt.Errorf(errCheckRevision, err)
 	}

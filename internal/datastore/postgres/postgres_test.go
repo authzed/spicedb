@@ -49,7 +49,7 @@ func TestPostgresDatastore(t *testing.T) {
 
 			test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 				ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-					ds, err := NewPostgresDatastore(uri,
+					ds, err := newPostgresDatastore(uri,
 						RevisionQuantization(revisionQuantization),
 						GCWindow(gcWindow),
 						WatchBufferLength(watchBufferLength),
@@ -66,7 +66,7 @@ func TestPostgresDatastore(t *testing.T) {
 				// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
 				test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 					ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-						ds, err := NewPostgresDatastore(uri,
+						ds, err := newPostgresDatastore(uri,
 							RevisionQuantization(revisionQuantization),
 							GCWindow(gcWindow),
 							WatchBufferLength(watchBufferLength),
@@ -147,7 +147,7 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewPostgresDatastore(uri, options...)
+			ds, err := newPostgresDatastore(uri, options...)
 			require.NoError(t, err)
 			return ds
 		})
@@ -333,9 +333,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	var ts time.Time
 	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"xid": txXID}).ToSql()
 	require.NoError(err)
-	err = pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
-	).Scan(&ts)
+	err = pgd.dbpool.QueryRow(ctx, sql, args...).Scan(&ts)
 	require.NoError(err)
 
 	// Transaction timestamp will be before the reference time if it was stored
@@ -555,7 +553,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				conn, err = pgx.Connect(ctx, uri)
 				require.NoError(err)
 
-				ds, err := NewPostgresDatastore(
+				ds, err := newPostgresDatastore(
 					uri,
 					RevisionQuantization(5*time.Second),
 					GCWindow(24*time.Hour),
@@ -787,7 +785,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 		migrate.LiveRun,
 	))
 
-	dsWriteBothReadOld, err := NewPostgresDatastore(
+	dsWriteBothReadOld, err := newPostgresDatastore(
 		uri,
 		RevisionQuantization(0),
 		MigrationPhase("write-both-read-old"),
@@ -877,7 +875,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			})
 	}
 
-	dsWriteBothReadNew, err := NewPostgresDatastore(
+	dsWriteBothReadNew, err := newPostgresDatastore(
 		uri,
 		RevisionQuantization(0),
 		MigrationPhase("write-both-read-new"),
@@ -946,7 +944,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			"three_caveat": 1,
 		})
 
-	dsWriteOnlyNew, err := NewPostgresDatastore(
+	dsWriteOnlyNew, err := newPostgresDatastore(
 		uri,
 		RevisionQuantization(0),
 	)
@@ -1164,7 +1162,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 	req := require.New(b)
 
 	ds := testdatastore.RunPostgresForTesting(b, "", migrate.Head).NewDatastore(b, func(engine, uri string) datastore.Datastore {
-		ds, err := NewPostgresDatastore(uri,
+		ds, err := newPostgresDatastore(uri,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),

@@ -117,7 +117,7 @@ func TestTxReset(t *testing.T) {
 			require := require.New(t)
 
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-				ds, err := NewCRDBDatastore(
+				ds, err := newCRDBDatastore(
 					uri,
 					GCWindow(24*time.Hour),
 					RevisionQuantization(5*time.Second),

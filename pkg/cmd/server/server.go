@@ -131,8 +131,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 		}
 	}
 
-	ds = proxy.NewObservableDatastoreProxy(ds)
-
 	nscc, err := c.NamespaceCacheConfig.Complete()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
@@ -140,6 +138,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	log.Info().EmbedObject(nscc).Msg("configured namespace cache")
 
 	ds = proxy.NewCachingDatastoreProxy(ds, nscc)
+	ds = proxy.NewObservableDatastoreProxy(ds)
 
 	enableGRPCHistogram()
 

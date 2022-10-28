@@ -243,7 +243,6 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	ctx = datastore.SeparateContextWithTracing(ctx)
 	if _, err := rwt.tx.Exec(ctx, writeSQL, writeArgs...); err != nil {
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
@@ -252,8 +251,6 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 }
 
 func (rwt *crdbReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	_, timestamp, err := loadNamespace(ctx, rwt.tx, nsName)
 	if err != nil {
 		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {

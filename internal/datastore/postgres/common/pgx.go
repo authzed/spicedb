@@ -7,7 +7,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/jackc/pgx/v4"
@@ -23,8 +22,6 @@ const (
 // NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
 func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) ([]*corev1.RelationTuple, error) {
-		ctx = datastore.SeparateContextWithTracing(ctx)
-
 		span := trace.SpanFromContext(ctx)
 
 		tx, txCleanup, err := txSource(ctx)
