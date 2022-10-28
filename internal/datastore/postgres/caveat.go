@@ -15,7 +15,7 @@ import (
 
 var (
 	writeCaveat            = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition)
-	writeCaveatDeprecated  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition, colCreatedTxnDeprecated)
+	writeCaveatDeprecated  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition, colCreatedTxnDeprecated, colCreatedXid)
 	listCaveat             = psql.Select(colCaveatDefinition).From(tableCaveat).OrderBy(colCaveatName)
 	readCaveat             = psql.Select(colCaveatDefinition, colCreatedXid).From(tableCaveat)
 	readCaveatDeprecated   = psql.Select(colCaveatDefinition, colCreatedTxnDeprecated).From(tableCaveat)
@@ -139,7 +139,7 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 		valuesToWrite := []any{caveat.Name, definitionBytes}
 		// TODO remove once the ID->XID migrations are all complete
 		if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
-			valuesToWrite = append(valuesToWrite, rwt.newXID.Uint)
+			valuesToWrite = append(valuesToWrite, rwt.newXID.Uint, rwt.newXID)
 		}
 		write = write.Values(valuesToWrite...)
 		writtenCaveatNames = append(writtenCaveatNames, caveat.Name)
