@@ -198,7 +198,6 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
       - name: "Install Go Tools"
         run: "./hack/install-tools.sh"
       - uses: "authzed/actions/buf-generate@main"
