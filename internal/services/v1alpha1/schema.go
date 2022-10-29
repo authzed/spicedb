@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
@@ -46,13 +47,15 @@ type schemaServiceServer struct {
 	shared.WithUnaryServiceSpecificInterceptor
 
 	prefixRequired PrefixRequiredOption
+	caveatsEnabled bool
 }
 
 // NewSchemaServer returns an new instance of a server that implements
 // authzed.api.v1alpha1.SchemaService.
-func NewSchemaServer(prefixRequired PrefixRequiredOption) v1alpha1.SchemaServiceServer {
+func NewSchemaServer(prefixRequired PrefixRequiredOption, caveatsEnabled bool) v1alpha1.SchemaServiceServer {
 	return &schemaServiceServer{
 		prefixRequired: prefixRequired,
+		caveatsEnabled: caveatsEnabled,
 		WithUnaryServiceSpecificInterceptor: shared.WithUnaryServiceSpecificInterceptor{
 			Unary: middleware.ChainUnaryServer(grpcutil.DefaultUnaryMiddleware...),
 		},
@@ -119,6 +122,10 @@ func (ss *schemaServiceServer) WriteSchema(ctx context.Context, in *v1alpha1.Wri
 	objectDefMap := make(map[string]*core.NamespaceDefinition, len(compiled.ObjectDefinitions))
 	for _, nsDef := range compiled.ObjectDefinitions {
 		objectDefMap[nsDef.Name] = nsDef
+	}
+
+	if !ss.caveatsEnabled && len(compiled.CaveatDefinitions) > 0 {
+		return nil, fmt.Errorf("caveats are currently not supported")
 	}
 
 	caveatNames := make([]string, 0, len(compiled.CaveatDefinitions))

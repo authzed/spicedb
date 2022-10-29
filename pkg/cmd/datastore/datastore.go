@@ -86,9 +86,6 @@ type Config struct {
 	// Internal
 	WatchBufferLength uint16
 
-	// Experiments
-	ExperimentEnableCaveats bool
-
 	// Migrations
 	MigrationPhase string
 }
@@ -124,11 +121,6 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.SpannerEmulatorHost, "datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-mysql-table-prefix", "", "prefix to add to the name of all SpiceDB database tables")
 	cmd.Flags().StringVar(&opts.MigrationPhase, "datastore-migration-phase", "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
-
-	cmd.Flags().BoolVar(&opts.ExperimentEnableCaveats, "experiment-enable-caveats", false, "if true, experimental support for caveats is enabled; note that these are not fully implemented and may break")
-	if err := cmd.Flags().MarkDeprecated("experiment-enable-caveats", "this is an experiment"); err != nil {
-		panic("failed to mark flag deprecated: " + err.Error())
-	}
 
 	// disabling stats is only for tests
 	cmd.Flags().BoolVar(&opts.DisableStats, "datastore-disable-stats", false, "disable recording relationship counts to the stats table")
@@ -307,5 +299,5 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 
 func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
-	return memdb.NewMemdbDatastoreWithCaveatsOption(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow, opts.ExperimentEnableCaveats)
+	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow)
 }

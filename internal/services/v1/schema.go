@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/authzed/spicedb/internal/util"
@@ -26,18 +27,21 @@ import (
 )
 
 // NewSchemaServer creates a SchemaServiceServer instance.
-func NewSchemaServer() v1.SchemaServiceServer {
+func NewSchemaServer(caveatsEnabled bool) v1.SchemaServiceServer {
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary:  grpcvalidate.UnaryServerInterceptor(true),
 			Stream: grpcvalidate.StreamServerInterceptor(true),
 		},
+		caveatsEnabled: caveatsEnabled,
 	}
 }
 
 type schemaServer struct {
 	v1.UnimplementedSchemaServiceServer
 	shared.WithServiceSpecificInterceptors
+
+	caveatsEnabled bool
 }
 
 func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
@@ -83,6 +87,10 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, rewriteError(ctx, err)
 	}
 	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
+
+	if !ss.caveatsEnabled && len(compiled.CaveatDefinitions) > 0 {
+		return nil, fmt.Errorf("caveats are currently not supported")
+	}
 
 	// Do as much validation as we can before talking to the datastore:
 	// 1) Validate the caveats defined.

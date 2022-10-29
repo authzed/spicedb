@@ -76,9 +76,10 @@ type Config struct {
 	ClusterDispatchCacheConfig CacheConfig
 
 	// API Behavior
-	DisableV1SchemaAPI       bool
-	MaximumUpdatesPerWrite   uint16
-	MaximumPreconditionCount uint16
+	DisableV1SchemaAPI         bool
+	MaximumUpdatesPerWrite     uint16
+	MaximumPreconditionCount   uint16
+	ExperimentalCaveatsEnabled bool
 
 	// Additional Services
 	DashboardAPI util.HTTPServerConfig
@@ -245,6 +246,12 @@ func (c *Config) Complete() (RunnableServer, error) {
 		MaximumAPIDepth:       c.DispatchMaxDepth,
 	}
 
+	caveatsOption := services.CaveatsDisabled
+	if c.ExperimentalCaveatsEnabled {
+		log.Warn().Msg("experimental caveats support enabled")
+		caveatsOption = services.CaveatsEnabled
+	}
+
 	healthManager := health.NewHealthManager(dispatcher, ds)
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
@@ -255,6 +262,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 				prefixRequiredOption,
 				v1SchemaServiceOption,
 				watchServiceOption,
+				caveatsOption,
 				permSysConfig,
 			)
 		},

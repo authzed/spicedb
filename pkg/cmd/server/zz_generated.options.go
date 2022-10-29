@@ -52,6 +52,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
 		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
+		to.ExperimentalCaveatsEnabled = c.ExperimentalCaveatsEnabled
 		to.DashboardAPI = c.DashboardAPI
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddleware = c.UnaryMiddleware
@@ -273,6 +274,13 @@ func WithMaximumUpdatesPerWrite(maximumUpdatesPerWrite uint16) ConfigOption {
 func WithMaximumPreconditionCount(maximumPreconditionCount uint16) ConfigOption {
 	return func(c *Config) {
 		c.MaximumPreconditionCount = maximumPreconditionCount
+	}
+}
+
+// WithExperimentalCaveatsEnabled returns an option that can set ExperimentalCaveatsEnabled on a Config
+func WithExperimentalCaveatsEnabled(experimentalCaveatsEnabled bool) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalCaveatsEnabled = experimentalCaveatsEnabled
 	}
 }
 

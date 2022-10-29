@@ -26,10 +26,6 @@ func (c *caveat) Unwrap() (*core.CaveatDefinition, error) {
 }
 
 func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	if !r.enableCaveats {
-		return nil, datastore.NoRevision, fmt.Errorf("caveats are not enabled")
-	}
-
 	r.lockOrPanic()
 	defer r.Unlock()
 
@@ -65,11 +61,6 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 }
 
 func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
-	if !r.enableCaveats {
-		// Return empty in the case caveats are not enabled, to not break callers.
-		return nil, nil
-	}
-
 	r.lockOrPanic()
 	defer r.Unlock()
 

@@ -37,15 +37,6 @@ func NewMemdbDatastore(
 	revisionQuantization,
 	gcWindow time.Duration,
 ) (datastore.Datastore, error) {
-	return NewMemdbDatastoreWithCaveatsOption(watchBufferLength, revisionQuantization, gcWindow, true)
-}
-
-func NewMemdbDatastoreWithCaveatsOption(
-	watchBufferLength uint16,
-	revisionQuantization,
-	gcWindow time.Duration,
-	enableCaveats bool,
-) (datastore.Datastore, error) {
 	if revisionQuantization > gcWindow {
 		return nil, errors.New("gc window must be larger than quantization interval")
 	}
@@ -80,7 +71,6 @@ func NewMemdbDatastoreWithCaveatsOption(
 		quantizationPeriod: decimal.NewFromInt(revisionQuantization.Nanoseconds()),
 		watchBufferLength:  watchBufferLength,
 		uniqueID:           uniqueID,
-		enableCaveats:      enableCaveats,
 	}, nil
 }
 
@@ -96,7 +86,6 @@ type memdbDatastore struct {
 	quantizationPeriod decimal.Decimal
 	watchBufferLength  uint16
 	uniqueID           string
-	enableCaveats      bool
 }
 
 type snapshot struct {
@@ -111,11 +100,11 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 	defer mdb.RUnlock()
 
 	if len(mdb.revisions) == 0 {
-		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is not ready"), mdb.enableCaveats}
+		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is not ready")}
 	}
 
 	if err := mdb.checkRevisionLocal(dr); err != nil {
-		return &memdbReader{nil, nil, err, mdb.enableCaveats}
+		return &memdbReader{nil, nil, err}
 	}
 
 	revIndex := sort.Search(len(mdb.revisions), func(i int) bool {
@@ -129,7 +118,7 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 
 	rev := mdb.revisions[revIndex]
 	if rev.db == nil {
-		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is already closed"), mdb.enableCaveats}
+		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is already closed")}
 	}
 
 	roTxn := rev.db.Txn(false)
@@ -137,7 +126,7 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 		return roTxn, nil
 	}
 
-	return &memdbReader{noopTryLocker{}, txSrc, nil, mdb.enableCaveats}
+	return &memdbReader{noopTryLocker{}, txSrc, nil}
 }
 
 func (mdb *memdbDatastore) ReadWriteTx(
@@ -173,7 +162,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		newRevision := revisionFromTimestamp(time.Now().UTC())
 
-		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, mdb.enableCaveats}, newRevision}
+		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil}, newRevision}
 		if err := f(rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {
