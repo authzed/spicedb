@@ -164,7 +164,7 @@ func (rwt *memdbReadWriteTx) WriteNamespaces(ctx context.Context, newConfigs ...
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteNamespace(ctx context.Context, nsName string) error {
+func (rwt *memdbReadWriteTx) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
 	rwt.lockOrPanic()
 	defer rwt.Unlock()
 
@@ -173,24 +173,26 @@ func (rwt *memdbReadWriteTx) DeleteNamespace(ctx context.Context, nsName string)
 		return err
 	}
 
-	foundRaw, err := tx.First(tableNamespace, indexID, nsName)
-	if err != nil {
-		return err
-	}
+	for _, nsName := range nsNames {
+		foundRaw, err := tx.First(tableNamespace, indexID, nsName)
+		if err != nil {
+			return err
+		}
 
-	if foundRaw == nil {
-		return fmt.Errorf("unable to find namespace to delete")
-	}
+		if foundRaw == nil {
+			return fmt.Errorf("unable to find namespace to delete")
+		}
 
-	if err := tx.Delete(tableNamespace, foundRaw); err != nil {
-		return err
-	}
+		if err := tx.Delete(tableNamespace, foundRaw); err != nil {
+			return err
+		}
 
-	// Delete the relationships from the namespace
-	if err := rwt.deleteWithLock(tx, &v1.RelationshipFilter{
-		ResourceType: nsName,
-	}); err != nil {
-		return fmt.Errorf("unable to delete relationships from deleted namespace: %w", err)
+		// Delete the relationships from the namespace
+		if err := rwt.deleteWithLock(tx, &v1.RelationshipFilter{
+			ResourceType: nsName,
+		}); err != nil {
+			return fmt.Errorf("unable to delete relationships from deleted namespace: %w", err)
+		}
 	}
 
 	return nil

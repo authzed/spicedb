@@ -234,23 +234,34 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
+func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 
-	baseQuery := rwt.ReadNamespaceQuery.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
-	_, createdAt, err := loadNamespace(ctx, nsName, rwt.tx, baseQuery)
-	switch {
-	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
-		return err
-	case err == nil:
-		break
-	default:
-		return fmt.Errorf(errUnableToDeleteConfig, err)
+	// For each namespace, check they exist and collect predicates for the
+	// "WHERE" clause to delete the namespaces and associated tuples.
+	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	for _, nsName := range nsNames {
+		// TODO(jzelinskie): check these in one query
+		baseQuery := rwt.ReadNamespaceQuery.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+		_, createdAt, err := loadNamespace(ctx, nsName, rwt.tx, baseQuery)
+		switch {
+		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
+			// TODO(jzelinskie): return the name of the missing namespace
+			return err
+		case err == nil:
+			break
+		default:
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
+
+		nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt})
+		tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
 	}
 
 	delSQL, delArgs, err := rwt.DeleteNamespaceQuery.
 		Set(colDeletedTxn, rwt.newTxnID).
-		Where(sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt}).
+		Where(sq.Or(nsClauses)).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -263,7 +274,7 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string
 
 	deleteTupleSQL, deleteTupleArgs, err := rwt.DeleteNamespaceTuplesQuery.
 		Set(colDeletedTxn, rwt.newTxnID).
-		Where(sq.Eq{colNamespace: nsName}).
+		Where(sq.Or(tplClauses)).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)

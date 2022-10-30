@@ -167,8 +167,8 @@ func (vrwt validatingReadWriteTransaction) WriteNamespaces(ctx context.Context, 
 	return vrwt.delegate.WriteNamespaces(ctx, newConfigs...)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteNamespace(ctx context.Context, nsName string) error {
-	return vrwt.delegate.DeleteNamespace(ctx, nsName)
+func (vrwt validatingReadWriteTransaction) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	return vrwt.delegate.DeleteNamespaces(ctx, nsNames...)
 }
 
 func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {

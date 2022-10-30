@@ -214,10 +214,10 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		})
 
 		// Delete the removed namespaces.
-		if err := removedObjectDefNames.ForEach(func(value string) error {
-			return rwt.DeleteNamespace(ctx, value)
-		}); err != nil {
-			return err
+		if removedObjectDefNames.Len() > 0 {
+			if err := rwt.DeleteNamespaces(ctx, removedObjectDefNames.AsSlice()...); err != nil {
+				return err
+			}
 		}
 
 		// Delete the removed caveats.

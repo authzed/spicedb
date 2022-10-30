@@ -240,8 +240,13 @@ func (dm *MockReadWriteTransaction) WriteNamespaces(ctx context.Context, newConf
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteNamespace(ctx context.Context, nsName string) error {
-	args := dm.Called(nsName)
+func (dm *MockReadWriteTransaction) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	xs := make([]any, 0, len(nsNames))
+	for _, nsName := range nsNames {
+		xs = append(xs, nsName)
+	}
+
+	args := dm.Called(xs...)
 	return args.Error(0)
 }
 
