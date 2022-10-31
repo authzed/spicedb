@@ -175,8 +175,12 @@ message FoundSubject {
   repeated FoundSubject excluded_subjects = 3;
 }
 
-message DispatchLookupSubjectsResponse {
+message FoundSubjects {
   repeated FoundSubject found_subjects = 1;
+}
+
+message DispatchLookupSubjectsResponse {
+  map<string, FoundSubjects> found_subjects_by_resource_id = 1;
   ResponseMeta metadata = 2;
 }
 

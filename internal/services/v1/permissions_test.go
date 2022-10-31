@@ -787,7 +787,7 @@ func TestLookupSubjects(t *testing.T) {
 
 							require.NoError(err)
 
-							resolvedObjectIds = append(resolvedObjectIds, resp.SubjectObjectId)
+							resolvedObjectIds = append(resolvedObjectIds, resp.Subject.SubjectObjectId)
 						}
 
 						sort.Strings(tc.expectedSubjectIds)
@@ -982,11 +982,33 @@ func (a byIDAndPermission) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func TestLookupSubjectsWithCaveats(t *testing.T) {
 	req := require.New(t)
-	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, `
+				definition user {}
+
+				caveat testcaveat(somecondition int) {
+					somecondition == 42
+				}
+
+				definition document {
+					relation viewer: user | user with testcaveat
+					permission view = viewer
+				}
+			`, []*core.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:tom"),
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "testcaveat"),
+			}, require)
+		})
+
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
+
+	// Call with empty context.
+	caveatContext, err := structpb.NewStruct(map[string]any{})
+	req.NoError(err)
 
 	request := &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
@@ -994,30 +1016,244 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
 			},
 		},
-		Resource:          obj("document", "companyplan"),
+		Resource:          obj("document", "first"),
 		Permission:        "view",
 		SubjectObjectType: "user",
+		Context:           caveatContext,
 	}
 
-	// caveat support is not implemented yet - forwarding a context returns gRPC error unimplemented
-	var err error
-	request.Context, err = structpb.NewStruct(map[string]any{"secret": "incorrect_value"})
+	lookupClient, err := client.LookupSubjects(ctx, request)
 	req.NoError(err)
 
-	cli, err := client.LookupSubjects(ctx, request)
+	var resolvedSubjects []expectedSubject
+	for {
+		resp, err := lookupClient.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		require.NoError(t, err)
+		resolvedSubjects = append(resolvedSubjects, expectedSubject{
+			resp.Subject.SubjectObjectId,
+			resp.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+		})
+	}
+
+	expectedSubjects := []expectedSubject{
+		{"sarah", true},
+		{"tom", false},
+	}
+
+	sort.Sort(sortByID(resolvedSubjects))
+	sort.Sort(sortByID(expectedSubjects))
+
+	req.Equal(expectedSubjects, resolvedSubjects)
+
+	// Call with proper context.
+	caveatContext, err = structpb.NewStruct(map[string]any{
+		"somecondition": 42,
+	})
 	req.NoError(err)
 
-	_, err = cli.Recv()
-	grpcutil.RequireStatus(t, codes.Unimplemented, err)
+	request = &v1.LookupSubjectsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		Resource:          obj("document", "first"),
+		Permission:        "view",
+		SubjectObjectType: "user",
+		Context:           caveatContext,
+	}
 
-	// without caveat context the operation fails if caveated relationships are evaluated in the graph
-	request.Context = nil
-	cli, err = client.LookupSubjects(ctx, request)
+	lookupClient, err = client.LookupSubjects(ctx, request)
 	req.NoError(err)
 
-	_, err = cli.Recv()
-	grpcutil.RequireStatus(t, codes.Unimplemented, err)
+	resolvedSubjects = []expectedSubject{}
+	for {
+		resp, err := lookupClient.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		require.NoError(t, err)
+		resolvedSubjects = append(resolvedSubjects, expectedSubject{
+			resp.Subject.SubjectObjectId,
+			resp.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+		})
+	}
+
+	expectedSubjects = []expectedSubject{
+		{"sarah", false},
+		{"tom", false},
+	}
+
+	sort.Sort(sortByID(resolvedSubjects))
+	sort.Sort(sortByID(expectedSubjects))
+
+	req.Equal(expectedSubjects, resolvedSubjects)
+
+	// Call with negative context.
+	caveatContext, err = structpb.NewStruct(map[string]any{
+		"somecondition": 32,
+	})
+	req.NoError(err)
+
+	request = &v1.LookupSubjectsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		Resource:          obj("document", "first"),
+		Permission:        "view",
+		SubjectObjectType: "user",
+		Context:           caveatContext,
+	}
+
+	lookupClient, err = client.LookupSubjects(ctx, request)
+	req.NoError(err)
+
+	resolvedSubjects = []expectedSubject{}
+	for {
+		resp, err := lookupClient.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		require.NoError(t, err)
+		resolvedSubjects = append(resolvedSubjects, expectedSubject{
+			resp.Subject.SubjectObjectId,
+			resp.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+		})
+	}
+
+	expectedSubjects = []expectedSubject{
+		{"tom", false},
+	}
+
+	sort.Sort(sortByID(resolvedSubjects))
+	sort.Sort(sortByID(expectedSubjects))
+
+	req.Equal(expectedSubjects, resolvedSubjects)
 }
+
+func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
+	req := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, `
+				definition user {}
+
+				caveat testcaveat(somecondition int) {
+					somecondition == 42
+				}
+
+				caveat anothercaveat(anothercondition int) {
+					anothercondition == 42
+				}
+
+				definition document {
+					relation viewer: user:* with testcaveat
+					relation banned: user with testcaveat
+					permission view = viewer - banned
+				}
+			`, []*core.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:*"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:first#banned@user:bannedguy"), "anothercaveat"),
+			}, require)
+		})
+
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+
+	// Call with empty context.
+	caveatContext, err := structpb.NewStruct(map[string]any{})
+	req.NoError(err)
+
+	request := &v1.LookupSubjectsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		Resource:          obj("document", "first"),
+		Permission:        "view",
+		SubjectObjectType: "user",
+		Context:           caveatContext,
+	}
+
+	lookupClient, err := client.LookupSubjects(ctx, request)
+	req.NoError(err)
+
+	found := false
+	for {
+		resp, err := lookupClient.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		found = true
+		require.NoError(t, err)
+		require.Equal(t, "*", resp.Subject.SubjectObjectId)
+		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.Subject.Permissionship)
+		require.Equal(t, 1, len(resp.ExcludedSubjects))
+
+		require.Equal(t, "bannedguy", resp.ExcludedSubjects[0].SubjectObjectId)
+		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.ExcludedSubjects[0].Permissionship)
+	}
+	require.True(t, found)
+
+	// Call with negative context.
+	caveatContext, err = structpb.NewStruct(map[string]any{
+		"anothercondition": 41,
+	})
+	req.NoError(err)
+
+	request = &v1.LookupSubjectsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		Resource:          obj("document", "first"),
+		Permission:        "view",
+		SubjectObjectType: "user",
+		Context:           caveatContext,
+	}
+
+	lookupClient, err = client.LookupSubjects(ctx, request)
+	req.NoError(err)
+
+	found = false
+	for {
+		resp, err := lookupClient.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		found = true
+		require.NoError(t, err)
+		require.Equal(t, "*", resp.Subject.SubjectObjectId)
+		require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resp.Subject.Permissionship)
+		require.Equal(t, 0, len(resp.ExcludedSubjects))
+	}
+	require.True(t, found)
+}
+
+type expectedSubject struct {
+	subjectID     string
+	isConditional bool
+}
+
+type sortByID []expectedSubject
+
+func (a sortByID) Len() int           { return len(a) }
+func (a sortByID) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a sortByID) Less(i, j int) bool { return strings.Compare(a[i].subjectID, a[j].subjectID) < 0 }
 
 func generateMap(length int) map[string]any {
 	output := make(map[string]any, length)

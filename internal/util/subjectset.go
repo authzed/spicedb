@@ -31,6 +31,18 @@ func (ss SubjectSet) UnionWithSet(other SubjectSet) {
 	ss.BaseSubjectSet.UnionWithSet(other.BaseSubjectSet)
 }
 
+// WithParentCaveatExpression returns a copy of the subject set with the parent caveat expression applied
+// to all members of this set.
+func (ss SubjectSet) WithParentCaveatExpression(parentCaveatExpr *v1.CaveatExpression) SubjectSet {
+	return SubjectSet{ss.BaseSubjectSet.WithParentCaveatExpression(parentCaveatExpr)}
+}
+
+func (ss SubjectSet) AsFoundSubjects() *v1.FoundSubjects {
+	return &v1.FoundSubjects{
+		FoundSubjects: ss.AsSlice(),
+	}
+}
+
 func subjectSetConstructor(subjectID string, caveatExpression *v1.CaveatExpression, excludedSubjects []*v1.FoundSubject, sources ...*v1.FoundSubject) *v1.FoundSubject {
 	return &v1.FoundSubject{
 		SubjectId:        subjectID,

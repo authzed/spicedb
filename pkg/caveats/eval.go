@@ -24,6 +24,7 @@ type CaveatResult struct {
 	val             ref.Val
 	details         *cel.EvalDetails
 	parentCaveat    *CompiledCaveat
+	contextValues   map[string]any
 	missingVarNames []string
 	isPartial       bool
 }
@@ -50,6 +51,16 @@ func (cr CaveatResult) PartialValue() (*CompiledCaveat, error) {
 
 	expr := interpreter.PruneAst(cr.parentCaveat.ast.Expr(), cr.details.State())
 	return &CompiledCaveat{cr.parentCaveat.celEnv, cel.ParsedExprToAst(&exprpb.ParsedExpr{Expr: expr}), cr.parentCaveat.name}, nil
+}
+
+// ContextValues returns the context values used when computing this result.
+func (cr CaveatResult) ContextValues() map[string]any {
+	return cr.contextValues
+}
+
+// ExpressionString returns the human-readable expression string for the evaluated expression.
+func (cr CaveatResult) ExpressionString() (string, error) {
+	return cr.parentCaveat.ExprString()
 }
 
 // MissingVarNames returns the name(s) of the missing variables.
@@ -104,14 +115,35 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 		if val != nil && strings.Contains(err.Error(), "no such attribute") {
 			found := noSuchAttributeErrMessage.FindStringSubmatch(err.Error())
 			if found != nil {
-				return &CaveatResult{val, details, caveat, strings.Split(found[2], " "), true}, nil
+				return &CaveatResult{
+					val:             val,
+					details:         details,
+					parentCaveat:    caveat,
+					contextValues:   contextValues,
+					missingVarNames: strings.Split(found[2], " "),
+					isPartial:       true,
+				}, nil
 			}
 
-			return &CaveatResult{val, details, caveat, nil, true}, nil
+			return &CaveatResult{
+				val:             val,
+				details:         details,
+				parentCaveat:    caveat,
+				contextValues:   contextValues,
+				missingVarNames: nil,
+				isPartial:       true,
+			}, nil
 		}
 
 		return nil, err
 	}
 
-	return &CaveatResult{val, details, caveat, nil, false}, nil
+	return &CaveatResult{
+		val:             val,
+		details:         details,
+		parentCaveat:    caveat,
+		contextValues:   contextValues,
+		missingVarNames: nil,
+		isPartial:       false,
+	}, nil
 }

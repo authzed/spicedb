@@ -2,24 +2,26 @@ package v1
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/authzed/spicedb/internal/graph/computed"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/structpb"
+	"github.com/authzed/spicedb/pkg/datastore"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
+	cexpr "github.com/authzed/spicedb/internal/caveats"
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/graph/computed"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -37,7 +39,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 	caveatContext, err := getCaveatContext(ctx, req.Context)
 	if err != nil {
-		return nil, err
+		return nil, rewriteError(ctx, err)
 	}
 
 	// Perform our preflight checks in parallel
@@ -390,8 +392,9 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	if req.Context != nil {
-		return rewriteError(ctx, status.Error(codes.Unimplemented, "caveats not yet supported"))
+	caveatContext, err := getCaveatContext(ctx, req.Context)
+	if err != nil {
+		return rewriteError(ctx, err)
 	}
 
 	// Perform our preflight checks in parallel
@@ -427,16 +430,47 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	usagemetrics.SetInContext(ctx, respMetadata)
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
-		for _, foundSubject := range result.FoundSubjects {
+		foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
+		if !ok {
+			return fmt.Errorf("missing resource ID in returned LS")
+		}
+
+		for _, foundSubject := range foundSubjects.FoundSubjects {
 			excludedSubjectIDs := make([]string, 0, len(foundSubject.ExcludedSubjects))
 			for _, excludedSubject := range foundSubject.ExcludedSubjects {
 				excludedSubjectIDs = append(excludedSubjectIDs, excludedSubject.SubjectId)
 			}
 
-			err := resp.Send(&v1.LookupSubjectsResponse{
-				SubjectObjectId:    foundSubject.SubjectId,
-				ExcludedSubjectIds: excludedSubjectIDs,
+			excludedSubjects := make([]*v1.ResolvedSubject, 0, len(foundSubject.ExcludedSubjects))
+			for _, excludedSubject := range foundSubject.ExcludedSubjects {
+				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, ds)
+				if err != nil {
+					return err
+				}
+
+				if resolvedExcludedSubject == nil {
+					continue
+				}
+
+				excludedSubjects = append(excludedSubjects, resolvedExcludedSubject)
+			}
+
+			subject, err := foundSubjectToResolvedSubject(ctx, foundSubject, caveatContext, ds)
+			if err != nil {
+				return err
+			}
+			if subject == nil {
+				continue
+			}
+
+			err = resp.Send(&v1.LookupSubjectsResponse{
+				Subject:            subject,
+				ExcludedSubjects:   excludedSubjects,
 				LookedUpAt:         revisionReadAt,
+				SubjectObjectId:    foundSubject.SubjectId,    // Deprecated
+				ExcludedSubjectIds: excludedSubjectIDs,        // Deprecated
+				Permissionship:     subject.Permissionship,    // Deprecated
+				PartialCaveatInfo:  subject.PartialCaveatInfo, // Deprecated
 			})
 			if err != nil {
 				return err
@@ -447,7 +481,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		return nil
 	})
 
-	err := ps.dispatch.DispatchLookupSubjects(
+	err = ps.dispatch.DispatchLookupSubjects(
 		&dispatch.DispatchLookupSubjectsRequest{
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
@@ -469,6 +503,37 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	}
 
 	return nil
+}
+
+func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.CaveatReader) (*v1.ResolvedSubject, error) {
+	var partialCaveat *v1.PartialCaveatInfo
+	permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+	if foundSubject.GetCaveatExpression() != nil {
+		permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+
+		cr, err := cexpr.RunCaveatExpression(ctx, foundSubject.GetCaveatExpression(), caveatContext, ds, cexpr.RunCaveatExpressionNoDebugging)
+		if err != nil {
+			return nil, err
+		}
+
+		if cr.Value() {
+			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+		} else if cr.IsPartial() {
+			missingFields, _ := cr.MissingVarNames()
+			partialCaveat = &v1.PartialCaveatInfo{
+				MissingRequiredContext: missingFields,
+			}
+		} else {
+			// Skip this found subject.
+			return nil, nil
+		}
+	}
+
+	return &v1.ResolvedSubject{
+		SubjectObjectId:   foundSubject.SubjectId,
+		Permissionship:    permissionship,
+		PartialCaveatInfo: partialCaveat,
+	}, nil
 }
 
 func normalizeSubjectRelation(sub *v1.SubjectReference) string {
