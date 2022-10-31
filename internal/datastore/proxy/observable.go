@@ -251,14 +251,14 @@ func (rwt *observableRWT) WriteNamespaces(ctx context.Context, newConfigs ...*co
 	return rwt.delegate.WriteNamespaces(ctx, newConfigs...)
 }
 
-func (rwt *observableRWT) DeleteNamespace(ctx context.Context, nsName string) error {
+func (rwt *observableRWT) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
 	var span trace.Span
 	ctx, span = tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
-		attribute.String("name", nsName),
+		attribute.StringSlice("names", nsNames),
 	))
 	defer span.End()
 
-	return rwt.delegate.DeleteNamespace(ctx, nsName)
+	return rwt.delegate.DeleteNamespaces(ctx, nsNames...)
 }
 
 func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {

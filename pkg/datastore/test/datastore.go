@@ -34,6 +34,7 @@ func (f DatastoreTesterFunc) New(revisionQuantization, gcWindow time.Duration, w
 func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })
+	t.Run("TestNamespaceMultiDelete", func(t *testing.T) { NamespaceMultiDeleteTest(t, tester) })
 	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { EmptyNamespaceDeleteTest(t, tester) })
 	t.Run("TestStableNamespaceReadWrite", func(t *testing.T) { StableNamespaceReadWriteTest(t, tester) })
 

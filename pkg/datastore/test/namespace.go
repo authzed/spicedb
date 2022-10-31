@@ -144,7 +144,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	tRequire.TupleExists(ctx, folderTpl, revision)
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespace(ctx, testfixtures.DocumentNS.Name)
+		return rwt.DeleteNamespaces(ctx, testfixtures.DocumentNS.Name)
 	})
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
@@ -175,6 +175,31 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	tRequire.TupleExists(ctx, folderTpl, deletedRevision)
 }
 
+func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(t, err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ctx := context.Background()
+
+	namespaces, err := ds.SnapshotReader(revision).ListNamespaces(ctx)
+	require.NoError(t, err)
+
+	nsNames := make([]string, 0, len(namespaces))
+	for _, ns := range namespaces {
+		nsNames = append(nsNames, ns.Name)
+	}
+
+	deletedRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.DeleteNamespaces(ctx, nsNames...)
+	})
+	require.NoError(t, err)
+
+	namespacesAfterDel, err := ds.SnapshotReader(deletedRev).ListNamespaces(ctx)
+	require.NoError(t, err)
+	require.Len(t, namespacesAfterDel, 0)
+}
+
 // EmptyNamespaceDeleteTest tests deleting an empty namespace in the datastore.
 func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
@@ -186,7 +211,7 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	ctx := context.Background()
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespace(ctx, testfixtures.UserNS.Name)
+		return rwt.DeleteNamespaces(ctx, testfixtures.UserNS.Name)
 	})
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))

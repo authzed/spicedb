@@ -238,21 +238,23 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs .
 	return rwt.spannerRWT.BufferWrite(mutations)
 }
 
-func (rwt spannerReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
-	if err := deleteWithFilter(ctx, rwt.spannerRWT, &v1.RelationshipFilter{
-		ResourceType: nsName,
-	}); err != nil {
-		return fmt.Errorf(errUnableToDeleteConfig, err)
+func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	for _, nsName := range nsNames {
+		if err := deleteWithFilter(ctx, rwt.spannerRWT, &v1.RelationshipFilter{
+			ResourceType: nsName,
+		}); err != nil {
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
+
+		err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{
+			spanner.Delete(tableNamespace, spanner.KeySetFromKeys(spanner.Key{nsName})),
+		})
+		if err != nil {
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
 	}
 
-	err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{
-		spanner.Delete(tableNamespace, spanner.KeySetFromKeys(spanner.Key{nsName})),
-	})
-	if err != nil {
-		return fmt.Errorf(errUnableToDeleteConfig, err)
-	}
-
-	return err
+	return nil
 }
 
 var _ datastore.ReadWriteTransaction = spannerReadWriteTXN{}

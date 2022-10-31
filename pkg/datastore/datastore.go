@@ -188,8 +188,8 @@ type ReadWriteTransaction interface {
 	// WriteNamespaces takes proto namespace definitions and persists them.
 	WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error
 
-	// DeleteNamespace deletes a namespace and any associated tuples.
-	DeleteNamespace(ctx context.Context, nsName string) error
+	// DeleteNamespaces deletes namespaces including associated relationships.
+	DeleteNamespaces(ctx context.Context, nsNames ...string) error
 }
 
 // TxUserFunc is a type for the function that users supply when they invoke a read-write transaction.

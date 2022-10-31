@@ -263,7 +263,7 @@ func TestSchemaReadDeleteAndFailWrite(t *testing.T) {
 	// Issue a delete out of band for the namespace.
 	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		for _, nsName := range requestedObjectDefNames {
-			derr := rwt.DeleteNamespace(ctx, nsName)
+			derr := rwt.DeleteNamespaces(ctx, nsName)
 			if derr != nil {
 				return derr
 			}

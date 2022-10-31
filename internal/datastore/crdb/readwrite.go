@@ -250,18 +250,27 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 	return nil
 }
 
-func (rwt *crdbReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
-	_, timestamp, err := loadNamespace(ctx, rwt.tx, nsName)
-	if err != nil {
-		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
-			return err
+func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	// For each namespace, check they exist and collect predicates for the
+	// "WHERE" clause to delete the namespaces and associated tuples.
+	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	for _, nsName := range nsNames {
+		_, timestamp, err := loadNamespace(ctx, rwt.tx, nsName)
+		if err != nil {
+			if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
+				return err
+			}
+			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
-		return fmt.Errorf(errUnableToDeleteConfig, err)
+
+		for _, nsName := range nsNames {
+			nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName, colTimestamp: timestamp})
+			tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
+		}
 	}
 
-	delSQL, delArgs, err := queryDeleteNamespace.
-		Where(sq.Eq{colNamespace: nsName, colTimestamp: timestamp}).
-		ToSql()
+	delSQL, delArgs, err := queryDeleteNamespace.Where(sq.Or(nsClauses)).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -271,9 +280,7 @@ func (rwt *crdbReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string)
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := queryDeleteTuples.
-		Where(sq.Eq{colNamespace: nsName}).
-		ToSql()
+	deleteTupleSQL, deleteTupleArgs, err := queryDeleteTuples.Where(sq.Or(tplClauses)).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}

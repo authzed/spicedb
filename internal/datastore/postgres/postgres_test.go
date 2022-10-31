@@ -887,7 +887,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			ResourceType: "one_namespace",
 		}))
 
-		require.NoError(rwt.DeleteNamespace(ctx, "one_namespace"))
+		require.NoError(rwt.DeleteNamespaces(ctx, "one_namespace"))
 
 		require.NoError(rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"three_namespace", namespace.Relation("parent", nil, nil))))
@@ -955,7 +955,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			ResourceType: "two_namespace",
 		}))
 
-		require.NoError(rwt.DeleteNamespace(ctx, "two_namespace"))
+		require.NoError(rwt.DeleteNamespaces(ctx, "two_namespace"))
 
 		require.NoError(rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"four_namespace", namespace.Relation("parent", nil, nil))))
@@ -1022,7 +1022,7 @@ func XIDMigrationAssumptionsTest(t *testing.T, b testdatastore.RunningEngineForT
 			ResourceType: "three_namespace",
 		}))
 
-		require.NoError(rwt.DeleteNamespace(ctx, "three_namespace"))
+		require.NoError(rwt.DeleteNamespaces(ctx, "three_namespace"))
 
 		require.NoError(rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"five_namespace", namespace.Relation("parent", nil, nil))))

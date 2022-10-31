@@ -292,7 +292,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) error {
+func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
 	filterer := func(original sq.SelectBuilder) sq.SelectBuilder {
 		return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 	}
@@ -304,19 +304,35 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) e
 		}
 	}
 
-	_, createdAt, err := rwt.loadNamespace(ctx, nsName, rwt.tx, filterer)
-	switch {
-	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
-		return err
-	case err == nil:
-		break
-	default:
-		return fmt.Errorf(errUnableToDeleteConfig, err)
+	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	migrationClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	for _, nsName := range nsNames {
+		_, createdAt, err := rwt.loadNamespace(ctx, nsName, rwt.tx, filterer)
+		switch {
+		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
+			return err
+		case err == nil:
+			break
+		default:
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
+
+		nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName, colCreatedXid: createdAt.tx})
+		tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
+
+		// TODO remove once the ID->XID migrations are all complete
+		switch rwt.migrationPhase {
+		case writeBothReadOld:
+			migrationClauses = append(migrationClauses, sq.Eq{colNamespace: nsName, colCreatedTxnDeprecated: createdAt.tx.Uint})
+		case writeBothReadNew:
+			migrationClauses = nsClauses
+		}
 	}
 
 	delSQL, delArgs, err := deleteNamespace.
 		Set(colDeletedXid, rwt.newXID).
-		Where(sq.Eq{colNamespace: nsName, colCreatedXid: createdAt.tx}).
+		Where(sq.Or(nsClauses)).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -324,15 +340,10 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) e
 
 	// TODO remove once the ID->XID migrations are all complete
 	if rwt.migrationPhase == writeBothReadNew || rwt.migrationPhase == writeBothReadOld {
-		whereClause := sq.Eq{colNamespace: nsName, colCreatedXid: createdAt.tx}
-		if rwt.migrationPhase == writeBothReadOld {
-			whereClause = sq.Eq{colNamespace: nsName, colCreatedTxnDeprecated: createdAt.tx.Uint}
-		}
-
 		delSQL, delArgs, err = deleteNamespace.
 			Set(colDeletedTxnDeprecated, rwt.newXID.Uint).
 			Set(colDeletedXid, rwt.newXID).
-			Where(whereClause).
+			Where(sq.Or(migrationClauses)).
 			ToSql()
 		if err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -346,7 +357,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) e
 
 	deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
 		Set(colDeletedXid, rwt.newXID).
-		Where(sq.Eq{colNamespace: nsName}).
+		Where(sq.Or(tplClauses)).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -357,7 +368,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(ctx context.Context, nsName string) e
 		deleteTupleSQL, deleteTupleArgs, err = deleteNamespaceTuples.
 			Set(colDeletedTxnDeprecated, rwt.newXID.Uint).
 			Set(colDeletedXid, rwt.newXID).
-			Where(sq.Eq{colNamespace: nsName}).
+			Where(sq.Or(tplClauses)).
 			ToSql()
 		if err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
