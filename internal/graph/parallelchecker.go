@@ -166,12 +166,12 @@ func (pc *parallelChecker) Start() {
 
 				results, resultsMeta, err := computed.ComputeBulkCheck(pc.checkCtx, pc.c,
 					computed.CheckParameters{
-						ResourceType:       pc.lookupRequest.ObjectRelation,
-						Subject:            pc.lookupRequest.Subject,
-						CaveatContext:      pc.lookupRequest.Context.AsMap(),
-						AtRevision:         pc.lookupRequest.Revision,
-						MaximumDepth:       meta.DepthRemaining,
-						IsDebuggingEnabled: false,
+						ResourceType:  pc.lookupRequest.ObjectRelation,
+						Subject:       pc.lookupRequest.Subject,
+						CaveatContext: pc.lookupRequest.Context.AsMap(),
+						AtRevision:    pc.lookupRequest.Revision,
+						MaximumDepth:  meta.DepthRemaining,
+						DebugOption:   computed.NoDebugging,
 					},
 					collected,
 				)

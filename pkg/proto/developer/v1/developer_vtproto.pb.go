@@ -7,6 +7,7 @@ package developerv1
 import (
 	fmt "fmt"
 	v1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	v11 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
@@ -247,6 +248,13 @@ func (m *CheckOperationsResult) CloneVT() *CheckOperationsResult {
 	r := &CheckOperationsResult{
 		Membership: m.Membership,
 		CheckError: m.CheckError.CloneVT(),
+	}
+	if rhs := m.DebugInformation; rhs != nil {
+		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v11.DebugInformation }); ok {
+			r.DebugInformation = vtpb.CloneVT()
+		} else {
+			r.DebugInformation = proto.Clone(rhs).(*v11.DebugInformation)
+		}
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -630,6 +638,15 @@ func (this *CheckOperationsResult) EqualVT(that *CheckOperationsResult) bool {
 		return false
 	}
 	if !this.CheckError.EqualVT(that.CheckError) {
+		return false
+	}
+	if equal, ok := interface{}(this.DebugInformation).(interface {
+		EqualVT(*v11.DebugInformation) bool
+	}); ok {
+		if !equal.EqualVT(that.DebugInformation) {
+			return false
+		}
+	} else if !proto.Equal(this.DebugInformation, that.DebugInformation) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1347,6 +1364,28 @@ func (m *CheckOperationsResult) MarshalToSizedBufferVT(dAtA []byte) (int, error)
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.DebugInformation != nil {
+		if vtmsg, ok := interface{}(m.DebugInformation).(interface {
+			MarshalToSizedBufferVT([]byte) (int, error)
+		}); ok {
+			size, err := vtmsg.MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+		} else {
+			encoded, err := proto.Marshal(m.DebugInformation)
+			if err != nil {
+				return 0, err
+			}
+			i -= len(encoded)
+			copy(dAtA[i:], encoded)
+			i = encodeVarint(dAtA, i, uint64(len(encoded)))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
 	if m.CheckError != nil {
 		size, err := m.CheckError.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -1882,6 +1921,16 @@ func (m *CheckOperationsResult) SizeVT() (n int) {
 	}
 	if m.CheckError != nil {
 		l = m.CheckError.SizeVT()
+		n += 1 + l + sov(uint64(l))
+	}
+	if m.DebugInformation != nil {
+		if size, ok := interface{}(m.DebugInformation).(interface {
+			SizeVT() int
+		}); ok {
+			l = size.SizeVT()
+		} else {
+			l = proto.Size(m.DebugInformation)
+		}
 		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -3476,6 +3525,50 @@ func (m *CheckOperationsResult) UnmarshalVT(dAtA []byte) error {
 			}
 			if err := m.CheckError.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DebugInformation", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.DebugInformation == nil {
+				m.DebugInformation = &v11.DebugInformation{}
+			}
+			if unmarshal, ok := interface{}(m.DebugInformation).(interface {
+				UnmarshalVT([]byte) error
+			}); ok {
+				if err := unmarshal.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				if err := proto.Unmarshal(dAtA[iNdEx:postIndex], m.DebugInformation); err != nil {
+					return err
+				}
 			}
 			iNdEx = postIndex
 		default:

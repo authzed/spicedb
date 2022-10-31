@@ -10,25 +10,25 @@ import (
 //
 // Note that it is up to the caller to call DistinguishGraphError on the error
 // if they want to distinguish between user errors and internal errors.
-func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation) (v1.ResourceCheckResult_Membership, error) {
+func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation) (v1.ResourceCheckResult_Membership, *v1.DebugInformation, error) {
 	ctx := devContext.Ctx
-	cr, _, err := computed.ComputeCheck(ctx, devContext.Dispatcher,
+	cr, meta, err := computed.ComputeCheck(ctx, devContext.Dispatcher,
 		computed.CheckParameters{
 			ResourceType: &core.RelationReference{
 				Namespace: resource.Namespace,
 				Relation:  resource.Relation,
 			},
-			Subject:            subject,
-			CaveatContext:      nil, // TODO(jschorr): get from the dev context?
-			AtRevision:         devContext.Revision,
-			MaximumDepth:       maxDispatchDepth,
-			IsDebuggingEnabled: false,
+			Subject:       subject,
+			CaveatContext: nil, // TODO(jschorr): get from the dev context?
+			AtRevision:    devContext.Revision,
+			MaximumDepth:  maxDispatchDepth,
+			DebugOption:   computed.TraceDebuggingEnabled,
 		},
 		resource.ObjectId,
 	)
 	if err != nil {
-		return v1.ResourceCheckResult_NOT_MEMBER, err
+		return v1.ResourceCheckResult_NOT_MEMBER, nil, err
 	}
 
-	return cr.Membership, nil
+	return cr.Membership, meta.DebugInfo, nil
 }

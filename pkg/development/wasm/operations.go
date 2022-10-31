@@ -27,7 +27,7 @@ func runOperation(devContext *development.DevContext, operation *devinterface.Op
 		}, nil
 
 	case operation.CheckParameters != nil:
-		result, err := development.RunCheck(devContext, operation.CheckParameters.Resource, operation.CheckParameters.Subject)
+		result, debug, err := development.RunCheck(devContext, operation.CheckParameters.Resource, operation.CheckParameters.Subject)
 		if err != nil {
 			devErr, wireErr := development.DistinguishGraphError(
 				devContext,
@@ -58,7 +58,8 @@ func runOperation(devContext *development.DevContext, operation *devinterface.Op
 
 		return &devinterface.OperationResult{
 			CheckResult: &devinterface.CheckOperationsResult{
-				Membership: membership,
+				Membership:       membership,
+				DebugInformation: debug,
 			},
 		}, nil
 

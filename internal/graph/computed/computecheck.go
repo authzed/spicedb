@@ -11,14 +11,39 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
+// DebugOption defines the various debug level options for Checks.
+type DebugOption int
+
+const (
+	// NoDebugging indicates that debug information should be retained
+	// while performing the Check.
+	NoDebugging DebugOption = 0
+
+	// BasicDebuggingEnabled indicates that basic debug information, such
+	// as which steps were taken, should be retained while performing the
+	// Check and returned to the caller.
+	//
+	// NOTE: This has a minor performance impact.
+	BasicDebuggingEnabled DebugOption = 1
+
+	// TraceDebuggingEnabled indicates that the Check is being issued for
+	// tracing the exact calls made for debugging, which means that not only
+	// should debug information be recorded and returned, but that optimizations
+	// such as batching should be disabled.
+	//
+	// WARNING: This has a fairly significant performance impact and should only
+	// be used in tooling!
+	TraceDebuggingEnabled DebugOption = 2
+)
+
 // CheckParameters are the parameters for the ComputeCheck call. *All* are required.
 type CheckParameters struct {
-	ResourceType       *core.RelationReference
-	Subject            *core.ObjectAndRelation
-	CaveatContext      map[string]any
-	AtRevision         datastore.Revision
-	MaximumDepth       uint32
-	IsDebuggingEnabled bool
+	ResourceType  *core.RelationReference
+	Subject       *core.ObjectAndRelation
+	CaveatContext map[string]any
+	AtRevision    datastore.Revision
+	MaximumDepth  uint32
+	DebugOption   DebugOption
 }
 
 // ComputeCheck computes a check result for the given resource and subject, computing any
@@ -53,8 +78,10 @@ func computeCheck(ctx context.Context,
 	resourceIDs []string,
 ) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
 	debugging := v1.DispatchCheckRequest_NO_DEBUG
-	if params.IsDebuggingEnabled {
-		debugging = v1.DispatchCheckRequest_ENABLE_DEBUGGING
+	if params.DebugOption == BasicDebuggingEnabled {
+		debugging = v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING
+	} else if params.DebugOption == TraceDebuggingEnabled {
+		debugging = v1.DispatchCheckRequest_ENABLE_TRACE_DEBUGGING
 	}
 
 	setting := v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS

@@ -315,15 +315,7 @@ func TestCheckDebugging(t *testing.T) {
 					[]string{"masterplan"},
 				},
 				{
-					RR("document", "viewer"),
-					[]string{"masterplan"},
-				},
-				{
 					RR("document", "edit"),
-					[]string{"masterplan"},
-				},
-				{
-					RR("document", "editor"),
 					[]string{"masterplan"},
 				},
 				{
@@ -338,10 +330,6 @@ func TestCheckDebugging(t *testing.T) {
 			[]expectedFrame{
 				{
 					RR("document", "view_and_edit"),
-					[]string{"masterplan"},
-				},
-				{
-					RR("document", "viewer_and_editor"),
 					[]string{"masterplan"},
 				},
 			},
@@ -395,7 +383,7 @@ func TestCheckDebugging(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				Debug: v1.DispatchCheckRequest_ENABLE_DEBUGGING,
+				Debug: v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING,
 			})
 
 			require.NoError(err)
@@ -410,8 +398,7 @@ func TestCheckDebugging(t *testing.T) {
 			foundFrames := util.NewSet[string]()
 			addFrame(checkResult.Metadata.DebugInfo.Check, foundFrames)
 
-			require.Empty(expectedFrames.Subtract(foundFrames).AsSlice(), "missing expected frames")
-			require.Empty(foundFrames.Subtract(expectedFrames).AsSlice(), "missing found frames")
+			require.Empty(expectedFrames.Subtract(foundFrames).AsSlice(), "missing expected frames: %v", expectedFrames.Subtract(foundFrames).AsSlice())
 		})
 	}
 }

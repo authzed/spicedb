@@ -502,7 +502,7 @@ func validateEditChecks(t *testing.T, devContext *development.DevContext, vctx *
 							ObjectId:  objectIDStr,
 							Relation:  objectRelation.Relation,
 						}
-						membership, err := development.RunCheck(devContext, resource, subject)
+						membership, _, err := development.RunCheck(devContext, resource, subject)
 						vrequire.NoError(err, "Got unexpected error from edit check")
 
 						expectedMember := vctx.accessibilitySet.GetIsMember(resource, subject)
