@@ -265,7 +265,7 @@ func mapFoundResources(result CheckResult, resourceType *core.RelationReference,
 	}
 
 	if membershipSet.IsEmpty() {
-		return noMembers()
+		return noMembersWithMetadata(result.Resp.Metadata)
 	}
 
 	return checkResultsForMembership(membershipSet, result.Resp.Metadata)
@@ -430,10 +430,6 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 				return childResult
 			}
 
-			if childResult.Err != nil {
-				return childResult
-			}
-
 			return mapFoundResources(childResult, dd.resourceType, relationshipsBySubjectONR)
 		},
 		cc.concurrencyLimit,
@@ -534,7 +530,7 @@ func all[T any](
 			}
 
 			if membershipSet.IsEmpty() {
-				return noMembers()
+				return noMembersWithMetadata(responseMetadata)
 			}
 		case <-ctx.Done():
 			return checkResultError(NewRequestCanceledErr(), responseMetadata)
@@ -601,7 +597,7 @@ func difference[T any](
 
 		membershipSet.UnionWith(base.Resp.ResultsByResourceId)
 		if membershipSet.IsEmpty() {
-			return noMembers()
+			return noMembersWithMetadata(responseMetadata)
 		}
 
 	case <-ctx.Done():
@@ -675,6 +671,15 @@ func noMembers() CheckResult {
 	return CheckResult{
 		&v1.DispatchCheckResponse{
 			Metadata: emptyMetadata,
+		},
+		nil,
+	}
+}
+
+func noMembersWithMetadata(metadata *v1.ResponseMeta) CheckResult {
+	return CheckResult{
+		&v1.DispatchCheckResponse{
+			Metadata: metadata,
 		},
 		nil,
 	}

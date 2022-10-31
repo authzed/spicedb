@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,6 +22,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 var ONR = tuple.ObjectAndRelation
@@ -281,6 +283,136 @@ func TestCheckMetadata(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func addFrame(trace *v1.CheckDebugTrace, foundFrames *util.Set[string]) {
+	foundFrames.Add(fmt.Sprintf("%s:%s#%s", trace.Request.ResourceRelation.Namespace, strings.Join(trace.Request.ResourceIds, ","), trace.Request.ResourceRelation.Relation))
+	for _, subTrace := range trace.SubProblems {
+		addFrame(subTrace, foundFrames)
+	}
+}
+
+func TestCheckDebugging(t *testing.T) {
+	type expectedFrame struct {
+		resourceType *core.RelationReference
+		resourceIDs  []string
+	}
+
+	testCases := []struct {
+		namespace      string
+		objectID       string
+		permission     string
+		subject        *core.ObjectAndRelation
+		expectedFrames []expectedFrame
+	}{
+		{
+			"document", "masterplan", "view",
+			ONR("user", "product_manager", graph.Ellipsis),
+			[]expectedFrame{
+				{
+					RR("document", "view"),
+					[]string{"masterplan"},
+				},
+				{
+					RR("document", "viewer"),
+					[]string{"masterplan"},
+				},
+				{
+					RR("document", "edit"),
+					[]string{"masterplan"},
+				},
+				{
+					RR("document", "editor"),
+					[]string{"masterplan"},
+				},
+				{
+					RR("document", "owner"),
+					[]string{"masterplan"},
+				},
+			},
+		},
+		{
+			"document", "masterplan", "view_and_edit",
+			ONR("user", "product_manager", graph.Ellipsis),
+			[]expectedFrame{
+				{
+					RR("document", "view_and_edit"),
+					[]string{"masterplan"},
+				},
+				{
+					RR("document", "viewer_and_editor"),
+					[]string{"masterplan"},
+				},
+			},
+		},
+		{
+			"document", "specialplan", "view_and_edit",
+			ONR("user", "multiroleguy", graph.Ellipsis),
+			[]expectedFrame{
+				{
+					RR("document", "view_and_edit"),
+					[]string{"specialplan"},
+				},
+				{
+					RR("document", "viewer_and_editor"),
+					[]string{"specialplan"},
+				},
+				{
+					RR("document", "edit"),
+					[]string{"specialplan"},
+				},
+				{
+					RR("document", "editor"),
+					[]string{"specialplan"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		name := fmt.Sprintf(
+			"debugging::%s:%s#%s@%s:%s#%s",
+			tc.namespace,
+			tc.objectID,
+			tc.permission,
+			tc.subject.Namespace,
+			tc.subject.ObjectId,
+			tc.subject.Relation,
+		)
+
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+
+			ctx, dispatch, revision := newLocalDispatcher(t)
+
+			checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+				ResourceRelation: RR(tc.namespace, tc.permission),
+				ResourceIds:      []string{tc.objectID},
+				ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
+				Subject:          tc.subject,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+				Debug: v1.DispatchCheckRequest_ENABLE_DEBUGGING,
+			})
+
+			require.NoError(err)
+			require.NotNil(checkResult.Metadata.DebugInfo)
+			require.NotNil(checkResult.Metadata.DebugInfo.Check)
+
+			expectedFrames := util.NewSet[string]()
+			for _, expectedFrame := range tc.expectedFrames {
+				expectedFrames.Add(fmt.Sprintf("%s:%s#%s", expectedFrame.resourceType.Namespace, strings.Join(expectedFrame.resourceIDs, ","), expectedFrame.resourceType.Relation))
+			}
+
+			foundFrames := util.NewSet[string]()
+			addFrame(checkResult.Metadata.DebugInfo.Check, foundFrames)
+
+			require.Empty(expectedFrames.Subtract(foundFrames).AsSlice(), "missing expected frames")
+			require.Empty(foundFrames.Subtract(expectedFrames).AsSlice(), "missing found frames")
+		})
 	}
 }
 
