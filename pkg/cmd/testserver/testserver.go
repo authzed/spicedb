@@ -63,6 +63,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 			v1alpha1svc.PrefixNotRequired,
 			services.V1SchemaServiceEnabled,
 			services.WatchServiceEnabled,
+			services.CaveatsEnabled,
 			v1svc.PermissionsServerConfig{
 				MaxPreconditionsCount: c.MaximumPreconditionCount,
 				MaxUpdatesPerWrite:    c.MaximumUpdatesPerWrite,

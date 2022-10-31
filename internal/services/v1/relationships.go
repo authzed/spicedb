@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
@@ -46,6 +47,7 @@ type PermissionsServerConfig struct {
 func NewPermissionsServer(
 	dispatch dispatch.Dispatcher,
 	config PermissionsServerConfig,
+	caveatsEnabled bool,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
 		MaxPreconditionsCount: defaultIfZero(config.MaxPreconditionsCount, 1000),
@@ -54,8 +56,9 @@ func NewPermissionsServer(
 	}
 
 	return &permissionServer{
-		dispatch: dispatch,
-		config:   configWithDefaults,
+		dispatch:       dispatch,
+		config:         configWithDefaults,
+		caveatsEnabled: caveatsEnabled,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
 				grpcvalidate.UnaryServerInterceptor(true),
@@ -75,8 +78,9 @@ type permissionServer struct {
 	v1.UnimplementedPermissionsServiceServer
 	shared.WithServiceSpecificInterceptors
 
-	dispatch dispatch.Dispatcher
-	config   PermissionsServerConfig
+	dispatch       dispatch.Dispatcher
+	config         PermissionsServerConfig
+	caveatsEnabled bool
 }
 
 func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string, ds datastore.Reader) error {
@@ -174,6 +178,9 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 		// Only load the caveat if we need its type information for context checking.
 		if hasNonEmptyCaveatContext(update) {
+			if !ps.caveatsEnabled {
+				return nil, fmt.Errorf("caveats are currently not supported")
+			}
 			referencedCaveatNamesWithContext.Add(update.Relationship.OptionalCaveat.CaveatName)
 		}
 	}

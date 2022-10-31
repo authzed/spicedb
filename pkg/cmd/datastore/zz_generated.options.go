@@ -47,7 +47,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
-		to.ExperimentEnableCaveats = c.ExperimentEnableCaveats
 		to.MigrationPhase = c.MigrationPhase
 	}
 }
@@ -274,13 +273,6 @@ func WithTablePrefix(tablePrefix string) ConfigOption {
 func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 	return func(c *Config) {
 		c.WatchBufferLength = watchBufferLength
-	}
-}
-
-// WithExperimentEnableCaveats returns an option that can set ExperimentEnableCaveats on a Config
-func WithExperimentEnableCaveats(experimentEnableCaveats bool) ConfigOption {
-	return func(c *Config) {
-		c.ExperimentEnableCaveats = experimentEnableCaveats
 	}
 }
 

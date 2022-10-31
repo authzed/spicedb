@@ -103,6 +103,11 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	cmd.Flags().StringVar(&config.TelemetryEndpoint, "telemetry-endpoint", telemetry.DefaultEndpoint, "endpoint to which telemetry is reported, empty string to disable")
 	cmd.Flags().StringVar(&config.TelemetryCAOverridePath, "telemetry-ca-override-path", "", "TODO")
 	cmd.Flags().DurationVar(&config.TelemetryInterval, "telemetry-interval", telemetry.DefaultInterval, "approximate period between telemetry reports, minimum 1 minute")
+
+	cmd.Flags().BoolVar(&config.ExperimentalCaveatsEnabled, "experiment-enable-caveats", false, "if true, experimental support for caveats is enabled; note that these are not fully implemented and may break")
+	if err := cmd.Flags().MarkDeprecated("experiment-enable-caveats", "this is an experiment"); err != nil {
+		panic("failed to mark flag deprecated: " + err.Error())
+	}
 }
 
 func NewServeCommand(programName string, config *server.Config) *cobra.Command {

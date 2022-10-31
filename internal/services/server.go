@@ -20,6 +20,9 @@ type SchemaServiceOption int
 // WatchServiceOption defines the options for enabling or disabling the V1 Watch service.
 type WatchServiceOption int
 
+// CaveatsOption defines the options for enabling or disabling caveats in the V1 services.
+type CaveatsOption int
+
 const (
 	// V1SchemaServiceDisabled indicates that the V1 schema service is disabled.
 	V1SchemaServiceDisabled SchemaServiceOption = 0
@@ -32,6 +35,12 @@ const (
 
 	// WatchServiceEnabled indicates that the V1 watch service is enabled.
 	WatchServiceEnabled WatchServiceOption = 1
+
+	// CaveatsDisabled indicates that caveats are disabled.
+	CaveatsDisabled CaveatsOption = 0
+
+	// CaveatsEnabled indicates that caveats are enabled.
+	CaveatsEnabled CaveatsOption = 1
 )
 
 const (
@@ -47,14 +56,15 @@ func RegisterGrpcServices(
 	prefixRequired v1alpha1svc.PrefixRequiredOption,
 	schemaServiceOption SchemaServiceOption,
 	watchServiceOption WatchServiceOption,
+	caveatsOption CaveatsOption,
 	permSysConfig v1svc.PermissionsServerConfig,
 ) {
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
-	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(prefixRequired))
+	v1alpha1.RegisterSchemaServiceServer(srv, v1alpha1svc.NewSchemaServer(prefixRequired, caveatsOption == CaveatsEnabled))
 	healthManager.RegisterReportedService(v1alpha1.SchemaService_ServiceDesc.ServiceName)
 
-	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig))
+	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig, caveatsOption == CaveatsEnabled))
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
 	if watchServiceOption == WatchServiceEnabled {
@@ -63,7 +73,7 @@ func RegisterGrpcServices(
 	}
 
 	if schemaServiceOption == V1SchemaServiceEnabled {
-		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer())
+		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(caveatsOption == CaveatsEnabled))
 		healthManager.RegisterReportedService(v1.SchemaService_ServiceDesc.ServiceName)
 	}
 
