@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/backoff"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -135,6 +137,7 @@ func TestCertRotation(t *testing.T) {
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
 	).Complete()
 	require.NoError(t, err)
+
 	srv.SetMiddleware([]grpc.UnaryServerInterceptor{
 		datastoremw.UnaryServerInterceptor(ds),
 		consistency.UnaryServerInterceptor(),
@@ -150,7 +153,18 @@ func TestCertRotation(t *testing.T) {
 		require.NoError(t, srv.Run(ctx))
 	}()
 
-	conn, err := srv.GRPCDialContext(ctx, grpc.WithReturnConnectionError())
+	conn, err := srv.GRPCDialContext(ctx,
+		grpc.WithReturnConnectionError(),
+		grpc.WithBlock(),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay:  1 * time.Second,
+				Multiplier: 2,
+				MaxDelay:   15 * time.Second,
+			},
+		}),
+	)
+
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		if conn != nil {

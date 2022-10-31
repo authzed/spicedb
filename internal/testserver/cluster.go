@@ -8,6 +8,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"google.golang.org/grpc/backoff"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
@@ -217,7 +220,16 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 		cancelFuncs = append(cancelFuncs, cancel)
 
 		dialers = append(dialers, srv.DispatchNetDialContext)
-		conn, err := srv.GRPCDialContext(ctx, grpc.WithBlock())
+		conn, err := srv.GRPCDialContext(ctx,
+			grpc.WithReturnConnectionError(),
+			grpc.WithBlock(),
+			grpc.WithConnectParams(grpc.ConnectParams{
+				Backoff: backoff.Config{
+					BaseDelay:  1 * time.Second,
+					Multiplier: 2,
+					MaxDelay:   15 * time.Second,
+				},
+			}))
 		require.NoError(t, err)
 		conns = append(conns, conn)
 	}
