@@ -35,6 +35,18 @@ func TestPopulateFromFiles(t *testing.T) {
 				tuple.Parse("example/project:pied_piper#writer@example/user:freyja"),
 			},
 		},
+		{
+			name:      "multiple files",
+			filePaths: []string{"testdata/initial_schema_and_rels.yaml", "testdata/just_rels.yaml"},
+			want: []*core.RelationTuple{
+				tuple.Parse("example/project:pied_piper#owner@example/user:milburga"),
+				tuple.Parse("example/project:pied_piper#reader@example/user:tarben"),
+				tuple.Parse("example/project:pied_piper#writer@example/user:freyja"),
+				tuple.Parse("example/project:pied_piper#owner@example/user:fred"),
+				tuple.Parse("example/project:pied_piper#reader@example/user:tom"),
+				tuple.Parse("example/project:pied_piper#writer@example/user:sarah"),
+			},
+		},
 	}
 
 	for _, tt := range tests {
