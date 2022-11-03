@@ -28,7 +28,6 @@ import (
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
-	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/balancer"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
@@ -77,6 +76,7 @@ type Config struct {
 
 	// API Behavior
 	DisableV1SchemaAPI         bool
+	V1SchemaAdditiveOnly       bool
 	MaximumUpdatesPerWrite     uint16
 	MaximumPreconditionCount   uint16
 	ExperimentalCaveatsEnabled bool
@@ -220,14 +220,11 @@ func (c *Config) Complete() (RunnableServer, error) {
 		return nil, fmt.Errorf("error determining datastore features: %w", err)
 	}
 
-	prefixRequiredOption := v1alpha1svc.PrefixRequired
-	if !c.SchemaPrefixesRequired {
-		prefixRequiredOption = v1alpha1svc.PrefixNotRequired
-	}
-
 	v1SchemaServiceOption := services.V1SchemaServiceEnabled
 	if c.DisableV1SchemaAPI {
 		v1SchemaServiceOption = services.V1SchemaServiceDisabled
+	} else if c.V1SchemaAdditiveOnly {
+		v1SchemaServiceOption = services.V1SchemaServiceAdditiveOnly
 	}
 
 	watchServiceOption := services.WatchServiceEnabled
@@ -259,7 +256,6 @@ func (c *Config) Complete() (RunnableServer, error) {
 				server,
 				healthManager,
 				dispatcher,
-				prefixRequiredOption,
 				v1SchemaServiceOption,
 				watchServiceOption,
 				caveatsOption,

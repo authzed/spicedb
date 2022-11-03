@@ -50,6 +50,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
+		to.V1SchemaAdditiveOnly = c.V1SchemaAdditiveOnly
 		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 		to.ExperimentalCaveatsEnabled = c.ExperimentalCaveatsEnabled
@@ -260,6 +261,13 @@ func WithClusterDispatchCacheConfig(clusterDispatchCacheConfig CacheConfig) Conf
 func WithDisableV1SchemaAPI(disableV1SchemaAPI bool) ConfigOption {
 	return func(c *Config) {
 		c.DisableV1SchemaAPI = disableV1SchemaAPI
+	}
+}
+
+// WithV1SchemaAdditiveOnly returns an option that can set V1SchemaAdditiveOnly on a Config
+func WithV1SchemaAdditiveOnly(v1SchemaAdditiveOnly bool) ConfigOption {
+	return func(c *Config) {
+		c.V1SchemaAdditiveOnly = v1SchemaAdditiveOnly
 	}
 }
 

@@ -27,12 +27,13 @@ import (
 )
 
 // NewSchemaServer creates a SchemaServiceServer instance.
-func NewSchemaServer(caveatsEnabled bool) v1.SchemaServiceServer {
+func NewSchemaServer(additiveOnly, caveatsEnabled bool) v1.SchemaServiceServer {
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary:  grpcvalidate.UnaryServerInterceptor(true),
 			Stream: grpcvalidate.StreamServerInterceptor(true),
 		},
+		additiveOnly:   additiveOnly,
 		caveatsEnabled: caveatsEnabled,
 	}
 }
@@ -41,6 +42,7 @@ type schemaServer struct {
 	v1.UnimplementedSchemaServiceServer
 	shared.WithServiceSpecificInterceptors
 
+	additiveOnly   bool
 	caveatsEnabled bool
 }
 
@@ -105,12 +107,23 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 	// 2) Validate the namespaces defined.
 	newObjectDefNames := util.NewSet[string]()
+	resolver := namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
+		Namespaces: compiled.ObjectDefinitions,
+		Caveats:    compiled.CaveatDefinitions,
+	})
+	if ss.additiveOnly {
+		rev, err := ds.HeadRevision(ctx)
+		if err != nil {
+			return nil, rewriteError(ctx, err)
+		}
+		resolver = namespace.ResolverForDatastoreReader(ds.SnapshotReader(rev)).WithPredefinedElements(namespace.PredefinedElements{
+			Namespaces: compiled.ObjectDefinitions,
+			Caveats:    compiled.CaveatDefinitions,
+		})
+	}
+
 	for _, nsdef := range compiled.ObjectDefinitions {
-		ts, err := namespace.NewNamespaceTypeSystem(nsdef,
-			namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
-				Namespaces: compiled.ObjectDefinitions,
-				Caveats:    compiled.CaveatDefinitions,
-			}))
+		ts, err := namespace.NewNamespaceTypeSystem(nsdef, resolver)
 		if err != nil {
 			return nil, rewriteError(ctx, err)
 		}
@@ -185,13 +198,15 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 			Int("objectDefsWithChanges", len(objectDefsWithChanges)).
 			Msg("validated namespace definitions")
 
-		// Ensure that deleting namespaces will not result in any relationships left without associated
-		// schema.
 		removedObjectDefNames := existingObjectDefNames.Subtract(newObjectDefNames)
-		if err := removedObjectDefNames.ForEach(func(nsdefName string) error {
-			return shared.EnsureNoRelationshipsExist(ctx, rwt, nsdefName)
-		}); err != nil {
-			return err
+		if !ss.additiveOnly {
+			// Ensure that deleting namespaces will not result in any relationships left without associated
+			// schema.
+			if err := removedObjectDefNames.ForEach(func(nsdefName string) error {
+				return shared.EnsureNoRelationshipsExist(ctx, rwt, nsdefName)
+			}); err != nil {
+				return err
+			}
 		}
 
 		// Write the new caveats.
@@ -213,17 +228,19 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 			DispatchCount: uint32(len(objectDefsWithChanges)),
 		})
 
-		// Delete the removed namespaces.
-		if removedObjectDefNames.Len() > 0 {
-			if err := rwt.DeleteNamespaces(ctx, removedObjectDefNames.AsSlice()...); err != nil {
-				return err
+		if !ss.additiveOnly {
+			// Delete the removed namespaces.
+			if removedObjectDefNames.Len() > 0 {
+				if err := rwt.DeleteNamespaces(ctx, removedObjectDefNames.AsSlice()...); err != nil {
+					return err
+				}
 			}
-		}
 
-		// Delete the removed caveats.
-		if !removedCaveatDefNames.IsEmpty() {
-			if err := rwt.DeleteCaveats(ctx, removedCaveatDefNames.AsSlice()); err != nil {
-				return err
+			// Delete the removed caveats.
+			if !removedCaveatDefNames.IsEmpty() {
+				if err := rwt.DeleteCaveats(ctx, removedCaveatDefNames.AsSlice()); err != nil {
+					return err
+				}
 			}
 		}
 

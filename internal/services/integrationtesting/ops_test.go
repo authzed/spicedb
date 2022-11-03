@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	v1alpha1 "github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -680,17 +679,11 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				baseOpsTester: baseOpsTester{permClient: v1.NewPermissionsServiceClient(conn)},
 			}
 		},
-		"v1alpha1": func(conn grpc.ClientConnInterface) opsTester {
-			return v1alpha1OpsTester{
-				schemaClient:  v1alpha1.NewSchemaServiceClient(conn),
-				baseOpsTester: baseOpsTester{permClient: v1.NewPermissionsServiceClient(conn)},
-			}
-		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, testerName := range []string{"v1", "v1alpha1"} {
+			for _, testerName := range []string{"v1"} {
 				t.Run(testerName, func(t *testing.T) {
 					conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)
 					t.Cleanup(cleanup)
@@ -756,22 +749,6 @@ func (st v1OpsTester) Name() string {
 
 func (st v1OpsTester) WriteSchema(ctx context.Context, schemaString string) error {
 	_, err := st.schemaClient.WriteSchema(ctx, &v1.WriteSchemaRequest{
-		Schema: schemaString,
-	})
-	return err
-}
-
-type v1alpha1OpsTester struct {
-	baseOpsTester
-	schemaClient v1alpha1.SchemaServiceClient
-}
-
-func (st v1alpha1OpsTester) Name() string {
-	return "v1alpha1"
-}
-
-func (st v1alpha1OpsTester) WriteSchema(ctx context.Context, schemaString string) error {
-	_, err := st.schemaClient.WriteSchema(ctx, &v1alpha1.WriteSchemaRequest{
 		Schema: schemaString,
 	})
 	return err

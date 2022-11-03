@@ -14,7 +14,6 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/authzed/grpcutil"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
@@ -54,7 +53,7 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	defer conn.Close()
 
-	resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1alpha1.SchemaService"})
+	resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
 	require.NoError(err)
 	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 
@@ -62,7 +61,7 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	defer roConn.Close()
 
-	resp, err = healthpb.NewHealthClient(roConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1alpha1.SchemaService"})
+	resp, err = healthpb.NewHealthClient(roConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
 	require.NoError(err)
 	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 
@@ -192,10 +191,10 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string)
 			return false
 		}
 
-		client := v1alpha1.NewSchemaServiceClient(conn)
+		client := v1.NewSchemaServiceClient(conn)
 
 		// Write a basic schema.
-		_, err = client.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 			Schema: `
 			definition user {}
 			
