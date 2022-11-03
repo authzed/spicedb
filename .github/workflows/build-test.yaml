@@ -43,6 +43,8 @@ jobs:
         with:
           go-version: "${{ env.GO_VERSION }}"
           cache: "true"
+      - name: "go mod download" # prevent CI cache poisoning by getting all deps
+        run: "go mod download"
       - uses: "authzed/actions/go-build@main"
 
   image-build:
@@ -182,7 +184,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
+          cache: "false" # do not cache to prevent cache poisoning
       - name: "Install wasmbrowsertest"
         run: "go install github.com/agnivade/wasmbrowsertest@latest"
       - name: "Run WASM Tests"
@@ -196,7 +198,7 @@ jobs:
       - uses: "actions/setup-go@v3"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
+          cache: "false" # do not cache to prevent cache poisoning
       - name: "Install Go Tools"
         run: "./hack/install-tools.sh"
       - uses: "authzed/actions/buf-generate@main"
