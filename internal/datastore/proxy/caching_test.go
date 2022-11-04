@@ -136,6 +136,51 @@ func TestRWTNamespaceCaching(t *testing.T) {
 	rwtMock.AssertExpectations(t)
 }
 
+func TestRWTNamespaceCacheWithWrites(t *testing.T) {
+	dsMock := &proxy_test.MockDatastore{}
+	rwtMock := &proxy_test.MockReadWriteTransaction{}
+
+	require := require.New(t)
+
+	dsMock.On("ReadWriteTx").Return(rwtMock, one, nil).Once()
+	notFoundErr := datastore.NewNamespaceNotFoundErr(nsA)
+	rwtMock.On("ReadNamespace", nsA).Return(nil, zero, notFoundErr).Once()
+
+	ctx := context.Background()
+
+	ds := NewCachingDatastoreProxy(dsMock, nil)
+
+	rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		// Cache the 404
+		_, _, err := rwt.ReadNamespace(ctx, nsA)
+		require.ErrorIs(err, notFoundErr)
+
+		// This will not call out the mock RWT again, the mock will panic if it does.
+		_, _, err = rwt.ReadNamespace(ctx, nsA)
+		require.Error(err, notFoundErr)
+
+		// Write nsA
+		nsADef := &core.NamespaceDefinition{Name: nsA}
+		rwtMock.On("WriteNamespaces", []*core.NamespaceDefinition{nsADef}).Return(nil).Once()
+		require.NoError(rwt.WriteNamespaces(ctx, nsADef))
+
+		// Call ReadNamespace on nsA and we should flow through to the mock
+		rwtMock.On("ReadNamespace", nsA).Return(nsADef, zero, nil).Once()
+		def, updatedA, err := rwt.ReadNamespace(ctx, nsA)
+
+		require.True(updatedA.Equal(zero))
+		require.NotNil(def)
+		require.NoError(err)
+
+		return nil
+	})
+	require.True(one.Equal(rev))
+	require.NoError(err)
+
+	dsMock.AssertExpectations(t)
+	rwtMock.AssertExpectations(t)
+}
+
 func TestSingleFlight(t *testing.T) {
 	dsMock := &proxy_test.MockDatastore{}
 
