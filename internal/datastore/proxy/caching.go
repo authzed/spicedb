@@ -139,7 +139,7 @@ func (rwt *nsCachingRWT) ReadNamespace(
 		entry = untypedEntry.(rwtCacheEntry)
 	} else {
 		loaded, updatedRev, err := rwt.ReadWriteTransaction.ReadNamespace(ctx, nsName)
-		if err != nil && !errors.Is(err, &datastore.ErrNamespaceNotFound{}) {
+		if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			// Propagate this error to the caller
 			return nil, datastore.NoRevision, err
 		}
@@ -149,6 +149,18 @@ func (rwt *nsCachingRWT) ReadNamespace(
 	}
 
 	return entry.loaded, entry.updated, entry.notFound
+}
+
+func (rwt *nsCachingRWT) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	if err := rwt.ReadWriteTransaction.WriteNamespaces(ctx, newConfigs...); err != nil {
+		return err
+	}
+
+	for _, nsDef := range newConfigs {
+		rwt.namespaceCache.Delete(nsDef.Name)
+	}
+
+	return nil
 }
 
 type cacheEntry struct {
