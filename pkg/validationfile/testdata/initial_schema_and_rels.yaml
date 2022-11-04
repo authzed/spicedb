@@ -1,0 +1,24 @@
+---
+schema: >-
+  definition example/user {}
+
+
+  definition example/project {
+      relation reader: example/user
+      relation writer: example/user
+      relation owner: example/user
+
+      permission read = reader + write
+      permission write = writer + admin
+      permission admin = owner
+  }
+relationships: >-
+  example/project:pied_piper#owner@example/user:milburga
+
+  example/project:pied_piper#reader@example/user:tarben
+
+  example/project:pied_piper#writer@example/user:freyja
+assertions:
+  assertTrue: []
+  assertFalse: []
+validation: null
