@@ -18,7 +18,6 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -99,38 +98,6 @@ func NewExceedsMaximumPreconditionsErr(preconditionCount uint16, maxCountAllowed
 	}
 }
 
-// ErrCaveatNotFound indicates that a caveat referenced in a relationship update was not found.
-type ErrCaveatNotFound struct {
-	error
-	update *v1.RelationshipUpdate
-}
-
-// NewCaveatNotFoundError constructs a new caveat not found error.
-func NewCaveatNotFoundError(update *v1.RelationshipUpdate) ErrCaveatNotFound {
-	return ErrCaveatNotFound{
-		error: fmt.Errorf(
-			"the caveat `%s` was not found for relationship `%s`",
-			update.Relationship.OptionalCaveat.CaveatName,
-			tuple.StringRelationship(update.Relationship),
-		),
-		update: update,
-	}
-}
-
-// GRPCStatus implements retrieving the gRPC status for the error.
-func (err ErrCaveatNotFound) GRPCStatus() *status.Status {
-	return spiceerrors.WithCodeAndDetails(
-		err,
-		codes.FailedPrecondition,
-		spiceerrors.ForReason(
-			v1.ErrorReason_ERROR_REASON_UNKNOWN_CAVEAT,
-			map[string]string{
-				"caveat_name": err.update.Relationship.OptionalCaveat.CaveatName,
-			},
-		),
-	)
-}
-
 // ErrPreconditionFailed occurs when the precondition to a write tuple call does not match.
 type ErrPreconditionFailed struct {
 	error
@@ -187,36 +154,33 @@ func (err ErrPreconditionFailed) GRPCStatus() *status.Status {
 	)
 }
 
-// ErrInvalidSubject indicates that the subject type given to an update is invalid.
-type ErrInvalidSubject struct {
+// ErrDuplicateRelationshipError indicates that an update was attempted on the same relationship.
+type ErrDuplicateRelationshipError struct {
 	error
-	update          *v1.RelationshipUpdate
-	relationToCheck *core.AllowedRelation
+	update *v1.RelationshipUpdate
 }
 
-// NewInvalidSubjectErr constructs a new invalid subject error.
-func NewInvalidSubjectErr(update *v1.RelationshipUpdate, relationToCheck *core.AllowedRelation) ErrInvalidSubject {
-	return ErrInvalidSubject{
+// NewDuplicateRelationshipErr constructs a new invalid subject error.
+func NewDuplicateRelationshipErr(update *v1.RelationshipUpdate) ErrDuplicateRelationshipError {
+	return ErrDuplicateRelationshipError{
 		error: fmt.Errorf(
-			"subjects of type `%s` are not allowed on relation `%v`",
-			namespace.SourceForAllowedRelation(relationToCheck),
-			tuple.StringObjectRef(update.Relationship.Resource),
+			"found more than one update for relationship `%s` in this request",
+			tuple.MustRelString(update.Relationship),
 		),
-		update:          update,
-		relationToCheck: relationToCheck,
+		update: update,
 	}
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
-func (err ErrInvalidSubject) GRPCStatus() *status.Status {
+func (err ErrDuplicateRelationshipError) GRPCStatus() *status.Status {
 	return spiceerrors.WithCodeAndDetails(
 		err,
-		codes.FailedPrecondition,
+		codes.InvalidArgument,
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_INVALID_SUBJECT_TYPE,
 			map[string]string{
-				"relation_name": err.update.Relationship.Relation,
-				"subject_type":  namespace.SourceForAllowedRelation(err.relationToCheck),
+				"definition_name": err.update.Relationship.Resource.ObjectType,
+				"relationship":    tuple.MustRelString(err.update.Relationship),
 			},
 		),
 	)

@@ -551,7 +551,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 				rel("document", "somedoc", "parent", "user", "tom", ""),
 			},
 			codes.InvalidArgument,
-			"duplicate",
+			"found more than one update",
 		},
 		{
 			"disallowed caveat",
