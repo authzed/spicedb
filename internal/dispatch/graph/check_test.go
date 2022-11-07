@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	log "github.com/authzed/spicedb/internal/logging"
-
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -15,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/graph"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -25,7 +25,16 @@ import (
 
 var ONR = tuple.ObjectAndRelation
 
+var goleakIgnores = []goleak.Option{
+	goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"),
+	goleak.IgnoreTopFunction("github.com/dgraph-io/ristretto.(*lfuPolicy).processItems"),
+	goleak.IgnoreTopFunction("github.com/dgraph-io/ristretto.(*Cache).processItems"),
+	goleak.IgnoreCurrent(),
+}
+
 func TestSimpleCheck(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
 	type expected struct {
 		relation string
 		isMember bool

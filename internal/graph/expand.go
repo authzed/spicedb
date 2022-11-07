@@ -284,7 +284,7 @@ func expandSetOperation(
 
 	resultChans := make([]chan ExpandResult, 0, len(requests))
 	for _, req := range requests {
-		resultChan := make(chan ExpandResult)
+		resultChan := make(chan ExpandResult, 1)
 		resultChans = append(resultChans, resultChan)
 		go req(childCtx, resultChan)
 	}

@@ -6,13 +6,13 @@ import (
 	"sort"
 	"testing"
 
-	log "github.com/authzed/spicedb/internal/logging"
-
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -22,6 +22,8 @@ import (
 )
 
 func TestSimpleLookupSubjects(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
 	testCases := []struct {
 		resourceType     string
 		resourceID       string

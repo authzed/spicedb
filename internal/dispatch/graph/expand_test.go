@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -129,6 +130,8 @@ var (
 )
 
 func TestExpand(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
 	testCases := []struct {
 		start                 *core.ObjectAndRelation
 		expansionMode         v1.DispatchExpandRequest_ExpansionMode
@@ -264,6 +267,8 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 }
 
 func TestMaxDepthExpand(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
 	require := require.New(t)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
