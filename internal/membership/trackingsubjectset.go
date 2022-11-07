@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/authzed/spicedb/pkg/tuple"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 
 	"github.com/authzed/spicedb/internal/util"
 )
@@ -62,22 +65,19 @@ func (tss *TrackingSubjectSet) getSetForKey(key string) util.BaseSubjectSet[Foun
 	parts := strings.Split(key, "#")
 
 	created := util.NewBaseSubjectSet[FoundSubject](
-		func(subjectID string, excludedSubjectIDs []string, sources ...FoundSubject) FoundSubject {
+		func(subjectID string, caveatExpression *v1.CaveatExpression, excludedSubjects []FoundSubject, sources ...FoundSubject) FoundSubject {
 			fs := NewFoundSubject(&core.ObjectAndRelation{
 				Namespace: parts[0],
 				ObjectId:  subjectID,
 				Relation:  parts[1],
 			})
-			fs.excludedSubjectIds = excludedSubjectIDs
+			fs.excludedSubjects = excludedSubjects
+			fs.caveatExpression = caveatExpression
 			for _, source := range sources {
-				fs.relationships.UpdateFrom(source.relationships)
+				if source.relationships != nil {
+					fs.relationships.UpdateFrom(source.relationships)
+				}
 			}
-			return fs
-		},
-		func(existing FoundSubject, added FoundSubject) FoundSubject {
-			fs := NewFoundSubject(existing.subject)
-			fs.excludedSubjectIds = existing.excludedSubjectIds
-			fs.relationships = existing.relationships.Union(added.relationships)
 			return fs
 		},
 	)
@@ -149,6 +149,16 @@ func (tss TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
 			})
 		}
 	}
+}
+
+func (tss TrackingSubjectSet) getSubjects() []string {
+	var subjects []string
+	for _, subjectSet := range tss.setByType {
+		for _, foundSubject := range subjectSet.AsSlice() {
+			subjects = append(subjects, tuple.StringONR(foundSubject.subject))
+		}
+	}
+	return subjects
 }
 
 // ToSlice returns a slice of all subjects found in the set.

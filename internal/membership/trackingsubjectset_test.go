@@ -45,10 +45,15 @@ func subtract(firstSet *TrackingSubjectSet, sets ...*TrackingSubjectSet) *Tracki
 }
 
 func fs(subjectType string, subjectID string, subjectRel string, excludedSubjectIDs ...string) FoundSubject {
+	excludedSubjects := make([]FoundSubject, 0, len(excludedSubjectIDs))
+	for _, excludedSubjectID := range excludedSubjectIDs {
+		excludedSubjects = append(excludedSubjects, FoundSubject{subject: ONR(subjectType, excludedSubjectID, subjectRel)})
+	}
+
 	return FoundSubject{
-		subject:            ONR(subjectType, subjectID, subjectRel),
-		excludedSubjectIds: excludedSubjectIDs,
-		relationships:      tuple.NewONRSet(),
+		subject:          ONR(subjectType, subjectID, subjectRel),
+		excludedSubjects: excludedSubjects,
+		relationships:    tuple.NewONRSet(),
 	}
 }
 
@@ -330,8 +335,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 					found, ok := tc.set.Get(fs.subject)
 					require.True(ok, "missing expected subject %s", fs.subject)
 
-					expectedExcluded := util.NewSet[string](fs.excludedSubjectIds...)
-					foundExcluded := util.NewSet[string](found.excludedSubjectIds...)
+					expectedExcluded := util.NewSet[string](fs.excludedSubjectIDs()...)
+					foundExcluded := util.NewSet[string](found.excludedSubjectIDs()...)
 					require.Len(expectedExcluded.Subtract(foundExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
 					require.Len(foundExcluded.Subtract(expectedExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
 				} else {
@@ -340,7 +345,7 @@ func TestTrackingSubjectSet(t *testing.T) {
 				tc.set.removeExact(fs.subject)
 			}
 
-			require.True(tc.set.IsEmpty())
+			require.True(tc.set.IsEmpty(), "Found remaining: %v", tc.set.getSubjects())
 		})
 	}
 }

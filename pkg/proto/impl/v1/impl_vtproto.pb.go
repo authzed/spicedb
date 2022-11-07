@@ -292,6 +292,319 @@ func (m *V1Alpha1Revision) CloneGenericVT() proto.Message {
 	return m.CloneVT()
 }
 
+func (this *DecodedCaveat) EqualVT(that *DecodedCaveat) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.KindOneof == nil && that.KindOneof != nil {
+		return false
+	} else if this.KindOneof != nil {
+		if that.KindOneof == nil {
+			return false
+		}
+		if !this.KindOneof.(interface {
+			EqualVT(isDecodedCaveat_KindOneof) bool
+		}).EqualVT(that.KindOneof) {
+			return false
+		}
+	}
+	if this.Name != that.Name {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DecodedCaveat_Cel) EqualVT(thatIface isDecodedCaveat_KindOneof) bool {
+	that, ok := thatIface.(*DecodedCaveat_Cel)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Cel, that.Cel; p != q {
+		if p == nil {
+			p = &v1alpha1.CheckedExpr{}
+		}
+		if q == nil {
+			q = &v1alpha1.CheckedExpr{}
+		}
+		if equal, ok := interface{}(p).(interface {
+			EqualVT(*v1alpha1.CheckedExpr) bool
+		}); ok {
+			if !equal.EqualVT(q) {
+				return false
+			}
+		} else if !proto.Equal(p, q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *DecodedZookie_V1Zookie) EqualVT(that *DecodedZookie_V1Zookie) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Revision != that.Revision {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DecodedZookie_V2Zookie) EqualVT(that *DecodedZookie_V2Zookie) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Revision != that.Revision {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DecodedZookie) EqualVT(that *DecodedZookie) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.VersionOneof == nil && that.VersionOneof != nil {
+		return false
+	} else if this.VersionOneof != nil {
+		if that.VersionOneof == nil {
+			return false
+		}
+		if !this.VersionOneof.(interface {
+			EqualVT(isDecodedZookie_VersionOneof) bool
+		}).EqualVT(that.VersionOneof) {
+			return false
+		}
+	}
+	if this.Version != that.Version {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DecodedZookie_V1) EqualVT(thatIface isDecodedZookie_VersionOneof) bool {
+	that, ok := thatIface.(*DecodedZookie_V1)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.V1, that.V1; p != q {
+		if p == nil {
+			p = &DecodedZookie_V1Zookie{}
+		}
+		if q == nil {
+			q = &DecodedZookie_V1Zookie{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *DecodedZookie_V2) EqualVT(thatIface isDecodedZookie_VersionOneof) bool {
+	that, ok := thatIface.(*DecodedZookie_V2)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.V2, that.V2; p != q {
+		if p == nil {
+			p = &DecodedZookie_V2Zookie{}
+		}
+		if q == nil {
+			q = &DecodedZookie_V2Zookie{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *DecodedZedToken_V1Zookie) EqualVT(that *DecodedZedToken_V1Zookie) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Revision != that.Revision {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DecodedZedToken_V1ZedToken) EqualVT(that *DecodedZedToken_V1ZedToken) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Revision != that.Revision {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DecodedZedToken) EqualVT(that *DecodedZedToken) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.VersionOneof == nil && that.VersionOneof != nil {
+		return false
+	} else if this.VersionOneof != nil {
+		if that.VersionOneof == nil {
+			return false
+		}
+		if !this.VersionOneof.(interface {
+			EqualVT(isDecodedZedToken_VersionOneof) bool
+		}).EqualVT(that.VersionOneof) {
+			return false
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DecodedZedToken_DeprecatedV1Zookie) EqualVT(thatIface isDecodedZedToken_VersionOneof) bool {
+	that, ok := thatIface.(*DecodedZedToken_DeprecatedV1Zookie)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.DeprecatedV1Zookie, that.DeprecatedV1Zookie; p != q {
+		if p == nil {
+			p = &DecodedZedToken_V1Zookie{}
+		}
+		if q == nil {
+			q = &DecodedZedToken_V1Zookie{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *DecodedZedToken_V1) EqualVT(thatIface isDecodedZedToken_VersionOneof) bool {
+	that, ok := thatIface.(*DecodedZedToken_V1)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.V1, that.V1; p != q {
+		if p == nil {
+			p = &DecodedZedToken_V1ZedToken{}
+		}
+		if q == nil {
+			q = &DecodedZedToken_V1ZedToken{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *DocComment) EqualVT(that *DocComment) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Comment != that.Comment {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *RelationMetadata) EqualVT(that *RelationMetadata) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.Kind != that.Kind {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *NamespaceAndRevision) EqualVT(that *NamespaceAndRevision) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if this.NamespaceName != that.NamespaceName {
+		return false
+	}
+	if this.Revision != that.Revision {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *V1Alpha1Revision) EqualVT(that *V1Alpha1Revision) bool {
+	if this == nil {
+		return that == nil
+	} else if that == nil {
+		return false
+	}
+	if len(this.NsRevisions) != len(that.NsRevisions) {
+		return false
+	}
+	for i, vx := range this.NsRevisions {
+		vy := that.NsRevisions[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &NamespaceAndRevision{}
+			}
+			if q == nil {
+				q = &NamespaceAndRevision{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
 func (m *DecodedCaveat) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil

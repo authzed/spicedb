@@ -161,7 +161,8 @@ message DispatchLookupSubjectsRequest {
 
 message FoundSubject {
   string subject_id = 1;
-  repeated string excluded_subject_ids = 2;
+  CaveatExpression caveat_expression = 2;
+  repeated FoundSubject excluded_subjects = 3;
 }
 
 message DispatchLookupSubjectsResponse {

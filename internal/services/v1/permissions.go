@@ -430,9 +430,14 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 
 	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
 		for _, foundSubject := range result.FoundSubjects {
+			excludedSubjectIDs := make([]string, 0, len(foundSubject.ExcludedSubjects))
+			for _, excludedSubject := range foundSubject.ExcludedSubjects {
+				excludedSubjectIDs = append(excludedSubjectIDs, excludedSubject.SubjectId)
+			}
+
 			err := resp.Send(&v1.LookupSubjectsResponse{
 				SubjectObjectId:    foundSubject.SubjectId,
-				ExcludedSubjectIds: foundSubject.ExcludedSubjectIds,
+				ExcludedSubjectIds: excludedSubjectIDs,
 				LookedUpAt:         revisionReadAt,
 			})
 			if err != nil {

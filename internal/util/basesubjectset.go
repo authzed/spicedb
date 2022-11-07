@@ -1,212 +1,172 @@
 package util
 
 import (
+	"fmt"
+
 	"golang.org/x/exp/maps"
 
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// Subject is a subject that can be placed into a BaseSubjectSet.
-type Subject interface {
+// Subject is a subject that can be placed into a BaseSubjectSet. It is defined in a generic
+// manner to allow implementations that wrap BaseSubjectSet to add their own additional bookkeeping
+// to the base implementation.
+type Subject[T any] interface {
 	// GetSubjectId returns the ID of the subject. For wildcards, this should be `*`.
 	GetSubjectId() string
 
-	// GetExcludedSubjectIds returns the list of subject IDs excluded. Should only have values
-	// for wildcards.
-	GetExcludedSubjectIds() []string
+	// GetCaveatExpression returns the caveat expression for this subject, if it is conditional.
+	GetCaveatExpression() *v1.CaveatExpression
+
+	// GetExcludedSubjects returns the list of subjects excluded. Must only have values
+	// for wildcards and must never be nested.
+	GetExcludedSubjects() []T
 }
 
-// BaseSubjectSet defines a set that tracks accessible subjects. It is generic to allow
-// other implementations to define the kind of tracking information associated with each subject.
+// BaseSubjectSet defines a set that tracks accessible subjects, their exclusions (if wildcards),
+// and all conditional expressions applied due to caveats.
+//
+// It is generic to allow other implementations to define the kind of tracking information
+// associated with each subject.
 //
 // NOTE: Unlike a traditional set, unions between wildcards and a concrete subject will result
 // in *both* being present in the set, to maintain the proper set semantics around wildcards.
-type BaseSubjectSet[T Subject] struct {
-	values      map[string]T
-	constructor func(subjectID string, excludedSubjectIDs []string, sources ...T) T
-	combiner    func(existing T, added T) T
+type BaseSubjectSet[T Subject[T]] struct {
+	constructor constructor[T]
+	concrete    map[string]T
+	wildcard    *handle[T]
 }
 
 // NewBaseSubjectSet creates a new base subject set for use underneath well-typed implementation.
 //
-// The constructor function is a function that returns a new instancre of type T for a particular
-// subject ID.
-// The combiner function is optional, and if given, is used to combine existing elements in the
-// set into a new element. This is typically used in debug packages for tracking of additional
-// metadata.
-func NewBaseSubjectSet[T Subject](
-	constructor func(subjectID string, excludedSubjectIDs []string, sources ...T) T,
-	combiner func(existing T, added T) T,
-) BaseSubjectSet[T] {
+// The constructor function returns a new instance of type T for a particular subject ID.
+func NewBaseSubjectSet[T Subject[T]](constructor constructor[T]) BaseSubjectSet[T] {
 	return BaseSubjectSet[T]{
-		values:      map[string]T{},
 		constructor: constructor,
-		combiner:    combiner,
+		concrete:    map[string]T{},
+		wildcard:    newHandle[T](),
 	}
 }
+
+// constructor defines a function for constructing a new instance of the Subject type T for
+// a subject ID, its (optional) conditional expression, any excluded subjects, and any sources
+// for bookkeeping. The sources are those other subjects that were combined to create the current
+// subject.
+type constructor[T Subject[T]] func(subjectID string, conditionalExpression *v1.CaveatExpression, excludedSubjects []T, sources ...T) T
 
 // Add adds the found subject to the set. This is equivalent to a Union operation between the
-// existing set of subjects and a set containing the single subject.
-func (bss BaseSubjectSet[T]) Add(foundSubject T) bool {
-	existing, ok := bss.values[foundSubject.GetSubjectId()]
-	if !ok {
-		bss.values[foundSubject.GetSubjectId()] = foundSubject
-	}
-
+// existing set of subjects and a set containing the single subject, but modifies the set
+// *in place*.
+func (bss BaseSubjectSet[T]) Add(foundSubject T) {
 	if foundSubject.GetSubjectId() == tuple.PublicWildcard {
-		if ok {
-			// Intersect any exceptions, as union between one wildcard and another is a wildcard
-			// with the exceptions intersected.
-			//
-			// As a concrete example, given `user:* - user:tom` and `user:* - user:sarah`, the union
-			// of the two will be `*`, since each handles the other user.
-			excludedIds := NewSet[string](existing.GetExcludedSubjectIds()...).IntersectionDifference(NewSet[string](foundSubject.GetExcludedSubjectIds()...))
-			bss.values[tuple.PublicWildcard] = bss.constructor(tuple.PublicWildcard, excludedIds.AsSlice(), existing, foundSubject)
+		existing := bss.wildcard.getOrNil()
+		existing = unionWildcardWithWildcard(existing, foundSubject, bss.constructor)
+		bss.wildcard.setOrNil(existing)
+
+		for _, concrete := range bss.concrete {
+			existing = unionWildcardWithConcrete(existing, concrete, bss.constructor)
 		}
-	} else {
-		// If there is an existing wildcard, remove the subject from its exclusions list.
-		if existingWildcard, ok := bss.values[tuple.PublicWildcard]; ok {
-			excludedIds := NewSet[string](existingWildcard.GetExcludedSubjectIds()...)
-			excludedIds.Remove(foundSubject.GetSubjectId())
-			bss.values[tuple.PublicWildcard] = bss.constructor(tuple.PublicWildcard, excludedIds.AsSlice(), existingWildcard)
-		}
-	}
-
-	if bss.combiner != nil && ok {
-		bss.values[foundSubject.GetSubjectId()] = bss.combiner(bss.values[foundSubject.GetSubjectId()], foundSubject)
-	}
-
-	return !ok
-}
-
-// Subtract subtracts the given subject found the set.
-func (bss BaseSubjectSet[T]) Subtract(foundSubject T) {
-	// If the subject being removed is a wildcard, then remove any non-excluded items and adjust
-	// the existing wildcard.
-	if foundSubject.GetSubjectId() == tuple.PublicWildcard {
-		exclusions := NewSet[string](foundSubject.GetExcludedSubjectIds()...)
-		for existingSubjectID := range bss.values {
-			if existingSubjectID == tuple.PublicWildcard {
-				continue
-			}
-
-			if !exclusions.Has(existingSubjectID) {
-				delete(bss.values, existingSubjectID)
-			}
-		}
-
-		// Check for an existing wildcard and adjust accordingly.
-		if existing, ok := bss.values[tuple.PublicWildcard]; ok {
-			// A subtraction of a wildcard from another wildcard subtracts the exclusions from the second.
-			// from the first, and places them into the subject set directly.
-			//
-			// As a concrete example, given `user:* - user:tom` - `user:* - user:sarah`, the subtraction
-			// of the two will be `user:sarah`, since sarah is in the first set and not in the second.
-			existingExclusions := NewSet[string](existing.GetExcludedSubjectIds()...)
-			for _, subjectID := range foundSubject.GetExcludedSubjectIds() {
-				if !existingExclusions.Has(subjectID) {
-					bss.values[subjectID] = bss.constructor(subjectID, nil, foundSubject)
-				}
-			}
-		}
-
-		delete(bss.values, tuple.PublicWildcard)
+		bss.wildcard.setOrNil(existing)
 		return
 	}
 
-	// Remove the subject itself from the set.
-	delete(bss.values, foundSubject.GetSubjectId())
+	var existingOrNil *T
+	if existing, ok := bss.concrete[foundSubject.GetSubjectId()]; ok {
+		existingOrNil = &existing
+	}
+	bss.setConcrete(foundSubject.GetSubjectId(), unionConcreteWithConcrete(existingOrNil, &foundSubject, bss.constructor))
 
-	// If wildcard exists within the subject set, add the found subject to the exclusion list.
-	if wildcard, ok := bss.values[tuple.PublicWildcard]; ok {
-		exclusions := NewSet[string](wildcard.GetExcludedSubjectIds()...)
-		exclusions.Add(foundSubject.GetSubjectId())
-		bss.values[tuple.PublicWildcard] = bss.constructor(tuple.PublicWildcard, exclusions.AsSlice(), wildcard)
+	wildcard := bss.wildcard.getOrNil()
+	wildcard = unionWildcardWithConcrete(wildcard, foundSubject, bss.constructor)
+	bss.wildcard.setOrNil(wildcard)
+}
+
+func (bss BaseSubjectSet[T]) setConcrete(subjectID string, subjectOrNil *T) {
+	if subjectOrNil == nil {
+		delete(bss.concrete, subjectID)
+		return
+	}
+
+	subject := *subjectOrNil
+	bss.concrete[subject.GetSubjectId()] = subject
+}
+
+// Subtract subtracts the given subject found the set.
+func (bss BaseSubjectSet[T]) Subtract(toRemove T) {
+	if toRemove.GetSubjectId() == tuple.PublicWildcard {
+		for _, concrete := range bss.concrete {
+			bss.setConcrete(concrete.GetSubjectId(), subtractWildcardFromConcrete(concrete, toRemove, bss.constructor))
+		}
+
+		existing := bss.wildcard.getOrNil()
+		updatedWildcard, concretesToAdd := subtractWildcardFromWildcard(existing, toRemove, bss.constructor)
+		bss.wildcard.setOrNil(updatedWildcard)
+		for _, concrete := range concretesToAdd {
+			concrete := concrete
+			bss.setConcrete(concrete.GetSubjectId(), &concrete)
+		}
+		return
+	}
+
+	if existing, ok := bss.concrete[toRemove.GetSubjectId()]; ok {
+		bss.setConcrete(toRemove.GetSubjectId(), subtractConcreteFromConcrete(existing, toRemove, bss.constructor))
+	}
+
+	wildcard, ok := bss.wildcard.get()
+	if ok {
+		bss.wildcard.setOrNil(subtractConcreteFromWildcard(wildcard, toRemove, bss.constructor))
 	}
 }
 
 // SubtractAll subtracts the other set of subjects from this set of subtracts, modifying this
-// set in place.
+// set *in place*.
 func (bss BaseSubjectSet[T]) SubtractAll(other BaseSubjectSet[T]) {
-	for _, fs := range other.values {
-		bss.Subtract(fs)
+	for _, otherSubject := range other.AsSlice() {
+		bss.Subtract(otherSubject)
 	}
 }
 
 // IntersectionDifference performs an intersection between this set and the other set, modifying
-// this set in place.
+// this set *in place*.
 func (bss BaseSubjectSet[T]) IntersectionDifference(other BaseSubjectSet[T]) {
-	// Check if the other set has a wildcard. If so, remove any subjects found in the exclusion
-	// list.
-	//
-	// As a concrete example, given `user:tom` and `user:* - user:sarah`, the intersection should
-	// return `user:tom`, because everyone but `sarah` (including `tom`) is in the second set.
-	otherWildcard, hasOtherWildcard := other.values[tuple.PublicWildcard]
-	if hasOtherWildcard {
-		exclusion := NewSet[string](otherWildcard.GetExcludedSubjectIds()...)
-		for subjectID := range bss.values {
-			if subjectID != tuple.PublicWildcard {
-				if exclusion.Has(subjectID) {
-					delete(bss.values, subjectID)
-				}
+	// Intersect the wildcards of the sets, if any.
+	existingWildcard := bss.wildcard.getOrNil()
+	otherWildcard := other.wildcard.getOrNil()
+	bss.wildcard.setOrNil(intersectWildcardWithWildcard(existingWildcard, otherWildcard, bss.constructor))
+
+	// Intersect the concretes of each set, as well as with the wildcards.
+	updatedConcretes := make(map[string]T, len(bss.concrete))
+
+	for _, concreteSubject := range bss.concrete {
+		var otherConcreteOrNil *T
+		if otherConcrete, ok := other.concrete[concreteSubject.GetSubjectId()]; ok {
+			otherConcreteOrNil = &otherConcrete
+		}
+
+		concreteIntersected := intersectConcreteWithConcrete(concreteSubject, otherConcreteOrNil, bss.constructor)
+		otherWildcardIntersected := intersectConcreteWithWildcard(concreteSubject, otherWildcard, bss.constructor)
+
+		result := unionConcreteWithConcrete(concreteIntersected, otherWildcardIntersected, bss.constructor)
+		if result != nil {
+			updatedConcretes[concreteSubject.GetSubjectId()] = *result
+		}
+	}
+
+	if existingWildcard != nil {
+		for _, otherSubject := range other.concrete {
+			existingWildcardIntersect := intersectConcreteWithWildcard(otherSubject, existingWildcard, bss.constructor)
+			if existingUpdated, ok := updatedConcretes[otherSubject.GetSubjectId()]; ok {
+				result := unionConcreteWithConcrete(&existingUpdated, existingWildcardIntersect, bss.constructor)
+				updatedConcretes[otherSubject.GetSubjectId()] = *result
+			} else if existingWildcardIntersect != nil {
+				updatedConcretes[otherSubject.GetSubjectId()] = *existingWildcardIntersect
 			}
 		}
 	}
 
-	// Remove any concrete subjects, if the other does not have a wildcard.
-	if !hasOtherWildcard {
-		for subjectID := range bss.values {
-			if subjectID != tuple.PublicWildcard {
-				if _, ok := other.values[subjectID]; !ok {
-					delete(bss.values, subjectID)
-				}
-			}
-		}
-	}
-
-	// Handle the case where the current set has a wildcard. We have to do two operations:
-	//
-	// 1) If the current set has a wildcard, either add the exclusions together if the other set
-	// also has a wildcard, or remove it if it did not.
-	//
-	// 2) We also add in any other set members that  are not in the wildcard's exclusion set, as
-	// an intersection between a wildcard with exclusions and concrete types will always return
-	// concrete types as well.
-	if wildcard, ok := bss.values[tuple.PublicWildcard]; ok {
-		exclusions := NewSet[string](wildcard.GetExcludedSubjectIds()...)
-
-		if hasOtherWildcard {
-			toBeExcluded := NewSet[string]()
-			toBeExcluded.Extend(wildcard.GetExcludedSubjectIds())
-			toBeExcluded.Extend(otherWildcard.GetExcludedSubjectIds())
-			bss.values[tuple.PublicWildcard] = bss.constructor(tuple.PublicWildcard, toBeExcluded.AsSlice(), wildcard, otherWildcard)
-		} else {
-			// Remove this wildcard.
-			delete(bss.values, tuple.PublicWildcard)
-		}
-
-		// Add any concrete items from the other set into this set. This is necebssary because an
-		// intersection between a wildcard and a concrete should always return that concrete, except
-		// if it is within the wildcard's exclusion list.
-		//
-		// As a concrete example, given `user:* - user:tom` and `user:sarah`, the first set contains
-		// all users except `tom` (and thus includes `sarah`) and the second is `sarah`, so the result
-		// must include `sarah`.
-		for subjectID, fs := range other.values {
-			if subjectID != tuple.PublicWildcard && !exclusions.Has(subjectID) {
-				bss.values[subjectID] = fs
-			}
-		}
-	}
-
-	// If a combiner is defined, run it over all values from both sets.
-	if bss.combiner != nil {
-		for subjectID := range bss.values {
-			if added, ok := other.values[subjectID]; ok {
-				bss.values[subjectID] = bss.combiner(bss.values[subjectID], added)
-			}
-		}
-	}
+	maps.Clear(bss.concrete)
+	maps.Copy(bss.concrete, updatedConcretes)
 }
 
 // UnionWith adds the given subjects to this set, via a union call.
@@ -217,39 +177,655 @@ func (bss BaseSubjectSet[T]) UnionWith(foundSubjects []T) {
 }
 
 // UnionWithSet performs a union operation between this set and the other set, modifying this
-// set in place.
+// set *in place*.
 func (bss BaseSubjectSet[T]) UnionWithSet(other BaseSubjectSet[T]) {
 	bss.UnionWith(other.AsSlice())
 }
 
 // Get returns the found subject with the given ID in the set, if any.
 func (bss BaseSubjectSet[T]) Get(id string) (T, bool) {
-	found, ok := bss.values[id]
+	if id == tuple.PublicWildcard {
+		return bss.wildcard.get()
+	}
+
+	found, ok := bss.concrete[id]
 	return found, ok
 }
 
 // IsEmpty returns whether the subject set is empty.
 func (bss BaseSubjectSet[T]) IsEmpty() bool {
-	return len(bss.values) == 0
+	return bss.wildcard.getOrNil() == nil && len(bss.concrete) == 0
 }
 
 // AsSlice returns the contents of the subject set as a slice of found subjects.
 func (bss BaseSubjectSet[T]) AsSlice() []T {
-	slice := make([]T, 0, len(bss.values))
-	for _, fs := range bss.values {
-		slice = append(slice, fs)
+	values := maps.Values(bss.concrete)
+	if wildcard, ok := bss.wildcard.get(); ok {
+		values = append(values, wildcard)
 	}
-	return slice
+	return values
 }
 
 // Clone returns a clone of this subject set. Note that this is a shallow clone.
 // NOTE: Should only be used when performance is not a concern.
 func (bss BaseSubjectSet[T]) Clone() BaseSubjectSet[T] {
-	return BaseSubjectSet[T]{maps.Clone(bss.values), bss.constructor, bss.combiner}
+	return BaseSubjectSet[T]{
+		constructor: bss.constructor,
+		concrete:    maps.Clone(bss.concrete),
+		wildcard:    bss.wildcard.clone(),
+	}
 }
 
 // UnsafeRemoveExact removes the *exact* matching subject, with no wildcard handling.
 // This should ONLY be used for testing.
 func (bss BaseSubjectSet[T]) UnsafeRemoveExact(foundSubject T) {
-	delete(bss.values, foundSubject.GetSubjectId())
+	if foundSubject.GetSubjectId() == tuple.PublicWildcard {
+		bss.wildcard.clear()
+		return
+	}
+
+	delete(bss.concrete, foundSubject.GetSubjectId())
+}
+
+// unionWildcardWithWildcard performs a union operation over two wildcards, returning the updated
+// wildcard (if any).
+func unionWildcardWithWildcard[T Subject[T]](existing *T, adding T, constructor constructor[T]) *T {
+	// If there is no existing wildcard, return the added one.
+	if existing == nil {
+		return &adding
+	}
+
+	// Otherwise, union together the conditionals for the wildcards and *intersect* their exclusion
+	// sets.
+	existingWildcard := *existing
+	expression := shortcircuitedOr(existingWildcard.GetCaveatExpression(), adding.GetCaveatExpression())
+
+	// Exclusion sets are intersected because if an exclusion is missing from one wildcard
+	// but not the other, the missing element will be, by definition, in that other wildcard.
+	//
+	// Examples:
+	//
+	//	{*} + {*} => {*}
+	//	{* - {user:tom}} + {*} => {*}
+	//	{* - {user:tom}} + {* - {user:sarah}} => {*}
+	//	{* - {user:tom, user:sarah}} + {* - {user:sarah}} => {* - {user:sarah}}
+	//	{*}[c1] + {*} => {*}
+	//	{*}[c1] + {*}[c2] => {*}[c1 || c2]
+
+	// NOTE: since we're only using concretes here, it is safe to reuse the BaseSubjectSet itself.
+	exisingConcreteExclusions := NewBaseSubjectSet(constructor)
+	for _, excludedSubject := range existingWildcard.GetExcludedSubjects() {
+		if excludedSubject.GetSubjectId() == tuple.PublicWildcard {
+			panic("wildcards are not allowed in exclusions")
+		}
+		exisingConcreteExclusions.Add(excludedSubject)
+	}
+
+	foundConcreteExclusions := NewBaseSubjectSet(constructor)
+	for _, excludedSubject := range adding.GetExcludedSubjects() {
+		if excludedSubject.GetSubjectId() == tuple.PublicWildcard {
+			panic("wildcards are not allowed in exclusions")
+		}
+		foundConcreteExclusions.Add(excludedSubject)
+	}
+
+	exisingConcreteExclusions.IntersectionDifference(foundConcreteExclusions)
+
+	constructed := constructor(
+		tuple.PublicWildcard,
+		expression,
+		exisingConcreteExclusions.AsSlice(),
+		*existing,
+		adding)
+	return &constructed
+}
+
+// unionWildcardWithConcrete performs a union operation between a wildcard and a concrete subject
+// being added to the set, returning the updated wildcard (if applciable).
+func unionWildcardWithConcrete[T Subject[T]](existing *T, adding T, constructor constructor[T]) *T {
+	// If there is no existing wildcard, nothing more to do.
+	if existing == nil {
+		return nil
+	}
+
+	// If the concrete is in the exclusion set, remove it if not conditional. Otherwise, mark
+	// it as conditional.
+	//
+	// Examples:
+	//  {*} | {user:tom} => {*} (and user:tom in the concrete)
+	//  {* - {user:tom}} | {user:tom} => {*} (and user:tom in the concrete)
+	//  {* - {user:tom}[c1]} | {user:tom}[c2] => {* - {user:tom}[c1 && !c2]} (and user:tom in the concrete)
+	existingWildcard := *existing
+	updatedExclusions := make([]T, 0, len(existingWildcard.GetExcludedSubjects()))
+	for _, existingExclusion := range existingWildcard.GetExcludedSubjects() {
+		if existingExclusion.GetSubjectId() == adding.GetSubjectId() {
+			// If the conditional on the concrete is empty, then the concrete is always present, so
+			// we remove the exclusion entirely.
+			if adding.GetCaveatExpression() == nil {
+				continue
+			}
+
+			// Otherwise, the conditional expression for the new exclusion is the existing expression &&
+			// the *inversion* of the concrete's expression, as the exclusion will only apply if the
+			// concrete subject is not present and the exclusion's expression is true.
+			exclusionConditionalExpression := caveatAnd(
+				existingExclusion.GetCaveatExpression(),
+				caveatInvert(adding.GetCaveatExpression()),
+			)
+
+			updatedExclusions = append(updatedExclusions, constructor(
+				adding.GetSubjectId(),
+				exclusionConditionalExpression,
+				nil,
+				existingExclusion,
+				adding),
+			)
+		} else {
+			updatedExclusions = append(updatedExclusions, existingExclusion)
+		}
+	}
+
+	constructed := constructor(
+		tuple.PublicWildcard,
+		existingWildcard.GetCaveatExpression(),
+		updatedExclusions,
+		existingWildcard)
+	return &constructed
+}
+
+// unionConcreteWithConcrete performs a union operation between two concrete subjects and returns
+// the concrete subject produced, if any.
+func unionConcreteWithConcrete[T Subject[T]](existing *T, adding *T, constructor constructor[T]) *T {
+	// Check for union with other concretes.
+	if existing == nil {
+		return adding
+	}
+
+	if adding == nil {
+		return existing
+	}
+
+	existingConcrete := *existing
+	addingConcrete := *adding
+
+	// A union of a concrete subjects has the conditionals of each concrete merged.
+	constructed := constructor(
+		existingConcrete.GetSubjectId(),
+		shortcircuitedOr(
+			existingConcrete.GetCaveatExpression(),
+			addingConcrete.GetCaveatExpression(),
+		),
+		nil,
+		existingConcrete, addingConcrete)
+	return &constructed
+}
+
+// subtractWildcardFromWildcard performs a subtraction operation of wildcard from another, returning
+// the updated wildcard (if any), as well as any concrete subjects produced by the subtraction
+// operation due to exclusions.
+func subtractWildcardFromWildcard[T Subject[T]](existing *T, toRemove T, constructor constructor[T]) (*T, []T) {
+	// If there is no existing wildcard, nothing more to do.
+	if existing == nil {
+		return nil, nil
+	}
+
+	// If there is no condition on the wildcard and the new wildcard has no exclusions, then this wildcard goes away.
+	// Example: {*} - {*} => {}
+	if toRemove.GetCaveatExpression() == nil && len(toRemove.GetExcludedSubjects()) == 0 {
+		return nil, nil
+	}
+
+	// Otherwise, we construct a new wildcard and return any concrete subjects that might result from this subtraction.
+	existingWildcard := *existing
+	existingExclusions := exclusionsMapFor(existingWildcard)
+
+	// Calculate the exclusions which turn into concrete subjects.
+	// This occurs when a wildcard with exclusions is subtracted from a wildcard
+	// (with, or without *matching* exclusions).
+	//
+	// Example:
+	// Given the two wildcards `* - {user:sarah}` and `* - {user:tom, user:amy, user:sarah}`,
+	// the resulting concrete subjects are {user:tom, user:amy} because the first set contains
+	// `tom` and `amy` (but not `sarah`) and the second set contains all three.
+	resultingConcreteSubjects := make([]T, 0, len(toRemove.GetExcludedSubjects()))
+	for _, excludedSubject := range toRemove.GetExcludedSubjects() {
+		if existingExclusion, isExistingExclusion := existingExclusions[excludedSubject.GetSubjectId()]; !isExistingExclusion || existingExclusion.GetCaveatExpression() != nil {
+			// The conditional expression for the now-concrete subject type is the conditional on the provided exclusion
+			// itself.
+			//
+			// As an example, subtracting the wildcards
+			// {*[caveat1] - {user:tom}}
+			// -
+			// {*[caveat3] - {user:sarah[caveat4]}}
+			//
+			// the resulting expression to produce a *concrete* `user:sarah` is
+			// `caveat1 && caveat3 && caveat4`, because the concrete subject only appears if the first
+			// wildcard applies, the *second* wildcard applies and its exclusion applies.
+			exclusionConditionalExpression := caveatAnd(
+				caveatAnd(
+					existingWildcard.GetCaveatExpression(),
+					toRemove.GetCaveatExpression(),
+				),
+				excludedSubject.GetCaveatExpression(),
+			)
+
+			// If there is an existing exclusion, then its caveat expression is added as well, but inverted.
+			//
+			// As an example, subtracting the wildcards
+			// {*[caveat1] - {user:tom[caveat2]}}
+			// -
+			// {*[caveat3] - {user:sarah[caveat4]}}
+			//
+			// the resulting expression to produce a *concrete* `user:sarah` is
+			// `caveat1 && !caveat2 && caveat3 && caveat4`, because the concrete subject only appears
+			// if the first wildcard applies, the *second* wildcard applies, the first exclusion
+			// does *not* apply (ensuring the concrete is in the first wildcard) and the second exclusion
+			// *does* apply (ensuring it is not in the second wildcard).
+			if existingExclusion.GetCaveatExpression() != nil {
+				exclusionConditionalExpression = caveatAnd(
+					caveatAnd(
+						caveatAnd(
+							existingWildcard.GetCaveatExpression(),
+							toRemove.GetCaveatExpression(),
+						),
+						caveatInvert(existingExclusion.GetCaveatExpression()),
+					),
+					excludedSubject.GetCaveatExpression(),
+				)
+			}
+
+			resultingConcreteSubjects = append(resultingConcreteSubjects, constructor(
+				excludedSubject.GetSubjectId(),
+				exclusionConditionalExpression,
+				nil, excludedSubject))
+		}
+	}
+
+	// Create the combined conditional: the wildcard can only exist when it is present and the other wildcard is not.
+	combinedConditionalExpression := caveatAnd(existingWildcard.GetCaveatExpression(), caveatInvert(toRemove.GetCaveatExpression()))
+	if combinedConditionalExpression != nil {
+		constructed := constructor(
+			tuple.PublicWildcard,
+			combinedConditionalExpression,
+			existingWildcard.GetExcludedSubjects(),
+			existingWildcard,
+			toRemove)
+		return &constructed, resultingConcreteSubjects
+	}
+
+	return nil, resultingConcreteSubjects
+}
+
+// subtractWildcardFromConcrete subtracts a wildcard from a concrete element, returning the updated
+// concrete subject, if any.
+func subtractWildcardFromConcrete[T Subject[T]](existingConcrete T, wildcardToRemove T, constructor constructor[T]) *T {
+	// Subtraction of a wildcard removes *all* elements of the concrete set, except those that
+	// are found in the excluded list. If the wildcard *itself* is conditional, then instead of
+	// items being removed, they are made conditional on the inversion of the wildcard's expression,
+	// and the exclusion's conditional, if any.
+	//
+	// Examples:
+	//  {user:sarah, user:tom} - {*} => {}
+	//  {user:sarah, user:tom} - {*[somecaveat]} => {user:sarah[!somecaveat], user:tom[!somecaveat]}
+	//  {user:sarah, user:tom} - {* - {user:tom}} => {user:tom}
+	//  {user:sarah, user:tom} - {*[somecaveat] - {user:tom}} => {user:sarah[!somecaveat], user:tom}
+	//  {user:sarah, user:tom} - {* - {user:tom[c2]}}[somecaveat] => {user:sarah[!somecaveat], user:tom[c2]}
+	//  {user:sarah[c1], user:tom} - {*[somecaveat] - {user:tom}} => {user:sarah[c1 && !somecaveat], user:tom}
+	exclusions := exclusionsMapFor(wildcardToRemove)
+	exclusion, isExcluded := exclusions[existingConcrete.GetSubjectId()]
+	if !isExcluded {
+		// If the subject was not excluded within the wildcard, it is either removed directly
+		// (in the case where the wildcard is not conditional), or has its condition updated to
+		// reflect that it is only present when the condition for the wildcard is *false*.
+		if wildcardToRemove.GetCaveatExpression() == nil {
+			return nil
+		}
+
+		constructed := constructor(
+			existingConcrete.GetSubjectId(),
+			caveatAnd(existingConcrete.GetCaveatExpression(), caveatInvert(wildcardToRemove.GetCaveatExpression())),
+			nil,
+			existingConcrete)
+		return &constructed
+	}
+
+	// If the exclusion is not conditional, then the subject is always present.
+	if exclusion.GetCaveatExpression() == nil {
+		return &existingConcrete
+	}
+
+	// The conditional of the exclusion is that of the exclusion itself OR the caveatInverted case of
+	// the wildcard, which would mean the wildcard itself does not apply.
+	exclusionConditional := caveatOr(caveatInvert(wildcardToRemove.GetCaveatExpression()), exclusion.GetCaveatExpression())
+
+	constructed := constructor(
+		existingConcrete.GetSubjectId(),
+		caveatAnd(existingConcrete.GetCaveatExpression(), exclusionConditional),
+		nil,
+		existingConcrete)
+	return &constructed
+}
+
+// subtractConcreteFromConcrete subtracts a concrete subject from another concrete subject.
+func subtractConcreteFromConcrete[T Subject[T]](existingConcrete T, toRemove T, constructor constructor[T]) *T {
+	// Subtraction of a concrete type removes the entry from the concrete list
+	// *unless* the subtraction is conditional, in which case the conditional is updated
+	// to remove the element when it is true.
+	//
+	// Examples:
+	//  {user:sarah} - {user:tom} => {user:sarah}
+	//  {user:tom} - {user:tom} => {}
+	//  {user:tom[c1]} - {user:tom} => {user:tom}
+	//  {user:tom} - {user:tom[c2]} => {user:tom[!c2]}
+	//  {user:tom[c1]} - {user:tom[c2]} => {user:tom[c1 && !c2]}
+	if toRemove.GetCaveatExpression() == nil {
+		return nil
+	}
+
+	// Otherwise, adjust the conditional of the existing item to remove it if it is true.
+	expression := caveatAnd(
+		existingConcrete.GetCaveatExpression(),
+		caveatInvert(
+			toRemove.GetCaveatExpression(),
+		),
+	)
+
+	constructed := constructor(
+		existingConcrete.GetSubjectId(),
+		expression,
+		nil,
+		existingConcrete, toRemove)
+	return &constructed
+}
+
+// subtractConcreteFromWildcard subtracts a concrete element from a wildcard.
+func subtractConcreteFromWildcard[T Subject[T]](wildcard T, concreteToRemove T, constructor constructor[T]) *T {
+	// Subtracting a concrete type from a wildcard adds the concrete to the exclusions for the wildcard.
+	// Examples:
+	//  {*} - {user:tom} => {* - {user:tom}}
+	//  {*} - {user:tom[c1]} => {* - {user:tom[c1]}}
+	//  {* - {user:tom[c1]}} - {user:tom} => {* - {user:tom}}
+	//  {* - {user:tom[c1]}} - {user:tom[c2]} => {* - {user:tom[c1 || c2]}}
+	updatedExclusions := make([]T, 0, len(wildcard.GetExcludedSubjects())+1)
+	wasFound := false
+	for _, existingExclusion := range wildcard.GetExcludedSubjects() {
+		if existingExclusion.GetSubjectId() == concreteToRemove.GetSubjectId() {
+			// The conditional expression for the exclusion is a combination on the existing exclusion or
+			// the new expression. The caveat is short-circuited here because if either the exclusion or
+			// the concrete is non-caveated, then the whole exclusion is non-caveated.
+			exclusionConditionalExpression := shortcircuitedOr(
+				existingExclusion.GetCaveatExpression(),
+				concreteToRemove.GetCaveatExpression(),
+			)
+
+			updatedExclusions = append(updatedExclusions, constructor(
+				concreteToRemove.GetSubjectId(),
+				exclusionConditionalExpression,
+				nil,
+				existingExclusion,
+				concreteToRemove),
+			)
+			wasFound = true
+		} else {
+			updatedExclusions = append(updatedExclusions, existingExclusion)
+		}
+	}
+
+	if !wasFound {
+		updatedExclusions = append(updatedExclusions, concreteToRemove)
+	}
+
+	constructed := constructor(
+		tuple.PublicWildcard,
+		wildcard.GetCaveatExpression(),
+		updatedExclusions,
+		wildcard)
+	return &constructed
+}
+
+// intersectConcreteWithConcrete performs intersection between two concrete subjects, returning the
+// resolved concrete subject, if any.
+func intersectConcreteWithConcrete[T Subject[T]](first T, second *T, constructor constructor[T]) *T {
+	// Intersection of concrete subjects is a standard intersection operation, where subjects
+	// must be in both sets, with a combination of the two elements into one for conditionals.
+	// Otherwise, `and` together conditionals.
+	if second == nil {
+		return nil
+	}
+
+	secondConcrete := *second
+	constructed := constructor(
+		first.GetSubjectId(),
+		caveatAnd(first.GetCaveatExpression(), secondConcrete.GetCaveatExpression()),
+		nil,
+		first,
+		secondConcrete)
+
+	return &constructed
+}
+
+// intersectWildcardWithWildcard performs intersection between two wildcards, returning the resolved
+// wildcard subject, if any.
+func intersectWildcardWithWildcard[T Subject[T]](first *T, second *T, constructor constructor[T]) *T {
+	// If either wildcard does not exist, then no wildcard is placed into the resulting set.
+	if first == nil || second == nil {
+		return nil
+	}
+
+	// If the other wildcard exists, then the intersection between the two wildcards is an && of
+	// their conditionals, and a *union* of their exclusions.
+	firstWildcard := *first
+	secondWildcard := *second
+
+	concreteExclusions := NewBaseSubjectSet(constructor)
+	for _, excludedSubject := range firstWildcard.GetExcludedSubjects() {
+		if excludedSubject.GetSubjectId() == tuple.PublicWildcard {
+			panic("wildcards are not allowed in exclusions")
+		}
+		concreteExclusions.Add(excludedSubject)
+	}
+
+	for _, excludedSubject := range secondWildcard.GetExcludedSubjects() {
+		if excludedSubject.GetSubjectId() == tuple.PublicWildcard {
+			panic("wildcards are not allowed in exclusions")
+		}
+		concreteExclusions.Add(excludedSubject)
+	}
+
+	constructed := constructor(
+		tuple.PublicWildcard,
+		caveatAnd(firstWildcard.GetCaveatExpression(), secondWildcard.GetCaveatExpression()),
+		concreteExclusions.AsSlice(),
+		firstWildcard,
+		secondWildcard)
+	return &constructed
+}
+
+// intersectConcreteWithWildcard performs intersection between a concrete subject and a wildcard
+// subject, returning the concrete, if any.
+func intersectConcreteWithWildcard[T Subject[T]](concrete T, wildcard *T, constructor constructor[T]) *T {
+	// If no wildcard exists, then the concrete cannot exist (for this branch)
+	if wildcard == nil {
+		return nil
+	}
+
+	wildcardToIntersect := *wildcard
+	exclusionsMap := exclusionsMapFor(wildcardToIntersect)
+	exclusion, isExcluded := exclusionsMap[concrete.GetSubjectId()]
+
+	// Cases:
+	// - The concrete subject is not excluded and the wildcard is not conditional => concrete is kept
+	// - The concrete subject is excluded and the wildcard is not conditional but the exclusion *is* conditional => concrete is made conditional
+	// - The concrete subject is excluded and the wildcard is not conditional => concrete is removed
+	// - The concrete subject is not excluded but the wildcard is conditional => concrete is kept, but made conditional
+	// - The concrete subject is excluded and the wildcard is conditional => concrete is removed, since it is always excluded
+	// - The concrete subject is excluded and the wildcard is conditional and the exclusion is conditional => combined conditional
+	switch {
+	case !isExcluded && wildcardToIntersect.GetCaveatExpression() == nil:
+		// If the concrete is not excluded and the wildcard conditional is empty, then the concrete is always found.
+		// Example: {user:tom} & {*} => {user:tom}
+		return &concrete
+
+	case !isExcluded && wildcardToIntersect.GetCaveatExpression() != nil:
+		// The concrete subject is only included if the wildcard's caveat is true.
+		// Example: {user:tom}[acaveat] & {* - user:tom}[somecaveat] => {user:tom}[acaveat && somecaveat]
+		constructed := constructor(
+			concrete.GetSubjectId(),
+			caveatAnd(concrete.GetCaveatExpression(), wildcardToIntersect.GetCaveatExpression()),
+			nil,
+			concrete,
+			wildcardToIntersect)
+		return &constructed
+
+	case isExcluded && exclusion.GetCaveatExpression() == nil:
+		// If the concrete is excluded and the exclusion is not conditional, then the concrete can never show up,
+		// regardless of whether the wildcard is conditional.
+		// Example: {user:tom} & {* - user:tom}[somecaveat] => {}
+		return nil
+
+	case isExcluded && exclusion.GetCaveatExpression() != nil:
+		// NOTE: whether the wildcard is itself conditional or not is handled within the expression combinators below.
+		// The concrete subject is included if the wildcard's caveat is true and the exclusion's caveat is *false*.
+		// Example: {user:tom}[acaveat] & {* - user:tom[ecaveat]}[wcaveat] => {user:tom[acaveat && wcaveat && !ecaveat]}
+		constructed := constructor(
+			concrete.GetSubjectId(),
+			caveatAnd(
+				concrete.GetCaveatExpression(),
+				caveatAnd(
+					wildcardToIntersect.GetCaveatExpression(),
+					caveatInvert(exclusion.GetCaveatExpression()),
+				)),
+			nil,
+			concrete,
+			wildcardToIntersect,
+			exclusion)
+		return &constructed
+	}
+
+	panic(fmt.Sprintf("unhandled case in basesubjectset intersectConcreteWithWildcard: %v & %v", concrete, wildcardToIntersect))
+}
+
+type handle[T any] struct {
+	value *T
+}
+
+func newHandle[T any]() *handle[T] {
+	return &handle[T]{}
+}
+
+func (h *handle[T]) getOrNil() *T {
+	return h.value
+}
+
+func (h *handle[T]) setOrNil(value *T) {
+	h.value = value
+}
+
+func (h *handle[T]) get() (T, bool) {
+	if h.value != nil {
+		return *h.value, true
+	}
+
+	return *new(T), false
+}
+
+func (h *handle[T]) clear() {
+	h.value = nil
+}
+
+func (h *handle[T]) clone() *handle[T] {
+	return &handle[T]{
+		value: h.value,
+	}
+}
+
+// exclusionsMapFor creates a map of all the exclusions on a wildcard, by subject ID.
+func exclusionsMapFor[T Subject[T]](wildcard T) map[string]T {
+	exclusions := make(map[string]T, len(wildcard.GetExcludedSubjects()))
+	for _, excludedSubject := range wildcard.GetExcludedSubjects() {
+		exclusions[excludedSubject.GetSubjectId()] = excludedSubject
+	}
+	return exclusions
+}
+
+// shortcircuitedOr combines two caveat expressions via an `||`. If one of the expressions is nil,
+// then the entire expression is *short-circuited*, and a nil is returned.
+func shortcircuitedOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
+	if first == nil || second == nil {
+		return nil
+	}
+
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Operation{
+			Operation: &v1.CaveatOperation{
+				Op:       v1.CaveatOperation_OR,
+				Children: []*v1.CaveatExpression{first, second},
+			},
+		},
+	}
+}
+
+// caveatOr `||`'s together two caveat expressions. If one expression is nil, the other is returned.
+func caveatOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
+	if first == nil {
+		return second
+	}
+
+	if second == nil {
+		return first
+	}
+
+	if first.EqualVT(second) {
+		return first
+	}
+
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Operation{
+			Operation: &v1.CaveatOperation{
+				Op:       v1.CaveatOperation_OR,
+				Children: []*v1.CaveatExpression{first, second},
+			},
+		},
+	}
+}
+
+// caveatAnd `&&`'s together two caveat expressions. If one expression is nil, the other is returned.
+func caveatAnd(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
+	if first == nil {
+		return second
+	}
+
+	if second == nil {
+		return first
+	}
+
+	if first.EqualVT(second) {
+		return first
+	}
+
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Operation{
+			Operation: &v1.CaveatOperation{
+				Op:       v1.CaveatOperation_AND,
+				Children: []*v1.CaveatExpression{first, second},
+			},
+		},
+	}
+}
+
+// caveatInvert returns the caveat expression with a `!` placed in front of it. If the expression is
+// nil, returns nil.
+func caveatInvert(ce *v1.CaveatExpression) *v1.CaveatExpression {
+	if ce == nil {
+		return nil
+	}
+
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Operation{
+			Operation: &v1.CaveatOperation{
+				Op:       v1.CaveatOperation_NOT,
+				Children: []*v1.CaveatExpression{ce},
+			},
+		},
+	}
 }

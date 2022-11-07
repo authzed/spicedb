@@ -1,69 +1,73 @@
 ---
 run:
-  timeout: "5m"
+  timeout: '5m'
 output:
   sort-results: true
 linters-settings:
   goimports:
-    local-prefixes: "github.com/authzed/spicedb"
+    local-prefixes: 'github.com/authzed/spicedb'
   rowserrcheck:
     packages:
-      - "github.com/jmoiron/sqlx"
-      - "github.com/jackc/pgx"
+      - 'github.com/jmoiron/sqlx'
+      - 'github.com/jackc/pgx'
   gosec:
     excludes:
-      - "G404"  # Allow the usage of math/rand
+      - 'G404' # Allow the usage of math/rand
 linters:
   enable:
-    - "bidichk"
-    - "bodyclose"
-    - "deadcode"
-    - "errcheck"
-    - "errname"
-    - "errorlint"
-    - "gofumpt"
-    - "goimports"
-    - "goprintffuncname"
-    - "gosec"
-    - "gosimple"
-    - "govet"
-    - "importas"
-    - "ineffassign"
-    - "makezero"
-    - "prealloc"
-    - "predeclared"
-    - "promlinter"
-    - "revive"
-    - "rowserrcheck"
-    - "staticcheck"
-    - "structcheck"
-    - "stylecheck"
-    - "tenv"
-    - "typecheck"
-    - "unconvert"
-    - "unused"
-    - "varcheck"
-    - "wastedassign"
-    - "whitespace"
+    - 'bidichk'
+    - 'bodyclose'
+    - 'deadcode'
+    - 'errcheck'
+    - 'errname'
+    - 'errorlint'
+    - 'gofumpt'
+    - 'goimports'
+    - 'goprintffuncname'
+    - 'gosec'
+    - 'gosimple'
+    - 'govet'
+    - 'importas'
+    - 'ineffassign'
+    - 'makezero'
+    - 'prealloc'
+    - 'predeclared'
+    - 'promlinter'
+    - 'revive'
+    - 'rowserrcheck'
+    - 'staticcheck'
+    - 'structcheck'
+    - 'stylecheck'
+    - 'tenv'
+    - 'typecheck'
+    - 'unconvert'
+    - 'unused'
+    - 'varcheck'
+    - 'wastedassign'
+    - 'whitespace'
 issues:
   exclude-rules:
-    - text: "tx.Rollback()"
+    - text: 'tx.Rollback()'
       linters:
-        - "errcheck"
+        - 'errcheck'
     # NOTE: temporarily disable deprecation checks for v0.
-    - path: "internal/services/"
+    - path: 'internal/services/'
       linters:
-        - "staticcheck"
-      text: "SA1019"
-    - path: "internal/middleware/consistency/"
+        - 'staticcheck'
+      text: 'SA1019'
+    - path: 'internal/middleware/consistency/'
       linters:
-        - "staticcheck"
-      text: "SA1019"
-    - path: "pkg/proto/core/v1/core.pb.validate.manual.go"  # Ignore manual definition of metadata map
+        - 'staticcheck'
+      text: 'SA1019'
+    - path: 'pkg/proto/core/v1/core.pb.validate.manual.go' # Ignore manual definition of metadata map
       linters:
-        - "stylecheck"
-      text: "ST1003"
-    - path: "pkg/proto/core/v1/core.pb.validate.manual.go"  # Ignore manual definition of metadata map
+        - 'stylecheck'
+      text: 'ST1003'
+    - path: 'pkg/proto/core/v1/core.pb.validate.manual.go' # Ignore manual definition of metadata map
       linters:
-        - "revive"
-      text: "var-naming"
+        - 'revive'
+      text: 'var-naming'
+    # Ignore receiver errors for generic types not understood by the linter.
+    - linters:
+        - 'revive'
+      text: 'receiver-naming: receiver name \S+ should be consistent with previous receiver name \S+ for invalid-type'

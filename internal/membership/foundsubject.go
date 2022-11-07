@@ -6,13 +6,14 @@ import (
 	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewFoundSubject creates a new FoundSubject for a subject and a set of its resources.
 func NewFoundSubject(subject *core.ObjectAndRelation, resources ...*core.ObjectAndRelation) FoundSubject {
-	return FoundSubject{subject, nil, tuple.NewONRSet(resources...)}
+	return FoundSubject{subject, nil, nil, tuple.NewONRSet(resources...)}
 }
 
 // FoundSubject contains a single found subject and all the relationships in which that subject
@@ -22,7 +23,10 @@ type FoundSubject struct {
 	subject *core.ObjectAndRelation
 
 	// excludedSubjects are any subjects excluded. Only should be set if subject is a wildcard.
-	excludedSubjectIds []string
+	excludedSubjects []FoundSubject
+
+	// caveatExpression is the conditional expression on the found subject.
+	caveatExpression *v1.CaveatExpression
 
 	// relations are the relations under which the subject lives that informed the locating
 	// of this subject for the root ONR.
@@ -36,8 +40,12 @@ func (fs FoundSubject) GetSubjectId() string {
 	return fs.subject.ObjectId
 }
 
-func (fs FoundSubject) GetExcludedSubjectIds() []string {
-	return fs.excludedSubjectIds
+func (fs FoundSubject) GetCaveatExpression() *v1.CaveatExpression {
+	return fs.caveatExpression
+}
+
+func (fs FoundSubject) GetExcludedSubjects() []FoundSubject {
+	return fs.excludedSubjects
 }
 
 // Subject returns the Subject of the FoundSubject.
@@ -58,19 +66,34 @@ func (fs FoundSubject) WildcardType() (string, bool) {
 // If not a wildcard subject, returns false.
 func (fs FoundSubject) ExcludedSubjectsFromWildcard() ([]*core.ObjectAndRelation, bool) {
 	if fs.subject.ObjectId == tuple.PublicWildcard {
-		excludedSubjects := make([]*core.ObjectAndRelation, 0, len(fs.excludedSubjectIds))
-		for _, excludedID := range fs.excludedSubjectIds {
-			excludedSubjects = append(excludedSubjects, &core.ObjectAndRelation{
-				Namespace: fs.subject.Namespace,
-				ObjectId:  excludedID,
-				Relation:  fs.subject.Relation,
-			})
+		excludedSubjects := make([]*core.ObjectAndRelation, 0, len(fs.excludedSubjects))
+		for _, excludedSubject := range fs.excludedSubjects {
+			// TODO(jschorr): Fix once we add caveats support to debug tooling
+			if excludedSubject.caveatExpression != nil {
+				panic("not yet supported")
+			}
+
+			excludedSubjects = append(excludedSubjects, excludedSubject.subject)
 		}
 
 		return excludedSubjects, true
 	}
 
 	return []*core.ObjectAndRelation{}, false
+}
+
+func (fs FoundSubject) excludedSubjectIDs() []string {
+	excludedSubjects := make([]string, 0, len(fs.excludedSubjects))
+	for _, excludedSubject := range fs.excludedSubjects {
+		// TODO(jschorr): Fix once we add caveats support to debug tooling
+		if excludedSubject.caveatExpression != nil {
+			panic("not yet supported")
+		}
+
+		excludedSubjects = append(excludedSubjects, excludedSubject.subject.ObjectId)
+	}
+
+	return excludedSubjects
 }
 
 // Relationships returns all the relationships in which the subject was found as per the expand.
@@ -81,6 +104,11 @@ func (fs FoundSubject) Relationships() []*core.ObjectAndRelation {
 // ToValidationString returns the FoundSubject in a format that is consumable by the validationfile
 // package.
 func (fs FoundSubject) ToValidationString() string {
+	if fs.caveatExpression != nil {
+		// TODO(jschorr): Implement once we have a format for this.
+		panic("conditional found subjects not yet supported")
+	}
+
 	onrString := tuple.StringONR(fs.Subject())
 	excluded, isWildcard := fs.ExcludedSubjectsFromWildcard()
 	if isWildcard && len(excluded) > 0 {
