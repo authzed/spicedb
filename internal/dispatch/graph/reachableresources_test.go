@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -31,6 +31,8 @@ func reachable(onr *core.ObjectAndRelation, hasPermission bool) reachableResourc
 }
 
 func TestSimpleReachableResources(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
 	testCases := []struct {
 		start     *core.RelationReference
 		target    *core.ObjectAndRelation
