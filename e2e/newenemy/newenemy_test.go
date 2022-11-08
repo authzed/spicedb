@@ -16,7 +16,6 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/authzed/authzed-go/proto/authzed/api/v1alpha1"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/require"
@@ -175,10 +174,10 @@ func TestNoNewEnemy(t *testing.T) {
 	// 4000 is larger than we need to span all three nodes, but a higher number
 	// seems to make the test converge faster
 	schemaData := generateSchemaData(4000, 500)
-	fillSchema(t, schemaTpl, schemaData, vulnerableSpiceDB[1].Client().V1Alpha1().Schema())
+	fillSchema(t, schemaTpl, schemaData, vulnerableSpiceDB[1].Client().V1().Schema())
 	slowNodeID, err := crdb[1].NodeID(ctx)
 	require.NoError(t, err)
-	prefix := namespacesForNode(ctx, t, crdb[1].Conn(), vulnerableSpiceDB[0].Client().V1Alpha1().Schema(), slowNodeID)
+	prefix := namespacesForNode(ctx, t, crdb[1].Conn(), vulnerableSpiceDB[0].Client().V1().Schema(), slowNodeID)
 	t.Log("fill with relationships to span multiple ranges")
 	fill(ctx, t, vulnerableSpiceDB[0].Client().V1().Permissions(), prefix, generator.NewUniqueGenerator(objIDRegex), 500, 500)
 
@@ -304,7 +303,7 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 	objIDGenerator := generator.NewUniqueGenerator(objIDRegex)
 	var prefix NamespaceNames
 	if goodNs == nil {
-		prefix = namespacesForNode(ctx, t, crdb[1].Conn(), spicedb[0].Client().V1Alpha1().Schema(), slowNodeID)
+		prefix = namespacesForNode(ctx, t, crdb[1].Conn(), spicedb[0].Client().V1().Schema(), slowNodeID)
 		t.Log("filling with data to span multiple ranges for prefix", prefix)
 		fill(ctx, t, spicedb[0].Client().V1().Permissions(), prefix, objIDGenerator, 100, 100)
 	} else {
@@ -436,14 +435,14 @@ func fill(ctx context.Context, t testing.TB, client v1.PermissionsServiceClient,
 }
 
 // fillSchema generates the schema text for given SchemaData and applies it
-func fillSchema(t testing.TB, template *template.Template, data []SchemaData, schemaClient v1alpha1.SchemaServiceClient) {
+func fillSchema(t testing.TB, template *template.Template, data []SchemaData, schemaClient v1.SchemaServiceClient) {
 	var b strings.Builder
 	batchSize := len(data[0].Namespaces)
 	for i, d := range data {
 		t.Logf("filling %d to %d", i*batchSize, (i+1)*batchSize)
 		b.Reset()
 		require.NoError(t, template.Execute(&b, d))
-		_, err := schemaClient.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 			Schema: b.String(),
 		})
 		require.NoError(t, err)
@@ -451,13 +450,13 @@ func fillSchema(t testing.TB, template *template.Template, data []SchemaData, sc
 }
 
 // namespacesForNode finds a prefix with namespace leaders on the node id
-func namespacesForNode(ctx context.Context, t testing.TB, conn *pgx.Conn, schemaClient v1alpha1.SchemaServiceClient, node int) NamespaceNames {
+func namespacesForNode(ctx context.Context, t testing.TB, conn *pgx.Conn, schemaClient v1.SchemaServiceClient, node int) NamespaceNames {
 	for {
 		newSchema := generateSchemaData(1, 1)
 		p := newSchema[0].Namespaces[0]
 		var b strings.Builder
 		require.NoError(t, schemaTpl.Execute(&b, newSchema[0]))
-		_, err := schemaClient.WriteSchema(context.Background(), &v1alpha1.WriteSchemaRequest{
+		_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 			Schema: b.String(),
 		})
 		require.NoError(t, err)

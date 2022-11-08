@@ -19,7 +19,6 @@ import (
 	"github.com/authzed/spicedb/internal/services"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
-	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
@@ -60,7 +59,6 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 			srv,
 			healthManager,
 			dispatcher,
-			v1alpha1svc.PrefixNotRequired,
 			services.V1SchemaServiceEnabled,
 			services.WatchServiceEnabled,
 			services.CaveatsEnabled,

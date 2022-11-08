@@ -88,6 +88,10 @@ func (s *Node) Start(ctx context.Context, logprefix string, args ...string) erro
 		fmt.Sprintf("--dashboard-addr=:%d", s.DashboardPort),
 		"--datastore-disable-stats=true",
 		"--datastore-max-tx-retries=100",
+
+		// This ensure that we can call WriteSchema multiple times to progressively build the
+		// overall set of namespaces.
+		"--testing-only-schema-additive-writes=true",
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
